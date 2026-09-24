@@ -8,10 +8,60 @@
 // initialised once and shared across all test cases in this process.
 
 #include <doctest/doctest.h>
+#include <array>
+#include <chrono>
+#include <memory>
 #include <string>
+#include <thread>
+#include <vector>
 #include "channel/channelInterface.hpp"
 #include "channel/channelMessage.h"
+#include "dsp/dspObject.hpp"
+#include "sound/soundInterface.hpp"
 #include "support/null_device.hpp"
+#include "support/timer_pacing.hpp"
+
+namespace {
+
+  // A constant-level source that counts the blocks it rendered (#864 case).
+  class CountingVoice : public YSE::DSP::dspSourceObject {
+  public:
+    void process(YSE::SOUND_STATUS& intent) override {
+      if (intent == YSE::SS_WANTSTOSTOP || intent == YSE::SS_WANTSTOPAUSE) {
+        intent = intent == YSE::SS_WANTSTOSTOP ? YSE::SS_STOPPED : YSE::SS_PAUSED;
+        return;
+      }
+      intent = YSE::SS_PLAYING;
+      samples[0] = 0.1f;
+      ++calls;
+    }
+    void frequency(Flt) override {}
+
+    // Test thread, only while nothing renders.
+    void reset() {
+      calls = 0;
+    }
+    // Read by the test thread after renderOffline() returns.
+    int blocks() const {
+      return calls;
+    }
+
+  private:
+    int calls = 0;
+  };
+
+  // File scope: a dspSourceObject must outlive its sound's slow-pool teardown.
+  std::array<CountingVoice, 8> g_virt864Voices;
+
+  void pump864(int iterations) {
+    for (int i = 0; i < iterations; ++i) {
+      YSE::System().update();
+      YSE::System().renderOffline(1);
+      std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+  }
+
+} // namespace
 
 TEST_SUITE("channel") {
 
@@ -202,6 +252,79 @@ TEST_SUITE("channel") {
     custom.create("setVolChannel", YSE::ChannelVoice());
     custom.setVolume(0.3f);
     CHECK(custom.getVolume() == doctest::Approx(0.3f));
+  }
+
+  // ─── setVirtual(false) reaches the audio side (#864) ─────────────────────────
+  //
+  // setVirtual() used to send its CHANNEL::VIRTUAL message with a hard-coded
+  // `true`, so getVirtual() reported false while the implementation kept
+  // virtualising the channel's sounds. With more sounds than maxSounds, all at
+  // the same virtual distance, the finder admitted none of them: every sound
+  // sat in SS_WANTSTOPLAY and its source was never processed. A channel with
+  // virtualisation switched off must render every sound on it, whatever the
+  // limit.
+  //
+  // Verified fail-without-fix: on the unpatched engine no sound reaches
+  // isPlaying() and no voice renders a block.
+
+  TEST_CASE("channel: setVirtual(false) renders every sound past the maxSounds limit (#864)") {
+    if (!TestHelpers::engineInit()) return;
+    if (YSE::System().getActiveSampleRate() != 0.0) {
+      MESSAGE("skipped: an audio stream is live in this process, so the test thread is not the "
+              "only renderer; the case drives renderOffline() itself.");
+      return;
+    }
+
+    const int previousMaxSounds = YSE::System().maxSounds();
+    YSE::System().maxSounds(2);
+
+    YSE::channel ch;
+    ch.create("virt864.channel", YSE::ChannelMaster());
+    ch.setVirtual(false);
+    CHECK(ch.getVirtual() == false);
+    pump864(8);
+
+    std::vector<std::unique_ptr<YSE::sound>> sounds;
+    sounds.reserve(g_virt864Voices.size());
+    for (auto& voice : g_virt864Voices) {
+      voice.reset();
+      auto s = std::make_unique<YSE::sound>();
+      s->create(voice, &ch, 0.5f);
+      s->play();
+      sounds.push_back(std::move(s));
+    }
+
+    const bool allPlaying = TestHelpers::pacedPump(
+        3000,
+        [&sounds] {
+          for (const auto& s : sounds)
+            if (!s->isPlaying()) return false;
+          return true;
+        },
+        [] {
+          YSE::System().update();
+          YSE::System().renderOffline(1);
+        },
+        2);
+    CHECK(allPlaying);
+
+    // Every voice keeps rendering, block after block.
+    std::vector<int> before;
+    before.reserve(g_virt864Voices.size());
+    for (const auto& v : g_virt864Voices)
+      before.push_back(v.blocks());
+    YSE::System().renderOffline(8);
+    for (std::size_t i = 0; i < g_virt864Voices.size(); ++i) {
+      INFO("voice " << i);
+      CHECK(g_virt864Voices[i].blocks() - before[i] == 8);
+    }
+
+    YSE::System().maxSounds(previousMaxSounds);
+    for (auto& s : sounds)
+      s->stop();
+    pump864(8);
+    sounds.clear();
+    pump864(8);
   }
 
 } // TEST_SUITE("channel")

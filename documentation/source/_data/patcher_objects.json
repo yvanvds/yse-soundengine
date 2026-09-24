@@ -5888,7 +5888,7 @@
   },
   ".dict.compare": {
     "category": "GENERIC",
-    "description": "Compares two dictionaries — Max's dict.compare on the name-addressed value model .dict settled: both dictionaries are bound from the creation arguments, \".dict.compare <left> <right>\", because a dictionary is addressed by name and never passed down a cord. A bang, or the left dictionary's reference message \"dictionary <name>\", sends 1 when the two hold the same entries and 0 when they do not — the same number of entries and every key path present in both with identical value text, storage order ignored. The comparison answers \"did anything change?\" without diffing key by key: a patch that keeps a dictionary of live parameters compares the preset it just loaded against what is running.",
+    "description": "Compares two dictionaries — Max's dict.compare on the name-addressed value model .dict settled: both dictionaries are bound from the creation arguments, \".dict.compare <left> <right>\", because a dictionary is addressed by name and never passed down a cord. A bang, or the left dictionary's reference message \"dictionary <name>\", sends 1 when the two hold the same entries and 0 when they do not — the same number of entries and every key path present in both with identical value text, storage order ignored. On a difference, the differing key paths follow out the second outlet, so a patch that keeps a dictionary of live parameters can compare the preset it just loaded against what is running and repair exactly the keys that drifted.",
     "inlets": [
       {
         "accepts": [
@@ -5914,11 +5914,18 @@
     "name": ".dict.compare",
     "outlets": [
       {
-        "doc": "The verdict: 1 when the two dictionaries hold the same entries — the same number of them, every key path present in both with identical value text, storage order ignored — and 0 when they do not.",
+        "doc": "The verdict: 1 when the two dictionaries hold the same entries — the same number of them, every key path present in both with identical value text, storage order ignored — and 0 when they do not. Sent first, before the differing paths.",
         "index": 0,
         "label": "equal",
         "range": "0 or 1",
         "type": "INT"
+      },
+      {
+        "doc": "On a difference, the key paths that differ, sent after the verdict as space-separated list text — the getkeys rendering: paths only in the left dictionary or in both with different value text, in the left's storage order, then paths only in the right. Silent when the two are equal. At most 256 paths and the list-text bound; a path that does not fit is refused and counted, and the verdict is unaffected.",
+        "index": 1,
+        "label": "paths",
+        "range": "at most 256 paths",
+        "type": "ANY"
       }
     ],
     "params": [

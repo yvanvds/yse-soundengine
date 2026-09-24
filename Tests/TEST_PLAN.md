@@ -560,6 +560,99 @@ None beyond what was introduced in earlier phases.
 
 ---
 
+## Render Scheduler Measurement Foundation (issue #857)
+
+The render-scheduler epic (#856) replaces the channel fan-out render pool in
+steps (#858 park-and-wake, #859 task graph, #860 voice slices, #861 cost
+tracking). Every step is judged against two things introduced here: a
+correctness oracle and a set of benchmarks with work worth parallelising.
+
+**Worker-count hook.** `INTERNAL::Global().setRenderWorkerCount(n)` (backed by
+`threadPool::setWorkerCount`) re-sizes the render pool between renders: `-1`
+restores the auto-sized default (`MAX_AUTO_RENDER_THREADS` = 2), `0` means no
+render workers at all — the rendering thread runs every channel job itself via
+`join()`'s help-running. Internal until #861 exposes a thread-count policy.
+Control thread only, and only while nothing renders.
+
+**Golden test** — `Tests/channel/test_render_golden.cpp`, suite
+`rendergolden`. Renders a deterministic 19-voice scene (a parent channel with
+five leaf channels, one with a child of its own, all captured through a
+post-fader send into a return whose insert records the mix) for 48 blocks with
+0, 1, 2 and N render workers, then 0 again, and requires every captured block
+to match the 0-worker render bit for bit, with every voice rendered exactly
+once per block. Runs in the monolithic `yse_unit_tests` entry (so in the
+dev-push TSan sweep, `tests-tsan-full`) and in its own `yse_tests_rendergolden`
+entry (so in the per-PR `tests-tsan` gate). Removing the `join()` from
+`buffersToParent()` makes it fail at every worker count.
+
+**Benchmarks** — `Bench/integration/`:
+
+- `BM_Engine_RenderOffline_100Sounds*` / `BM_Engine_RealtimeFactor_100Sounds`
+  (`bench_mixing.cpp`) are now order-independent. The shared scene is pumped
+  until every sound is playing, and each render benchmark drops the update
+  flags the UpdateTick benchmarks bank before timing
+  (`BenchHelpers::settleControlPlane`), so a filtered run and a full run time
+  the same thing: the audio callback body with no control-plane work.
+- `BM_Engine_RenderHeavy_Channels/workers:W` (`bench_render_heavy.cpp`) — 8
+  channels x 56 voices, each voice a dspSourceObject running saw -> swept
+  ladder filter -> envelope (one VA-synth voice, ~4 us per block).
+- `BM_Engine_RenderHeavy_Swarm/workers:W` — the same 448 voices on one
+  channel: the swarm shape a channel-granular pool cannot split.
+
+W in {0, 1, 2, 4, 8, 24} is the render worker count. `per_channel_job` is the wall
+time per block divided by the channel count; at W = 0 it is the cost of one
+channel job.
+
+**Baseline** (AMD Ryzen AI 9 HX 370, 12C/24T, Windows 11, MSYS2 Clang64,
+`bench` preset, 2026-09-24; medians of 5 repetitions of a filtered run, the
+process pinned to logical CPUs 0-7 — the four Zen 5 cores, `ProcessorAffinity
+= 0xFF` — so every run lands on the same core type, see the note below):
+
+| Benchmark | W = 0 | W = 1 | W = 2 | W = 4 |
+|---|---|---|---|---|
+| `RenderHeavy_Channels` per block | 1.87 ms | 1.02 ms | 0.75 ms | 0.51 ms |
+| `RenderHeavy_Channels` per channel job | 234 us | 128 us | 94 us | 64 us |
+| `RenderHeavy_Swarm` per block | 1.92 ms | 1.85 ms | 1.88 ms | 1.88 ms |
+
+The heavy scenes read the same in a filtered and in a full `BM_Engine_` run
+(within 2%). `BM_Engine_RenderOffline_100Sounds` (auto-sized pool, per 64
+blocks): 96 us filtered, 112 us in the full run. Before this change the same
+benchmark reported 8.8 us filtered (silence: ~930 M samples/s) and 411 us in a
+full run (every timed block also ran the manager update the UpdateTick
+benchmarks had banked).
+
+Reading them: with jobs past 200 us the current channel fan-out already pays
+off (2.5x at W = 2, 3.6x at W = 4 for the eight-channel scene) — #812's
+"parallelism loses" was a property of 2-15 us jobs. The swarm does not move
+at any W: one channel is one job.
+
+Why pinned: the part is hybrid (4 Zen 5 + 8 Zen 5c cores), and an unpinned
+run is bimodal — whenever the rendering thread lands on a compact core every
+render benchmark reads ~1.6x slower (W = 0 swarm: 1.85 ms pinned to CPU 0 or
+2, 2.9-3.1 ms pinned to CPU 8, 16 or 22). Unpinned, that looks like order
+dependence between benchmarks and is not. Re-measure with the same mask, or
+compare configurations within one run. Core placement itself is #862.
+
+**Render workers park instead of yield-spinning (#858).** W now also sweeps
+8 and 24. Interleaved A/B (HEAD vs. #858, two rounds of 3 repetitions each,
+medians, same 0xFF mask, per block):
+
+| Benchmark | W = 0 | W = 1 | W = 2 | W = 4 | W = 8 | W = 24 |
+|---|---|---|---|---|---|---|
+| `RenderHeavy_Channels` before | 1.85 ms | 1.01 ms | 0.74 ms | 0.51 ms | 0.27 ms | 0.28 ms |
+| `RenderHeavy_Channels` after | 1.85 ms | 1.00 ms | 0.74 ms | 0.50 ms | 0.27 ms | 0.32 ms |
+| `RenderHeavy_Swarm` before | 1.85 ms | 1.87 ms | 1.85 ms | 1.85 ms | 1.88 ms | 1.90 ms |
+| `RenderHeavy_Swarm` after | 1.85 ms | 1.85 ms | 1.85 ms | 1.85 ms | 1.86 ms | 1.85 ms |
+
+The swarm (one job, W - 1 idle workers) no longer degrades with W: the idle
+workers sleep instead of competing with the rendering thread. W = 8 and 24
+run 9 and 25 threads on 8 logical CPUs; at W = 24 the eight-channel scene
+pays the Windows wake latency of the workers it has to unpark (Windows cannot
+wake "n" waiters, so a partial fan-out wakes one and the woken pass it on).
+`BM_Engine_RenderOffline_100Sounds`: 108 us before and after.
+
+---
+
 ## Summary Table
 
 | Phase | Subsystem | New Test Files | Key Known Issues Covered | CI Safe |

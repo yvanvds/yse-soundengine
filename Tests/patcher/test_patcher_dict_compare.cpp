@@ -26,8 +26,12 @@
 // every case that names a dictionary uses names of its own — one case's
 // contents must not be visible to the next.
 
+#include <algorithm>
+#include <cstddef>
+#include <cstdint>
 #include <doctest/doctest.h>
 #include <string>
+#include <vector>
 
 #include "patcher/genericObjects/gDict.h"
 #include "patcher/genericObjects/gDictCompare.h"
@@ -57,6 +61,7 @@ namespace {
   struct Rig {
     YSE::PATCHER::patcherImplementation p{2, nullptr};
     MultiSink out;
+    MultiSink paths;
     gDict left;
     gDict right;
     gDictCompare cmp;
@@ -70,6 +75,7 @@ namespace {
       cmp.SetParent(&p);
       cmp.SetParams(leftName + " " + rightName);
       Wire(cmp, 0, out);
+      Wire(cmp, 1, paths);
     }
 
     void Left(const std::string& message) {
@@ -81,6 +87,7 @@ namespace {
     // Bang the comparison and return the verdict.
     int Verdict(YSE::THREAD thread = YSE::T_GUI) {
       out.reset();
+      paths.reset();
       cmp.GetInlet(0)->SetBang(thread);
       REQUIRE(out.gotInt);
       return out.intValue;
@@ -93,14 +100,14 @@ TEST_SUITE("patcher") {
 
   // ─── shape ──────────────────────────────────────────────────────────────────
 
-  TEST_CASE("dict.compare: registered, two inlets, one outlet (#770)") {
+  TEST_CASE("dict.compare: registered, two inlets, verdict and paths outlets (#770, #833)") {
     YSE::patcher p;
     p.create(2);
     YSE::pHandle* h = p.CreateObject(YSE::OBJ::G_DICT_COMPARE);
     REQUIRE(h != nullptr);
     CHECK(std::string(h->Type()) == ".dict.compare");
     CHECK(h->GetInputs() == 2);
-    CHECK(h->GetOutputs() == 1);
+    CHECK(h->GetOutputs() == 2);
   }
 
   TEST_CASE("dict.compare: appears in the registry's name list (#770)") {
@@ -202,6 +209,111 @@ TEST_SUITE("patcher") {
     CHECK(sink.intValue == 1);
   }
 
+  // ─── the differing paths (#833) ─────────────────────────────────────────────
+
+  TEST_CASE("dict.compare: an equal comparison sends nothing out the paths outlet (#833)") {
+    Rig rig("dc833a", "left833a", "right833a");
+    CHECK(rig.Verdict() == 1);
+    CHECK_FALSE(rig.paths.gotList);
+    CHECK_FALSE(rig.paths.gotInt);
+
+    rig.Left("set tempo 120");
+    rig.Right("set tempo 120");
+    CHECK(rig.Verdict() == 1);
+    CHECK_FALSE(rig.paths.gotList);
+  }
+
+  TEST_CASE("dict.compare: every kind of difference is reported, left side first (#833)") {
+    Rig rig("dc833b", "left833b", "right833b");
+    // Stored in an order that differs between the two sides, so the report's
+    // order is visibly the left's storage order and not the right's.
+    rig.Left("set voice::1::freq 440"); // same on both sides — not reported
+    rig.Left("set gain 2"); // different value text ("2" vs "2.")
+    rig.Left("set onlyleft 1"); // only in the left
+    rig.Left("set tempo 120"); // different value
+    rig.Right("set tempo 140");
+    rig.Right("set onlyright 7"); // only in the right
+    rig.Right("set gain 2.");
+    rig.Right("set voice::1::freq 440");
+
+    CHECK(rig.Verdict() == 0);
+    REQUIRE(rig.paths.gotList);
+    CHECK(rig.paths.listValue == "gain onlyleft tempo onlyright");
+  }
+
+  TEST_CASE("dict.compare: a single differing path leaves as the atom it spells (#833)") {
+    // SendAtoms' rule, shared with getkeys: a list of one is the atom.
+    Rig rig("dc833c", "left833c", "right833c");
+    rig.Left("set voice::2::freq 550");
+    CHECK(rig.Verdict() == 0);
+    REQUIRE(rig.paths.gotList);
+    CHECK(rig.paths.listValue == "voice::2::freq");
+
+    // Nested paths are reported whole, not collapsed to their top level the
+    // way getkeys collapses them: the report names the entries to repair.
+    rig.Right("set voice::2::freq 550");
+    rig.Right("set voice::2::gain 1");
+    CHECK(rig.Verdict() == 0);
+    REQUIRE(rig.paths.gotList);
+    CHECK(rig.paths.listValue == "voice::2::gain");
+  }
+
+  TEST_CASE("dict.compare: the verdict leaves before the paths (#833)") {
+    using TestHelpers::OrderSink;
+    std::vector<char> log;
+    OrderSink verdict;
+    OrderSink paths;
+    verdict.log = &log;
+    verdict.tag = 'v';
+    paths.log = &log;
+    paths.tag = 'p';
+
+    YSE::PATCHER::patcherImplementation p(2, nullptr);
+    p.SetName("dc833d");
+    gDict left;
+    left.SetParent(&p);
+    left.SetParams("left833d");
+    gDictCompare cmp;
+    cmp.SetParent(&p);
+    cmp.SetParams("left833d right833d");
+    Wire(cmp, 0, verdict);
+    Wire(cmp, 1, paths);
+
+    left.GetInlet(0)->SetList("set a 1", YSE::T_GUI);
+    left.GetInlet(0)->SetList("set b 2", YSE::T_GUI);
+    cmp.GetInlet(0)->SetBang(YSE::T_GUI);
+
+    REQUIRE(log.size() == 2);
+    CHECK(log[0] == 'v');
+    CHECK(log[1] == 'p');
+    CHECK(verdict.lastInt == 0);
+    CHECK(paths.lastList == "a b");
+  }
+
+  TEST_CASE("dict.compare: paths past the list bound are refused, the verdict is not (#833)") {
+    // Forty 40-character paths are 1600 characters — past the 1024 the path
+    // list holds — so the tail is refused and counted, the head still leaves,
+    // and the verdict is the comparison's, not the list's.
+    Rig rig("dc833e", "left833e", "right833e");
+    constexpr int kPaths = 40;
+    for (int i = 0; i < kPaths; i++) {
+      std::string key = "k" + std::to_string(100 + i);
+      key.append(40 - key.size(), 'x');
+      rig.Left("set " + key + " 1");
+    }
+    const std::uint64_t before = rig.cmp.Dropped();
+
+    CHECK(rig.Verdict() == 0);
+    REQUIRE(rig.paths.gotList);
+    CHECK(rig.paths.listValue.rfind("k100", 0) == 0);
+    const std::size_t sent = static_cast<std::size_t>(std::count(rig.paths.listValue.begin(),
+                                                                 rig.paths.listValue.end(), ' ')) +
+                             1;
+    CHECK(sent < static_cast<std::size_t>(kPaths));
+    CHECK(sent * 40 <= YSE::PATCHER::AtomList::TEXT_CAPACITY);
+    CHECK(rig.cmp.Dropped() == before + (kPaths - sent));
+  }
+
   // ─── the reference messages ─────────────────────────────────────────────────
 
   TEST_CASE("dict.compare: the left reference triggers, anything else is refused (#770)") {
@@ -251,6 +363,8 @@ TEST_SUITE("patcher") {
     // left .dict, and the verdict at the far end. Max's own gesture.
     MultiSink sink;
     YSE::pHandle sinkHandle(&sink);
+    MultiSink pathSink;
+    YSE::pHandle pathHandle(&pathSink);
     YSE::patcher p;
     p.create(2);
     p.name("dc770g");
@@ -263,19 +377,25 @@ TEST_SUITE("patcher") {
     p.Connect(dictLeft, 1, cmp, 0);
     p.Connect(dictRight, 1, cmp, 1);
     p.Connect(cmp, 0, &sinkHandle, 0);
+    p.Connect(cmp, 1, &pathHandle, 0);
 
     dictLeft->SetListData(0, "set voice::1::freq 440");
     dictRight->SetListData(0, "set voice::1::freq 440");
     dictLeft->SetBang(0);
     REQUIRE(sink.gotInt);
     CHECK(sink.intValue == 1);
+    CHECK_FALSE(pathSink.gotList);
 
-    // The preset drifts; the same bang now reports the difference.
+    // The preset drifts; the same bang now reports the difference — and,
+    // since #833, which keys drifted, ready to drive a repair pass.
     sink.reset();
     dictRight->SetListData(0, "set voice::1::freq 550");
+    dictRight->SetListData(0, "set voice::1::gain 0.5");
     dictLeft->SetBang(0);
     REQUIRE(sink.gotInt);
     CHECK(sink.intValue == 0);
+    REQUIRE(pathSink.gotList);
+    CHECK(pathSink.listValue == "voice::1::freq voice::1::gain");
 
     // And the right dict's bang lands on inlet 1 without a refusal or an
     // output — the wiring Max's patch shape produces.
@@ -420,6 +540,26 @@ TEST_SUITE("patcher") {
     CHECK(rig.out.gotInt);
     CHECK(rig.out.intValue == 1);
     CHECK(rig.cmp.Dropped() == before + 1);
+
+    // And the difference path (#833): collecting the differing paths and
+    // rendering them into list text, on the audio thread, allocation-free.
+    // Two of them, so the send goes through the multi-atom render rather than
+    // the single-atom shortcut.
+    rig.Left("set drift::one 1");
+    rig.Right("set drift::two a value past every small-string buffer");
+    CHECK(rig.Verdict() == 0);
+    rig.out.reset();
+    rig.paths.reset();
+    {
+      TestHelpers::ProbeScope probe;
+      rig.cmp.GetInlet(0)->SetBang(YSE::T_DSP);
+      count = TestHelpers::g_alloc_count.load();
+    }
+    CHECK(count == 0);
+    CHECK(rig.out.gotInt);
+    CHECK(rig.out.intValue == 0);
+    REQUIRE(rig.paths.gotList);
+    CHECK(rig.paths.listValue == "drift::one drift::two");
   }
 
   // ─── parameters and documentation ───────────────────────────────────────────
@@ -441,10 +581,10 @@ TEST_SUITE("patcher") {
     CHECK(std::string(copy->Type()) == std::string(".dict.compare"));
     CHECK(copy->GetParams() == std::string("kitA770 kitB770"));
     CHECK(copy->GetInputs() == 2);
-    CHECK(copy->GetOutputs() == 1);
+    CHECK(copy->GetOutputs() == 2);
   }
 
-  TEST_CASE("dict.compare: carries complete documentation metadata (#770)") {
+  TEST_CASE("dict.compare: carries complete documentation metadata (#770, #833)") {
     gDictCompare c;
     CHECK_FALSE(c.GetDescription().empty());
     CHECK(c.GetCategory() == YSE::PATCHER::pCategory::GENERIC);
@@ -452,5 +592,9 @@ TEST_SUITE("patcher") {
     REQUIRE(docs.size() == 2);
     CHECK(docs[0].name == "left");
     CHECK(docs[1].name == "right");
+    REQUIRE(c.GetOutlet(1) != nullptr);
+    CHECK(c.GetOutlet(0)->GetDocLabel() == "equal");
+    CHECK(c.GetOutlet(1)->GetDocLabel() == "paths");
+    CHECK_FALSE(c.GetOutlet(1)->GetDocDescription().empty());
   }
 }

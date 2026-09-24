@@ -1010,6 +1010,78 @@ TEST_SUITE("capilowcov") {
     yse_dsp_buffer_destroy(buf); // the buffer must outlive every sound using it
   }
 
+  // Regression for issue #864. yse_channel_set_virtual(ch, 0) forwards to
+  // channel::setVirtual(false), which used to send its message with a
+  // hard-coded `true`: get_virtual() read back 0 while the engine kept
+  // virtualising the channel's sounds, so past the max-sounds limit they never
+  // started. Every sound on a channel with virtualisation off must render.
+  //
+  // Verified fail-without-fix: on the unpatched engine none of the sounds
+  // reports playing and every playhead stays at 0.
+  TEST_CASE("c-api channel: set_virtual(0) renders every sound past the max-sounds limit (#864)") {
+    if (!capilowcov::ensureOffline()) return;
+    YseSystem* sys = yse_system_get();
+
+    const unsigned int len = 16384;
+    YseDspBuffer* buf = yse_dsp_buffer_create(len, 0);
+    REQUIRE(buf != nullptr);
+    std::vector<float> tone(len, 0.1f);
+    REQUIRE(yse_dsp_buffer_write(buf, 0, tone.data(), len) == len);
+
+    const int previousMaxSounds = yse_system_get_max_sounds(sys);
+    yse_system_set_max_sounds(sys, 1);
+
+    YseChannel* ch = yse_channel_create("capi_virt864", yse_channel_master());
+    REQUIRE(ch != nullptr);
+    yse_channel_set_virtual(ch, 0);
+    CHECK(yse_channel_get_virtual(ch) == 0);
+    capilowcov::pump(5);
+
+    constexpr int kSounds = 6;
+    std::vector<YseSound*> sounds;
+    sounds.reserve(kSounds);
+    for (int i = 0; i < kSounds; ++i) {
+      YseSound* s = yse_sound_create();
+      REQUIRE(s != nullptr);
+      REQUIRE(yse_sound_load_buffer(s, buf, ch, /*loop=*/1, /*volume=*/0.5f) == YSE_OK);
+      sounds.push_back(s);
+    }
+    for (YseSound* s : sounds)
+      pumpUntilReady(s);
+    // Spread over distance so a virtualising channel would have to drop all but
+    // the nearest sound.
+    for (int i = 0; i < kSounds; ++i) {
+      const yse_pos_t p = {static_cast<float>(i) * 10.f, 0.f, 0.f};
+      yse_sound_set_pos(sounds[i], &p);
+      yse_sound_play(sounds[i]);
+    }
+    capilowcov::pump(20);
+
+    // Every playhead keeps advancing — a virtual sound is frozen after its
+    // one farewell block.
+    std::vector<float> before;
+    before.reserve(kSounds);
+    for (YseSound* s : sounds)
+      before.push_back(yse_sound_get_time(s));
+    capilowcov::pump(10);
+    for (int i = 0; i < kSounds; ++i) {
+      INFO("sound " << i);
+      CHECK(yse_sound_is_playing(sounds[i]) == 1);
+      CHECK(yse_sound_get_time(sounds[i]) > before[static_cast<std::size_t>(i)]);
+    }
+
+    yse_system_set_max_sounds(sys, previousMaxSounds);
+    for (YseSound* s : sounds)
+      yse_sound_stop(s);
+    capilowcov::pump(5);
+    for (YseSound* s : sounds)
+      yse_sound_destroy(s);
+    capilowcov::pump(10);
+    yse_channel_destroy(ch);
+    capilowcov::pump(10);
+    yse_dsp_buffer_destroy(buf); // the buffer must outlive every sound using it
+  }
+
   TEST_CASE("c-api sound: patcher source refuses a second owner") {
     if (!capilowcov::ensureOffline()) return;
 

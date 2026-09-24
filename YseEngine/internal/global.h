@@ -62,6 +62,22 @@ namespace YSE {
 
       void addSlowJob(threadPoolJob* job);
       void addFastJob(threadPoolJob* job);
+      // Wake parked render workers once after a fan-out of `jobCount`
+      // addFastJob() calls (issue #858). RT-safe; see threadPool::wake().
+      void wakeFastWorkers(Int jobCount);
+
+      // Render worker count (issue #857). Internal hook for the render golden
+      // test and the render benchmarks until the thread-count policy is exposed
+      // publicly (issue #861). -1 restores the auto-sized default; 0 means no
+      // render workers at all — the rendering thread runs every channel job
+      // itself through join()'s help-running. The setting persists across
+      // System::close()/init().
+      //
+      // Control thread only, and only while nothing renders: an offline session
+      // between renderOffline() calls, or no live audio callback. It joins and
+      // re-spawns the render workers (see threadPool::setWorkerCount).
+      void setRenderWorkerCount(Int numThreads);
+      Int renderWorkerCount() const;
 
       void flagForUpdate() {
         update++;

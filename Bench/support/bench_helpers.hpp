@@ -17,6 +17,10 @@
 
 #include "yse.hpp"
 #include "channel/channelInterface.hpp"
+#include "internal/global.h"
+
+#include <chrono>
+#include <thread>
 
 namespace BenchHelpers {
 
@@ -59,5 +63,46 @@ inline bool engineInitOffline() {
 // jitter spread over ~1 ms of work), enough to catch any meaningful
 // regression in the setter cost itself.
 constexpr int kLeakyBenchIterations = 100000;
+
+// Drive the offline engine until `ready()` holds (issue #857): one control
+// tick (`System().update()`) plus one rendered block per step, which is what
+// promotes freshly created sounds — update() only flags the manager work, the
+// next rendered block runs it, and a render with no ready sound returns before
+// touching the mix tree at all. The short sleep lets the single-threaded slow
+// pool finish the sounds' async setup. Wall-clock bounded so a broken setup
+// path fails the benchmark instead of hanging it. Returns the final ready().
+//
+// Every benchmark that renders a scene must reach its steady state through
+// this (or an equivalent) before timing, and must not rely on a benchmark that
+// happened to run earlier having pumped the engine for it: #812 measured the
+// 100-sound render at ~932 M samples/s when run alone — silence — against
+// ~9.4 M in a full run.
+template <typename Pred>
+bool pumpUntil(Pred ready, std::chrono::milliseconds budget = std::chrono::seconds(10)) {
+    const auto deadline = std::chrono::steady_clock::now() + budget;
+    while (!ready()) {
+        if (std::chrono::steady_clock::now() >= deadline) return false;
+        YSE::System().update();
+        YSE::System().renderOffline(1);
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+    return true;
+}
+
+// Apply any pending control-plane work, then drop the leftover update flags,
+// so a render benchmark times the audio callback body and nothing else
+// (issue #857). update() banks one flag per call and every rendered block that
+// finds a flag runs the full manager update for it; the UpdateTick benchmarks
+// bank millions, so a render benchmark that happened to run after them paid a
+// manager update on every timed block while the same benchmark run alone paid
+// none. One rendered block applies everything pending — the managers drain
+// their whole queues per update — after which the remaining flags carry no
+// work.
+inline void settleControlPlane() {
+    YSE::System().update();
+    YSE::System().renderOffline(1);
+    while (YSE::INTERNAL::Global().needsUpdate())
+        YSE::INTERNAL::Global().updateDone();
+}
 
 } // namespace BenchHelpers

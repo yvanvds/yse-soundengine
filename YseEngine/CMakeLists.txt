@@ -859,7 +859,9 @@ else()
 endif()
 
 if(WIN32)
-  target_link_libraries(yse_objects PUBLIC winmm)
+  # synchronization: WaitOnAddress / WakeByAddress* for render-worker
+  # park/wake (issue #858).
+  target_link_libraries(yse_objects PUBLIC winmm synchronization)
 endif()
 
 # ── C ABI bridge ──────────────────────────────────────────────────────────────

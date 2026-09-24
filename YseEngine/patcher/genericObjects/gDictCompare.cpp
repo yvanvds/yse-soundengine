@@ -28,7 +28,13 @@ namespace {
   constexpr char kOutletDoc[] =
       "The verdict: 1 when the two dictionaries hold the same entries — the same number of them, "
       "every key path present in both with identical value text, storage order ignored — and 0 "
-      "when they do not.";
+      "when they do not. Sent first, before the differing paths.";
+  constexpr char kPathsOutletDoc[] =
+      "On a difference, the key paths that differ, sent after the verdict as space-separated list "
+      "text — the getkeys rendering: paths only in the left dictionary or in both with different "
+      "value text, in the left's storage order, then paths only in the right. Silent when the two "
+      "are equal. At most 256 paths and the list-text bound; a path that does not fit is refused "
+      "and counted, and the verdict is unaffected.";
 
 } // namespace
 
@@ -41,7 +47,10 @@ CONSTRUCT() {
   ADD_IN_1;
   REG_LIST_IN(ListIn);
 
+  // The verdict, then the differing paths (#833). ANY on the paths outlet: a
+  // single path leaves as the atom it spells, as getkeys' does.
   ADD_OUT_INT;
+  ADD_OUT_ANY;
 
   ADD_PARAM(leftName);
   ADD_PARAM(rightName);
@@ -53,20 +62,25 @@ CONSTRUCT() {
   // one as soon as there is both a name and a patcher to prefix it with.
   Rebind();
 
+  // The allocation the paths send would otherwise need, taken here on the
+  // control thread — gDict's arrangement for its getkeys list.
+  AtomList::ReserveRender(emitScratch);
+
   ADD_DESCRIPTION(
       "Compares two dictionaries — Max's dict.compare on the name-addressed value model .dict "
       "settled: both dictionaries are bound from the creation arguments, \".dict.compare <left> "
       "<right>\", because a dictionary is addressed by name and never passed down a cord. A bang, "
       "or the left dictionary's reference message \"dictionary <name>\", sends 1 when the two "
       "hold the same entries and 0 when they do not — the same number of entries and every key "
-      "path present in both with identical value text, storage order ignored. The comparison "
-      "answers \"did anything change?\" without diffing key by key: a patch that keeps a "
-      "dictionary of live parameters compares the preset it just loaded against what is "
-      "running.");
+      "path present in both with identical value text, storage order ignored. On a difference, "
+      "the differing key paths follow out the second outlet, so a patch that keeps a dictionary "
+      "of live parameters can compare the preset it just loaded against what is running and "
+      "repair exactly the keys that drifted.");
   ADD_CATEGORY(pCategory::GENERIC);
   INLET_DOC(0, "compare", kLeftInletDoc, "");
   INLET_DOC(1, "right reference", kRightInletDoc, "");
   OUTLET_DOC(0, "equal", kOutletDoc, "0 or 1");
+  OUTLET_DOC(1, "paths", kPathsOutletDoc, "at most 256 paths");
   PARAM_DOC("left", "",
             "The left dictionary's shared name, addressed as \"<patcherName>.<name>\" — the "
             "dictionary a .dict of the same name in this patcher holds. Resolved once, on the "
@@ -178,26 +192,47 @@ void gDictCompare::Compare(YSE::THREAD thread) {
     }
   }
 
-  // The same entries, order-insensitively: with the counts equal and keys
-  // unique within a store, "every left entry is in the right with the same
-  // value" is the whole of equality. A bounded scan per entry — at most
-  // MAX_ENTRIES squared comparisons of pre-sized rows.
-  bool equal = false;
+  // The same entries, order-insensitively, and the paths that are not (#833).
+  // Keys are unique within a store, so the two dictionaries are equal exactly
+  // when no path differs: none of the left's is missing from the right or
+  // holds different value text there, and none of the right's is missing from
+  // the left. Two bounded scans — at most 2 * MAX_ENTRIES squared comparisons
+  // of pre-sized rows — and the walk always finishes, because the paths list
+  // wants every difference, not just the first.
+  //
+  // `equal` is decided by the comparison alone: a path the list refuses for
+  // want of room is still a difference.
+  bool equal = true;
+  diffPaths.Clear();
   {
     const dictStoreGuard guard(rightStore->busy);
     if (!guard.Held()) {
       Refuse();
       return;
     }
-    equal = snapshot.count == rightStore->count;
-    for (std::size_t i = 0; equal && i < snapshot.count; i++) {
+    for (std::size_t i = 0; i < snapshot.count; i++) {
       const dictEntry& entry = snapshot.entries[i];
       const std::size_t at = DictFind(*rightStore, entry.key.data(), entry.key.size());
-      equal = at < rightStore->count && rightStore->entries[at].value == entry.value;
+      if (at < rightStore->count && rightStore->entries[at].value == entry.value) continue;
+      equal = false;
+      if (!diffPaths.Add(entry.key.data(), entry.key.size())) Refuse();
+    }
+    for (std::size_t i = 0; i < rightStore->count; i++) {
+      const dictEntry& entry = rightStore->entries[i];
+      if (DictFind(snapshot, entry.key.data(), entry.key.size()) < snapshot.count) continue;
+      equal = false;
+      if (!diffPaths.Add(entry.key.data(), entry.key.size())) Refuse();
     }
   }
 
-  // Outside both guards on purpose: the send runs the whole downstream graph,
-  // which may well store into either of these dictionaries.
+  // Outside both guards on purpose: the sends run the whole downstream graph,
+  // which may well store into either of these dictionaries. The verdict
+  // first, then the paths — #833's order; see the header. SendAtoms says
+  // nothing for an empty list, so an equal comparison is silent on outlet 1.
+  // A patch that feeds the verdict straight back into this inlet re-runs the
+  // comparison inside the first send and refills diffPaths; the outer send
+  // then carries the newer comparison's paths, which describe the
+  // dictionaries as they now are — the list is never torn.
   outputs[0].SendInt(equal ? 1 : 0, thread);
+  SendAtoms(outputs[1], diffPaths, emitScratch, thread);
 }

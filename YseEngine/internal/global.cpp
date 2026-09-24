@@ -50,6 +50,18 @@ void YSE::INTERNAL::global::addFastJob(threadPoolJob* job) {
   fastThreads.addJob(job);
 }
 
+void YSE::INTERNAL::global::wakeFastWorkers(Int jobCount) {
+  fastThreads.wake(jobCount);
+}
+
+void YSE::INTERNAL::global::setRenderWorkerCount(Int numThreads) {
+  fastThreads.setWorkerCount(numThreads);
+}
+
+Int YSE::INTERNAL::global::renderWorkerCount() const {
+  return fastThreads.workerCount();
+}
+
 YSE::INTERNAL::NamedBus& YSE::INTERNAL::global::namedBus() {
   // Tied to System::init / System::close lifecycle — callers must respect
   // that contract. Asserting (rather than lazy-creating) keeps the

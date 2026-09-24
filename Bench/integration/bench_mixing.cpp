@@ -88,13 +88,22 @@ struct SoundPool {
             sounds.push_back(std::move(s));
         }
 
-        // Let the manager process the create/play burst before the
-        // benchmark starts measuring. Without this, the first iteration
-        // pays the entire setup cost and skews the average.
-        for (int i = 0; i < 10; ++i) {
-            YSE::System().update();
-        }
+        // Bring every sound to a rendering state before any benchmark
+        // measures (issue #857). Ten bare update() calls used to stand in
+        // for this, but in an offline session update() only flags the
+        // manager work — nothing promotes a sound until a block is rendered,
+        // and a block with no ready sound returns before the mix tree runs.
+        // So a filtered RenderOffline run timed silence (~932 M samples/s)
+        // and only a full run, where UpdateTick had banked millions of
+        // update flags first, measured a real mix (#812).
+        ready = BenchHelpers::pumpUntil([this] {
+            for (const auto& s : sounds)
+                if (!s->isPlaying()) return false;
+            return true;
+        });
     }
+
+    bool ready = false;
 };
 
 SoundPool& soundPool() {
@@ -149,6 +158,14 @@ static void BM_Engine_UpdateTick_100Sounds_Reverb(benchmark::State& state) {
 }
 BENCHMARK(BM_Engine_UpdateTick_100Sounds_Reverb);
 
+// Fails a benchmark whose shared scene never reached its rendering state,
+// instead of letting it time silence.
+static bool requireSoundPool(benchmark::State& state) {
+    if (soundPool().ready) return true;
+    state.SkipWithError("100-sound scene did not reach a playing state");
+    return false;
+}
+
 // ── Listener position updates — the per-frame cost a game pays ───────────
 //
 // Updating Listener().pos() per frame is the dominant per-tick "control
@@ -196,12 +213,13 @@ static void BM_Engine_RenderOffline_100Sounds(benchmark::State& state) {
         state.SkipWithError("YSE::System().initOffline() failed");
         return;
     }
-    (void) soundPool();
+    if (!requireSoundPool(state)) return;
 
     // Warmup: the first render block pays an order-of-magnitude cost
     // over steady state (cold caches, sound state-transition burst, slow-
     // pool drain). Burn through that before timing.
     YSE::System().renderOffline(8);
+    BenchHelpers::settleControlPlane();
 
     for (auto _ : state) {
         YSE::System().renderOffline(kBlocksPerIter);
@@ -216,12 +234,13 @@ static void BM_Engine_RenderOffline_100Sounds_Reverb(benchmark::State& state) {
         state.SkipWithError("YSE::System().initOffline() failed");
         return;
     }
-    (void) soundPool();
+    if (!requireSoundPool(state)) return;
     YSE::System().getGlobalReverb().setActive(true);
     YSE::System().getGlobalReverb().setPreset(YSE::REVERB_HALL);
 
     // Drain the reverb-activation message before measuring.
     YSE::System().renderOffline(4);
+    BenchHelpers::settleControlPlane();
 
     for (auto _ : state) {
         YSE::System().renderOffline(kBlocksPerIter);
@@ -243,7 +262,9 @@ static void BM_Engine_RealtimeFactor_100Sounds(benchmark::State& state) {
         state.SkipWithError("YSE::System().initOffline() failed");
         return;
     }
-    (void) soundPool();
+    if (!requireSoundPool(state)) return;
+
+    BenchHelpers::settleControlPlane();
 
     constexpr int blocks = 400;  // ≈ 1.16 s of audio at 44.1 kHz / 128
     for (auto _ : state) {

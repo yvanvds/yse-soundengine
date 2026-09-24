@@ -598,11 +598,13 @@ Bench/
                bench_plate_reverb, bench_va_voice, bench_sampler_voice, bench_fm_voice)
   internal/    (bench_mpmcqueue)
   patcher/     (bench_patcher)
-  integration/ (bench_mixing, bench_synth_effects, bench_yse_dsl)
+  integration/ (bench_mixing, bench_synth_effects, bench_render_heavy, bench_yse_dsl)
   support/     (bench_helpers.hpp)
 ```
 
 The synth & effects sweep (issue [#181](https://github.com/yvanvds/yse-soundengine/issues/181)) adds per-voice Tier-1 benches (`bench_fm_voice`, alongside the existing `bench_va_voice` / `bench_sampler_voice`, each with a `sineVoice` reference baseline) and Tier-3 macro scenarios in `bench_synth_effects` (voice-count scaling, channel insert-chain cost, send fan-in, N positioned notes), all driven offline via `System().renderOffline(blocks)`.
+
+The render-scheduler foundation (issue [#857](https://github.com/yvanvds/yse-soundengine/issues/857), epic #856) adds `bench_render_heavy` — an 8-channel and a one-channel swarm scene of real per-voice DSP load, swept over the render worker count through the internal `INTERNAL::Global().setRenderWorkerCount()` hook — makes the 100-sound render benches order-independent, and pairs them with the bit-exact multi-worker golden test `Tests/channel/test_render_golden.cpp`. Protocol and baselines: `Tests/TEST_PLAN.md`.
 
 ---
 

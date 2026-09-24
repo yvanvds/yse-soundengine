@@ -1,4 +1,5 @@
 #pragma once
+#include "../pAtomList.h"
 #include "../pObject.h"
 #include "gDict.h"
 #include <atomic>
@@ -29,6 +30,17 @@ namespace YSE {
      *    dictionaries hold the same entries, 0 when they do not — out the int
      *    outlet. This is the "did anything change?" poll the object exists
      *    for.
+     *  - **On a difference, outlet 1 then sends the differing key paths**
+     *    (issue #833) — every path present only in the left dictionary, only
+     *    in the right one, or in both with different value text — as
+     *    space-separated list text, the rendering ``.dict``'s ``getkeys``
+     *    uses. That turns "a preset drifted" into "these keys drifted", so a
+     *    patch can drive a ``get`` / repair pass over exactly them. Left-side
+     *    paths come first in the left dictionary's storage order, then the
+     *    right-only paths in the right's. An equal comparison sends nothing
+     *    there — the ``.sprintf`` rule that an object with nothing to say
+     *    says nothing — and a single differing path leaves as the one atom it
+     *    spells (``SendAtoms``).
      *  - **``dictionary <left>`` on inlet 0 also compares.** That is the
      *    message a ``.dict``'s reference outlet emits on a bang, so wiring the
      *    left dictionary's reference outlet here gives Max's own gesture: bang
@@ -69,13 +81,32 @@ namespace YSE {
      *  itself without ever taking its guard twice. A guard another thread
      *  holds refuses the whole comparison, counted, rather than waiting.
      *
+     *  ### Outlet order
+     *
+     *  The verdict leaves **before** the paths, not after as Max's
+     *  right-to-left habit would have it: #833 settled that the paths are
+     *  "sent after the int verdict", so a patch that gates its repair pass on
+     *  the verdict has already been told a difference exists by the time the
+     *  paths it will walk arrive — the same "the report precedes what it
+     *  describes" reasoning ``.array.change`` applies to its reference.
+     *
+     *  ### The path list is bounded
+     *
+     *  At most ``AtomList::MAX_ATOMS`` (``dictStore::MAX_ENTRIES``, 256)
+     *  paths and ``AtomList::TEXT_CAPACITY`` characters between them — the
+     *  bound ``.dict``'s ``getkeys`` renders under. A path that does not fit
+     *  is refused and counted in ``Dropped()`` rather than truncated; the
+     *  paths already collected still leave, and the **verdict is unaffected**
+     *  — it is decided by the comparison, not by what fitted in the list.
+     *
      *  ### Real-time behaviour
      *
      *  ``Calculate()`` does nothing — the object is driven by its inlets, the
      *  rule ``.value``, ``.coll`` and ``.dict`` establish. No message path
      *  allocates, locks or blocks: the names are resolved on the control
-     *  thread, the snapshot rows are reserved at construction, and the verdict
-     *  is an int sent after every guard is released.
+     *  thread, the snapshot rows, the path list and its render buffer are all
+     *  reserved at construction, and both sends happen after every guard is
+     *  released.
      */
     PATCHER_CLASS(gDictCompare, YSE::OBJ::G_DICT_COMPARE)
     _NO_MESSAGES
@@ -112,8 +143,8 @@ namespace YSE {
 
     /**
      *  @brief Messages refused so far — an unrecognised message, a reference
-     *         naming a dictionary this object is not bound to, or a lost
-     *         try-lock.
+     *         naming a dictionary this object is not bound to, a lost
+     *         try-lock, or a differing path that outgrew the path list.
      *
      *  A counter rather than a log line because the refusing thread may be
      *  the audio callback; ``gDict::Dropped``, for ``gDict``'s reason.
@@ -138,8 +169,9 @@ namespace YSE {
     void Rebind();
 
     // The comparison itself: snapshot the left store under its guard, compare
-    // the snapshot against the right store under that guard alone, send the
-    // verdict after both are released. Refuses (counted) on a lost guard.
+    // the snapshot against the right store under that guard alone — collecting
+    // the differing paths as it goes — and send the verdict, then the paths,
+    // after both are released. Refuses (counted) on a lost guard.
     void Compare(YSE::THREAD thread);
 
     void Refuse() {
@@ -165,6 +197,15 @@ namespace YSE {
     // right store's guard is never nested inside it. Allocated whole by
     // dictStore's own constructor, on the control thread, once.
     dictStore snapshot;
+
+    // The differing key paths, collected under the right store's guard and
+    // sent after it is released. An AtomList reserves its own text at
+    // construction, so collecting never allocates.
+    AtomList diffPaths;
+
+    // Render buffer for the paths outlet, reserved to AtomList::RENDER_CAPACITY
+    // at construction so the send never allocates. gDict::emitScratch's rule.
+    std::string emitScratch;
 
     // Refusals, published for tests and diagnostics.
     std::atomic<std::uint64_t> dropped{0};
