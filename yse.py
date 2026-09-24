@@ -15,6 +15,7 @@ are propagated unchanged.
 
 import argparse
 import datetime
+import fnmatch
 import json
 import os
 import platform
@@ -200,13 +201,212 @@ def archive_ctest_logs(preset):
     return dest
 
 
+# The archived LastTest.log is tens of thousands of lines (the presets pass
+# --duration=true, so every test case prints), and the question it has to
+# answer first is one line long: did the failing assertion fail *only* in the
+# monolithic yse_unit_tests entry, or also in the isolated entry that runs the
+# same suite on its own?  Monolithic-only is the cross-suite / load-flake shape
+# (#298, #304, #352, #834 — the one #738 archive that caught the flake); a
+# failure that also shows in the isolated entry is ordinary deterministic
+# breakage.  summarize_ctest_log answers it so the archive is triaged at a
+# glance instead of by hand.
+_CTEST_ENTRY_RE = re.compile(r"^\d+/\d+ Test: (\S+)")
+_CTEST_SUITE_FILTER_RE = re.compile(r'"--test-suite=([^"]*)"')
+_DOCTEST_SUITE_RE = re.compile(r"^TEST SUITE:\s+(.*)$")
+_DOCTEST_CASE_RE = re.compile(r"^TEST CASE:\s+(.*)$")
+_DOCTEST_ASSERT_RE = re.compile(r"^(.+?):(\d+): (?:FATAL )?ERROR: ")
+_SUMMARY_LINE_MAX = 300
+
+
+def _clip(line):
+    """Shorten *line* for the summary; the full text stays in LastTest.log."""
+    if len(line) <= _SUMMARY_LINE_MAX:
+        return line
+    return line[:_SUMMARY_LINE_MAX] + f" ... [{len(line)} chars, see LastTest.log]"
+
+
+def _entry_ran(entry, case_name, suite):
+    """Whether a ctest entry demonstrably executed *case_name*.
+
+    Either doctest printed the case (entries run with --duration=true print
+    every case), or the entry's --test-suite filter selects the case's suite.
+    """
+    if case_name in entry["cases"]:
+        return True
+    return suite is not None and any(fnmatch.fnmatchcase(suite, pattern)
+                                     for pattern in entry["suites"])
+
+
+class _CtestLogParser:
+    """Line-by-line reader of a ctest LastTest.log.
+
+    Builds ``entries``: ctest entry name -> {"asserts": [(location, case,
+    [lines])], "last_case": str, "cases": {case names printed}, "suites":
+    [--test-suite= patterns]}, plus ``case_suite``: case name -> the TEST
+    SUITE doctest printed above it.
+    """
+
+    def __init__(self):
+        self.entries = {}
+        self.case_suite = {}
+        self.current = None
+        self.case = None
+        self.suite = None
+        self.pending = None  # assertion whose `values:` lines are collected
+
+    def feed(self, line):
+        m = _CTEST_ENTRY_RE.match(line)
+        if m:
+            self._start_entry(m.group(1))
+        elif self.current is None:
+            return
+        elif line.startswith("Command:"):
+            self._command(line)
+        elif line.startswith("====="):
+            self.suite = None  # every doctest block restates its suite, if any
+        elif self._suite(line) or self._case(line) or self._assert(line):
+            return
+        elif self.pending is not None:
+            self._continuation(line)
+
+    def _start_entry(self, name):
+        self.current = self.entries.setdefault(
+            name, {"asserts": [], "last_case": None, "cases": set(), "suites": []})
+        self.case = self.suite = self.pending = None
+
+    def _command(self, line):
+        m = _CTEST_SUITE_FILTER_RE.search(line)
+        # A --test-case filter narrows the suite filter to an unknown subset,
+        # so such an entry only counts for the cases it printed.
+        if m and "--test-case=" not in line:
+            self.current["suites"] = [s for s in m.group(1).split(",") if s]
+
+    def _suite(self, line):
+        m = _DOCTEST_SUITE_RE.match(line)
+        if m:
+            self.suite = m.group(1).strip()
+        return m is not None
+
+    def _case(self, line):
+        m = _DOCTEST_CASE_RE.match(line)
+        if m is None:
+            return False
+        self.case = m.group(1).strip()
+        self.current["last_case"] = self.case
+        # --duration=true makes doctest print every case it runs, pass or
+        # fail, so this is the set of cases the entry actually executed.
+        self.current["cases"].add(self.case)
+        if self.suite is not None:
+            self.case_suite[self.case] = self.suite
+        self.pending = None
+        return True
+
+    def _assert(self, line):
+        m = _DOCTEST_ASSERT_RE.match(line)
+        if m is None:
+            return False
+        location = f"{Path(m.group(1)).name}:{m.group(2)}"
+        self.pending = [line.strip()]
+        self.current["asserts"].append((location, self.case, self.pending))
+        return True
+
+    def _continuation(self, line):
+        if line.startswith("  ") and line.strip():
+            self.pending.append(line.strip())
+        else:
+            self.pending = None
+
+
+def _read_failed_entries(failed_log):
+    """Entry names from a LastTestsFailed.log (``<index>:<name>`` per line)."""
+    if failed_log is None or not Path(failed_log).is_file():
+        return []
+    lines = Path(failed_log).read_text(encoding="utf-8",
+                                       errors="replace").splitlines()
+    return [n for n in (l.partition(":")[2].strip() for l in lines) if n]
+
+
+def _verdict(parser, name, location, case_name, failed_in):
+    """One line classifying a failing assertion against the other entries."""
+    others = sorted(failed_in[location] - {name})
+    if others:
+        return (f"    -> also failed in: {', '.join(others)} (reproduces "
+                "outside this entry: likely deterministic)")
+    suite = parser.case_suite.get(case_name)
+    passed_in = sorted(n for n, e in parser.entries.items()
+                       if n != name and _entry_ran(e, case_name, suite))
+    if passed_in:
+        return (f"    -> failed ONLY here; the same case passed in "
+                f"{', '.join(passed_in)}: cross-suite interference or a "
+                "load-dependent race (see #738)")
+    return ("    -> no other entry ran this case, so there is no isolated run "
+            "to compare against")
+
+
+def _format_entry(parser, name, failed_in):
+    """Summary lines for one failing ctest entry."""
+    out = ["", f"== {name}"]
+    entry = parser.entries.get(name)
+    if entry is None:
+        return out + ["  (entry not found in LastTest.log)"]
+    if not entry["asserts"]:
+        # No assertion: a crash, a hang killed by the timeout, or a failed
+        # pass-regex.  The last case started is where to look.
+        return out + ["  no doctest assertion captured (crash, timeout, or "
+                      "pass-regex failure?)",
+                      f"  last TEST CASE started: {entry['last_case']}"]
+    # One block per location: a CHECK inside a loop can fail thousands of
+    # times, and the first occurrence plus a count is what a reader needs.
+    by_location = {}
+    for location, case_name, lines in entry["asserts"]:
+        by_location.setdefault(location, []).append((case_name, lines))
+    for location, hits in by_location.items():
+        case_name, lines = hits[0]
+        out.append(f"  TEST CASE: {case_name}")
+        out.extend(f"    {_clip(l)}" for l in lines)
+        if len(hits) > 1:
+            out.append(f"    (+{len(hits) - 1} more failure(s) at {location})")
+        out.append(_verdict(parser, name, location, case_name, failed_in))
+    return out
+
+
+def summarize_ctest_log(last_test_log, failed_log=None):
+    """Return a short plain-text triage of a failing ctest run.
+
+    *last_test_log* is ctest's LastTest.log; *failed_log* its optional
+    LastTestsFailed.log, which is the authoritative list of failing entries —
+    an entry can fail without any doctest assertion (crash, timeout, a failed
+    pass-regex).
+    """
+    parser = _CtestLogParser()
+    text = Path(last_test_log).read_text(encoding="utf-8", errors="replace")
+    for line in text.splitlines():
+        parser.feed(line)
+
+    failed_entries = _read_failed_entries(failed_log) or [
+        n for n, e in parser.entries.items() if e["asserts"]]
+
+    # Where did each assertion location fail?  Keyed by location, not by test
+    # case name, so the same CHECK is matched across entries.
+    failed_in = {}
+    for name, entry in parser.entries.items():
+        for location, _, _ in entry["asserts"]:
+            failed_in.setdefault(location, set()).add(name)
+
+    out = [f"Failing ctest entries: {', '.join(failed_entries) or '(none found)'}"]
+    for name in failed_entries:
+        out.extend(_format_entry(parser, name, failed_in))
+    return "\n".join(out) + "\n"
+
+
 def run_ctest(preset):
     """Print and run ``ctest --preset <preset>``.
 
     On success this behaves exactly like ``run``.  On failure the run's logs
     are archived (see archive_ctest_logs) before the child's return code is
     propagated, so an intermittent failure stays diagnosable after the
-    confirming re-run has overwritten Testing/Temporary/ (#738).
+    confirming re-run has overwritten Testing/Temporary/ (#738).  A triage
+    summary (see summarize_ctest_log) is written next to them and printed.
     """
     cmd = ["ctest", "--preset", preset]
     _print_cmd(cmd)
@@ -221,7 +421,26 @@ def run_ctest(preset):
         print(f"\nctest failed — logs preserved in {dest}", flush=True)
         print("  Testing/Temporary/ is overwritten by the next ctest run; "
               "this copy is not.", flush=True)
+        write_ctest_summary(dest)
     sys.exit(result.returncode)
+
+
+def write_ctest_summary(archive_dir):
+    """Write summary.txt into *archive_dir* and echo it; never raises.
+
+    The summary is a convenience on top of the archive: a parse problem must
+    not replace the test run's exit code with a Python traceback.
+    """
+    log = Path(archive_dir) / "LastTest.log"
+    if not log.is_file():
+        return
+    try:
+        summary = summarize_ctest_log(log, Path(archive_dir) / "LastTestsFailed.log")
+        (Path(archive_dir) / "summary.txt").write_text(summary, encoding="utf-8")
+    except Exception as exc:  # deliberate catch-all: see docstring
+        print(f"  (could not summarize the failure: {exc})", flush=True)
+        return
+    print("\n" + summary, flush=True)
 
 
 def run_to_file(cmd, output_path, cwd=None):
