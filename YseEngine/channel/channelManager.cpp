@@ -441,9 +441,15 @@ void YSE::CHANNEL::managerObject::processReturns(implementationObject* master) {
   // enforced at wiring time), so all can be dispatched to the fast pool at once
   // and then joined + finalized serially in list order (deterministic += order).
   for (Int g = 0; g <= maxGen; ++g) {
+    Int dispatched = 0;
     for (auto i = returns.begin(); i != returns.end(); ++i) {
-      if ((*i)->generation == g) INTERNAL::Global().addFastJob(*i);
+      if ((*i)->generation == g) {
+        INTERNAL::Global().addFastJob(*i);
+        ++dispatched;
+      }
     }
+    // One wake per generation's fan-out, not per job (issue #858).
+    INTERNAL::Global().wakeFastWorkers(dispatched);
     for (auto i = returns.begin(); i != returns.end(); ++i) {
       if ((*i)->generation == g) {
         (*i)->join();

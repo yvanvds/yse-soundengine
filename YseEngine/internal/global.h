@@ -62,6 +62,9 @@ namespace YSE {
 
       void addSlowJob(threadPoolJob* job);
       void addFastJob(threadPoolJob* job);
+      // Wake parked render workers once after a fan-out of `jobCount`
+      // addFastJob() calls (issue #858). RT-safe; see threadPool::wake().
+      void wakeFastWorkers(Int jobCount);
 
       // Render worker count (issue #857). Internal hook for the render golden
       // test and the render benchmarks until the thread-count policy is exposed

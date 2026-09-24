@@ -14,6 +14,7 @@
 #include "../headers/types.hpp"
 #include "../utils/mpmcQueue.hpp"
 #include <atomic>
+#include <cstdint>
 #include <forward_list>
 #include "thread.h"
 
@@ -138,7 +139,28 @@ namespace YSE {
       // and lets a worker pick it up. Never locks, allocates, or blocks — safe
       // to call from the audio callback. For a render pool, a full ring falls
       // back to running the job inline on the caller so no DSP work is dropped.
+      //
+      // addJob() never wakes a parked render worker by itself (issue #858):
+      // a producer that fans out several jobs calls wake() once afterwards,
+      // so the audio callback pays at most one wake per fan-out instead of one
+      // per job. Forgetting wake() costs parallelism, never correctness — the
+      // joining thread help-runs whatever the workers did not pick up.
       void addJob(threadPoolJob* job);
+
+      // Wake parked render workers after a fan-out of `jobCount` addJob()s
+      // (issue #858). RT-safe: one fence and one relaxed load, and only when a
+      // worker is actually parked a single non-blocking OS wake call (futex
+      // FUTEX_WAKE on Linux/Android, WakeByAddress* on Windows) — no lock, no
+      // allocation. A no-op when no worker is parked (the steady state while
+      // workers are still in their post-job spin window) and on background
+      // pools, whose workers keep the timed backoff.
+      void wake(Int jobCount);
+
+      // Render workers currently parked, waiting for wake(). Test hook: an
+      // idle render pool must end up with every worker parked, not spinning.
+      Int parkedWorkers() const {
+        return parked.load(std::memory_order_acquire);
+      }
 
       // only used by threadPoolThread, returns nullptr when the pool shuts down
       threadPoolJob* getJob();
@@ -170,7 +192,20 @@ namespace YSE {
       static constexpr std::size_t RENDER_CAPACITY = 4096;
       static constexpr std::size_t BACKGROUND_CAPACITY = 1024;
 
+      threadPoolJob* getRenderJob(); // spin briefly, then park (issue #858)
+      bool spinForJob(threadPoolJob*& job); // bounded pre-park spin (#858)
+      void passWakeOn(); // chain a wake to one more parked worker (#858)
+      threadPoolJob* getBackgroundJob(); // timed backoff, never parks
+
       mpmcQueue<threadPoolJob*> jobs;
+      // Park/wake state for render workers (issue #858). `wakeEpoch` is the
+      // 32-bit word parked workers wait on (futex / WaitOnAddress); every
+      // wake() and shutdown() bumps it, so a worker that sampled it before
+      // parking can never sleep through a wake that raced its park. `parked`
+      // counts workers that announced they are about to park or are parked —
+      // wake() skips the OS call entirely while it is zero.
+      std::atomic<std::uint32_t> wakeEpoch{0};
+      std::atomic<Int> parked{0};
       std::forward_list<threadPoolThread> threads;
       Int poolSize; // resolved worker count, reused when startup() re-spawns
       poolClass classOf; // render vs background behaviour

@@ -599,7 +599,7 @@ entry (so in the per-PR `tests-tsan` gate). Removing the `join()` from
 - `BM_Engine_RenderHeavy_Swarm/workers:W` — the same 448 voices on one
   channel: the swarm shape a channel-granular pool cannot split.
 
-W in {0, 1, 2, 4} is the render worker count. `per_channel_job` is the wall
+W in {0, 1, 2, 4, 8, 24} is the render worker count. `per_channel_job` is the wall
 time per block divided by the channel count; at W = 0 it is the cost of one
 channel job.
 
@@ -632,6 +632,24 @@ render benchmark reads ~1.6x slower (W = 0 swarm: 1.85 ms pinned to CPU 0 or
 2, 2.9-3.1 ms pinned to CPU 8, 16 or 22). Unpinned, that looks like order
 dependence between benchmarks and is not. Re-measure with the same mask, or
 compare configurations within one run. Core placement itself is #862.
+
+**Render workers park instead of yield-spinning (#858).** W now also sweeps
+8 and 24. Interleaved A/B (HEAD vs. #858, two rounds of 3 repetitions each,
+medians, same 0xFF mask, per block):
+
+| Benchmark | W = 0 | W = 1 | W = 2 | W = 4 | W = 8 | W = 24 |
+|---|---|---|---|---|---|---|
+| `RenderHeavy_Channels` before | 1.85 ms | 1.01 ms | 0.74 ms | 0.51 ms | 0.27 ms | 0.28 ms |
+| `RenderHeavy_Channels` after | 1.85 ms | 1.00 ms | 0.74 ms | 0.50 ms | 0.27 ms | 0.32 ms |
+| `RenderHeavy_Swarm` before | 1.85 ms | 1.87 ms | 1.85 ms | 1.85 ms | 1.88 ms | 1.90 ms |
+| `RenderHeavy_Swarm` after | 1.85 ms | 1.85 ms | 1.85 ms | 1.85 ms | 1.86 ms | 1.85 ms |
+
+The swarm (one job, W - 1 idle workers) no longer degrades with W: the idle
+workers sleep instead of competing with the rendering thread. W = 8 and 24
+run 9 and 25 threads on 8 logical CPUs; at W = 24 the eight-channel scene
+pays the Windows wake latency of the workers it has to unpark (Windows cannot
+wake "n" waiters, so a partial fan-out wakes one and the woken pass it on).
+`BM_Engine_RenderOffline_100Sounds`: 108 us before and after.
 
 ---
 

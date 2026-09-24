@@ -62,6 +62,7 @@ TEST_SUITE("internal") {
 
     for (auto& j : jobs)
       pool.addJob(j.get());
+    pool.wake(N);
     for (auto& j : jobs)
       j->join();
 
@@ -126,6 +127,7 @@ TEST_SUITE("internal") {
       blockers.emplace_back(std::make_unique<BlockJob>(&release));
       pool.addJob(blockers.back().get());
     }
+    pool.wake(2); // the workers may already be parked (issue #858)
 
     // Now flood past capacity. With both workers stuck, ~4096 land in the ring
     // and the remainder run inline on this (calling) thread.
@@ -214,6 +216,7 @@ TEST_SUITE("internal") {
     std::atomic<bool> started{false};
     BlockJob blocker(&release, &started);
     pool.addJob(&blocker);
+    pool.wake(1); // the worker may already be parked (issue #858)
 
     // Wait until the worker has actually popped the blocker, so the ring
     // holds only the jobs below and the worker is provably out of play.
@@ -377,6 +380,100 @@ TEST_SUITE("internal") {
     threadPool background(1, poolClass::background);
     background.setWorkerCount(0);
     CHECK(background.workerCount() == 1);
+  }
+
+  // Poll `pred` until it holds or `timeout` elapses; returns the final value.
+  template <typename Pred>
+  bool waitFor(Pred pred, std::chrono::milliseconds timeout = std::chrono::milliseconds(2000)) {
+    const auto deadline = std::chrono::steady_clock::now() + timeout;
+    while (!pred()) {
+      if (std::chrono::steady_clock::now() > deadline) return pred();
+      // yield, not sleep_for: Windows rounds short sleeps up to the ~1-15 ms
+      // timer quantum, which would make the 1500-iteration race test crawl.
+      std::this_thread::yield();
+    }
+    return true;
+  }
+
+  TEST_CASE("threadPool: idle render workers park instead of spinning (issue #858)") {
+    // Regression for issue #858. Idle render workers used to yield-spin for
+    // 5 ms after every job — longer than the ~2.9 ms block period, so under
+    // live rendering every idle raised-priority worker spun forever. They must
+    // now park after a short spin window, and a wake() must bring them back.
+    threadPool pool(4, poolClass::render);
+    const bool allParked = waitFor([&] { return pool.parkedWorkers() == 4; });
+    CHECK(allParked);
+
+    // A parked worker picks up a job only after wake(): nothing here joins
+    // (so nothing help-runs), the job can only start on a woken worker.
+    std::atomic<bool> release{false};
+    std::atomic<bool> started{false};
+    BlockJob blocker(&release, &started);
+    pool.addJob(&blocker);
+    pool.wake(1);
+    const bool ranOnWorker = waitFor([&] { return started.load(std::memory_order_acquire); });
+    CHECK(ranOnWorker);
+    release.store(true, std::memory_order_release);
+    blocker.join();
+
+    // And once the burst is over, the workers go back to sleep.
+    const bool reParked = waitFor([&] { return pool.parkedWorkers() == 4; });
+    CHECK(reParked);
+
+    // A background pool never parks: its workers keep the timed backoff.
+    threadPool background(1, poolClass::background);
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    CHECK(background.parkedWorkers() == 0);
+  }
+
+  TEST_CASE("threadPool: wake() never loses a job to a racing park (issue #858)") {
+    // The wake side skips its syscall when no worker is parked, so a worker
+    // caught between "ring empty" and "parked" must not sleep through a job
+    // pushed in that window. Vary the gap between dispatches across the spin
+    // window so the dispatch lands in every phase of a worker's
+    // spin -> announce -> re-check -> park sequence. Nothing joins until the
+    // job has been observed complete, so a lost wakeup cannot be masked by
+    // help-running: it shows up as a job that never runs.
+    // One worker: with more, a spinning sibling would mask a lost wakeup.
+    threadPool pool(1, poolClass::render);
+    std::atomic<int> counter{0};
+    constexpr int N = 3000;
+    int lost = 0;
+    for (int i = 0; i < N; ++i) {
+      CountJob job(&counter);
+      pool.addJob(&job);
+      pool.wake(1);
+      if (!waitFor([&] { return !job.isQueued(); }, std::chrono::milliseconds(500))) ++lost;
+      job.join();
+      // Sweep the gap across 30..70 us in 0.1 us steps, concentrated on the
+      // worker's 50 us spin-window edge where it announces and parks; every
+      // tenth iteration uses a short gap so the spin-hit path runs too.
+      const auto gap = (i % 10 == 0) ? std::chrono::nanoseconds(0)
+                                     : std::chrono::nanoseconds(30000 + (i * 173) % 40000);
+      const auto until = std::chrono::steady_clock::now() + gap;
+      while (std::chrono::steady_clock::now() < until) {}
+    }
+    CHECK(lost == 0);
+    CHECK(counter.load() == N);
+  }
+
+  TEST_CASE("threadPool: shutdown() wakes parked render workers (issue #858)") {
+    // A parked worker blocks in the kernel with no timeout. shutdown() must
+    // unpark it, or joining the worker threads hangs forever.
+    threadPool pool(4, poolClass::render);
+    const bool allParked = waitFor([&] { return pool.parkedWorkers() == 4; });
+    CHECK(allParked);
+
+    const auto t0 = std::chrono::steady_clock::now();
+    pool.shutdown();
+    const auto elapsed = std::chrono::steady_clock::now() - t0;
+    CHECK(std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count() < 1000);
+    CHECK(pool.parkedWorkers() == 0);
+
+    // The pool revives cleanly and its fresh workers park again.
+    pool.startup();
+    const bool reParked = waitFor([&] { return pool.parkedWorkers() == 4; });
+    CHECK(reParked);
   }
 
 } // TEST_SUITE

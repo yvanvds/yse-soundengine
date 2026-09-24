@@ -50,6 +50,10 @@ void YSE::INTERNAL::global::addFastJob(threadPoolJob* job) {
   fastThreads.addJob(job);
 }
 
+void YSE::INTERNAL::global::wakeFastWorkers(Int jobCount) {
+  fastThreads.wake(jobCount);
+}
+
 void YSE::INTERNAL::global::setRenderWorkerCount(Int numThreads) {
   fastThreads.setWorkerCount(numThreads);
 }

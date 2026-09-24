@@ -117,6 +117,7 @@ void YSE::CHANNEL::implementationObject::dsp() {
   clearBuffers();
 
   // calculate child channels if there are any
+  Int dispatched = 0;
   for (auto i = children.begin(); i != children.end(); ++i) {
     // Skip the fast-pool dispatch for children that have no work this
     // render. Their dsp() would early-return at the top of this same
@@ -132,7 +133,12 @@ void YSE::CHANNEL::implementationObject::dsp() {
     // issue #82.
     if ((*i)->children.empty() && (*i)->sounds.empty()) continue;
     INTERNAL::Global().addFastJob(*i);
+    ++dispatched;
   }
+  // One wake for the whole fan-out, not one per job (issue #858): parked
+  // render workers get a single signal; anything they miss is help-run by
+  // buffersToParent()'s join().
+  INTERNAL::Global().wakeFastWorkers(dispatched);
 
   // calculate sounds in this channel
   for (auto i = sounds.begin(); i != sounds.end(); ++i) {

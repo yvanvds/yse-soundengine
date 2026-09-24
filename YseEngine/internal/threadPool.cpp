@@ -20,7 +20,80 @@
 #include <intrin.h>
 #endif
 
+#if defined(_WIN32)
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#if defined(_MSC_VER)
+#pragma comment(lib, "synchronization.lib") // WaitOnAddress / WakeByAddress*
+#endif
+#define YSE_PARK_WAITONADDRESS 1
+#elif defined(__linux__) // includes Android
+#include <linux/futex.h>
+#include <sys/syscall.h>
+#include <unistd.h>
+#include <climits>
+#define YSE_PARK_FUTEX 1
+#endif
+
 namespace {
+  // Park/wake primitives for render workers (issue #858). A parked worker
+  // blocks in the kernel until the 32-bit word changes from `expected` (or a
+  // spurious wakeup — callers re-check). The wake side is a single
+  // non-blocking syscall: no user-space lock, no allocation.
+  //
+  // Platforms without an address-wait primitive (no current build target;
+  // kept so the pool still compiles elsewhere) fall back to the old deep-idle
+  // sleep: parkOn() naps 1 ms and wakeParked() is a no-op, so a "parked"
+  // worker polls at 1 kHz.
+  inline void parkOn(std::atomic<std::uint32_t>& word, std::uint32_t expected) {
+#if defined(YSE_PARK_WAITONADDRESS)
+    // std::atomic<uint32_t> is a lock-free 4-byte object with the same
+    // representation as uint32_t on every supported compiler; WaitOnAddress
+    // compares the raw bytes.
+    WaitOnAddress(reinterpret_cast<volatile VOID*>(&word), &expected, sizeof(expected), INFINITE);
+#elif defined(YSE_PARK_FUTEX)
+    syscall(SYS_futex, reinterpret_cast<std::uint32_t*>(&word), FUTEX_WAIT_PRIVATE, expected,
+            nullptr, nullptr, 0);
+#else
+    (void)word;
+    (void)expected;
+    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+#endif
+  }
+
+  // Whether wakeParked() can wake exactly `count` waiters in one call. futex
+  // can; Windows only has "one" or "all". Where it can't, wake() wakes a
+  // single worker and each woken worker that finds a job passes the wake on
+  // to one more (see threadPool::getRenderJob) — so the audio callback still
+  // pays exactly one wake call per fan-out, and a 2-job fan-out does not
+  // stampede every parked worker onto the CPUs the rendering thread needs.
+#if defined(YSE_PARK_FUTEX)
+  constexpr bool WAKE_COUNT_IS_EXACT = true;
+#else
+  constexpr bool WAKE_COUNT_IS_EXACT = false;
+#endif
+
+  // Wake up to `count` workers parked on `word`; count < 0 wakes all.
+  inline void wakeParked(std::atomic<std::uint32_t>& word, int count) {
+#if defined(YSE_PARK_WAITONADDRESS)
+    if (count == 1)
+      WakeByAddressSingle(reinterpret_cast<PVOID>(&word));
+    else
+      WakeByAddressAll(reinterpret_cast<PVOID>(&word));
+#elif defined(YSE_PARK_FUTEX)
+    syscall(SYS_futex, reinterpret_cast<std::uint32_t*>(&word), FUTEX_WAKE_PRIVATE,
+            count < 0 ? INT_MAX : count, nullptr, nullptr, 0);
+#else
+    (void)word;
+    (void)count;
+#endif
+  }
+
   // Relax the CPU inside a spin loop: on x86 this is the PAUSE instruction
   // (frees the pipeline / hyperthread sibling and cuts power), on ARM the YIELD
   // hint, and a portable no-op elsewhere. Not a scheduling yield — the caller
@@ -199,6 +272,14 @@ void YSE::INTERNAL::threadPool::shutdown() {
   if (!active) return; // already shut down — nothing to join or drain
   active = false;
 
+  // Unpark every render worker so it observes !active and exits (issue #858).
+  // The epoch bump is ordered after the `active` store: a worker that read
+  // active == true sampled the epoch before this bump, so its park either
+  // fails the compare or is woken here. Unconditional (not gated on
+  // `parked`): shutdown is a control-thread path, not RT.
+  wakeEpoch.fetch_add(1, std::memory_order_seq_cst);
+  wakeParked(wakeEpoch, -1);
+
   // Release any queued jobs so a pending join() returns instead of spinning
   // forever. Marking inQueue=false is enough (join() exits on !inQueue); we do
   // not run them. No lock: getJob() stops popping once active is false, so the
@@ -264,11 +345,141 @@ bool YSE::INTERNAL::threadPool::tryRunOne() {
   return true;
 }
 
+void YSE::INTERNAL::threadPool::wake(Int jobCount) {
+  // Called on the audio callback once per fan-out (issue #858): must stay a
+  // single non-blocking signal. Background workers never park.
+  if (jobCount <= 0 || classOf != poolClass::render) return;
+
+  // Store-load barrier pairing with the one in getRenderJob(): the caller's
+  // ring pushes (stores) must be globally visible before we read `parked`,
+  // and a parking worker's `parked` increment before it re-checks the ring.
+  // With a fence on both sides at least one side sees the other: either we
+  // see the worker announced and wake it, or it sees our job and never parks.
+  std::atomic_thread_fence(std::memory_order_seq_cst);
+  const Int sleeping = parked.load(std::memory_order_relaxed);
+  if (sleeping == 0) return; // everyone is awake or spinning: no syscall
+
+  wakeEpoch.fetch_add(1, std::memory_order_seq_cst);
+  // Wake no more workers than there are jobs: a woken worker that finds the
+  // ring empty just re-parks, but there is no point paying for it.
+  //
+  // Without an exact wake count (Windows): when the fan-out needs every
+  // parked worker, wake them all at once — in parallel, so no worker's start
+  // waits on another's wake latency. When it needs fewer, wake one and let
+  // each woken worker that finds a job pass the wake on (passWakeOn()), so a
+  // small fan-out does not stampede a large pool onto the CPUs the rendering
+  // thread needs. Measured on the #857 heavy scene: all-wake cost 10% at
+  // W = 24 on 8 CPUs, one-and-chain cost 7-10% at W = 4 unpinned (the wake
+  // latency serialises along the chain); this split takes the better of each.
+  const Int wanted = jobCount < sleeping ? jobCount : sleeping;
+  if (WAKE_COUNT_IS_EXACT)
+    wakeParked(wakeEpoch, (int)wanted);
+  else
+    wakeParked(wakeEpoch, wanted >= sleeping ? -1 : 1);
+}
+
+void YSE::INTERNAL::threadPool::passWakeOn() {
+  // A worker woken by wake() found a job: hand the wake on to one more parked
+  // worker, in case the fan-out has more (issue #858). Only on platforms whose
+  // wake cannot target a count (Windows); futex wakes the right number up
+  // front. The chain ends at the first woken worker that finds the ring empty,
+  // so a fan-out of n jobs wakes at most n + 1 workers — and this runs on a
+  // worker, so the audio callback still made only its one wake call.
+  if (WAKE_COUNT_IS_EXACT) return;
+  // (A two-way fan-out per hop was measured too: 6.4 vs 5.0 ms per 16 blocks
+  // at W = 24 on 8 CPUs — the overshoot stampedes the pool again.)
+  if (parked.load(std::memory_order_relaxed) == 0) return;
+  wakeEpoch.fetch_add(1, std::memory_order_seq_cst);
+  wakeParked(wakeEpoch, 1);
+}
+
 YSE::INTERNAL::threadPoolJob* YSE::INTERNAL::threadPool::getJob() {
-  // Adaptive backoff: pick up work within nanoseconds while the pool is hot
-  // (busy render), fall to a cooperative yield, and only start sleeping once
-  // the pool has been idle for a while so an idle engine doesn't peg a core.
-  // No producer-side wakeup is needed, so addJob() never has to lock or notify.
+  return classOf == poolClass::render ? getRenderJob() : getBackgroundJob();
+}
+
+bool YSE::INTERNAL::threadPool::spinForJob(threadPoolJob*& job) {
+  // The bounded pre-park spin window (issue #858; see getRenderJob()).
+  using clock = std::chrono::steady_clock;
+  constexpr auto SPIN_WINDOW = std::chrono::microseconds(50);
+  constexpr auto PAUSE_WINDOW = std::chrono::microseconds(10);
+  const auto spinStart = clock::now();
+  for (auto spun = clock::duration::zero(); active && spun < SPIN_WINDOW;
+       spun = clock::now() - spinStart) {
+    if (spun < PAUSE_WINDOW)
+      cpuRelax();
+    else
+      std::this_thread::yield();
+    if (jobs.try_pop(job)) return true;
+  }
+  return false;
+}
+
+YSE::INTERNAL::threadPoolJob* YSE::INTERNAL::threadPool::getRenderJob() {
+  // Spin, then park (issue #858). The old strategy yield-spun for 5 ms before
+  // sleeping; blocks arrive every ~2.9 ms live, so every idle render worker —
+  // a raised-priority thread — sat in a yield() loop for the whole gap
+  // between blocks, competing with the threads doing real work (including
+  // their SMT siblings). Now an idle worker spins only a short window, long
+  // enough to catch the next job of a fan-out already in flight, and then
+  // parks in the kernel until wake() — which the dispatcher calls once per
+  // fan-out — or shutdown(). A parked worker costs no CPU, so a paused or
+  // idle engine's render pool sits at zero load. A worker that wakes late
+  // just finds fewer (or no) jobs: the joining thread help-runs the rest.
+  //
+  // The spin window is PAUSE for its first 10 us, then yield() for the rest.
+  // The yield tail is bounded (it ends in a park, never in another window),
+  // and it is what keeps an oversubscribed pool honest: measured on the #857
+  // heavy scene pinned to 8 logical CPUs, 8-24 raised-priority workers
+  // PAUSE-spinning a full 50 us starved the (normal-priority) rendering
+  // thread of a CPU — 0.31 / 0.34 ms per block at W = 8 / 24 vs 0.28 / 0.33
+  // with the yield tail. Shorter pure-PAUSE windows parked too eagerly for
+  // back-to-back offline blocks.
+  threadPoolJob* job = nullptr;
+  bool woken = false; // just returned from parkOn()
+
+  while (active) {
+    if (jobs.try_pop(job)) {
+      if (woken) passWakeOn();
+      return job;
+    }
+
+    // Spin only after running a job, where the next job of a fan-out still in
+    // flight may be moments away. A worker just woken to an empty ring (the
+    // jobs were taken by faster threads, or the wake raced a shutdown) goes
+    // straight back to sleep: a raised-priority thread spinning on nothing is
+    // exactly the CPU the rendering thread and the busy workers need.
+    if (!woken && spinForJob(job)) return job;
+
+    // Park. Sample the epoch first, then announce, then re-check the ring and
+    // `active` — see wake() and shutdown() for the pairing arguments. Any
+    // wake or shutdown after the sample changes the epoch, so parkOn()
+    // returns immediately instead of sleeping through it.
+    const std::uint32_t epoch = wakeEpoch.load(std::memory_order_seq_cst);
+    parked.fetch_add(1, std::memory_order_seq_cst);
+    std::atomic_thread_fence(std::memory_order_seq_cst);
+    if (!active) {
+      parked.fetch_sub(1, std::memory_order_seq_cst);
+      break;
+    }
+    if (jobs.try_pop(job)) {
+      parked.fetch_sub(1, std::memory_order_seq_cst);
+      return job;
+    }
+    parkOn(wakeEpoch, epoch);
+    parked.fetch_sub(1, std::memory_order_seq_cst);
+    woken = true;
+  }
+  return nullptr;
+}
+
+YSE::INTERNAL::threadPoolJob* YSE::INTERNAL::threadPool::getBackgroundJob() {
+  // Adaptive backoff: pick up work within nanoseconds while the pool is hot,
+  // fall to a cooperative yield, and only start sleeping once the pool has
+  // been idle for a while so an idle engine doesn't peg a core. No
+  // producer-side wakeup is needed, so addJob() never has to lock or notify.
+  // Background workers run at normal priority and see a handful of jobs per
+  // manager tick, so the render pool's park/wake (issue #858) buys nothing
+  // here.
   using clock = std::chrono::steady_clock;
   auto idleStart = clock::now();
   threadPoolJob* job = nullptr;
