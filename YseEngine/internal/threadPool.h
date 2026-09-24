@@ -119,6 +119,21 @@ namespace YSE {
         return poolSize;
       }
 
+      // Re-size the pool (issue #857): join the current workers and, if the
+      // pool was active, re-spawn `numThreads` of them. -1 re-applies the
+      // constructor's auto-sizing rule. A render pool also accepts 0: no
+      // workers at all, so every dispatched job is run by the thread that
+      // joins it (join()'s help-running) — the serial reference the render
+      // golden test compares multi-worker output against. A background pool
+      // is clamped to at least one worker, since nothing ever help-runs it.
+      //
+      // Control thread only, and only while nothing is dispatching into the
+      // pool: a job added while the workers are being swapped is dropped
+      // (addJob() on an inactive pool is a no-op). In engine use that means an
+      // offline session between renderOffline() calls, or no live audio
+      // callback. Not an RT operation — it joins and spawns threads.
+      void setWorkerCount(Int numThreads);
+
       // Wait-free on the producer side: pushes the job into the lock-free ring
       // and lets a worker pick it up. Never locks, allocates, or blocks — safe
       // to call from the audio callback. For a render pool, a full ring falls

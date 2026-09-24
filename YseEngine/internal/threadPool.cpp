@@ -124,29 +124,46 @@ void YSE::INTERNAL::threadPoolThread::run() {
   }
 }
 
+namespace {
+  // Resolve a requested worker count: -1 auto-sizes, anything else is honoured
+  // as given, and the result is never below `floor`.
+  Int resolvePoolSize(Int requested, YSE::INTERNAL::poolClass cls, Int floor) {
+    Int size = requested;
+    if (size == -1) {
+      size = (Int)std::thread::hardware_concurrency();
+      // Render fan-out does not scale with core count — it scales *against* it.
+      // See MAX_AUTO_RENDER_THREADS in threadPool.h for the measurements (#650).
+      // Background pools are sized explicitly by their owner, so this only ever
+      // caps a render pool that asked to be auto-sized.
+      if (cls == YSE::INTERNAL::poolClass::render &&
+          size > YSE::INTERNAL::threadPool::MAX_AUTO_RENDER_THREADS) {
+        size = YSE::INTERNAL::threadPool::MAX_AUTO_RENDER_THREADS;
+      }
+      // hardware_concurrency() may be 0 when it is not computable; auto-sizing
+      // always yields at least one worker.
+      if (size <= 0) size = 1;
+    }
+    if (size < floor) size = floor;
+    return size;
+  }
+} // namespace
+
 YSE::INTERNAL::threadPool::threadPool(Int numThreads, poolClass cls)
   : jobs(cls == poolClass::render ? RENDER_CAPACITY : BACKGROUND_CAPACITY),
-    poolSize(numThreads),
+    poolSize(resolvePoolSize(numThreads, cls, 1)),
     classOf(cls),
     active(false) {
-  if (poolSize == -1) {
-    poolSize = (Int)std::thread::hardware_concurrency();
-    // Render fan-out does not scale with core count — it scales *against* it.
-    // See MAX_AUTO_RENDER_THREADS in threadPool.h for the measurements (#650).
-    // Background pools are sized explicitly by their owner, so this only ever
-    // caps a render pool that asked to be auto-sized.
-    if (cls == poolClass::render && poolSize > MAX_AUTO_RENDER_THREADS) {
-      poolSize = MAX_AUTO_RENDER_THREADS;
-    }
-  }
-
-  // this might happen if hardware_concurrency() is not well defined or not computable
-  // in which case we need at least one thread to continue
-  if (poolSize <= 0) {
-    poolSize = 1;
-  }
-
   startup();
+}
+
+void YSE::INTERNAL::threadPool::setWorkerCount(Int numThreads) {
+  const bool wasActive = active;
+  shutdown();
+  // Zero workers is only meaningful for a render pool, whose jobs are always
+  // joined — and so help-run — by the dispatching thread. A background job is
+  // fire-and-forget and would never run.
+  poolSize = resolvePoolSize(numThreads, classOf, classOf == poolClass::render ? 0 : 1);
+  if (wasActive) startup();
 }
 
 YSE::INTERNAL::threadPool::~threadPool() {

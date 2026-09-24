@@ -246,6 +246,7 @@ set(YSE_TEST_SOURCES
   channel/test_channel_layout.cpp
   channel/test_channel_dsp.cpp
   channel/test_channel_sends.cpp
+  channel/test_render_golden.cpp
   channel/test_channel_underwater.cpp
   channel/test_c_api_channel.cpp
   sound/test_sound_state.cpp
@@ -625,6 +626,19 @@ add_test(
   WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
 set_tests_properties(yse_tests_channel PROPERTIES LABELS channel)
+
+# Render golden test (issue #857): the mix must be bit-identical for 0, 1, 2
+# and N render workers — the correctness oracle for the render-scheduler work
+# (epic #856). Also part of the monolithic yse_unit_tests entry, and so of the
+# dev-push TSan sweep; this entry is what the per-PR TSan gate runs. In its own
+# process it is always the only renderer; in the shared one it skips if an
+# earlier suite left a live audio stream running (never on headless CI).
+add_test(
+  NAME    yse_tests_rendergolden
+  COMMAND yse_tests --test-suite=rendergolden
+  WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+)
+set_tests_properties(yse_tests_rendergolden PROPERTIES LABELS "channel;concurrency" TIMEOUT 300)
 
 add_test(
   NAME    yse_tests_sound

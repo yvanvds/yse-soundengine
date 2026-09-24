@@ -322,4 +322,61 @@ TEST_SUITE("internal") {
     CHECK(background.workerCount() == 1);
   }
 
+  TEST_CASE("threadPool: setWorkerCount re-sizes a live pool, down to zero render workers (#857)") {
+    // The render golden test and the heavy render benchmarks switch the render
+    // worker count between runs. Zero is the serial reference: no worker
+    // threads at all, every job run by the thread that joins it.
+    threadPool pool(2, poolClass::render);
+    std::atomic<int> counter{0};
+    std::vector<std::atomic<std::thread::id>> ranOn(16);
+
+    auto runBatch = [&](int n) {
+      std::vector<std::unique_ptr<CountJob>> jobs;
+      jobs.reserve(n);
+      for (int i = 0; i < n; ++i)
+        jobs.emplace_back(std::make_unique<CountJob>(&counter, &ranOn[i]));
+      for (auto& j : jobs)
+        pool.addJob(j.get());
+      for (auto& j : jobs)
+        j->join();
+    };
+
+    pool.setWorkerCount(0);
+    CHECK(pool.workerCount() == 0);
+    runBatch(16);
+    CHECK(counter.load() == 16);
+    // With no workers the joining thread must have run every job itself.
+    // Compared outside CHECK: doctest cannot stringify std::thread::id on
+    // libstdc++.
+    for (int i = 0; i < 16; ++i) {
+      const bool ranOnJoiningThread = ranOn[i].load() == std::this_thread::get_id();
+      CHECK(ranOnJoiningThread);
+    }
+
+    pool.setWorkerCount(3);
+    CHECK(pool.workerCount() == 3);
+    runBatch(16);
+    CHECK(counter.load() == 32);
+
+    // -1 re-applies the constructor's auto-sizing rule, cap included.
+    pool.setWorkerCount(-1);
+    CHECK(pool.workerCount() >= 1);
+    CHECK(pool.workerCount() <= threadPool::MAX_AUTO_RENDER_THREADS);
+    runBatch(16);
+    CHECK(counter.load() == 48);
+
+    // On a shut-down pool the count is recorded and used by the next startup().
+    pool.shutdown();
+    pool.setWorkerCount(1);
+    CHECK(pool.workerCount() == 1);
+    pool.startup();
+    runBatch(16);
+    CHECK(counter.load() == 64);
+
+    // A background pool has nobody to help-run its jobs, so it keeps a worker.
+    threadPool background(1, poolClass::background);
+    background.setWorkerCount(0);
+    CHECK(background.workerCount() == 1);
+  }
+
 } // TEST_SUITE
