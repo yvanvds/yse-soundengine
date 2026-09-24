@@ -252,8 +252,8 @@ TEST_SUITE("rendergolden") {
     }
 
     // Every voice must render regardless of what else is alive in the
-    // process: lift the virtual-sound limit for the case (a channel's
-    // setVirtual(false) cannot switch virtualisation off, issue #864).
+    // process: lift the virtual-sound limit for the case, the same way the
+    // #857 heavy-voice benchmarks do.
     const int previousMaxSounds = YSE::System().maxSounds();
     YSE::System().maxSounds(4096);
 

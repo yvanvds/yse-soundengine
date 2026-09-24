@@ -167,8 +167,9 @@ namespace {
     YSE::INTERNAL::Global().setRenderWorkerCount(static_cast<Int>(state.range(0)));
     // Every voice must render, so lift the virtual-sound limit above the voice
     // count for the run: the engine's default of 50 would virtualise most of
-    // them. channel::setVirtual(false) is the intended switch for that, but it
-    // cannot currently turn virtualisation off (issue #864).
+    // them. channel::setVirtual(false) would do the same per channel since
+    // #864, but it skips the virtual-sound finder's per-voice range check, so
+    // the scenes keep the limit to stay comparable with the recorded baselines.
     const int previousMaxSounds = YSE::System().maxSounds();
     YSE::System().maxSounds(kHeavyVoices * 4);
 
