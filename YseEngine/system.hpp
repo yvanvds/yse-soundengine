@@ -422,6 +422,38 @@ namespace YSE {
     /** @brief Currently requested sample rate in Hz, or 0 when none is set. */
     unsigned int requestSampleRate();
 
+    /** @brief Set how many worker threads help the audio thread render.
+     *
+     *  The mix is rendered as a task graph that the audio callback thread
+     *  works through together with ``count`` render workers (issue #861).
+     *
+     *  - ``-1`` (default, and any negative value): auto — the number of
+     *    physical cores minus one (the audio thread renders too, and the host
+     *    keeps a core), capped at 8.
+     *  - ``0``: serial — the audio thread renders everything, no workers
+     *    are started. Use on constrained hardware.
+     *  - ``n > 0``: exactly ``n`` workers (at most 64).
+     *
+     *  Whatever the count, nobody is woken for a block estimated to cost less
+     *  than waking a worker: in real-time rendering the audio thread renders
+     *  such a block alone, so small scenes do not pay for idle workers. The
+     *  setting decides only which thread renders each part of the mix, never
+     *  how it is summed.
+     *
+     *  Call before ``init()`` / ``initOffline()``. On an offline session (or
+     *  with no session) the change applies at once; during a device session
+     *  it is stored and applied by the next ``init()``, since the live
+     *  callback may be rendering. The setting survives ``close()``.
+     */
+    system& renderThreads(int count);
+
+    /** @brief The render thread setting last requested: -1 for auto. */
+    int renderThreads();
+
+    /** @brief The number of render workers currently running (auto resolved;
+     *  a request deferred to the next session is not reflected yet). */
+    int activeRenderThreads();
+
     /** @brief Engine session sample rate in Hz.
      *
      *  The rate the engine locked to when ``init()`` / ``initOffline()`` ran.

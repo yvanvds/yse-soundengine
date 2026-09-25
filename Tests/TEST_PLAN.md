@@ -571,7 +571,9 @@ correctness oracle and a set of benchmarks with work worth parallelising.
 `threadPool::setWorkerCount`) re-sizes the render pool between renders: `-1`
 restores the auto-sized default (`MAX_AUTO_RENDER_THREADS` = 2), `0` means no
 render workers at all — the rendering thread runs every channel job itself via
-`join()`'s help-running. Internal until #861 exposes a thread-count policy.
+`join()`'s help-running. Internal until #861 exposes a thread-count policy
+(since #861: auto = physical cores − 1, capped at `renderScheduler::MAX_AUTO_WORKERS`
+= 8; public as `System().renderThreads()` / `yse_system_set_render_threads()`).
 Control thread only, and only while nothing renders.
 
 **Golden test** — `Tests/channel/test_render_golden.cpp`, suite
@@ -707,6 +709,80 @@ thread-count policy. Controls: `BM_VaVoice_SingleSaw` 4.22 -> 4.18 us;
 sounds per channel open a second, near-empty slice each — ~0.15 us per block
 of extra clear, sum and claim, which #861's cost-based balancing and serial
 gating are for).
+
+**Cost tracking, balancing, serial gating, thread-count policy (#861).** Every
+16th block (and the block after a rebuild or a sound connect/disconnect) each
+task is timed into an EMA of its own time (continuations it ran inline are
+subtracted); leaves are dealt to the least-loaded list by that cost; voice
+slices join, open, merge, split and level by measured cost against a target
+derived from the measured wake cost (10–200 us); a light block (estimated below
+one wake) wakes nobody and, once every worker has parked, runs on the calling
+thread alone. The wake cost is the latency from the wake call to the first
+woken worker joining; a block that closes before any woken worker joins is
+only a lower bound, so it may raise the estimate but never lower it. The auto
+worker count is physical cores − 1, capped at 8, and
+`System().renderThreads()` / `yse_system_set_render_threads()` make it public.
+Coverage: `test_render_scheduler.cpp` (light blocks serial at real-time
+cadence with the workers left parked, light back-to-back blocks still open,
+heavy blocks fan out, a task's cost excludes its continuations, the cost deal
+balances two heavy leaves that round-robin would stack and rebuilds once after
+a blind deal, the auto count), `test_voice_slices.cpp` (cheapest-slice join,
+open past the target, merge of a count-opened second slice — the #860
+regression — split above two targets, leveling of an uneven pair and no
+leveling within noise, the count policy when cost balancing is off), the golden
+test (count policy pinned for its known three-slice layout, gating off for the
+1/2/N runs, plus a gated N-worker run that must stay bit-exact and fan out), a
+`rendergolden` case for a latent #860 bug the cost policy exposes — the
+master's mix task counted one dependency for its own sounds however many voice
+slices it had, so a master with a second slice mixed while that slice was
+still writing (a master insert checks every master voice has rendered the
+block) — and C API cases in `capilowcov` (NULL safety; 0 / 3 / auto applied to
+an offline session that keeps rendering) and `capilowcovlife` (the setting
+survives close and init; per-process ctest entries only). Fail-without-fix,
+verified: reverting the master dependency count, charging a task its
+continuations, a gate that never goes serial, or a count-only slice pick each
+fail their cases.
+
+A finding that shaped the gate: rendered back to back (offline), the
+100-sound scene is *faster* in parallel than serial — ~84 us per 64 blocks at
+W = 2 against ~119 us at W = 0 — because the workers are still in their 50 us
+post-block spin and join for a cache miss. #812's "parallel always loses"
+measured the old yield-spinning pool. So a light block that starts within the
+spin window of the previous one still opens; the serial gate applies at
+real-time cadence, where every block starts with the workers parked.
+`BM_Engine_RenderPaced_100Sounds/workers:W` measures exactly that (one block
+per 300 us, only the block timed): auto-sized workers render serially
+(`serial` = 1) at 1.89 / 1.95 us per block against 1.90 / 1.98 us at W = 0
+(two filtered runs, medians of 5).
+
+Interleaved A/B (#860 = 8c1adc2 vs. #861, two rounds of 3 repetitions,
+medians averaged, same 0xFF mask, per block). Both builds' heavy benches send
+32 control ticks before timing, as a host does every frame: the cost policy
+re-shapes slices one step per tick, and without ticks the timed blocks see the
+connect-time layout (slices up to 3x uneven at W = 8):
+
+| Benchmark | W = 0 | W = 1 | W = 2 | W = 4 | W = 8 | W = 24 |
+|---|---|---|---|---|---|---|
+| `RenderHeavy_Channels` before | 1.86 ms | 0.972 ms | 0.686 ms | 0.452 ms | 0.290 ms | 0.371 ms |
+| `RenderHeavy_Channels` after | 1.85 ms | 0.980 ms | 0.651 ms | 0.408 ms | 0.274 ms | 0.385 ms |
+| `RenderHeavy_Swarm` before | 1.86 ms | 0.975 ms | 0.693 ms | 0.439 ms | 0.306 ms | 0.366 ms |
+| `RenderHeavy_Swarm` after | 1.83 ms | 0.961 ms | 0.679 ms | 0.451 ms | 0.294 ms | 0.363 ms |
+
+A focused re-run (three rounds of 3) confirms: Channels W = 4 0.445 -> 0.406,
+W = 8 0.281 -> 0.274, W = 24 0.368 -> 0.385 ms; Swarm W = 4 0.430 -> 0.458,
+W = 8 0.300 -> 0.287, W = 24 0.364 -> 0.362 ms. W = 8 is the auto-sized count
+on this machine. Two regressions remain, both granularity: the swarm levels
+into 16 equal slices, which five lists (W = 4) take 4 at a time (25% of the
+work on the slowest list vs 21% for #860's 14 count slices), and W = 24
+oversubscribes the 8-CPU mask. Isolated at W = 8 (env-switched build, not
+committed): the cost deal beats round-robin at W = 2/4 (Channels 0.64 vs
+0.66 ms) and loses ~3% at W = 8 without leveling; sampling costs nothing
+measurable. The #860 build did not reproduce its recorded W = 8 regression
+(0.28 ms either way). Controls: `BM_Engine_RenderOffline_100Sounds` 87.5 ->
+88.3 us (auto-sized: 2 workers before, 8 after — at W = 2 the #861 build reads
+80–85 us, so the slice merge fixed #860's near-empty second slices and the
+remainder is six more spinning workers on a ~1.4 us block; back to back, so it
+stays parallel, `serial` = 0); `BM_VaVoice_SingleSaw` 4.13 -> 4.09 us.
 
 ---
 

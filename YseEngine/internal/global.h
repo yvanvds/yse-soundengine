@@ -70,17 +70,30 @@ namespace YSE {
         return render;
       }
 
-      // Render worker count (issue #857). Internal hook for the render golden
-      // test and the render benchmarks until the thread-count policy is exposed
-      // publicly (issue #861). -1 restores the auto-sized default; 0 means no
-      // render workers at all — the rendering thread runs the whole task graph
-      // itself. The setting persists across System::close()/init().
+      // Render worker count, applied now (issue #857). Internal hook for the
+      // render golden test and the render benchmarks; the public knob is
+      // requestRenderWorkers() below. -1 restores the auto-sized default
+      // (renderScheduler::autoWorkerCount()); 0 means no render workers at all
+      // — the rendering thread runs the whole task graph itself. Also becomes
+      // the request, so it persists across System::close()/init().
       //
       // Control thread only, and only while nothing renders: an offline session
       // between renderOffline() calls, or no live audio callback. It joins and
       // re-spawns the render workers (see renderScheduler::setWorkerCount).
       void setRenderWorkerCount(Int numThreads);
+      // Resolved worker count currently in effect.
       Int renderWorkerCount() const;
+
+      // The render thread-count setting (issue #861, System().renderThreads()).
+      // Any negative value means auto. Applied at once when that is safe — no
+      // session, or an offline session, whose renderOffline() runs on the
+      // calling thread — and otherwise stored for the next init(): a live
+      // device callback may be rendering, and re-sizing joins the workers.
+      // Persists across close()/init(). Control thread.
+      void requestRenderWorkers(Int numThreads);
+      Int requestedRenderWorkers() const {
+        return renderWorkersRequest.load();
+      }
 
       void flagForUpdate() {
         update++;
@@ -145,6 +158,9 @@ namespace YSE {
       renderScheduler render;
 
       std::unique_ptr<NamedBus> bus;
+
+      // See requestRenderWorkers(); -1 = auto.
+      aInt renderWorkersRequest{-1};
 
       aInt update;
       aBool active; // set true after System().init(), false at System().close()

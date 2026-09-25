@@ -92,6 +92,18 @@ namespace YSE {
 
       void setMaster(implementationObject* impl);
 
+      /** Cost-driven voice slices (issue #861) on (default) or off. Off, every
+          channel keeps #860's count policy and update() does not re-shape
+          slices: slice membership is then a pure function of connect order.
+          Test hook for scenes that need a known slice layout. Any thread;
+          read on the audio thread at connect and in update(). */
+      void setCostBalancing(bool on) {
+        costBalancing.store(on, std::memory_order_relaxed);
+      }
+      bool getCostBalancing() const {
+        return costBalancing.load(std::memory_order_relaxed);
+      }
+
       /////////////////////////////////////////////////////
       // Render graph (issue #859)
       /////////////////////////////////////////////////////
@@ -182,6 +194,8 @@ namespace YSE {
 
       // The master the render graph was last built for (audio thread only).
       implementationObject* graphMaster = nullptr;
+
+      std::atomic<bool> costBalancing{true}; // see setCostBalancing()
 
       // Pre-order leaf and dependency registration for one channel subtree.
       void addChannelToGraph(implementationObject& ch, INTERNAL::renderScheduler& scheduler);

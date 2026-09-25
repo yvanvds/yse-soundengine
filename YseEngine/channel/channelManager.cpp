@@ -142,6 +142,20 @@ void YSE::CHANNEL::managerObject::update() {
       c.next();
     }
   }
+
+  ///////////////////////////////////////////
+  // re-shape voice slices by measured cost (issue #861)
+  //
+  // Here, on a control tick between blocks, like every other membership
+  // change: never inside a block, and never on a block without a tick, so a
+  // render with no control work pending keeps its slice layout.
+  ///////////////////////////////////////////
+  if (getCostBalancing()) {
+    const float target = sliceTargetCost();
+    DEVICE::Manager().getMaster().rebalanceSlices(target);
+    for (auto c = inUse.front(); c.valid(); c.next())
+      c.get()->rebalanceSlices(target);
+  }
 }
 
 YSE::CHANNEL::implementationObject*
@@ -489,7 +503,10 @@ void YSE::CHANNEL::managerObject::buildRenderGraph(implementationObject& master,
     else
       scheduler.setDependencies(r->mix, deps);
   }
-  scheduler.setDependencies(master.mix, 1 + masterChildren + returnCount);
+  // Every one of the master's own voice slices arrives too — not just one: a
+  // master with a second slice (#860; by cost much sooner since #861) would
+  // otherwise run its mix before that slice had finished writing `out`.
+  scheduler.setDependencies(master.mix, master.activeSlices + masterChildren + returnCount);
 
   scheduler.endBuild();
   graphMaster = &master;

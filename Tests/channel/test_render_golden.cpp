@@ -72,6 +72,7 @@
 #include "yse.hpp"
 #include "channel/channelImplementation.h"
 #include "channel/channelInterface.hpp"
+#include "channel/channelManager.h"
 #include "channel/channelMessage.h"
 #include "dsp/dspObject.hpp"
 #include "dsp/ladderFilter.hpp"
@@ -219,6 +220,51 @@ namespace {
     float peak = 0.f;
   };
 
+  // A voice that burns a fixed time per block and counts the blocks it has
+  // rendered — the master-slice case below checks the count from the
+  // master's insert.
+  class CountingVoice : public YSE::DSP::dspSourceObject {
+  public:
+    void process(YSE::SOUND_STATUS& intent) override {
+      if (intent == YSE::SS_WANTSTOSTOP || intent == YSE::SS_WANTSTOPAUSE) {
+        intent = intent == YSE::SS_WANTSTOSTOP ? YSE::SS_STOPPED : YSE::SS_PAUSED;
+        return;
+      }
+      intent = YSE::SS_PLAYING;
+      const auto until = std::chrono::steady_clock::now() + std::chrono::microseconds(15);
+      while (std::chrono::steady_clock::now() < until) {}
+      samples[0] = 0.01f;
+      blocks.fetch_add(1, std::memory_order_release);
+    }
+    void frequency(Flt) override {}
+    std::atomic<int> blocks{0};
+  };
+
+  // The master's insert, run by the master's mix task: every voice on the
+  // master must already have rendered this block, or the mix did not wait for
+  // all of the master's voice slices.
+  class MasterSliceCheck : public YSE::DSP::dspObject {
+  public:
+    void create() override {}
+    void process(MULTICHANNELBUFFER&) override {
+      createIfNeeded();
+      if (!armed.load(std::memory_order_acquire)) return;
+      int lo = -1;
+      int hi = -1;
+      for (auto* v : voices) {
+        const int b = v->blocks.load(std::memory_order_acquire);
+        if (lo < 0 || b < lo) lo = b;
+        if (b > hi) hi = b;
+      }
+      if (lo != hi) early.fetch_add(1, std::memory_order_relaxed);
+      checked.fetch_add(1, std::memory_order_relaxed);
+    }
+    std::vector<CountingVoice*> voices;
+    std::atomic<bool> armed{false};
+    std::atomic<int> early{0};
+    std::atomic<int> checked{0};
+  };
+
   // File scope: a dspSourceObject / dspObject must outlive its sound's (or
   // return's) slow-pool teardown, which completes after the case returns.
   std::array<GoldenVoice, kVoices> g_voices;
@@ -294,6 +340,12 @@ TEST_SUITE("rendergolden") {
     // #857 heavy-voice benchmarks do.
     const int previousMaxSounds = YSE::System().maxSounds();
     YSE::System().maxSounds(4096);
+    // The scene's slice layout must be the one described above — three swarm
+    // slices, whatever this machine measures — so the case pins #860's count
+    // policy instead of the cost-driven one (issue #861). Slice membership is
+    // fixed during the captured runs either way (it only changes on control
+    // ticks); what the pin buys is a known number of parallel slices.
+    YSE::CHANNEL::Manager().setCostBalancing(false);
 
     for (int v = 0; v < kVoices; ++v)
       g_voices[v].configure(v);
@@ -363,6 +415,11 @@ TEST_SUITE("rendergolden") {
     REQUIRE(width > 0);
 
     const int n = std::clamp(static_cast<int>(std::thread::hardware_concurrency()), 3, 8);
+    // Parallel runs must be parallel: with serial gating on (issue #861), a
+    // machine fast enough to render the scene in less than a wake would run
+    // every "N worker" block on the test thread alone.
+    auto& renderer = YSE::INTERNAL::Global().renderer();
+    renderer.setSerialGating(false);
     const RunResult reference = renderWith(0, width);
 
     // The reference must be a real mix of every voice, or matching it proves
@@ -392,9 +449,26 @@ TEST_SUITE("rendergolden") {
       CHECK(diff == -1);
     }
 
+    // Gating back on (issue #861): whatever the gate decides block by block —
+    // serial or fanned out — the mix is the same. And a scene of this weight
+    // (~90 filtered voices) costs more than a wake, so the gate opens it.
+    renderer.setSerialGating(true);
+    {
+      const RunResult run = renderWith(n, width);
+      INFO("gated run, render workers: " << n << ", block cost ns: " << renderer.blockCost()
+                                         << ", wake cost ns: " << renderer.wakeCost());
+      CHECK(run.captured == kBlocks);
+      CHECK(run.minVoiceBlocks == kBlocks);
+      CHECK(run.maxVoiceBlocks == kBlocks);
+      CHECK(firstDifference(reference.samples, run.samples) == -1);
+      CHECK(renderer.blockCost() > renderer.wakeCost());
+      CHECK_FALSE(renderer.lastBlockSerial());
+    }
+
     // Tear down: auto-sized pool and the process's virtual-sound limit back,
     // every source stopped, the capture detached before the return goes away.
     YSE::INTERNAL::Global().setRenderWorkerCount(-1);
+    YSE::CHANNEL::Manager().setCostBalancing(true);
     YSE::System().maxSounds(previousMaxSounds);
     for (auto& s : sounds)
       s->stop();
@@ -457,6 +531,81 @@ TEST_SUITE("rendergolden") {
     YSE::System().maxSounds(previousMaxSounds);
     voice.stop();
     bus.setDSP(nullptr);
+    pump(8);
+  }
+
+  TEST_CASE("rendergolden: the master's mix waits for every one of its voice slices (#861)") {
+    // The master's mix task used to be given one dependency for its own
+    // sounds, however many voice slices it had, so with a second slice it
+    // could run — summing, inserting, fading — while that slice was still
+    // writing `out`. The count policy is pinned so the master gets three
+    // slices; slices 1 and 2 hold enough 15 us voices that a mix started
+    // after slice 0 alone certainly overtakes them.
+    if (!TestHelpers::engineInit()) return;
+    if (YSE::System().getActiveSampleRate() != 0.0) {
+      MESSAGE("skipped: an audio stream is live in this process (see the golden test above).");
+      return;
+    }
+    const int previousMaxSounds = YSE::System().maxSounds();
+    YSE::System().maxSounds(4096);
+    YSE::CHANNEL::Manager().setCostBalancing(false);
+
+    constexpr int kMasterVoices = 2 * YSE::CHANNEL::SLICE_CAPACITY + 8;
+    static std::array<CountingVoice, kMasterVoices> voices; // outlive the slow-pool deletes
+    static MasterSliceCheck check;
+    check.voices.clear();
+    for (auto& v : voices)
+      check.voices.push_back(&v);
+
+    std::vector<std::unique_ptr<YSE::sound>> sounds;
+    for (auto& v : voices) {
+      auto s = std::make_unique<YSE::sound>();
+      s->create(v, &YSE::ChannelMaster(), 0.1f);
+      s->relative(true);
+      s->doppler(false);
+      s->play();
+      sounds.push_back(std::move(s));
+    }
+    const bool allPlaying = TestHelpers::pacedPump(
+        3000,
+        [&sounds] {
+          for (const auto& s : sounds)
+            if (!s->isPlaying()) return false;
+          return true;
+        },
+        [] {
+          YSE::System().update();
+          YSE::System().renderOffline(1);
+        },
+        2);
+    REQUIRE(allPlaying);
+    pump(4);
+    while (YSE::INTERNAL::Global().needsUpdate())
+      YSE::INTERNAL::Global().updateDone();
+
+    YSE::ChannelMaster().setDSP(&check);
+    pump(2); // the insert attaches on the audio thread
+    while (YSE::INTERNAL::Global().needsUpdate())
+      YSE::INTERNAL::Global().updateDone();
+
+    auto& renderer = YSE::INTERNAL::Global().renderer();
+    renderer.setSerialGating(false);
+    YSE::INTERNAL::Global().setRenderWorkerCount(3);
+    check.armed.store(true, std::memory_order_release);
+    YSE::System().renderOffline(24);
+    check.armed.store(false, std::memory_order_release);
+    CHECK(check.checked.load() == 24);
+    CHECK(check.early.load() == 0);
+
+    renderer.setSerialGating(true);
+    YSE::INTERNAL::Global().setRenderWorkerCount(-1);
+    YSE::ChannelMaster().setDSP(nullptr);
+    YSE::CHANNEL::Manager().setCostBalancing(true);
+    YSE::System().maxSounds(previousMaxSounds);
+    for (auto& s : sounds)
+      s->stop();
+    pump(8);
+    sounds.clear();
     pump(8);
   }
 

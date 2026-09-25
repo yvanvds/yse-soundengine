@@ -10,6 +10,13 @@
 #include "renderScheduler.h"
 #include <chrono>
 #include <thread>
+#include <vector>
+#if defined(__linux__)
+#include <fstream>
+#include <set>
+#include <string>
+#include <utility>
+#endif
 #include "thread.h"
 #include "denormalGuard.h"
 #include "../implementations/logImplementation.h"
@@ -101,17 +108,88 @@ namespace {
 #endif
   }
 
-  Int resolveWorkerCount(Int requested) {
-    if (requested >= 0) return requested;
-    Int size = (Int)std::thread::hardware_concurrency();
-    if (size > YSE::INTERNAL::renderScheduler::MAX_AUTO_WORKERS)
-      size = YSE::INTERNAL::renderScheduler::MAX_AUTO_WORKERS;
-    // hardware_concurrency() may be 0 when it is not computable; auto-sizing
-    // always yields at least one worker.
-    if (size <= 0) size = 1;
-    return size;
+  // Physical cores (not SMT siblings) on this machine, or 0 when the platform
+  // cannot tell. Control thread; allocates. Hybrid parts count every core
+  // alike — telling performance cores apart is #862.
+  Int physicalCoreCount() {
+#if defined(_WIN32)
+    DWORD bytes = 0;
+    GetLogicalProcessorInformationEx(RelationProcessorCore, nullptr, &bytes);
+    if (bytes == 0) return 0;
+    std::vector<unsigned char> buffer(bytes);
+    auto* info = reinterpret_cast<SYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX*>(buffer.data());
+    if (!GetLogicalProcessorInformationEx(RelationProcessorCore, info, &bytes)) return 0;
+    Int cores = 0;
+    for (DWORD offset = 0; offset < bytes;) {
+      auto* entry =
+          reinterpret_cast<SYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX*>(buffer.data() + offset);
+      if (entry->Relationship == RelationProcessorCore) ++cores;
+      if (entry->Size == 0) break;
+      offset += entry->Size;
+    }
+    return cores;
+#elif defined(__linux__)
+    // Distinct (package, core) pairs over the CPUs sysfs lists. Android
+    // exposes the same topology files.
+    std::set<std::pair<int, int>> cores;
+    for (int cpu = 0; cpu < 1024; ++cpu) {
+      const std::string base = "/sys/devices/system/cpu/cpu" + std::to_string(cpu) + "/topology/";
+      std::ifstream coreFile(base + "core_id");
+      if (!coreFile) break;
+      int core = -1;
+      int package = 0;
+      coreFile >> core;
+      std::ifstream packageFile(base + "physical_package_id");
+      if (packageFile) packageFile >> package;
+      if (core >= 0) cores.emplace(package, core);
+    }
+    return (Int)cores.size();
+#else
+    return 0;
+#endif
   }
+
+  Int resolveWorkerCount(Int requested) {
+    if (requested < 0) return YSE::INTERNAL::renderScheduler::autoWorkerCount();
+    if (requested > YSE::INTERNAL::renderScheduler::MAX_WORKERS)
+      return YSE::INTERNAL::renderScheduler::MAX_WORKERS;
+    return requested;
+  }
+
+  std::int64_t nowNs() {
+    return (std::int64_t)std::chrono::duration_cast<std::chrono::nanoseconds>(
+               std::chrono::steady_clock::now().time_since_epoch())
+        .count();
+  }
+
+  // Sampled blocks (issue #861): nanoseconds of task time this thread has
+  // accumulated at the current nesting level. A timed task saves it, runs,
+  // and reads back how much of its own time went to continuations it ran
+  // inline, so each task is charged only its own work.
+  thread_local std::int64_t tlsTimedNs = 0;
+
+  constexpr float TASK_COST_WEIGHT = 0.25f; // EMA weight of a new task sample
+  constexpr float BLOCK_COST_FALL = 0.125f; // EMA weight when a block got cheaper
+  constexpr float WAKE_COST_WEIGHT = 0.25f;
+  // Gating hysteresis: serial below one wake, parallel again only above 1.5.
+  constexpr float GATE_REOPEN_FACTOR = 1.5f;
+
+  // How long a worker spins for the next block before it parks (#858). Also
+  // what makes two blocks "back to back" for the serial gate (#861).
+  constexpr auto WORKER_SPIN_WINDOW = std::chrono::microseconds(50);
+  constexpr std::int64_t WORKER_SPIN_WINDOW_NS =
+      std::chrono::duration_cast<std::chrono::nanoseconds>(WORKER_SPIN_WINDOW).count();
 } // namespace
+
+Int YSE::INTERNAL::renderScheduler::autoWorkerCount() {
+  Int cores = physicalCoreCount();
+  if (cores <= 0) cores = (Int)std::thread::hardware_concurrency();
+  // The calling (audio) thread renders too, and the host keeps a core.
+  Int workers = cores - 1;
+  if (workers > MAX_AUTO_WORKERS) workers = MAX_AUTO_WORKERS;
+  if (workers < 0) workers = 0;
+  return workers;
+}
 
 // One render worker thread. Its list index is fixed for its lifetime.
 class YSE::INTERNAL::renderScheduler::worker : public YSE::INTERNAL::thread {
@@ -128,6 +206,7 @@ private:
 
 YSE::INTERNAL::renderScheduler::renderScheduler(Int requested)
   : numWorkers(resolveWorkerCount(requested)),
+    requestedWorkers(requested < 0 ? -1 : requested),
     lists(std::make_unique<leafList[]>(static_cast<std::size_t>(numWorkers) + 1)) {
   startup();
 }
@@ -140,6 +219,7 @@ void YSE::INTERNAL::renderScheduler::setWorkerCount(Int requested) {
   const bool wasActive = active;
   shutdown();
   numWorkers = resolveWorkerCount(requested);
+  requestedWorkers = requested < 0 ? -1 : requested;
   lists = std::make_unique<leafList[]>(static_cast<std::size_t>(numWorkers) + 1);
   leafCount = 0;
   // Leaves are dealt out per worker: the graph must be rebuilt for the new
@@ -192,13 +272,28 @@ void YSE::INTERNAL::renderScheduler::beginBuild() {
     lists[i].head = nullptr;
     lists[i].tail = nullptr;
     lists[i].cursor.store(nullptr, std::memory_order_relaxed);
+    lists[i].assigned = 0.f;
   }
   leafCount = 0;
+  buildUnmeasured = false;
 }
 
 void YSE::INTERNAL::renderScheduler::addLeaf(renderTask& task) {
-  // Round-robin by build order (D2); cost-based balancing is #861.
-  leafList& l = lists[leafCount % (numWorkers + 1)];
+  // Cost-driven deal (issue #861): the list with the least measured work so
+  // far takes the leaf, lowest index on a tie. An unmeasured leaf weighs 1 ns,
+  // so a graph with no measurements is dealt round-robin in call order (D2's
+  // deal), and the build asks for one rebuild once the next sample is in.
+  Int best = 0;
+  for (Int i = 1; i <= numWorkers; ++i) {
+    if (lists[i].assigned < lists[best].assigned) best = i;
+  }
+  float weight = task.cost();
+  if (weight <= 0.f) {
+    weight = 1.f;
+    buildUnmeasured = true;
+  }
+  leafList& l = lists[best];
+  l.assigned += weight;
   ++leafCount;
   task.leafNext = nullptr;
   task.dependencies = 0;
@@ -218,13 +313,43 @@ void YSE::INTERNAL::renderScheduler::setDependencies(renderTask& task, Int count
 
 void YSE::INTERNAL::renderScheduler::endBuild() {
   dirty.store(false, std::memory_order_relaxed);
+  // A new graph is timed straight away, so the gate and the costs catch up
+  // with the change; a deal made partly blind is redone once they have.
+  forceSample.store(true, std::memory_order_relaxed);
+  rebalanceAfterSample = buildUnmeasured;
 }
 
 void YSE::INTERNAL::renderScheduler::runTask(renderTask& task) {
-  task.execute(*this);
+  if (sampling.load(std::memory_order_relaxed))
+    runTimed(task);
+  else
+    task.execute(*this);
   // The root is the graph's single sink: nothing runs after it. Release pairs
   // with run()'s acquire, publishing every write of the block to the caller.
   if (&task == root) rootDone.store(true, std::memory_order_release);
+}
+
+void YSE::INTERNAL::renderScheduler::runTimed(renderTask& task) {
+  // One clock pair per task on a sampled block (issue #861). Continuations
+  // this task runs inline through arrive() time themselves and add their
+  // elapsed time to tlsTimedNs, which is subtracted here: each task's cost is
+  // its own work, and the nesting level above sees the whole elapsed time.
+  const std::int64_t outer = tlsTimedNs;
+  tlsTimedNs = 0;
+  const std::int64_t start = nowNs();
+  task.execute(*this);
+  const std::int64_t elapsed = nowNs() - start;
+  const std::int64_t own = elapsed - tlsTimedNs;
+  tlsTimedNs = outer + elapsed;
+
+  // A task's cost is only ever written here (by the one thread running it
+  // this block) or between blocks, so load-modify-store is enough. Clamp to
+  // 1 ns: a coarse clock can read 0, and 0 means "never measured".
+  float sample = (float)(own > 0 ? own : 0);
+  if (sample < 1.f) sample = 1.f;
+  const float prev = task.costNs.load(std::memory_order_relaxed);
+  const float next = prev <= 0.f ? sample : prev + TASK_COST_WEIGHT * (sample - prev);
+  task.costNs.store(next, std::memory_order_relaxed);
 }
 
 void YSE::INTERNAL::renderScheduler::arrive(renderTask& task) {
@@ -251,9 +376,12 @@ YSE::INTERNAL::renderTask* YSE::INTERNAL::renderScheduler::claim(Int list) {
   return t;
 }
 
-bool YSE::INTERNAL::renderScheduler::drainLeaves(Int self, bool passWake) {
+bool YSE::INTERNAL::renderScheduler::drainLeaves(Int self, bool passWake, bool sample) {
   bool ran = false;
   const Int count = numWorkers + 1;
+  // On a sampled block, everything this thread runs from here — leaves and the
+  // continuations they trigger — adds up in tlsTimedNs.
+  if (sample) tlsTimedNs = 0;
   // Own list first (affinity), then every other list in a fixed rotation.
   for (Int k = 0; k < count; ++k) {
     const Int list = (self + k) % count;
@@ -269,6 +397,7 @@ bool YSE::INTERNAL::renderScheduler::drainLeaves(Int self, bool passWake) {
       ran = true;
     }
   }
+  if (sample) lists[self].work.fetch_add(tlsTimedNs, std::memory_order_relaxed);
   return ran;
 }
 
@@ -277,19 +406,47 @@ void YSE::INTERNAL::renderScheduler::run(renderTask& rootTask) {
   // valid graph has at least one). Refuse it rather than spin forever.
   if (leafCount == 0) return;
 
+  // Time this block's tasks? (issue #861)
+  const bool sample = forceSample.exchange(false, std::memory_order_relaxed) ||
+                      blockCounter % COST_SAMPLE_PERIOD == 0;
+  ++blockCounter;
+  // One clock read at each end of every block: a block that starts within the
+  // workers' post-block spin window of the last one is back to back.
+  const std::int64_t blockStart = nowNs();
+  const bool backToBack =
+      lastBlockEndNs != 0 && blockStart - lastBlockEndNs < WORKER_SPIN_WINDOW_NS;
+  const gate g = decideGate(backToBack);
+  const bool serial = g == gate::serial;
+  lastSerial.store(serial, std::memory_order_relaxed);
+
   // Everything below is published to the workers by the seq_cst openGen
-  // store: the cursors, the root, the cleared rootDone, and (through the
-  // previous block's inFlight drain) every lazily reset dependency counter.
-  for (Int i = 0; i <= numWorkers; ++i)
+  // store: the cursors, the root, the cleared rootDone, the sampling flag and
+  // (through the previous block's inFlight drain) every lazily reset
+  // dependency counter.
+  for (Int i = 0; i <= numWorkers; ++i) {
     lists[i].cursor.store(lists[i].head, std::memory_order_relaxed);
+    if (sample) lists[i].work.store(0, std::memory_order_relaxed);
+  }
   root = &rootTask;
   rootDone.store(false, std::memory_order_relaxed);
+  sampling.store(sample, std::memory_order_relaxed);
+
+  if (serial) {
+    runSerial(sample);
+    return;
+  }
+
   if (++lastOpened == 0) lastOpened = 1; // 0 means "closed"
+  // Wake probe (issue #861): on a sampled block, the first worker that was
+  // parked and joins this block stamps the time it got here.
+  if (sample) firstJoinNs.store(0, std::memory_order_relaxed);
+  probeGen.store(sample ? lastOpened : 0, std::memory_order_relaxed);
+  wakeStartNs = blockStart;
   openGen.store(lastOpened, std::memory_order_seq_cst);
 
-  wakeWorkers();
+  const bool woke = g == gate::openAndWake && wakeWorkers();
 
-  drainLeaves(0, false);
+  drainLeaves(0, false, sample);
   // Every list is empty and cursors only move forward, so no leaf is left to
   // run here: whatever remains is a task some worker is in the middle of, and
   // the root runs as its continuation. Pause-spin, never yield or sleep —
@@ -304,13 +461,104 @@ void YSE::INTERNAL::renderScheduler::run(renderTask& rootTask) {
   while (inFlight.load(std::memory_order_seq_cst) != 0)
     cpuRelax();
   root = nullptr;
+
+  lastBlockEndNs = nowNs();
+  if (sample) finishSample(woke, blockStart, lastBlockEndNs);
 }
 
-void YSE::INTERNAL::renderScheduler::wakeWorkers() {
+YSE::INTERNAL::renderScheduler::gate YSE::INTERNAL::renderScheduler::decideGate(bool backToBack) {
+  // Serial gating (issue #861). No workers (or workers shut down): the calling
+  // thread runs everything, which is the serial path. Before the first
+  // measurement, and with gating off, blocks open and wake as before.
+  if (numWorkers == 0 || !running.load(std::memory_order_relaxed)) return gate::serial;
+  const float block = blockCostNs.load(std::memory_order_relaxed);
+  if (!gating.load(std::memory_order_relaxed) || block < 0.f) {
+    lightMode = false;
+    return gate::openAndWake;
+  }
+  // A block is "light" when it is estimated to cost less than one wake:
+  // signalling a parked worker would cost more than it could save.
+  // Hysteresis keeps a scene near the threshold from flapping: once light, it
+  // turns heavy again only above 1.5 wakes.
+  const float wake = wakeCostNs.load(std::memory_order_relaxed);
+  lightMode = lightMode ? block <= wake * GATE_REOPEN_FACTOR : block < wake;
+  if (!lightMode) return gate::openAndWake;
+  // A light block still opens when the workers are cheap to reach. Blocks
+  // arriving back to back (offline rendering) keep the workers in their
+  // post-block spin, where joining costs a cache miss rather than a wake:
+  // measured on the 100-sound scene, that beats rendering alone even for a
+  // couple of microseconds of work, so such blocks open and wake — only the
+  // first wake is a real one. Otherwise a worker that has not parked yet is
+  // still welcome, but nobody is woken for a light block. Once every worker
+  // has parked and blocks are far apart — real-time rendering, a block every
+  // few milliseconds — the calling thread renders alone.
+  if (backToBack) return gate::openAndWake;
+  if (parked.load(std::memory_order_relaxed) < numWorkers) return gate::openNoWake;
+  return gate::serial;
+}
+
+void YSE::INTERNAL::renderScheduler::runSerial(bool sample) {
+  // The block never opens (openGen stays 0), so no worker — parked, spinning
+  // or about to park — can join it: the calling thread claims every leaf, and
+  // every continuation runs inline behind the leaf that satisfies it. No wake,
+  // no inFlight drain. Same leaf lists, same claim path, same arrive protocol
+  // as a parallel block, so the result is the same.
+  drainLeaves(0, false, sample);
+  // Every leaf ran on this thread, and with it every continuation: the root
+  // is done. (Not spun on — nothing else could finish it.)
+  root = nullptr;
+  lastBlockEndNs = nowNs();
+  if (sample) finishSample(false, 0, 0);
+}
+
+void YSE::INTERNAL::renderScheduler::finishSample(bool woke, std::int64_t blockStart,
+                                                  std::int64_t blockEnd) {
+  // Calling thread, after the block has closed and every worker has left it
+  // (their work counters and the probe stamp happen-before the inFlight
+  // drain, or there were no workers).
+  std::int64_t total = 0;
+  for (Int i = 0; i <= numWorkers; ++i)
+    total += lists[i].work.load(std::memory_order_relaxed);
+  const float work = (float)total;
+  // The block estimate rises at once and falls slowly: a scene that just got
+  // heavy must leave serial rendering at the next decision, a lighter one can
+  // wait a few samples.
+  const float prev = blockCostNs.load(std::memory_order_relaxed);
+  const float next = (prev < 0.f || work > prev) ? work : prev + BLOCK_COST_FALL * (work - prev);
+  blockCostNs.store(next, std::memory_order_relaxed);
+
+  if (woke) {
+    // The wake cost: from the wake call to the first parked worker joining.
+    // If none joined before the block closed, the wake took longer than the
+    // whole block — the block's duration is only a lower bound, so it may
+    // raise the estimate but never lower it (averaging it in would drag the
+    // estimate down to the duration of short blocks and open light ones).
+    const std::int64_t joined = firstJoinNs.load(std::memory_order_relaxed);
+    const float w = wakeCostNs.load(std::memory_order_relaxed);
+    if (joined != 0) {
+      std::int64_t latency = joined - wakeStartNs;
+      if (latency < 0) latency = 0;
+      wakeCostNs.store(w + WAKE_COST_WEIGHT * ((float)latency - w), std::memory_order_relaxed);
+    } else {
+      const auto atLeast = (float)(blockEnd - blockStart);
+      if (atLeast > w)
+        wakeCostNs.store(w + WAKE_COST_WEIGHT * (atLeast - w), std::memory_order_relaxed);
+    }
+  }
+  probeGen.store(0, std::memory_order_relaxed);
+
+  if (rebalanceAfterSample) {
+    // The last build dealt some leaves blind; every leaf now has a cost.
+    rebalanceAfterSample = false;
+    markDirty();
+  }
+}
+
+bool YSE::INTERNAL::renderScheduler::wakeWorkers() {
   // RT path: one fence and one relaxed load, and a single non-blocking wake
-  // call only when a worker is actually parked.
+  // call only when a worker is actually parked. Returns whether it woke any.
   const Int withLeaves = leafCount - 1 < numWorkers ? leafCount - 1 : numWorkers;
-  if (withLeaves <= 0) return;
+  if (withLeaves <= 0) return false;
 
   // Store-load barrier pairing with the one in workerLoop(): the openGen
   // store must be visible before we read `parked`, and a parking worker's
@@ -318,7 +566,7 @@ void YSE::INTERNAL::renderScheduler::wakeWorkers() {
   // the other: we wake it, or it never parks.
   std::atomic_thread_fence(std::memory_order_seq_cst);
   const Int sleeping = parked.load(std::memory_order_relaxed);
-  if (sleeping == 0) return;
+  if (sleeping == 0) return false;
 
   wakeEpoch.fetch_add(1, std::memory_order_seq_cst);
   const Int wanted = withLeaves < sleeping ? withLeaves : sleeping;
@@ -329,6 +577,7 @@ void YSE::INTERNAL::renderScheduler::wakeWorkers() {
     // worker's start waits on another's wake latency); otherwise one, and each
     // woken worker that finds work passes it on (#858's measured split).
     wakeParked(wakeEpoch, wanted >= sleeping ? -1 : 1);
+  return true;
 }
 
 void YSE::INTERNAL::renderScheduler::passWakeOn() {
@@ -352,11 +601,10 @@ bool YSE::INTERNAL::renderScheduler::spinForBlock(std::uint32_t lastGen) const {
   // yield() for the rest so an oversubscribed pool does not starve the
   // rendering thread of a CPU.
   using clock = std::chrono::steady_clock;
-  constexpr auto SPIN_WINDOW = std::chrono::microseconds(50);
   constexpr auto PAUSE_WINDOW = std::chrono::microseconds(10);
   const auto spinStart = clock::now();
   for (auto spun = clock::duration::zero();
-       running.load(std::memory_order_relaxed) && spun < SPIN_WINDOW;
+       running.load(std::memory_order_relaxed) && spun < WORKER_SPIN_WINDOW;
        spun = clock::now() - spinStart) {
     if (spun < PAUSE_WINDOW)
       cpuRelax();
@@ -385,7 +633,14 @@ void YSE::INTERNAL::renderScheduler::workerLoop(Int self) {
     if (g != 0 && g != lastGen) {
       lastGen = g;
       joined = true;
-      drainLeaves(self, woken);
+      // The wake probe (issue #861): a worker straight out of its park joining
+      // the probed block stamps its arrival; the first stamp wins. Only then
+      // is the clock read, so a block without a probe costs nothing here.
+      if (woken && probeGen.load(std::memory_order_relaxed) == g) {
+        std::int64_t unset = 0;
+        firstJoinNs.compare_exchange_strong(unset, nowNs(), std::memory_order_relaxed);
+      }
+      drainLeaves(self, woken, sampling.load(std::memory_order_relaxed));
     }
     inFlight.fetch_sub(1, std::memory_order_seq_cst);
     woken = false;

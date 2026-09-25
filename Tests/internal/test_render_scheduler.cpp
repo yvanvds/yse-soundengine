@@ -10,6 +10,7 @@
 
 #include <doctest/doctest.h>
 #include "internal/renderScheduler.h"
+#include <array>
 #include <atomic>
 #include <chrono>
 #include <memory>
@@ -131,6 +132,24 @@ namespace {
     }
   };
 
+  void busyWait(std::chrono::microseconds d) {
+    const auto until = std::chrono::steady_clock::now() + d;
+    while (std::chrono::steady_clock::now() < until) {}
+  }
+
+  // A task that burns a fixed wall time, records the thread it ran on, and
+  // arrives at its successor (if any).
+  struct BusyTask : renderTask {
+    std::chrono::microseconds work{0};
+    renderTask* successor = nullptr;
+    std::atomic<std::thread::id> ranOn{};
+    void execute(renderScheduler& s) override {
+      busyWait(work);
+      ranOn.store(std::this_thread::get_id(), std::memory_order_relaxed);
+      if (successor != nullptr) s.arrive(*successor);
+    }
+  };
+
 } // namespace
 
 TEST_SUITE("internal") {
@@ -139,6 +158,10 @@ TEST_SUITE("internal") {
     for (int workers : {0, 1, 2, 4}) {
       INFO("workers: " << workers);
       renderScheduler s(workers);
+      // These tasks are far cheaper than a wake, so the serial gate (#861)
+      // would keep every block on the calling thread; this case is about the
+      // parallel protocol.
+      s.setSerialGating(false);
       CHECK(s.workerCount() == workers);
       TreeGraph g(6, 5);
       g.build(s);
@@ -192,6 +215,7 @@ TEST_SUITE("internal") {
     // open in every phase of a worker's spin -> announce -> park sequence.
     constexpr int kWorkers = 3;
     renderScheduler s(kWorkers);
+    s.setSerialGating(false); // every block must open to the workers
     std::atomic<int> inside{0};
     std::atomic<int> timeouts{0};
     CountRoot root;
@@ -269,14 +293,26 @@ TEST_SUITE("internal") {
     g.build(s);
     s.run(*g.root);
 
-    // -1 re-applies the auto-sizing rule, cap included.
+    CHECK(s.requestedWorkerCount() == 3);
+
+    // -1 re-applies the auto-sizing rule (#861): physical cores - 1, capped.
     s.setWorkerCount(-1);
-    CHECK(s.workerCount() >= 1);
+    CHECK(s.requestedWorkerCount() == -1);
+    CHECK(s.workerCount() == renderScheduler::autoWorkerCount());
+    CHECK(s.workerCount() >= 0);
     CHECK(s.workerCount() <= renderScheduler::MAX_AUTO_WORKERS);
     g.build(s);
     s.run(*g.root);
 
-    CHECK(g.allRan(4));
+    // Any negative request is auto; an absurd one is clamped.
+    s.setWorkerCount(-7);
+    CHECK(s.requestedWorkerCount() == -1);
+    CHECK(s.workerCount() == renderScheduler::autoWorkerCount());
+    s.setWorkerCount(0);
+    g.build(s);
+    s.run(*g.root);
+
+    CHECK(g.allRan(5));
     CHECK(g.violations.load() == 0);
 
     s.markDirty();
@@ -297,6 +333,165 @@ TEST_SUITE("internal") {
     CHECK(second.allRan(30));
     CHECK(first.violations.load() == 0);
     CHECK(second.violations.load() == 0);
+  }
+
+  TEST_CASE("renderScheduler: a block cheaper than a wake renders serially (#861)") {
+    // Serial gating: in real-time cadence, a scene whose whole block costs
+    // less than waking a worker is rendered by the calling thread alone, and
+    // no worker is signalled. These nodes cost well under a microsecond; a
+    // park/wake round trip costs microseconds at best, and the estimate
+    // starts at INITIAL_WAKE_COST_NS.
+    renderScheduler s(2);
+    TreeGraph g(2, 2);
+    g.build(s);
+    // Pin "light": a sanitizer build can make even these nodes cost more than
+    // this machine's measured wake. A 50 ms wake keeps them far below it (the
+    // one real wake below averages in a quarter of its latency).
+    s.setWakeCost(50.0e6f);
+
+    // Back to back (offline rendering), even a light block opens: the workers
+    // are still in their post-block spin and join for a cache miss.
+    for (int b = 0; b < 64; ++b)
+      s.run(*g.root);
+    CHECK(g.allRan(64));
+    CHECK(g.violations.load() == 0);
+    CHECK(s.blockCost() > 0.f);
+    CHECK(s.blockCost() < s.wakeCost());
+    CHECK_FALSE(s.lastBlockSerial());
+
+    // Real-time cadence: blocks far apart, every worker parked. Now the light
+    // block is rendered by this thread alone and nobody is woken for it.
+    const bool parked = waitFor([&s] { return s.parkedWorkers() == 2; });
+    REQUIRE(parked);
+    for (int b = 0; b < 32; ++b) {
+      busyWait(std::chrono::microseconds(200)); // past the 50 us spin window
+      s.run(*g.root);
+      CHECK(s.lastBlockSerial());
+    }
+    CHECK(s.parkedWorkers() == 2);
+    CHECK(g.allRan(96));
+    CHECK(g.violations.load() == 0);
+    // The last block ran entirely on this thread.
+    for (const auto& n : g.nodes) {
+      const bool onCaller = n->ranOn.load() == std::this_thread::get_id();
+      CHECK(onCaller);
+    }
+
+    // Gating off, the same block opens to the workers.
+    s.setSerialGating(false);
+    s.run(*g.root);
+    CHECK_FALSE(s.lastBlockSerial());
+    CHECK(g.allRan(97));
+  }
+
+  TEST_CASE("renderScheduler: a block heavier than a wake fans out to the workers (#861)") {
+    // Four 300 us leaves (1.2 ms of work) under one root: above the pinned
+    // 100 us wake cost, so the gate keeps opening blocks and the workers take
+    // leaves.
+    renderScheduler s(3);
+    s.setWakeCost(100000.f);
+    CountRoot root;
+    std::vector<std::unique_ptr<BusyTask>> leaves;
+    s.beginBuild();
+    for (int i = 0; i < 4; ++i) {
+      leaves.push_back(std::make_unique<BusyTask>());
+      leaves.back()->work = std::chrono::microseconds(300);
+      leaves.back()->successor = &root;
+      s.addLeaf(*leaves.back());
+    }
+    s.setDependencies(root, 4);
+    s.endBuild();
+
+    bool sawWorker = false;
+    for (int b = 0; b < 24; ++b) {
+      s.run(root);
+      for (const auto& l : leaves)
+        if (l->ranOn.load() != std::this_thread::get_id()) sawWorker = true;
+    }
+    CHECK(root.runs.load() == 24);
+    CHECK(s.blockCost() > 1000000.f * 0.9f);
+    CHECK(s.blockCost() > s.wakeCost());
+    CHECK_FALSE(s.lastBlockSerial());
+    CHECK(sawWorker);
+  }
+
+  TEST_CASE("renderScheduler: a task's cost is its own time, not its continuations' (#861)") {
+    // leaf (200 us) -> root (60 us), run by the calling thread. The root runs
+    // inline inside the leaf's arrive(), so the leaf's elapsed time includes
+    // it; the measured cost must not.
+    renderScheduler s(0);
+    BusyTask root;
+    root.work = std::chrono::microseconds(60);
+    BusyTask leaf;
+    leaf.work = std::chrono::microseconds(200);
+    leaf.successor = &root;
+    s.beginBuild();
+    s.addLeaf(leaf);
+    s.setDependencies(root, 1);
+    s.endBuild();
+    CHECK(leaf.cost() == 0.f); // never timed yet
+    for (int b = 0; b < 4 * static_cast<int>(renderScheduler::COST_SAMPLE_PERIOD); ++b)
+      s.run(root);
+    INFO("leaf cost ns: " << leaf.cost() << ", root cost ns: " << root.cost());
+    CHECK(leaf.cost() >= 190000.f);
+    CHECK(leaf.cost() < 245000.f); // 260 us if the root were charged to it
+    CHECK(root.cost() >= 55000.f);
+    CHECK(root.cost() < 150000.f);
+    // The block estimate is the sum of both.
+    CHECK(s.blockCost() >= 250000.f);
+  }
+
+  TEST_CASE("renderScheduler: leaves are dealt by measured cost (#861)") {
+    // Two lists (calling thread + one worker). Round-robin would put both
+    // expensive leaves on list 0; the cost-driven deal balances them.
+    renderScheduler s(1);
+    CountRoot root;
+    std::array<BusyTask, 4> leaves;
+    const float costs[] = {1000.f, 1000.f, 10.f, 10.f};
+    for (std::size_t i = 0; i < leaves.size(); ++i) {
+      leaves[i].successor = &root;
+      leaves[i].setCost(costs[i]);
+    }
+    s.beginBuild();
+    for (auto& l : leaves)
+      s.addLeaf(l);
+    s.setDependencies(root, 4);
+    s.endBuild();
+    CHECK(s.assignedCost(0) == doctest::Approx(1010.f));
+    CHECK(s.assignedCost(1) == doctest::Approx(1010.f));
+    CHECK_FALSE(s.isDirty()); // every leaf was measured: no rebalance pending
+    s.run(root);
+    CHECK_FALSE(s.isDirty());
+
+    // Unmeasured leaves weigh 1 ns each: round-robin, and one rebuild is asked
+    // for once the first sample has measured them.
+    for (auto& l : leaves)
+      l.setCost(0.f);
+    s.beginBuild();
+    for (auto& l : leaves)
+      s.addLeaf(l);
+    s.setDependencies(root, 4);
+    s.endBuild();
+    CHECK(s.assignedCost(0) == doctest::Approx(2.f));
+    CHECK(s.assignedCost(1) == doctest::Approx(2.f));
+    s.run(root); // a fresh build is always sampled
+    CHECK(s.isDirty());
+    for (const auto& l : leaves)
+      CHECK(l.cost() > 0.f);
+    CHECK(root.runs.load() == 2);
+  }
+
+  TEST_CASE("renderScheduler: auto worker count is physical cores - 1, capped (#861)") {
+    const Int n = renderScheduler::autoWorkerCount();
+    CHECK(n >= 0);
+    CHECK(n <= renderScheduler::MAX_AUTO_WORKERS);
+    const auto logical = static_cast<Int>(std::thread::hardware_concurrency());
+    if (logical > 0) CHECK(n < logical); // never more workers than logical CPUs - 1
+    renderScheduler s(-1);
+    CHECK(s.workerCount() == n);
+    CHECK(s.requestedWorkerCount() == -1);
+    renderScheduler big(1000);
+    CHECK(big.workerCount() == renderScheduler::MAX_WORKERS);
   }
 
   TEST_CASE("renderScheduler: a graph without leaves is refused, not spun on (#859)") {

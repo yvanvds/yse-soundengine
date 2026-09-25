@@ -79,16 +79,38 @@ namespace YSE {
       std::vector<DSP::buffer> tap; // this block's send, one buffer per output
     };
 
-    // Voice-slice policy (issue #860). Constants in this step; #861 tunes them
-    // and balances by measured cost instead of by count.
+    // Voice-slice policy (issues #860, #861).
     //
-    // A sound joins the least-loaded active slice of its channel. A new slice
-    // is opened only when every active slice already holds SLICE_CAPACITY
-    // sounds, so a channel with a handful of sounds keeps one slice and pays
-    // nothing extra. Past MAX_SLICES the capacity is soft: sounds keep joining
-    // the least-loaded slice.
+    // Measured (#861): once any sound of the channel has been timed, a sound
+    // joins the slice with the lowest measured cost, and a new slice opens
+    // only when joining even that one would take it past sliceTargetCost() —
+    // a slice cheaper than waking a worker is not worth being its own task.
+    // Between control ticks the channel also re-shapes its slices by cost
+    // (rebalanceSlices): it merges the last slice away when every sound fits
+    // in fewer slices at half the target, splits the heaviest slice when it
+    // costs more than twice the target, and otherwise moves sounds from the
+    // heaviest slice to the lightest when they are far apart (leveling).
+    //
+    // Unmeasured (a channel whose sounds have not rendered yet): by count, as
+    // #860 — the least-loaded slice, and a new one only when every active
+    // slice already holds SLICE_CAPACITY sounds. Past MAX_SLICES the capacity
+    // is soft either way: sounds keep joining the lightest slice.
+    //
+    // Slice membership decides the order of the float sums, so it changes
+    // only at connect/disconnect and control ticks — never inside a block, and
+    // never with the worker count: the mix stays bit-identical at 0/1/2/N
+    // workers.
     constexpr Int SLICE_CAPACITY = 32;
     constexpr Int MAX_SLICES = 16;
+
+    // Bounds on the slice target cost, in nanoseconds (issue #861).
+    constexpr float MIN_SLICE_TARGET_NS = 10000.f;
+    constexpr float MAX_SLICE_TARGET_NS = 200000.f;
+
+    /** The measured cost a voice slice is sized to (issue #861): the render
+        scheduler's measured wake cost, clamped to [MIN_SLICE_TARGET_NS,
+        MAX_SLICE_TARGET_NS]. Nanoseconds. */
+    float sliceTargetCost();
 
     // One voice slice (issue #860): a stable, fixed-capacity group of a
     // channel's sounds, rendered as one leaf task of the render graph (#859).
@@ -312,6 +334,28 @@ namespace YSE {
         return slices[(std::size_t)index].count;
       }
 
+      /** Slice @p index's render task, whose cost() is the slice's measured
+          (or membership-adjusted) cost. Test hook: a test may setCost() it to
+          drive the cost policy. @p index must be in [0, MAX_SLICES). */
+      INTERNAL::renderTask& getSliceTask(Int index) {
+        return slices[(std::size_t)index];
+      }
+
+      /** The measured cost of one of this channel's sounds, in nanoseconds:
+          the summed cost of the slices holding sounds over their sound
+          count; 0 while none of them has been measured (the count policy
+          then applies). Audio thread. */
+      float soundCost() const;
+
+      /** Re-shape the voice slices by measured cost against @p target (issue
+          #861): merge the last slice into the others when every sound fits in
+          one slice fewer at half the target, else split the heaviest slice
+          when it costs more than twice the target, else level the heaviest
+          and the lightest slice when they differ by more than a quarter of
+          the heavy one. At most one step per call. No-op while the channel is unmeasured. Audio
+         thread, between blocks — from CHANNEL::managerObject::update(). */
+      void rebalanceSlices(float target);
+
       /** dsp utility function to set all output buffers to zero before filling again
        */
       void clearBuffers();
@@ -492,9 +536,15 @@ namespace YSE {
       Int activeSlices = 1;
       Int soundCount = 0;
 
-      /** The slice a newly connected sound joins: the least-loaded active one,
-          or a freshly opened one when every active slice is at capacity. */
-      voiceSlice& pickSlice();
+      /** The slice a newly connected sound joins (see the policy above),
+          opening one when the policy calls for it. @p perSound is
+          soundCost(): 0 selects the count policy. */
+      voiceSlice& pickSlice(float perSound);
+      /** Move @p s from slice @p from to slice @p to, carrying its share of
+          the measured cost. */
+      void moveSound(SOUND::implementationObject* s, voiceSlice& from, voiceSlice& to);
+      /** Open slices[activeSlices] (empty, no cost) and mark the graph dirty. */
+      voiceSlice& openSlice();
       /** Drop trailing empty slices once the sounds fit comfortably in fewer
           (hysteresis: half a slice of slack, so a count hovering at a
           boundary does not open and close a slice every block). */

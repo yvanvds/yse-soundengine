@@ -9,6 +9,7 @@
 */
 
 #include "../internalHeaders.h"
+#include <algorithm>
 
 YSE::CHANNEL::implementationObject::implementationObject(channel* head)
   : head(head),
@@ -98,6 +99,27 @@ Bool YSE::CHANNEL::implementationObject::disconnect(YSE::CHANNEL::implementation
   return true;
 }
 
+float YSE::CHANNEL::sliceTargetCost() {
+  // A slice cheaper than waking a worker is not worth being its own task
+  // (issue #861). The floor keeps a machine with very cheap wakes from
+  // splitting channels into slivers whose buffer clear-and-sum overhead would
+  // rival their work; the ceiling keeps a pathological wake measurement from
+  // collapsing a swarm into one slice.
+  const float wake = INTERNAL::Global().renderer().wakeCost();
+  return std::clamp(wake, MIN_SLICE_TARGET_NS, MAX_SLICE_TARGET_NS);
+}
+
+namespace {
+  // A slice's estimated cost (issue #861): nothing when empty; its measured
+  // cost (kept in step with membership by connect/disconnect/moveSound) when
+  // it has one; otherwise its sounds at the channel's per-sound cost.
+  float sliceEstimate(const YSE::CHANNEL::voiceSlice& slice, Int count, float perSound) {
+    if (count == 0) return 0.f;
+    const float c = slice.cost();
+    return c > 0.f ? c : (float)count * perSound;
+  }
+} // namespace
+
 Bool YSE::CHANNEL::implementationObject::connect(YSE::SOUND::implementationObject* s) {
   // The sound's slice says exactly which list holds it (issue #860), so a
   // sound already in a channel — this one included — is unlinked first and a
@@ -106,40 +128,191 @@ Bool YSE::CHANNEL::implementationObject::connect(YSE::SOUND::implementationObjec
   s->parent = this;
   // Joining a slice does not change the render graph: only pickSlice()
   // opening a new slice marks it dirty.
-  voiceSlice& slice = pickSlice();
+  const float perSound = CHANNEL::Manager().getCostBalancing() ? soundCost() : 0.f;
+  voiceSlice& slice = pickSlice(perSound);
+  // Keep the slice's cost estimate in step with its membership until the next
+  // sample measures it (issue #861): one more sound at this slice's own
+  // per-sound cost, or the channel's for a slice that has none yet.
+  if (perSound > 0.f) {
+    const float c = slice.cost();
+    const float share = (slice.count > 0 && c > 0.f) ? c / (float)slice.count : perSound;
+    slice.setCost(c + share);
+  }
   slice.sounds.push_front(s);
   ++slice.count;
   ++soundCount;
   s->slice = &slice;
+  INTERNAL::Global().renderer().requestSample();
   return true;
 }
 
 Bool YSE::CHANNEL::implementationObject::disconnect(YSE::SOUND::implementationObject* s) {
   voiceSlice* slice = s->slice;
   if (slice == nullptr || slice->owner != this) return false;
+  const float c = slice->cost();
+  if (c > 0.f && slice->count > 0) slice->setCost(c - c / (float)slice->count);
   slice->sounds.remove(s);
   --slice->count;
   --soundCount;
   s->slice = nullptr;
   shrinkSlices();
+  INTERNAL::Global().renderer().requestSample();
   return true;
 }
 
-YSE::CHANNEL::voiceSlice& YSE::CHANNEL::implementationObject::pickSlice() {
-  // Least-loaded by count (#861 balances by measured cost); ties go to the
-  // lowest index, so the assignment is a pure function of connect order.
+float YSE::CHANNEL::implementationObject::soundCost() const {
+  float cost = 0.f;
+  Int sounds = 0;
+  for (Int i = 0; i < activeSlices; ++i) {
+    const voiceSlice& slice = slices[(std::size_t)i];
+    const float c = slice.cost();
+    if (slice.count > 0 && c > 0.f) {
+      cost += c;
+      sounds += slice.count;
+    }
+  }
+  return sounds > 0 ? cost / (float)sounds : 0.f;
+}
+
+YSE::CHANNEL::voiceSlice& YSE::CHANNEL::implementationObject::openSlice() {
+  // Always the next slot: slices close only from the end. It is empty, with
+  // no cost, and it is a new leaf, so the graph rebuilds.
+  voiceSlice& slice = slices[(std::size_t)activeSlices];
+  ++activeSlices;
+  slice.setCost(0.f);
+  INTERNAL::Global().renderer().markDirty();
+  return slice;
+}
+
+YSE::CHANNEL::voiceSlice& YSE::CHANNEL::implementationObject::pickSlice(float perSound) {
   voiceSlice* best = &slices[0];
+  if (perSound <= 0.f) {
+    // Unmeasured (#860): least-loaded by count; ties go to the lowest index,
+    // so the assignment is a pure function of connect order. A new slice only
+    // once every active one is full.
+    for (Int i = 1; i < activeSlices; ++i) {
+      if (slices[(std::size_t)i].count < best->count) best = &slices[(std::size_t)i];
+    }
+    if (best->count >= SLICE_CAPACITY && activeSlices < MAX_SLICES) best = &openSlice();
+    return *best;
+  }
+
+  // Measured (#861): the cheapest slice, ties to the lowest index; a new slice
+  // only when even the cheapest would pass the target with this sound in it.
+  float bestCost = sliceEstimate(*best, best->count, perSound);
   for (Int i = 1; i < activeSlices; ++i) {
-    if (slices[(std::size_t)i].count < best->count) best = &slices[(std::size_t)i];
+    const voiceSlice& slice = slices[(std::size_t)i];
+    const float c = sliceEstimate(slice, slice.count, perSound);
+    if (c < bestCost) {
+      best = &slices[(std::size_t)i];
+      bestCost = c;
+    }
   }
-  if (best->count >= SLICE_CAPACITY && activeSlices < MAX_SLICES) {
-    // Every active slice is full: open the next one. It is empty — a slice is
-    // only ever closed empty — and it is a new leaf, so the graph rebuilds.
-    best = &slices[(std::size_t)activeSlices];
-    ++activeSlices;
-    INTERNAL::Global().renderer().markDirty();
-  }
+  if (best->count > 0 && bestCost + perSound > sliceTargetCost() && activeSlices < MAX_SLICES)
+    best = &openSlice();
   return *best;
+}
+
+void YSE::CHANNEL::implementationObject::moveSound(SOUND::implementationObject* s, voiceSlice& from,
+                                                   voiceSlice& to) {
+  // The sound takes its share of `from`'s measured cost along (issue #861).
+  const float c = from.cost();
+  const float share = (c > 0.f && from.count > 0) ? c / (float)from.count : 0.f;
+  from.sounds.remove(s);
+  --from.count;
+  if (share > 0.f) {
+    from.setCost(c - share);
+    to.setCost(to.cost() + share);
+  }
+  to.sounds.push_front(s);
+  ++to.count;
+  s->slice = &to;
+}
+
+void YSE::CHANNEL::implementationObject::rebalanceSlices(float target) {
+  if (activeSlices == 1 && soundCount < 2) return;
+  const float perSound = soundCost();
+  if (perSound <= 0.f) return; // unmeasured: the count policy stands
+
+  float total = 0.f;
+  Int heaviest = 0;
+  float heaviestCost = -1.f;
+  for (Int i = 0; i < activeSlices; ++i) {
+    const voiceSlice& slice = slices[(std::size_t)i];
+    const float c = sliceEstimate(slice, slice.count, perSound);
+    total += c;
+    if (c > heaviestCost) {
+      heaviest = i;
+      heaviestCost = c;
+    }
+  }
+
+  // Merge: the whole channel fits in one slice fewer at half the target (the
+  // hysteresis against the split below and the connect-time open). This is
+  // what un-splits a channel whose count opened slices before it was measured
+  // — 33 cheap sounds are not worth two tasks.
+  if (activeSlices > 1 && total <= (float)(activeSlices - 1) * target * 0.5f) {
+    voiceSlice& last = slices[(std::size_t)(activeSlices - 1)];
+    while (!last.sounds.empty()) {
+      voiceSlice* lightest = &slices[0];
+      float lightestCost = sliceEstimate(*lightest, lightest->count, perSound);
+      for (Int i = 1; i < activeSlices - 1; ++i) {
+        const voiceSlice& slice = slices[(std::size_t)i];
+        const float c = sliceEstimate(slice, slice.count, perSound);
+        if (c < lightestCost) {
+          lightest = &slices[(std::size_t)i];
+          lightestCost = c;
+        }
+      }
+      moveSound(*last.sounds.begin(), last, *lightest);
+    }
+    --activeSlices;
+    last.setCost(0.f);
+    INTERNAL::Global().renderer().markDirty();
+    INTERNAL::Global().renderer().requestSample();
+    return;
+  }
+
+  // Split: the heaviest slice costs more than two targets. Half its sounds
+  // move to a new slice.
+  voiceSlice& heavy = slices[(std::size_t)heaviest];
+  if (activeSlices < MAX_SLICES && heavy.count >= 2 && heaviestCost > 2.f * target) {
+    voiceSlice& fresh = openSlice();
+    const Int moving = heavy.count / 2;
+    for (Int k = 0; k < moving; ++k)
+      moveSound(*heavy.sounds.begin(), heavy, fresh);
+    INTERNAL::Global().renderer().requestSample();
+    return;
+  }
+
+  // Level: sounds move from the heaviest slice to the lightest until the two
+  // meet in the middle. Splits halve a slice and connects fill slices by
+  // estimates that the next samples correct, so without this a channel at
+  // MAX_SLICES keeps slices several times heavier than its others — and the
+  // heaviest slice bounds the whole block. Only for a gap worth more than a
+  // quarter of the heavy slice (measurement noise must not shuffle sounds
+  // every tick). The leaf deal is by cost, so the graph rebuilds.
+  if (activeSlices < 2 || heavy.count < 2) return;
+  Int lightest = 0;
+  float lightestCost = -1.f;
+  for (Int i = 0; i < activeSlices; ++i) {
+    const voiceSlice& slice = slices[(std::size_t)i];
+    const float c = sliceEstimate(slice, slice.count, perSound);
+    if (lightestCost < 0.f || c < lightestCost) {
+      lightest = i;
+      lightestCost = c;
+    }
+  }
+  const float gap = heaviestCost - lightestCost;
+  const float perHeavy = heaviestCost / (float)heavy.count;
+  if (lightest == heaviest || gap <= 2.f * perHeavy || gap <= 0.25f * heaviestCost) return;
+  Int moving = (Int)(gap / (2.f * perHeavy));
+  if (moving > heavy.count - 1) moving = heavy.count - 1;
+  voiceSlice& light = slices[(std::size_t)lightest];
+  for (Int k = 0; k < moving; ++k)
+    moveSound(*heavy.sounds.begin(), heavy, light);
+  INTERNAL::Global().renderer().markDirty();
+  INTERNAL::Global().renderer().requestSample();
 }
 
 void YSE::CHANNEL::implementationObject::shrinkSlices() {
@@ -150,6 +323,7 @@ void YSE::CHANNEL::implementationObject::shrinkSlices() {
   while (activeSlices > 1 && slices[(std::size_t)(activeSlices - 1)].count == 0 &&
          soundCount <= (activeSlices - 1) * SLICE_CAPACITY - SLICE_CAPACITY / 2) {
     --activeSlices;
+    slices[(std::size_t)activeSlices].setCost(0.f);
     INTERNAL::Global().renderer().markDirty();
   }
 }

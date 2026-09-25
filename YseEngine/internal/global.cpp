@@ -47,7 +47,18 @@ void YSE::INTERNAL::global::addSlowJob(threadPoolJob* job) {
 }
 
 void YSE::INTERNAL::global::setRenderWorkerCount(Int numThreads) {
+  if (numThreads < 0) numThreads = -1;
+  renderWorkersRequest = numThreads;
   render.setWorkerCount(numThreads);
+}
+
+void YSE::INTERNAL::global::requestRenderWorkers(Int numThreads) {
+  if (numThreads < 0) numThreads = -1;
+  renderWorkersRequest = numThreads;
+  // A device session's callback may be inside a block right now; the request
+  // waits for the next init() there (issue #861).
+  if (active && sessionHasDevice) return;
+  if (render.requestedWorkerCount() != numThreads) render.setWorkerCount(numThreads);
 }
 
 Int YSE::INTERNAL::global::renderWorkerCount() const {
@@ -149,6 +160,10 @@ void YSE::INTERNAL::global::init() {
   // no render workers or manager setup/delete jobs (issue #140). No-op on the
   // very first session, where the pools are still live from the ctor.
   slowThreads.startup();
+  // A render thread-count request made during the previous device session
+  // takes effect now, before the new session's first block (issue #861).
+  if (render.requestedWorkerCount() != renderWorkersRequest)
+    render.setWorkerCount(renderWorkersRequest);
   render.startup();
   REVERB::Manager().create();
   bus = std::make_unique<NamedBus>();

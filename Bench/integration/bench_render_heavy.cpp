@@ -23,8 +23,9 @@
 // W is the render worker count, set through the internal hook
 // INTERNAL::Global().setRenderWorkerCount() for the duration of the run and
 // restored to the auto-sized default afterwards: 0 renders everything on the
-// calling thread (the serial reference), 2 is today's auto-sized default
-// (renderScheduler::MAX_AUTO_WORKERS), and 8 / 24 cover the #647-protocol pool sweep
+// calling thread (the serial reference), 2 was the auto-sized default until
+// #861 (now physical cores - 1, capped at renderScheduler::MAX_AUTO_WORKERS =
+// 8), and 8 / 24 cover the #647-protocol pool sweep
 // that #858's park-and-wake idle strategy is judged by. The `per_channel_job`
 // counter is the wall time per block divided by the scene's channel count —
 // at W = 0 that is the cost
@@ -181,6 +182,13 @@ namespace {
         // Every voice is sounding; let the envelopes, sound faders and channel
         // volume ramps settle before timing.
         YSE::System().renderOffline(64);
+        // Control ticks, as a host sends every frame: the cost-driven voice
+        // slice policy (#861) re-shapes slices one step per tick, so the timed
+        // blocks see its steady layout rather than the connect-time one.
+        for (int t = 0; t < 32; ++t) {
+          YSE::System().update();
+          YSE::System().renderOffline(4);
+        }
         BenchHelpers::settleControlPlane();
         for (auto _ : state) {
           YSE::System().renderOffline(kHeavyBlocksPerIter);
@@ -194,6 +202,10 @@ namespace {
         state.counters["per_channel_job"] = benchmark::Counter(
             static_cast<double>(kHeavyBlocksPerIter) * channelCount,
             benchmark::Counter::kIsIterationInvariantRate | benchmark::Counter::kInvert);
+        // 1 when the serial gate (issue #861) kept the last block on the
+        // calling thread; these scenes should always fan out.
+        state.counters["serial"] =
+            YSE::INTERNAL::Global().renderer().lastBlockSerial() ? 1 : 0;
       }
     }
     // Drain the destroyed sounds and channels out of the mix tree before the
