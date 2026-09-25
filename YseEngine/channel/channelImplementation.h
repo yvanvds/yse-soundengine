@@ -11,6 +11,7 @@
 #ifndef CHANNELIMPLEMENTATION_H_INCLUDED
 #define CHANNELIMPLEMENTATION_H_INCLUDED
 
+#include <array>
 #include <atomic>
 #include <memory>
 #include <vector>
@@ -78,18 +79,50 @@ namespace YSE {
       std::vector<DSP::buffer> tap; // this block's send, one buffer per output
     };
 
-    // The two render-graph tasks of a channel (issue #859). A channel in the
-    // mix tree contributes a leaf that renders its own sounds and a mix task
-    // that runs once the leaf and every child channel's mix have finished; a
-    // return contributes only its mix task. See CHANNEL::managerObject::
-    // buildRenderGraph() for the dependencies.
-    class ownSoundsTask final : public INTERNAL::renderTask {
+    // Voice-slice policy (issue #860). Constants in this step; #861 tunes them
+    // and balances by measured cost instead of by count.
+    //
+    // A sound joins the least-loaded active slice of its channel. A new slice
+    // is opened only when every active slice already holds SLICE_CAPACITY
+    // sounds, so a channel with a handful of sounds keeps one slice and pays
+    // nothing extra. Past MAX_SLICES the capacity is soft: sounds keep joining
+    // the least-loaded slice.
+    constexpr Int SLICE_CAPACITY = 32;
+    constexpr Int MAX_SLICES = 16;
+
+    // One voice slice (issue #860): a stable, fixed-capacity group of a
+    // channel's sounds, rendered as one leaf task of the render graph (#859).
+    // Every slice accumulates into its own buffer set, so slices of one channel
+    // render in parallel without sharing a buffer (single-writer discipline,
+    // #165). Slice 0 accumulates straight into the channel's `out`; slices 1..n
+    // into their private `buffers`, which the channel's mix task adds to `out`
+    // in fixed slice order — the sum does not depend on which worker finished
+    // first.
+    //
+    // A channel owns MAX_SLICES of these for its whole lifetime; `activeSlices`
+    // of them are in the graph. Sound connect/disconnect moves a sound in or
+    // out of a slice list without touching the graph; only a change in the
+    // active slice count marks it dirty. Every field is audio-thread-owned and
+    // mutated only between blocks.
+    class voiceSlice final : public INTERNAL::renderTask {
     public:
-      explicit ownSoundsTask(implementationObject* owner) : owner(owner) {}
+      voiceSlice() = default;
       void execute(INTERNAL::renderScheduler& scheduler) override;
 
     private:
-      implementationObject* owner;
+      friend class implementationObject;
+
+      implementationObject* owner = nullptr;
+      Int index = 0; // position in the owner's slice array
+      Int count = 0; // sounds in `sounds`
+      IntrusiveForwardList<SOUND::implementationObject, &SOUND::implementationObject::_channelNext>
+          sounds;
+      // Private accumulation buffers, one per output (slices 1..n only; sized
+      // wherever the owner's `out` is).
+      std::vector<DSP::buffer> buffers;
+      // Where this slice's sounds accumulate: the owner's `out` for slice 0,
+      // `buffers` otherwise. Set once in the owner's constructor.
+      std::vector<DSP::buffer>* dest = nullptr;
     };
 
     class mixTask final : public INTERNAL::renderTask {
@@ -225,17 +258,20 @@ namespace YSE {
       // DSP calculations — render-graph task bodies (issue #859)
       /////////////////////////////////////////////////////
       /**
-        Leaf task body: clear `out` and render this channel's own sounds into
-        it. A channel with neither sounds nor subchannels is skipped, exactly
-        like the old dsp() (its buffer is left as is and never summed); the
-        master is always cleared, since returns fold into it.
+        Voice-slice leaf body (issue #860): render the slice's sounds into its
+        buffers. Slice 0 clears and fills `out`: a channel with neither sounds
+        nor subchannels is skipped, exactly like the old dsp() (its buffer is
+        left as is and never summed), and the master is always cleared, since
+        returns fold into it. A slice 1..n with no sounds is skipped and not
+        summed.
       */
-      void renderOwnSounds();
+      void renderSlice(voiceSlice& slice);
 
       /**
-        Mix task body, run once the own-sounds leaf and every child channel's
-        mix task have finished. Mixer bus order (D3 on issue #859): sum the
-        children in list order, then insert chain, reverb and pre-fader meter,
+        Mix task body, run once every active voice slice and every child
+        channel's mix task have finished. Mixer bus order (D3 on issue #859):
+        sum slices 1..n in slice order (#860), then the children in list order,
+        then insert chain, reverb and pre-fader meter,
         pre-fader send taps, the channel fader, post-fader meter and post-fader
         send taps. The parent's mix task later sums this channel's `out` in.
         The master also sums every return before its insert chain and has no
@@ -256,7 +292,24 @@ namespace YSE {
           `out` this block. Stable for the duration of a block: both lists are
           mutated only on the audio thread, between blocks. */
       bool hasWork() const {
-        return !(children.empty() && sounds.empty());
+        return !(children.empty() && soundCount == 0);
+      }
+
+      /** Voice slices currently in the render graph (issue #860), >= 1.
+          Audio thread (or a test driving the impl directly). */
+      Int getActiveSlices() const {
+        return activeSlices;
+      }
+
+      /** Sounds connected to this channel, over every slice. Audio thread. */
+      Int getSoundCount() const {
+        return soundCount;
+      }
+
+      /** Sounds in slice @p index, or -1 when out of range. Audio thread. */
+      Int getSliceLoad(Int index) const {
+        if (index < 0 || index >= MAX_SLICES) return -1;
+        return slices[(std::size_t)index].count;
       }
 
       /** dsp utility function to set all output buffers to zero before filling again
@@ -428,11 +481,28 @@ namespace YSE {
       IntrusiveForwardList<CHANNEL::implementationObject,
                            &CHANNEL::implementationObject::_childNext>
           children;
-      IntrusiveForwardList<SOUND::implementationObject, &SOUND::implementationObject::_channelNext>
-          sounds;
 
       std::vector<output> outConf;
       std::vector<DSP::buffer> out;
+
+      // Voice slices (issue #860). The sounds of this channel live in the
+      // slices' intrusive lists; `activeSlices` of them are in the render
+      // graph. See voiceSlice. Audio-thread-owned, mutated between blocks.
+      std::array<voiceSlice, MAX_SLICES> slices;
+      Int activeSlices = 1;
+      Int soundCount = 0;
+
+      /** The slice a newly connected sound joins: the least-loaded active one,
+          or a freshly opened one when every active slice is at capacity. */
+      voiceSlice& pickSlice();
+      /** Drop trailing empty slices once the sounds fit comfortably in fewer
+          (hysteresis: half a slice of slack, so a count hovering at a
+          boundary does not open and close a slice every block). */
+      void shrinkSlices();
+      /** Size the private slice buffers to @p numOutputs. Wherever `out` is. */
+      void sizeSliceBuffers(UInt numOutputs);
+      /** Add slices 1..n into `out`, in slice order. Mix task. */
+      void sumSlices();
 
       // Head of the pre-fader insert DSP chain, or nullptr when none is
       // attached. Owned by the caller (the interface's dspObject), not by this
@@ -497,12 +567,12 @@ namespace YSE {
       void postMixProcess(); // insert chain, reverb, pre-fader peak
       void publishPostPeak(); // post-fader peak
 
-      // Render-graph tasks (issue #859). Declared after every member their
-      // bodies touch; their addresses are stable for the impl's lifetime.
-      ownSoundsTask soundsTask{this};
+      // Render-graph task (issue #859). Declared after every member its body
+      // touches; its address is stable for the impl's lifetime. The leaves are
+      // the voice slices above.
       mixTask mix{this};
 
-      friend class ownSoundsTask;
+      friend class voiceSlice;
       friend class mixTask;
       friend class SOUND::implementationObject;
       friend class YSE::channel;

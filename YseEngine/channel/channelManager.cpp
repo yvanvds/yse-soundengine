@@ -446,10 +446,13 @@ void YSE::CHANNEL::managerObject::render(implementationObject& master) {
 
 void YSE::CHANNEL::managerObject::addChannelToGraph(implementationObject& ch,
                                                     INTERNAL::renderScheduler& scheduler) {
-  // Pre-order: the channel's own-sounds leaf, then its subtree. The mix task
-  // waits for that leaf and for every child's mix task.
-  scheduler.addLeaf(ch.soundsTask);
-  Int deps = 1;
+  // Pre-order: the channel's active voice slices (issue #860), then its
+  // subtree. Consecutive slices land on consecutive workers' leaf lists. The
+  // mix task waits for every slice and for every child's mix task.
+  for (Int s = 0; s < ch.activeSlices; ++s) {
+    scheduler.addLeaf(ch.slices[(std::size_t)s]);
+  }
+  Int deps = ch.activeSlices;
   for (auto i = ch.children.begin(); i != ch.children.end(); ++i) {
     addChannelToGraph(**i, scheduler);
     ++deps;

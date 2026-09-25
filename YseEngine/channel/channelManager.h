@@ -102,8 +102,9 @@ namespace YSE {
 
       /** Rebuild the task graph (D1-D4 on issue #859). Audio thread, between
           blocks; allocation-free. Every channel of the tree under @p master
-          contributes an own-sounds leaf and a mix task that waits for that
-          leaf and for every child's mix task. Every return's mix task waits
+          contributes one leaf per active voice slice (#860) and a mix task
+          that waits for those leaves and for every child's mix task. Every
+          return's mix task waits
           for every child of the master (so, transitively, every source
           channel) and every lower-generation return; the master's mix task
           also waits for every return. Leaves are dealt out round-robin in

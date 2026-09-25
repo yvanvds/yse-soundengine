@@ -16,13 +16,17 @@
 //   master
 //   └── golden.parent            2 voices, post-fader send -> golden.capture
 //       ├── golden.leaf0..3      3 voices each
-//       └── golden.leaf4         3 voices
-//           └── golden.deep      2 voices
+//       ├── golden.leaf4         3 voices
+//       │   └── golden.deep      2 voices
+//       └── golden.swarm         2 * SLICE_CAPACITY + 7 voices (#860)
 //   golden.capture (return)      insert = CaptureInsert
 //
-// Every render worker gets channel tasks to fight over (five siblings under
+// Every render worker gets channel tasks to fight over (six siblings under
 // the parent, one of them with a child of its own, so mix tasks run as
-// continuations on whichever thread finished a subtree last), and the whole
+// continuations on whichever thread finished a subtree last). The swarm
+// channel has enough voices for three voice slices (issue #860): three leaves
+// of one channel, rendered on different workers into private buffers and
+// summed in slice order by the channel's mix task. And the whole
 // subtree reaches the capture through the task graph: each channel's mix task
 // sums its children in list order, the parent's post-fader send taps into its
 // slot, and the return's mix task — a continuation of the sources — gathers it
@@ -55,6 +59,7 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <chrono>
 #include <cmath>
 #include <cstdint>
@@ -65,7 +70,9 @@
 #include <vector>
 
 #include "yse.hpp"
+#include "channel/channelImplementation.h"
 #include "channel/channelInterface.hpp"
+#include "channel/channelMessage.h"
 #include "dsp/dspObject.hpp"
 #include "dsp/ladderFilter.hpp"
 #include "internal/global.h"
@@ -79,7 +86,11 @@ namespace {
   constexpr int kVoicesPerLeaf = 3;
   constexpr int kParentVoices = 2;
   constexpr int kDeepVoices = 2;
-  constexpr int kVoices = kParentVoices + kLeaves * kVoicesPerLeaf + kDeepVoices; // 19
+  // Three voice slices: two full ones and a partial third (issue #860).
+  constexpr int kSwarmVoices = 2 * YSE::CHANNEL::SLICE_CAPACITY + 7;
+  static_assert(YSE::CHANNEL::MAX_SLICES >= 3, "the swarm channel needs three voice slices");
+  constexpr int kVoices =
+      kParentVoices + kLeaves * kVoicesPerLeaf + kDeepVoices + kSwarmVoices; // 19 + swarm
   constexpr int kBlocks = 48; // captured blocks per run
 
   // A deterministic voice: naive saw -> ladder filter with a stepped cutoff.
@@ -298,6 +309,8 @@ TEST_SUITE("rendergolden") {
       leaves[l].create(("golden.leaf" + std::to_string(l)).c_str(), parent);
     YSE::channel deep;
     deep.create("golden.deep", leaves[kLeaves - 1]);
+    YSE::channel swarm;
+    swarm.create("golden.swarm", parent);
     pump(8); // channels live before sounds attach to them
 
     std::vector<std::unique_ptr<YSE::sound>> sounds;
@@ -317,6 +330,8 @@ TEST_SUITE("rendergolden") {
         attach(g_voices[next++], leaves[l]);
     for (int i = 0; i < kDeepVoices; ++i)
       attach(g_voices[next++], deep);
+    for (int i = 0; i < kSwarmVoices; ++i)
+      attach(g_voices[next++], swarm);
     REQUIRE(next == kVoices);
 
     parent.send(0, capture, 1.0f);
@@ -443,6 +458,106 @@ TEST_SUITE("rendergolden") {
     voice.stop();
     bus.setDSP(nullptr);
     pump(8);
+  }
+
+  TEST_CASE("rendergolden: sounds churn through voice slices while rendering in parallel (#860)") {
+    // The acceptance gate for voice slices under the sanitizers (issue #860):
+    // one thread renders blocks back to back with two render workers, so a
+    // swarm channel's slices run on three threads at once, while a control
+    // thread creates, moves and destroys sounds at a high rate. The count on
+    // the swarm channel swings across several slice boundaries, so slices open
+    // and close (graph rebuilds) as well as fill and drain (no rebuild); the
+    // audio thread applies every connect/disconnect between blocks, and the
+    // slow pool sets up and frees the impls concurrently. A race or a
+    // use-after-free is the sanitizer aborting; a plain build must not crash,
+    // hang, or reach a non-finite sample. doctest macros stay on this thread.
+    if (!TestHelpers::engineInit()) return;
+    if (YSE::System().getActiveSampleRate() != 0.0) {
+      MESSAGE("skipped: an audio stream is live in this process (see the golden test above).");
+      return;
+    }
+    const int previousMaxSounds = YSE::System().maxSounds();
+    YSE::System().maxSounds(4096);
+
+    constexpr int kChurnVoices = 4 * YSE::CHANNEL::SLICE_CAPACITY + 8;
+    static std::array<GoldenVoice, kChurnVoices> churnVoices; // outlive the slow-pool deletes
+    for (int v = 0; v < kChurnVoices; ++v)
+      churnVoices[v].configure(v);
+
+    YSE::channel swarmA;
+    swarmA.create("churn.swarmA", YSE::ChannelMaster());
+    YSE::channel swarmB;
+    swarmB.create("churn.swarmB", YSE::ChannelMaster());
+    pump(8);
+
+    YSE::INTERNAL::Global().setRenderWorkerCount(2);
+    std::atomic<bool> stop{false};
+    std::atomic<long> blocks{0};
+    std::thread render([&stop, &blocks] {
+      while (!stop.load(std::memory_order_relaxed)) {
+        YSE::System().renderOffline(1);
+        blocks.fetch_add(1, std::memory_order_relaxed);
+      }
+    });
+
+    {
+      // Control thread (this one): waves of creation and destruction. Every
+      // slot is a voice; a live sound in slot v plays churnVoices[v].
+      std::array<std::unique_ptr<YSE::sound>, kChurnVoices> live;
+      // A voice object must not feed two sounds at once. A destroyed sound's
+      // impl renders until the audio thread's next update releases it, so a
+      // slot rests for a few rendered blocks before its voice is handed to a
+      // new sound (counted in blocks, not rounds: under a sanitizer a block
+      // can outlast many rounds).
+      std::array<long, kChurnVoices> restUntilBlock{};
+      unsigned rng = 12345u;
+      auto next = [&rng] {
+        rng = rng * 1664525u + 1013904223u;
+        return rng >> 8;
+      };
+      for (int round = 0; round < 1200; ++round) {
+        // Grow towards full in the first half of each 60-round wave, shrink
+        // towards empty in the second: swarmA sweeps across every slice
+        // boundary up to five slices and back. A few sounds hop to swarmB and
+        // back (a MOVE: disconnect from one channel's slice, connect to the
+        // other's).
+        const bool growing = (round % 60) < 30;
+        for (int k = 0; k < 16; ++k) {
+          const int v = static_cast<int>(next() % kChurnVoices);
+          if (growing && !live[v]) {
+            if (blocks.load(std::memory_order_relaxed) < restUntilBlock[v]) continue;
+            live[v] = std::make_unique<YSE::sound>();
+            live[v]->create(churnVoices[v], &swarmA, 0.1f);
+            live[v]->relative(true);
+            live[v]->doppler(false);
+            live[v]->play();
+          } else if (!growing && live[v]) {
+            live[v].reset();
+            restUntilBlock[v] = blocks.load(std::memory_order_relaxed) + 4;
+          } else if (live[v] && (next() % 8u) == 0u) {
+            live[v]->moveTo((next() & 1u) ? swarmA : swarmB);
+          }
+        }
+        YSE::System().update();
+        std::this_thread::sleep_for(std::chrono::microseconds(200));
+      }
+      // `live` goes out of scope here, destroying whatever is still playing
+      // while the render thread keeps going.
+    }
+    for (int i = 0; i < 20; ++i) {
+      YSE::System().update();
+      std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+
+    stop.store(true, std::memory_order_relaxed);
+    render.join();
+    CHECK(blocks.load() > 0);
+
+    YSE::INTERNAL::Global().setRenderWorkerCount(-1);
+    pump(8);
+    CHECK(std::isfinite(YSE::ChannelMaster().getPeakLinearPost()));
+    CHECK(std::isfinite(swarmA.getPeakLinearPost()));
+    YSE::System().maxSounds(previousMaxSounds);
   }
 
 } // TEST_SUITE("rendergolden")

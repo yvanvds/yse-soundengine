@@ -677,6 +677,37 @@ and 4 workers. W = 24 (25 threads on 8 CPUs) pays more wake latency, which
 is #861's thread-count policy to avoid. Controls: `BM_VaVoice_SingleSaw` 4.10 us
 before and after; `BM_Engine_RenderOffline_100Sounds` 88 -> 80 us.
 
+**Voice slices (#860).** A channel's sounds are split over up to 16 voice
+slices (a new one opens when every active slice holds 32 sounds), each a
+render-graph leaf accumulating into its own buffers, summed by the channel's
+mix task in slice order. Coverage: `Tests/channel/test_voice_slices.cpp`
+(least-loaded join, open-on-full, close-when-empty hysteresis, the soft
+capacity past 16 slices, moves between channels, release to the parent); the
+golden scene gains a `golden.swarm` channel with 2 x 32 + 7 voices (three
+slices) and stays bit-exact at 0/1/2/N — making every slice accumulate into
+the channel's `out` directly fails it at W = 1, 2 and N — and a
+`rendergolden` churn case creates, moves and destroys sounds across slice
+boundaries on two channels while a render thread runs two workers (the
+sanitizer gate). Interleaved A/B (HEAD vs. #860, two rounds of 3 repetitions,
+medians, same 0xFF mask, per block):
+
+| Benchmark | W = 0 | W = 1 | W = 2 | W = 4 | W = 8 | W = 24 |
+|---|---|---|---|---|---|---|
+| `RenderHeavy_Channels` before | 1.86 ms | 0.98 ms | 0.73 ms | 0.50 ms | 0.28 ms | 0.36 ms |
+| `RenderHeavy_Channels` after | 1.86 ms | 1.01 ms | 0.68 ms | 0.46 ms | 0.32 ms | 0.36 ms |
+| `RenderHeavy_Swarm` before | 1.87 ms | 1.90 ms | 1.92 ms | 1.88 ms | 1.89 ms | 1.87 ms |
+| `RenderHeavy_Swarm` after | 1.90 ms | 1.01 ms | 0.72 ms | 0.45 ms | 0.31 ms | 0.36 ms |
+
+The swarm (448 voices on one channel, 14 slices) now scales like the
+eight-channel scene. The eight-channel scene splits each 56-voice channel into
+two slices: better balanced at W = 2 and 4, while W = 8 (9 threads on 8 CPUs,
+all of them now with leaves to wake) pays more wake latency — #861's
+thread-count policy. Controls: `BM_VaVoice_SingleSaw` 4.22 -> 4.18 us;
+`BM_Engine_RenderOffline_100Sounds` 85 -> 95 us (per 64 blocks: its ~34 cheap
+sounds per channel open a second, near-empty slice each — ~0.15 us per block
+of extra clear, sum and claim, which #861's cost-based balancing and serial
+gating are for).
+
 ---
 
 ## Summary Table

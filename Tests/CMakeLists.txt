@@ -248,6 +248,7 @@ set(YSE_TEST_SOURCES
   channel/test_channel_dsp.cpp
   channel/test_channel_sends.cpp
   channel/test_render_golden.cpp
+  channel/test_voice_slices.cpp
   channel/test_channel_underwater.cpp
   channel/test_c_api_channel.cpp
   sound/test_sound_state.cpp

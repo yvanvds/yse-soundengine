@@ -29,7 +29,16 @@ YSE::CHANNEL::implementationObject::implementationObject(channel* head)
     lastVolume(1.f),
     parent(nullptr),
     insert_dsp(nullptr),
-    allowVirtual(true) {}
+    allowVirtual(true) {
+  // Voice slices (issue #860): slice 0 accumulates into `out`, every other
+  // slice into its own buffers. Wired once; the addresses never change.
+  for (std::size_t i = 0; i < slices.size(); ++i) {
+    voiceSlice& s = slices[i];
+    s.owner = this;
+    s.index = static_cast<Int>(i);
+    s.dest = i == 0 ? &out : &s.buffers;
+  }
+}
 
 YSE::CHANNEL::implementationObject::~implementationObject() noexcept {
   try {
@@ -90,29 +99,72 @@ Bool YSE::CHANNEL::implementationObject::disconnect(YSE::CHANNEL::implementation
 }
 
 Bool YSE::CHANNEL::implementationObject::connect(YSE::SOUND::implementationObject* s) {
-  if (s->parent != nullptr && s->parent != this) {
-    s->parent->disconnect(s);
-  }
+  // The sound's slice says exactly which list holds it (issue #860), so a
+  // sound already in a channel — this one included — is unlinked first and a
+  // re-connect can never thread it into a list twice.
+  if (s->slice != nullptr) s->slice->owner->disconnect(s);
   s->parent = this;
-  sounds.push_front(s);
+  // Joining a slice does not change the render graph: only pickSlice()
+  // opening a new slice marks it dirty.
+  voiceSlice& slice = pickSlice();
+  slice.sounds.push_front(s);
+  ++slice.count;
+  ++soundCount;
+  s->slice = &slice;
   return true;
 }
 
 Bool YSE::CHANNEL::implementationObject::disconnect(YSE::SOUND::implementationObject* s) {
-  sounds.remove(s);
+  voiceSlice* slice = s->slice;
+  if (slice == nullptr || slice->owner != this) return false;
+  slice->sounds.remove(s);
+  --slice->count;
+  --soundCount;
+  s->slice = nullptr;
+  shrinkSlices();
   return true;
 }
 
-// ─── Render-graph task bodies (issue #859) ───
-//
-// A channel in the mix tree is two tasks: ownSoundsTask, a leaf that renders
-// its own sounds, and mixTask, which runs once that leaf and every child
-// channel's mixTask have arrived. A return is only a mixTask. The graph is
-// built by CHANNEL::managerObject::buildRenderGraph(); these bodies must
-// arrive() at every successor on every path, every block.
+YSE::CHANNEL::voiceSlice& YSE::CHANNEL::implementationObject::pickSlice() {
+  // Least-loaded by count (#861 balances by measured cost); ties go to the
+  // lowest index, so the assignment is a pure function of connect order.
+  voiceSlice* best = &slices[0];
+  for (Int i = 1; i < activeSlices; ++i) {
+    if (slices[(std::size_t)i].count < best->count) best = &slices[(std::size_t)i];
+  }
+  if (best->count >= SLICE_CAPACITY && activeSlices < MAX_SLICES) {
+    // Every active slice is full: open the next one. It is empty — a slice is
+    // only ever closed empty — and it is a new leaf, so the graph rebuilds.
+    best = &slices[(std::size_t)activeSlices];
+    ++activeSlices;
+    INTERNAL::Global().renderer().markDirty();
+  }
+  return *best;
+}
 
-void YSE::CHANNEL::ownSoundsTask::execute(INTERNAL::renderScheduler& scheduler) {
-  owner->renderOwnSounds();
+void YSE::CHANNEL::implementationObject::shrinkSlices() {
+  // Close trailing empty slices, but only once the remaining sounds fit in one
+  // slice fewer with half a slice to spare: a swarm hovering around a slice
+  // boundary must not open and close a slice (and rebuild the graph) on every
+  // connect/disconnect.
+  while (activeSlices > 1 && slices[(std::size_t)(activeSlices - 1)].count == 0 &&
+         soundCount <= (activeSlices - 1) * SLICE_CAPACITY - SLICE_CAPACITY / 2) {
+    --activeSlices;
+    INTERNAL::Global().renderer().markDirty();
+  }
+}
+
+// ─── Render-graph task bodies (issues #859, #860) ───
+//
+// A channel in the mix tree is 1 + n tasks: one voiceSlice leaf per active
+// slice, each rendering its share of the channel's sounds, and a mixTask,
+// which runs once every slice and every child channel's mixTask have arrived.
+// A return is only a mixTask. The graph is built by CHANNEL::managerObject::
+// buildRenderGraph(); these bodies must arrive() at every successor on every
+// path, every block.
+
+void YSE::CHANNEL::voiceSlice::execute(INTERNAL::renderScheduler& scheduler) {
+  owner->renderSlice(*this);
   scheduler.arrive(owner->mix);
 }
 
@@ -133,20 +185,45 @@ void YSE::CHANNEL::mixTask::execute(INTERNAL::renderScheduler& scheduler) {
   scheduler.arrive(ch.parent->mix);
 }
 
-void YSE::CHANNEL::implementationObject::renderOwnSounds() {
-  // A channel with no sounds and no subchannels is skipped, as the old dsp()
-  // skipped it: its buffer is not touched and its parent does not sum it. The
-  // master is the exception — returns fold into it, so it must start from
-  // silence even with nothing of its own to render.
-  if (!hasWork()) {
-    if (parent == nullptr) clearBuffers();
-    return;
+void YSE::CHANNEL::implementationObject::renderSlice(voiceSlice& slice) {
+  if (slice.index == 0) {
+    // Slice 0 accumulates into `out`, which the mix task goes on to fold
+    // everything else into. A channel with no sounds and no subchannels is
+    // skipped, as the old dsp() skipped it: its buffer is not touched and its
+    // parent does not sum it. The master is the exception — returns fold into
+    // it, so it must start from silence even with nothing of its own to render.
+    if (!hasWork()) {
+      if (parent == nullptr) clearBuffers();
+      return;
+    }
+    clearBuffers();
+  } else {
+    // An empty slice leaves its buffers stale; sumSlices() skips it by the
+    // same test, which is stable for the whole block.
+    if (slice.count == 0) return;
+    for (auto& b : slice.buffers) {
+      b = 0.0f;
+    }
   }
 
-  clearBuffers();
-  for (auto i = sounds.begin(); i != sounds.end(); ++i) {
+  std::vector<DSP::buffer>& dest = *slice.dest;
+  for (auto i = slice.sounds.begin(); i != slice.sounds.end(); ++i) {
     if ((*i)->dsp()) {
-      (*i)->toChannels();
+      (*i)->toChannels(dest);
+    }
+  }
+}
+
+void YSE::CHANNEL::implementationObject::sumSlices() {
+  // Fixed slice order (issue #860): slice 0 already accumulated into `out`,
+  // slices 1..n are added in index order, so the sum is bit-identical whichever
+  // workers rendered them and in whatever order they finished.
+  for (Int i = 1; i < activeSlices; ++i) {
+    const voiceSlice& slice = slices[(std::size_t)i];
+    if (slice.count == 0) continue;
+    const std::size_t n = std::min(out.size(), slice.buffers.size());
+    for (std::size_t c = 0; c < n; ++c) {
+      out[c] += slice.buffers[c];
     }
   }
 }
@@ -198,14 +275,15 @@ void YSE::CHANNEL::implementationObject::publishPostPeak() {
 }
 
 void YSE::CHANNEL::implementationObject::renderMix() {
-  // Mixer bus order (D3 on issue #859): fold children, then insert chain and
-  // reverb, then sends and fader.
+  // Mixer bus order (D3 on issue #859): fold the voice slices (#860) and the
+  // children, then insert chain and reverb, then sends and fader.
   if (parent == nullptr) {
     // The master: every child and every return (all finished — its mix task
     // depends on them), then its insert chain, reverb and fader. The master
     // has no send taps: a send from the master would feed a return the master
     // itself waits for. (Before the task graph they were accepted but dead —
     // tapped after the returns phase into buffers zeroed at the next block.)
+    sumSlices();
     sumChildren();
     CHANNEL::Manager().sumReturnsInto(*this);
     postMixProcess();
@@ -219,6 +297,7 @@ void YSE::CHANNEL::implementationObject::renderMix() {
   // does not sum it). The fader still ramps, as it always has.
   const bool working = hasWork();
   if (working) {
+    sumSlices();
     sumChildren();
     postMixProcess();
     // Pre-fader send taps read `out` before adjustVolume() scales it.
@@ -414,6 +493,7 @@ void YSE::CHANNEL::implementationObject::setup() {
       sendsSized = true;
     }
     sizeSendTaps(numOutputs);
+    sizeSliceBuffers(numOutputs);
 
     objectStatus = OBJECT_SETUP;
   }
@@ -430,14 +510,28 @@ void YSE::CHANNEL::implementationObject::resize(bool deep) {
   }
   computeEffectiveSpeakerWeights(outConf);
   sizeSendTaps(numOutputs);
+  sizeSliceBuffers(numOutputs);
   if (deep) {
     for (auto i = children.begin(); i != children.end(); ++i) {
       (*i)->resize(true);
     }
 
-    for (auto i = sounds.begin(); i != sounds.end(); ++i) {
-      (*i)->resize();
+    for (const auto& slice : slices) {
+      for (auto i = slice.sounds.begin(); i != slice.sounds.end(); ++i) {
+        (*i)->resize();
+      }
     }
+  }
+}
+
+void YSE::CHANNEL::implementationObject::sizeSliceBuffers(UInt numOutputs) {
+  // Every slice but 0 (which uses `out`) owns one buffer per output, sized up
+  // front for all MAX_SLICES so opening a slice on the audio thread never
+  // allocates (issue #860). Sized wherever `out` is: on the slow pool before
+  // the channel is live, and on the audio thread at a device reconfiguration,
+  // where `out` reallocates too.
+  for (std::size_t i = 1; i < slices.size(); ++i) {
+    slices[i].buffers.resize(numOutputs);
   }
 }
 
@@ -490,7 +584,7 @@ Bool YSE::CHANNEL::implementationObject::readyCheck() {
 
 void YSE::CHANNEL::implementationObject::doThisWhenReady() {
   // A return bus is excluded from the source tree: it is NOT linked into any
-  // parent's `children`, so it gets no own-sounds leaf and no parent. Instead it
+  // parent's `children`, so it gets no voice-slice leaves and no parent. Instead it
   // joins the manager's audio-thread `returns` list, and the render graph makes
   // its mix task depend on the sources (issues #165, #859).
   // connectedToParent stays false, so the release/destructor parent-disconnect
@@ -612,11 +706,11 @@ void YSE::CHANNEL::implementationObject::childrenToParent() {
     }
   }
 
-  {
-    auto i = sounds.begin();
-    while (i != sounds.end()) {
-      parent->connect(*i);
-      i = sounds.begin();
+  // connect() unlinks each sound from its slice here before relinking it into
+  // one of the parent's.
+  for (auto& slice : slices) {
+    while (!slice.sounds.empty()) {
+      parent->connect(*slice.sounds.begin());
     }
   }
 }
