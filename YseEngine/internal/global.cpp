@@ -46,20 +46,12 @@ void YSE::INTERNAL::global::addSlowJob(threadPoolJob* job) {
   slowThreads.addJob(job);
 }
 
-void YSE::INTERNAL::global::addFastJob(threadPoolJob* job) {
-  fastThreads.addJob(job);
-}
-
-void YSE::INTERNAL::global::wakeFastWorkers(Int jobCount) {
-  fastThreads.wake(jobCount);
-}
-
 void YSE::INTERNAL::global::setRenderWorkerCount(Int numThreads) {
-  fastThreads.setWorkerCount(numThreads);
+  render.setWorkerCount(numThreads);
 }
 
 Int YSE::INTERNAL::global::renderWorkerCount() const {
-  return fastThreads.workerCount();
+  return render.workerCount();
 }
 
 YSE::INTERNAL::NamedBus& YSE::INTERNAL::global::namedBus() {
@@ -141,8 +133,8 @@ void YSE::INTERNAL::global::drainScriptResults() {
 }
 
 YSE::INTERNAL::global::global()
-  : slowThreads(1, poolClass::background),
-    fastThreads(-1, poolClass::render),
+  : slowThreads(1),
+    render(-1),
     bus(),
     update(false),
     active(false),
@@ -154,10 +146,10 @@ YSE::INTERNAL::global::~global() = default;
 void YSE::INTERNAL::global::init() {
   // Revive the worker pools first: close() joins them for good, so a second
   // session would otherwise start with dead pools — no slow-pool file loading,
-  // no fast-pool DSP fan-out or manager setup/delete jobs (issue #140). No-op
-  // on the very first session, where the pools are still live from the ctor.
+  // no render workers or manager setup/delete jobs (issue #140). No-op on the
+  // very first session, where the pools are still live from the ctor.
   slowThreads.startup();
-  fastThreads.startup();
+  render.startup();
   REVERB::Manager().create();
   bus = std::make_unique<NamedBus>();
 }
@@ -165,7 +157,7 @@ void YSE::INTERNAL::global::init() {
 void YSE::INTERNAL::global::close() {
   // first wait for all threads to exit
   slowThreads.shutdown();
-  fastThreads.shutdown();
+  render.shutdown();
   // Threads are joined now, so the reverb manager's session state can be torn
   // down synchronously. This clears the global reverb's implementation handle
   // so a subsequent System::init() can re-create it instead of asserting

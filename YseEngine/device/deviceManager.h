@@ -131,7 +131,7 @@ namespace YSE {
       bool doOnCallback(int numSamples);
 
       /* Render one STANDARD_BUFFERSIZE-sample block through the channel
-         tree (master->dsp() + master->buffersToParent()).  Extracted from
+         tree on the render scheduler (CHANNEL::Manager().render()).  Extracted from
          the audio backends' callbacks so the same path can be driven from
          a benchmark via renderOffline().  Caller must have run
          doOnCallback() first.

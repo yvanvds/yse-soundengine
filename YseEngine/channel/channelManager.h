@@ -93,14 +93,37 @@ namespace YSE {
       void setMaster(implementationObject* impl);
 
       /////////////////////////////////////////////////////
+      // Render graph (issue #859)
+      /////////////////////////////////////////////////////
+      /** Render one block of the mix tree under @p master on the render
+          scheduler, rebuilding the task graph first if a structural change
+          marked it dirty. Audio thread, after the managers' update(). */
+      void render(implementationObject& master);
+
+      /** Rebuild the task graph (D1-D4 on issue #859). Audio thread, between
+          blocks; allocation-free. Every channel of the tree under @p master
+          contributes an own-sounds leaf and a mix task that waits for that
+          leaf and for every child's mix task. Every return's mix task waits
+          for every child of the master (so, transitively, every source
+          channel) and every lower-generation return; the master's mix task
+          also waits for every return. Leaves are dealt out round-robin in
+          pre-order. */
+      void buildRenderGraph(implementationObject& master, INTERNAL::renderScheduler& scheduler);
+
+      /** Successor arrivals, from mix task bodies on any render thread (the
+          lists they walk are immutable during a block). A child of the master
+          has finished: every return may be waiting for it. */
+      void arriveFromMasterChild(INTERNAL::renderScheduler& scheduler);
+      /** Return @p r has finished: the higher-generation returns and the
+          master may be waiting for it. */
+      void arriveFromReturn(implementationObject& r, INTERNAL::renderScheduler& scheduler);
+      /** Add every return's `out` into @p master's, in list order. From the
+          master's mix task, once every return has finished. */
+      void sumReturnsInto(implementationObject& master);
+
+      /////////////////////////////////////////////////////
       // Send / return buses (issue #165)
       /////////////////////////////////////////////////////
-      // Audio-thread render helpers, driven from the master's buffersToParent().
-      /** Zero every return's `out` buffer once per block, before any send taps. */
-      void zeroReturnBuffers();
-      /** Generation-ordered returns phase: each return's insert chain runs on the
-          fast pool, then folds into @p master. Audio thread only. */
-      void processReturns(implementationObject* master);
       /** Link/unlink a return into the audio-thread `returns` render list. Called
           from the impl's doThisWhenReady() / detachSends(). */
       void linkReturn(implementationObject* r);
@@ -151,9 +174,16 @@ namespace YSE {
       // Audio-thread-owned list of return buses (issue #165). Threaded on the
       // impl's `_returnNext` link — distinct from `_mgrNext` because a return is
       // in BOTH `inUse` (lifecycle/sync) and `returns` (render phase). Walked
-      // only in zeroReturnBuffers()/processReturns() and mutated only via
-      // linkReturn()/unlinkReturn(), all on the audio callback thread.
+      // by the render graph (build on the audio thread; read-only by the mix
+      // tasks during a block) and mutated only via linkReturn()/unlinkReturn()
+      // on the audio callback thread, between blocks.
       IntrusiveForwardList<implementationObject, &implementationObject::_returnNext> returns;
+
+      // The master the render graph was last built for (audio thread only).
+      implementationObject* graphMaster = nullptr;
+
+      // Pre-order leaf and dependency registration for one channel subtree.
+      void addChannelToGraph(implementationObject& ch, INTERNAL::renderScheduler& scheduler);
 
       // ─── Control-thread return→return wiring graph (issue #165 §10) ───
       // Touched ONLY on the setup/control thread, never on the audio thread, so

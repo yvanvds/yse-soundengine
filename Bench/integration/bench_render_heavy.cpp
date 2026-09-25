@@ -24,7 +24,7 @@
 // INTERNAL::Global().setRenderWorkerCount() for the duration of the run and
 // restored to the auto-sized default afterwards: 0 renders everything on the
 // calling thread (the serial reference), 2 is today's auto-sized default
-// (MAX_AUTO_RENDER_THREADS), and 8 / 24 cover the #647-protocol pool sweep
+// (renderScheduler::MAX_AUTO_WORKERS), and 8 / 24 cover the #647-protocol pool sweep
 // that #858's park-and-wake idle strategy is judged by. The `per_channel_job`
 // counter is the wall time per block divided by the scene's channel count —
 // at W = 0 that is the cost

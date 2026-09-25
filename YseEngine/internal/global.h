@@ -16,6 +16,7 @@
 #include "../headers/types.hpp"
 #include "../classes.hpp"
 #include "threadPool.h"
+#include "renderScheduler.h"
 
 namespace YSE {
 
@@ -61,21 +62,23 @@ namespace YSE {
       }
 
       void addSlowJob(threadPoolJob* job);
-      void addFastJob(threadPoolJob* job);
-      // Wake parked render workers once after a fan-out of `jobCount`
-      // addFastJob() calls (issue #858). RT-safe; see threadPool::wake().
-      void wakeFastWorkers(Int jobCount);
+
+      // The task-graph render scheduler (issue #859). The audio thread builds
+      // the channel graph into it and runs one block per callback (see
+      // CHANNEL::managerObject::render()).
+      renderScheduler& renderer() {
+        return render;
+      }
 
       // Render worker count (issue #857). Internal hook for the render golden
       // test and the render benchmarks until the thread-count policy is exposed
       // publicly (issue #861). -1 restores the auto-sized default; 0 means no
-      // render workers at all — the rendering thread runs every channel job
-      // itself through join()'s help-running. The setting persists across
-      // System::close()/init().
+      // render workers at all — the rendering thread runs the whole task graph
+      // itself. The setting persists across System::close()/init().
       //
       // Control thread only, and only while nothing renders: an offline session
       // between renderOffline() calls, or no live audio callback. It joins and
-      // re-spawns the render workers (see threadPool::setWorkerCount).
+      // re-spawns the render workers (see renderScheduler::setWorkerCount).
       void setRenderWorkerCount(Int numThreads);
       Int renderWorkerCount() const;
 
@@ -139,7 +142,7 @@ namespace YSE {
       void close();
 
       threadPool slowThreads;
-      threadPool fastThreads;
+      renderScheduler render;
 
       std::unique_ptr<NamedBus> bus;
 

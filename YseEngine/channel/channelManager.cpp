@@ -207,6 +207,10 @@ void YSE::CHANNEL::managerObject::destroy() {
     implementations.clear();
   }
   runDelete = false;
+  // The render graph points into the impls just freed; forget it so the next
+  // session rebuilds from its own master (issue #859).
+  graphMaster = nullptr;
+  INTERNAL::Global().renderer().markDirty();
 }
 
 YSE::channel& YSE::CHANNEL::managerObject::master() {
@@ -257,6 +261,7 @@ void YSE::CHANNEL::managerObject::setMaster(CHANNEL::implementationObject* impl)
   impl->objectStatus = OBJECT_CREATED;
   impl->setup();
   DEVICE::Manager().setMaster(impl);
+  INTERNAL::Global().renderer().markDirty(); // a new root for the render graph
 }
 
 void YSE::CHANNEL::managerObject::setChannelConf(CHANNEL_TYPE type, Int outputs) {
@@ -418,53 +423,101 @@ void YSE::CHANNEL::managerObject::set71() {
 // Send / return buses (issue #165)
 /////////////////////////////////////////////////////
 
-// ─── Audio-thread render helpers ───
-
-void YSE::CHANNEL::managerObject::zeroReturnBuffers() {
-  for (auto i = returns.begin(); i != returns.end(); ++i) {
-    (*i)->clearBuffers();
-  }
-}
-
-void YSE::CHANNEL::managerObject::processReturns(implementationObject* master) {
-  if (returns.empty()) return;
-
-  // Returns are few, so a per-block scan for the max generation is trivial and
-  // avoids having to track a running maximum across teardown.
-  Int maxGen = 0;
-  for (auto i = returns.begin(); i != returns.end(); ++i) {
-    if ((*i)->generation > maxGen) maxGen = (*i)->generation;
-  }
-
-  // Process generation by generation, ascending. Within a generation returns are
-  // mutually independent (their sends only target strictly-higher generations,
-  // enforced at wiring time), so all can be dispatched to the fast pool at once
-  // and then joined + finalized serially in list order (deterministic += order).
-  for (Int g = 0; g <= maxGen; ++g) {
-    Int dispatched = 0;
-    for (auto i = returns.begin(); i != returns.end(); ++i) {
-      if ((*i)->generation == g) {
-        INTERNAL::Global().addFastJob(*i);
-        ++dispatched;
-      }
-    }
-    // One wake per generation's fan-out, not per job (issue #858).
-    INTERNAL::Global().wakeFastWorkers(dispatched);
-    for (auto i = returns.begin(); i != returns.end(); ++i) {
-      if ((*i)->generation == g) {
-        (*i)->join();
-        (*i)->finalizeReturn(master);
-      }
-    }
-  }
-}
-
 void YSE::CHANNEL::managerObject::linkReturn(implementationObject* r) {
   returns.push_front(r);
+  INTERNAL::Global().renderer().markDirty(); // the render graph lists returns
 }
 
 void YSE::CHANNEL::managerObject::unlinkReturn(implementationObject* r) {
   returns.remove(r);
+  INTERNAL::Global().renderer().markDirty();
+}
+
+// ─── Render graph (issue #859) ───
+
+void YSE::CHANNEL::managerObject::render(implementationObject& master) {
+  INTERNAL::renderScheduler& scheduler = INTERNAL::Global().renderer();
+  // D1: the channel and return lists are audio-thread-owned and every
+  // structural change to them marks the graph dirty, so the graph is rebuilt
+  // here, in place, between blocks — never while a worker is inside one.
+  if (scheduler.isDirty() || graphMaster != &master) buildRenderGraph(master, scheduler);
+  scheduler.run(master.mix);
+}
+
+void YSE::CHANNEL::managerObject::addChannelToGraph(implementationObject& ch,
+                                                    INTERNAL::renderScheduler& scheduler) {
+  // Pre-order: the channel's own-sounds leaf, then its subtree. The mix task
+  // waits for that leaf and for every child's mix task.
+  scheduler.addLeaf(ch.soundsTask);
+  Int deps = 1;
+  for (auto i = ch.children.begin(); i != ch.children.end(); ++i) {
+    addChannelToGraph(**i, scheduler);
+    ++deps;
+  }
+  scheduler.setDependencies(ch.mix, deps);
+}
+
+void YSE::CHANNEL::managerObject::buildRenderGraph(implementationObject& master,
+                                                   INTERNAL::renderScheduler& scheduler) {
+  scheduler.beginBuild();
+  addChannelToGraph(master, scheduler);
+
+  Int masterChildren = 0;
+  for (auto i = master.children.begin(); i != master.children.end(); ++i)
+    ++masterChildren;
+
+  // D4, coarse on purpose (returns are few): a return waits for every child of
+  // the master — so, transitively, for every source channel, whose sends it
+  // gathers — and for every lower-generation return, whose return->return
+  // sends it gathers. The master waits for every return on top of its own leaf
+  // and children.
+  Int returnCount = 0;
+  for (auto i = returns.begin(); i != returns.end(); ++i) {
+    implementationObject* r = *i;
+    ++returnCount;
+    Int deps = masterChildren;
+    for (auto j = returns.begin(); j != returns.end(); ++j) {
+      if ((*j)->generation < r->generation) ++deps;
+    }
+    // Nothing to wait for (a master without children, and generation 0): a
+    // leaf, like any other dependency-free task.
+    if (deps == 0)
+      scheduler.addLeaf(r->mix);
+    else
+      scheduler.setDependencies(r->mix, deps);
+  }
+  scheduler.setDependencies(master.mix, 1 + masterChildren + returnCount);
+
+  scheduler.endBuild();
+  graphMaster = &master;
+}
+
+void YSE::CHANNEL::managerObject::arriveFromMasterChild(INTERNAL::renderScheduler& scheduler) {
+  // Returns whose last dependency this was run inline here, one after the
+  // other (D2: continuations are never queued).
+  for (auto i = returns.begin(); i != returns.end(); ++i) {
+    scheduler.arrive((*i)->mix);
+  }
+}
+
+void YSE::CHANNEL::managerObject::arriveFromReturn(implementationObject& r,
+                                                   INTERNAL::renderScheduler& scheduler) {
+  for (auto i = returns.begin(); i != returns.end(); ++i) {
+    if ((*i)->generation > r.generation) scheduler.arrive((*i)->mix);
+  }
+  if (graphMaster != nullptr) scheduler.arrive(graphMaster->mix);
+}
+
+void YSE::CHANNEL::managerObject::sumReturnsInto(implementationObject& master) {
+  // List order, fixed between wiring changes: the fold is bit-identical
+  // whichever threads rendered the returns.
+  for (auto i = returns.begin(); i != returns.end(); ++i) {
+    const implementationObject* r = *i;
+    const std::size_t n = std::min(master.out.size(), r->out.size());
+    for (std::size_t c = 0; c < n; ++c) {
+      master.out[c] += r->out[c];
+    }
+  }
 }
 
 // ─── Control-thread wiring graph ───

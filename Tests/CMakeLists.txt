@@ -22,6 +22,7 @@ set(YSE_TEST_SOURCES
   utils/test_intrusive_list.cpp
   utils/test_random.cpp
   internal/test_threadpool.cpp
+  internal/test_render_scheduler.cpp
   internal/test_log_nothrow.cpp
   internal/test_log_sink_concurrency.cpp
   internal/test_time.cpp

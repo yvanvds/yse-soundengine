@@ -651,6 +651,32 @@ pays the Windows wake latency of the workers it has to unpark (Windows cannot
 wake "n" waiters, so a partial fan-out wakes one and the woken pass it on).
 `BM_Engine_RenderOffline_100Sounds`: 108 us before and after.
 
+**Task-graph render scheduler (#859).** The channel fan-out (`addFastJob` +
+help-running `join()`) is replaced by `INTERNAL::renderScheduler`: static
+per-worker leaf lists with CAS stealing, continuations for channel mixes and
+returns, the audio thread as worker 0. `setRenderWorkerCount()` now re-sizes
+the scheduler. Coverage: `Tests/internal/test_render_scheduler.cpp` (every task
+once per block and after its dependencies at W = 0/1/2/4, stealing from
+workers that never run, a four-thread barrier graph that fails on any lost
+wake, park/shutdown/revive, rebuilds, and a leafless graph that must not hang),
+and a second `rendergolden` case pinning the D3 mixer order — a bus insert
+must see its subchannels' signal (it saw silence under the old order). The
+golden test stays bit-exact at 0/1/2/N. Interleaved A/B (HEAD vs. #859, two
+rounds of 3 repetitions, medians, same 0xFF mask, per block):
+
+| Benchmark | W = 0 | W = 1 | W = 2 | W = 4 | W = 8 | W = 24 |
+|---|---|---|---|---|---|---|
+| `RenderHeavy_Channels` before | 1.83 ms | 0.95 ms | 0.72 ms | 0.49 ms | 0.28 ms | 0.34 ms |
+| `RenderHeavy_Channels` after | 1.84 ms | 0.94 ms | 0.71 ms | 0.48 ms | 0.27 ms | 0.37 ms |
+| `RenderHeavy_Swarm` before | 1.83 ms | 1.83 ms | 1.84 ms | 1.84 ms | 1.83 ms | 1.83 ms |
+| `RenderHeavy_Swarm` after | 1.83 ms | 1.83 ms | 1.83 ms | 1.85 ms | 1.83 ms | 1.83 ms |
+
+The machinery swap is throughput-neutral on the heavy scenes (the partition
+is the same: channels and returns), with parallel well ahead of serial at 2
+and 4 workers. W = 24 (25 threads on 8 CPUs) pays more wake latency, which
+is #861's thread-count policy to avoid. Controls: `BM_VaVoice_SingleSaw` 4.10 us
+before and after; `BM_Engine_RenderOffline_100Sounds` 88 -> 80 us.
+
 ---
 
 ## Summary Table

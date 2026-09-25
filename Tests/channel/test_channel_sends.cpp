@@ -106,12 +106,21 @@ namespace {
     src.parseMessage(m);
   }
 
+  // Since the task-graph scheduler (issue #859) a source writes each send into
+  // the slot's own tap buffer and the target return sums the tapped slots of
+  // its registry (gatherSends) in its own render task. The impl-level tests
+  // drive both halves: tap, then gather into the return's `out`.
+  void tapPostFader(implementationObject& src, implementationObject& target) {
+    src.runSendTaps(false);
+    target.gatherSends();
+  }
+
   // Run one post-fader tap and let the ramp settle so a subsequent tap runs at a
   // constant level (lastLevel == newLevel).
   void settlePostFader(implementationObject& src, implementationObject& target) {
-    src.runSendTaps(false);
+    tapPostFader(src, target);
     target.clearBuffers();
-    src.runSendTaps(false);
+    tapPostFader(src, target);
   }
 
   // The gap between two update() calls — the room the slow pool has to run the
@@ -178,7 +187,7 @@ TEST_SUITE("channel") {
 
     fill(src.GetBuffers(), 1.0f);
     ret.clearBuffers();
-    src.runSendTaps(false); // first block: ramp 0 -> 0.5
+    tapPostFader(src, ret); // first block: ramp 0 -> 0.5
 
     // The ramp is fused into the MAC exactly like adjustVolume(): sample j gets
     // src[j] * (lastLevel + step*j), step = (newLevel-lastLevel)/BUFSIZE.
@@ -211,7 +220,7 @@ TEST_SUITE("channel") {
     setSendLevelMsg(src, 0, 0.8f);
     fill(src.GetBuffers(), 1.0f);
     ret.clearBuffers();
-    src.runSendTaps(false);
+    tapPostFader(src, ret);
 
     const float step = (0.8f - 0.2f) / static_cast<float>(YSE::STANDARD_BUFFERSIZE);
     float* p = ret.GetBuffers()[0].getPtr();
@@ -239,7 +248,7 @@ TEST_SUITE("channel") {
       target = 0.5f + 0.4f * std::sin(0.3f * static_cast<float>(block));
       setSendLevelMsg(src, 0, target);
       ret.clearBuffers();
-      src.runSendTaps(false);
+      tapPostFader(src, ret);
       float* p = ret.GetBuffers()[0].getPtr();
       // src is a constant 1.0, so p[] is exactly the gain envelope. The first
       // sample equals the previous block's ending multiplier (continuity), and
@@ -268,6 +277,8 @@ TEST_SUITE("channel") {
     retPre.clearBuffers();
     retPost.clearBuffers();
     src.runSendTaps(true);
+    retPre.gatherSends();
+    retPost.gatherSends();
     CHECK_FALSE(allEqual(retPre.GetBuffers(), 0.f)); // pre got signal (ramped)
     CHECK(allEqual(retPost.GetBuffers(), 0.f)); // post untouched
 
@@ -275,6 +286,8 @@ TEST_SUITE("channel") {
     retPre.clearBuffers();
     retPost.clearBuffers();
     src.runSendTaps(false);
+    retPre.gatherSends();
+    retPost.gatherSends();
     CHECK(allEqual(retPre.GetBuffers(), 0.f)); // pre untouched this phase
     CHECK_FALSE(allEqual(retPost.GetBuffers(), 0.f)); // post got signal
   }
@@ -295,7 +308,7 @@ TEST_SUITE("channel") {
 
     removeSendMsg(src, 0);
     ret.clearBuffers();
-    src.runSendTaps(false);
+    tapPostFader(src, ret);
     CHECK(allEqual(ret.GetBuffers(), 0.f)); // detached: nothing added
   }
 

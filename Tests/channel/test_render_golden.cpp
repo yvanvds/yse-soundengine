@@ -20,15 +20,16 @@
 //           └── golden.deep      2 voices
 //   golden.capture (return)      insert = CaptureInsert
 //
-// Every render worker the pool has gets channel jobs to fight over (five
-// siblings under the parent, one of them with a child of its own, so jobs are
-// dispatched from worker threads as well as from the rendering thread), and
-// the whole subtree reaches the capture through the serial summation walk:
-// each child adds into its parent in buffersToParent(), the parent's post-fader
-// send accumulates into the return, and the return's insert — itself a pool
-// job — records the result. The capture therefore sees exactly what the
-// subtree contributes to the master, without the rest of the master mix, which
-// in the shared unit-test process carries whatever earlier suites left behind.
+// Every render worker gets channel tasks to fight over (five siblings under
+// the parent, one of them with a child of its own, so mix tasks run as
+// continuations on whichever thread finished a subtree last), and the whole
+// subtree reaches the capture through the task graph: each channel's mix task
+// sums its children in list order, the parent's post-fader send taps into its
+// slot, and the return's mix task — a continuation of the sources — gathers it
+// and runs the insert that records the result. The capture therefore sees
+// exactly what the subtree contributes to the master, without the rest of the
+// master mix, which in the shared unit-test process carries whatever earlier
+// suites left behind.
 //
 // Each voice is a naive sawtooth into a ladder filter whose cutoff steps every
 // block: pure functions of the voice's own state, which the test resets from
@@ -183,10 +184,36 @@ namespace {
     bool armed = false;
   };
 
+  // Records the loudest sample its channel's insert chain sees, per run.
+  class PeakInsert : public YSE::DSP::dspObject {
+  public:
+    void create() override {}
+    void process(MULTICHANNELBUFFER& buffer) override {
+      createIfNeeded();
+      for (auto& b : buffer) {
+        const float* p = b.getPtr();
+        for (UInt i = 0; i < b.getLength(); ++i)
+          peak = std::max(peak, std::fabs(p[i]));
+      }
+    }
+    // Test thread, only while nothing renders.
+    void reset() {
+      peak = 0.f;
+    }
+    float seen() const {
+      return peak;
+    }
+
+  private:
+    float peak = 0.f;
+  };
+
   // File scope: a dspSourceObject / dspObject must outlive its sound's (or
   // return's) slow-pool teardown, which completes after the case returns.
   std::array<GoldenVoice, kVoices> g_voices;
   CaptureInsert g_capture;
+  GoldenVoice g_busVoice;
+  PeakInsert g_busInsert;
 
   void pump(int iterations) {
     for (int i = 0; i < iterations; ++i) {
@@ -360,6 +387,61 @@ TEST_SUITE("rendergolden") {
     capture.setDSP(nullptr);
     pump(8);
     sounds.clear();
+    pump(8);
+  }
+
+  TEST_CASE("rendergolden: a bus insert processes its subchannels, mixer order (#859 D3)") {
+    // D3 on issue #859: a channel folds its children first, then runs its
+    // insert chain. Before the task graph a bus's insert ran over the bus's own
+    // sounds only, while its children were still rendering, and the children
+    // were summed in afterwards — so an insert on a group bus with no sounds of
+    // its own processed silence. Here the bus has none; its only signal comes
+    // from a subchannel, and the insert must see it at every worker count.
+    if (!TestHelpers::engineInit()) return;
+    if (YSE::System().getActiveSampleRate() != 0.0) {
+      MESSAGE("skipped: an audio stream is live in this process (see the golden test above).");
+      return;
+    }
+    const int previousMaxSounds = YSE::System().maxSounds();
+    YSE::System().maxSounds(4096);
+
+    g_busVoice.configure(3);
+    g_busInsert.reset();
+
+    YSE::channel bus;
+    bus.create("d3.bus", YSE::ChannelMaster());
+    YSE::channel child;
+    child.create("d3.child", bus);
+    bus.setDSP(&g_busInsert);
+    pump(8);
+
+    YSE::sound voice;
+    voice.create(g_busVoice, &child, 0.8f);
+    voice.relative(true);
+    voice.doppler(false);
+    voice.play();
+    const bool playing = TestHelpers::pacedPump(
+        3000, [&voice] { return voice.isPlaying(); },
+        [] {
+          YSE::System().update();
+          YSE::System().renderOffline(1);
+        },
+        2);
+    REQUIRE(playing);
+    pump(4);
+
+    for (int workers : {0, 2}) {
+      INFO("render workers: " << workers);
+      YSE::INTERNAL::Global().setRenderWorkerCount(workers);
+      g_busInsert.reset();
+      YSE::System().renderOffline(16);
+      CHECK(g_busInsert.seen() > 0.01f); // the subchannel's signal reached the bus insert
+    }
+
+    YSE::INTERNAL::Global().setRenderWorkerCount(-1);
+    YSE::System().maxSounds(previousMaxSounds);
+    voice.stop();
+    bus.setDSP(nullptr);
     pump(8);
   }
 

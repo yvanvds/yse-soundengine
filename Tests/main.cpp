@@ -10,7 +10,7 @@
 // calling System().close() during teardown unsafe in earlier revisions.
 // close() now provides the proper ordered shutdown:
 //   1. Pa_StopStream / Pa_CloseStream         (audio thread stops)
-//   2. slowThreads.shutdown() / fastThreads.shutdown()
+//   2. slowThreads.shutdown() / render.shutdown()  (background pool, render workers)
 //   3. Global().active = false
 // After close() returns, all engine threads are gone. Subsequent static
 // destructors then run on the main thread alone, with nothing racing them.

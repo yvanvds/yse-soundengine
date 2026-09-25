@@ -17,7 +17,7 @@
 #include "../classes.hpp"
 #include "../utils/lfQueue.hpp"
 #include "../utils/intrusiveForwardList.hpp"
-#include "../internal/threadPool.h"
+#include "../internal/renderScheduler.h"
 // The `sounds` intrusive list forms a pointer-to-member into
 // SOUND::implementationObject, which requires the complete type here (a bare
 // forward declaration sufficed for the old std::forward_list<T*>). This is an
@@ -54,25 +54,57 @@ namespace YSE {
     // docs/design/send_return_buses.md §6). A channel owns a fixed vector of
     // these, sized once at setup() on the slow pool and never resized on the
     // render path, so `&sends[i]` is a stable node address. A slot is active
-    // when `target != nullptr`; the send then accumulates a ramped, scaled copy
-    // of the channel's `out` into `target->out` during the serial summation
-    // walk. `regNext` is the intrusive back-reference link: the slot is threaded
-    // into `target`'s sendRegistry so a return teardown can sever every slot
-    // pointing at it before the impl is freed (the many-to-one generalization of
-    // the insert chain's `calledfrom` guard). All fields are touched only on the
-    // audio thread.
+    // when `target != nullptr`. `regNext` is the intrusive back-reference link:
+    // the slot is threaded into `target`'s sendRegistry so a return teardown can
+    // sever every slot pointing at it before the impl is freed (the many-to-one
+    // generalization of the insert chain's `calledfrom` guard).
+    //
+    // Since the task-graph scheduler (issue #859) source channels render in
+    // parallel, so a send no longer adds into `target->out` directly — two
+    // sources on two workers would race on it, and the sum order would depend
+    // on who finished first. Instead the source writes its ramped, scaled copy
+    // into the slot's own `tap` buffer and sets `tapped`; the return's task,
+    // which depends on every source, sums the tapped slots of its registry in
+    // registry order (gatherSends) and clears the flags. Every field is written
+    // by exactly one task per block (the source's, then the return's), and the
+    // task graph orders the two.
     struct sendSlot {
       implementationObject* target = nullptr; // a return, or nullptr = empty
       Flt newLevel = 0.f; // control-thread target level (via SEND_LEVEL)
       Flt lastLevel = 0.f; // audio-thread ramp state
       Bool preFader = false; // tap point for this slot
+      Bool tapped = false; // `tap` holds this block's send, not yet gathered
       sendSlot* regNext = nullptr; // next slot in target's back-reference registry
+      std::vector<DSP::buffer> tap; // this block's send, one buffer per output
+    };
+
+    // The two render-graph tasks of a channel (issue #859). A channel in the
+    // mix tree contributes a leaf that renders its own sounds and a mix task
+    // that runs once the leaf and every child channel's mix have finished; a
+    // return contributes only its mix task. See CHANNEL::managerObject::
+    // buildRenderGraph() for the dependencies.
+    class ownSoundsTask final : public INTERNAL::renderTask {
+    public:
+      explicit ownSoundsTask(implementationObject* owner) : owner(owner) {}
+      void execute(INTERNAL::renderScheduler& scheduler) override;
+
+    private:
+      implementationObject* owner;
+    };
+
+    class mixTask final : public INTERNAL::renderTask {
+    public:
+      explicit mixTask(implementationObject* owner) : owner(owner) {}
+      void execute(INTERNAL::renderScheduler& scheduler) override;
+
+    private:
+      implementationObject* owner;
     };
 
     /**
       This is the implementation side of a channel. It should only be used internally.
     */
-    class implementationObject : public INTERNAL::threadPoolJob {
+    class implementationObject {
     public:
       //////////////////////////////////////////////////
       // Setup and maintenance functions
@@ -86,10 +118,13 @@ namespace YSE {
       implementationObject(channel* head);
 
       /**
-      Removes the implementation from the threadpool and moves all sounds and subchannels
-      to its parent (if there is one).
+      Moves all sounds and subchannels to its parent (if there is one).
       */
-      ~implementationObject() noexcept override;
+      ~implementationObject() noexcept;
+      implementationObject(const implementationObject&) = delete;
+      implementationObject& operator=(const implementationObject&) = delete;
+      implementationObject(implementationObject&&) = delete;
+      implementationObject& operator=(implementationObject&&) = delete;
 
       /** This function is called from channelManager::setup and creates the buffers
       needed for this channel.
@@ -187,29 +222,42 @@ namespace YSE {
       Bool disconnect(SOUND::implementationObject* sound);
 
       /////////////////////////////////////////////////////
-      // DSP calculations
+      // DSP calculations — render-graph task bodies (issue #859)
       /////////////////////////////////////////////////////
       /**
-        This is the threadpool function that calls the dsp for this channel.
-        Every channel has its own threadPoolJob for running the dsp calculations.
-        This will scale all sounds nicely over several cpu's as long as you don't
-        put them all in one channel.
+        Leaf task body: clear `out` and render this channel's own sounds into
+        it. A channel with neither sounds nor subchannels is skipped, exactly
+        like the old dsp() (its buffer is left as is and never summed); the
+        master is always cleared, since returns fold into it.
       */
-      void run() override;
+      void renderOwnSounds();
 
       /**
-        This is the one that does all the work. It allso calls the dsp function
-        of all child channels and of all sounds. Effects are also calculated
-        here, but applied in the buffersToParent function.
+        Mix task body, run once the own-sounds leaf and every child channel's
+        mix task have finished. Mixer bus order (D3 on issue #859): sum the
+        children in list order, then insert chain, reverb and pre-fader meter,
+        pre-fader send taps, the channel fader, post-fader meter and post-fader
+        send taps. The parent's mix task later sums this channel's `out` in.
+        The master also sums every return before its insert chain and has no
+        send taps. A return runs renderReturn() instead. mixTask::execute()
+        then arrives at the successors.
       */
-      void dsp();
+      void renderMix();
 
       /**
-        Waits until the dsp job is done and recursively calls this function for
-        all subchannels. If this is not the Master channel, this will copy the
-        current buffers to the parent channel.
+        A return's mix task body: gather the sends tapped into it this block
+        (gatherSends), run its insert chain and reverb (processReturnInsert),
+        then its fader and its own send taps (finalizeReturn). The master's mix
+        task sums the result in.
       */
-      void buffersToParent();
+      void renderReturn();
+
+      /** True when this channel has sounds or subchannels, i.e. renders into
+          `out` this block. Stable for the duration of a block: both lists are
+          mutated only on the audio thread, between blocks. */
+      bool hasWork() const {
+        return !(children.empty() && sounds.empty());
+      }
 
       /** dsp utility function to set all output buffers to zero before filling again
        */
@@ -235,9 +283,9 @@ namespace YSE {
       void addDSP(DSP::dspObject* ptr);
 
       /**
-        Run the attached insert chain over `out` in place. Called from dsp()
-        pre-fader (before reverb); public so the pre-fader insert behaviour can
-        be driven directly in tests after populating `out`.
+        Run the attached insert chain over `out` in place. Called from the mix
+        task pre-fader (before reverb); public so the pre-fader insert
+        behaviour can be driven directly in tests after populating `out`.
       */
       void processInsertDSP();
 
@@ -245,33 +293,40 @@ namespace YSE {
       // Send / return buses (issue #165)
       /////////////////////////////////////////////////////
       /**
-        Accumulate a ramped, scaled copy of this channel's `out` into every
-        active send slot whose tap point matches @p preFaderPhase. Runs on the
-        audio callback thread only, from the serial summation walk
-        (buffersToParent) for source channels and from finalizeReturn() for
-        returns — never on a parallel worker. The ramp is fused into the
-        multiply-accumulate exactly like adjustVolume(), so live send-level moves
-        are click-free. Public so tests can drive it after populating `out`.
+        Write a ramped, scaled copy of this channel's `out` into the `tap`
+        buffer of every active send slot whose tap point matches
+        @p preFaderPhase, and mark the slot tapped. Runs inside this channel's
+        mix task (a return's, for return->return sends), on whichever thread
+        runs it; it writes only this channel's own slots, so parallel sources
+        never share a buffer. The target return sums the taps later
+        (gatherSends). The ramp is fused into the multiply exactly like
+        adjustVolume(), so live send-level moves are click-free. Public so
+        tests can drive it after populating `out`.
       */
       void runSendTaps(bool preFaderPhase);
 
       /**
-        The fast-pool job body for a return bus: runs the return's own DSP
-        (insert chain + optional reverb) in place over the
-        already-accumulated `out`, then publishes the pre-fader peak. Mirrors the
-        tail of dsp(); dispatched from CHANNEL::Manager::processReturns() exactly
-        like a source channel's dsp(). Single-writer over this return's own `out`.
+        Add every tapped slot of this return's send registry into `out`, in
+        registry order, and clear the tapped flags. Runs in the return's mix
+        task, which depends on every source (issue #859), so each tap it reads
+        is complete. Public so tests can drive it after runSendTaps().
+      */
+      void gatherSends();
+
+      /**
+        A return bus's own DSP: runs its insert chain and optional reverb in
+        place over the gathered `out`, then publishes the pre-fader peak.
+        Single-writer over this return's own `out`.
       */
       void processReturnInsert();
 
       /**
-        Serial finalize step for a return, run on the audio thread after its
-        processReturnInsert() job is joined: applies the return fader, publishes
-        the post-fader peak, runs the return's own send taps (targets are always
-        a strictly higher generation), then folds the return into @p master. See
-        design §7.
+        The tail of a return's mix task: pre-fader send taps, the return
+        fader, the post-fader peak and post-fader send taps (targets are always
+        a strictly higher generation, which depends on this return). The
+        master's mix task folds the return in. See design §7.
       */
-      void finalizeReturn(implementationObject* master);
+      void finalizeReturn();
 
       /**
         Audio-thread teardown of every send this impl participates in, run at
@@ -429,10 +484,26 @@ namespace YSE {
       // Empty for non-return channels.
       IntrusiveForwardList<sendSlot, &sendSlot::regNext> sendRegistry;
 
-      /** Accumulate one active slot's ramped, scaled `out` into its target
-          return's `out`. Audio thread only; no allocation or locking. */
+      /** Write one active slot's ramped, scaled `out` into the slot's `tap`.
+          Render path; no allocation or locking. */
       void accumulateSend(sendSlot& slot);
 
+      /** Size every send slot's `tap` to @p numOutputs buffers. setup() (slow
+          pool, pre-live) and resize() (audio thread, device reconfiguration). */
+      void sizeSendTaps(UInt numOutputs);
+
+      /** Mix-task helpers (issue #859). */
+      void sumChildren(); // add every working child's `out`, in list order
+      void postMixProcess(); // insert chain, reverb, pre-fader peak
+      void publishPostPeak(); // post-fader peak
+
+      // Render-graph tasks (issue #859). Declared after every member their
+      // bodies touch; their addresses are stable for the impl's lifetime.
+      ownSoundsTask soundsTask{this};
+      mixTask mix{this};
+
+      friend class ownSoundsTask;
+      friend class mixTask;
       friend class SOUND::implementationObject;
       friend class YSE::channel;
       friend class YSE::REVERB::managerObject;

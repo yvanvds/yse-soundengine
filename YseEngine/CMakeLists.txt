@@ -84,6 +84,8 @@ set(YSE_SRCS
   # The real-time on-ramp to the engine log (issue #546): what `.print` pushes
   # onto from a render thread and system::update() drains on the control one.
   internal/rtLogQueue.cpp
+  # The task-graph render scheduler (issue #859).
+  internal/renderScheduler.cpp
   internal/reverbDSP.cpp
   internal/settings.cpp
   internal/thread.cpp
