@@ -30,6 +30,17 @@ namespace {
                 "C ABI enum drift: " #c_value " != " #cpp_value                                    \
                 " — update yse_c/yse_enums.h or the engine enum")
 
+  // Count guard: YSE_ASSERT_ENUM only catches renumbering — a value appended to
+  // an engine enum still compiles and silently falls through the C mappings
+  // (issue #912). Each mirrored engine enum therefore ends in a *_COUNT_
+  // sentinel, pinned here to one past the C mirror's last value, so adding an
+  // engine value fails the build until yse_enums.h (and this assert) catch up.
+#define YSE_ASSERT_ENUM_COUNT(cpp_count, c_last)                                                   \
+  static_assert(static_cast<int>(cpp_count) == static_cast<int>(c_last) + 1,                       \
+                "C ABI enum drift: " #cpp_count " != " #c_last                                     \
+                " + 1 — a value was added to the engine enum; mirror it in yse_c/yse_enums.h, "    \
+                "point this assert at the new last value, and update the C API mappings")
+
   // YseChannelType ↔ YSE::CHANNEL_TYPE
   YSE_ASSERT_ENUM(YSE_CT_AUTO, YSE::CT_AUTO);
   YSE_ASSERT_ENUM(YSE_CT_MONO, YSE::CT_MONO);
@@ -40,12 +51,14 @@ namespace {
   YSE_ASSERT_ENUM(YSE_CT_61, YSE::CT_61);
   YSE_ASSERT_ENUM(YSE_CT_71, YSE::CT_71);
   YSE_ASSERT_ENUM(YSE_CT_CUSTOM, YSE::CT_CUSTOM);
+  YSE_ASSERT_ENUM_COUNT(YSE::CT_COUNT_, YSE_CT_CUSTOM);
 
   // YseErrorLevel ↔ YSE::ERROR_LEVEL
   YSE_ASSERT_ENUM(YSE_EL_NONE, YSE::EL_NONE);
   YSE_ASSERT_ENUM(YSE_EL_ERROR, YSE::EL_ERROR);
   YSE_ASSERT_ENUM(YSE_EL_WARNING, YSE::EL_WARNING);
   YSE_ASSERT_ENUM(YSE_EL_DEBUG, YSE::EL_DEBUG);
+  YSE_ASSERT_ENUM_COUNT(YSE::EL_COUNT_, YSE_EL_DEBUG);
 
   // YseOutType ↔ YSE::OUT_TYPE
   YSE_ASSERT_ENUM(YSE_OUT_INVALID, YSE::INVALID);
@@ -55,6 +68,7 @@ namespace {
   YSE_ASSERT_ENUM(YSE_OUT_BUFFER, YSE::BUFFER);
   YSE_ASSERT_ENUM(YSE_OUT_LIST, YSE::LIST);
   YSE_ASSERT_ENUM(YSE_OUT_ANY, YSE::ANY);
+  YSE_ASSERT_ENUM_COUNT(YSE::OUT_TYPE_COUNT_, YSE_OUT_ANY);
 
   // YseLfoType ↔ YSE::DSP::LFO_TYPE
   YSE_ASSERT_ENUM(YSE_LFO_NONE, YSE::DSP::LFO_NONE);
@@ -64,6 +78,7 @@ namespace {
   YSE_ASSERT_ENUM(YSE_LFO_SINE, YSE::DSP::LFO_SINE);
   YSE_ASSERT_ENUM(YSE_LFO_SQUARE, YSE::DSP::LFO_SQUARE);
   YSE_ASSERT_ENUM(YSE_LFO_RANDOM, YSE::DSP::LFO_RANDOM);
+  YSE_ASSERT_ENUM_COUNT(YSE::DSP::LFO_COUNT_, YSE_LFO_RANDOM);
 
   // YseVaWaveform ↔ YSE::SYNTH::VA_WAVEFORM
   YSE_ASSERT_ENUM(YSE_VA_SAW, YSE::SYNTH::VA_SAW);
@@ -72,20 +87,24 @@ namespace {
   YSE_ASSERT_ENUM(YSE_VA_SINE, YSE::SYNTH::VA_SINE);
   YSE_ASSERT_ENUM(YSE_VA_NOISE, YSE::SYNTH::VA_NOISE);
   YSE_ASSERT_ENUM(YSE_VA_WAVETABLE, YSE::SYNTH::VA_WAVETABLE);
+  YSE_ASSERT_ENUM_COUNT(YSE::SYNTH::VA_WAVEFORM_COUNT_, YSE_VA_WAVETABLE);
 
   // YseDspSweepShape ↔ YSE::DSP::MODULES::sweepFilter::SHAPE
   YSE_ASSERT_ENUM(YSE_SWEEP_TRIANGLE, YSE::DSP::MODULES::sweepFilter::TRIANGLE);
   YSE_ASSERT_ENUM(YSE_SWEEP_SAW, YSE::DSP::MODULES::sweepFilter::SAW);
   YSE_ASSERT_ENUM(YSE_SWEEP_SQUARE, YSE::DSP::MODULES::sweepFilter::SQUARE);
+  YSE_ASSERT_ENUM_COUNT(YSE::DSP::MODULES::sweepFilter::SHAPE_COUNT_, YSE_SWEEP_SQUARE);
 
   // YseDspDelayTap ↔ YSE::DSP::MODULES::basicDelay::DELAY_NR
   YSE_ASSERT_ENUM(YSE_DELAY_TAP_FIRST, YSE::DSP::MODULES::basicDelay::FIRST);
   YSE_ASSERT_ENUM(YSE_DELAY_TAP_SECOND, YSE::DSP::MODULES::basicDelay::SECOND);
   YSE_ASSERT_ENUM(YSE_DELAY_TAP_THIRD, YSE::DSP::MODULES::basicDelay::THIRD);
+  YSE_ASSERT_ENUM_COUNT(YSE::DSP::MODULES::basicDelay::DELAY_NR_COUNT_, YSE_DELAY_TAP_THIRD);
 
   // YseChorusMode ↔ YSE::DSP::MODULES::chorusMode
   YSE_ASSERT_ENUM(YSE_CHORUS_MODE_CHORUS, YSE::DSP::MODULES::MODE_CHORUS);
   YSE_ASSERT_ENUM(YSE_CHORUS_MODE_FLANGER, YSE::DSP::MODULES::MODE_FLANGER);
+  YSE_ASSERT_ENUM_COUNT(YSE::DSP::MODULES::MODE_COUNT_, YSE_CHORUS_MODE_FLANGER);
 
   // YseEqBand ↔ YSE::DSP::MODULES::eqBand
   YSE_ASSERT_ENUM(YSE_EQ_LOW_SHELF, YSE::DSP::MODULES::EQ_LOW_SHELF);
@@ -93,10 +112,12 @@ namespace {
   YSE_ASSERT_ENUM(YSE_EQ_PEAK_2, YSE::DSP::MODULES::EQ_PEAK_2);
   YSE_ASSERT_ENUM(YSE_EQ_HIGH_SHELF, YSE::DSP::MODULES::EQ_HIGH_SHELF);
   YSE_ASSERT_ENUM(YSE_EQ_BAND_COUNT, YSE::DSP::MODULES::EQ_BAND_COUNT);
+  // eqBand already ends in a count sentinel, mirrored and value-asserted above.
 
   // YseCompressorDetector ↔ YSE::DSP::MODULES::compressorDetector
   YSE_ASSERT_ENUM(YSE_COMPRESSOR_DETECT_PEAK, YSE::DSP::MODULES::DETECT_PEAK);
   YSE_ASSERT_ENUM(YSE_COMPRESSOR_DETECT_RMS, YSE::DSP::MODULES::DETECT_RMS);
+  YSE_ASSERT_ENUM_COUNT(YSE::DSP::MODULES::DETECT_COUNT_, YSE_COMPRESSOR_DETECT_RMS);
 
   // YsePCategory ↔ YSE::PATCHER::pCategory
   YSE_ASSERT_ENUM(YSE_PCAT_UNSET, YSE::PATCHER::pCategory::UNSET);
@@ -107,6 +128,7 @@ namespace {
   YSE_ASSERT_ENUM(YSE_PCAT_GUI, YSE::PATCHER::pCategory::GUI);
   YSE_ASSERT_ENUM(YSE_PCAT_TIME, YSE::PATCHER::pCategory::TIME);
   YSE_ASSERT_ENUM(YSE_PCAT_MIDI, YSE::PATCHER::pCategory::MIDI);
+  YSE_ASSERT_ENUM_COUNT(YSE::PATCHER::pCategory::COUNT_, YSE_PCAT_MIDI);
 
   // YseInletAccepts ↔ YSE::PATCHER::InletType
   YSE_ASSERT_ENUM(YSE_IN_ACCEPTS_BUFFER, YSE::PATCHER::IT_BUFFER);
@@ -114,11 +136,14 @@ namespace {
   YSE_ASSERT_ENUM(YSE_IN_ACCEPTS_INT, YSE::PATCHER::IT_INT);
   YSE_ASSERT_ENUM(YSE_IN_ACCEPTS_BANG, YSE::PATCHER::IT_BANG);
   YSE_ASSERT_ENUM(YSE_IN_ACCEPTS_LIST, YSE::PATCHER::IT_LIST);
+  // InletType is a bitmask, not a sequence: a count sentinel cannot track an
+  // added flag, so only the per-bit asserts above guard it.
 
   // YseSynthHandlerParam ↔ YSE::SYNTH::HandlerParamIndex
   YSE_ASSERT_ENUM(YSE_HANDLER_PARAM_CENTER_X, YSE::SYNTH::HP_CENTER_X);
   YSE_ASSERT_ENUM(YSE_HANDLER_PARAM_CENTER_Y, YSE::SYNTH::HP_CENTER_Y);
   YSE_ASSERT_ENUM(YSE_HANDLER_PARAM_CENTER_Z, YSE::SYNTH::HP_CENTER_Z);
+  YSE_ASSERT_ENUM_COUNT(YSE::SYNTH::HP_COUNT_, YSE_HANDLER_PARAM_CENTER_Z);
 
   // YseSynthPositionHandler has no single engine kind-enum to value-mirror (each
   // built-in is a distinct class in positionHandlers.hpp), so guard it
@@ -148,7 +173,9 @@ namespace {
   YSE_ASSERT_ENUM(YSE_REVERB_CAVE, YSE::REVERB_CAVE);
   YSE_ASSERT_ENUM(YSE_REVERB_SEWERPIPE, YSE::REVERB_SEWERPIPE);
   YSE_ASSERT_ENUM(YSE_REVERB_UNDERWATER, YSE::REVERB_UNDERWATER);
+  YSE_ASSERT_ENUM_COUNT(YSE::REVERB_COUNT_, YSE_REVERB_UNDERWATER);
 
+#undef YSE_ASSERT_ENUM_COUNT
 #undef YSE_ASSERT_ENUM
 
 } // namespace

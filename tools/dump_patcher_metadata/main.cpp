@@ -56,6 +56,7 @@ const char * CategoryName(pCategory c) {
         case pCategory::GUI:     return "GUI";
         case pCategory::TIME:    return "TIME";
         case pCategory::MIDI:    return "MIDI";
+        case pCategory::COUNT_:  break; // sentinel, not a category
     }
     return "UNKNOWN";
 }
@@ -69,6 +70,7 @@ const char * OutTypeName(OUT_TYPE t) {
         case OUT_TYPE::BUFFER:  return "BUFFER";
         case OUT_TYPE::LIST:    return "LIST";
         case OUT_TYPE::ANY:     return "ANY";
+        case OUT_TYPE::OUT_TYPE_COUNT_: break; // sentinel, not a type
     }
     return "UNKNOWN";
 }

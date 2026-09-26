@@ -39,6 +39,7 @@ namespace YSE {
       VA_SINE, ///< Sine.
       VA_NOISE, ///< White noise.
       VA_WAVETABLE, ///< Morph across the wavetable bank (see ``vaParams``).
+      VA_WAVEFORM_COUNT_, ///< Sentinel: number of waveforms, not a valid value. Keep last.
     };
 
     /**

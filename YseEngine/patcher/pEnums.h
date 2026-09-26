@@ -15,6 +15,7 @@ namespace YSE {
       GUI, // user-facing controls (slider, button, ...)
       TIME, // timing utilities (metro, ...)
       MIDI, // MIDI generation, output and device input
+      COUNT_, // sentinel: number of categories, not a valid value; keep last (C API drift guard)
     };
 
     // Bitmask of message types an inlet currently accepts. Returned by

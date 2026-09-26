@@ -137,6 +137,7 @@ void YSE::INTERNAL::logImplementation::emit(ERROR_CODE value, const std::string&
     if (value > E_DEBUG_MESSAGES) return;
     break;
   case EL_DEBUG:
+  case EL_COUNT_: // sentinel, not a level: unfiltered, as any out-of-range level was before
     break;
   }
 

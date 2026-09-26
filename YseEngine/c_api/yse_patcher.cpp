@@ -97,6 +97,8 @@ namespace {
       return YSE_PCAT_TIME;
     case pCategory::MIDI:
       return YSE_PCAT_MIDI;
+    case pCategory::COUNT_:
+      break; // sentinel, not a category (drift guard in yse_enums_check.cpp)
     }
     return YSE_PCAT_UNSET;
   }

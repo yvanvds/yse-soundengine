@@ -252,6 +252,9 @@ YSE::DSP::buffer& YSE::DSP::lfo::operator()(
     renderTable(LfoSineTable, result, cursor, frequency, false);
     break;
   }
+
+  case LFO_COUNT_:
+    break; // sentinel, not a type
   }
 
   previousLineValue = result.getBack();

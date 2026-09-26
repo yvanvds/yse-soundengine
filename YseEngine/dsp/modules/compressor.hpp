@@ -24,6 +24,7 @@ namespace YSE {
       enum compressorDetector {
         DETECT_PEAK, ///< Track the instantaneous linked peak — fast, hits transients.
         DETECT_RMS, ///< Track a short mean-square window — smoother, loudness-like.
+        DETECT_COUNT_, ///< Sentinel: number of detectors, not a valid value. Keep last.
       };
 
       /**
