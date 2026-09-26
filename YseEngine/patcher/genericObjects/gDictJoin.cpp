@@ -126,11 +126,11 @@ void gDictJoin::Rebind() {
   auto* p = static_cast<patcherImplementation*>(parent);
 
   std::string leftAddress;
-  if (!leftName.empty() && p != nullptr) leftAddress = p->Name() + "." + leftName;
+  if (!leftName.empty() && p != nullptr) leftAddress = p->ScopedAddress(leftName);
   std::string rightAddress;
-  if (!rightName.empty() && p != nullptr) rightAddress = p->Name() + "." + rightName;
+  if (!rightName.empty() && p != nullptr) rightAddress = p->ScopedAddress(rightName);
   std::string targetAddress;
-  if (!targetName.empty() && p != nullptr) targetAddress = p->Name() + "." + targetName;
+  if (!targetName.empty() && p != nullptr) targetAddress = p->ScopedAddress(targetName);
 
   // Unchanged binding: keep the store. A live SetParams that leaves a name
   // alone must not re-anchor that side, and neither must the second Rebind()

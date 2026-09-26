@@ -129,7 +129,7 @@ void gDictStrip::Rebind() {
   auto* p = static_cast<patcherImplementation*>(parent);
 
   std::string address;
-  if (!dictName.empty() && p != nullptr) address = p->Name() + "." + dictName;
+  if (!dictName.empty() && p != nullptr) address = p->ScopedAddress(dictName);
 
   // Unchanged binding: keep the store. A live SetParams that leaves the name
   // alone must not re-anchor, and neither must the second Rebind() a Set()

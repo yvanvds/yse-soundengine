@@ -396,7 +396,7 @@ void gColl::Rebind() {
   std::string address;
   if (!collName.empty() && parent != nullptr) {
     auto* p = static_cast<patcherImplementation*>(parent);
-    address = p->Name() + "." + collName;
+    address = p->ScopedAddress(collName);
   }
 
   // Unchanged binding: keep the store, and with it everything in it. A live

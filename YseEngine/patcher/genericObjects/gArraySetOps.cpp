@@ -112,7 +112,7 @@ void gArraySetOpBase::RebindRight() {
   std::string address;
   if (!rightName.empty() && parent != nullptr) {
     auto* p = static_cast<patcherImplementation*>(parent);
-    address = p->Name() + "." + rightName;
+    address = p->ScopedAddress(rightName);
   }
 
   // Unchanged binding: keep the store. A live SetParams that leaves the name

@@ -184,6 +184,10 @@ namespace YSE {
     // gSend::RefreshBusAddress(); called from patcherImplementation::SetName so
     // forwards keep matching the re-anchored receivers.
     void RefreshBusAddress();
+    // The rename hook (issue #893): a patcher rename re-anchors this object.
+    void OnPatcherRenamed() override {
+      RefreshBusAddress();
+    }
 
   private:
     // Point at the first MAX_NAME_LENGTH-or-fewer characters at `text`, and

@@ -556,7 +556,7 @@ void gDict::Rebind() {
   std::string address;
   if (!dictName.empty() && parent != nullptr) {
     auto* p = static_cast<patcherImplementation*>(parent);
-    address = p->Name() + "." + dictName;
+    address = p->ScopedAddress(dictName);
   }
 
   // Unchanged binding: keep the store, and with it everything in it. A live

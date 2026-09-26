@@ -156,6 +156,10 @@ namespace YSE {
     // object now reads a different array. Called from
     // patcherImplementation::SetName alongside gArray::RefreshBinding.
     void RefreshBinding();
+    // The rename hook (issue #893): a patcher rename re-anchors this object.
+    void OnPatcherRenamed() override {
+      RefreshBinding();
+    }
 
   private:
     // Point the store at the current name and parent address. Control

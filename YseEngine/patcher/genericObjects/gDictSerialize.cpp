@@ -177,7 +177,7 @@ void gDictSerialize::Rebind() {
   std::string address;
   if (!dictName.empty() && parent != nullptr) {
     auto* p = static_cast<patcherImplementation*>(parent);
-    address = p->Name() + "." + dictName;
+    address = p->ScopedAddress(dictName);
   }
 
   // Unchanged binding: keep the store. A live SetParams that leaves the name

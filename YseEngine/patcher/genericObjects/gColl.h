@@ -678,6 +678,10 @@ namespace YSE {
     // renamed patcher's collections re-anchor with its values, sends and
     // receives (issue #684).
     void RefreshBinding();
+    // The rename hook (issue #893): a patcher rename re-anchors this object.
+    void OnPatcherRenamed() override {
+      RefreshBinding();
+    }
 
     // A read or write this object asked for has finished. Called on the
     // patcher's dispatch thread inside a fresh messageEventScope; parses the

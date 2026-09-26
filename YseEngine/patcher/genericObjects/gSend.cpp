@@ -82,7 +82,7 @@ void gSend::RefreshBusAddress() {
     return;
   }
   auto* p = static_cast<patcherImplementation*>(parent);
-  busAddress_ = p->Name() + "." + dataName;
+  busAddress_ = p->ScopedAddress(dataName);
 }
 
 BANG_IN(SetBangValue) {

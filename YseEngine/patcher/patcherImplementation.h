@@ -34,6 +34,17 @@ namespace YSE {
       }
       void SetName(const std::string& n);
 
+      // The one place a name-scoped object's address is spelled (issue #893).
+      // Every bus / shared-store address an object inside this patcher uses is
+      // ScopedAddress(name); objects that append a runtime name on the audio
+      // thread (gBag, gForward, gTable) cache ScopedAddressPrefix() instead and
+      // reserve prefix.size() + MAX_NAME_LENGTH up front so the append never
+      // allocates. Both allocate, so they are control thread only — reached
+      // from SetParams / SetParent / OnPatcherRenamed, never from Calculate.
+      // Current form: "<patcherName>.<name>".
+      std::string ScopedAddressPrefix() const;
+      std::string ScopedAddress(const std::string& name) const;
+
       const char* Type() const override;
       void ResetDSP() override;
       void Calculate(THREAD thread) override;

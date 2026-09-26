@@ -74,7 +74,7 @@ void gReceive::subscribeFromParent() {
   // Callback fires either synchronously from a T_GUI publisher or from
   // `NamedBus::drainPending` on the main thread. Either way it is safe to
   // route through the receive object's outlet with T_GUI semantics.
-  const std::string address = p->Name() + "." + dataName;
+  const std::string address = p->ScopedAddress(dataName);
   busHandle = Bus().subscribe(address, [this](const BusValue& v) {
     if (std::holds_alternative<int>(v)) {
       outputs[0].SendInt(std::get<int>(v), YSE::T_GUI);

@@ -157,11 +157,11 @@ void gDictSlice::Rebind() {
   auto* p = static_cast<patcherImplementation*>(parent);
 
   std::string sourceAddress;
-  if (!sourceName.empty() && p != nullptr) sourceAddress = p->Name() + "." + sourceName;
+  if (!sourceName.empty() && p != nullptr) sourceAddress = p->ScopedAddress(sourceName);
   std::string sliceAddress;
-  if (!sliceName.empty() && p != nullptr) sliceAddress = p->Name() + "." + sliceName;
+  if (!sliceName.empty() && p != nullptr) sliceAddress = p->ScopedAddress(sliceName);
   std::string remainderAddress;
-  if (!remainderName.empty() && p != nullptr) remainderAddress = p->Name() + "." + remainderName;
+  if (!remainderName.empty() && p != nullptr) remainderAddress = p->ScopedAddress(remainderName);
 
   // Unchanged binding: keep the store. A live SetParams that leaves a name
   // alone must not re-anchor that side, and neither must the second Rebind()

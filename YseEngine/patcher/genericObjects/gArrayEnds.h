@@ -116,6 +116,10 @@ namespace YSE {
       // any object of the family through this base. Control thread only, so
       // the virtual call costs nothing that matters.
       virtual void RefreshBinding();
+      // The rename hook (issue #893): a patcher rename re-anchors this object.
+      void OnPatcherRenamed() override {
+        RefreshBinding();
+      }
 
     protected:
       gArrayEndsBase();

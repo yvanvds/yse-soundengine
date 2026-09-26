@@ -114,7 +114,7 @@ void gForward::RefreshBusAddress() {
     busPrefix.clear();
   } else {
     auto* p = static_cast<patcherImplementation*>(parent);
-    busPrefix = p->Name() + ".";
+    busPrefix = p->ScopedAddressPrefix();
   }
   // Control thread. Size the address for the longest destination this object
   // will ever accept under the current prefix, so SetDestination() only ever

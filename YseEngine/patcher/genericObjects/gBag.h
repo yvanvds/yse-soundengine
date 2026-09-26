@@ -251,6 +251,10 @@ namespace YSE {
     // patcherImplementation::SetName so a `send` keeps reaching the receivers
     // that just re-anchored under the new name.
     void RefreshBusPrefix();
+    // The rename hook (issue #893): a patcher rename re-anchors this object.
+    void OnPatcherRenamed() override {
+      RefreshBusPrefix();
+    }
 
     /** @brief How many numbers the collection holds. */
     std::size_t Count() const {

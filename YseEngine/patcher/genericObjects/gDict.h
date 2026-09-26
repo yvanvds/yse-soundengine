@@ -513,6 +513,10 @@ namespace YSE {
     // patcherImplementation::SetName alongside gValue::RefreshBinding and
     // gColl::RefreshBinding.
     void RefreshBinding();
+    // The rename hook (issue #893): a patcher rename re-anchors this object.
+    void OnPatcherRenamed() override {
+      RefreshBinding();
+    }
 
     // The contents, as a nested JSON object. See the class notes on who writes
     // and who restores. Control thread only, both of them.

@@ -170,6 +170,21 @@ TEST_SUITE("patcher") {
     CHECK(sink.intValue == 7);
   }
 
+  TEST_CASE("patcher: ScopedAddress spells <patcherName>.<name> and follows a rename (#893)") {
+    // The one helper every name-scoped object builds its address with. The
+    // prefix is exposed on its own for the objects that append a runtime name
+    // on the audio thread, so the two must agree.
+    YSE::PATCHER::patcherImplementation p(1, nullptr);
+    p.SetName("scoped.before");
+    CHECK(p.ScopedAddressPrefix() == "scoped.before.");
+    CHECK(p.ScopedAddress("slot") == "scoped.before.slot");
+    CHECK(p.ScopedAddress("slot") == p.ScopedAddressPrefix() + "slot");
+
+    p.SetName("scoped.after");
+    CHECK(p.ScopedAddressPrefix() == "scoped.after.");
+    CHECK(p.ScopedAddress("slot") == "scoped.after.slot");
+  }
+
   TEST_CASE("bus routing: gSend globalOnly=1 skips in-patcher PassData") {
     REQUIRE(TestHelpers::engineInit());
 

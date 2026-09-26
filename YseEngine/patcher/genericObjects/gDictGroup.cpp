@@ -132,9 +132,9 @@ void gDictGroup::Rebind() {
   auto* p = static_cast<patcherImplementation*>(parent);
 
   std::string sourceAddress;
-  if (!sourceName.empty() && p != nullptr) sourceAddress = p->Name() + "." + sourceName;
+  if (!sourceName.empty() && p != nullptr) sourceAddress = p->ScopedAddress(sourceName);
   std::string targetAddress;
-  if (!targetName.empty() && p != nullptr) targetAddress = p->Name() + "." + targetName;
+  if (!targetName.empty() && p != nullptr) targetAddress = p->ScopedAddress(targetName);
 
   // Unchanged binding: keep the store. A live SetParams that leaves a name
   // alone must not re-anchor that side, and neither must the second Rebind()

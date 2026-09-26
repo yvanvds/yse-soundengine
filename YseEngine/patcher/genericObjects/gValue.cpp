@@ -149,7 +149,7 @@ void gValue::Rebind() {
   std::string address;
   if (!valueName.empty() && parent != nullptr) {
     auto* p = static_cast<patcherImplementation*>(parent);
-    address = p->Name() + "." + valueName;
+    address = p->ScopedAddress(valueName);
   }
 
   // Unchanged binding: keep the cell, and with it whatever is stored in it. A

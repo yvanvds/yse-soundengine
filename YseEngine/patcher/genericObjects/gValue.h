@@ -250,6 +250,10 @@ namespace YSE {
     // gSend::RefreshBusAddress, so a renamed patcher's values re-anchor with
     // its sends and receives.
     void RefreshBinding();
+    // The rename hook (issue #893): a patcher rename re-anchors this object.
+    void OnPatcherRenamed() override {
+      RefreshBinding();
+    }
 
   private:
     // Point at the cell the current name and parent address, creating it if

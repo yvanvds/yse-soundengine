@@ -173,6 +173,10 @@ namespace YSE {
     // object now routes a different dictionary. Called from
     // patcherImplementation::SetName alongside gDict::RefreshBinding.
     void RefreshBinding();
+    // The rename hook (issue #893): a patcher rename re-anchors this object.
+    void OnPatcherRenamed() override {
+      RefreshBinding();
+    }
 
   private:
     // Rebuild the outlets from the key arguments, docs included: one per

@@ -143,7 +143,7 @@ void gArrayFlatten::RebindExtras() {
     std::string address;
     if (!moreNames[i].empty() && parent != nullptr) {
       auto* p = static_cast<patcherImplementation*>(parent);
-      address = p->Name() + "." + moreNames[i];
+      address = p->ScopedAddress(moreNames[i]);
     }
 
     // Unchanged binding: keep the store. A live SetParams that leaves a

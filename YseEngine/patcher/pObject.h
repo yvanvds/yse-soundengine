@@ -530,6 +530,16 @@ namespace YSE {
       virtual void RestoreState(const nlohmann::json::value_type&) {}
 
       virtual void SetParent(pObject* parent);
+
+      // Called by patcherImplementation::SetName on every object in the
+      // renamed patcher, after the new name is in place (issue #893). An object
+      // that addresses a bus or shared store through
+      // patcherImplementation::ScopedAddress / ScopedAddressPrefix overrides
+      // this to re-derive its address, so a store follows the rename. Default:
+      // nothing, for every object whose identity does not depend on the
+      // patcher's name. Control thread only, under the patcher's mtx.
+      virtual void OnPatcherRenamed() {}
+
       inline const std::string& DataName() {
         return dataName;
       }

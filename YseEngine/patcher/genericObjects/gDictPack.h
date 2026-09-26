@@ -215,6 +215,10 @@ namespace YSE {
     // object now packs into a different dictionary. Called from
     // patcherImplementation::SetName alongside gDict::RefreshBinding.
     void RefreshBinding();
+    // The rename hook (issue #893): a patcher rename re-anchors this object.
+    void OnPatcherRenamed() override {
+      RefreshBinding();
+    }
 
   private:
     // One value slot per key path. A fixed array rather than a string

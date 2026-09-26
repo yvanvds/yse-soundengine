@@ -36,6 +36,10 @@ namespace YSE {
     // `patcherImplementation::SetName` when the patcher is renamed so
     // existing receivers keep working under the new bus prefix.
     void Resubscribe();
+    // The rename hook (issue #893): a patcher rename re-anchors this object.
+    void OnPatcherRenamed() override {
+      Resubscribe();
+    }
 
   private:
     void unsubscribeIfNeeded();

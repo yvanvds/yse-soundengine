@@ -83,7 +83,7 @@ void gArrayEndsBase::Rebind() {
   std::string address;
   if (!arrayName.empty() && parent != nullptr) {
     auto* p = static_cast<patcherImplementation*>(parent);
-    address = p->Name() + "." + arrayName;
+    address = p->ScopedAddress(arrayName);
   }
 
   // Unchanged binding: keep the store. A live SetParams that leaves the name

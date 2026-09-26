@@ -226,7 +226,7 @@ void gBag::RefreshBusPrefix() {
     busPrefix.clear();
   } else {
     auto* p = static_cast<patcherImplementation*>(parent);
-    busPrefix = p->Name() + ".";
+    busPrefix = p->ScopedAddressPrefix();
   }
   // Control thread. Size the address for the longest name `send` will ever
   // accept under the current prefix, so the message path only refills it.
