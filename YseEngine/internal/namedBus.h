@@ -119,7 +119,9 @@ namespace YSE {
       // Called once per `system::update()` tick.
       void drainPending();
 
-      static constexpr std::size_t kNameCapacity = 63; // null terminator follows
+      // Sized to hold a full patcher address, "patcher.<name>.<slot>" at its
+      // bounded maximum — asserted in patcherImplementation.cpp (issue #921).
+      static constexpr std::size_t kNameCapacity = 127; // null terminator follows
       static constexpr std::size_t kQueueCapacity = 1024;
 
     private:

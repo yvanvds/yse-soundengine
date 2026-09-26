@@ -279,7 +279,8 @@ namespace YSE {
      *         truncates a published name at its own capacity while the
      *         in-patcher delivery path does not, so a longer name would address
      *         two different receivers on the two paths; ``.forward``'s limit,
-     *         pinned to the same constant in the .cpp. */
+     *         pinned in the .cpp to ``patcherImplementation::MAX_SLOT_NAME_LENGTH``,
+     *         the slot share of the full-address budget (issue #921). */
     static constexpr std::size_t MAX_NAME_LENGTH = 63;
 
     /** @brief Max's ``quantile`` scale — "divided by 2^15 (32,768)", and the

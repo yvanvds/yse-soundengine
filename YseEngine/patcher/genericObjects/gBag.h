@@ -233,8 +233,10 @@ namespace YSE {
     /**
      *  @brief Longest ``receive`` name ``send`` will accept — 63.
      *
-     *  ``INTERNAL::NamedBus::kNameCapacity``, asserted against it in the
-     *  implementation so the two cannot drift. A longer name is refused rather
+     *  ``patcherImplementation::MAX_SLOT_NAME_LENGTH``, asserted against it in
+     *  the implementation so the two cannot drift; the whole
+     *  ``"patcher.<patcherName>.<name>"`` address is what has to fit
+     *  ``INTERNAL::NamedBus::kNameCapacity`` (issue #921). A longer name is refused rather
      *  than truncated: the bus truncates and the in-patcher ``PassData`` path
      *  does not, so one word would address two different receivers.
      *  ``.forward``'s limit and ``.table``'s, for the same reason.

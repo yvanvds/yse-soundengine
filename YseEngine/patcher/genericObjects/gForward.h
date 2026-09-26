@@ -150,11 +150,13 @@ namespace YSE {
     /**
      *  @brief Longest destination name the object will accept.
      *
-     *  63 — ``INTERNAL::NamedBus::kNameCapacity``, asserted against it in the
-     *  implementation so the two cannot drift apart. A longer name is refused
-     *  rather than truncated, because the bus would truncate it and the
-     *  in-patcher path would not, leaving one word addressing two different
-     *  receivers.
+     *  63 — ``patcherImplementation::MAX_SLOT_NAME_LENGTH``, the slot share
+     *  of the address budget whose total (``"patcher.<patcherName>.<slot>"``
+     *  with the patcher name bounded by ``SetName``) is asserted to fit
+     *  ``INTERNAL::NamedBus::kNameCapacity`` (issue #921). A longer name is
+     *  refused rather than truncated, because the bus would truncate it and
+     *  the in-patcher path would not, leaving one word addressing two
+     *  different receivers.
      */
     static constexpr std::size_t MAX_NAME_LENGTH = 63;
 

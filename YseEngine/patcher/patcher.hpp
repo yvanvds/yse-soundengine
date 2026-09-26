@@ -71,6 +71,11 @@ namespace YSE {
      *
      *  Default: an auto-generated identifier of the form
      *  ``"patcher_<N>"`` where ``N`` increments per process.
+     *
+     *  A name longer than 55 characters is refused — logged, and the current
+     *  name kept — so the full ``"patcher.<patcherName>.<slot>"`` address,
+     *  with a slot of up to 63 characters, always fits the bus's fixed-size
+     *  name on the audio-thread path (issue #921).
      */
     patcher& name(const std::string& n);
 

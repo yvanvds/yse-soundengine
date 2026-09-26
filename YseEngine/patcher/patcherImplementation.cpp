@@ -23,6 +23,7 @@
 #include <vector>
 #include "../implementations/logImplementation.h"
 #include "../internal/global.h"
+#include "../internal/namedBus.h"
 
 using namespace YSE::PATCHER;
 
@@ -125,6 +126,13 @@ patcherImplementation::patcherImplementation(int mainOutputs, YSE::patcher* head
   reclaimJobs_[1].sibling = &reclaimJobs_[0];
 }
 
+// The whole scoped address — not just its slot — has to fit the bus's fixed
+// name slot, or a T_DSP publish is truncated there while the in-patcher path is
+// not (issue #921).
+static_assert(patcherImplementation::MAX_SCOPED_ADDRESS_LENGTH <=
+                  YSE::INTERNAL::NamedBus::kNameCapacity,
+              "patcher.<name>.<slot> must fit NamedBus::kNameCapacity");
+
 std::string patcherImplementation::ScopedAddressPrefix() const {
   // Reserved "patcher." prefix (issue #894), matching sound./channel./synth.:
   // a patcher named "synth1" no longer shares the freeform "synth1.*" space.
@@ -137,6 +145,15 @@ std::string patcherImplementation::ScopedAddress(const std::string& name) const 
 
 void patcherImplementation::SetName(const std::string& n) {
   if (n == patcherName) return;
+  // Refused rather than truncated (issue #921): the name is the variable part
+  // of every scoped address, and the address budget only holds for a bounded
+  // one. Keeping the old name leaves every object's cached address valid.
+  if (n.size() > MAX_PATCHER_NAME_LENGTH) {
+    INTERNAL::LogImpl().emit(E_ERROR, "patcher: name \"" + n + "\" is longer than " +
+                                          std::to_string(MAX_PATCHER_NAME_LENGTH) +
+                                          " characters; ignored");
+    return;
+  }
   mtx.lock();
   patcherName = n;
   // Re-anchor every name-scoped object (gSend/gReceive/gForward, the shared

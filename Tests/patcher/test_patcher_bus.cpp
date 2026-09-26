@@ -640,4 +640,91 @@ TEST_SUITE("patcher") {
     YSE::INTERNAL::Bus().unsubscribe(sub);
   }
 
+  // ── The full address fits the bus (issue #921) ────────────────────────────
+  //
+  // .forward / .bag / .table bound their runtime slot name at 63, but the bus
+  // truncates the *whole* "patcher.<name>.<slot>" on the T_DSP path. With a
+  // long patcher name a slot that passed the check was cut on the bus and the
+  // two delivery paths disagreed again.
+
+  TEST_CASE("bus routing: a deferred .forward with a long patcher name and slot publishes the "
+            "full address (#921)") {
+    REQUIRE(TestHelpers::engineInit());
+
+    const std::string patcherName(30, 'p');
+    const std::string slot(40, 's');
+    const std::string full = "patcher." + patcherName + "." + slot; // 79 bytes
+
+    YSE::PATCHER::patcherImplementation p(1, nullptr);
+    p.SetName(patcherName);
+    REQUIRE(p.Name() == patcherName);
+
+    // `.r trigger` → `.bondo 1 5` → `.forward <slot>`: the release is deferred,
+    // so the forward publishes from the audio thread's drain, on T_DSP.
+    YSE::pHandle* trigger = p.CreateObject(YSE::OBJ::G_RECEIVE, "trigger");
+    YSE::pHandle* bondo = p.CreateObject(YSE::OBJ::G_BONDO, "1 5");
+    YSE::pHandle* fwd = p.CreateObject(YSE::OBJ::G_FORWARD, slot);
+    REQUIRE(trigger != nullptr);
+    REQUIRE(bondo != nullptr);
+    REQUIRE(fwd != nullptr);
+    p.Connect(trigger, 0, bondo, 0);
+    p.Connect(bondo, 0, fwd, 0);
+
+    int received = 0;
+    int intValue = -1;
+    int truncated = 0;
+    const YSE::INTERNAL::SubHandle sub = YSE::INTERNAL::Bus().subscribe(
+        full, [&received, &intValue](const YSE::INTERNAL::BusValue& value) {
+          received++;
+          if (const int* i = std::get_if<int>(&value)) intValue = *i;
+        });
+    // Where the old 63-byte slot would have cut it.
+    const YSE::INTERNAL::SubHandle cutSub = YSE::INTERNAL::Bus().subscribe(
+        full.substr(0, 63), [&truncated](const YSE::INTERNAL::BusValue&) { truncated++; });
+
+    CHECK(p.PassData(21, "trigger", YSE::T_GUI));
+    for (int block = 0; block < 32; ++block) {
+      p.Calculate(YSE::T_DSP);
+    }
+    YSE::System().update();
+
+    CHECK(received == 1);
+    CHECK(intValue == 21);
+    CHECK(truncated == 0);
+
+    YSE::INTERNAL::Bus().unsubscribe(sub);
+    YSE::INTERNAL::Bus().unsubscribe(cutSub);
+  }
+
+  TEST_CASE("patcher: a name past MAX_PATCHER_NAME_LENGTH is refused, the old one kept (#921)") {
+    using YSE::PATCHER::patcherImplementation;
+    // The budget itself: the longest name plus the longest slot fits the bus.
+    CHECK(patcherImplementation::MAX_SCOPED_ADDRESS_LENGTH <=
+          YSE::INTERNAL::NamedBus::kNameCapacity);
+
+    patcherImplementation p(1, nullptr);
+    p.SetName("keep.me");
+
+    const std::string longest(patcherImplementation::MAX_PATCHER_NAME_LENGTH, 'n');
+    p.SetName(longest);
+    CHECK(p.Name() == longest);
+    // The longest address the budget allows is spelled whole.
+    const std::string longestSlot(patcherImplementation::MAX_SLOT_NAME_LENGTH, 's');
+    CHECK(p.ScopedAddress(longestSlot).size() == patcherImplementation::MAX_SCOPED_ADDRESS_LENGTH);
+
+    p.SetName(std::string(patcherImplementation::MAX_PATCHER_NAME_LENGTH + 1, 'x'));
+    CHECK(p.Name() == longest);
+
+    // The public wrapper refuses the same name before create(), so name()
+    // never reports one create() would then drop.
+    YSE::patcher pub;
+    pub.name("pub.kept");
+    pub.name(std::string(patcherImplementation::MAX_PATCHER_NAME_LENGTH + 1, 'y'));
+    CHECK(pub.name() == "pub.kept");
+    pub.create(1);
+    CHECK(pub.name() == "pub.kept");
+    pub.name(std::string(patcherImplementation::MAX_PATCHER_NAME_LENGTH + 1, 'z'));
+    CHECK(pub.name() == "pub.kept");
+  }
+
 } // TEST_SUITE("patcher")
