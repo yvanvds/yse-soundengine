@@ -13,6 +13,11 @@ namespace YSE {
     _BANG_IN(SetBangValue)
     _LIST_IN(SetListValue)
 
+    // Refuses — logs and clears — a dataName longer than
+    // patcherImplementation::MAX_SLOT_NAME_LENGTH, so the bus address fits
+    // NamedBus::kNameCapacity whole (issue #922). Control thread only.
+    _PARM_PARSE
+
     // Cache the bus address ("patcher.<patcherName>.<dataName>") the moment the
     // parent is known, so the audio-path publishes never concatenate a
     // std::string on the callback thread (issue #187).

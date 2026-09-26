@@ -1,4 +1,5 @@
 #include "gSend.h"
+#include "../../implementations/logImplementation.h"
 #include "../pObjectList.hpp"
 #include "../patcherImplementation.h"
 #include "../../internal/namedBus.h"
@@ -16,6 +17,7 @@ CONSTRUCT() {
 
   ADD_PARAM(dataName);
   ADD_PARAM(globalOnly);
+  REG_PARM_PARSE;
 
   ADD_DESCRIPTION(
       "Named send endpoint. Broadcasts incoming values to every gReceive in the patcher whose "
@@ -25,10 +27,28 @@ CONSTRUCT() {
   ADD_CATEGORY(pCategory::GENERIC);
   INLET_DOC(0, "in", "Value inlet — accepts bang / int / float / list.", "");
   PARAM_DOC("dataName", "",
-            "Name to broadcast on; matching gReceive nodes will emit the forwarded value.",
-            "any identifier");
+            "Name to broadcast on; matching gReceive nodes will emit the forwarded value. A name "
+            "longer than 63 characters is refused and the object left unnamed.",
+            "any identifier, at most 63 characters");
   PARAM_DOC("globalOnly", "0",
             "When 1, skip in-patcher delivery and publish only to the global bus.", "0 or 1");
+}
+
+// Control thread only (Parameters::Set), and before SetParent caches the bus
+// address from dataName — CreateObject and the live-SetParams rebuild both
+// parse first. The bus copies a T_DSP publish's name into a fixed slot and
+// truncates past it, while PassData uses the whole dataName, so an over-long
+// name would reach one receiver locally and another on the bus. It is refused
+// rather than truncated, bounded by the slot share of the address budget that
+// patcherImplementation.cpp asserts fits the bus (issue #922; .forward's rule).
+PARM_PARSE() {
+  if (dataName.size() > patcherImplementation::MAX_SLOT_NAME_LENGTH) {
+    INTERNAL::LogImpl().emit(E_ERROR,
+                             "patcher: .s dataName \"" + dataName + "\" is longer than " +
+                                 std::to_string(patcherImplementation::MAX_SLOT_NAME_LENGTH) +
+                                 " characters; ignored");
+    dataName.clear();
+  }
 }
 
 // RT-safety: on T_DSP the bus publish path is allocation-free and lock-free

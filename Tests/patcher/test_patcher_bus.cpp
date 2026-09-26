@@ -727,4 +727,135 @@ TEST_SUITE("patcher") {
     CHECK(pub.name() == "pub.kept");
   }
 
+  // ── .s / .r bound their dataName to the slot budget (issue #922) ─────────
+  //
+  // #921 bounded the patcher name and .forward / .bag / .table's slot, but a
+  // .s dataName was unbounded: with a long patcher name the T_DSP publish was
+  // truncated on the bus while PassData and the .r subscription used the full
+  // name — the #485 disagreement again.
+
+  TEST_CASE("bus routing: a deferred .s refuses a dataName past MAX_SLOT_NAME_LENGTH, so "
+            "nothing is published truncated (#922)") {
+    REQUIRE(TestHelpers::engineInit());
+    using YSE::PATCHER::patcherImplementation;
+
+    const std::string patcherName(patcherImplementation::MAX_PATCHER_NAME_LENGTH, 'p');
+    const std::string longName(80, 'd');
+    const std::string full = "patcher." + patcherName + "." + longName; // 144 bytes
+    REQUIRE(full.size() > YSE::INTERNAL::NamedBus::kNameCapacity);
+
+    patcherImplementation p(1, nullptr);
+    p.SetName(patcherName);
+    REQUIRE(p.Name() == patcherName);
+
+    // `.r trigger` → `.bondo 1 5` → `.s <longName>`: the release is deferred,
+    // so the .s publishes from the audio thread's drain, on T_DSP.
+    YSE::pHandle* trigger = p.CreateObject(YSE::OBJ::G_RECEIVE, "trigger");
+    YSE::pHandle* bondo = p.CreateObject(YSE::OBJ::G_BONDO, "1 5");
+    YSE::pHandle* send = p.CreateObject(YSE::OBJ::G_SEND, longName);
+    REQUIRE(trigger != nullptr);
+    REQUIRE(bondo != nullptr);
+    REQUIRE(send != nullptr);
+    p.Connect(trigger, 0, bondo, 0);
+    p.Connect(bondo, 0, send, 0);
+
+    int received = 0;
+    int truncated = 0;
+    const YSE::INTERNAL::SubHandle sub = YSE::INTERNAL::Bus().subscribe(
+        full, [&received](const YSE::INTERNAL::BusValue&) { received++; });
+    // Where the bus would cut the full address.
+    const YSE::INTERNAL::SubHandle cutSub = YSE::INTERNAL::Bus().subscribe(
+        full.substr(0, YSE::INTERNAL::NamedBus::kNameCapacity),
+        [&truncated](const YSE::INTERNAL::BusValue&) { truncated++; });
+
+    CHECK(p.PassData(21, "trigger", YSE::T_GUI));
+    for (int block = 0; block < 32; ++block) {
+      p.Calculate(YSE::T_DSP);
+    }
+    YSE::System().update();
+
+    // Refused, not truncated: neither the full nor the cut address is reached.
+    CHECK(received == 0);
+    CHECK(truncated == 0);
+
+    YSE::INTERNAL::Bus().unsubscribe(sub);
+    YSE::INTERNAL::Bus().unsubscribe(cutSub);
+  }
+
+  TEST_CASE("bus routing: a deferred .s at MAX_SLOT_NAME_LENGTH under the longest patcher name "
+            "publishes the full address (#922)") {
+    REQUIRE(TestHelpers::engineInit());
+    using YSE::PATCHER::patcherImplementation;
+
+    const std::string patcherName(patcherImplementation::MAX_PATCHER_NAME_LENGTH, 'p');
+    const std::string slot(patcherImplementation::MAX_SLOT_NAME_LENGTH, 'd');
+    const std::string full = "patcher." + patcherName + "." + slot;
+    REQUIRE(full.size() == patcherImplementation::MAX_SCOPED_ADDRESS_LENGTH);
+
+    patcherImplementation p(1, nullptr);
+    p.SetName(patcherName);
+
+    YSE::pHandle* trigger = p.CreateObject(YSE::OBJ::G_RECEIVE, "trigger");
+    YSE::pHandle* bondo = p.CreateObject(YSE::OBJ::G_BONDO, "1 5");
+    YSE::pHandle* send = p.CreateObject(YSE::OBJ::G_SEND, slot);
+    REQUIRE(trigger != nullptr);
+    REQUIRE(bondo != nullptr);
+    REQUIRE(send != nullptr);
+    p.Connect(trigger, 0, bondo, 0);
+    p.Connect(bondo, 0, send, 0);
+
+    int received = 0;
+    int intValue = -1;
+    const YSE::INTERNAL::SubHandle sub = YSE::INTERNAL::Bus().subscribe(
+        full, [&received, &intValue](const YSE::INTERNAL::BusValue& value) {
+          received++;
+          if (const int* i = std::get_if<int>(&value)) intValue = *i;
+        });
+
+    CHECK(p.PassData(34, "trigger", YSE::T_GUI));
+    for (int block = 0; block < 32; ++block) {
+      p.Calculate(YSE::T_DSP);
+    }
+    YSE::System().update();
+
+    CHECK(received == 1);
+    CHECK(intValue == 34);
+
+    YSE::INTERNAL::Bus().unsubscribe(sub);
+  }
+
+  TEST_CASE("bus routing: .r refuses a dataName past MAX_SLOT_NAME_LENGTH and accepts one at it "
+            "(#922)") {
+    REQUIRE(TestHelpers::engineInit());
+    using YSE::PATCHER::patcherImplementation;
+
+    YSE::patcher b;
+    b.name("r.bound").create(2);
+
+    const std::string atLimit(patcherImplementation::MAX_SLOT_NAME_LENGTH, 'a');
+    const std::string overLimit(patcherImplementation::MAX_SLOT_NAME_LENGTH + 1, 'o');
+
+    YSE::pHandle* recvOk = b.CreateObject(YSE::OBJ::G_RECEIVE, atLimit);
+    YSE::pHandle* recvLong = b.CreateObject(YSE::OBJ::G_RECEIVE, overLimit);
+    REQUIRE(recvOk != nullptr);
+    REQUIRE(recvLong != nullptr);
+
+    MultiSink okSink;
+    MultiSink longSink;
+    YSE::pHandle okHandle(&okSink);
+    YSE::pHandle longHandle(&longSink);
+    b.Connect(recvOk, 0, &okHandle, 0);
+    b.Connect(recvLong, 0, &longHandle, 0);
+
+    // A host publish on each full address, on the control thread.
+    YSE::INTERNAL::Bus().publish("patcher.r.bound." + atLimit, YSE::INTERNAL::BusValue{7},
+                                 YSE::T_GUI);
+    YSE::INTERNAL::Bus().publish("patcher.r.bound." + overLimit, YSE::INTERNAL::BusValue{8},
+                                 YSE::T_GUI);
+
+    CHECK(okSink.gotInt);
+    CHECK(okSink.intValue == 7);
+    CHECK_FALSE(longSink.gotInt);
+  }
+
 } // TEST_SUITE("patcher")

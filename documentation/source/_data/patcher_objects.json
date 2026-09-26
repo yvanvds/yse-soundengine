@@ -10396,9 +10396,9 @@
     "params": [
       {
         "default": "",
-        "doc": "Name to listen for; must match the dataName of one or more gSend nodes.",
+        "doc": "Name to listen for; must match the dataName of one or more gSend nodes. A name longer than 63 characters is refused and the object left unnamed.",
         "name": "dataName",
-        "range": "any identifier"
+        "range": "any identifier, at most 63 characters"
       },
       {
         "default": "0",
@@ -10965,9 +10965,9 @@
     "params": [
       {
         "default": "",
-        "doc": "Name to broadcast on; matching gReceive nodes will emit the forwarded value.",
+        "doc": "Name to broadcast on; matching gReceive nodes will emit the forwarded value. A name longer than 63 characters is refused and the object left unnamed.",
         "name": "dataName",
-        "range": "any identifier"
+        "range": "any identifier, at most 63 characters"
       },
       {
         "default": "0",

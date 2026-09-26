@@ -25,6 +25,11 @@ namespace YSE {
     _BANG_IN(SetBangValue)
     _LIST_IN(SetListValue)
 
+    // Refuses — logs and clears — a dataName longer than
+    // patcherImplementation::MAX_SLOT_NAME_LENGTH, gSend's rule, so a .r keeps
+    // subscribing to the address its .s publishes whole (issue #922).
+    _PARM_PARSE
+
   public:
     ~gReceive() override;
 

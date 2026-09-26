@@ -1,4 +1,5 @@
 #include "gReceive.h"
+#include "../../implementations/logImplementation.h"
 #include "../pObjectList.hpp"
 #include "../patcherImplementation.h"
 #include "../../internal/global.h"
@@ -17,6 +18,7 @@ CONSTRUCT() {
 
   ADD_PARAM(dataName);
   ADD_PARAM(globalOnly);
+  REG_PARM_PARSE;
 
   ADD_OUT_ANY;
 
@@ -27,12 +29,27 @@ CONSTRUCT() {
   INLET_DOC(0, "in", "Wired inlet (rarely used — receives typically pair with gSend by name).", "");
   OUTLET_DOC(0, "out", "Forwarded value from matching gSend nodes.", "");
   PARAM_DOC("dataName", "",
-            "Name to listen for; must match the dataName of one or more gSend nodes.",
-            "any identifier");
+            "Name to listen for; must match the dataName of one or more gSend nodes. A name "
+            "longer than 63 characters is refused and the object left unnamed.",
+            "any identifier, at most 63 characters");
   PARAM_DOC("globalOnly", "0",
             "Reserved for future receive-side filters; ignored today (the bus subscription is "
             "always active).",
             "0 or 1");
+}
+
+// gSend's refusal (issue #922), for the same reason: the subscription below is
+// keyed on the whole scoped address, and a matching .s refuses the same name,
+// so accepting it here would only ever wait on an address nothing publishes
+// whole. Control thread only, before SetParent subscribes.
+PARM_PARSE() {
+  if (dataName.size() > patcherImplementation::MAX_SLOT_NAME_LENGTH) {
+    INTERNAL::LogImpl().emit(E_ERROR,
+                             "patcher: .r dataName \"" + dataName + "\" is longer than " +
+                                 std::to_string(patcherImplementation::MAX_SLOT_NAME_LENGTH) +
+                                 " characters; ignored");
+    dataName.clear();
+  }
 }
 
 gReceive::~gReceive() {
