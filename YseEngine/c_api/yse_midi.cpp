@@ -211,6 +211,13 @@ YSE_C_API void yse_midi_out_raw3(YseMidiOut* m, unsigned char a, unsigned char b
   if (m) to_cpp(m)->Raw(a, b, c);
 }
 
+YSE_C_API void yse_midi_out_raw(YseMidiOut* m, const unsigned char* data, size_t length) {
+  if (!m || !data || length == 0) return;
+  // RtMidi reports a failed send (e.g. a malformed SysEx) by throwing when no
+  // error callback is installed; keep that from crossing the C boundary.
+  yse_c::guard_void("yse_midi_out_raw", [&] { to_cpp(m)->Raw(data, length); });
+}
+
 // ─── midi input ─────────────────────────────────────────────────────
 
 YSE_C_API YseMidiIn* yse_midi_in_create(void) {
@@ -307,6 +314,7 @@ YSE_C_API void yse_midi_out_local_control(YseMidiOut*, int) {}
 YSE_C_API void yse_midi_out_omni(YseMidiOut*, int) {}
 YSE_C_API void yse_midi_out_poly(YseMidiOut*, int) {}
 YSE_C_API void yse_midi_out_raw3(YseMidiOut*, unsigned char, unsigned char, unsigned char) {}
+YSE_C_API void yse_midi_out_raw(YseMidiOut*, const unsigned char*, size_t) {}
 
 // midi input stubs — same RtMidi gate as the output side.
 YSE_C_API YseMidiIn* yse_midi_in_create(void) {
