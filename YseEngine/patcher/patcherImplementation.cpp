@@ -1137,6 +1137,15 @@ std::string patcherImplementation::DumpJSON() {
       object->DumpJson(j["object " + std::to_string(counter)]);
       counter++;
     }
+
+    // The patcher's name travels with the patch (issue #897): it is part of
+    // every scoped address a `.s` / `.r` / shared store uses, so a patch that
+    // talks across patchers only works under the name it was built with. The
+    // birth auto-name is not written — it is a process-wide counter, not a
+    // property of the patch, and restoring "patcher_3" into another process
+    // could land it in some unrelated patcher's scope. Leaving it out also keeps
+    // an unnamed patch's dump exactly what it was before this key existed.
+    if (patcherName != autoName_) j["name"] = patcherName;
   }
 
   std::string result = j.dump(2, ' ', true);
@@ -1145,6 +1154,23 @@ std::string patcherImplementation::DumpJSON() {
 
 void patcherImplementation::ParseJSON(const std::string& content) {
   auto j = json::parse(content);
+
+  // Restore the saved name (issue #897) — but only onto a patcher that still has
+  // its auto-name, so a name the host chose before loading wins over the file.
+  // Done first, before any object is created and before the loadbang pass: the
+  // objects this parse creates are born under the final name instead of being
+  // re-anchored a moment later, and SetName still re-anchors any object that
+  // was already in the patcher. SetName takes mtx itself, so this must stay
+  // outside the locked build below. An over-long name is refused there, logged,
+  // and the auto-name kept, exactly as for a host call.
+  const auto savedName = j.find("name");
+  if (savedName != j.end()) {
+    if (!savedName->is_string()) {
+      INTERNAL::LogImpl().emit(E_ERROR, "Patcher: stored name is not a string; ignored");
+    } else if (patcherName == autoName_) {
+      SetName(savedName->get<std::string>());
+    }
+  }
 
   std::map<int, pHandle*> OldIDs;
 
@@ -1162,6 +1188,8 @@ void patcherImplementation::ParseJSON(const std::string& content) {
   std::vector<std::pair<int, json*>> records;
   records.reserve(j.size());
   for (auto obj = j.begin(); obj != j.end(); ++obj) {
+    // The one top-level key that is not an object record (issue #897).
+    if (obj.key() == "name") continue;
     records.emplace_back(obj.value()["ID"].get<int>(), &obj.value());
   }
   std::stable_sort(records.begin(), records.end(),

@@ -150,10 +150,22 @@ namespace YSE {
     /** @brief Whether ``type`` is a known object type identifier. */
     static bool IsValidObject(const char* type);
 
-    /** @brief Serialise the current graph to JSON. */
+    /** @brief Serialise the current graph to JSON.
+     *
+     *  A name set with ``name()`` is written as an optional top-level
+     *  ``"name"`` key; the auto-generated ``"patcher_<N>"`` name is not
+     *  written (issue #897).
+     */
     std::string DumpJSON();
 
-    /** @brief Replace the current graph with the contents of a JSON dump. */
+    /** @brief Replace the current graph with the contents of a JSON dump.
+     *
+     *  A top-level ``"name"`` key is applied only if this patcher still has its
+     *  auto-generated name, so a name the host set before loading wins. It is
+     *  applied before any object is created and before ``.loadbang`` fires, and
+     *  is refused (logged, auto-name kept) like any over-long ``name()``
+     *  (issue #897).
+     */
     void ParseJSON(const std::string& content);
 
     /** @brief Number of objects in the patcher.

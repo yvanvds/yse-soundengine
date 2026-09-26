@@ -141,6 +141,14 @@ This is the round trip: a patch built once in code in ``Demo13``, saved
 to ``patcher.yap``, and rebuilt from that file in ``Demo14`` with no
 code-side knowledge of its internal structure.
 
+The patcher's name travels with the patch. A name set with ``name()``
+is written as a top-level ``"name"`` key, because every ``.s``/``.r``
+address and shared store is scoped as ``patcher.<name>.<slot>``.
+``ParseJSON`` restores it before any ``.loadbang`` fires, but only onto
+a patcher that still has its auto-generated ``patcher_<N>`` name. If the
+host names the patcher before loading, that name wins. The
+auto-generated name is never written.
+
 Where to find the full object reference
 ---------------------------------------
 

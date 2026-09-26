@@ -21,6 +21,7 @@
 #include "patcher/pObjectList.hpp"
 #include "patcher/sinks.hpp"
 #include "support/null_device.hpp"
+#include "utils/json.hpp"
 
 using TestHelpers::MultiSink;
 
@@ -856,6 +857,173 @@ TEST_SUITE("patcher") {
     CHECK(okSink.gotInt);
     CHECK(okSink.intValue == 7);
     CHECK_FALSE(longSink.gotInt);
+  }
+
+  // ── The name travels with the patch (issue #897) ─────────────────────────
+  //
+  // DumpJSON writes a chosen name as a top-level "name" key; ParseJSON applies
+  // it only onto a patcher still wearing its auto-name, so a host-chosen name
+  // wins. The auto-name itself is never written.
+
+  TEST_CASE("patcher json: an auto-named patcher writes no name and round-trips byte-identically "
+            "(#897)") {
+    REQUIRE(TestHelpers::engineInit());
+
+    YSE::patcher src;
+    src.create(2);
+    REQUIRE(src.CreateObject(YSE::OBJ::G_INT, "3") != nullptr);
+    const std::string dump = src.DumpJSON();
+    CHECK(nlohmann::json::parse(dump).count("name") == 0);
+
+    YSE::patcher loaded;
+    loaded.create(2);
+    const std::string autoName = loaded.name();
+    loaded.ParseJSON(dump);
+    // The source's auto-name is a process-wide counter, not a property of the
+    // patch: the loaded patcher keeps its own.
+    CHECK(loaded.name() == autoName);
+    CHECK(loaded.DumpJSON() == dump);
+  }
+
+  TEST_CASE("patcher json: a chosen name is saved, restored, and round-trips byte-identically "
+            "(#897)") {
+    REQUIRE(TestHelpers::engineInit());
+
+    YSE::patcher src;
+    src.name("n897.saved").create(2);
+    REQUIRE(src.CreateObject(YSE::OBJ::G_INT, "3") != nullptr);
+    const std::string dump = src.DumpJSON();
+    const auto parsed = nlohmann::json::parse(dump);
+    REQUIRE(parsed.count("name") == 1);
+    CHECK(parsed["name"] == "n897.saved");
+
+    YSE::patcher loaded;
+    loaded.create(2);
+    loaded.ParseJSON(dump);
+    CHECK(loaded.name() == "n897.saved");
+    CHECK(loaded.Objects() == 1);
+    // dump → parse → dump is a fixed point (#733) with the key present too.
+    CHECK(loaded.DumpJSON() == dump);
+  }
+
+  TEST_CASE("patcher json: a name the host set before loading wins over the saved one (#897)") {
+    REQUIRE(TestHelpers::engineInit());
+
+    YSE::patcher src;
+    src.name("n897.file").create(2);
+    const std::string dump = src.DumpJSON();
+
+    // Named after create()...
+    YSE::patcher after;
+    after.create(2);
+    after.name("n897.host");
+    after.ParseJSON(dump);
+    CHECK(after.name() == "n897.host");
+
+    // ...and before it, where the name is stashed until create() applies it.
+    YSE::patcher before;
+    before.name("n897.host2").create(2);
+    before.ParseJSON(dump);
+    CHECK(before.name() == "n897.host2");
+  }
+
+  TEST_CASE("patcher json: a loaded patch initialising through .s publishes under the saved name "
+            "(#897)") {
+    // The ordering claim: the rename has to happen before the loadbang pass, or
+    // the load-time send goes out under the auto-name and is lost. `.loadmess 5`
+    // → `.s init` publishes on the bus from the post-publish pass; a host
+    // subscriber on each address tells which name the send was made under.
+    REQUIRE(TestHelpers::engineInit());
+
+    YSE::patcher src;
+    src.name("n897.init").create(2);
+    YSE::pHandle* load = src.CreateObject(YSE::OBJ::G_LOADMESS, "5");
+    YSE::pHandle* send = src.CreateObject(YSE::OBJ::G_SEND, "init");
+    REQUIRE(load != nullptr);
+    REQUIRE(send != nullptr);
+    src.Connect(load, 0, send, 0);
+    const std::string dump = src.DumpJSON();
+
+    YSE::patcher loaded;
+    loaded.create(2);
+    const std::string autoName = loaded.name();
+
+    int saved = 0;
+    int savedValue = -1;
+    int unnamed = 0;
+    const YSE::INTERNAL::SubHandle savedSub = YSE::INTERNAL::Bus().subscribe(
+        "patcher.n897.init.init", [&saved, &savedValue](const YSE::INTERNAL::BusValue& value) {
+          saved++;
+          if (const int* i = std::get_if<int>(&value)) savedValue = *i;
+        });
+    const YSE::INTERNAL::SubHandle unnamedSub = YSE::INTERNAL::Bus().subscribe(
+        "patcher." + autoName + ".init", [&unnamed](const YSE::INTERNAL::BusValue&) { unnamed++; });
+
+    loaded.ParseJSON(dump);
+    YSE::System().update();
+
+    CHECK(loaded.name() == "n897.init");
+    CHECK(saved == 1);
+    CHECK(savedValue == 5);
+    CHECK(unnamed == 0);
+
+    YSE::INTERNAL::Bus().unsubscribe(savedSub);
+    YSE::INTERNAL::Bus().unsubscribe(unnamedSub);
+  }
+
+  TEST_CASE("patcher json: the restored name re-anchors objects already in the patcher (#897)") {
+    // ParseJSON is additive: a `.r` created before the load was subscribed under
+    // the auto-name and must follow the rename, like any other SetName.
+    REQUIRE(TestHelpers::engineInit());
+
+    YSE::patcher src;
+    src.name("n897.reanchor").create(2);
+    const std::string dump = src.DumpJSON();
+
+    YSE::patcher loaded;
+    loaded.create(2);
+    YSE::pHandle* recv = loaded.CreateObject(YSE::OBJ::G_RECEIVE, "v");
+    REQUIRE(recv != nullptr);
+    MultiSink sink;
+    YSE::pHandle sinkHandle(&sink);
+    loaded.Connect(recv, 0, &sinkHandle, 0);
+
+    loaded.ParseJSON(dump);
+    REQUIRE(loaded.name() == "n897.reanchor");
+
+    YSE::INTERNAL::Bus().publish("patcher.n897.reanchor.v", YSE::INTERNAL::BusValue{11},
+                                 YSE::T_GUI);
+    CHECK(sink.gotInt);
+    CHECK(sink.intValue == 11);
+  }
+
+  TEST_CASE("patcher json: an over-long or non-string saved name is refused, the patch still "
+            "loads (#897)") {
+    REQUIRE(TestHelpers::engineInit());
+    using YSE::PATCHER::patcherImplementation;
+
+    YSE::patcher src;
+    src.create(2);
+    REQUIRE(src.CreateObject(YSE::OBJ::G_INT, "3") != nullptr);
+    auto doc = nlohmann::json::parse(src.DumpJSON());
+
+    // Past the #921 budget: refused exactly like a host SetName.
+    doc["name"] = std::string(patcherImplementation::MAX_PATCHER_NAME_LENGTH + 1, 'x');
+    YSE::patcher tooLong;
+    tooLong.create(2);
+    const std::string tooLongAuto = tooLong.name();
+    tooLong.ParseJSON(doc.dump());
+    CHECK(tooLong.name() == tooLongAuto);
+    CHECK(tooLong.Objects() == 1);
+
+    // Not a string: ignored, and not mistaken for an object record.
+    doc["name"] = 42;
+    YSE::patcher notString;
+    notString.create(2);
+    const std::string notStringAuto = notString.name();
+    notString.ParseJSON(doc.dump());
+    CHECK(notString.name() == notStringAuto);
+    CHECK(notString.Objects() == 1);
   }
 
 } // TEST_SUITE("patcher")
