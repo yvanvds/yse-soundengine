@@ -371,9 +371,16 @@ TEST_SUITE("capilowcov") {
     const unsigned int len = 4096;
     YseDspBuffer* buf = yse_dsp_buffer_create(len, 0);
     REQUIRE(buf != nullptr);
+    // The channel meter reports the signed maximum of the last 128-sample block
+    // only, so the tone must put a full cycle in every block for that reading
+    // to track the gain. A 256-sample period (16 cycles here) left half a cycle
+    // per block, and since the playhead drifts against the block grid the
+    // reading swung 0.05..0.37 at a constant gain, failing the level checks
+    // below at random (issue #925). 64 cycles = a 64-sample period: every
+    // block holds two cycles and reads the tone's peak whatever its phase.
     std::vector<float> tone(len);
     for (unsigned int i = 0; i < len; ++i)
-      tone[i] = 0.5f * std::sin(2.0f * 3.14159265f * 16.0f * static_cast<float>(i) /
+      tone[i] = 0.5f * std::sin(2.0f * 3.14159265f * 64.0f * static_cast<float>(i) /
                                 static_cast<float>(len));
     REQUIRE(yse_dsp_buffer_write(buf, 0, tone.data(), len) == len);
     YseChannel* ch = yse_channel_create("capi_occlusion906", yse_channel_master());
@@ -406,6 +413,13 @@ TEST_SUITE("capilowcov") {
     CHECK(probe.lastSrc.z == doctest::Approx(where.z));
     const float open = yse_channel_get_peak_linear_post(ch);
     REQUIRE(open > 0.001f);
+
+    // How long a new answer takes to be heard: the callback runs inside
+    // yse_system_update() on this thread and queues the value to the sound;
+    // the next rendered block applies it with a 50-sample gain ramp (shorter
+    // than one block). Offline rendering is synchronous, so one pump settles
+    // it deterministically — the pump counts below are margin, not a wait on
+    // another thread.
 
     // Fully blocked: the host's answer silences the sound. Values above 1 are
     // clamped, so this is the same as 1.
