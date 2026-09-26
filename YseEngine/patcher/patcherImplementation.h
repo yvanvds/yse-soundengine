@@ -243,6 +243,9 @@ namespace YSE {
       // the original tag for semantics. Wait-free: one thread_local load.
       THREAD CallingThread(THREAD tag) const;
 
+      // Install (or clear, with nullptr) the outgoing-message handler. Returns
+      // once no other thread is still inside the handler it replaced (issue
+      // #907). Never call from the audio callback: it may wait.
       void SetHandler(oscHandler* handler);
 
       // The patcher's deferred-message scheduler (issue #628). Objects reach it
@@ -543,7 +546,17 @@ namespace YSE {
 
       std::mutex mtx;
       std::map<pHandle*, pObject*> objects;
-      oscHandler* oscHandle = nullptr;
+      // Outgoing-message handler (issue #907). Atomic because it is read on
+      // whichever non-audio thread emits an unmatched send — the host's, or the
+      // `.metro` timer worker's — while the host may install or clear it from
+      // another. Each dispatch loads it once, inside SendToHandler.
+      std::atomic<oscHandler*> oscHandle{nullptr};
+      // Dispatches currently between their load of oscHandle and the return of
+      // the handler call — what SetHandler's grace period waits on.
+      std::atomic<unsigned int> oscInFlight_{0};
+      // Deliver an unmatched message to oscHandle, if one is installed; false
+      // when none is. Control / timer threads only, never the audio callback.
+      template <typename F> bool SendToHandler(F&& send);
 
       // Published topology snapshot the audio thread reads (issue #226). Only
       // the control thread writes it, under mtx.

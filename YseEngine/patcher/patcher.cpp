@@ -28,6 +28,10 @@ void patcher::create(int mainOutputs) {
       pimpl->SetName(pendingName);
       pendingName.clear();
     }
+    if (pendingHandler != nullptr) {
+      pimpl->SetHandler(pendingHandler);
+      pendingHandler = nullptr;
+    }
   } else {
     INTERNAL::LogImpl().emit(E_ERROR, "Patcher could not be Created.");
   }
@@ -167,7 +171,8 @@ bool patcher::PassData(const std::string& value, const std::string& to) {
 
 void patcher::SetOscHandler(oscHandler* handler) {
   if (pimpl == nullptr) {
-    INTERNAL::LogImpl().emit(E_ERROR, "SetOscHandler called on nullptr");
+    // Before create(): nothing can dispatch yet, so keeping it is enough.
+    pendingHandler = handler;
     return;
   }
   pimpl->SetHandler(handler);

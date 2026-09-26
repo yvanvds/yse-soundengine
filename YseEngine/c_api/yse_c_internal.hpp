@@ -98,7 +98,9 @@
 struct YseSynth;
 struct YseDspBuffer;
 struct YseMidiIn;
+struct YsePatcher;
 namespace YSE {
+  class patcher;
   namespace SYNTH {
     class interfaceObject;
   }
@@ -192,5 +194,12 @@ namespace yse_c {
   // use this to drive the port's dispatch path, and so the C bridge, without
   // a hardware device (issue #916).
   YSE::midiIn* midi_in_from_handle(YseMidiIn* h);
+
+  // Return the engine patcher backing a YsePatcher handle, or nullptr for a
+  // NULL handle. Defined in yse_patcher.cpp. A YsePatcher* is not a
+  // YSE::patcher* since issue #907: the handle owns the patcher together with
+  // its send-callback bridge, so every TU that needs the engine object goes
+  // through here, never through a reinterpret_cast of the handle.
+  YSE::patcher* patcher_from_handle(YsePatcher* h);
 
 } // namespace yse_c

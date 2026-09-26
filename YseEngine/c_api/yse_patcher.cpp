@@ -12,17 +12,111 @@
 #include "../patcher/parameters.h"
 #include "../headers/enums.hpp"
 
+#include <atomic>
 #include <cstdlib>
 #include <cstring>
 #include <exception>
 #include <memory>
 #include <string>
+#include <thread>
 #include <unordered_map>
 #include <vector>
 
 namespace {
+  // ── Send-callback bridge (issue #907) ───────────────────────────────
+  //
+  // The engine hands a patcher's unmatched sends to a C++ oscHandler. This is
+  // that handler for a C host: it copies the message into one malloc'd block
+  // the receiver owns and calls the host's function pointer.
+  //
+  // It runs on whichever non-audio thread emitted the message — the host's,
+  // or the timer worker behind a millisecond `.metro` — so the host may be
+  // installing on one thread while it dispatches on another. The (cb,
+  // user_data) pair is therefore one immutable node behind one atomic pointer
+  // (#902, #916), reclaimed with the MIDI raw bridge's handshake: a dispatch
+  // bumps `readers`, loads the pair, copies both fields to its stack and drops
+  // `readers` again before it allocates or calls out; an install exchanges the
+  // pointer and waits for `readers` to read zero before freeing what it swapped
+  // out. All seq_cst, so either the installer sees the increment or the
+  // dispatch loads the new pair. No user code is inside that window, so a
+  // callback that re-installs from inside itself does not wait on itself.
+  //
+  // The bridge itself lives exactly as long as the handle. It is installed in
+  // the engine while a callback is set and detached while none is, so a
+  // cleared callback also stops yse_patcher_pass_* from answering 1 for a name
+  // nothing receives. Its lifetime past a detach is what keeps a dispatch that
+  // already loaded it safe; the engine's SetOscHandler grace period (no other
+  // thread still inside the old handler on return) is what lets destroy free
+  // it.
+  struct SendPair {
+    YsePatcherSendCallback cb;
+    void* user_data;
+  };
+
+  class SendBridge final : public YSE::oscHandler {
+  public:
+    SendBridge() = default;
+    SendBridge(const SendBridge&) = delete;
+    SendBridge& operator=(const SendBridge&) = delete;
+    SendBridge(SendBridge&&) = delete;
+    SendBridge& operator=(SendBridge&&) = delete;
+    ~SendBridge() override {
+      delete pair.load(std::memory_order_acquire);
+    }
+
+    void Send(const std::string& to) override {
+      Deliver(to, YSE_OUT_BANG, 0, 0.f, nullptr);
+    }
+    void Send(const std::string& to, int value) override {
+      Deliver(to, YSE_OUT_INT, value, 0.f, nullptr);
+    }
+    void Send(const std::string& to, float value) override {
+      Deliver(to, YSE_OUT_FLOAT, 0, value, nullptr);
+    }
+    void Send(const std::string& to, const std::string& value) override {
+      Deliver(to, YSE_OUT_LIST, 0, 0.f, &value);
+    }
+
+    std::atomic<SendPair*> pair{nullptr};
+    std::atomic<unsigned int> readers{0};
+
+  private:
+    void Deliver(const std::string& to, YseOutType kind, int i, float f,
+                 const std::string* s) noexcept {
+      readers.fetch_add(1, std::memory_order_seq_cst);
+      const SendPair* current = pair.load(std::memory_order_seq_cst);
+      YsePatcherSendCallback cb = current != nullptr ? current->cb : nullptr;
+      void* user = current != nullptr ? current->user_data : nullptr;
+      readers.fetch_sub(1, std::memory_order_release);
+      if (cb == nullptr) return;
+      // One block: the address, then (for a list) the payload. A Dart
+      // NativeCallable.listener runs after this returns, so the strings must
+      // outlive the call; freeing the address releases both.
+      const size_t addressSize = to.size() + 1;
+      const size_t total = addressSize + (s != nullptr ? s->size() + 1 : 0);
+      auto* block = static_cast<char*>(std::malloc(total));
+      if (block == nullptr) return;
+      std::memcpy(block, to.c_str(), addressSize);
+      char* payload = nullptr;
+      if (s != nullptr) {
+        payload = block + addressSize;
+        std::memcpy(payload, s->c_str(), s->size() + 1);
+      }
+      cb(user, block, kind, i, f, payload);
+    }
+  };
+
+  // What a YsePatcher* points at: the engine patcher plus its bridge.
+  struct YsePatcherImpl {
+    YSE::patcher cpp;
+    SendBridge bridge;
+  };
+
+  inline YsePatcherImpl* to_impl(YsePatcher* p) {
+    return reinterpret_cast<YsePatcherImpl*>(p);
+  }
   inline YSE::patcher* to_cpp(YsePatcher* p) {
-    return reinterpret_cast<YSE::patcher*>(p);
+    return &to_impl(p)->cpp;
   }
   inline YSE::pHandle* to_cpp(YsePHandle* h) {
     return reinterpret_cast<YSE::pHandle*>(h);
@@ -236,11 +330,15 @@ namespace {
 
 } // namespace
 
+YSE::patcher* yse_c::patcher_from_handle(YsePatcher* h) {
+  return h != nullptr ? to_cpp(h) : nullptr;
+}
+
 extern "C" {
 
 YSE_C_API YsePatcher* yse_patcher_create(void) {
   try {
-    return reinterpret_cast<YsePatcher*>(new YSE::patcher());
+    return reinterpret_cast<YsePatcher*>(new YsePatcherImpl());
   } catch (const std::exception& e) {
     yse_c::set_last_error(e.what());
     return nullptr;
@@ -252,7 +350,46 @@ YSE_C_API YsePatcher* yse_patcher_create(void) {
 
 YSE_C_API void yse_patcher_destroy(YsePatcher* p) {
   if (!p) return;
-  delete to_cpp(p);
+  YsePatcherImpl* impl = to_impl(p);
+  // Detach the bridge first. A patcher loaded into a sound outlives this
+  // handle (the sound keeps rendering its graph, timers included), so the
+  // engine must stop reaching the bridge before it is freed below; on return
+  // no other thread is still inside it (issue #907).
+  impl->cpp.SetOscHandler(nullptr);
+  delete impl;
+}
+
+YSE_C_API YseStatus yse_patcher_set_send_callback(YsePatcher* p, YsePatcherSendCallback cb,
+                                                  void* user_data) {
+  if (!p) return YSE_ERR_INVALID_HANDLE;
+  YsePatcherImpl* impl = to_impl(p);
+  // The install allocates, so it runs inside the ABI exception barrier.
+  return yse_c::guard("yse_patcher_set_send_callback", YSE_ERR_EXCEPTION, [&] {
+    SendBridge& bridge = impl->bridge;
+    SendPair* next = cb != nullptr ? new SendPair{cb, user_data} : nullptr;
+    SendPair* old = bridge.pair.exchange(next, std::memory_order_seq_cst);
+    // The engine sees the bridge exactly while a pair is set. Re-read after
+    // each install so two threads re-installing at once still leave the engine
+    // agreeing with whichever pair won.
+    YSE::oscHandler* wanted = nullptr;
+    do {
+      wanted = bridge.pair.load(std::memory_order_seq_cst) != nullptr ? &bridge : nullptr;
+      impl->cpp.SetOscHandler(wanted);
+    } while ((bridge.pair.load(std::memory_order_seq_cst) != nullptr ? &bridge : nullptr) !=
+             wanted);
+    if (old != nullptr) {
+      // Quiescence: once no dispatch is between its increment and decrement of
+      // `readers`, none can still be reading `old` (see SendBridge).
+      while (bridge.readers.load(std::memory_order_seq_cst) != 0)
+        std::this_thread::yield();
+      delete old;
+    }
+    return YSE_OK;
+  });
+}
+
+YSE_C_API void yse_patcher_free_message(char* address) {
+  std::free(address);
 }
 
 YSE_C_API void yse_patcher_init(YsePatcher* p, int main_outputs) {

@@ -168,7 +168,7 @@ YSE_C_API YseDspObject* yse_dsp_patcher_insert_create(YsePatcher* patcher) {
     return nullptr;
   }
   try {
-    auto* patch = reinterpret_cast<YSE::patcher*>(patcher);
+    auto* patch = yse_c::patcher_from_handle(patcher);
     return reinterpret_cast<YseDspObject*>(new YSE::DSP::patcherInsert(*patch));
   } catch (const std::exception& e) {
     yse_c::set_last_error(e.what());

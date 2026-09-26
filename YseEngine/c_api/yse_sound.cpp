@@ -98,7 +98,7 @@ YSE_C_API YseStatus yse_sound_load_patcher(YseSound* s, YsePatcher* patch, YseCh
   if (!s) return YSE_ERR_INVALID_HANDLE;
   if (!patch) return YSE_ERR_INVALID_ARGUMENT;
   try {
-    auto& cpp_patch = *reinterpret_cast<YSE::patcher*>(patch);
+    auto& cpp_patch = *yse_c::patcher_from_handle(patch);
     to_cpp(s)->create(cpp_patch, to_cpp_chan(ch), volume);
     // create() refuses when the patcher is already controlled by another sound
     // (one patcher per sound — issue #287) or was never created; on refusal the

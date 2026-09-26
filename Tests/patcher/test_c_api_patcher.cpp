@@ -24,9 +24,14 @@
 
 #include <doctest/doctest.h>
 
+#include <atomic>
+#include <chrono>
 #include <cstdlib>
 #include <cstring>
+#include <mutex>
 #include <string>
+#include <thread>
+#include <utility>
 #include <vector>
 
 #include "support/capilowcov_offline.hpp"
@@ -64,6 +69,66 @@ namespace {
     get(buf.data(), buf.size());
     return std::string(buf.data());
   }
+
+  // ─── send-callback recorders (issue #907) ──────────────────────────────────
+
+  struct SendMsg {
+    std::string address;
+    YseOutType kind;
+    int i;
+    float f;
+    bool hasS;
+    std::string s;
+  };
+
+  // Copies each delivery out and frees it the documented way — one
+  // yse_patcher_free_message on the address, which releases `s` too.
+  struct SendLog {
+    std::mutex mtx;
+    std::vector<SendMsg> msgs;
+
+    static void YSE_C_CALLBACK record(void* ud, char* address, YseOutType kind, int i, float f,
+                                      char* s) {
+      auto* self = static_cast<SendLog*>(ud);
+      SendMsg m{address != nullptr ? address : "", kind, i, f, s != nullptr, s != nullptr ? s : ""};
+      yse_patcher_free_message(address);
+      const std::lock_guard<std::mutex> lk(self->mtx);
+      self->msgs.push_back(std::move(m));
+    }
+
+    std::vector<SendMsg> take() {
+      const std::lock_guard<std::mutex> lk(mtx);
+      std::vector<SendMsg> out;
+      out.swap(msgs);
+      return out;
+    }
+  };
+
+  // Two distinct callbacks, each of which knows the tag its own user_data must
+  // carry: a call that pairs one install's function with another's user_data
+  // shows up as a mismatch.
+  struct PairCheck {
+    YsePatcherSendCallback cb;
+    char tag;
+    std::thread::id host{};
+    std::atomic<int> calls{0};
+    std::atomic<int> offHost{0};
+    std::atomic<int> mismatched{0};
+
+    static void check(void* ud, char* address, char expected) {
+      auto* self = static_cast<PairCheck*>(ud);
+      if (self->tag != expected) self->mismatched.fetch_add(1);
+      self->calls.fetch_add(1);
+      if (std::this_thread::get_id() != self->host) self->offHost.fetch_add(1);
+      yse_patcher_free_message(address);
+    }
+    static void YSE_C_CALLBACK recordA(void* ud, char* address, YseOutType, int, float, char*) {
+      check(ud, address, 'A');
+    }
+    static void YSE_C_CALLBACK recordB(void* ud, char* address, YseOutType, int, float, char*) {
+      check(ud, address, 'B');
+    }
+  };
 
 } // namespace
 
@@ -446,6 +511,174 @@ TEST_SUITE("capilowcov") {
     CHECK(yse_patcher_pass_string(p, "v", nullptr) == 0);
 
     yse_patcher_destroy(p);
+  }
+
+  // ─── send callback (issue #907) ────────────────────────────────────────────
+
+  TEST_CASE("c-api patcher: the send callback receives every unmatched pass_* kind (#907)") {
+    if (!capilowcov::ensureOffline()) return; // engine unavailable → skip
+
+    YsePatcher* p = yse_patcher_create();
+    REQUIRE(p != nullptr);
+    yse_patcher_init(p, 2);
+    REQUIRE(yse_patcher_create_object(p, kReceive, "inside") != nullptr);
+
+    SendLog log;
+    REQUIRE(yse_patcher_set_send_callback(p, &SendLog::record, &log) == YSE_OK);
+
+    // Nothing receives "out": each kind reaches the host and reports 1.
+    CHECK(yse_patcher_pass_bang(p, "out") == 1);
+    CHECK(yse_patcher_pass_int(p, 42, "out") == 1);
+    CHECK(yse_patcher_pass_float(p, 0.25f, "out") == 1);
+    CHECK(yse_patcher_pass_string(p, "open sesame", "out") == 1);
+
+    const std::vector<SendMsg> got = log.take();
+    REQUIRE(got.size() == 4u);
+    for (const SendMsg& m : got)
+      CHECK(m.address == "out");
+    CHECK(got[0].kind == YSE_OUT_BANG);
+    CHECK((got[0].i == 0 && got[0].f == 0.f && !got[0].hasS));
+    CHECK(got[1].kind == YSE_OUT_INT);
+    CHECK((got[1].i == 42 && got[1].f == 0.f && !got[1].hasS));
+    CHECK(got[2].kind == YSE_OUT_FLOAT);
+    CHECK((got[2].i == 0 && got[2].f == 0.25f && !got[2].hasS));
+    CHECK(got[3].kind == YSE_OUT_LIST);
+    CHECK(got[3].hasS);
+    CHECK(got[3].s == "open sesame");
+
+    // A name the patch does receive stays inside it.
+    CHECK(yse_patcher_pass_int(p, 7, "inside") == 1);
+    CHECK(log.take().empty());
+
+    // Cleared: back to "no receiver" answering 0, and nothing is delivered.
+    REQUIRE(yse_patcher_set_send_callback(p, nullptr, nullptr) == YSE_OK);
+    CHECK(yse_patcher_pass_bang(p, "out") == 0);
+    CHECK(yse_patcher_pass_string(p, "v", "out") == 0);
+    CHECK(log.take().empty());
+
+    yse_patcher_destroy(p);
+  }
+
+  TEST_CASE("c-api patcher: a .s inside the patch reaches the send callback (#907)") {
+    if (!capilowcov::ensureOffline()) return; // engine unavailable → skip
+
+    YsePatcher* p = yse_patcher_create();
+    REQUIRE(p != nullptr);
+    yse_patcher_init(p, 2);
+    YsePHandle* send = yse_patcher_create_object(p, ".s", "toHost");
+    REQUIRE(send != nullptr);
+
+    SendLog log;
+    REQUIRE(yse_patcher_set_send_callback(p, &SendLog::record, &log) == YSE_OK);
+
+    // The host drives the patch; the patch talks back by the .s's own name.
+    yse_phandle_set_bang(send, 0);
+    yse_phandle_set_int(send, 0, 3);
+    yse_phandle_set_float(send, 0, 1.5f);
+    yse_phandle_set_list(send, 0, "a b c");
+
+    const std::vector<SendMsg> got = log.take();
+    REQUIRE(got.size() == 4u);
+    for (const SendMsg& m : got)
+      CHECK(m.address == "toHost");
+    CHECK(got[0].kind == YSE_OUT_BANG);
+    CHECK(got[1].kind == YSE_OUT_INT);
+    CHECK(got[1].i == 3);
+    CHECK(got[2].kind == YSE_OUT_FLOAT);
+    CHECK(got[2].f == 1.5f);
+    CHECK(got[3].kind == YSE_OUT_LIST);
+    CHECK(got[3].s == "a b c");
+
+    // Once a .r in the patch answers the name, the message stays inside.
+    REQUIRE(yse_patcher_create_object(p, kReceive, "toHost") != nullptr);
+    yse_phandle_set_int(send, 0, 4);
+    CHECK(log.take().empty());
+
+    yse_patcher_destroy(p);
+  }
+
+  TEST_CASE("c-api patcher: send callback install before init, replace, and NULL safety (#907)") {
+    if (!capilowcov::ensureOffline()) return; // engine unavailable → skip
+
+    CHECK(yse_patcher_set_send_callback(nullptr, &SendLog::record, nullptr) ==
+          YSE_ERR_INVALID_HANDLE);
+    yse_patcher_free_message(nullptr); // documented no-op
+
+    YsePatcher* p = yse_patcher_create();
+    REQUIRE(p != nullptr);
+    SendLog first;
+    SendLog second;
+    // Installed before init: kept and applied by init, like a stashed name.
+    REQUIRE(yse_patcher_set_send_callback(p, &SendLog::record, &first) == YSE_OK);
+    yse_patcher_init(p, 2);
+    CHECK(yse_patcher_pass_bang(p, "x") == 1);
+    CHECK(first.take().size() == 1u);
+
+    // A re-install replaces: the new pair gets the message, the old one not.
+    REQUIRE(yse_patcher_set_send_callback(p, &SendLog::record, &second) == YSE_OK);
+    CHECK(yse_patcher_pass_bang(p, "x") == 1);
+    CHECK(first.take().empty());
+    CHECK(second.take().size() == 1u);
+
+    // Cleared before init on a fresh patcher: init installs nothing.
+    YsePatcher* q = yse_patcher_create();
+    REQUIRE(q != nullptr);
+    REQUIRE(yse_patcher_set_send_callback(q, &SendLog::record, &first) == YSE_OK);
+    REQUIRE(yse_patcher_set_send_callback(q, nullptr, nullptr) == YSE_OK);
+    yse_patcher_init(q, 2);
+    CHECK(yse_patcher_pass_bang(q, "x") == 0);
+    CHECK(first.take().empty());
+
+    yse_patcher_destroy(q);
+    yse_patcher_destroy(p);
+  }
+
+  TEST_CASE("c-api patcher: a timer-driven .s calls back off the host thread while it "
+            "re-installs, and destroy is the last word (#907)") {
+    // The callback's second thread: a millisecond .metro ticks on its timer
+    // worker, and each tick's bang runs the .s — and so the callback — there.
+    // The host meanwhile flips between two (cb, user_data) pairs; every call
+    // must see a matched pair. Once destroy returns, nothing calls back.
+    if (!capilowcov::ensureOffline()) return; // engine unavailable → skip
+
+    YsePatcher* p = yse_patcher_create();
+    REQUIRE(p != nullptr);
+    yse_patcher_init(p, 2);
+    YsePHandle* metro = yse_patcher_create_object(p, kMetro, nullptr);
+    YsePHandle* send = yse_patcher_create_object(p, ".s", "tick");
+    REQUIRE(metro != nullptr);
+    REQUIRE(send != nullptr);
+    yse_patcher_connect(p, metro, 0, send, 0);
+
+    PairCheck a{&PairCheck::recordA, 'A'};
+    PairCheck b{&PairCheck::recordB, 'B'};
+    REQUIRE(yse_patcher_set_send_callback(p, a.cb, &a) == YSE_OK);
+
+    const std::thread::id host = std::this_thread::get_id();
+    a.host = host;
+    b.host = host;
+    yse_phandle_set_int(metro, 1, 1); // 1 ms period
+    yse_phandle_set_int(metro, 0, 1); // start
+
+    // Re-install until the timer thread has called back a fair number of
+    // times, bounded so a stalled timer fails rather than hangs.
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(10);
+    for (int n = 0; (a.offHost.load() + b.offHost.load()) < 50; ++n) {
+      if (std::chrono::steady_clock::now() > deadline) break;
+      PairCheck& next = (n % 2 == 0) ? b : a;
+      REQUIRE(yse_patcher_set_send_callback(p, next.cb, &next) == YSE_OK);
+      std::this_thread::sleep_for(std::chrono::microseconds(200));
+    }
+    CHECK(a.offHost.load() + b.offHost.load() >= 50);
+    CHECK(a.mismatched.load() == 0);
+    CHECK(b.mismatched.load() == 0);
+
+    // Metro still running: destroy must wait out any call in progress and
+    // leave nothing to call back afterwards.
+    yse_patcher_destroy(p);
+    const int after = a.calls.load() + b.calls.load();
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    CHECK(a.calls.load() + b.calls.load() == after);
   }
 
   // ─── pHandle accessors ─────────────────────────────────────────────────────
