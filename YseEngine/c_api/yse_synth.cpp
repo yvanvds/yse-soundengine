@@ -160,7 +160,8 @@ YSE_C_API void yse_synth_set_name(YseSynth* h, const char* name) {
   // NULL is treated as "" (clear), so FFI callers can always pass through.
   // Runs on the control thread; the engine's name() does the bus
   // (de)registration and logs a duplicate-name rejection itself.
-  if (h) to_impl(h)->synth.name(name ? name : "");
+  if (!h) return;
+  yse_c::guard_void("yse_synth_set_name", [&] { to_impl(h)->synth.name(name ? name : ""); });
 }
 
 // ─── voice groups (built-in voices only) ───────────────────────────────
@@ -366,8 +367,10 @@ YSE_C_API void yse_synth_va_load_wavetable(YseSynth* h, int slot, const float* c
   if (!p || !cycle || length == 0 || slot < 0) return;
   // Setup-thread reshape of the morph bank; copy into a vector for the engine
   // API. Off the audio thread by contract (documented in the header).
-  std::vector<Flt> cyc(cycle, cycle + length);
-  p->loadWavetable(slot, cyc);
+  yse_c::guard_void("yse_synth_va_load_wavetable", [&] {
+    std::vector<Flt> cyc(cycle, cycle + length);
+    p->loadWavetable(slot, cyc);
+  });
 }
 
 // ─── FM patch (issue #178) ─────────────────────────────────────────────

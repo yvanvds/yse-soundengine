@@ -315,7 +315,9 @@ YSE_C_API size_t yse_system_default_device(YseSystem* sys, char* buf, size_t cap
     if (buf && cap > 0) buf[0] = '\0';
     return 0;
   }
-  return copy_string(to_cpp(sys)->getDefaultDevice(), buf, cap);
+  return yse_c::guard_string("yse_system_default_device", buf, cap, [&] {
+    return copy_string(to_cpp(sys)->getDefaultDevice(), buf, cap);
+  });
 }
 
 YSE_C_API size_t yse_system_default_host(YseSystem* sys, char* buf, size_t cap) {
@@ -323,7 +325,8 @@ YSE_C_API size_t yse_system_default_host(YseSystem* sys, char* buf, size_t cap) 
     if (buf && cap > 0) buf[0] = '\0';
     return 0;
   }
-  return copy_string(to_cpp(sys)->getDefaultHost(), buf, cap);
+  return yse_c::guard_string("yse_system_default_host", buf, cap,
+                             [&] { return copy_string(to_cpp(sys)->getDefaultHost(), buf, cap); });
 }
 
 // ─── MIDI device enumeration ───────────────────────────────────────────────
@@ -353,11 +356,9 @@ YSE_C_API size_t yse_system_midi_in_device_name(YseSystem* sys, unsigned int id,
   if (buf && cap > 0) buf[0] = '\0';
 #if YSE_ENABLE_MIDI_DEVICE
   if (!sys) return 0;
-  try {
+  return yse_c::guard_string("yse_system_midi_in_device_name", buf, cap, [&] {
     return copy_string(to_cpp(sys)->getMidiInDeviceName(id), buf, cap);
-  } catch (const std::exception&) {
-    return 0;
-  }
+  });
 #else
   (void)sys;
   (void)id;
@@ -372,11 +373,9 @@ YSE_C_API size_t yse_system_midi_out_device_name(YseSystem* sys, unsigned int id
   if (buf && cap > 0) buf[0] = '\0';
 #if YSE_ENABLE_MIDI_DEVICE
   if (!sys) return 0;
-  try {
+  return yse_c::guard_string("yse_system_midi_out_device_name", buf, cap, [&] {
     return copy_string(to_cpp(sys)->getMidiOutDeviceName(id), buf, cap);
-  } catch (const std::exception&) {
-    return 0;
-  }
+  });
 #else
   (void)sys;
   (void)id;

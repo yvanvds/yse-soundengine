@@ -79,7 +79,8 @@ YSE_C_API YseLog* yse_log_get(void) {
 }
 
 YSE_C_API void yse_log_send_message(YseLog* log, const char* msg) {
-  if (log && msg) to_cpp(log)->sendMessage(msg);
+  if (!log || !msg) return;
+  yse_c::guard_void("yse_log_send_message", [&] { to_cpp(log)->sendMessage(msg); });
 }
 
 YSE_C_API void yse_log_set_level(YseLog* log, YseErrorLevel level) {
@@ -91,7 +92,8 @@ YSE_C_API YseErrorLevel yse_log_get_level(YseLog* log) {
 }
 
 YSE_C_API void yse_log_set_logfile(YseLog* log, const char* path) {
-  if (log && path) to_cpp(log)->setLogfile(path);
+  if (!log || !path) return;
+  yse_c::guard_void("yse_log_set_logfile", [&] { to_cpp(log)->setLogfile(path); });
 }
 
 YSE_C_API size_t yse_log_get_logfile(YseLog* log, char* buf, size_t cap) {

@@ -16,6 +16,7 @@
 */
 
 #include "yse_c/yse_python.h"
+#include "yse_c_internal.hpp"
 
 #include "../internal/global.h"
 
@@ -54,7 +55,8 @@ YSE_C_API int yse_python_enabled(void) {
 YSE_C_API void yse_run_script(const char* src) {
 #if YSE_ENABLE_PYTHON
   if (src == nullptr) return;
-  YSE::INTERNAL::Global().pushScript(std::string(src));
+  yse_c::guard_void("yse_run_script",
+                    [&] { YSE::INTERNAL::Global().pushScript(std::string(src)); });
 #else
   // No interpreter to run on: report the misconfiguration synchronously through
   // the same callback path the ON build delivers tracebacks on.

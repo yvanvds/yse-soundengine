@@ -389,6 +389,34 @@ TEST_SUITE("capilowcov") {
     yse_patcher_destroy(p);
   }
 
+  TEST_CASE("c-api phandle: a malformed set_params is reported, not thrown across the ABI (#901)") {
+    // `.i`'s param is an int, so a non-number makes the re-parse's std::stoi
+    // throw. Before #901 that exception escaped the extern "C" function and
+    // terminated the host; now the barrier reports it through yse_last_error()
+    // and the object keeps the params it had.
+    YsePatcher* p = yse_patcher_create();
+    REQUIRE(p != nullptr);
+    yse_patcher_init(p, 2);
+
+    YsePHandle* h = yse_patcher_create_object(p, kInt, "7");
+    REQUIRE(h != nullptr);
+    const std::string before =
+        readString([h](char* b, size_t c) { return yse_phandle_get_params(h, b, c); });
+
+    yse_clear_last_error();
+    yse_phandle_set_params(h, "not_a_number");
+    CHECK(std::strlen(yse_last_error()) > 0u);
+    CHECK(readString([h](char* b, size_t c) { return yse_phandle_get_params(h, b, c); }) == before);
+
+    // The handle is still usable afterwards: a well-formed re-parse lands.
+    yse_clear_last_error();
+    yse_phandle_set_params(h, "9");
+    CHECK(std::strlen(yse_last_error()) == 0u);
+    CHECK(readString([h](char* b, size_t c) { return yse_phandle_get_params(h, b, c); }) == "9");
+
+    yse_patcher_destroy(p);
+  }
+
   TEST_CASE("c-api phandle: the GUI value protocol's cell form mirrors the engine") {
     // Issue #551. `.i` is a scalar control, so it is the one-cell case: it
     // reports one cell, cell 0 is exactly the whole-state read, and

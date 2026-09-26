@@ -40,7 +40,8 @@ YSE_C_API size_t yse_device_get_name(YseDevice* dev, char* buf, size_t cap) {
     if (buf && cap > 0) buf[0] = '\0';
     return 0;
   }
-  return copy_string(to_cpp(dev)->getName(), buf, cap);
+  return yse_c::guard_string("yse_device_get_name", buf, cap,
+                             [&] { return copy_string(to_cpp(dev)->getName(), buf, cap); });
 }
 
 YSE_C_API size_t yse_device_get_type_name(YseDevice* dev, char* buf, size_t cap) {
@@ -48,7 +49,8 @@ YSE_C_API size_t yse_device_get_type_name(YseDevice* dev, char* buf, size_t cap)
     if (buf && cap > 0) buf[0] = '\0';
     return 0;
   }
-  return copy_string(to_cpp(dev)->getTypeName(), buf, cap);
+  return yse_c::guard_string("yse_device_get_type_name", buf, cap,
+                             [&] { return copy_string(to_cpp(dev)->getTypeName(), buf, cap); });
 }
 
 YSE_C_API unsigned int yse_device_num_output_channels(YseDevice* dev) {
@@ -61,15 +63,12 @@ YSE_C_API size_t yse_device_get_output_channel_name(YseDevice* dev, unsigned int
     if (buf && cap > 0) buf[0] = '\0';
     return 0;
   }
-  try {
+  // The engine getter bound-checks with .at(), so an out-of-range index throws
+  // and the barrier reports an empty string instead of reading past the end
+  // (issue #565).
+  return yse_c::guard_string("yse_device_get_output_channel_name", buf, cap, [&] {
     return copy_string(to_cpp(dev)->getOutputChannelName(idx), buf, cap);
-  } catch (const std::exception&) {
-    // The engine getter bound-checks with .at(), so an out-of-range index
-    // lands here: report an empty string instead of reading past the end
-    // (issue #565).
-    if (buf && cap > 0) buf[0] = '\0';
-    return 0;
-  }
+  });
 }
 
 YSE_C_API unsigned int yse_device_num_input_channels(YseDevice* dev) {
@@ -82,13 +81,10 @@ YSE_C_API size_t yse_device_get_input_channel_name(YseDevice* dev, unsigned int 
     if (buf && cap > 0) buf[0] = '\0';
     return 0;
   }
-  try {
+  // Out-of-range index — see yse_device_get_output_channel_name.
+  return yse_c::guard_string("yse_device_get_input_channel_name", buf, cap, [&] {
     return copy_string(to_cpp(dev)->getInputChannelName(idx), buf, cap);
-  } catch (const std::exception&) {
-    // Out-of-range index — see yse_device_get_output_channel_name.
-    if (buf && cap > 0) buf[0] = '\0';
-    return 0;
-  }
+  });
 }
 
 YSE_C_API unsigned int yse_device_num_sample_rates(YseDevice* dev) {
@@ -96,13 +92,10 @@ YSE_C_API unsigned int yse_device_num_sample_rates(YseDevice* dev) {
 }
 YSE_C_API double yse_device_get_sample_rate(YseDevice* dev, unsigned int idx) {
   if (!dev) return 0.0;
-  try {
-    return to_cpp(dev)->getAvailableSampleRate(idx);
-  } catch (const std::exception&) {
-    // Out-of-range index: report 0.0 rather than letting the engine's
-    // std::out_of_range escape across the C ABI.
-    return 0.0;
-  }
+  // Out-of-range index: report 0.0 rather than letting the engine's
+  // std::out_of_range escape across the C ABI.
+  return yse_c::guard("yse_device_get_sample_rate", 0.0,
+                      [&] { return to_cpp(dev)->getAvailableSampleRate(idx); });
 }
 
 YSE_C_API unsigned int yse_device_num_buffer_sizes(YseDevice* dev) {
@@ -110,12 +103,9 @@ YSE_C_API unsigned int yse_device_num_buffer_sizes(YseDevice* dev) {
 }
 YSE_C_API int yse_device_get_buffer_size(YseDevice* dev, unsigned int idx) {
   if (!dev) return 0;
-  try {
-    return to_cpp(dev)->getAvailableBufferSize(idx);
-  } catch (const std::exception&) {
-    // Out-of-range index — same contract as yse_device_get_sample_rate.
-    return 0;
-  }
+  // Out-of-range index — same contract as yse_device_get_sample_rate.
+  return yse_c::guard("yse_device_get_buffer_size", 0,
+                      [&] { return to_cpp(dev)->getAvailableBufferSize(idx); });
 }
 
 YSE_C_API int yse_device_default_buffer_size(YseDevice* dev) {

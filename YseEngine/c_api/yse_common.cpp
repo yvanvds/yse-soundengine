@@ -11,12 +11,31 @@ namespace {
 
 namespace yse_c {
 
-  void set_last_error(const char* msg) {
-    g_last_error = msg ? msg : "";
+  // Assignment only throws on allocation failure; clear() never throws, so an
+  // out-of-memory error report degrades to an empty message rather than a
+  // second exception inside the caller's catch handler (issue #901).
+  void set_last_error(const char* msg) noexcept {
+    try {
+      g_last_error = msg ? msg : "";
+    } catch (...) {
+      g_last_error.clear();
+    }
   }
 
-  void set_last_error(const std::string& msg) {
-    g_last_error = msg;
+  void set_last_error(const std::string& msg) noexcept {
+    try {
+      g_last_error = msg;
+    } catch (...) {
+      g_last_error.clear();
+    }
+  }
+
+  void set_unknown_exception(const char* where) noexcept {
+    try {
+      g_last_error = std::string(where ? where : "yse") + ": unknown C++ exception";
+    } catch (...) {
+      g_last_error.clear();
+    }
   }
 
 } // namespace yse_c

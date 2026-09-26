@@ -71,7 +71,10 @@
 
 #pragma once
 
+#include <cstddef>
+#include <exception>
 #include <string>
+#include <utility>
 
 // Forward declarations for the cross-TU synth-handle accessor below. Kept
 // minimal so this header stays free of engine includes; the definitions live
@@ -91,9 +94,63 @@ namespace YSE {
 namespace yse_c {
 
   // Stash a human-readable error in the thread-local last_error slot.
-  // Retrieved by the C client via yse_last_error().
-  void set_last_error(const char* msg);
-  void set_last_error(const std::string& msg);
+  // Retrieved by the C client via yse_last_error(). noexcept because both are
+  // called from inside catch handlers at the ABI boundary: if storing the
+  // message itself runs out of memory, the slot is cleared instead of a second
+  // exception escaping the extern "C" function (issue #901).
+  void set_last_error(const char* msg) noexcept;
+  void set_last_error(const std::string& msg) noexcept;
+
+  // Record "<where>: unknown C++ exception" for a catch (...) handler, without
+  // letting the string concatenation throw.
+  void set_unknown_exception(const char* where) noexcept;
+
+  // ─── Exception barrier (issue #901) ─────────────────────────────────────
+  // An exception escaping an extern "C" function is undefined behaviour and in
+  // practice terminates the host. Every entry point that reaches C++ which can
+  // throw — anything that builds a std::string, re-parses, or allocates — runs
+  // its body through one of these: std::exception and anything else are both
+  // caught, reported through yse_last_error(), and turned into the function's
+  // documented failure value.
+
+  // Value-returning body: returns `body()`, or `fallback` if it threw.
+  template <typename R, typename F> R guard(const char* where, R fallback, F&& body) noexcept {
+    try {
+      return std::forward<F>(body)();
+    } catch (const std::exception& e) {
+      set_last_error(e.what());
+    } catch (...) {
+      set_unknown_exception(where);
+    }
+    return fallback;
+  }
+
+  // Void body: a state change that failed is reported and otherwise a no-op.
+  template <typename F> void guard_void(const char* where, F&& body) noexcept {
+    try {
+      std::forward<F>(body)();
+    } catch (const std::exception& e) {
+      set_last_error(e.what());
+    } catch (...) {
+      set_unknown_exception(where);
+    }
+  }
+
+  // snprintf-style string getter: `body()` returns the full length it copied
+  // into buf. On a throw the caller's buffer is cleared and 0 is returned — the
+  // same answer as a NULL handle — so a host never reads a half-written buffer.
+  template <typename F>
+  std::size_t guard_string(const char* where, char* buf, std::size_t cap, F&& body) noexcept {
+    try {
+      return std::forward<F>(body)();
+    } catch (const std::exception& e) {
+      set_last_error(e.what());
+    } catch (...) {
+      set_unknown_exception(where);
+    }
+    if (buf != nullptr && cap > 0) buf[0] = '\0';
+    return 0;
+  }
 
   // Return the engine synth backing a YseSynth handle, or nullptr for a NULL
   // handle. Defined in yse_synth.cpp — lets yse_music.cpp's player create()

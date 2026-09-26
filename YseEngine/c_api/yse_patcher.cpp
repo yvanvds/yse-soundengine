@@ -210,12 +210,25 @@ namespace {
     return cache;
   }
 
-  const TypeMeta* findType(const char* type_name) {
+  // The metadata entry points reach the cache through these two, so the one
+  // step that allocates — building it, or the std::string key a lookup makes —
+  // is behind the ABI exception barrier (issue #901). A build that threw is
+  // retried on the next call: a function-local static whose initialiser throws
+  // is left uninitialised.
+  const MetaCache* cacheOrNull() noexcept {
+    return yse_c::guard("yse_patcher metadata", static_cast<const MetaCache*>(nullptr),
+                        [] { return &buildCache(); });
+  }
+
+  const TypeMeta* findType(const char* type_name) noexcept {
     if (!type_name) return nullptr;
-    const auto& cache = buildCache();
-    auto it = cache.indexByName.find(type_name);
-    if (it == cache.indexByName.end()) return nullptr;
-    return &cache.types[it->second];
+    return yse_c::guard("yse_patcher metadata", static_cast<const TypeMeta*>(nullptr),
+                        [type_name]() -> const TypeMeta* {
+                          const auto& cache = buildCache();
+                          auto it = cache.indexByName.find(type_name);
+                          if (it == cache.indexByName.end()) return nullptr;
+                          return &cache.types[it->second];
+                        });
   }
 
 } // namespace
@@ -241,7 +254,7 @@ YSE_C_API void yse_patcher_destroy(YsePatcher* p) {
 
 YSE_C_API void yse_patcher_init(YsePatcher* p, int main_outputs) {
   if (!p) return;
-  to_cpp(p)->create(main_outputs);
+  yse_c::guard_void("yse_patcher_init", [&] { to_cpp(p)->create(main_outputs); });
 }
 
 YSE_C_API YsePHandle* yse_patcher_create_object(YsePatcher* p, const char* type, const char* args) {
@@ -259,28 +272,32 @@ YSE_C_API YsePHandle* yse_patcher_create_object(YsePatcher* p, const char* type,
 
 YSE_C_API void yse_patcher_delete_object(YsePatcher* p, YsePHandle* obj) {
   if (!p || !obj) return;
-  to_cpp(p)->DeleteObject(to_cpp(obj));
+  yse_c::guard_void("yse_patcher_delete_object", [&] { to_cpp(p)->DeleteObject(to_cpp(obj)); });
 }
 
 YSE_C_API void yse_patcher_clear(YsePatcher* p) {
-  if (p) to_cpp(p)->Clear();
+  if (!p) return;
+  yse_c::guard_void("yse_patcher_clear", [&] { to_cpp(p)->Clear(); });
 }
 
 YSE_C_API void yse_patcher_connect(YsePatcher* p, YsePHandle* from, int outlet, YsePHandle* to,
                                    int inlet) {
   if (!p || !from || !to) return;
-  to_cpp(p)->Connect(to_cpp(from), outlet, to_cpp(to), inlet);
+  yse_c::guard_void("yse_patcher_connect",
+                    [&] { to_cpp(p)->Connect(to_cpp(from), outlet, to_cpp(to), inlet); });
 }
 
 YSE_C_API void yse_patcher_disconnect(YsePatcher* p, YsePHandle* from, int outlet, YsePHandle* to,
                                       int inlet) {
   if (!p || !from || !to) return;
-  to_cpp(p)->Disconnect(to_cpp(from), outlet, to_cpp(to), inlet);
+  yse_c::guard_void("yse_patcher_disconnect",
+                    [&] { to_cpp(p)->Disconnect(to_cpp(from), outlet, to_cpp(to), inlet); });
 }
 
 YSE_C_API int yse_patcher_is_valid_object(const char* type) {
   if (!type) return 0;
-  return YSE::patcher::IsValidObject(type) ? 1 : 0;
+  return yse_c::guard("yse_patcher_is_valid_object", 0,
+                      [&] { return YSE::patcher::IsValidObject(type) ? 1 : 0; });
 }
 
 // Subpatchers (issue #545). A NULL `container` is meaningful here rather than a
@@ -288,7 +305,8 @@ YSE_C_API int yse_patcher_is_valid_object(const char* type) {
 // patcher and the object itself are null-checked.
 YSE_C_API void yse_patcher_set_container(YsePatcher* p, YsePHandle* obj, YsePHandle* container) {
   if (!p || !obj) return;
-  to_cpp(p)->SetContainer(to_cpp(obj), to_cpp(container));
+  yse_c::guard_void("yse_patcher_set_container",
+                    [&] { to_cpp(p)->SetContainer(to_cpp(obj), to_cpp(container)); });
 }
 
 YSE_C_API YsePHandle* yse_patcher_get_container(YsePatcher* p, YsePHandle* obj) {
@@ -311,12 +329,8 @@ YSE_C_API size_t yse_patcher_dump_json(YsePatcher* p, char* buf, size_t cap) {
     if (buf && cap > 0) buf[0] = '\0';
     return 0;
   }
-  try {
-    return copy_string(to_cpp(p)->DumpJSON(), buf, cap);
-  } catch (const std::exception&) {
-    if (buf && cap > 0) buf[0] = '\0';
-    return 0;
-  }
+  return yse_c::guard_string("yse_patcher_dump_json", buf, cap,
+                             [&] { return copy_string(to_cpp(p)->DumpJSON(), buf, cap); });
 }
 
 YSE_C_API void yse_patcher_parse_json(YsePatcher* p, const char* content) {
@@ -342,19 +356,23 @@ YSE_C_API YsePHandle* yse_patcher_get_handle_from_id(YsePatcher* p, unsigned int
 
 YSE_C_API int yse_patcher_pass_bang(YsePatcher* p, const char* to) {
   if (!p || !to) return 0;
-  return to_cpp(p)->PassBang(to) ? 1 : 0;
+  return yse_c::guard("yse_patcher_pass_bang", 0, [&] { return to_cpp(p)->PassBang(to) ? 1 : 0; });
 }
 YSE_C_API int yse_patcher_pass_int(YsePatcher* p, int value, const char* to) {
   if (!p || !to) return 0;
-  return to_cpp(p)->PassData(value, std::string(to)) ? 1 : 0;
+  return yse_c::guard("yse_patcher_pass_int", 0,
+                      [&] { return to_cpp(p)->PassData(value, std::string(to)) ? 1 : 0; });
 }
 YSE_C_API int yse_patcher_pass_float(YsePatcher* p, float value, const char* to) {
   if (!p || !to) return 0;
-  return to_cpp(p)->PassData(value, std::string(to)) ? 1 : 0;
+  return yse_c::guard("yse_patcher_pass_float", 0,
+                      [&] { return to_cpp(p)->PassData(value, std::string(to)) ? 1 : 0; });
 }
 YSE_C_API int yse_patcher_pass_string(YsePatcher* p, const char* value, const char* to) {
   if (!p || !to || !value) return 0;
-  return to_cpp(p)->PassData(std::string(value), std::string(to)) ? 1 : 0;
+  return yse_c::guard("yse_patcher_pass_string", 0, [&] {
+    return to_cpp(p)->PassData(std::string(value), std::string(to)) ? 1 : 0;
+  });
 }
 
 // ─── handle accessors ────────────────────────────────────────────────
@@ -364,29 +382,34 @@ YSE_C_API size_t yse_phandle_get_type(YsePHandle* h, char* buf, size_t cap) {
     if (buf && cap > 0) buf[0] = '\0';
     return 0;
   }
-  const char* s = to_cpp(h)->Type();
-  return copy_string(s ? std::string(s) : std::string(), buf, cap);
+  return yse_c::guard_string("yse_phandle_get_type", buf, cap, [&] {
+    const char* s = to_cpp(h)->Type();
+    return copy_string(s ? std::string(s) : std::string(), buf, cap);
+  });
 }
 YSE_C_API size_t yse_phandle_get_name(YsePHandle* h, char* buf, size_t cap) {
   if (!h) {
     if (buf && cap > 0) buf[0] = '\0';
     return 0;
   }
-  return copy_string(to_cpp(h)->GetName(), buf, cap);
+  return yse_c::guard_string("yse_phandle_get_name", buf, cap,
+                             [&] { return copy_string(to_cpp(h)->GetName(), buf, cap); });
 }
 YSE_C_API size_t yse_phandle_get_params(YsePHandle* h, char* buf, size_t cap) {
   if (!h) {
     if (buf && cap > 0) buf[0] = '\0';
     return 0;
   }
-  return copy_string(to_cpp(h)->GetParams(), buf, cap);
+  return yse_c::guard_string("yse_phandle_get_params", buf, cap,
+                             [&] { return copy_string(to_cpp(h)->GetParams(), buf, cap); });
 }
 YSE_C_API size_t yse_phandle_get_gui_value(YsePHandle* h, char* buf, size_t cap) {
   if (!h) {
     if (buf && cap > 0) buf[0] = '\0';
     return 0;
   }
-  return copy_string(to_cpp(h)->GetGuiValue(), buf, cap);
+  return yse_c::guard_string("yse_phandle_get_gui_value", buf, cap,
+                             [&] { return copy_string(to_cpp(h)->GetGuiValue(), buf, cap); });
 }
 YSE_C_API unsigned int yse_phandle_get_gui_value_count(YsePHandle* h) {
   // 0 rather than 1 on NULL: a handle that names no object has no cells, and
@@ -405,7 +428,9 @@ YSE_C_API size_t yse_phandle_get_gui_value_at(YsePHandle* h, unsigned int index,
   // the count can change under a live SetParams between a host's count read
   // and its cell reads, so "past the end" is a normal outcome of a legitimate
   // poll rather than a caller mistake. See pObject.h.
-  return copy_string(to_cpp(h)->GetGuiValueAt(index), buf, cap);
+  return yse_c::guard_string("yse_phandle_get_gui_value_at", buf, cap, [&] {
+    return copy_string(to_cpp(h)->GetGuiValueAt(index), buf, cap);
+  });
 }
 YSE_C_API int yse_phandle_gui_value_is_settable(YsePHandle* h) {
   if (!h) return 0;
@@ -417,11 +442,14 @@ YSE_C_API size_t yse_phandle_get_gui_property(YsePHandle* h, const char* key, ch
     if (buf && cap > 0) buf[0] = '\0';
     return 0;
   }
-  return copy_string(to_cpp(h)->GetGuiProperty(key), buf, cap);
+  return yse_c::guard_string("yse_phandle_get_gui_property", buf, cap,
+                             [&] { return copy_string(to_cpp(h)->GetGuiProperty(key), buf, cap); });
 }
 YSE_C_API void yse_phandle_set_gui_property(YsePHandle* h, const char* key, const char* value) {
   if (!h || !key) return;
-  to_cpp(h)->SetGuiProperty(key, value ? std::string(value) : std::string());
+  yse_c::guard_void("yse_phandle_set_gui_property", [&] {
+    to_cpp(h)->SetGuiProperty(key, value ? std::string(value) : std::string());
+  });
 }
 
 YSE_C_API void yse_phandle_set_bang(YsePHandle* h, unsigned int inlet) {
@@ -434,10 +462,15 @@ YSE_C_API void yse_phandle_set_float(YsePHandle* h, unsigned int inlet, float v)
   if (h) to_cpp(h)->SetFloatData(inlet, v);
 }
 YSE_C_API void yse_phandle_set_list(YsePHandle* h, unsigned int inlet, const char* v) {
-  if (h && v) to_cpp(h)->SetListData(inlet, v);
+  if (!h || !v) return;
+  yse_c::guard_void("yse_phandle_set_list", [&] { to_cpp(h)->SetListData(inlet, v); });
 }
+// A malformed argument string (a non-number for a numeric param) throws out of
+// the re-parse; the barrier reports it through yse_last_error() and the object
+// keeps its previous params.
 YSE_C_API void yse_phandle_set_params(YsePHandle* h, const char* args) {
-  if (h && args) to_cpp(h)->SetParams(args);
+  if (!h || !args) return;
+  yse_c::guard_void("yse_phandle_set_params", [&] { to_cpp(h)->SetParams(args); });
 }
 
 YSE_C_API int yse_phandle_get_inputs(YsePHandle* h) {
@@ -497,13 +530,14 @@ YSE_C_API unsigned int yse_phandle_get_connection_target_inlet(YsePHandle* h, un
 // ─── registry metadata ───────────────────────────────────────────────
 
 YSE_C_API int yse_patcher_get_type_count(void) {
-  return static_cast<int>(buildCache().types.size());
+  const MetaCache* cache = cacheOrNull();
+  return cache ? static_cast<int>(cache->types.size()) : 0;
 }
 
 YSE_C_API const char* yse_patcher_get_type_name(int index) {
-  const auto& cache = buildCache();
-  if (index < 0 || static_cast<size_t>(index) >= cache.types.size()) return "";
-  return cache.types[static_cast<size_t>(index)].name.c_str();
+  const MetaCache* cache = cacheOrNull();
+  if (!cache || index < 0 || static_cast<size_t>(index) >= cache->types.size()) return "";
+  return cache->types[static_cast<size_t>(index)].name.c_str();
 }
 
 YSE_C_API const char* yse_patcher_get_type_description(const char* type_name) {
