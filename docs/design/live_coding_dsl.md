@@ -98,14 +98,47 @@ for these addresses.
 |------------------------------|----------|------------------------------------|
 | `sound.<name>.<prop>`        | engine   | [`YSE::sound`][gh-123] properties  |
 | `channel.<name>.<prop>`      | engine   | [`YSE::channel`][gh-123] props     |
-| `patcher.<name>.<slot>`      | engine   | `gSend` / `gReceive` ([#122][gh-122]) |
+| `patcher.<name>.<slot>`      | engine   | `gSend` / `gReceive` and shared stores ([#122][gh-122], [#894][gh-894]) |
 | `synth.<name>.<event>`       | engine   | [`YSE::synth`][gh-388] note/controller events |
 
 `<name>` is the name assigned via the engine API (`sound.name(...)`,
-`channel.name(...)`, `patcher.name(...)`, `synth.name(...)`). `<prop>`,
+`channel.name(...)`, `patcher.name(...)` / `yse_patcher_set_name`,
+`synth.name(...)`). `<prop>`,
 `<slot>` and `<event>` are the property, routing slot or event exposed
 by that object. All are matched exact-string — case-sensitive, no
 globbing, no wildcards.
+
+#### The `patcher.` scope
+
+Every name-scoped object inside a patcher speaks under
+`patcher.<patcherName>.<slot>` ([#894][gh-894]). A `.s` / `.r`
+(`gSend` / `gReceive`) with slot `cutoff` in a patcher named `lead`
+publishes to and subscribes on `patcher.lead.cutoff`, so a script
+reaches it with `yse.send("patcher.lead.cutoff", v)` /
+`yse.on("patcher.lead.cutoff", ...)`. The `send <slot>` messages of
+`.forward`, `.bag` and `.table` publish into the same scope.
+
+The same scope also keys the patcher's **shared stores** —
+`.array`, `.dict`, `.coll`, `.value` and the objects that read them by
+name. Two such objects with one name in one patcher (or in two
+patchers with the same name) share one store under the key
+`patcher.<patcherName>.<name>`. The stores are not bus traffic: a script
+cannot `yse.on()` a store's contents, only the `.s` / `.r` / `send`
+publishes above.
+
+- Renaming a patcher re-anchors every bus object and shared store on
+  the new name ([#893][gh-893]); an old-name subscriber stops hearing it.
+- Dotted patcher names are allowed (`"voice.lead"` →
+  `patcher.voice.lead.<slot>`); as everywhere on the bus, the dots are
+  not parsed.
+- A patcher name is at most 55 characters; a longer name is refused
+  (logged, previous name kept). A slot name is at most 63 characters; a
+  longer `.s` / `.r` name is logged and cleared ([#921][gh-921],
+  [#922][gh-922]). Together they keep every `patcher.<name>.<slot>`
+  address inside the bus's fixed audio-thread name slot.
+- A patch file may carry its patcher name as an optional top-level
+  `"name"` key. Loading applies it only to a patcher that still has its
+  auto-name, so a name the host set first wins ([#897][gh-897]).
 
 > **Host tap.** The exact-match rule governs the *script-facing*
 > subscribe surface (`yse.on()`). The **host** additionally has a C API
@@ -133,6 +166,8 @@ exists purely for script-to-script communication. By convention:
 - A bare word — `"cutoff"`, `"lfo_phase"` — is fine.
 - A dotted path — `"synth1.cutoff"`, `"section_a.gate"` — is the
   recommended idiom for namespacing inside a script or between scripts.
+  It stays freeform: `"synth1.cutoff"` does **not** reach a patcher
+  named `synth1` — that is `"patcher.synth1.cutoff"`.
 
 The bus does not parse dotted paths. They are opaque strings; the dot
 is purely a human-readable separator.
@@ -149,6 +184,14 @@ The one exception is engine-owned names: registering a duplicate
 is rejected at registration time and logged via the engine's existing
 error path ([#123][gh-123]). The bus is not involved in that rejection.
 
+**Patchers are the exception to that exception.** Two patchers given
+the same name are not rejected: they share one `patcher.<name>.*`
+scope on purpose. A `.s` in one reaches a `.r` in the other, and their
+same-named shared stores are one store. That is the direct way to route
+between patchers (see [Example 3](#example-3--cross-patcher-routing)).
+Patchers with different names stay isolated even when their slot names
+collide.
+
 ### Empty / anonymous instances
 
 Engine objects with no name set are not addressable. Scripts cannot
@@ -156,12 +199,26 @@ reach an anonymous sound. There is no fallback identity (no auto-name,
 no UUID exposure). This is deliberate: anonymity is the opt-out from
 the bus.
 
+Patchers are the exception. Their name scopes their shared stores and
+in-patcher `.s` / `.r` routing, so an unnamed patcher is auto-named
+`patcher_<N>` from a process-wide counter. That keeps two anonymous
+patchers apart instead of silently sharing one scope. Setting an empty
+name (`patcher.name("")`, `yse_patcher_set_name(p, NULL)` or `""`)
+restores the auto-name ([#896][gh-896]). The auto-name is **not** a
+script-facing address: `<N>` depends on how many patchers the process
+has created, so it differs across runs and load orders, and it is never
+written into a saved patch. A script that wants to reach a patcher
+needs the host to name it.
+
 ### Reserved characters and length
 
 - Names are UTF-8. The bus enforces no character restrictions
   ([#121][gh-121]).
 - Names must be non-empty. `yse.send("", v)` raises `ValueError`.
-- No length cap. (Composers are trusted to write short names.)
+- No length cap on script-facing names. (Composers are trusted to
+  write short names.) The engine bounds the patcher side: see the
+  [`patcher.` scope](#the-patcher-scope) for the 55 / 63-character
+  patcher and slot limits.
 
 ---
 
@@ -741,10 +798,29 @@ sweep()
 
 ### Example 3 — cross-patcher routing
 
-Assumes patcher `lead` has a `gReceive("trigger")`, patcher `bass`
-has a `gSend("trigger")`. With [#122][gh-122] in place, a `gSend` in
-`bass` publishes to `patcher.bass.trigger`; a `gReceive` in `lead`
-subscribes to `patcher.lead.trigger`. To bridge them from script:
+**Direct: give both patchers the same name.** No script is needed.
+Two patchers named `groove` share the `patcher.groove.*` scope, so a
+`.s trigger` in one reaches a `.r trigger` in the other, and a
+`.coll notes` in each is one collection
+([collision policy](#collision-policy)):
+
+```cpp
+YSE::patcher bass;  bass.name("groove").create(2);  // holds .s trigger
+YSE::patcher lead;  lead.name("groove").create(2);  // holds .r trigger
+```
+
+A script can still watch or drive that shared slot:
+
+```python
+yse.on("patcher.groove.trigger", lambda v: yse.send("groove_seen", v))
+yse.send("patcher.groove.trigger", 1)  # fires the .r in lead
+```
+
+**Bridge: differently-named patchers.** When the patchers must keep
+separate scopes (separate stores, no other shared slots), bridge the
+one slot from script. Patcher `bass` has a `.s trigger`, which
+publishes to `patcher.bass.trigger`; patcher `lead` has a `.r trigger`,
+which subscribes to `patcher.lead.trigger`:
 
 ```python
 yse.cancel_all()
@@ -752,6 +828,10 @@ yse.cancel_all()
 # When bass fires, also fire lead.
 yse.on("patcher.bass.trigger", lambda v: yse.send("patcher.lead.trigger", v))
 ```
+
+The bridge hops through the script thread, so it inherits the
+[threading model](#threading-model)'s batched, once-per-tick delivery;
+the direct route stays inside the engine.
 
 ### Example 4 — error handling
 
@@ -831,6 +911,13 @@ issues each cite it:
   (generation counter, `cancel_all`, `fresh_scope`).
 - [#388][gh-388] — Synth note/controller events on the bus (the
   `synth.<name>.<event>` prefix).
+- [#893][gh-893], [#894][gh-894] — One scoped-address helper for every
+  patcher object; bus and shared stores moved under
+  `patcher.<name>.<slot>`; a rename re-anchors them.
+- [#896][gh-896], [#897][gh-897] — Patcher name over the C API
+  (auto-name restore) and in the patch JSON.
+- [#921][gh-921], [#922][gh-922] — Patcher-name and slot-name length
+  bounds.
 
 When implementing any of the above, treat this document as the
 authority on user-visible shape. If implementation makes one of these
@@ -847,3 +934,9 @@ sections wrong, update this document in the same PR.
 [gh-127]: https://github.com/yvanvds/yse-soundengine/issues/127
 [gh-388]: https://github.com/yvanvds/yse-soundengine/issues/388
 [gh-389]: https://github.com/yvanvds/yse-soundengine/issues/389
+[gh-893]: https://github.com/yvanvds/yse-soundengine/issues/893
+[gh-894]: https://github.com/yvanvds/yse-soundengine/issues/894
+[gh-896]: https://github.com/yvanvds/yse-soundengine/issues/896
+[gh-897]: https://github.com/yvanvds/yse-soundengine/issues/897
+[gh-921]: https://github.com/yvanvds/yse-soundengine/issues/921
+[gh-922]: https://github.com/yvanvds/yse-soundengine/issues/922
