@@ -132,6 +132,12 @@ YSE_C_API void yse_system_auto_reconnect(YseSystem* sys, int on, int delay_ms);
    enumerates no devices at all, which makes index 0 out of range. */
 YSE_C_API unsigned int yse_system_num_devices(YseSystem* sys);
 YSE_C_API YseDevice* yse_system_get_device(YseSystem* sys, unsigned int idx);
+/* yse_system_open_device() returns YSE_OK only when a stream was opened for
+   `setup`. A setup the engine refuses — no output device, an output device
+   whose id is -1 or no longer resolves, a stream open error, or an offline
+   session with no audio backend — returns YSE_ERR_AUDIO_DEVICE and sets
+   yse_last_error(); the running stream and the speaker layout are left
+   untouched (issue #900). */
 YSE_C_API YseStatus yse_system_open_device(YseSystem* sys, const YseDeviceSetup* setup,
                                            YseChannelType layout);
 YSE_C_API void yse_system_close_current_device(YseSystem* sys);

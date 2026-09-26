@@ -68,8 +68,9 @@ YSE_C_API int yse_device_input_latency(YseDevice* dev);
    PortAudio's paNoDevice, what a descriptor reports before the engine fills it
    in, and what a NULL handle reports. Every device from
    yse_system_get_device() carries a real, non-negative index. Handing a setup
-   whose output device still reads -1 to yse_system_open_device() is refused
-   with a log line and leaves the running stream alone. */
+   whose output device still reads -1 to yse_system_open_device() is refused:
+   it returns YSE_ERR_AUDIO_DEVICE, logs the reason and leaves the running
+   stream alone. */
 YSE_C_API int yse_device_get_id(YseDevice* dev);
 
 /* deviceSetup — owned configuration object passed to yse_system_open_device. */

@@ -435,7 +435,7 @@ const std::vector<YSE::device>& YSE::system::getDevices() {
   return DEVICE::Manager().getDeviceList();
 }
 
-void YSE::system::openDevice(const deviceSetup& object, CHANNEL_TYPE conf) {
+bool YSE::system::openDevice(const deviceSetup& object, CHANNEL_TYPE conf) {
   // The mixer layout must follow the device that is actually open (issue
   // #665). The backend reports whether a stream is running afterwards: a setup
   // with no output device or an ID no host API resolves (both refused since
@@ -445,8 +445,9 @@ void YSE::system::openDevice(const deviceSetup& object, CHANNEL_TYPE conf) {
   // master to getNumberOfOutputs() on the next callback, so a refused switch
   // from a stereo device to a 5.1 one leaves the engine rendering six channels
   // into the two-channel stream that is still live. Leave the layout the
-  // running device negotiated.
-  if (!DEVICE::Manager().openDevice(object)) return;
+  // running device negotiated. The refusal is reported to the caller so the C
+  // API can turn it into a status instead of YSE_OK (issue #900).
+  if (!DEVICE::Manager().openDevice(object)) return false;
 
   // The session now has a device, whatever it was started with (issue #719).
   //
@@ -467,8 +468,8 @@ void YSE::system::openDevice(const deviceSetup& object, CHANNEL_TYPE conf) {
   // stand on its own: a zero-output layout silences the engine on the next
   // callback, by the same doOnCallback() resize.
   const int outputs = object.getOutputChannels();
-  if (outputs <= 0) return;
-  CHANNEL::Manager().setChannelConf(conf, outputs);
+  if (outputs > 0) CHANNEL::Manager().setChannelConf(conf, outputs);
+  return true;
 }
 
 YSE::system& YSE::system::setChannelConfiguration(CHANNEL_TYPE conf, Int outputs) {

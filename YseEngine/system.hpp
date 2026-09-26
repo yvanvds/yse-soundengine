@@ -206,8 +206,14 @@ namespace YSE {
      *
      *  @param object Device + host + sample-rate configuration.
      *  @param conf   Speaker layout. ``CT_AUTO`` picks stereo when possible.
+     *  @return ``true`` when the backend opened a stream for ``object``.
+     *          ``false`` when it refused the setup — no output device, an
+     *          output ID no host API resolves, a stream open error, or an
+     *          offline backend — in which case the reason is logged, the
+     *          running stream and the mixer layout are left alone, and the
+     *          session is not promoted (issue #900).
      */
-    void openDevice(const deviceSetup& object, CHANNEL_TYPE conf = CT_AUTO);
+    bool openDevice(const deviceSetup& object, CHANNEL_TYPE conf = CT_AUTO);
 
     /** @brief Set the speaker layout without opening an audio device.
      *

@@ -280,7 +280,15 @@ YSE_C_API YseStatus yse_system_open_device(YseSystem* sys, const YseDeviceSetup*
   if (!sys) return YSE_ERR_INVALID_HANDLE;
   if (!setup) return YSE_ERR_INVALID_ARGUMENT;
   try {
-    to_cpp(sys)->openDevice(*to_cpp(setup), static_cast<YSE::CHANNEL_TYPE>(layout));
+    // The engine refuses a setup it cannot open (no output device, an unknown
+    // device id, a stream error, an offline backend) by returning false rather
+    // than throwing, so the refusal has to be translated here (issue #900).
+    if (!to_cpp(sys)->openDevice(*to_cpp(setup), static_cast<YSE::CHANNEL_TYPE>(layout))) {
+      yse_c::set_last_error("yse_system_open_device: the device setup was refused (no output "
+                            "device, unknown device id, or the stream failed to open); nothing "
+                            "was opened and the running stream is unchanged");
+      return YSE_ERR_AUDIO_DEVICE;
+    }
     return YSE_OK;
   } catch (const std::exception& e) {
     yse_c::set_last_error(e.what());

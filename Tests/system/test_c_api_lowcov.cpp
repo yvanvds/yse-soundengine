@@ -27,8 +27,9 @@
 //     device is exactly what CI does not have, and doing it on a developer
 //     machine would seize the audio device mid-suite. The offline path
 //     (init_offline) is the one under test.
-//   * yse_system_open_device() past its two argument guards, for the same
-//     reason — it hands the setup straight to the backend's device open.
+//   * yse_system_open_device() succeeding, for the same reason — it hands the
+//     setup straight to the backend's device open. Its refusal path is covered
+//     (issue #900): a setup with no output device never reaches hardware.
 //
 // yse_system_get_device() used to be listed here too: the engine's getDevice()
 // indexed the device vector with an unchecked operator[], so an out-of-range
@@ -64,6 +65,7 @@
 
 #include "yse_c/yse_channel.h"
 #include "yse_c/yse_common.h"
+#include "yse_c/yse_device.h"
 #include "yse_c/yse_dsp.h"
 #include "yse_c/yse_dsp_modules.h"
 #include "yse_c/yse_enums.h"
@@ -423,6 +425,37 @@ TEST_SUITE("capilowcov") {
       CHECK(yse_system_midi_out_device_name(sys, 0, buf, sizeof(buf)) == 0u);
       CHECK(buf[0] == '\0');
     }
+  }
+
+  // Regression for issue #900. The engine refuses a setup with no output device
+  // (and, on this offline session, any setup — there is no backend stream to
+  // open) by logging and returning, not by throwing. The wrapper only
+  // translated exceptions, so it answered YSE_OK for a device that was never
+  // opened. The refusal must come back as an error status with a reason, and
+  // must leave the mixer layout alone.
+  //
+  // Verified fail-without-fix: on the unpatched wrapper the status is YSE_OK
+  // and yse_last_error() stays empty.
+  TEST_CASE("c-api system: open_device reports a refused setup (issue #900)") {
+    if (!capilowcov::ensureOffline()) return;
+    YseSystem* sys = yse_system_get();
+
+    YseDeviceSetup* setup = yse_device_setup_create();
+    REQUIRE(setup != nullptr);
+    yse_device_setup_set_sample_rate(setup, 44100.0);
+    yse_device_setup_set_buffer_size(setup, 256);
+
+    auto& channels = YSE::CHANNEL::Manager();
+    const unsigned int outputsBefore = channels.getNumberOfOutputs();
+
+    yse_clear_last_error();
+    CHECK(yse_system_open_device(sys, setup, YSE_CT_51) == YSE_ERR_AUDIO_DEVICE);
+    CHECK(std::string(yse_last_error()).find("refused") != std::string::npos);
+    // Nothing opened, so the requested 5.1 layout was not applied either.
+    CHECK(channels.getNumberOfOutputs() == outputsBefore);
+    yse_clear_last_error();
+
+    yse_device_setup_destroy(setup);
   }
 
   // The layout entry point that does not open a device (issue #668). Unlike
