@@ -192,7 +192,22 @@ namespace YSE {
     /** @brief Send a string to the named ``receive`` object. */
     bool PassData(const std::string& value, const std::string& to);
 
-    /** @brief Install an OSC handler for outgoing messages. */
+    /**
+     *  @brief Install an OSC handler for outgoing messages; ``nullptr`` clears it.
+     *
+     *  The handler receives every message a ``PassBang`` / ``PassData`` — the
+     *  host's own calls, or a ``.s`` inside the patch — addresses to a name no
+     *  ``.r`` in this patcher answers, and it makes those calls return true.
+     *  It is called synchronously on the thread that emitted the message: the
+     *  host's own, or an engine worker such as the timer thread behind a
+     *  millisecond ``.metro``. Never the audio callback — a send made while
+     *  rendering stays in the patch.
+     *
+     *  Returns once no other thread is still inside the handler it replaced,
+     *  so that handler may be destroyed afterwards (issue #907). The patcher
+     *  does not own the handler. Called before ``create()``, the handler is
+     *  kept and installed at ``create()`` time.
+     */
     void SetOscHandler(oscHandler* handle);
 
   private:
@@ -201,6 +216,8 @@ namespace YSE {
     // the impl's auto-generated default is the source of truth once create()
     // has run.
     std::string pendingName;
+    // Handler stashed when SetOscHandler() is called before create().
+    oscHandler* pendingHandler = nullptr;
     friend class YSE::sound;
     // The insert adapter reaches through to pimpl to render the graph in place
     // (issue #167).

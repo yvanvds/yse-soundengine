@@ -5,9 +5,8 @@
   A YsePatcher owns its YsePHandle objects — never destroy handles
   directly, use yse_patcher_delete_object().
 
-  oscHandler (outbound message callback) is not yet wrapped — audio-
-  thread callback plumbing lands in M8 alongside the io / log
-  callbacks.
+  Outgoing messages reach the host through yse_patcher_set_send_callback
+  (the C mirror of patcher::SetOscHandler), besides the bus.
 
   Object type identifiers are the same strings YSE::OBJ exposes
   ("~sine", ".+", "~lp", etc.). See patcher/pObjectList.hpp upstream.
@@ -163,10 +162,63 @@ YSE_C_API YsePHandle* yse_patcher_get_handle_from_id(YsePatcher* p, unsigned int
 
 /* ─── message I/O ─────────────────────────────────────────────────── */
 
+/* Deliver a value to the ".r <to>" receivers in this patcher. 1 when one
+   exists — or when a send callback is installed (see below): a message no
+   receiver answers is then handed to the callback instead, and still
+   reports 1. 0 when neither takes it, and on a NULL argument. */
 YSE_C_API int yse_patcher_pass_bang(YsePatcher* p, const char* to);
 YSE_C_API int yse_patcher_pass_int(YsePatcher* p, int value, const char* to);
 YSE_C_API int yse_patcher_pass_float(YsePatcher* p, float value, const char* to);
 YSE_C_API int yse_patcher_pass_string(YsePatcher* p, const char* value, const char* to);
+
+/* ─── send callback (issue #907) ──────────────────────────────────── */
+
+/* A message the patcher sends to a name no ".r" in it receives: a ".s"
+   inside the patch, or a yse_patcher_pass_* call, with nothing listening.
+
+   `address` is the name it was sent to — the ".s" argument or the pass_*
+   `to`, not the "patcher.<name>.<slot>" bus address. `kind` says which
+   value it carries: YSE_OUT_BANG (none), YSE_OUT_INT (`i`), YSE_OUT_FLOAT
+   (`f`) or YSE_OUT_LIST (`s`). The fields a kind does not use are 0 and
+   NULL.
+
+   The receiver OWNS the strings: `address` and `s` are one malloc'd block,
+   released with yse_patcher_free_message(address), which frees `s` with it —
+   never free `s` on its own. They stay valid after the callback returns, so
+   an asynchronous host (a Dart NativeCallable.listener) can read them later.
+
+   Threading: called synchronously on whichever thread emitted the message —
+   the host's own for a pass_* or a yse_phandle_set_* that drives a ".s", an
+   engine worker for a timer-driven one (a millisecond ".metro"). Never the
+   audio callback: a ".s" fired while the patch renders stays inside it. Keep
+   it cheap and thread-safe. */
+typedef void(YSE_C_CALLBACK* YsePatcherSendCallback)(void* user_data, char* address,
+                                                     YseOutType kind, int i, float f, char* s);
+
+/* Install the send callback; NULL for cb clears it. user_data is opaque and
+   forwarded to every call. Replaces any previous callback, but a message
+   already being dispatched on another thread may still reach the previous
+   (cb, user_data) pair — always as a pair, never one install's cb with
+   another's user_data. yse_patcher_destroy is the point after which no
+   callback runs: it returns only once every call in progress on another
+   thread has finished. Called before yse_patcher_init, the callback is kept
+   and takes effect at init.
+
+   While a callback is installed, pass_* answers 1 for a name nothing
+   receives; once cleared, 0 again.
+
+   May be called from inside the callback. Do not destroy the patcher from
+   inside its own callback, and do not install, clear or destroy while
+   holding a lock the callback itself takes: both wait for calls in progress
+   on other threads. YSE_ERR_INVALID_HANDLE on a NULL patcher,
+   YSE_ERR_EXCEPTION (reason in yse_last_error()) if the install could not
+   allocate — the previous callback is then kept. */
+YSE_C_API YseStatus yse_patcher_set_send_callback(YsePatcher* p, YsePatcherSendCallback cb,
+                                                  void* user_data);
+
+/* Release a message delivered to a YsePatcherSendCallback: pass its
+   `address`. NULL is a no-op. */
+YSE_C_API void yse_patcher_free_message(char* address);
 
 /* ─── handle accessors ───────────────────────────────────────────── */
 

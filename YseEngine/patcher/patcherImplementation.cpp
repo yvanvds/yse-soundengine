@@ -20,6 +20,8 @@
 #include <memory>
 #include <mutex>
 #include <string>
+#include <thread>
+#include <utility>
 #include <vector>
 #include "../implementations/logImplementation.h"
 #include "../internal/global.h"
@@ -71,6 +73,42 @@ namespace {
     }
     renderFrameGuard(const renderFrameGuard&) = delete;
     renderFrameGuard& operator=(const renderFrameGuard&) = delete;
+  };
+
+  // One call into a patcher's outgoing-message handler in progress on this
+  // thread (issue #907). The frames form a stack-allocated chain, innermost
+  // first, so SetHandler can tell how many of the patcher's in-flight calls are
+  // its own caller's — a handler that re-installs its patcher's handler from
+  // inside itself must not wait on its own dispatch. Never on the audio thread:
+  // the handler is only reached off it.
+  struct oscDispatchFrame {
+    const YSE::PATCHER::patcherImplementation* owner;
+    const oscDispatchFrame* previous;
+  };
+  thread_local const oscDispatchFrame* tOscFrames = nullptr;
+
+  // Brackets one handler dispatch: counted in `inFlight` and pushed on this
+  // thread's frame chain for its whole duration, including the handler call.
+  class oscDispatchScope {
+  public:
+    oscDispatchScope(const YSE::PATCHER::patcherImplementation* owner,
+                     std::atomic<unsigned int>& inFlight)
+      : frame_{owner, tOscFrames}, inFlight_(inFlight) {
+      inFlight_.fetch_add(1, std::memory_order_seq_cst);
+      tOscFrames = &frame_;
+    }
+    ~oscDispatchScope() {
+      tOscFrames = frame_.previous;
+      inFlight_.fetch_sub(1, std::memory_order_release);
+    }
+    oscDispatchScope(const oscDispatchScope&) = delete;
+    oscDispatchScope& operator=(const oscDispatchScope&) = delete;
+    oscDispatchScope(oscDispatchScope&&) = delete;
+    oscDispatchScope& operator=(oscDispatchScope&&) = delete;
+
+  private:
+    oscDispatchFrame frame_;
+    std::atomic<unsigned int>& inFlight_;
   };
 
   // The outlet index a serialised "output N" key names, or -1 if the key is not
@@ -1374,6 +1412,21 @@ YSE::pHandle* patcherImplementation::GetHandleFromID(unsigned int objID) {
   return nullptr;
 }
 
+// Hands an unmatched message to the outgoing-message handler, if one is
+// installed (issue #907). The in-flight count brackets the load *and* the call,
+// so once SetHandler has swapped the pointer and seen the count fall to its own
+// frames, no other thread can still be inside the handler it replaced. Every
+// access is seq_cst on both sides: either SetHandler's count read sees this
+// increment, or this load comes after SetHandler's store and sees the new
+// handler.
+template <typename F> bool patcherImplementation::SendToHandler(F&& send) {
+  const oscDispatchScope scope(this, oscInFlight_);
+  oscHandler* handler = oscHandle.load(std::memory_order_seq_cst);
+  if (handler == nullptr) return false;
+  std::forward<F>(send)(*handler);
+  return true;
+}
+
 bool patcherImplementation::PassBang(const std::string& to, YSE::THREAD thread) {
   if (CallingThread(thread) == YSE::T_DSP) {
     // Already on the audio thread — a gSend fanning out during traversal
@@ -1390,10 +1443,7 @@ bool patcherImplementation::PassBang(const std::string& to, YSE::THREAD thread) 
   ValueMsg msg{};
   msg.kind = ValueKind::Bang;
   if (EnqueueValue(msg, to)) return true;
-  if (oscHandle != nullptr) {
-    oscHandle->Send(to);
-    return true;
-  }
+  if (SendToHandler([&](oscHandler& handler) { handler.Send(to); })) return true;
   INTERNAL::LogImpl().emit(E_FILE_ERROR, "Cannot find target " + to + ". Valid targets are" +
                                              GetRecieveObjectsAsString());
   return false;
@@ -1409,10 +1459,7 @@ bool patcherImplementation::PassData(int value, const std::string& to, YSE::THRE
   msg.kind = ValueKind::Int;
   msg.intVal = value;
   if (EnqueueValue(msg, to)) return true;
-  if (oscHandle != nullptr) {
-    oscHandle->Send(to, value);
-    return true;
-  }
+  if (SendToHandler([&](oscHandler& handler) { handler.Send(to, value); })) return true;
   INTERNAL::LogImpl().emit(E_FILE_ERROR, "Cannot find target " + to + ". Valid targets are" +
                                              GetRecieveObjectsAsString());
   return false;
@@ -1428,10 +1475,7 @@ bool patcherImplementation::PassData(float value, const std::string& to, YSE::TH
   msg.kind = ValueKind::Float;
   msg.floatVal = value;
   if (EnqueueValue(msg, to)) return true;
-  if (oscHandle != nullptr) {
-    oscHandle->Send(to, value);
-    return true;
-  }
+  if (SendToHandler([&](oscHandler& handler) { handler.Send(to, value); })) return true;
   INTERNAL::LogImpl().emit(E_FILE_ERROR, "Cannot find target " + to + ". Valid targets are" +
                                              GetRecieveObjectsAsString());
   return false;
@@ -1452,10 +1496,7 @@ bool patcherImplementation::PassData(const std::string& value, const std::string
   if (value.size() >= kValueListCap) {
     INTERNAL::LogImpl().emit(
         E_FILE_ERROR, "Patcher: list value too long for value queue, dropped (to " + to + ")");
-    if (oscHandle != nullptr) {
-      oscHandle->Send(to, value);
-      return true;
-    }
+    if (SendToHandler([&](oscHandler& handler) { handler.Send(to, value); })) return true;
     return false;
   }
 
@@ -1463,10 +1504,7 @@ bool patcherImplementation::PassData(const std::string& value, const std::string
   msg.kind = ValueKind::List;
   std::memcpy(msg.listVal, value.c_str(), value.size() + 1);
   if (EnqueueValue(msg, to)) return true;
-  if (oscHandle != nullptr) {
-    oscHandle->Send(to, value);
-    return true;
-  }
+  if (SendToHandler([&](oscHandler& handler) { handler.Send(to, value); })) return true;
   INTERNAL::LogImpl().emit(E_FILE_ERROR, "Cannot find target " + to + ". Valid targets are" +
                                              GetRecieveObjectsAsString());
   return false;
@@ -1578,7 +1616,17 @@ std::string patcherImplementation::GetRecieveObjectsAsString() {
 }
 
 void patcherImplementation::SetHandler(YSE::oscHandler* handler) {
-  oscHandle = handler;
+  oscHandle.store(handler, std::memory_order_seq_cst);
+  // Grace period (issue #907): wait until no other thread is still inside the
+  // handler this replaced, so the caller may destroy it on return. This
+  // thread's own in-progress dispatches for this patcher — a handler that
+  // re-installs from inside itself — are excluded, or it would wait on itself.
+  unsigned int own = 0;
+  for (const oscDispatchFrame* f = tOscFrames; f != nullptr; f = f->previous) {
+    if (f->owner == this) ++own;
+  }
+  while (oscInFlight_.load(std::memory_order_seq_cst) > own)
+    std::this_thread::yield();
 }
 
 void patcherImplementation::AssignGraphIds(pObject* object) {
