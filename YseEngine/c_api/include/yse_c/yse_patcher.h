@@ -75,6 +75,27 @@ YSE_C_API void yse_patcher_destroy(YsePatcher* p);
 
 YSE_C_API void yse_patcher_init(YsePatcher* p, int main_outputs);
 
+/* ─── naming ──────────────────────────────────────────────────────── */
+
+/* Name the patcher (issue #896). The name scopes every bus slot and shared
+   store inside it: they are addressed as "patcher.<name>.<slot>". Two
+   patchers with the same name share those slots; uniqueness is not
+   enforced. Renaming re-anchors every name-scoped object transparently.
+
+   NULL or "" restores the auto-generated "patcher_<N>" name. Called before
+   yse_patcher_init, the name is stashed and applied at init; NULL / ""
+   there drops a stashed name so init keeps the auto-name.
+
+   A name longer than 55 characters is refused: YSE_ERR_INVALID_ARGUMENT,
+   the reason in yse_last_error(), and the current name kept.
+   YSE_ERR_INVALID_HANDLE on a NULL patcher. Control thread only. */
+YSE_C_API YseStatus yse_patcher_set_name(YsePatcher* p, const char* name);
+
+/* The current name, snprintf style — returns the full length and accepts a
+   NULL buffer as a size query. Before yse_patcher_init this is the stashed
+   name, or "" when there is none: the auto-name is assigned at init. */
+YSE_C_API size_t yse_patcher_get_name(YsePatcher* p, char* buf, size_t cap);
+
 /* ─── object management ───────────────────────────────────────────── */
 
 YSE_C_API YsePHandle* yse_patcher_create_object(YsePatcher* p, const char* type, const char* args);

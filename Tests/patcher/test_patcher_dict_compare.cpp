@@ -53,7 +53,7 @@ using YSE::PATCHER::gDictCompare;
 namespace {
 
   // Two .dict objects and a .dict.compare over them, sharing one
-  // patcherImplementation so the names actually bind ("<patcherName>.<name>"
+  // patcherImplementation so the names actually bind ("patcher.<patcherName>.<name>"
   // needs a patcher to prefix with — a parentless object stays private). The
   // sink is declared before the objects so they are torn down first, while
   // the inlet it is wired to still exists (see sinks.hpp on why that
@@ -196,7 +196,7 @@ TEST_SUITE("patcher") {
 
   TEST_CASE("dict.compare: unnamed sides are private and empty (#770)") {
     // No arguments means two private, empty dictionaries — .dict's rule that
-    // an unnamed object does not pool on "<patcherName>.". Nothing can store
+    // an unnamed object does not pool on "patcher.<patcherName>.". Nothing can store
     // into them, so they stay equal.
     MultiSink sink;
     gDictCompare c;
@@ -414,17 +414,17 @@ TEST_SUITE("patcher") {
     gDictCompare c;
     c.SetParams("l770h r770h");
     c.SetParent(&p);
-    CHECK(c.LeftAddress() == "dc770h_before.l770h");
-    CHECK(c.RightAddress() == "dc770h_before.r770h");
+    CHECK(c.LeftAddress() == "patcher.dc770h_before.l770h");
+    CHECK(c.RightAddress() == "patcher.dc770h_before.r770h");
 
     // Idempotent: a rebind to the addresses it already has keeps the stores.
     c.RefreshBinding();
-    CHECK(c.LeftAddress() == "dc770h_before.l770h");
+    CHECK(c.LeftAddress() == "patcher.dc770h_before.l770h");
 
     p.SetName("dc770h_after");
     c.RefreshBinding();
-    CHECK(c.LeftAddress() == "dc770h_after.l770h");
-    CHECK(c.RightAddress() == "dc770h_after.r770h");
+    CHECK(c.LeftAddress() == "patcher.dc770h_after.l770h");
+    CHECK(c.RightAddress() == "patcher.dc770h_after.r770h");
   }
 
   TEST_CASE("dict.compare: patcherImplementation::SetName re-anchors it (#770)") {

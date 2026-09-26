@@ -36,6 +36,13 @@ void patcher::create(int mainOutputs) {
 patcher& patcher::name(const std::string& n) {
   if (pimpl != nullptr) {
     pimpl->SetName(n);
+  } else if (n.size() > PATCHER::patcherImplementation::MAX_PATCHER_NAME_LENGTH) {
+    // The same refusal SetName() applies (issue #921), made here so name()
+    // never reports a name create() is then going to drop.
+    INTERNAL::LogImpl().emit(
+        E_ERROR, "patcher: name \"" + n + "\" is longer than " +
+                     std::to_string(PATCHER::patcherImplementation::MAX_PATCHER_NAME_LENGTH) +
+                     " characters; ignored");
   } else {
     // Stash until create() runs. The impl is what owns the canonical name.
     pendingName = n;

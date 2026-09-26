@@ -61,7 +61,7 @@ using YSE::PATCHER::gArrayWrap;
 namespace {
 
   // An .array and one .array.wrap on one name, sharing one
-  // patcherImplementation so the name actually binds ("<patcherName>.<name>"
+  // patcherImplementation so the name actually binds ("patcher.<patcherName>.<name>"
   // needs a patcher to prefix with — a parentless object stays private). The
   // sinks are declared before the objects so they are torn down last, while
   // the outlets wired to them still exist (see sinks.hpp on why that
@@ -526,15 +526,15 @@ TEST_SUITE("patcher") {
     g.SetParams("a809p");
     g.SetParent(&p);
     CHECK(g.ArrayName() == "a809p");
-    CHECK(g.Address() == "awr809p_before.a809p");
+    CHECK(g.Address() == "patcher.awr809p_before.a809p");
 
     // Idempotent: a rebind to the address it already has keeps the store.
     g.RefreshBinding();
-    CHECK(g.Address() == "awr809p_before.a809p");
+    CHECK(g.Address() == "patcher.awr809p_before.a809p");
 
     p.SetName("awr809p_after");
     g.RefreshBinding();
-    CHECK(g.Address() == "awr809p_after.a809p");
+    CHECK(g.Address() == "patcher.awr809p_after.a809p");
   }
 
   TEST_CASE("array.wrap: patcherImplementation::SetName re-anchors it (#809)") {
@@ -585,7 +585,7 @@ TEST_SUITE("patcher") {
     g.SetParent(&p);
     g.SetParams("a809r -2");
     CHECK(g.Index() == -2);
-    CHECK(g.Address() == "awr809r.a809r");
+    CHECK(g.Address() == "patcher.awr809r.a809r");
 
     g.SetParams("");
     CHECK(g.Index() == 0);

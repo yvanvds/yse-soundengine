@@ -96,7 +96,7 @@ namespace {
   };
 
   // A .dict and a .dict.serialize on one name, sharing one
-  // patcherImplementation so the name actually binds ("<patcherName>.<name>"
+  // patcherImplementation so the name actually binds ("patcher.<patcherName>.<name>"
   // needs a patcher to prefix with — a parentless object stays private). The
   // sink is declared before the objects so it is torn down last, while the
   // outlet wired to it still exists (see sinks.hpp on why that matters).
@@ -545,15 +545,15 @@ TEST_SUITE("patcher") {
     g.SetParams("d778g");
     g.SetParent(&p);
     CHECK(g.DictName() == "d778g");
-    CHECK(g.Address() == "ds778g_before.d778g");
+    CHECK(g.Address() == "patcher.ds778g_before.d778g");
 
     // Idempotent: a rebind to the address it already has keeps the store.
     g.RefreshBinding();
-    CHECK(g.Address() == "ds778g_before.d778g");
+    CHECK(g.Address() == "patcher.ds778g_before.d778g");
 
     p.SetName("ds778g_after");
     g.RefreshBinding();
-    CHECK(g.Address() == "ds778g_after.d778g");
+    CHECK(g.Address() == "patcher.ds778g_after.d778g");
   }
 
   TEST_CASE("dict.serialize: patcherImplementation::SetName re-anchors it (#778)") {

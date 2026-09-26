@@ -13,12 +13,15 @@
 
 #include "yse.hpp"
 #include "internal/namedBus.h"
+#include "patcher/genericObjects/gColl.h"
+#include "patcher/namedStore.h"
 #include "patcher/patcher.hpp"
 #include "patcher/patcherImplementation.h"
 #include "patcher/pHandle.hpp"
 #include "patcher/pObjectList.hpp"
 #include "patcher/sinks.hpp"
 #include "support/null_device.hpp"
+#include "utils/json.hpp"
 
 using TestHelpers::MultiSink;
 
@@ -170,6 +173,135 @@ TEST_SUITE("patcher") {
     CHECK(sink.intValue == 7);
   }
 
+  TEST_CASE("patcher: ScopedAddress spells patcher.<patcherName>.<name> and follows a rename "
+            "(#893, #894)") {
+    // The one helper every name-scoped object builds its address with. The
+    // prefix is exposed on its own for the objects that append a runtime name
+    // on the audio thread, so the two must agree.
+    YSE::PATCHER::patcherImplementation p(1, nullptr);
+    p.SetName("scoped.before");
+    CHECK(p.ScopedAddressPrefix() == "patcher.scoped.before.");
+    CHECK(p.ScopedAddress("slot") == "patcher.scoped.before.slot");
+    CHECK(p.ScopedAddress("slot") == p.ScopedAddressPrefix() + "slot");
+
+    p.SetName("scoped.after");
+    CHECK(p.ScopedAddressPrefix() == "patcher.scoped.after.");
+    CHECK(p.ScopedAddress("slot") == "patcher.scoped.after.slot");
+
+    // The anonymous default keeps its own scope under the reserved prefix.
+    YSE::PATCHER::patcherImplementation anon(1, nullptr);
+    CHECK(anon.ScopedAddressPrefix() == "patcher." + anon.Name() + ".");
+    CHECK(anon.Name().rfind("patcher_", 0) == 0);
+  }
+
+  // ─── The reserved "patcher." prefix (issue #894) ────────────────────────────
+  //
+  // These run through the real bus from outside the patcher — a host
+  // subscriber / publisher, the way Python and FFI wrappers address it — so
+  // they pin the spelled address, not just the in-process agreement between
+  // two patchers (which holds for any prefix).
+
+  TEST_CASE("bus routing: .s publishes on patcher.<name>.<slot>, not the freeform <name>.<slot> "
+            "(#894)") {
+    REQUIRE(TestHelpers::engineInit());
+
+    YSE::patcher a;
+    a.name("synth1").create(2);
+    YSE::pHandle* send = a.CreateObject(YSE::OBJ::G_SEND, "cutoff");
+    REQUIRE(send != nullptr);
+
+    int scoped = 0;
+    int scopedValue = -1;
+    int freeform = 0;
+    const YSE::INTERNAL::SubHandle scopedSub = YSE::INTERNAL::Bus().subscribe(
+        "patcher.synth1.cutoff", [&scoped, &scopedValue](const YSE::INTERNAL::BusValue& value) {
+          scoped++;
+          if (const int* i = std::get_if<int>(&value)) scopedValue = *i;
+        });
+    const YSE::INTERNAL::SubHandle freeformSub = YSE::INTERNAL::Bus().subscribe(
+        "synth1.cutoff", [&freeform](const YSE::INTERNAL::BusValue&) { freeform++; });
+
+    send->SetIntData(0, 42);
+    YSE::System().update();
+
+    CHECK(scoped == 1);
+    CHECK(scopedValue == 42);
+    // The collision #894 removes: a script name "synth1" no longer sees it.
+    CHECK(freeform == 0);
+
+    YSE::INTERNAL::Bus().unsubscribe(scopedSub);
+    YSE::INTERNAL::Bus().unsubscribe(freeformSub);
+  }
+
+  TEST_CASE("bus routing: .r listens on patcher.<name>.<slot>, not the freeform <name>.<slot> "
+            "(#894)") {
+    REQUIRE(TestHelpers::engineInit());
+
+    YSE::patcher b;
+    b.name("synth2").create(2);
+    YSE::pHandle* recv = b.CreateObject(YSE::OBJ::G_RECEIVE, "cutoff");
+    REQUIRE(recv != nullptr);
+
+    MultiSink sink;
+    YSE::pHandle sinkHandle(&sink);
+    b.Connect(recv, 0, &sinkHandle, 0);
+
+    // A freeform script publish on the old address no longer reaches it...
+    YSE::INTERNAL::Bus().publish("synth2.cutoff", YSE::INTERNAL::BusValue{3}, YSE::T_GUI);
+    YSE::System().update();
+    CHECK_FALSE(sink.gotInt);
+
+    // ...the reserved one does.
+    YSE::INTERNAL::Bus().publish("patcher.synth2.cutoff", YSE::INTERNAL::BusValue{9}, YSE::T_GUI);
+    YSE::System().update();
+    CHECK(sink.gotInt);
+    CHECK(sink.intValue == 9);
+  }
+
+  TEST_CASE("shared stores are keyed on patcher.<name>.<slot>, the bus address form (#894)") {
+    // namedStore.h: a shared store, a .s and a .r in one patcher speak about
+    // one word — so the store key carries the same reserved prefix.
+    YSE::patcher p;
+    p.name("store894").create(2);
+    YSE::pHandle* coll = p.CreateObject(YSE::OBJ::G_COLL, "notes894");
+    REQUIRE(coll != nullptr);
+
+    bool created = true;
+    auto scoped = YSE::PATCHER::AcquireNamedStore<YSE::PATCHER::collStore>(
+        "patcher.store894.notes894", created);
+    CHECK_FALSE(created); // the .coll already holds it under the reserved key
+
+    auto freeform =
+        YSE::PATCHER::AcquireNamedStore<YSE::PATCHER::collStore>("store894.notes894", created);
+    CHECK(created); // nothing lives on the freeform key
+    CHECK(freeform != scoped);
+  }
+
+  TEST_CASE("bus routing: a rename moves the reserved address along with it (#894)") {
+    REQUIRE(TestHelpers::engineInit());
+
+    YSE::patcher a;
+    a.name("rn.before").create(2);
+    YSE::pHandle* send = a.CreateObject(YSE::OBJ::G_SEND, "v");
+    REQUIRE(send != nullptr);
+
+    int before = 0;
+    int after = 0;
+    const YSE::INTERNAL::SubHandle beforeSub = YSE::INTERNAL::Bus().subscribe(
+        "patcher.rn.before.v", [&before](const YSE::INTERNAL::BusValue&) { before++; });
+    const YSE::INTERNAL::SubHandle afterSub = YSE::INTERNAL::Bus().subscribe(
+        "patcher.rn.after.v", [&after](const YSE::INTERNAL::BusValue&) { after++; });
+
+    a.name("rn.after");
+    send->SetIntData(0, 1);
+    YSE::System().update();
+    CHECK(before == 0);
+    CHECK(after == 1);
+
+    YSE::INTERNAL::Bus().unsubscribe(beforeSub);
+    YSE::INTERNAL::Bus().unsubscribe(afterSub);
+  }
+
   TEST_CASE("bus routing: gSend globalOnly=1 skips in-patcher PassData") {
     REQUIRE(TestHelpers::engineInit());
 
@@ -211,7 +343,7 @@ TEST_SUITE("patcher") {
   // The object-level suite (test_patcher_forward.cpp) runs without an engine, so
   // it can only reach the in-patcher PassData half. These cases run the real
   // thing end to end: a live engine, the global bus, and receivers in a *second*
-  // patcher — which is where the "<patcherName>.<destination>" address is
+  // patcher — which is where the "patcher.<patcherName>.<destination>" address is
   // actually exercised, and the only place the cached prefix can be caught
   // going stale.
 
@@ -263,7 +395,7 @@ TEST_SUITE("patcher") {
   }
 
   TEST_CASE("bus routing: renaming the parent patcher re-anchors a .forward (#485)") {
-    // .forward caches the "<patcherName>." prefix its destination is appended
+    // .forward caches the "patcher.<patcherName>." prefix its destination is appended
     // to, exactly as gSend caches the whole address — so patcherImplementation
     // ::SetName has to refresh it or the object keeps publishing under the old
     // patcher name.
@@ -296,7 +428,7 @@ TEST_SUITE("patcher") {
 
   TEST_CASE("bus routing: renaming the parent patcher re-anchors a .table (#699)") {
     // Same miss as #485, one object later: .table's `send` (#498) caches the
-    // "<patcherName>." prefix through .forward's pre-reserved-string pattern but
+    // "patcher.<patcherName>." prefix through .forward's pre-reserved-string pattern but
     // was left out of patcherImplementation::SetName, so it kept publishing under
     // the old patcher name while every .r around it re-anchored under the new
     // one. The receiver lives in the *other* patcher deliberately: the in-patcher
@@ -334,7 +466,7 @@ TEST_SUITE("patcher") {
   }
 
   TEST_CASE("bus routing: a .forward with no destination publishes nothing (#485)") {
-    // "<patcherName>." is a real, reachable bus address — the one an unnamed
+    // "patcher.<patcherName>." is a real, reachable bus address — the one an unnamed
     // gReceive subscribes to. An unconfigured .forward that published to it
     // would broadcast into every same-named patcher in the process.
     REQUIRE(TestHelpers::engineInit());
@@ -445,7 +577,7 @@ TEST_SUITE("patcher") {
     int received = 0;
     int intValue = -1;
     const YSE::INTERNAL::SubHandle sub = YSE::INTERNAL::Bus().subscribe(
-        "deferred.bus.out", [&received, &intValue](const YSE::INTERNAL::BusValue& value) {
+        "patcher.deferred.bus.out", [&received, &intValue](const YSE::INTERNAL::BusValue& value) {
           received++;
           if (const int* i = std::get_if<int>(&value)) intValue = *i;
         });
@@ -493,7 +625,7 @@ TEST_SUITE("patcher") {
 
     int received = 0;
     const YSE::INTERNAL::SubHandle sub = YSE::INTERNAL::Bus().subscribe(
-        "deferred.bang.out", [&received](const YSE::INTERNAL::BusValue&) { received++; });
+        "patcher.deferred.bang.out", [&received](const YSE::INTERNAL::BusValue&) { received++; });
 
     CHECK(p.PassBang("trigger", YSE::T_GUI));
     for (int block = 0; block < 8; ++block) {
@@ -507,6 +639,391 @@ TEST_SUITE("patcher") {
     CHECK(received == 0);
 
     YSE::INTERNAL::Bus().unsubscribe(sub);
+  }
+
+  // ── The full address fits the bus (issue #921) ────────────────────────────
+  //
+  // .forward / .bag / .table bound their runtime slot name at 63, but the bus
+  // truncates the *whole* "patcher.<name>.<slot>" on the T_DSP path. With a
+  // long patcher name a slot that passed the check was cut on the bus and the
+  // two delivery paths disagreed again.
+
+  TEST_CASE("bus routing: a deferred .forward with a long patcher name and slot publishes the "
+            "full address (#921)") {
+    REQUIRE(TestHelpers::engineInit());
+
+    const std::string patcherName(30, 'p');
+    const std::string slot(40, 's');
+    const std::string full = "patcher." + patcherName + "." + slot; // 79 bytes
+
+    YSE::PATCHER::patcherImplementation p(1, nullptr);
+    p.SetName(patcherName);
+    REQUIRE(p.Name() == patcherName);
+
+    // `.r trigger` → `.bondo 1 5` → `.forward <slot>`: the release is deferred,
+    // so the forward publishes from the audio thread's drain, on T_DSP.
+    YSE::pHandle* trigger = p.CreateObject(YSE::OBJ::G_RECEIVE, "trigger");
+    YSE::pHandle* bondo = p.CreateObject(YSE::OBJ::G_BONDO, "1 5");
+    YSE::pHandle* fwd = p.CreateObject(YSE::OBJ::G_FORWARD, slot);
+    REQUIRE(trigger != nullptr);
+    REQUIRE(bondo != nullptr);
+    REQUIRE(fwd != nullptr);
+    p.Connect(trigger, 0, bondo, 0);
+    p.Connect(bondo, 0, fwd, 0);
+
+    int received = 0;
+    int intValue = -1;
+    int truncated = 0;
+    const YSE::INTERNAL::SubHandle sub = YSE::INTERNAL::Bus().subscribe(
+        full, [&received, &intValue](const YSE::INTERNAL::BusValue& value) {
+          received++;
+          if (const int* i = std::get_if<int>(&value)) intValue = *i;
+        });
+    // Where the old 63-byte slot would have cut it.
+    const YSE::INTERNAL::SubHandle cutSub = YSE::INTERNAL::Bus().subscribe(
+        full.substr(0, 63), [&truncated](const YSE::INTERNAL::BusValue&) { truncated++; });
+
+    CHECK(p.PassData(21, "trigger", YSE::T_GUI));
+    for (int block = 0; block < 32; ++block) {
+      p.Calculate(YSE::T_DSP);
+    }
+    YSE::System().update();
+
+    CHECK(received == 1);
+    CHECK(intValue == 21);
+    CHECK(truncated == 0);
+
+    YSE::INTERNAL::Bus().unsubscribe(sub);
+    YSE::INTERNAL::Bus().unsubscribe(cutSub);
+  }
+
+  TEST_CASE("patcher: a name past MAX_PATCHER_NAME_LENGTH is refused, the old one kept (#921)") {
+    using YSE::PATCHER::patcherImplementation;
+    // The budget itself: the longest name plus the longest slot fits the bus.
+    CHECK(patcherImplementation::MAX_SCOPED_ADDRESS_LENGTH <=
+          YSE::INTERNAL::NamedBus::kNameCapacity);
+
+    patcherImplementation p(1, nullptr);
+    p.SetName("keep.me");
+
+    const std::string longest(patcherImplementation::MAX_PATCHER_NAME_LENGTH, 'n');
+    p.SetName(longest);
+    CHECK(p.Name() == longest);
+    // The longest address the budget allows is spelled whole.
+    const std::string longestSlot(patcherImplementation::MAX_SLOT_NAME_LENGTH, 's');
+    CHECK(p.ScopedAddress(longestSlot).size() == patcherImplementation::MAX_SCOPED_ADDRESS_LENGTH);
+
+    p.SetName(std::string(patcherImplementation::MAX_PATCHER_NAME_LENGTH + 1, 'x'));
+    CHECK(p.Name() == longest);
+
+    // The public wrapper refuses the same name before create(), so name()
+    // never reports one create() would then drop.
+    YSE::patcher pub;
+    pub.name("pub.kept");
+    pub.name(std::string(patcherImplementation::MAX_PATCHER_NAME_LENGTH + 1, 'y'));
+    CHECK(pub.name() == "pub.kept");
+    pub.create(1);
+    CHECK(pub.name() == "pub.kept");
+    pub.name(std::string(patcherImplementation::MAX_PATCHER_NAME_LENGTH + 1, 'z'));
+    CHECK(pub.name() == "pub.kept");
+  }
+
+  // ── .s / .r bound their dataName to the slot budget (issue #922) ─────────
+  //
+  // #921 bounded the patcher name and .forward / .bag / .table's slot, but a
+  // .s dataName was unbounded: with a long patcher name the T_DSP publish was
+  // truncated on the bus while PassData and the .r subscription used the full
+  // name — the #485 disagreement again.
+
+  TEST_CASE("bus routing: a deferred .s refuses a dataName past MAX_SLOT_NAME_LENGTH, so "
+            "nothing is published truncated (#922)") {
+    REQUIRE(TestHelpers::engineInit());
+    using YSE::PATCHER::patcherImplementation;
+
+    const std::string patcherName(patcherImplementation::MAX_PATCHER_NAME_LENGTH, 'p');
+    const std::string longName(80, 'd');
+    const std::string full = "patcher." + patcherName + "." + longName; // 144 bytes
+    REQUIRE(full.size() > YSE::INTERNAL::NamedBus::kNameCapacity);
+
+    patcherImplementation p(1, nullptr);
+    p.SetName(patcherName);
+    REQUIRE(p.Name() == patcherName);
+
+    // `.r trigger` → `.bondo 1 5` → `.s <longName>`: the release is deferred,
+    // so the .s publishes from the audio thread's drain, on T_DSP.
+    YSE::pHandle* trigger = p.CreateObject(YSE::OBJ::G_RECEIVE, "trigger");
+    YSE::pHandle* bondo = p.CreateObject(YSE::OBJ::G_BONDO, "1 5");
+    YSE::pHandle* send = p.CreateObject(YSE::OBJ::G_SEND, longName);
+    REQUIRE(trigger != nullptr);
+    REQUIRE(bondo != nullptr);
+    REQUIRE(send != nullptr);
+    p.Connect(trigger, 0, bondo, 0);
+    p.Connect(bondo, 0, send, 0);
+
+    int received = 0;
+    int truncated = 0;
+    const YSE::INTERNAL::SubHandle sub = YSE::INTERNAL::Bus().subscribe(
+        full, [&received](const YSE::INTERNAL::BusValue&) { received++; });
+    // Where the bus would cut the full address.
+    const YSE::INTERNAL::SubHandle cutSub = YSE::INTERNAL::Bus().subscribe(
+        full.substr(0, YSE::INTERNAL::NamedBus::kNameCapacity),
+        [&truncated](const YSE::INTERNAL::BusValue&) { truncated++; });
+
+    CHECK(p.PassData(21, "trigger", YSE::T_GUI));
+    for (int block = 0; block < 32; ++block) {
+      p.Calculate(YSE::T_DSP);
+    }
+    YSE::System().update();
+
+    // Refused, not truncated: neither the full nor the cut address is reached.
+    CHECK(received == 0);
+    CHECK(truncated == 0);
+
+    YSE::INTERNAL::Bus().unsubscribe(sub);
+    YSE::INTERNAL::Bus().unsubscribe(cutSub);
+  }
+
+  TEST_CASE("bus routing: a deferred .s at MAX_SLOT_NAME_LENGTH under the longest patcher name "
+            "publishes the full address (#922)") {
+    REQUIRE(TestHelpers::engineInit());
+    using YSE::PATCHER::patcherImplementation;
+
+    const std::string patcherName(patcherImplementation::MAX_PATCHER_NAME_LENGTH, 'p');
+    const std::string slot(patcherImplementation::MAX_SLOT_NAME_LENGTH, 'd');
+    const std::string full = "patcher." + patcherName + "." + slot;
+    REQUIRE(full.size() == patcherImplementation::MAX_SCOPED_ADDRESS_LENGTH);
+
+    patcherImplementation p(1, nullptr);
+    p.SetName(patcherName);
+
+    YSE::pHandle* trigger = p.CreateObject(YSE::OBJ::G_RECEIVE, "trigger");
+    YSE::pHandle* bondo = p.CreateObject(YSE::OBJ::G_BONDO, "1 5");
+    YSE::pHandle* send = p.CreateObject(YSE::OBJ::G_SEND, slot);
+    REQUIRE(trigger != nullptr);
+    REQUIRE(bondo != nullptr);
+    REQUIRE(send != nullptr);
+    p.Connect(trigger, 0, bondo, 0);
+    p.Connect(bondo, 0, send, 0);
+
+    int received = 0;
+    int intValue = -1;
+    const YSE::INTERNAL::SubHandle sub = YSE::INTERNAL::Bus().subscribe(
+        full, [&received, &intValue](const YSE::INTERNAL::BusValue& value) {
+          received++;
+          if (const int* i = std::get_if<int>(&value)) intValue = *i;
+        });
+
+    CHECK(p.PassData(34, "trigger", YSE::T_GUI));
+    for (int block = 0; block < 32; ++block) {
+      p.Calculate(YSE::T_DSP);
+    }
+    YSE::System().update();
+
+    CHECK(received == 1);
+    CHECK(intValue == 34);
+
+    YSE::INTERNAL::Bus().unsubscribe(sub);
+  }
+
+  TEST_CASE("bus routing: .r refuses a dataName past MAX_SLOT_NAME_LENGTH and accepts one at it "
+            "(#922)") {
+    REQUIRE(TestHelpers::engineInit());
+    using YSE::PATCHER::patcherImplementation;
+
+    YSE::patcher b;
+    b.name("r.bound").create(2);
+
+    const std::string atLimit(patcherImplementation::MAX_SLOT_NAME_LENGTH, 'a');
+    const std::string overLimit(patcherImplementation::MAX_SLOT_NAME_LENGTH + 1, 'o');
+
+    YSE::pHandle* recvOk = b.CreateObject(YSE::OBJ::G_RECEIVE, atLimit);
+    YSE::pHandle* recvLong = b.CreateObject(YSE::OBJ::G_RECEIVE, overLimit);
+    REQUIRE(recvOk != nullptr);
+    REQUIRE(recvLong != nullptr);
+
+    MultiSink okSink;
+    MultiSink longSink;
+    YSE::pHandle okHandle(&okSink);
+    YSE::pHandle longHandle(&longSink);
+    b.Connect(recvOk, 0, &okHandle, 0);
+    b.Connect(recvLong, 0, &longHandle, 0);
+
+    // A host publish on each full address, on the control thread.
+    YSE::INTERNAL::Bus().publish("patcher.r.bound." + atLimit, YSE::INTERNAL::BusValue{7},
+                                 YSE::T_GUI);
+    YSE::INTERNAL::Bus().publish("patcher.r.bound." + overLimit, YSE::INTERNAL::BusValue{8},
+                                 YSE::T_GUI);
+
+    CHECK(okSink.gotInt);
+    CHECK(okSink.intValue == 7);
+    CHECK_FALSE(longSink.gotInt);
+  }
+
+  // ── The name travels with the patch (issue #897) ─────────────────────────
+  //
+  // DumpJSON writes a chosen name as a top-level "name" key; ParseJSON applies
+  // it only onto a patcher still wearing its auto-name, so a host-chosen name
+  // wins. The auto-name itself is never written.
+
+  TEST_CASE("patcher json: an auto-named patcher writes no name and round-trips byte-identically "
+            "(#897)") {
+    REQUIRE(TestHelpers::engineInit());
+
+    YSE::patcher src;
+    src.create(2);
+    REQUIRE(src.CreateObject(YSE::OBJ::G_INT, "3") != nullptr);
+    const std::string dump = src.DumpJSON();
+    CHECK(nlohmann::json::parse(dump).count("name") == 0);
+
+    YSE::patcher loaded;
+    loaded.create(2);
+    const std::string autoName = loaded.name();
+    loaded.ParseJSON(dump);
+    // The source's auto-name is a process-wide counter, not a property of the
+    // patch: the loaded patcher keeps its own.
+    CHECK(loaded.name() == autoName);
+    CHECK(loaded.DumpJSON() == dump);
+  }
+
+  TEST_CASE("patcher json: a chosen name is saved, restored, and round-trips byte-identically "
+            "(#897)") {
+    REQUIRE(TestHelpers::engineInit());
+
+    YSE::patcher src;
+    src.name("n897.saved").create(2);
+    REQUIRE(src.CreateObject(YSE::OBJ::G_INT, "3") != nullptr);
+    const std::string dump = src.DumpJSON();
+    const auto parsed = nlohmann::json::parse(dump);
+    REQUIRE(parsed.count("name") == 1);
+    CHECK(parsed["name"] == "n897.saved");
+
+    YSE::patcher loaded;
+    loaded.create(2);
+    loaded.ParseJSON(dump);
+    CHECK(loaded.name() == "n897.saved");
+    CHECK(loaded.Objects() == 1);
+    // dump → parse → dump is a fixed point (#733) with the key present too.
+    CHECK(loaded.DumpJSON() == dump);
+  }
+
+  TEST_CASE("patcher json: a name the host set before loading wins over the saved one (#897)") {
+    REQUIRE(TestHelpers::engineInit());
+
+    YSE::patcher src;
+    src.name("n897.file").create(2);
+    const std::string dump = src.DumpJSON();
+
+    // Named after create()...
+    YSE::patcher after;
+    after.create(2);
+    after.name("n897.host");
+    after.ParseJSON(dump);
+    CHECK(after.name() == "n897.host");
+
+    // ...and before it, where the name is stashed until create() applies it.
+    YSE::patcher before;
+    before.name("n897.host2").create(2);
+    before.ParseJSON(dump);
+    CHECK(before.name() == "n897.host2");
+  }
+
+  TEST_CASE("patcher json: a loaded patch initialising through .s publishes under the saved name "
+            "(#897)") {
+    // The ordering claim: the rename has to happen before the loadbang pass, or
+    // the load-time send goes out under the auto-name and is lost. `.loadmess 5`
+    // → `.s init` publishes on the bus from the post-publish pass; a host
+    // subscriber on each address tells which name the send was made under.
+    REQUIRE(TestHelpers::engineInit());
+
+    YSE::patcher src;
+    src.name("n897.init").create(2);
+    YSE::pHandle* load = src.CreateObject(YSE::OBJ::G_LOADMESS, "5");
+    YSE::pHandle* send = src.CreateObject(YSE::OBJ::G_SEND, "init");
+    REQUIRE(load != nullptr);
+    REQUIRE(send != nullptr);
+    src.Connect(load, 0, send, 0);
+    const std::string dump = src.DumpJSON();
+
+    YSE::patcher loaded;
+    loaded.create(2);
+    const std::string autoName = loaded.name();
+
+    int saved = 0;
+    int savedValue = -1;
+    int unnamed = 0;
+    const YSE::INTERNAL::SubHandle savedSub = YSE::INTERNAL::Bus().subscribe(
+        "patcher.n897.init.init", [&saved, &savedValue](const YSE::INTERNAL::BusValue& value) {
+          saved++;
+          if (const int* i = std::get_if<int>(&value)) savedValue = *i;
+        });
+    const YSE::INTERNAL::SubHandle unnamedSub = YSE::INTERNAL::Bus().subscribe(
+        "patcher." + autoName + ".init", [&unnamed](const YSE::INTERNAL::BusValue&) { unnamed++; });
+
+    loaded.ParseJSON(dump);
+    YSE::System().update();
+
+    CHECK(loaded.name() == "n897.init");
+    CHECK(saved == 1);
+    CHECK(savedValue == 5);
+    CHECK(unnamed == 0);
+
+    YSE::INTERNAL::Bus().unsubscribe(savedSub);
+    YSE::INTERNAL::Bus().unsubscribe(unnamedSub);
+  }
+
+  TEST_CASE("patcher json: the restored name re-anchors objects already in the patcher (#897)") {
+    // ParseJSON is additive: a `.r` created before the load was subscribed under
+    // the auto-name and must follow the rename, like any other SetName.
+    REQUIRE(TestHelpers::engineInit());
+
+    YSE::patcher src;
+    src.name("n897.reanchor").create(2);
+    const std::string dump = src.DumpJSON();
+
+    YSE::patcher loaded;
+    loaded.create(2);
+    YSE::pHandle* recv = loaded.CreateObject(YSE::OBJ::G_RECEIVE, "v");
+    REQUIRE(recv != nullptr);
+    MultiSink sink;
+    YSE::pHandle sinkHandle(&sink);
+    loaded.Connect(recv, 0, &sinkHandle, 0);
+
+    loaded.ParseJSON(dump);
+    REQUIRE(loaded.name() == "n897.reanchor");
+
+    YSE::INTERNAL::Bus().publish("patcher.n897.reanchor.v", YSE::INTERNAL::BusValue{11},
+                                 YSE::T_GUI);
+    CHECK(sink.gotInt);
+    CHECK(sink.intValue == 11);
+  }
+
+  TEST_CASE("patcher json: an over-long or non-string saved name is refused, the patch still "
+            "loads (#897)") {
+    REQUIRE(TestHelpers::engineInit());
+    using YSE::PATCHER::patcherImplementation;
+
+    YSE::patcher src;
+    src.create(2);
+    REQUIRE(src.CreateObject(YSE::OBJ::G_INT, "3") != nullptr);
+    auto doc = nlohmann::json::parse(src.DumpJSON());
+
+    // Past the #921 budget: refused exactly like a host SetName.
+    doc["name"] = std::string(patcherImplementation::MAX_PATCHER_NAME_LENGTH + 1, 'x');
+    YSE::patcher tooLong;
+    tooLong.create(2);
+    const std::string tooLongAuto = tooLong.name();
+    tooLong.ParseJSON(doc.dump());
+    CHECK(tooLong.name() == tooLongAuto);
+    CHECK(tooLong.Objects() == 1);
+
+    // Not a string: ignored, and not mistaken for an object record.
+    doc["name"] = 42;
+    YSE::patcher notString;
+    notString.create(2);
+    const std::string notStringAuto = notString.name();
+    notString.ParseJSON(doc.dump());
+    CHECK(notString.name() == notStringAuto);
+    CHECK(notString.Objects() == 1);
   }
 
 } // TEST_SUITE("patcher")

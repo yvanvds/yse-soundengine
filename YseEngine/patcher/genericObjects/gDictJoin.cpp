@@ -73,12 +73,13 @@ CONSTRUCT() {
   INLET_DOC(0, "join", kLeftInletDoc, "");
   INLET_DOC(1, "right reference", kRightInletDoc, "");
   OUTLET_DOC(0, "reference", kOutletDoc, "");
-  PARAM_DOC("left", "",
-            "The left dictionary's shared name — the base of the join, addressed as "
-            "\"<patcherName>.<name>\", the dictionary a .dict of the same name in this patcher "
-            "holds. Resolved once, on the control thread, which is why no message re-points it "
-            "at run time. Empty joins a private, empty dictionary.",
-            "any identifier");
+  PARAM_DOC(
+      "left", "",
+      "The left dictionary's shared name — the base of the join, addressed as "
+      "\"patcher.<patcherName>.<name>\", the dictionary a .dict of the same name in this patcher "
+      "holds. Resolved once, on the control thread, which is why no message re-points it "
+      "at run time. Empty joins a private, empty dictionary.",
+      "any identifier");
   PARAM_DOC("right", "",
             "The right dictionary's shared name, bound exactly as the left one — the override: "
             "on a colliding key path its value wins. Empty joins a private, empty dictionary.",
@@ -122,15 +123,15 @@ void gDictJoin::RefreshBinding() {
 void gDictJoin::Rebind() {
   // No name, or no patcher to prefix it with, means no address — and no
   // address means a private, empty dictionary on that side. See gDict.h for
-  // why an unnamed side does not pool on "<patcherName>.".
+  // why an unnamed side does not pool on "patcher.<patcherName>.".
   auto* p = static_cast<patcherImplementation*>(parent);
 
   std::string leftAddress;
-  if (!leftName.empty() && p != nullptr) leftAddress = p->Name() + "." + leftName;
+  if (!leftName.empty() && p != nullptr) leftAddress = p->ScopedAddress(leftName);
   std::string rightAddress;
-  if (!rightName.empty() && p != nullptr) rightAddress = p->Name() + "." + rightName;
+  if (!rightName.empty() && p != nullptr) rightAddress = p->ScopedAddress(rightName);
   std::string targetAddress;
-  if (!targetName.empty() && p != nullptr) targetAddress = p->Name() + "." + targetName;
+  if (!targetName.empty() && p != nullptr) targetAddress = p->ScopedAddress(targetName);
 
   // Unchanged binding: keep the store. A live SetParams that leaves a name
   // alone must not re-anchor that side, and neither must the second Rebind()

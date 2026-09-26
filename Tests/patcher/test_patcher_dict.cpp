@@ -15,7 +15,7 @@
 //     name shares one dictionary; the dictionary lives exactly as long as some
 //     object addresses it and no longer. Ownership is "whoever names it", not
 //     an owner object and not a manual free.
-//   - **an unnamed .dict is private.** `"<patcherName>."` is a real address, so
+//   - **an unnamed .dict is private.** `"patcher.<patcherName>."` is a real address, so
 //     pooling there would silently join every unconfigured `.dict` in the
 //     patcher. `.value`'s rule, for `.value`'s reason.
 //   - **nesting lives in the key and comes back on the way out.** `a::b::c` is
@@ -301,7 +301,7 @@ TEST_SUITE("patcher") {
   }
 
   TEST_CASE("dict: an unnamed .dict keeps a dictionary of its own (#550)") {
-    // Not "shares the empty name": "<patcherName>." is a real, reachable
+    // Not "shares the empty name": "patcher.<patcherName>." is a real, reachable
     // address, so two unnamed objects pooling there would be connected in a way
     // a patch author never wired.
     Rig a;
@@ -353,20 +353,20 @@ TEST_SUITE("patcher") {
     gDict obj;
     obj.SetParams("notes550c");
     obj.SetParent(&p);
-    CHECK(obj.Address() == "dict550c_before.notes550c");
+    CHECK(obj.Address() == "patcher.dict550c_before.notes550c");
 
     // Idempotent: a rebind to the address it already has keeps the dictionary,
     // and with it everything in it.
     obj.GetInlet(0)->SetList("set triad 0 4 7", YSE::T_GUI);
     obj.RefreshBinding();
-    CHECK(obj.Address() == "dict550c_before.notes550c");
+    CHECK(obj.Address() == "patcher.dict550c_before.notes550c");
     CHECK(obj.Count() == 1);
 
     // The address prefix moved, so the object now addresses a different
     // dictionary — an empty one, exactly as .value and .coll do.
     p.SetName("dict550c_after");
     obj.RefreshBinding();
-    CHECK(obj.Address() == "dict550c_after.notes550c");
+    CHECK(obj.Address() == "patcher.dict550c_after.notes550c");
     CHECK(obj.Count() == 0);
   }
 

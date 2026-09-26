@@ -72,12 +72,13 @@ CONSTRUCT() {
   INLET_DOC(0, "trigger", kTriggerInletDoc, "");
   INLET_DOC(1, "array reference", kReferenceInletDoc, "");
   OUTLET_DOC(0, "length", kLengthDoc, "0-256");
-  PARAM_DOC("name", "",
-            "The array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an "
-            ".array of the same name in this patcher holds. Resolved once, on the control "
-            "thread, which is why no message re-points it at run time. Empty reads a private, "
-            "empty array: every ask answers 0.",
-            "any identifier");
+  PARAM_DOC(
+      "name", "",
+      "The array's shared name, addressed as \"patcher.<patcherName>.<name>\" — the sequence an "
+      ".array of the same name in this patcher holds. Resolved once, on the control "
+      "thread, which is why no message re-points it at run time. Empty reads a private, "
+      "empty array: every ask answers 0.",
+      "any identifier");
 }
 
 // A re-parse must not leave half of the previous configuration standing:
@@ -107,11 +108,11 @@ void gArrayLength::RefreshBinding() {
 void gArrayLength::Rebind() {
   // No name, or no patcher to prefix it with, means no address — and no
   // address means a private, empty array. See gArray.h for why an unnamed
-  // object does not pool on "<patcherName>.".
+  // object does not pool on "patcher.<patcherName>.".
   std::string address;
   if (!arrayName.empty() && parent != nullptr) {
     auto* p = static_cast<patcherImplementation*>(parent);
-    address = p->Name() + "." + arrayName;
+    address = p->ScopedAddress(arrayName);
   }
 
   // Unchanged binding: keep the store. A live SetParams that leaves the name

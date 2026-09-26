@@ -43,7 +43,8 @@ namespace {
       "saw. An empty array — a private, unnamed store included — holds none of the values, so "
       "it always leaves here.";
   constexpr char kNameParamDoc[] =
-      "The array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an .array "
+      "The array's shared name, addressed as \"patcher.<patcherName>.<name>\" — the sequence an "
+      ".array "
       "of the same name in this patcher holds. Resolved once, on the control thread, which is "
       "why no message re-points it at run time. Empty leaves the object inert: a private array "
       "has no name to pass on, so there is nothing to route.";

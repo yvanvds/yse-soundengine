@@ -91,7 +91,7 @@ namespace {
   };
 
   // A .dict keeper and a .dict.deserialize on one name, sharing one
-  // patcherImplementation so the name actually binds ("<patcherName>.<name>"
+  // patcherImplementation so the name actually binds ("patcher.<patcherName>.<name>"
   // needs a patcher to prefix with — a parentless object stays private). The
   // keeper is what the assertions read the dictionary through. The sink is
   // declared before the objects so it is torn down last, while the outlet
@@ -513,15 +513,15 @@ TEST_SUITE("patcher") {
     g.SetParams("d771k");
     g.SetParent(&p);
     CHECK(g.DictName() == "d771k");
-    CHECK(g.Address() == "dd771k_before.d771k");
+    CHECK(g.Address() == "patcher.dd771k_before.d771k");
 
     // Idempotent: a rebind to the address it already has keeps the store.
     g.RefreshBinding();
-    CHECK(g.Address() == "dd771k_before.d771k");
+    CHECK(g.Address() == "patcher.dd771k_before.d771k");
 
     p.SetName("dd771k_after");
     g.RefreshBinding();
-    CHECK(g.Address() == "dd771k_after.d771k");
+    CHECK(g.Address() == "patcher.dd771k_after.d771k");
   }
 
   TEST_CASE("dict.deserialize: patcherImplementation::SetName re-anchors it (#771)") {

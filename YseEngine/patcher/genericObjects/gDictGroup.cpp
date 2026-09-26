@@ -76,12 +76,13 @@ CONSTRUCT() {
   INLET_DOC(0, "group", kSourceInletDoc, "");
   INLET_DOC(1, "target reference", kTargetInletDoc, "");
   OUTLET_DOC(0, "reference", kOutletDoc, "");
-  PARAM_DOC("source", "",
-            "The source dictionary's shared name, addressed as \"<patcherName>.<name>\" — the "
-            "dictionary a .dict of the same name in this patcher holds. Resolved once, on the "
-            "control thread, which is why no message re-points it at run time. Empty groups a "
-            "private, empty dictionary.",
-            "any identifier");
+  PARAM_DOC(
+      "source", "",
+      "The source dictionary's shared name, addressed as \"patcher.<patcherName>.<name>\" — the "
+      "dictionary a .dict of the same name in this patcher holds. Resolved once, on the "
+      "control thread, which is why no message re-points it at run time. Empty groups a "
+      "private, empty dictionary.",
+      "any identifier");
   PARAM_DOC("target", "",
             "The target dictionary's shared name, bound exactly as the source. A grouping "
             "replaces its contents whole. The result goes into a bound dictionary rather than a "
@@ -128,13 +129,13 @@ void gDictGroup::RefreshBinding() {
 void gDictGroup::Rebind() {
   // No name, or no patcher to prefix it with, means no address — and no
   // address means a private, empty dictionary on that side. See gDict.h for
-  // why an unnamed side does not pool on "<patcherName>.".
+  // why an unnamed side does not pool on "patcher.<patcherName>.".
   auto* p = static_cast<patcherImplementation*>(parent);
 
   std::string sourceAddress;
-  if (!sourceName.empty() && p != nullptr) sourceAddress = p->Name() + "." + sourceName;
+  if (!sourceName.empty() && p != nullptr) sourceAddress = p->ScopedAddress(sourceName);
   std::string targetAddress;
-  if (!targetName.empty() && p != nullptr) targetAddress = p->Name() + "." + targetName;
+  if (!targetName.empty() && p != nullptr) targetAddress = p->ScopedAddress(targetName);
 
   // Unchanged binding: keep the store. A live SetParams that leaves a name
   // alone must not re-anchor that side, and neither must the second Rebind()

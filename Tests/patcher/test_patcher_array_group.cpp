@@ -104,7 +104,7 @@ namespace {
   };
 
   // An .array and an .array.group on one name, sharing one
-  // patcherImplementation so the name actually binds ("<patcherName>.<name>"
+  // patcherImplementation so the name actually binds ("patcher.<patcherName>.<name>"
   // needs a patcher to prefix with — a parentless object stays private). The
   // sinks are declared before the objects so they are torn down last, while
   // the outlets wired to them still exist (see sinks.hpp on why that
@@ -448,15 +448,15 @@ TEST_SUITE("patcher") {
     g.SetParams("a801i");
     g.SetParent(&p);
     CHECK(g.ArrayName() == "a801i");
-    CHECK(g.Address() == "ag801i_before.a801i");
+    CHECK(g.Address() == "patcher.ag801i_before.a801i");
 
     // Idempotent: a rebind to the address it already has keeps the store.
     g.RefreshBinding();
-    CHECK(g.Address() == "ag801i_before.a801i");
+    CHECK(g.Address() == "patcher.ag801i_before.a801i");
 
     p.SetName("ag801i_after");
     g.RefreshBinding();
-    CHECK(g.Address() == "ag801i_after.a801i");
+    CHECK(g.Address() == "patcher.ag801i_after.a801i");
   }
 
   TEST_CASE("array.group: patcherImplementation::SetName re-anchors it (#801)") {

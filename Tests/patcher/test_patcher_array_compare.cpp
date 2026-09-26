@@ -67,7 +67,7 @@ namespace {
   };
 
   // One .array and one .array.change on its name, sharing one
-  // patcherImplementation so the name actually binds ("<patcherName>.<name>"
+  // patcherImplementation so the name actually binds ("patcher.<patcherName>.<name>"
   // needs a patcher to prefix with — a parentless object stays private). The
   // sinks are declared before the objects so they are torn down last, while
   // the outlets wired to them still exist (see sinks.hpp on why that
@@ -631,8 +631,8 @@ TEST_SUITE("patcher") {
     op->SetParent(&p);
     CHECK(op->ArrayName() == "lft800");
     CHECK(op->RightName() == "rgt800");
-    CHECK(op->Address() == "ac800p.lft800");
-    CHECK(op->RightAddress() == "ac800p.rgt800");
+    CHECK(op->Address() == "patcher.ac800p.lft800");
+    CHECK(op->RightAddress() == "patcher.ac800p.rgt800");
 
     // SetParams("") is a real reset on both sides — back to two private
     // arrays.

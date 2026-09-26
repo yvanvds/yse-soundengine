@@ -427,15 +427,15 @@ TEST_SUITE("patcher") {
     g.SetParams("a803n .");
     g.SetParent(&p);
     CHECK(g.ArrayName() == "a803n");
-    CHECK(g.Address() == "ar803n_before.a803n");
+    CHECK(g.Address() == "patcher.ar803n_before.a803n");
 
     // Idempotent: a rebind to the address it already has keeps the store.
     g.RefreshBinding();
-    CHECK(g.Address() == "ar803n_before.a803n");
+    CHECK(g.Address() == "patcher.ar803n_before.a803n");
 
     p.SetName("ar803n_after");
     g.RefreshBinding();
-    CHECK(g.Address() == "ar803n_after.a803n");
+    CHECK(g.Address() == "patcher.ar803n_after.a803n");
   }
 
   TEST_CASE("array.regexp: patcherImplementation::SetName re-anchors it (#803)") {

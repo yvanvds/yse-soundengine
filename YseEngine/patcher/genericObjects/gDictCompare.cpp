@@ -81,12 +81,13 @@ CONSTRUCT() {
   INLET_DOC(1, "right reference", kRightInletDoc, "");
   OUTLET_DOC(0, "equal", kOutletDoc, "0 or 1");
   OUTLET_DOC(1, "paths", kPathsOutletDoc, "at most 256 paths");
-  PARAM_DOC("left", "",
-            "The left dictionary's shared name, addressed as \"<patcherName>.<name>\" — the "
-            "dictionary a .dict of the same name in this patcher holds. Resolved once, on the "
-            "control thread, which is why no message re-points it at run time. Empty compares a "
-            "private, empty dictionary.",
-            "any identifier");
+  PARAM_DOC(
+      "left", "",
+      "The left dictionary's shared name, addressed as \"patcher.<patcherName>.<name>\" — the "
+      "dictionary a .dict of the same name in this patcher holds. Resolved once, on the "
+      "control thread, which is why no message re-points it at run time. Empty compares a "
+      "private, empty dictionary.",
+      "any identifier");
   PARAM_DOC("right", "",
             "The right dictionary's shared name, bound exactly as the left one. Empty compares a "
             "private, empty dictionary.",
@@ -121,13 +122,13 @@ void gDictCompare::RefreshBinding() {
 void gDictCompare::Rebind() {
   // No name, or no patcher to prefix it with, means no address — and no
   // address means a private, empty dictionary on that side. See gDict.h for
-  // why an unnamed side does not pool on "<patcherName>.".
+  // why an unnamed side does not pool on "patcher.<patcherName>.".
   auto* p = static_cast<patcherImplementation*>(parent);
 
   std::string leftAddress;
-  if (!leftName.empty() && p != nullptr) leftAddress = p->Name() + "." + leftName;
+  if (!leftName.empty() && p != nullptr) leftAddress = p->ScopedAddress(leftName);
   std::string rightAddress;
-  if (!rightName.empty() && p != nullptr) rightAddress = p->Name() + "." + rightName;
+  if (!rightName.empty() && p != nullptr) rightAddress = p->ScopedAddress(rightName);
 
   // Unchanged binding: keep the store. A live SetParams that leaves a name
   // alone must not re-anchor that side, and neither must the second Rebind()

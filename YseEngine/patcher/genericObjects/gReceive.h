@@ -7,7 +7,7 @@
 
   Forwards values that arrive through the in-patcher `PassData` path *and*
   through the global named bus (issue #122). The bus subscription is keyed
-  on "<patcherName>.<dataName>"; matching producers in *any* patcher with
+  on "patcher.<patcherName>.<dataName>"; matching producers in *any* patcher with
   the same name reach this receiver. Subscription happens when the
   receiver learns its parent patcher (`SetParent`); destruction
   unsubscribes.
@@ -25,6 +25,11 @@ namespace YSE {
     _BANG_IN(SetBangValue)
     _LIST_IN(SetListValue)
 
+    // Refuses — logs and clears — a dataName longer than
+    // patcherImplementation::MAX_SLOT_NAME_LENGTH, gSend's rule, so a .r keeps
+    // subscribing to the address its .s publishes whole (issue #922).
+    _PARM_PARSE
+
   public:
     ~gReceive() override;
 
@@ -36,6 +41,10 @@ namespace YSE {
     // `patcherImplementation::SetName` when the patcher is renamed so
     // existing receivers keep working under the new bus prefix.
     void Resubscribe();
+    // The rename hook (issue #893): a patcher rename re-anchors this object.
+    void OnPatcherRenamed() override {
+      Resubscribe();
+    }
 
   private:
     void unsubscribeIfNeeded();

@@ -107,14 +107,15 @@ gArrayChange::gArrayChange() : gArrayEndsBase() {
              "Max's right outlet. Nothing at all on a refused poll: a lost try-lock leaves the "
              "array's state unknown, so no verdict is honest.",
              "0 or 1");
-  PARAM_DOC("name", "",
-            "The array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an "
-            ".array of the same name in this patcher holds. Resolved once, on the control "
-            "thread, which is why no message re-points it at run time. Empty watches a private, "
-            "empty array: every poll answers 0 and the reference outlet never fires. A re-parse "
-            "and a patcher rename both reset the baseline to the empty array — the object then "
-            "watches a different binding, and whatever that array holds is news.",
-            "any identifier");
+  PARAM_DOC(
+      "name", "",
+      "The array's shared name, addressed as \"patcher.<patcherName>.<name>\" — the sequence an "
+      ".array of the same name in this patcher holds. Resolved once, on the control "
+      "thread, which is why no message re-points it at run time. Empty watches a private, "
+      "empty array: every poll answers 0 and the reference outlet never fires. A re-parse "
+      "and a patcher rename both reset the baseline to the empty array — the object then "
+      "watches a different binding, and whatever that array holds is news.",
+      "any identifier");
 }
 
 // The reference follows the name and the baseline resets — a re-parse must
@@ -268,12 +269,13 @@ gArrayCompare::gArrayCompare() : gArrayEndsBase() {
              "not. Two empty (or unnamed, private) sides are equal: they hold the same "
              "nothing.",
              "0 or 1");
-  PARAM_DOC("left", "",
-            "The left array's shared name, addressed as \"<patcherName>.<name>\" — the sequence "
-            "an .array of the same name in this patcher holds. Resolved once, on the control "
-            "thread, which is why no message re-points it at run time. Empty compares a "
-            "private, empty array on that side.",
-            "any identifier");
+  PARAM_DOC(
+      "left", "",
+      "The left array's shared name, addressed as \"patcher.<patcherName>.<name>\" — the sequence "
+      "an .array of the same name in this patcher holds. Resolved once, on the control "
+      "thread, which is why no message re-points it at run time. Empty compares a "
+      "private, empty array on that side.",
+      "any identifier");
   PARAM_DOC("right", "",
             "The right array's shared name, bound exactly as the left one. Empty compares a "
             "private, empty array on that side.",
@@ -309,11 +311,11 @@ void gArrayCompare::RebindRight() {
   // The exact mirror of gArrayEndsBase::Rebind over the second name. No
   // name, or no patcher to prefix it with, means no address — and no address
   // means a private, empty array on that side. See gArray.h for why an
-  // unnamed side does not pool on "<patcherName>.".
+  // unnamed side does not pool on "patcher.<patcherName>.".
   std::string address;
   if (!rightName.empty() && parent != nullptr) {
     auto* p = static_cast<patcherImplementation*>(parent);
-    address = p->Name() + "." + rightName;
+    address = p->ScopedAddress(rightName);
   }
 
   // Unchanged binding: keep the store. A live SetParams that leaves the name

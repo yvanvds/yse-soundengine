@@ -38,7 +38,8 @@ namespace {
       "refusal, nothing changed), and an unnamed object stays silent — the permutation happens, "
       "but there is no name to pass on.";
   constexpr char kNameParamDoc[] =
-      "The array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an .array "
+      "The array's shared name, addressed as \"patcher.<patcherName>.<name>\" — the sequence an "
+      ".array "
       "of the same name in this patcher holds. Resolved once, on the control thread, which is "
       "why no message re-points it at run time. Empty permutes a private, empty array: the "
       "trigger lands, but nothing shares it and no reference leaves.";

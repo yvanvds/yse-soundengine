@@ -279,7 +279,8 @@ namespace YSE {
      *         truncates a published name at its own capacity while the
      *         in-patcher delivery path does not, so a longer name would address
      *         two different receivers on the two paths; ``.forward``'s limit,
-     *         pinned to the same constant in the .cpp. */
+     *         pinned in the .cpp to ``patcherImplementation::MAX_SLOT_NAME_LENGTH``,
+     *         the slot share of the full-address budget (issue #921). */
     static constexpr std::size_t MAX_NAME_LENGTH = 63;
 
     /** @brief Max's ``quantile`` scale — "divided by 2^15 (32,768)", and the
@@ -328,6 +329,10 @@ namespace YSE {
     // from patcherImplementation::SetName so a `send` keeps reaching the
     // receivers that just re-anchored under the new name (issue #699).
     void RefreshBusPrefix();
+    // The rename hook (issue #893): a patcher rename re-anchors this object.
+    void OnPatcherRenamed() override {
+      RefreshBusPrefix();
+    }
 
   private:
     /**
@@ -431,7 +436,7 @@ namespace YSE {
     // tables do not share contents here. Control thread only.
     std::string tableName;
 
-    // "<patcherName>.", built in SetParent and prefixed to a `send` destination.
+    // "patcher.<patcherName>.", built in SetParent and prefixed to a `send` destination.
     // Reserved for the longest destination this object accepts, so the message
     // path only ever refills the address rather than growing it.
     std::string busPrefix;

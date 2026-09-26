@@ -138,7 +138,7 @@ namespace YSE {
      *
      *  ### The name is the same name ``.s`` and ``.r`` use
      *
-     *  The cell is addressed as ``"<patcherName>.<name>"`` — the
+     *  The cell is addressed as ``"patcher.<patcherName>.<name>"`` — the
      *  ``INTERNAL::NamedBus`` address form, so ``.value tempo``, ``.s tempo``
      *  and ``.r tempo`` in the same patcher all speak about one word, and two
      *  patchers given the same ``patcher::name()`` share their cells exactly as
@@ -154,7 +154,7 @@ namespace YSE {
      *
      *  ### An unnamed ``.value`` is private
      *
-     *  Not "shares the empty name". ``"<patcherName>."`` is a real, reachable
+     *  Not "shares the empty name". ``"patcher.<patcherName>."`` is a real, reachable
      *  address, so an unnamed ``.value`` sharing it would silently pool with
      *  every other unconfigured ``.value`` in the patcher — two objects a patch
      *  author has not connected in any visible way, quietly overwriting each
@@ -225,7 +225,7 @@ namespace YSE {
 
     /**
      *  @brief The address the cell is registered under —
-     *         ``"<patcherName>.<name>"`` — or empty while the cell is private.
+     *         ``"patcher.<patcherName>.<name>"`` — or empty while the cell is private.
      */
     const std::string& Address() const {
       return boundAddress;
@@ -250,6 +250,10 @@ namespace YSE {
     // gSend::RefreshBusAddress, so a renamed patcher's values re-anchor with
     // its sends and receives.
     void RefreshBinding();
+    // The rename hook (issue #893): a patcher rename re-anchors this object.
+    void OnPatcherRenamed() override {
+      RefreshBinding();
+    }
 
   private:
     // Point at the cell the current name and parent address, creating it if

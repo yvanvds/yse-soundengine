@@ -242,7 +242,8 @@ CONSTRUCT() {
       "An ordered, index-addressed sequence shared by name — Max's array. Every element is one "
       "atom, so an array and the list text it spells are the same thing seen twice: \"append 0 4 "
       "7\" adds three elements and \"getvalue\" sends them back as the list \"0 4 7\". The array "
-      "is addressed as \"<patcherName>.<name>\", the same address form .s, .r, .value, .coll and "
+      "is addressed as \"patcher.<patcherName>.<name>\", the same address form .s, .r, .value, "
+      ".coll and "
       ".dict use, so every .array of one name shares one sequence and two patchers given one name "
       "share theirs. A bang emits \"array <name>\" out outlet 1 — the reference the array.* family "
       "binds. Arrays are addressed by name rather than passed down a cord: an outlet carries a "
@@ -254,13 +255,14 @@ CONSTRUCT() {
   OUTLET_DOC(0, "data", kDataDoc, "");
   OUTLET_DOC(1, "reference", kReferenceDoc, "");
   OUTLET_DOC(2, "miss", kMissDoc, "");
-  PARAM_DOC("name", "",
-            "Max's shared context: all .array objects of this name share their contents, through a "
-            "store addressed as \"<patcherName>.<name>\". Empty gives this object a sequence of "
-            "its own rather than pooling it with every other unnamed .array in the patcher. The "
-            "name is resolved once, on the control thread, which is why there is no message that "
-            "re-points an .array at another name at run time.",
-            "any identifier");
+  PARAM_DOC(
+      "name", "",
+      "Max's shared context: all .array objects of this name share their contents, through a "
+      "store addressed as \"patcher.<patcherName>.<name>\". Empty gives this object a sequence of "
+      "its own rather than pooling it with every other unnamed .array in the patcher. The "
+      "name is resolved once, on the control thread, which is why there is no message that "
+      "re-points an .array at another name at run time.",
+      "any identifier");
 }
 
 // A re-parse must not leave half of the previous configuration standing:
@@ -293,11 +295,11 @@ void gArray::RefreshBinding() {
 void gArray::Rebind() {
   // No name, or no patcher to prefix it with, means no address — and no address
   // means a private array. See the class documentation for why an unnamed
-  // .array does not pool on "<patcherName>.".
+  // .array does not pool on "patcher.<patcherName>.".
   std::string address;
   if (!arrayName.empty() && parent != nullptr) {
     auto* p = static_cast<patcherImplementation*>(parent);
-    address = p->Name() + "." + arrayName;
+    address = p->ScopedAddress(arrayName);
   }
 
   // Unchanged binding: keep the store, and with it everything in it. A live

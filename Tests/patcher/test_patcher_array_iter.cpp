@@ -98,7 +98,7 @@ namespace {
   };
 
   // An .array and an .array.iter on one name, sharing one
-  // patcherImplementation so the name actually binds ("<patcherName>.<name>"
+  // patcherImplementation so the name actually binds ("patcher.<patcherName>.<name>"
   // needs a patcher to prefix with — a parentless object stays private). The
   // sinks are declared before the objects so they are torn down last, while
   // the outlets wired to them still exist (see sinks.hpp on why that
@@ -383,15 +383,15 @@ TEST_SUITE("patcher") {
     g.SetParams("a798g");
     g.SetParent(&p);
     CHECK(g.ArrayName() == "a798g");
-    CHECK(g.Address() == "ai798g_before.a798g");
+    CHECK(g.Address() == "patcher.ai798g_before.a798g");
 
     // Idempotent: a rebind to the address it already has keeps the store.
     g.RefreshBinding();
-    CHECK(g.Address() == "ai798g_before.a798g");
+    CHECK(g.Address() == "patcher.ai798g_before.a798g");
 
     p.SetName("ai798g_after");
     g.RefreshBinding();
-    CHECK(g.Address() == "ai798g_after.a798g");
+    CHECK(g.Address() == "patcher.ai798g_after.a798g");
   }
 
   TEST_CASE("array.iter: patcherImplementation::SetName re-anchors it (#798)") {

@@ -90,12 +90,13 @@ gArrayRandom::gArrayRandom() : gArrayEndsBase() {
              "aligned with the elements actually picked. A lost try-lock is a counted refusal "
              "instead: the array's state is unknown, so neither outlet fires.",
              "");
-  PARAM_DOC("name", "",
-            "The array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an "
-            ".array of the same name in this patcher holds. Resolved once, on the control "
-            "thread, which is why no message re-points it at run time. Empty picks from a "
-            "private, empty array: every ask bangs the empty outlet.",
-            "any identifier");
+  PARAM_DOC(
+      "name", "",
+      "The array's shared name, addressed as \"patcher.<patcherName>.<name>\" — the sequence an "
+      ".array of the same name in this patcher holds. Resolved once, on the control "
+      "thread, which is why no message re-points it at run time. Empty picks from a "
+      "private, empty array: every ask bangs the empty outlet.",
+      "any identifier");
   PARAM_DOC("seed", "0",
             "Random seed for the pick sequence; non-zero replays the same picks every run, 0 "
             "picks an arbitrary stream.",

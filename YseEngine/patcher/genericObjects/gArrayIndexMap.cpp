@@ -112,12 +112,13 @@ gArrayIndexMap::gArrayIndexMap() : gArrayEndsBase() {
   INLET_DOC(1, "index map", kMapInletDoc, "0-255 each");
   INLET_DOC(2, "array reference", kReferenceInletDoc, "");
   OUTLET_DOC(0, "reference", kOutletDoc, "");
-  PARAM_DOC("name", "",
-            "The array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an "
-            ".array of the same name in this patcher holds. Resolved once, on the control "
-            "thread, which is why no message re-points it at run time. Empty reorders a "
-            "private, empty array: the picks all miss, and no reference leaves.",
-            "any identifier");
+  PARAM_DOC(
+      "name", "",
+      "The array's shared name, addressed as \"patcher.<patcherName>.<name>\" — the sequence an "
+      ".array of the same name in this patcher holds. Resolved once, on the control "
+      "thread, which is why no message re-points it at run time. Empty reorders a "
+      "private, empty array: the picks all miss, and no reference leaves.",
+      "any identifier");
   PARAM_DOC("map", "",
             "The initial stored map — the zero-based indices a bang applies before any list has "
             "arrived on the map inlet, in pick order. Absent means no map, and a bang before "

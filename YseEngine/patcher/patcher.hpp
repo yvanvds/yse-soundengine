@@ -60,7 +60,7 @@ namespace YSE {
      *  @brief Set the patcher's name (used as the prefix on the global bus).
      *
      *  Every ``gSend`` inside this patcher publishes its value to the global
-     *  ``NamedBus`` under ``"<patcherName>.<dataName>"`` (issue #122). Two
+     *  ``NamedBus`` under ``"patcher.<patcherName>.<dataName>"`` (issue #122). Two
      *  patchers that share the same name route their sends/receives
      *  together; patchers with distinct names stay isolated even when their
      *  inner ``dataName`` values collide.
@@ -70,7 +70,15 @@ namespace YSE {
      *  been called the value is stashed and applied at ``create()`` time.
      *
      *  Default: an auto-generated identifier of the form
-     *  ``"patcher_<N>"`` where ``N`` increments per process.
+     *  ``"patcher_<N>"`` where ``N`` increments per process. Passing an
+     *  empty name restores that auto-generated name (issue #896); before
+     *  ``create()`` it drops any stashed name, so ``create()`` keeps the
+     *  auto-name and ``name()`` reads back ``""`` until then.
+     *
+     *  A name longer than 55 characters is refused — logged, and the current
+     *  name kept — so the full ``"patcher.<patcherName>.<slot>"`` address,
+     *  with a slot of up to 63 characters, always fits the bus's fixed-size
+     *  name on the audio-thread path (issue #921).
      */
     patcher& name(const std::string& n);
 
@@ -142,10 +150,22 @@ namespace YSE {
     /** @brief Whether ``type`` is a known object type identifier. */
     static bool IsValidObject(const char* type);
 
-    /** @brief Serialise the current graph to JSON. */
+    /** @brief Serialise the current graph to JSON.
+     *
+     *  A name set with ``name()`` is written as an optional top-level
+     *  ``"name"`` key; the auto-generated ``"patcher_<N>"`` name is not
+     *  written (issue #897).
+     */
     std::string DumpJSON();
 
-    /** @brief Replace the current graph with the contents of a JSON dump. */
+    /** @brief Replace the current graph with the contents of a JSON dump.
+     *
+     *  A top-level ``"name"`` key is applied only if this patcher still has its
+     *  auto-generated name, so a name the host set before loading wins. It is
+     *  applied before any object is created and before ``.loadbang`` fires, and
+     *  is refused (logged, auto-name kept) like any over-long ``name()``
+     *  (issue #897).
+     */
     void ParseJSON(const std::string& content);
 
     /** @brief Number of objects in the patcher.

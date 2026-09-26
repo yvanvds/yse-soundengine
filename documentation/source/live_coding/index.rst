@@ -29,7 +29,7 @@ install once:
    }
 
    yse_set_script_error_callback(on_error, NULL);
-   yse_run_script("yse.send('synth1.cutoff', 800)\n");
+   yse_run_script("yse.send('patcher.lead.cutoff', 800)\n");
 
 The ``yse`` module is already bound into the script's namespace — scripts call
 ``yse.send(...)`` directly, no ``import`` needed.
@@ -46,7 +46,7 @@ The primitives
    .. code-block:: python
 
       yse.send("sound.kick.volume", 0.7)
-      yse.send("synth1.cutoff", 800)
+      yse.send("patcher.lead.cutoff", 800)
       yse.send("position", [0.0, 1.5, -2.0])
 
 ``yse.on(name, callback)``
@@ -71,7 +71,7 @@ The primitives
 
    .. code-block:: python
 
-      cutoff = yse.latch("synth1.cutoff")
+      cutoff = yse.latch("patcher.lead.cutoff")
       # ... a tick or two after a publish ...
       if cutoff.value is not None and cutoff.value > 1000:
           yse.send("alarm", 1)
@@ -145,7 +145,7 @@ want to layer can omit it per evaluation.
 Addressing
 ----------
 
-Three prefixes are owned by the engine and let scripts reach engine objects by
+Four prefixes are owned by the engine and let scripts reach engine objects by
 the name assigned through the C++/C API:
 
 ==============================  =======================================
@@ -153,12 +153,39 @@ Address                         Produced / consumed by
 ==============================  =======================================
 ``sound.<name>.<prop>``         ``YSE::sound`` properties
 ``channel.<name>.<prop>``       ``YSE::channel`` properties
-``patcher.<name>.<slot>``       patcher ``gSend`` / ``gReceive`` slots
+``patcher.<name>.<slot>``       patcher ``.s`` / ``.r`` slots
+``synth.<name>.<event>``        ``YSE::synth`` note / controller events
 ==============================  =======================================
 
 Every other name is *freeform* and exists purely for script-to-script
 communication. A dotted path such as ``"section_a.gate"`` is just a
-human-readable convention — the bus treats the whole string as opaque.
+human-readable convention — the bus treats the whole string as opaque. A
+freeform ``"lead.cutoff"`` does **not** reach a patcher named ``lead``; that is
+``"patcher.lead.cutoff"``.
+
+Patcher names
+~~~~~~~~~~~~~
+
+A patcher's name, set with ``patcher::name()`` or ``yse_patcher_set_name``,
+scopes everything name-addressed inside it. A ``.s cutoff`` / ``.r cutoff`` in
+a patcher named ``lead`` speaks on ``patcher.lead.cutoff``, and the ``send``
+messages of ``.forward``, ``.bag`` and ``.table`` publish into the same scope.
+The patcher's shared stores (``.array``, ``.dict``, ``.coll``, ``.value``) are
+keyed the same way, although they are not bus traffic a script can subscribe
+to. Renaming a patcher moves all of it to the new name.
+
+- **Same name, shared scope.** Two patchers may share a name on purpose, and
+  that is how patchers talk to each other directly: a ``.s`` in one reaches a
+  ``.r`` in the other, and their same-named stores are one store. Patchers with
+  different names stay isolated; a script can bridge them with
+  ``yse.on("patcher.a.x", lambda v: yse.send("patcher.b.x", v))``.
+- **Unnamed patchers are auto-named** ``patcher_<N>``, so two anonymous patchers
+  never share a scope by accident. The number comes from a process-wide counter
+  and changes between runs, and it is never saved into a patch, so it is not
+  an address to script against. Ask the host to name any patcher a script needs
+  to reach. Setting an empty name restores the auto-name.
+- **Length limits.** A patcher name is at most 55 characters and a slot name at
+  most 63. Longer ones are logged and refused.
 
 A worked example
 -----------------
@@ -170,13 +197,13 @@ tick:
 
    yse.cancel_all()
 
-   cutoff = yse.latch("synth1.cutoff")
+   cutoff = yse.latch("patcher.lead.cutoff")
 
    def sweep():
        if cutoff.value is None:
            yse.schedule(1, sweep)   # not ready yet, try next tick
            return
-       yse.send("synth1.cutoff", cutoff.value * 1.01)
+       yse.send("patcher.lead.cutoff", cutoff.value * 1.01)
        yse.schedule(1, sweep)
 
    sweep()

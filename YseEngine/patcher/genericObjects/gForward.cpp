@@ -24,9 +24,10 @@ namespace {
   // The bus truncates a published name at kNameCapacity while the in-patcher
   // PassData path does not, so the two would disagree about where an over-long
   // destination points. gForward refuses such a name outright; this keeps the
-  // limit it refuses by pinned to the limit that motivates it.
-  static_assert(gForward::MAX_NAME_LENGTH == YSE::INTERNAL::NamedBus::kNameCapacity,
-                "gForward::MAX_NAME_LENGTH must track NamedBus::kNameCapacity");
+  // limit it refuses by pinned to the slot share of the patcher's address
+  // budget, whose sum patcherImplementation.cpp asserts fits the bus (#921).
+  static_assert(gForward::MAX_NAME_LENGTH == patcherImplementation::MAX_SLOT_NAME_LENGTH,
+                "gForward::MAX_NAME_LENGTH must track the patcher's slot-name budget");
 } // namespace
 
 CONSTRUCT() {
@@ -58,7 +59,8 @@ CONSTRUCT() {
   ADD_DESCRIPTION(
       "Named send endpoint whose destination is chosen at runtime. Delivers incoming values "
       "exactly as .s does — to every .r in the patcher whose dataName matches, and on the global "
-      "bus as \"<patcherName>.<destination>\" — but takes the destination name from its right "
+      "bus as \"patcher.<patcherName>.<destination>\" — but takes the destination name from its "
+      "right "
       "inlet, so a patch can re-aim it with a message instead of being rewired. Sends nothing "
       "until a destination is set.");
   ADD_CATEGORY(pCategory::GENERIC);
@@ -114,7 +116,7 @@ void gForward::RefreshBusAddress() {
     busPrefix.clear();
   } else {
     auto* p = static_cast<patcherImplementation*>(parent);
-    busPrefix = p->Name() + ".";
+    busPrefix = p->ScopedAddressPrefix();
   }
   // Control thread. Size the address for the longest destination this object
   // will ever accept under the current prefix, so SetDestination() only ever

@@ -101,12 +101,13 @@ gArrayWrap::gArrayWrap() : gArrayEndsBase() {
   INLET_DOC(1, "array reference", kReferenceInletDoc, "");
   OUTLET_DOC(0, "element", kElementDoc, "");
   OUTLET_DOC(1, "empty", kEmptyDoc, "");
-  PARAM_DOC("name", "",
-            "The array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an "
-            ".array of the same name in this patcher holds. Resolved once, on the control "
-            "thread, which is why no message re-points it at run time. Empty reads a private, "
-            "empty array: every fetch bangs the empty outlet.",
-            "any identifier");
+  PARAM_DOC(
+      "name", "",
+      "The array's shared name, addressed as \"patcher.<patcherName>.<name>\" — the sequence an "
+      ".array of the same name in this patcher holds. Resolved once, on the control "
+      "thread, which is why no message re-points it at run time. Empty reads a private, "
+      "empty array: every fetch bangs the empty outlet.",
+      "any identifier");
   PARAM_DOC("index", "0",
             "The initial stored index — the position a bang fetches before any int has moved "
             "it. Any sign: it wraps against the length at the moment of the fetch, so -1 is "

@@ -141,7 +141,7 @@ namespace YSE {
      *
      *  Delivery is ``.s``'s, through ``.table``'s ``SendTo``: every ``.r`` in the
      *  patcher whose name matches, **and** the global bus under
-     *  ``"<patcherName>.<name>"``. Max's wording names only ``receive`` objects,
+     *  ``"patcher.<patcherName>.<name>"``. Max's wording names only ``receive`` objects,
      *  but in this patcher ``.s`` publishes to both and a ``.r`` subscribes to
      *  both, so reaching only one of the two would make ``send`` mean something
      *  narrower than the ``.s`` it is standing in for. Every value is an ``int``,
@@ -156,7 +156,7 @@ namespace YSE {
      *  token is taken, which is also what Max does with surplus arguments.
      *
      *  Nothing on that path allocates: the name and the bus address are refilled
-     *  into strings reserved at construction, and the ``"<patcherName>."`` prefix
+     *  into strings reserved at construction, and the ``"patcher.<patcherName>."`` prefix
      *  is rebuilt on the control thread by ``SetParent`` and by
      *  ``patcherImplementation::SetName``. Because those two strings are members
      *  rather than stack values — ``PassData`` and ``NamedBus::publish`` both want
@@ -233,15 +233,17 @@ namespace YSE {
     /**
      *  @brief Longest ``receive`` name ``send`` will accept — 63.
      *
-     *  ``INTERNAL::NamedBus::kNameCapacity``, asserted against it in the
-     *  implementation so the two cannot drift. A longer name is refused rather
+     *  ``patcherImplementation::MAX_SLOT_NAME_LENGTH``, asserted against it in
+     *  the implementation so the two cannot drift; the whole
+     *  ``"patcher.<patcherName>.<name>"`` address is what has to fit
+     *  ``INTERNAL::NamedBus::kNameCapacity`` (issue #921). A longer name is refused rather
      *  than truncated: the bus truncates and the in-patcher ``PassData`` path
      *  does not, so one word would address two different receivers.
      *  ``.forward``'s limit and ``.table``'s, for the same reason.
      */
     static constexpr std::size_t MAX_NAME_LENGTH = 63;
 
-    // Cache the "<patcherName>." prefix `send` builds its bus address from, the
+    // Cache the "patcher.<patcherName>." prefix `send` builds its bus address from, the
     // moment the parent is known — gTable::SetParent, and gSend's reason (#187):
     // concatenating the patcher name per message would allocate on the audio
     // path.
@@ -251,6 +253,10 @@ namespace YSE {
     // patcherImplementation::SetName so a `send` keeps reaching the receivers
     // that just re-anchored under the new name.
     void RefreshBusPrefix();
+    // The rename hook (issue #893): a patcher rename re-anchors this object.
+    void OnPatcherRenamed() override {
+      RefreshBusPrefix();
+    }
 
     /** @brief How many numbers the collection holds. */
     std::size_t Count() const {
@@ -335,7 +341,7 @@ namespace YSE {
 
     // Max's `send`: the whole collection, newest first — a bang's numbers and a
     // bang's order — to every .r named by the first `nameLength` characters at
-    // `name`, and on the global bus under "<patcherName>.<name>". Outlet 0 stays
+    // `name`, and on the global bus under "patcher.<patcherName>.<name>". Outlet 0 stays
     // silent. Refuses a name that is empty or longer than MAX_NAME_LENGTH,
     // silently, since this may be the audio thread.
     void SendTo(const char* name, std::size_t nameLength, YSE::THREAD thread);
@@ -358,7 +364,7 @@ namespace YSE {
     // released before the first send by design.
     std::atomic<bool> sending{false};
 
-    // "<patcherName>.", built on the control thread by SetParent /
+    // "patcher.<patcherName>.", built on the control thread by SetParent /
     // RefreshBusPrefix and empty until a parent is assigned.
     std::string busPrefix;
 

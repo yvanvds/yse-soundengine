@@ -97,14 +97,15 @@ CONSTRUCT() {
       "and a reference naming an unbound dictionary is refused rather than resolved, a registry "
       "lookup being a mutex on whatever thread the message arrived on.");
   ADD_CATEGORY(pCategory::GENERIC);
-  PARAM_DOC("name", "",
-            "The packed dictionary's shared name — the first creation argument, addressed as "
-            "\"<patcherName>.<name>\", the dictionary a .dict of the same name in this patcher "
-            "holds. Resolved once, on the control thread, which is why no message re-points it "
-            "at run time. The result goes into a bound dictionary rather than a new anonymous "
-            "one because there is no way to hand a fresh dictionary's identity down a cord. "
-            "Empty packs into a private store and sends nothing.",
-            "any identifier");
+  PARAM_DOC(
+      "name", "",
+      "The packed dictionary's shared name — the first creation argument, addressed as "
+      "\"patcher.<patcherName>.<name>\", the dictionary a .dict of the same name in this patcher "
+      "holds. Resolved once, on the control thread, which is why no message re-points it "
+      "at run time. The result goes into a bound dictionary rather than a new anonymous "
+      "one because there is no way to hand a fresh dictionary's identity down a cord. "
+      "Empty packs into a private store and sends nothing.",
+      "any identifier");
   PARAM_DOC("keys", "",
             "One key path per inlet, in order — the shape of the packed dictionary. Paths nest "
             "with \"::\", Max's own separator, so \"voice::1::freq\" is one entry three levels "
@@ -148,11 +149,11 @@ void gDictPack::RefreshBinding() {
 void gDictPack::Rebind() {
   // No name, or no patcher to prefix it with, means no address — and no
   // address means a private, empty dictionary. See gDict.h for why an
-  // unnamed object does not pool on "<patcherName>.".
+  // unnamed object does not pool on "patcher.<patcherName>.".
   std::string address;
   if (!dictName.empty() && parent != nullptr) {
     auto* p = static_cast<patcherImplementation*>(parent);
-    address = p->Name() + "." + dictName;
+    address = p->ScopedAddress(dictName);
   }
 
   // Unchanged binding: keep the store. A live SetParams that leaves the name

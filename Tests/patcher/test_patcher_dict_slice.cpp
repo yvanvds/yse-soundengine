@@ -52,7 +52,7 @@ using YSE::PATCHER::gDictSlice;
 namespace {
 
   // Three .dict objects and a .dict.slice over them, sharing one
-  // patcherImplementation so the names actually bind ("<patcherName>.<name>"
+  // patcherImplementation so the names actually bind ("patcher.<patcherName>.<name>"
   // needs a patcher to prefix with — a parentless object stays private). The
   // sinks are declared before the objects so they are torn down first, while
   // the inlets they are wired to still exist (see sinks.hpp on why that
@@ -289,7 +289,7 @@ TEST_SUITE("patcher") {
 
   TEST_CASE("dict.slice: unnamed sides are private, and unnamed targets say nothing (#779)") {
     // No arguments means three private, empty dictionaries — .dict's rule
-    // that an unnamed object does not pool on "<patcherName>.". And an
+    // that an unnamed object does not pool on "patcher.<patcherName>.". And an
     // unnamed target has no name to pass on, so both outlets stay silent.
     MultiSink sliceSink;
     MultiSink remainderSink;
@@ -408,20 +408,20 @@ TEST_SUITE("patcher") {
     gDictSlice g;
     g.SetParams("s779k l779k r779k voice::1");
     g.SetParent(&p);
-    CHECK(g.SourceAddress() == "ds779k_before.s779k");
-    CHECK(g.SliceAddress() == "ds779k_before.l779k");
-    CHECK(g.RemainderAddress() == "ds779k_before.r779k");
+    CHECK(g.SourceAddress() == "patcher.ds779k_before.s779k");
+    CHECK(g.SliceAddress() == "patcher.ds779k_before.l779k");
+    CHECK(g.RemainderAddress() == "patcher.ds779k_before.r779k");
     CHECK(g.SlicePath() == "voice::1");
 
     // Idempotent: a rebind to the addresses it already has keeps the stores.
     g.RefreshBinding();
-    CHECK(g.SourceAddress() == "ds779k_before.s779k");
+    CHECK(g.SourceAddress() == "patcher.ds779k_before.s779k");
 
     p.SetName("ds779k_after");
     g.RefreshBinding();
-    CHECK(g.SourceAddress() == "ds779k_after.s779k");
-    CHECK(g.SliceAddress() == "ds779k_after.l779k");
-    CHECK(g.RemainderAddress() == "ds779k_after.r779k");
+    CHECK(g.SourceAddress() == "patcher.ds779k_after.s779k");
+    CHECK(g.SliceAddress() == "patcher.ds779k_after.l779k");
+    CHECK(g.RemainderAddress() == "patcher.ds779k_after.r779k");
   }
 
   TEST_CASE("dict.slice: patcherImplementation::SetName re-anchors it (#779)") {

@@ -34,7 +34,7 @@ namespace YSE {
      *
      *  Everything downstream of the name is deliberately identical to ``.s``: the
      *  in-patcher ``PassData`` fan-out to matching ``.r`` nodes, the global-bus
-     *  publish under ``"<patcherName>.<destination>"``, and the ``globalOnly``
+     *  publish under ``"patcher.<patcherName>.<destination>"``, and the ``globalOnly``
      *  second argument that suppresses the first of those. A ``.forward`` whose
      *  destination never changes *is* a ``.s``, which is what makes it safe to
      *  reach for.
@@ -88,7 +88,7 @@ namespace YSE {
      *  object starts with no destination at all.
      *
      *  The same limit is what lets the address buffer be sized once. ``.s``
-     *  precomputes ``"<patcherName>.<dataName>"`` on the control thread because
+     *  precomputes ``"patcher.<patcherName>.<dataName>"`` on the control thread because
      *  concatenating it per message would allocate on the audio path (issue
      *  #187); here the name half moves, so the *prefix* is what is precomputed,
      *  and the address is refilled into a buffer reserved for the longest
@@ -118,7 +118,7 @@ namespace YSE {
      *
      *  Not "sends to the empty name". A ``.forward`` with no creation argument
      *  and no name yet is an object that has not been told where to point, and
-     *  publishing to ``"<patcherName>."`` would give it a real, reachable bus
+     *  publishing to ``"patcher.<patcherName>."`` would give it a real, reachable bus
      *  address that a second unconfigured ``.forward`` in a same-named patcher
      *  would share. Dropping is the only reading under which "not configured"
      *  stays distinguishable from "configured to send there".
@@ -150,11 +150,13 @@ namespace YSE {
     /**
      *  @brief Longest destination name the object will accept.
      *
-     *  63 — ``INTERNAL::NamedBus::kNameCapacity``, asserted against it in the
-     *  implementation so the two cannot drift apart. A longer name is refused
-     *  rather than truncated, because the bus would truncate it and the
-     *  in-patcher path would not, leaving one word addressing two different
-     *  receivers.
+     *  63 — ``patcherImplementation::MAX_SLOT_NAME_LENGTH``, the slot share
+     *  of the address budget whose total (``"patcher.<patcherName>.<slot>"``
+     *  with the patcher name bounded by ``SetName``) is asserted to fit
+     *  ``INTERNAL::NamedBus::kNameCapacity`` (issue #921). A longer name is
+     *  refused rather than truncated, because the bus would truncate it and
+     *  the in-patcher path would not, leaving one word addressing two
+     *  different receivers.
      */
     static constexpr std::size_t MAX_NAME_LENGTH = 63;
 
@@ -174,7 +176,7 @@ namespace YSE {
       return globalOnly;
     }
 
-    // Cache the "<patcherName>." address prefix the moment the parent is known,
+    // Cache the "patcher.<patcherName>." address prefix the moment the parent is known,
     // so a publish never concatenates the patcher name on the message path.
     // Mirrors gSend::SetParent, which caches the whole address for the same
     // reason (issue #187).
@@ -184,6 +186,10 @@ namespace YSE {
     // gSend::RefreshBusAddress(); called from patcherImplementation::SetName so
     // forwards keep matching the re-anchored receivers.
     void RefreshBusAddress();
+    // The rename hook (issue #893): a patcher rename re-anchors this object.
+    void OnPatcherRenamed() override {
+      RefreshBusAddress();
+    }
 
   private:
     // Point at the first MAX_NAME_LENGTH-or-fewer characters at `text`, and
@@ -209,7 +215,7 @@ namespace YSE {
     // construction so the inlet path refills it without allocating.
     std::string destination;
 
-    // "<patcherName>.", precomputed on the control thread (SetParent /
+    // "patcher.<patcherName>.", precomputed on the control thread (SetParent /
     // RefreshBusAddress) and empty until a parent is assigned.
     std::string busPrefix;
 

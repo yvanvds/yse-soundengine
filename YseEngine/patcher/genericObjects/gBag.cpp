@@ -27,9 +27,11 @@ namespace {
   // The bus truncates a published name at kNameCapacity while the in-patcher
   // PassData path does not, so the two would disagree about where an over-long
   // destination points. `send` refuses such a name outright; this keeps the limit
-  // it refuses by pinned to the limit that motivates it — gForward's assertion.
-  static_assert(gBag::MAX_NAME_LENGTH == YSE::INTERNAL::NamedBus::kNameCapacity,
-                "gBag::MAX_NAME_LENGTH must track NamedBus::kNameCapacity");
+  // it refuses by pinned to the slot share of the patcher's address budget,
+  // whose sum patcherImplementation.cpp asserts fits the bus (#921) —
+  // gForward's assertion.
+  static_assert(gBag::MAX_NAME_LENGTH == patcherImplementation::MAX_SLOT_NAME_LENGTH,
+                "gBag::MAX_NAME_LENGTH must track the patcher's slot-name budget");
 
   // The bounds of the token starting at or after `from`, or false when there is
   // none. Walked in place rather than through substr: this runs on whichever
@@ -181,7 +183,8 @@ CONSTRUCT() {
       "a receive object, sends the result of a bang message to all receive objects with that name, "
       "instead of out the bag object's outlet': one message rather than a mode, the shape .table's "
       "send has, so it dumps the collection then and there — a bang's numbers in a bang's order — "
-      "to every .r of that name and on the global bus as '<patcherName>.<name>', while outlet 0 "
+      "to every .r of that name and on the global bus as 'patcher.<patcherName>.<name>', while "
+      "outlet 0 "
       "stays silent for that dump. Nothing is redirected, so a later bang goes out the outlet as "
       "usual, 'cut' and 'length' always keep the outlet, and a bare 'send' with no name does "
       "nothing at all. The name is refused rather than truncated past 63 characters, since the bus "
@@ -226,7 +229,7 @@ void gBag::RefreshBusPrefix() {
     busPrefix.clear();
   } else {
     auto* p = static_cast<patcherImplementation*>(parent);
-    busPrefix = p->Name() + ".";
+    busPrefix = p->ScopedAddressPrefix();
   }
   // Control thread. Size the address for the longest name `send` will ever
   // accept under the current prefix, so the message path only refills it.

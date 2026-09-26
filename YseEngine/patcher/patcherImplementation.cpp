@@ -5,30 +5,8 @@
 #include "../headers/enums.hpp"
 #include "genericObjects/pDac.h"
 #include "genericObjects/pAdc.h"
-#include "genericObjects/gArray.h"
-#include "genericObjects/gArrayAt.h"
-#include "genericObjects/gArrayEnds.h"
-#include "genericObjects/gArrayLength.h"
-#include "genericObjects/gBag.h"
-#include "genericObjects/gColl.h"
-#include "genericObjects/gDict.h"
-#include "genericObjects/gDictCompare.h"
-#include "genericObjects/gDictDeserialize.h"
-#include "genericObjects/gDictGroup.h"
-#include "genericObjects/gDictIter.h"
-#include "genericObjects/gDictJoin.h"
-#include "genericObjects/gDictPack.h"
-#include "genericObjects/gDictPrint.h"
-#include "genericObjects/gDictRoute.h"
-#include "genericObjects/gDictSerialize.h"
-#include "genericObjects/gDictSlice.h"
-#include "genericObjects/gDictStrip.h"
-#include "genericObjects/gDictUnpack.h"
-#include "genericObjects/gForward.h"
 #include "genericObjects/gReceive.h"
 #include "genericObjects/gSend.h"
-#include "genericObjects/gTable.h"
-#include "genericObjects/gValue.h"
 #include "genericObjects/dInlet.h"
 #include "genericObjects/dOutlet.h"
 #include "genericObjects/gInlet.h"
@@ -45,6 +23,7 @@
 #include <vector>
 #include "../implementations/logImplementation.h"
 #include "../internal/global.h"
+#include "../internal/namedBus.h"
 
 using namespace YSE::PATCHER;
 
@@ -133,8 +112,9 @@ patcherImplementation::patcherImplementation(int mainOutputs, YSE::patcher* head
   : pObject(false),
     controlledBySound(false),
     head(head),
-    patcherName("patcher_" +
-                std::to_string(g_nextPatcherIndex.fetch_add(1, std::memory_order_relaxed))) {
+    autoName_("patcher_" +
+              std::to_string(g_nextPatcherIndex.fetch_add(1, std::memory_order_relaxed))),
+    patcherName(autoName_) {
   output.resize(mainOutputs);
   // Pre-size the audio-thread list-delivery scratch so SetList never allocates
   // on the callback path (issue #225).
@@ -147,298 +127,46 @@ patcherImplementation::patcherImplementation(int mainOutputs, YSE::patcher* head
   reclaimJobs_[1].sibling = &reclaimJobs_[0];
 }
 
-void patcherImplementation::SetName(const std::string& n) {
+// The whole scoped address — not just its slot — has to fit the bus's fixed
+// name slot, or a T_DSP publish is truncated there while the in-patcher path is
+// not (issue #921).
+static_assert(patcherImplementation::MAX_SCOPED_ADDRESS_LENGTH <=
+                  YSE::INTERNAL::NamedBus::kNameCapacity,
+              "patcher.<name>.<slot> must fit NamedBus::kNameCapacity");
+
+std::string patcherImplementation::ScopedAddressPrefix() const {
+  // Reserved "patcher." prefix (issue #894), matching sound./channel./synth.:
+  // a patcher named "synth1" no longer shares the freeform "synth1.*" space.
+  return "patcher." + patcherName + ".";
+}
+
+std::string patcherImplementation::ScopedAddress(const std::string& name) const {
+  return ScopedAddressPrefix() + name;
+}
+
+void patcherImplementation::SetName(const std::string& requested) {
+  // "" means "no chosen name" (issue #896): the patcher goes back to the name it
+  // was born with, the same answer an unnamed patcher gives at create().
+  const std::string& n = requested.empty() ? autoName_ : requested;
   if (n == patcherName) return;
+  // Refused rather than truncated (issue #921): the name is the variable part
+  // of every scoped address, and the address budget only holds for a bounded
+  // one. Keeping the old name leaves every object's cached address valid.
+  if (n.size() > MAX_PATCHER_NAME_LENGTH) {
+    INTERNAL::LogImpl().emit(E_ERROR, "patcher: name \"" + n + "\" is longer than " +
+                                          std::to_string(MAX_PATCHER_NAME_LENGTH) +
+                                          " characters; ignored");
+    return;
+  }
   mtx.lock();
   patcherName = n;
-  // Re-subscribe every gReceive in this patcher so the new prefix takes
-  // effect immediately. Iteration is safe because gReceive::Resubscribe
-  // only touches the gReceive's own subscription handle.
-  for (auto& x : objects) {
-    if (strcmp(x.second->Type(), OBJ::G_RECEIVE) == 0) {
-      static_cast<gReceive*>(x.second)->Resubscribe();
-    } else if (strcmp(x.second->Type(), OBJ::G_SEND) == 0) {
-      // Keep gSend's cached bus address in step with the receivers that just
-      // re-anchored, so sends still reach them under the new name (issue #187).
-      static_cast<gSend*>(x.second)->RefreshBusAddress();
-    } else if (strcmp(x.second->Type(), OBJ::G_FORWARD) == 0) {
-      // Same for gForward, which caches the "<patcherName>." prefix its runtime
-      // destination is appended to (issue #485).
-      static_cast<gForward*>(x.second)->RefreshBusAddress();
-    } else if (strcmp(x.second->Type(), OBJ::G_VALUE) == 0) {
-      // gValue addresses its shared cell as "<patcherName>.<name>" too, so a
-      // rename moves it onto the cell the renamed patcher's sends and receives
-      // now speak about (issue #486).
-      static_cast<gValue*>(x.second)->RefreshBinding();
-    } else if (strcmp(x.second->Type(), OBJ::G_COLL) == 0) {
-      // And gColl, whose shared store is registered under the same
-      // "<patcherName>.<name>" address, so a named collection re-anchors with
-      // the values, sends and receives around it (issue #684).
-      static_cast<gColl*>(x.second)->RefreshBinding();
-    } else if (strcmp(x.second->Type(), OBJ::G_DICT) == 0) {
-      // And gDict, whose shared dictionary is registered under the same
-      // "<patcherName>.<name>" address, so a renamed patcher's dictionaries
-      // re-anchor with its collections, values, sends and receives (issue #550).
-      static_cast<gDict*>(x.second)->RefreshBinding();
-    } else if (strcmp(x.second->Type(), OBJ::G_DICT_COMPARE) == 0) {
-      // And gDictCompare, whose two bound dictionaries are registered under
-      // the same "<patcherName>.<name>" addresses, so a renamed patcher's
-      // comparisons follow the dictionaries they compare (issue #770).
-      static_cast<gDictCompare*>(x.second)->RefreshBinding();
-    } else if (strcmp(x.second->Type(), OBJ::G_DICT_DESERIALIZE) == 0) {
-      // And gDictDeserialize, whose target dictionary is registered under the
-      // same "<patcherName>.<name>" address, so a renamed patcher's parsed
-      // documents land in the dictionary its other objects now speak about
-      // (issue #771).
-      static_cast<gDictDeserialize*>(x.second)->RefreshBinding();
-    } else if (strcmp(x.second->Type(), OBJ::G_DICT_GROUP) == 0) {
-      // And gDictGroup, whose source and target dictionaries are registered
-      // under the same "<patcherName>.<name>" addresses, so a renamed
-      // patcher's groupings follow the dictionaries they read and write
-      // (issue #772).
-      static_cast<gDictGroup*>(x.second)->RefreshBinding();
-    } else if (strcmp(x.second->Type(), OBJ::G_DICT_ITER) == 0) {
-      // And gDictIter, whose bound dictionary is registered under the same
-      // "<patcherName>.<name>" address, so a renamed patcher's walks follow
-      // the dictionary they stream (issue #773).
-      static_cast<gDictIter*>(x.second)->RefreshBinding();
-    } else if (strcmp(x.second->Type(), OBJ::G_DICT_JOIN) == 0) {
-      // And gDictJoin, whose source and target dictionaries are registered
-      // under the same "<patcherName>.<name>" addresses, so a renamed
-      // patcher's joins follow the dictionaries they read and write
-      // (issue #774).
-      static_cast<gDictJoin*>(x.second)->RefreshBinding();
-    } else if (strcmp(x.second->Type(), OBJ::G_DICT_PACK) == 0) {
-      // And gDictPack, whose bound dictionary is registered under the same
-      // "<patcherName>.<name>" address, so a renamed patcher's packs land in
-      // the dictionary its other objects now speak about (issue #775).
-      static_cast<gDictPack*>(x.second)->RefreshBinding();
-    } else if (strcmp(x.second->Type(), OBJ::G_DICT_PRINT) == 0) {
-      // And gDictPrint, whose bound dictionary is registered under the same
-      // "<patcherName>.<name>" address, so a renamed patcher's printouts
-      // read the dictionary its other objects now speak about (issue #776).
-      static_cast<gDictPrint*>(x.second)->RefreshBinding();
-    } else if (strcmp(x.second->Type(), OBJ::G_DICT_ROUTE) == 0) {
-      // And gDictRoute, whose bound dictionary is registered under the same
-      // "<patcherName>.<name>" address, so a renamed patcher's routes test
-      // the dictionary its other objects now speak about (issue #777).
-      static_cast<gDictRoute*>(x.second)->RefreshBinding();
-    } else if (strcmp(x.second->Type(), OBJ::G_DICT_SERIALIZE) == 0) {
-      // And gDictSerialize, whose bound dictionary is registered under the
-      // same "<patcherName>.<name>" address, so a renamed patcher's
-      // serialisations read the dictionary its other objects now speak about
-      // (issue #778).
-      static_cast<gDictSerialize*>(x.second)->RefreshBinding();
-    } else if (strcmp(x.second->Type(), OBJ::G_DICT_SLICE) == 0) {
-      // And gDictSlice, whose three bound dictionaries are registered under
-      // the same "<patcherName>.<name>" address form, so a renamed patcher's
-      // splits read and write the dictionaries its other objects now speak
-      // about (issue #779).
-      static_cast<gDictSlice*>(x.second)->RefreshBinding();
-    } else if (strcmp(x.second->Type(), OBJ::G_DICT_STRIP) == 0) {
-      // And gDictStrip, whose bound dictionary is registered under the same
-      // "<patcherName>.<name>" address form, so a renamed patcher's strips
-      // edit the dictionary its other objects now speak about (issue #780).
-      static_cast<gDictStrip*>(x.second)->RefreshBinding();
-    } else if (strcmp(x.second->Type(), OBJ::G_DICT_UNPACK) == 0) {
-      // And gDictUnpack, whose bound dictionary is registered under the same
-      // "<patcherName>.<name>" address form, so a renamed patcher's unpacks
-      // read the dictionary its other objects now speak about (issue #781).
-      static_cast<gDictUnpack*>(x.second)->RefreshBinding();
-    } else if (strcmp(x.second->Type(), OBJ::G_ARRAY) == 0) {
-      // And gArray, whose shared sequence is registered under the same
-      // "<patcherName>.<name>" address, so a renamed patcher's arrays re-anchor
-      // with its dictionaries, collections, values, sends and receives
-      // (issue #548).
-      static_cast<gArray*>(x.second)->RefreshBinding();
-    } else if (strcmp(x.second->Type(), OBJ::G_ARRAY_AT) == 0) {
-      // And gArrayAt, whose bound array is registered under the same
-      // "<patcherName>.<name>" address, so a renamed patcher's fetches read
-      // the array its other objects now speak about (issue #782).
-      static_cast<gArrayAt*>(x.second)->RefreshBinding();
-    } else if (strcmp(x.second->Type(), OBJ::G_ARRAY_LENGTH) == 0) {
-      // And gArrayLength, for the same reason: a renamed patcher's asks must
-      // answer for the array its other objects now speak about (issue #783).
-      static_cast<gArrayLength*>(x.second)->RefreshBinding();
-    } else if (strcmp(x.second->Type(), OBJ::G_ARRAY_PUSH) == 0 ||
-               strcmp(x.second->Type(), OBJ::G_ARRAY_POP) == 0 ||
-               strcmp(x.second->Type(), OBJ::G_ARRAY_SHIFT) == 0 ||
-               strcmp(x.second->Type(), OBJ::G_ARRAY_UNSHIFT) == 0) {
-      // And the four end-mutators, for the same reason again: a renamed
-      // patcher's pushes and pops must act on the array its other objects
-      // now speak about. One branch, because the binding lives on their
-      // shared base (issue #784).
-      static_cast<gArrayEndsBase*>(x.second)->RefreshBinding();
-    } else if (strcmp(x.second->Type(), OBJ::G_ARRAY_INSERT) == 0 ||
-               strcmp(x.second->Type(), OBJ::G_ARRAY_REMOVE) == 0) {
-      // And the two position-mutators, whose binding lives on that same
-      // shared base: a renamed patcher's inserts and removes must act on the
-      // array its other objects now speak about (issue #785).
-      static_cast<gArrayEndsBase*>(x.second)->RefreshBinding();
-    } else if (strcmp(x.second->Type(), OBJ::G_ARRAY_INDEXOF) == 0 ||
-               strcmp(x.second->Type(), OBJ::G_ARRAY_INDEX) == 0) {
-      // And the two search objects, whose binding lives on that same shared
-      // base: a renamed patcher's lookups must search the array its other
-      // objects now speak about (issue #786).
-      static_cast<gArrayEndsBase*>(x.second)->RefreshBinding();
-    } else if (strcmp(x.second->Type(), OBJ::G_ARRAY_INDEXMAP) == 0) {
-      // And the reordering primitive, whose binding lives on that same
-      // shared base: a renamed patcher's reorders must act on the array its
-      // other objects now speak about (issue #787).
-      static_cast<gArrayEndsBase*>(x.second)->RefreshBinding();
-    } else if (strcmp(x.second->Type(), OBJ::G_ARRAY_REVERSE) == 0 ||
-               strcmp(x.second->Type(), OBJ::G_ARRAY_ROTATE) == 0 ||
-               strcmp(x.second->Type(), OBJ::G_ARRAY_SCRAMBLE) == 0 ||
-               strcmp(x.second->Type(), OBJ::G_ARRAY_SHUFFLE) == 0) {
-      // And the four permutations, whose binding lives on that same shared
-      // base: a renamed patcher's permutations must act on the array its
-      // other objects now speak about. One branch, gArrayEnds' arrangement
-      // (issue #788).
-      static_cast<gArrayEndsBase*>(x.second)->RefreshBinding();
-    } else if (strcmp(x.second->Type(), OBJ::G_ARRAY_SORT) == 0) {
-      // And the fifth permutation, whose binding lives on that same shared
-      // base: a renamed patcher's sorts must act on the array its other
-      // objects now speak about (issue #789).
-      static_cast<gArrayEndsBase*>(x.second)->RefreshBinding();
-    } else if (strcmp(x.second->Type(), OBJ::G_ARRAY_MIN) == 0 ||
-               strcmp(x.second->Type(), OBJ::G_ARRAY_MAX) == 0 ||
-               strcmp(x.second->Type(), OBJ::G_ARRAY_MEAN) == 0 ||
-               strcmp(x.second->Type(), OBJ::G_ARRAY_MEDIAN) == 0 ||
-               strcmp(x.second->Type(), OBJ::G_ARRAY_MODE) == 0 ||
-               strcmp(x.second->Type(), OBJ::G_ARRAY_STDDEV) == 0) {
-      // And the six statistics, whose binding lives on that same shared
-      // base: a renamed patcher's reducers must read the array its other
-      // objects now speak about. One branch, gArrayEnds' arrangement
-      // (issue #790).
-      static_cast<gArrayEndsBase*>(x.second)->RefreshBinding();
-    } else if (strcmp(x.second->Type(), OBJ::G_ARRAY_SLICE) == 0 ||
-               strcmp(x.second->Type(), OBJ::G_ARRAY_SUBARRAY) == 0 ||
-               strcmp(x.second->Type(), OBJ::G_ARRAY_SUB) == 0 ||
-               strcmp(x.second->Type(), OBJ::G_ARRAY_SPLIT) == 0) {
-      // And the four range readers, whose binding lives on that same shared
-      // base: a renamed patcher's cuts must read the array its other
-      // objects now speak about. One branch, gArrayEnds' arrangement
-      // (issue #791).
-      static_cast<gArrayEndsBase*>(x.second)->RefreshBinding();
-    } else if (strcmp(x.second->Type(), OBJ::G_ARRAY_UNION) == 0 ||
-               strcmp(x.second->Type(), OBJ::G_ARRAY_SECT) == 0 ||
-               strcmp(x.second->Type(), OBJ::G_ARRAY_UNIQUE) == 0) {
-      // And the three set operations, whose bindings live on that same
-      // shared base — where RefreshBinding is virtual, so the two-array
-      // pair's override re-anchors the right array along with the left,
-      // gDictCompare's arrangement (issue #792).
-      static_cast<gArrayEndsBase*>(x.second)->RefreshBinding();
-    } else if (strcmp(x.second->Type(), OBJ::G_ARRAY_CONCAT) == 0 ||
-               strcmp(x.second->Type(), OBJ::G_ARRAY_JOIN) == 0) {
-      // And the combining pair: join's one binding is the shared base's own,
-      // concat's two live on gArraySetOpBase, whose virtual RefreshBinding
-      // re-anchors the right array along with the left (issue #793).
-      static_cast<gArrayEndsBase*>(x.second)->RefreshBinding();
-    } else if (strcmp(x.second->Type(), OBJ::G_ARRAY_FILL) == 0) {
-      // And the initialiser, whose binding lives on that same shared base: a
-      // renamed patcher's fills must write the array its other objects now
-      // speak about (issue #794).
-      static_cast<gArrayEndsBase*>(x.second)->RefreshBinding();
-    } else if (strcmp(x.second->Type(), OBJ::G_ARRAY_FLATTEN) == 0) {
-      // And the group collapser, whose first binding is the shared base's
-      // own and whose trailing sources live on gArrayFlatten, whose virtual
-      // RefreshBinding re-anchors them along with the first —
-      // gArraySetOpBase's arrangement over N names (issue #795).
-      static_cast<gArrayEndsBase*>(x.second)->RefreshBinding();
-    } else if (strcmp(x.second->Type(), OBJ::G_ARRAY_TOLIST) == 0 ||
-               strcmp(x.second->Type(), OBJ::G_ARRAY_TOSTRING) == 0 ||
-               strcmp(x.second->Type(), OBJ::G_ARRAY_TOSYMBOL) == 0) {
-      // And the three converters, whose binding lives on that same shared
-      // base: a renamed patcher's conversions must read the array its other
-      // objects now speak about. One branch, gArrayEnds' arrangement
-      // (issue #796).
-      static_cast<gArrayEndsBase*>(x.second)->RefreshBinding();
-    } else if (strcmp(x.second->Type(), OBJ::G_ARRAY_DESERIALIZE) == 0) {
-      // And the reader, whose binding lives on that same shared base: a
-      // renamed patcher's parsed documents must land in the array its other
-      // objects now speak about (issue #797).
-      static_cast<gArrayEndsBase*>(x.second)->RefreshBinding();
-    } else if (strcmp(x.second->Type(), OBJ::G_ARRAY_ITER) == 0) {
-      // And the iterator, whose binding lives on that same shared base: a
-      // renamed patcher's walks must stream the array its other objects now
-      // speak about (issue #798).
-      static_cast<gArrayEndsBase*>(x.second)->RefreshBinding();
-    } else if (strcmp(x.second->Type(), OBJ::G_ARRAY_EXPR) == 0 ||
-               strcmp(x.second->Type(), OBJ::G_ARRAY_MAP) == 0 ||
-               strcmp(x.second->Type(), OBJ::G_ARRAY_FILTER) == 0 ||
-               strcmp(x.second->Type(), OBJ::G_ARRAY_REDUCE) == 0 ||
-               strcmp(x.second->Type(), OBJ::G_ARRAY_EVERY) == 0 ||
-               strcmp(x.second->Type(), OBJ::G_ARRAY_SOME) == 0 ||
-               strcmp(x.second->Type(), OBJ::G_ARRAY_FOREACH) == 0) {
-      // And the seven of the per-element expression family, whose binding
-      // lives on that same shared base: a renamed patcher's maps, filters,
-      // folds, quantifiers and walks must act on the array its other
-      // objects now speak about. One branch, gArrayEnds' arrangement
-      // (issue #799).
-      static_cast<gArrayEndsBase*>(x.second)->RefreshBinding();
-    } else if (strcmp(x.second->Type(), OBJ::G_ARRAY_CHANGE) == 0 ||
-               strcmp(x.second->Type(), OBJ::G_ARRAY_COMPARE) == 0) {
-      // And the comparison pair, whose bindings live on that same shared
-      // base — where RefreshBinding is virtual, so change's override resets
-      // its baseline along with the left binding and compare's re-anchors
-      // the right array, gArraySetOpBase's arrangement (issue #800).
-      static_cast<gArrayEndsBase*>(x.second)->RefreshBinding();
-    } else if (strcmp(x.second->Type(), OBJ::G_ARRAY_GROUP) == 0) {
-      // And the bucketer, whose binding lives on that same shared base: a
-      // renamed patcher's groupings must bucket the array its other objects
-      // now speak about (issue #801).
-      static_cast<gArrayEndsBase*>(x.second)->RefreshBinding();
-    } else if (strcmp(x.second->Type(), OBJ::G_ARRAY_REPLACE) == 0) {
-      // And the search-and-replace, whose binding lives on that same shared
-      // base: a renamed patcher's rewrites must act on the array its other
-      // objects now speak about (issue #802).
-      static_cast<gArrayEndsBase*>(x.second)->RefreshBinding();
-    } else if (strcmp(x.second->Type(), OBJ::G_ARRAY_REGEXP) == 0) {
-      // And the pattern filter, whose binding lives on that same shared base:
-      // a renamed patcher's matches must read the array its other objects now
-      // speak about (issue #803).
-      static_cast<gArrayEndsBase*>(x.second)->RefreshBinding();
-    } else if (strcmp(x.second->Type(), OBJ::G_ARRAY_ROUTEPASS) == 0) {
-      // And the dispatcher, whose binding lives on that same shared base: a
-      // renamed patcher's routes must test the array its other objects now
-      // speak about (issue #804).
-      static_cast<gArrayEndsBase*>(x.second)->RefreshBinding();
-    } else if (strcmp(x.second->Type(), OBJ::G_ARRAY_RANDOM) == 0) {
-      // And the picker, whose binding lives on that same shared base: a
-      // renamed patcher's picks must read the array its other objects now
-      // speak about (issue #805).
-      static_cast<gArrayEndsBase*>(x.second)->RefreshBinding();
-    } else if (strcmp(x.second->Type(), OBJ::G_ARRAY_STREAM) == 0) {
-      // And the window builder, whose binding lives on that same shared
-      // base: a renamed patcher's streams must slide the array its other
-      // objects now speak about (issue #806).
-      static_cast<gArrayEndsBase*>(x.second)->RefreshBinding();
-    } else if (strcmp(x.second->Type(), OBJ::G_ARRAY_THIN) == 0) {
-      // And the decimator, whose binding lives on that same shared base: a
-      // renamed patcher's thins must act on the array its other objects now
-      // speak about (issue #807).
-      static_cast<gArrayEndsBase*>(x.second)->RefreshBinding();
-    } else if (strcmp(x.second->Type(), OBJ::G_ARRAY_TUPLEWISE) == 0) {
-      // And the combiner, whose two bindings live on gArraySetOpBase — where
-      // RefreshBinding is virtual, so this one call re-anchors the right
-      // array along with the left, gDictCompare's arrangement (issue #808).
-      static_cast<gArrayEndsBase*>(x.second)->RefreshBinding();
-    } else if (strcmp(x.second->Type(), OBJ::G_ARRAY_WRAP) == 0) {
-      // And the wrapping fetch, whose binding lives on that same shared
-      // base: a renamed patcher's wrapped fetches must read the array its
-      // other objects now speak about (issue #809).
-      static_cast<gArrayEndsBase*>(x.second)->RefreshBinding();
-    } else if (strcmp(x.second->Type(), OBJ::G_BAG) == 0) {
-      // And gBag, whose `send` message prefixes a runtime receive name with
-      // "<patcherName>." exactly as gForward does, so it has to re-anchor with
-      // the receivers too (issue #685).
-      static_cast<gBag*>(x.second)->RefreshBusPrefix();
-    } else if (strcmp(x.second->Type(), OBJ::G_TABLE) == 0) {
-      // And gTable, whose `send` prefixes its runtime destination the same way
-      // gBag and gForward do (issue #699).
-      static_cast<gTable*>(x.second)->RefreshBusPrefix();
-    }
-  }
+  // Re-anchor every name-scoped object (gSend/gReceive/gForward, the shared
+  // stores, gBag/gTable's send prefix) on the new name. Each one knows its own
+  // addresses, so the hook is virtual rather than a per-type chain here — a new
+  // name-scoped object cannot be forgotten (issue #893). The hooks touch only
+  // the object's own subscription / binding, so iterating is safe.
+  for (auto& x : objects)
+    x.second->OnPatcherRenamed();
   mtx.unlock();
 }
 
@@ -1409,6 +1137,15 @@ std::string patcherImplementation::DumpJSON() {
       object->DumpJson(j["object " + std::to_string(counter)]);
       counter++;
     }
+
+    // The patcher's name travels with the patch (issue #897): it is part of
+    // every scoped address a `.s` / `.r` / shared store uses, so a patch that
+    // talks across patchers only works under the name it was built with. The
+    // birth auto-name is not written — it is a process-wide counter, not a
+    // property of the patch, and restoring "patcher_3" into another process
+    // could land it in some unrelated patcher's scope. Leaving it out also keeps
+    // an unnamed patch's dump exactly what it was before this key existed.
+    if (patcherName != autoName_) j["name"] = patcherName;
   }
 
   std::string result = j.dump(2, ' ', true);
@@ -1417,6 +1154,23 @@ std::string patcherImplementation::DumpJSON() {
 
 void patcherImplementation::ParseJSON(const std::string& content) {
   auto j = json::parse(content);
+
+  // Restore the saved name (issue #897) — but only onto a patcher that still has
+  // its auto-name, so a name the host chose before loading wins over the file.
+  // Done first, before any object is created and before the loadbang pass: the
+  // objects this parse creates are born under the final name instead of being
+  // re-anchored a moment later, and SetName still re-anchors any object that
+  // was already in the patcher. SetName takes mtx itself, so this must stay
+  // outside the locked build below. An over-long name is refused there, logged,
+  // and the auto-name kept, exactly as for a host call.
+  const auto savedName = j.find("name");
+  if (savedName != j.end()) {
+    if (!savedName->is_string()) {
+      INTERNAL::LogImpl().emit(E_ERROR, "Patcher: stored name is not a string; ignored");
+    } else if (patcherName == autoName_) {
+      SetName(savedName->get<std::string>());
+    }
+  }
 
   std::map<int, pHandle*> OldIDs;
 
@@ -1434,6 +1188,8 @@ void patcherImplementation::ParseJSON(const std::string& content) {
   std::vector<std::pair<int, json*>> records;
   records.reserve(j.size());
   for (auto obj = j.begin(); obj != j.end(); ++obj) {
+    // The one top-level key that is not an object record (issue #897).
+    if (obj.key() == "name") continue;
     records.emplace_back(obj.value()["ID"].get<int>(), &obj.value());
   }
   std::stable_sort(records.begin(), records.end(),

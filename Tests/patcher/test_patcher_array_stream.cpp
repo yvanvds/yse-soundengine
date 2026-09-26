@@ -57,7 +57,7 @@ using YSE::PATCHER::gArrayStream;
 namespace {
 
   // An .array and one .array.stream on one name, sharing one
-  // patcherImplementation so the name actually binds ("<patcherName>.<name>"
+  // patcherImplementation so the name actually binds ("patcher.<patcherName>.<name>"
   // needs a patcher to prefix with — a parentless object stays private). The
   // keeper is also the witness: its Count()/ElementAt() read back what the
   // stream left in the shared store. The sinks are declared before the

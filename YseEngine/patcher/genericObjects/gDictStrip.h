@@ -115,7 +115,7 @@ namespace YSE {
     }
 
     /** @brief The address the store is registered under —
-     *         ``"<patcherName>.<name>"`` — or empty while it is private. */
+     *         ``"patcher.<patcherName>.<name>"`` — or empty while it is private. */
     const std::string& Address() const {
       return boundAddress;
     }
@@ -140,6 +140,10 @@ namespace YSE {
     // object now strips a different dictionary. Called from
     // patcherImplementation::SetName alongside gDict::RefreshBinding.
     void RefreshBinding();
+    // The rename hook (issue #893): a patcher rename re-anchors this object.
+    void OnPatcherRenamed() override {
+      RefreshBinding();
+    }
 
   private:
     // Point the store at the current name and parent address. Control thread

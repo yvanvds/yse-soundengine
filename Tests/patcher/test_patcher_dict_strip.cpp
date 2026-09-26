@@ -48,7 +48,7 @@ using YSE::PATCHER::gDictStrip;
 namespace {
 
   // A .dict and a .dict.strip over it, sharing one patcherImplementation so
-  // the name actually binds ("<patcherName>.<name>" needs a patcher to
+  // the name actually binds ("patcher.<patcherName>.<name>" needs a patcher to
   // prefix with — a parentless object stays private). The sink is declared
   // before the objects so it is torn down first, while the inlet it is wired
   // to still exists (see sinks.hpp on why that matters).
@@ -221,7 +221,7 @@ TEST_SUITE("patcher") {
 
   TEST_CASE("dict.strip: unnamed is private, and says nothing (#780)") {
     // No arguments means a private, empty dictionary — .dict's rule that an
-    // unnamed object does not pool on "<patcherName>.". And with no name
+    // unnamed object does not pool on "patcher.<patcherName>.". And with no name
     // there is nothing to pass on, so the outlet stays silent; the strip
     // itself still ran, without a refusal.
     MultiSink sink;
@@ -308,16 +308,16 @@ TEST_SUITE("patcher") {
     gDictStrip g;
     g.SetParams("d780h voice::1");
     g.SetParent(&p);
-    CHECK(g.Address() == "dt780h_before.d780h");
+    CHECK(g.Address() == "patcher.dt780h_before.d780h");
     CHECK(g.StripPath() == "voice::1");
 
     // Idempotent: a rebind to the address it already has keeps the store.
     g.RefreshBinding();
-    CHECK(g.Address() == "dt780h_before.d780h");
+    CHECK(g.Address() == "patcher.dt780h_before.d780h");
 
     p.SetName("dt780h_after");
     g.RefreshBinding();
-    CHECK(g.Address() == "dt780h_after.d780h");
+    CHECK(g.Address() == "patcher.dt780h_after.d780h");
   }
 
   TEST_CASE("dict.strip: patcherImplementation::SetName re-anchors it (#780)") {

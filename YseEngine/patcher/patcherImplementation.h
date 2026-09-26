@@ -10,6 +10,7 @@
 #include "../utils/mpmcQueue.hpp"
 #include "../internal/threadPool.h"
 #include <atomic>
+#include <cstddef>
 #include <cstdint>
 #include <map>
 #include <mutex>
@@ -32,7 +33,42 @@ namespace YSE {
       const std::string& Name() const {
         return patcherName;
       }
-      void SetName(const std::string& n);
+      // Refuses — logs and keeps the current name — a name longer than
+      // MAX_PATCHER_NAME_LENGTH, so every scoped address stays within
+      // MAX_SCOPED_ADDRESS_LENGTH (issue #921). An empty name restores the
+      // auto-generated "patcher_<N>" name (issue #896) rather than producing
+      // a "patcher..<slot>" address. Control thread only.
+      void SetName(const std::string& requested);
+
+      // Address budget (issue #921). NamedBus copies a T_DSP publish's name
+      // into a fixed kNameCapacity-byte slot and truncates anything longer,
+      // while the in-patcher PassData path never truncates — so an address
+      // that does not fit would name one receiver locally and another on the
+      // bus. The limit that matters is the *whole* "patcher.<name>.<slot>"
+      // address, so it is split here into a patcher-name bound (enforced by
+      // SetName) and a slot-name bound (enforced by .forward / .bag / .table
+      // on their runtime names), and patcherImplementation.cpp asserts the sum
+      // fits the bus. The new check is SetName's, on the control thread; the
+      // slot bound stays the same constant compare it always was, independent
+      // of the patcher's name, so a rename can never invalidate a name an
+      // object already accepted.
+      static constexpr std::size_t SCOPED_ADDRESS_PREFIX_OVERHEAD = sizeof("patcher.") - 1 + 1;
+      static constexpr std::size_t MAX_PATCHER_NAME_LENGTH = 55;
+      static constexpr std::size_t MAX_SLOT_NAME_LENGTH = 63;
+      static constexpr std::size_t MAX_SCOPED_ADDRESS_LENGTH =
+          SCOPED_ADDRESS_PREFIX_OVERHEAD + MAX_PATCHER_NAME_LENGTH + MAX_SLOT_NAME_LENGTH;
+
+      // The one place a name-scoped object's address is spelled (issue #893).
+      // Every bus / shared-store address an object inside this patcher uses is
+      // ScopedAddress(name); objects that append a runtime name on the audio
+      // thread (gBag, gForward, gTable) cache ScopedAddressPrefix() instead and
+      // reserve prefix.size() + MAX_SLOT_NAME_LENGTH up front so the append never
+      // allocates. Both allocate, so they are control thread only — reached
+      // from SetParams / SetParent / OnPatcherRenamed, never from Calculate.
+      // Form: "patcher.<patcherName>.<name>" (issue #894). Patchers with the
+      // same name share one scope; the auto-name keeps anonymous ones apart.
+      std::string ScopedAddressPrefix() const;
+      std::string ScopedAddress(const std::string& name) const;
 
       const char* Type() const override;
       void ResetDSP() override;
@@ -605,8 +641,12 @@ namespace YSE {
       // handing inlet::SetList the const std::string& it expects.
       std::string listScratch_;
 
+      // The "patcher_<N>" identifier this patcher was born with. Kept so that
+      // SetName("") can hand it back (issue #896); declared before patcherName,
+      // which is initialised from it.
+      const std::string autoName_;
       // Bus-prefix for inner gSend/gReceive routing (issue #122). Defaulted
-      // to "patcher_<N>" in the ctor; mutated by SetName().
+      // to autoName_ in the ctor; mutated by SetName().
       std::string patcherName;
 
       std::string GetRecieveObjectsAsString();

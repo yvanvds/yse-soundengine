@@ -57,7 +57,7 @@ using YSE::PATCHER::gArrayShuffle;
 namespace {
 
   // An .array and one permutation object on one name, sharing one
-  // patcherImplementation so the name actually binds ("<patcherName>.<name>"
+  // patcherImplementation so the name actually binds ("patcher.<patcherName>.<name>"
   // needs a patcher to prefix with — a parentless object stays private). The
   // sink is declared before the objects so it is torn down last, while the
   // outlet wired to it still exists (see sinks.hpp on why that matters).

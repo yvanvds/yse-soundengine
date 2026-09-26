@@ -288,7 +288,8 @@ CONSTRUCT() {
       "order; outlet 2 bangs when a dump has finished and outlet 3 when a read has. The first "
       "creation argument is Max's shared name: all .coll objects of one name share their contents, "
       "through a store held weakly in the patcher's shared-name registry under "
-      "'<patcherName>.<name>' — the address form .s, .r and .value already use. An unnamed .coll "
+      "'patcher.<patcherName>.<name>' — the address form .s, .r and .value already use. An unnamed "
+      ".coll "
       "keeps a store of its own rather than pooling on the empty name, the traversal pointer stays "
       "per-object so two .coll objects on one name walk the collection independently, and Max's "
       "refer is not ported: it resolves a name from a message, and a name resolves under a mutex "
@@ -358,7 +359,8 @@ CONSTRUCT() {
   OUTLET_DOC(3, "file", kFileDoc, "");
   PARAM_DOC("name", "",
             "Max's shared context: all .coll objects of this name share their contents, through a "
-            "store addressed as \"<patcherName>.<name>\" — the same address form .s, .r and .value "
+            "store addressed as \"patcher.<patcherName>.<name>\" — the same address form .s, .r "
+            "and .value "
             "use, so two patchers given one name share their collections as they already share "
             "their sends. Empty gives this object a store of its own rather than pooling it with "
             "every other unnamed .coll in the patcher. The name is resolved once, on the control "
@@ -392,11 +394,11 @@ PARM_PARSE() {
 void gColl::Rebind() {
   // No name, or no patcher to prefix it with, means no address — and no address
   // means a private store. See the class documentation for why an unnamed .coll
-  // does not pool on "<patcherName>.".
+  // does not pool on "patcher.<patcherName>.".
   std::string address;
   if (!collName.empty() && parent != nullptr) {
     auto* p = static_cast<patcherImplementation*>(parent);
-    address = p->Name() + "." + collName;
+    address = p->ScopedAddress(collName);
   }
 
   // Unchanged binding: keep the store, and with it everything in it. A live

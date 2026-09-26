@@ -120,12 +120,13 @@ gArrayReplace::gArrayReplace() : gArrayEndsBase() {
              "occurrences. An unnamed (private) array counts as well — an answer is a value, "
              "not an identity.",
              "0-256");
-  PARAM_DOC("name", "",
-            "The array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an "
-            ".array of the same name in this patcher holds. Resolved once, on the control "
-            "thread, which is why no message re-points it at run time. Empty rewrites a "
-            "private, empty array: the replace lands with count 0 and no reference leaves.",
-            "any identifier");
+  PARAM_DOC(
+      "name", "",
+      "The array's shared name, addressed as \"patcher.<patcherName>.<name>\" — the sequence an "
+      ".array of the same name in this patcher holds. Resolved once, on the control "
+      "thread, which is why no message re-points it at run time. Empty rewrites a "
+      "private, empty array: the replace lands with count 0 and no reference leaves.",
+      "any identifier");
   PARAM_DOC("find", "",
             "The initial stored find value — what a bang replaces before any value has arrived "
             "on the find inlet. One atom, exactly as every value the inlet takes; absent means "

@@ -13,7 +13,7 @@
 //     name shares one sequence; it lives exactly as long as some object
 //     addresses it and no longer. Ownership is "whoever names it", not an owner
 //     object and not a manual free.
-//   - **an unnamed .array is private.** `"<patcherName>."` is a real address, so
+//   - **an unnamed .array is private.** `"patcher.<patcherName>."` is a real address, so
 //     pooling there would silently join every unconfigured `.array` in the
 //     patcher. `.value`'s rule, for `.value`'s reason.
 //   - **an element is one atom, so the array and the list it spells are the same
@@ -360,7 +360,7 @@ TEST_SUITE("patcher") {
   }
 
   TEST_CASE("array: an unnamed .array keeps a sequence of its own (#548)") {
-    // Not "shares the empty name": "<patcherName>." is a real, reachable
+    // Not "shares the empty name": "patcher.<patcherName>." is a real, reachable
     // address, so two unnamed objects pooling there would be connected in a way
     // a patch author never wired.
     Rig a;
@@ -412,20 +412,20 @@ TEST_SUITE("patcher") {
     gArray obj;
     obj.SetParams("steps548c");
     obj.SetParent(&p);
-    CHECK(obj.Address() == "array548c_before.steps548c");
+    CHECK(obj.Address() == "patcher.array548c_before.steps548c");
 
     // Idempotent: a rebind to the address it already has keeps the sequence, and
     // with it everything in it.
     obj.GetInlet(0)->SetList("append 0 4 7", YSE::T_GUI);
     obj.RefreshBinding();
-    CHECK(obj.Address() == "array548c_before.steps548c");
+    CHECK(obj.Address() == "patcher.array548c_before.steps548c");
     CHECK(obj.Count() == 3);
 
     // The address prefix moved, so the object now addresses a different array —
     // an empty one, exactly as .value, .coll and .dict do.
     p.SetName("array548c_after");
     obj.RefreshBinding();
-    CHECK(obj.Address() == "array548c_after.steps548c");
+    CHECK(obj.Address() == "patcher.array548c_after.steps548c");
     CHECK(obj.Count() == 0);
   }
 

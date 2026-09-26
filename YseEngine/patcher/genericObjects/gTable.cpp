@@ -28,9 +28,11 @@ namespace {
   // The bus truncates a published name at kNameCapacity while the in-patcher
   // PassData path does not, so the two would disagree about where an over-long
   // destination points. `send` refuses such a name outright; this keeps the limit
-  // it refuses by pinned to the limit that motivates it — gForward's assertion.
-  static_assert(gTable::MAX_NAME_LENGTH == YSE::INTERNAL::NamedBus::kNameCapacity,
-                "gTable::MAX_NAME_LENGTH must track NamedBus::kNameCapacity");
+  // it refuses by pinned to the slot share of the patcher's address budget,
+  // whose sum patcherImplementation.cpp asserts fits the bus (#921) —
+  // gForward's assertion.
+  static_assert(gTable::MAX_NAME_LENGTH == patcherImplementation::MAX_SLOT_NAME_LENGTH,
+                "gTable::MAX_NAME_LENGTH must track the patcher's slot-name budget");
 
   // The bounds of the token starting at or after `from`, or false when there is
   // none. Walked in place rather than through substr: this runs on whichever
@@ -322,7 +324,7 @@ void gTable::RefreshBusPrefix() {
     busPrefix.clear();
   } else {
     auto* p = static_cast<patcherImplementation*>(parent);
-    busPrefix = p->Name() + ".";
+    busPrefix = p->ScopedAddressPrefix();
   }
   // Control thread. Size the address for the longest destination `send` will
   // ever accept under the current prefix, so the message path only refills it.

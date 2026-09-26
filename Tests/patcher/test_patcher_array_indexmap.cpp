@@ -51,7 +51,7 @@ using YSE::PATCHER::gArrayIndexMap;
 namespace {
 
   // An .array and an .array.indexmap on one name, sharing one
-  // patcherImplementation so the name actually binds ("<patcherName>.<name>"
+  // patcherImplementation so the name actually binds ("patcher.<patcherName>.<name>"
   // needs a patcher to prefix with — a parentless object stays private). The
   // sink is declared before the objects so it is torn down last, while the
   // outlet wired to it still exists (see sinks.hpp on why that matters).
@@ -436,15 +436,15 @@ TEST_SUITE("patcher") {
     g.SetParams("a787l");
     g.SetParent(&p);
     CHECK(g.ArrayName() == "a787l");
-    CHECK(g.Address() == "aim787l_before.a787l");
+    CHECK(g.Address() == "patcher.aim787l_before.a787l");
 
     // Idempotent: a rebind to the address it already has keeps the store.
     g.RefreshBinding();
-    CHECK(g.Address() == "aim787l_before.a787l");
+    CHECK(g.Address() == "patcher.aim787l_before.a787l");
 
     p.SetName("aim787l_after");
     g.RefreshBinding();
-    CHECK(g.Address() == "aim787l_after.a787l");
+    CHECK(g.Address() == "patcher.aim787l_after.a787l");
   }
 
   TEST_CASE("array.indexmap: patcherImplementation::SetName re-anchors it (#787)") {
