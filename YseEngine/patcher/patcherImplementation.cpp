@@ -901,8 +901,14 @@ YSE::pHandle* patcherImplementation::CreateObjectUnlocked(const std::string& typ
     // rendered graph always uses this channel-matched instance.
     object = new pAdc((int)output.size());
   } else {
-    object = Register().Get(type);
-    if (object != nullptr) object->SetParams(args);
+    // SetParams is the step that can throw (std::stoi/std::stof on a malformed
+    // token), so the new object stays owned until it has succeeded: a throw
+    // frees it (issue #919). Nothing shared has been touched yet — no storage
+    // ID, no parent, no handle, no graph ids — so the delete is a complete
+    // undo and a failed create leaves the patcher exactly as it was.
+    std::unique_ptr<pObject> staged(Register().Get(type));
+    if (staged != nullptr) staged->SetParams(args);
+    object = staged.release();
   }
 
   if (object == nullptr) {
