@@ -17,9 +17,13 @@
 #include "../utils/vector.hpp"
 
 #include <algorithm>
+#include <array>
 #include <atomic>
+#include <cstddef>
 #include <exception>
 #include <memory>
+#include <string>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -62,6 +66,57 @@ namespace {
   }
   inline YSE::channel* to_cpp(YseChannel* ch) {
     return reinterpret_cast<YSE::channel*>(ch);
+  }
+
+  // ---- note-callback trampolines (issue #899) --------------------------------
+  // The engine's onNoteEvent hook is `void(*)(bool, float*, float*)`, the C
+  // typedef is `void(*)(int, float*, float*)`. Calling one through the other is
+  // UB (and on SysV x86-64 the callee may read dirty upper bits of note_on), so
+  // the engine always gets a trampoline with its own signature, which forwards
+  // `note_on ? 1 : 0` to the C callback through the C callback's own type.
+  //
+  // The hook has no user_data, so each trampoline reads its C callback from its
+  // own atomic slot. Slots are keyed by the C callback pointer: synths sharing a
+  // C callback share a trampoline. A slot is bound once (CAS from null) and
+  // never rebound, so a trampoline the audio thread already loaded can never
+  // dispatch to a different callback — no reclaim race, no lock, no allocation.
+  // The cost is a process-wide cap on distinct C note callbacks.
+  using EngineNoteCb = void (*)(bool, float*, float*);
+  constexpr std::size_t kNoteTrampolineSlots = 256;
+
+  std::array<std::atomic<YseSynthNoteCallback>, kNoteTrampolineSlots> g_noteSlots{};
+
+  template <std::size_t I> void noteTrampoline(bool noteOn, float* noteNumber, float* velocity) {
+    // Audio thread: acquire-load pairs with the release CAS that bound the slot.
+    const YseSynthNoteCallback cb = g_noteSlots[I].load(std::memory_order_acquire);
+    if (cb != nullptr) cb(noteOn ? 1 : 0, noteNumber, velocity);
+  }
+
+  template <std::size_t... Is>
+  constexpr std::array<EngineNoteCb, sizeof...(Is)>
+  makeNoteTrampolines(std::index_sequence<Is...> /*unused*/) {
+    return {{&noteTrampoline<Is>...}};
+  }
+
+  constexpr std::array<EngineNoteCb, kNoteTrampolineSlots> kNoteTrampolines =
+      makeNoteTrampolines(std::make_index_sequence<kNoteTrampolineSlots>{});
+
+  // Control thread: find the slot bound to cb, or bind the first free one.
+  // Slots fill in order and are never cleared, so the scan can stop at the
+  // first slot it binds or finds bound to cb. Returns nullptr when full.
+  EngineNoteCb noteTrampolineFor(YseSynthNoteCallback cb) {
+    for (std::size_t i = 0; i < kNoteTrampolineSlots; ++i) {
+      YseSynthNoteCallback expected = g_noteSlots[i].load(std::memory_order_acquire);
+      if (expected == nullptr &&
+          g_noteSlots[i].compare_exchange_strong(expected, cb, std::memory_order_acq_rel,
+                                                 std::memory_order_acquire)) {
+        return kNoteTrampolines[i];
+      }
+      // Either already bound, or a concurrent binder won the CAS (expected now
+      // holds the winner): reuse the slot if it carries our callback.
+      if (expected == cb) return kNoteTrampolines[i];
+    }
+    return nullptr;
   }
 
 } // namespace
@@ -440,20 +495,24 @@ YSE_C_API void yse_synth_soft_pedal(YseSynth* h, int channel, int down) {
 
 YSE_C_API void yse_synth_set_note_callback(YseSynth* h, YseSynthNoteCallback cb) {
   if (!h) return;
-  // The engine's onNoteEvent hook is a bare captureless function pointer with
-  // no user_data slot, so a stateful atomic-swap bridge is impossible (a
-  // stateless bridge could not recover which synth called it). Pass the
-  // pointer straight through; YSE::synth stores it atomically (release-store,
-  // audio-thread acquire-load — see synthImplementation::setNoteCallback), so
-  // the atomic-swap discipline lives on the engine side and the C layer adds
-  // no lock and no allocation. NULL clears the hook.
-  //
-  // The C typedef takes `int note_on` per the C-API bool-as-int convention;
-  // the engine invokes with a C++ `bool` (always 0/1). The signatures are
-  // otherwise identical, so reinterpret_cast the pointer (same precedent as
-  // yse_midi.cpp's parsed-callback bridge).
-  using EngineCb = void (*)(bool, float*, float*);
-  to_impl(h)->synth.onNoteEvent(reinterpret_cast<EngineCb>(cb));
+  // The engine's onNoteEvent hook is a bare captureless function pointer that
+  // the engine stores atomically (release-store, audio-thread acquire-load —
+  // see synthImplementation::setNoteCallback). NULL clears the hook.
+  if (cb == nullptr) {
+    to_impl(h)->synth.onNoteEvent(nullptr);
+    return;
+  }
+  // Never hand the C callback to the engine directly: its `int note_on` type
+  // differs from the engine's `bool`, and calling through a mismatched
+  // function type is UB (issue #899). Install the trampoline bound to cb.
+  const EngineNoteCb tramp = noteTrampolineFor(cb);
+  if (tramp == nullptr) {
+    yse_c::set_last_error("yse_synth_set_note_callback: too many distinct note callbacks "
+                          "(limit " +
+                          std::to_string(kNoteTrampolineSlots) + "); previous hook left installed");
+    return;
+  }
+  to_impl(h)->synth.onNoteEvent(tramp);
 }
 
 // ─── attachment ────────────────────────────────────────────────────────

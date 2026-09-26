@@ -272,7 +272,12 @@ YSE_C_API void yse_synth_sostenuto(YseSynth* h, int channel, int down);
 YSE_C_API void yse_synth_soft_pedal(YseSynth* h, int channel, int down);
 
 /* Install (or clear, with NULL) the audio-thread note-rewrite hook. The
-   engine stores the pointer atomically; passing NULL disables the hook.
+   engine stores the hook atomically; passing NULL disables the hook.
+   The callback is always invoked through its own YseSynthNoteCallback
+   signature (note_on is a full int, 0 or 1) via an internal trampoline.
+   At most 256 DISTINCT callback functions can be installed per process
+   (synths sharing one callback share a trampoline); past that the call
+   leaves the previous hook installed and sets yse_last_error().
    See the YseSynthNoteCallback contract above. */
 YSE_C_API void yse_synth_set_note_callback(YseSynth* h, YseSynthNoteCallback cb);
 
