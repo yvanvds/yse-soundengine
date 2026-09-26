@@ -70,7 +70,10 @@ namespace YSE {
      *  been called the value is stashed and applied at ``create()`` time.
      *
      *  Default: an auto-generated identifier of the form
-     *  ``"patcher_<N>"`` where ``N`` increments per process.
+     *  ``"patcher_<N>"`` where ``N`` increments per process. Passing an
+     *  empty name restores that auto-generated name (issue #896); before
+     *  ``create()`` it drops any stashed name, so ``create()`` keeps the
+     *  auto-name and ``name()`` reads back ``""`` until then.
      *
      *  A name longer than 55 characters is refused — logged, and the current
      *  name kept — so the full ``"patcher.<patcherName>.<slot>"`` address,

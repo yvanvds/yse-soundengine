@@ -98,6 +98,108 @@ TEST_SUITE("capilowcov") {
     yse_patcher_destroy(p);
   }
 
+  // ─── naming (issue #896) ───────────────────────────────────────────────────
+
+  TEST_CASE("c-api patcher: set_name / get_name round-trip, refusal and auto-name restore "
+            "(#896)") {
+    auto getName = [](YsePatcher* p) {
+      return readString([p](char* b, size_t c) { return yse_patcher_get_name(p, b, c); });
+    };
+
+    YsePatcher* p = yse_patcher_create();
+    REQUIRE(p != nullptr);
+
+    // Before init there is no auto-name yet; a name set now is stashed.
+    CHECK(getName(p).empty());
+    CHECK(yse_patcher_set_name(p, "capi896early") == YSE_OK);
+    CHECK(getName(p) == "capi896early");
+    yse_patcher_init(p, 2);
+    CHECK(getName(p) == "capi896early");
+
+    // "" restores the auto-name: the patcher_<N> form the engine assigned.
+    CHECK(yse_patcher_set_name(p, "") == YSE_OK);
+    const std::string autoName = getName(p);
+    CHECK(autoName.rfind("patcher_", 0) == 0);
+    CHECK(autoName.size() > std::strlen("patcher_"));
+
+    CHECK(yse_patcher_set_name(p, "capi896") == YSE_OK);
+    CHECK(getName(p) == "capi896");
+    // NULL is "" — the same auto-name comes back, not a fresh one.
+    CHECK(yse_patcher_set_name(p, nullptr) == YSE_OK);
+    CHECK(getName(p) == autoName);
+
+    // The name budget is 55 characters (issue #921): 55 is accepted, 56 is
+    // refused through the C error channel and the current name is kept.
+    const std::string longest(55, 'n');
+    CHECK(yse_patcher_set_name(p, longest.c_str()) == YSE_OK);
+    CHECK(getName(p) == longest);
+    yse_clear_last_error();
+    const std::string tooLong(56, 'n');
+    CHECK(yse_patcher_set_name(p, tooLong.c_str()) == YSE_ERR_INVALID_ARGUMENT);
+    CHECK(std::string(yse_last_error()).find("refused") != std::string::npos);
+    CHECK(getName(p) == longest);
+    yse_clear_last_error();
+
+    // snprintf contract: full length returned, truncated buffer NUL-terminated.
+    REQUIRE(yse_patcher_set_name(p, "capi896") == YSE_OK);
+    char small[4] = {'x', 'x', 'x', 'x'};
+    CHECK(yse_patcher_get_name(p, small, sizeof(small)) == std::strlen("capi896"));
+    CHECK(std::string(small) == "cap");
+    CHECK(yse_patcher_get_name(p, nullptr, 0) == std::strlen("capi896"));
+
+    // NULL patcher: INVALID_HANDLE, and the getter clears the buffer.
+    CHECK(yse_patcher_set_name(nullptr, "x") == YSE_ERR_INVALID_HANDLE);
+    char buf[8] = {'x', 'x', 'x', 'x', 'x', 'x', 'x', '\0'};
+    CHECK(yse_patcher_get_name(nullptr, buf, sizeof(buf)) == 0u);
+    CHECK(buf[0] == '\0');
+    CHECK(yse_patcher_get_name(nullptr, nullptr, 0) == 0u);
+
+    yse_patcher_destroy(p);
+  }
+
+  TEST_CASE("c-api patcher: a name set over the C API scopes shared stores across patchers "
+            "(#896)") {
+    // The end-to-end reason for the entry point: two patchers a C host names
+    // alike share their name-scoped stores, and un-naming one isolates it again.
+    YsePatcher* a = yse_patcher_create();
+    YsePatcher* b = yse_patcher_create();
+    REQUIRE(a != nullptr);
+    REQUIRE(b != nullptr);
+    yse_patcher_init(a, 2);
+    yse_patcher_init(b, 2);
+    REQUIRE(yse_patcher_set_name(a, "capi896shared") == YSE_OK);
+
+    YsePHandle* writer = yse_patcher_create_object(a, ".array", "steps");
+    YsePHandle* reader = yse_patcher_create_object(b, ".array", "steps");
+    YsePHandle* sink = yse_patcher_create_object(b, kInt, nullptr);
+    REQUIRE(writer != nullptr);
+    REQUIRE(reader != nullptr);
+    REQUIRE(sink != nullptr);
+    yse_patcher_connect(b, reader, 0, sink, 0);
+
+    yse_phandle_set_list(writer, 0, "append 5");
+    yse_phandle_set_list(writer, 0, "append 6");
+    auto readerSize = [&] {
+      yse_phandle_set_list(reader, 0, "getsize");
+      return readString(
+          [sink](char* s, size_t c) { return yse_phandle_get_gui_value(sink, s, c); });
+    };
+
+    // Still auto-named: b has an array of its own.
+    CHECK(readerSize() == "0");
+
+    // Named alike after the objects exist: the rename re-anchors the reader.
+    REQUIRE(yse_patcher_set_name(b, "capi896shared") == YSE_OK);
+    CHECK(readerSize() == "2");
+
+    // Back to the auto-name: isolated again.
+    REQUIRE(yse_patcher_set_name(b, nullptr) == YSE_OK);
+    CHECK(readerSize() == "0");
+
+    yse_patcher_destroy(b);
+    yse_patcher_destroy(a);
+  }
+
   TEST_CASE("c-api patcher: handles are retrievable by list index and by ID") {
     YsePatcher* p = yse_patcher_create();
     REQUIRE(p != nullptr);

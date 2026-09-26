@@ -35,8 +35,10 @@ namespace YSE {
       }
       // Refuses — logs and keeps the current name — a name longer than
       // MAX_PATCHER_NAME_LENGTH, so every scoped address stays within
-      // MAX_SCOPED_ADDRESS_LENGTH (issue #921). Control thread only.
-      void SetName(const std::string& n);
+      // MAX_SCOPED_ADDRESS_LENGTH (issue #921). An empty name restores the
+      // auto-generated "patcher_<N>" name (issue #896) rather than producing
+      // a "patcher..<slot>" address. Control thread only.
+      void SetName(const std::string& requested);
 
       // Address budget (issue #921). NamedBus copies a T_DSP publish's name
       // into a fixed kNameCapacity-byte slot and truncates anything longer,
@@ -639,8 +641,12 @@ namespace YSE {
       // handing inlet::SetList the const std::string& it expects.
       std::string listScratch_;
 
+      // The "patcher_<N>" identifier this patcher was born with. Kept so that
+      // SetName("") can hand it back (issue #896); declared before patcherName,
+      // which is initialised from it.
+      const std::string autoName_;
       // Bus-prefix for inner gSend/gReceive routing (issue #122). Defaulted
-      // to "patcher_<N>" in the ctor; mutated by SetName().
+      // to autoName_ in the ctor; mutated by SetName().
       std::string patcherName;
 
       std::string GetRecieveObjectsAsString();

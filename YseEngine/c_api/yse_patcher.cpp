@@ -2,6 +2,7 @@
 #include "yse_c_internal.hpp"
 
 #include "../patcher/patcher.hpp"
+#include "../patcher/patcherImplementation.h"
 #include "../patcher/pHandle.hpp"
 #include "../patcher/pObject.h"
 #include "../patcher/pRegistry.h"
@@ -257,6 +258,36 @@ YSE_C_API void yse_patcher_destroy(YsePatcher* p) {
 YSE_C_API void yse_patcher_init(YsePatcher* p, int main_outputs) {
   if (!p) return;
   yse_c::guard_void("yse_patcher_init", [&] { to_cpp(p)->create(main_outputs); });
+}
+
+// The engine's name() refuses rather than throws (issue #921) — it logs and
+// keeps the old name — so a refusal is read back off name() afterwards instead
+// of re-checking the length here, which would restate the engine's rule in a
+// second place. "" (and NULL) restores the auto-name and always succeeds.
+YSE_C_API YseStatus yse_patcher_set_name(YsePatcher* p, const char* name) {
+  if (!p) return YSE_ERR_INVALID_HANDLE;
+  const char* requested = name ? name : "";
+  return yse_c::guard("yse_patcher_set_name", YSE_ERR_EXCEPTION, [&] {
+    YSE::patcher& patcher = *to_cpp(p);
+    patcher.name(requested);
+    if (requested[0] != '\0' && patcher.name() != requested) {
+      yse_c::set_last_error(
+          std::string("yse_patcher_set_name: name \"") + requested + "\" refused (longer than " +
+          std::to_string(YSE::PATCHER::patcherImplementation::MAX_PATCHER_NAME_LENGTH) +
+          " characters); name unchanged");
+      return YSE_ERR_INVALID_ARGUMENT;
+    }
+    return YSE_OK;
+  });
+}
+
+YSE_C_API size_t yse_patcher_get_name(YsePatcher* p, char* buf, size_t cap) {
+  if (!p) {
+    if (buf && cap > 0) buf[0] = '\0';
+    return 0;
+  }
+  return yse_c::guard_string("yse_patcher_get_name", buf, cap,
+                             [&] { return copy_string(to_cpp(p)->name(), buf, cap); });
 }
 
 YSE_C_API YsePHandle* yse_patcher_create_object(YsePatcher* p, const char* type, const char* args) {

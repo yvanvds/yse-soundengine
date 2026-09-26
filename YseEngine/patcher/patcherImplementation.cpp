@@ -112,8 +112,9 @@ patcherImplementation::patcherImplementation(int mainOutputs, YSE::patcher* head
   : pObject(false),
     controlledBySound(false),
     head(head),
-    patcherName("patcher_" +
-                std::to_string(g_nextPatcherIndex.fetch_add(1, std::memory_order_relaxed))) {
+    autoName_("patcher_" +
+              std::to_string(g_nextPatcherIndex.fetch_add(1, std::memory_order_relaxed))),
+    patcherName(autoName_) {
   output.resize(mainOutputs);
   // Pre-size the audio-thread list-delivery scratch so SetList never allocates
   // on the callback path (issue #225).
@@ -143,7 +144,10 @@ std::string patcherImplementation::ScopedAddress(const std::string& name) const 
   return ScopedAddressPrefix() + name;
 }
 
-void patcherImplementation::SetName(const std::string& n) {
+void patcherImplementation::SetName(const std::string& requested) {
+  // "" means "no chosen name" (issue #896): the patcher goes back to the name it
+  // was born with, the same answer an unnamed patcher gives at create().
+  const std::string& n = requested.empty() ? autoName_ : requested;
   if (n == patcherName) return;
   // Refused rather than truncated (issue #921): the name is the variable part
   // of every scoped address, and the address budget only holds for a bounded
