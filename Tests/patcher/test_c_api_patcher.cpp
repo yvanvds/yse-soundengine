@@ -459,22 +459,61 @@ TEST_SUITE("capilowcov") {
 
     YsePatcher* dst = yse_patcher_create();
     REQUIRE(dst != nullptr);
-    yse_patcher_init(dst, 2);
-    yse_patcher_parse_json(dst, json.c_str());
+
+    // Before init there is nothing to load into: refused, not a silent success
+    // (issue #910).
+    yse_clear_last_error();
+    CHECK(yse_patcher_parse_json(dst, json.c_str()) == YSE_ERR_NOT_INITIALIZED);
+    CHECK_FALSE(std::string(yse_last_error()).empty());
+    CHECK(yse_patcher_objects(dst) == 0u);
+
+    REQUIRE(yse_patcher_init(dst, 2) == YSE_OK);
+    CHECK(yse_patcher_parse_json(dst, json.c_str()) == YSE_OK);
     CHECK(yse_patcher_objects(dst) == yse_patcher_objects(src));
 
-    // Malformed input is reported through last_error, not thrown across the ABI.
+    // Malformed input is told apart from success by its status and reported
+    // through last_error, not thrown across the ABI (issue #910).
+    const unsigned int before = yse_patcher_objects(dst);
     yse_clear_last_error();
-    yse_patcher_parse_json(dst, "{ this is not json");
-    CHECK(std::string(yse_last_error()).empty() == false);
-    yse_clear_last_error();
+    CHECK(yse_patcher_parse_json(dst, "{ this is not json") == YSE_ERR_EXCEPTION);
+    CHECK_FALSE(std::string(yse_last_error()).empty());
+    CHECK(yse_patcher_objects(dst) == before);
 
-    // NULL handle / NULL content are no-ops.
-    yse_patcher_parse_json(nullptr, json.c_str());
-    yse_patcher_parse_json(dst, nullptr);
+    // NULL handle / NULL content are refused with a status and a reason.
+    yse_clear_last_error();
+    CHECK(yse_patcher_parse_json(nullptr, json.c_str()) == YSE_ERR_INVALID_HANDLE);
+    CHECK_FALSE(std::string(yse_last_error()).empty());
+    yse_clear_last_error();
+    CHECK(yse_patcher_parse_json(dst, nullptr) == YSE_ERR_INVALID_ARGUMENT);
+    CHECK_FALSE(std::string(yse_last_error()).empty());
+    yse_clear_last_error();
 
     yse_patcher_destroy(dst);
     yse_patcher_destroy(src);
+  }
+
+  TEST_CASE("c-api patcher: init reports its outcome as a YseStatus (#910)") {
+    YsePatcher* p = yse_patcher_create();
+    REQUIRE(p != nullptr);
+
+    yse_clear_last_error();
+    CHECK(yse_patcher_init(p, -1) == YSE_ERR_INVALID_ARGUMENT);
+    CHECK_FALSE(std::string(yse_last_error()).empty());
+    // The refused call left the patcher uninitialized.
+    CHECK(yse_patcher_create_object(p, kSine, nullptr) == nullptr);
+
+    CHECK(yse_patcher_init(p, 2) == YSE_OK);
+    CHECK(yse_patcher_create_object(p, kSine, nullptr) != nullptr);
+    // A repeat init is accepted and changes nothing, as the engine ignores it.
+    CHECK(yse_patcher_init(p, 4) == YSE_OK);
+    CHECK(yse_patcher_objects(p) == 1u);
+
+    yse_clear_last_error();
+    CHECK(yse_patcher_init(nullptr, 2) == YSE_ERR_INVALID_HANDLE);
+    CHECK_FALSE(std::string(yse_last_error()).empty());
+    yse_clear_last_error();
+
+    yse_patcher_destroy(p);
   }
 
   // ─── value path (PassBang / PassData) ──────────────────────────────────────
@@ -1151,7 +1190,7 @@ TEST_SUITE("capilowcov") {
     YsePHandle* h = yse_patcher_create_object(p, kSine, nullptr);
     REQUIRE(h != nullptr);
 
-    yse_patcher_init(nullptr, 2);
+    CHECK(yse_patcher_init(nullptr, 2) == YSE_ERR_INVALID_HANDLE);
     CHECK(yse_patcher_create_object(nullptr, kSine, nullptr) == nullptr);
     CHECK(yse_patcher_create_object(p, nullptr, nullptr) == nullptr);
     yse_patcher_delete_object(nullptr, h);

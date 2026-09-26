@@ -51,7 +51,10 @@ YSE_C_API void yse_sound_destroy(YseSound* s) {
 YSE_C_API YseStatus yse_sound_load_file(YseSound* s, const char* filename, YseChannel* ch, int loop,
                                         float volume, int streaming) {
   if (!s) return YSE_ERR_INVALID_HANDLE;
-  if (!filename) return YSE_ERR_INVALID_ARGUMENT;
+  if (!filename) {
+    yse_c::set_last_error("yse_sound_load_file: filename is NULL");
+    return YSE_ERR_INVALID_ARGUMENT;
+  }
   try {
     // YSE::sound::create() nulls pimpl when SOUND::implementation::create()
     // fails synchronously (file-not-found, format unsupported, etc.). isValid()
@@ -75,7 +78,10 @@ YSE_C_API YseStatus yse_sound_load_file(YseSound* s, const char* filename, YseCh
 YSE_C_API YseStatus yse_sound_load_buffer(YseSound* s, YseDspBuffer* buf, YseChannel* ch, int loop,
                                           float volume) {
   if (!s) return YSE_ERR_INVALID_HANDLE;
-  if (!buf) return YSE_ERR_INVALID_ARGUMENT;
+  if (!buf) {
+    yse_c::set_last_error("yse_sound_load_buffer: buffer handle is NULL");
+    return YSE_ERR_INVALID_ARGUMENT;
+  }
   try {
     auto& cpp_buf = *yse_c::buffer_from_handle(buf);
     to_cpp(s)->create(cpp_buf, to_cpp_chan(ch), loop != 0, volume);
@@ -96,7 +102,10 @@ YSE_C_API YseStatus yse_sound_load_buffer(YseSound* s, YseDspBuffer* buf, YseCha
 YSE_C_API YseStatus yse_sound_load_patcher(YseSound* s, YsePatcher* patch, YseChannel* ch,
                                            float volume) {
   if (!s) return YSE_ERR_INVALID_HANDLE;
-  if (!patch) return YSE_ERR_INVALID_ARGUMENT;
+  if (!patch) {
+    yse_c::set_last_error("yse_sound_load_patcher: patcher handle is NULL");
+    return YSE_ERR_INVALID_ARGUMENT;
+  }
   try {
     auto& cpp_patch = *yse_c::patcher_from_handle(patch);
     to_cpp(s)->create(cpp_patch, to_cpp_chan(ch), volume);

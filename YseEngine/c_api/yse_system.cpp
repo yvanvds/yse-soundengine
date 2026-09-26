@@ -227,17 +227,25 @@ YSE_C_API int yse_system_get_max_sounds(YseSystem* sys) {
   return to_cpp(sys)->maxSounds();
 }
 
-YSE_C_API int yse_system_create_clock(YseSystem* sys, const char* name, float initial_tempo) {
-  if (!sys || !name) return 0;
-  try {
-    return to_cpp(sys)->createClock(name, initial_tempo) ? 1 : 0;
-  } catch (const std::exception& e) {
-    yse_c::set_last_error(e.what());
-    return 0;
-  } catch (...) {
-    yse_c::set_last_error("unknown C++ exception in yse_system_create_clock");
-    return 0;
+YSE_C_API YseStatus yse_system_create_clock(YseSystem* sys, const char* name, float initial_tempo) {
+  if (!sys) {
+    yse_c::set_last_error("yse_system_create_clock: system handle is NULL");
+    return YSE_ERR_INVALID_HANDLE;
   }
+  if (!name || name[0] == '\0') {
+    yse_c::set_last_error("yse_system_create_clock: name must be a non-empty string");
+    return YSE_ERR_INVALID_ARGUMENT;
+  }
+  return yse_c::guard("yse_system_create_clock", YSE_ERR_EXCEPTION, [&] {
+    // With the name known non-empty, the engine's only refusal left is a live
+    // clock already owning it (first registration wins).
+    if (!to_cpp(sys)->createClock(name, initial_tempo)) {
+      yse_c::set_last_error(std::string("yse_system_create_clock: a live clock named \"") + name +
+                            "\" already exists; it is unchanged");
+      return YSE_ERR_INVALID_ARGUMENT;
+    }
+    return YSE_OK;
+  });
 }
 
 YSE_C_API void yse_system_destroy_clock(YseSystem* sys, const char* name) {
@@ -327,7 +335,10 @@ YSE_C_API YseDevice* yse_system_get_device(YseSystem* sys, unsigned int idx) {
 YSE_C_API YseStatus yse_system_open_device(YseSystem* sys, const YseDeviceSetup* setup,
                                            YseChannelType layout) {
   if (!sys) return YSE_ERR_INVALID_HANDLE;
-  if (!setup) return YSE_ERR_INVALID_ARGUMENT;
+  if (!setup) {
+    yse_c::set_last_error("yse_system_open_device: setup is NULL");
+    return YSE_ERR_INVALID_ARGUMENT;
+  }
   try {
     // The engine refuses a setup it cannot open (no output device, an unknown
     // device id, a stream error, an offline backend) by returning false rather

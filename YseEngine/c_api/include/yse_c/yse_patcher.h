@@ -72,7 +72,12 @@ typedef struct YsePHandle YsePHandle;
 YSE_C_API YsePatcher* yse_patcher_create(void);
 YSE_C_API void yse_patcher_destroy(YsePatcher* p);
 
-YSE_C_API void yse_patcher_init(YsePatcher* p, int main_outputs);
+/* Give the patcher `main_outputs` audio outputs. YSE_OK on success (and on
+   a repeat call, which the engine ignores: the first count stays);
+   YSE_ERR_INVALID_HANDLE on a NULL patcher, YSE_ERR_INVALID_ARGUMENT on a
+   negative count, YSE_ERR_EXCEPTION if the engine threw. Every failure
+   leaves its reason in yse_last_error(). Control thread only. */
+YSE_C_API YseStatus yse_patcher_init(YsePatcher* p, int main_outputs);
 
 /* ─── naming ──────────────────────────────────────────────────────── */
 
@@ -152,7 +157,14 @@ YSE_C_API int yse_patcher_subpatcher_outlets(YsePatcher* p, YsePHandle* containe
 /* ─── persistence ─────────────────────────────────────────────────── */
 
 YSE_C_API size_t yse_patcher_dump_json(YsePatcher* p, char* buf, size_t cap);
-YSE_C_API void yse_patcher_parse_json(YsePatcher* p, const char* content);
+
+/* Load a patch previously produced by yse_patcher_dump_json. YSE_OK on
+   success; YSE_ERR_INVALID_HANDLE on a NULL patcher,
+   YSE_ERR_INVALID_ARGUMENT on NULL content, YSE_ERR_NOT_INITIALIZED before
+   yse_patcher_init, and YSE_ERR_EXCEPTION when the content is malformed
+   JSON or not a patch. Every failure leaves its reason in
+   yse_last_error(). Control thread only. */
+YSE_C_API YseStatus yse_patcher_parse_json(YsePatcher* p, const char* content);
 
 /* ─── enumeration ─────────────────────────────────────────────────── */
 

@@ -57,7 +57,9 @@ TEST_SUITE("capilowcov") {
 
     // NULL handle vs NULL filename are separate status codes.
     CHECK(yse_midi_file_load(nullptr, "x.mid") == YSE_ERR_INVALID_HANDLE);
+    yse_clear_last_error();
     CHECK(yse_midi_file_load(f, nullptr) == YSE_ERR_INVALID_ARGUMENT);
+    CHECK_FALSE(std::string(yse_last_error()).empty()); // issue #910
 
     yse_clear_last_error();
     CHECK(yse_midi_file_load(f, "definitely_not_here.mid") == YSE_ERR_FILE_NOT_FOUND);

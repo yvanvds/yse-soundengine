@@ -110,6 +110,12 @@ namespace {
   struct YsePatcherImpl {
     YSE::patcher cpp;
     SendBridge bridge;
+    // Set once yse_patcher_init succeeds. The engine patcher no-ops every
+    // call made before create() and has no public "created" query, so this
+    // is what lets yse_patcher_parse_json report YSE_ERR_NOT_INITIALIZED
+    // instead of a silent success (issue #910). Control thread only, like
+    // init and parse themselves.
+    bool initialized = false;
   };
 
   inline YsePatcherImpl* to_impl(YsePatcher* p) {
@@ -392,9 +398,22 @@ YSE_C_API void yse_patcher_free_message(char* address) {
   std::free(address);
 }
 
-YSE_C_API void yse_patcher_init(YsePatcher* p, int main_outputs) {
-  if (!p) return;
-  yse_c::guard_void("yse_patcher_init", [&] { to_cpp(p)->create(main_outputs); });
+YSE_C_API YseStatus yse_patcher_init(YsePatcher* p, int main_outputs) {
+  if (!p) {
+    yse_c::set_last_error("yse_patcher_init: patcher handle is NULL");
+    return YSE_ERR_INVALID_HANDLE;
+  }
+  // The engine sizes its output list with this count, so a negative one would
+  // surface as a length_error from deep inside the constructor.
+  if (main_outputs < 0) {
+    yse_c::set_last_error("yse_patcher_init: main_outputs must not be negative");
+    return YSE_ERR_INVALID_ARGUMENT;
+  }
+  return yse_c::guard("yse_patcher_init", YSE_ERR_EXCEPTION, [&] {
+    to_cpp(p)->create(main_outputs);
+    to_impl(p)->initialized = true;
+    return YSE_OK;
+  });
 }
 
 // The engine's name() refuses rather than throws (issue #921) — it logs and
@@ -503,15 +522,27 @@ YSE_C_API size_t yse_patcher_dump_json(YsePatcher* p, char* buf, size_t cap) {
                              [&] { return copy_string(to_cpp(p)->DumpJSON(), buf, cap); });
 }
 
-YSE_C_API void yse_patcher_parse_json(YsePatcher* p, const char* content) {
-  if (!p || !content) return;
-  try {
-    to_cpp(p)->ParseJSON(content);
-  } catch (const std::exception& e) {
-    yse_c::set_last_error(e.what());
-  } catch (...) {
-    yse_c::set_last_error("patcher_parse_json: unknown C++ exception");
+YSE_C_API YseStatus yse_patcher_parse_json(YsePatcher* p, const char* content) {
+  if (!p) {
+    yse_c::set_last_error("yse_patcher_parse_json: patcher handle is NULL");
+    return YSE_ERR_INVALID_HANDLE;
   }
+  if (!content) {
+    yse_c::set_last_error("yse_patcher_parse_json: content is NULL");
+    return YSE_ERR_INVALID_ARGUMENT;
+  }
+  if (!to_impl(p)->initialized) {
+    yse_c::set_last_error("yse_patcher_parse_json: patcher not initialized (call yse_patcher_init "
+                          "first); nothing was loaded");
+    return YSE_ERR_NOT_INITIALIZED;
+  }
+  // Malformed JSON, or a record missing a field the loader needs, throws out of
+  // the engine's parser; the barrier turns that into YSE_ERR_EXCEPTION with
+  // the parser's message.
+  return yse_c::guard("yse_patcher_parse_json", YSE_ERR_EXCEPTION, [&] {
+    to_cpp(p)->ParseJSON(content);
+    return YSE_OK;
+  });
 }
 
 YSE_C_API unsigned int yse_patcher_objects(YsePatcher* p) {

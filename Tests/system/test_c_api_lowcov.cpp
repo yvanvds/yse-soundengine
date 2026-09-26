@@ -207,7 +207,7 @@ TEST_SUITE("capilowcov") {
     CHECK(yse_system_get_active_render_threads(nullptr) == 0);
 
     // Clock helpers reject both a NULL system and a NULL name.
-    CHECK(yse_system_create_clock(nullptr, "c", 120.f) == 0);
+    CHECK(yse_system_create_clock(nullptr, "c", 120.f) == YSE_ERR_INVALID_HANDLE);
     CHECK(yse_system_clock_exists(nullptr, "c") == 0);
     CHECK(yse_system_beat_position(nullptr, "c") == doctest::Approx(0.0));
     CHECK(yse_system_current_tempo(nullptr, "c") == doctest::Approx(0.0f));
@@ -216,7 +216,7 @@ TEST_SUITE("capilowcov") {
 
     YseSystem* sys = yse_system_get();
     REQUIRE(sys != nullptr);
-    CHECK(yse_system_create_clock(sys, nullptr, 120.f) == 0);
+    CHECK(yse_system_create_clock(sys, nullptr, 120.f) == YSE_ERR_INVALID_ARGUMENT);
     CHECK(yse_system_clock_exists(sys, nullptr) == 0);
     CHECK(yse_system_beat_position(sys, nullptr) == doctest::Approx(0.0));
     CHECK(yse_system_current_tempo(sys, nullptr) == doctest::Approx(0.0f));
@@ -225,7 +225,9 @@ TEST_SUITE("capilowcov") {
 
     // Device / setup argument guards.
     CHECK(yse_system_open_device(nullptr, nullptr, YSE_CT_STEREO) == YSE_ERR_INVALID_HANDLE);
+    yse_clear_last_error();
     CHECK(yse_system_open_device(sys, nullptr, YSE_CT_STEREO) == YSE_ERR_INVALID_ARGUMENT);
+    CHECK_FALSE(std::string(yse_last_error()).empty()); // issue #910
     yse_system_set_channel_configuration(nullptr, YSE_CT_51, 6);
     yse_system_underwater_fx(sys, nullptr);
   }
@@ -498,7 +500,7 @@ TEST_SUITE("capilowcov") {
 
     const char* name = "capilowcov.clock";
     CHECK(yse_system_clock_exists(sys, name) == 0);
-    REQUIRE(yse_system_create_clock(sys, name, 120.0f) == 1);
+    REQUIRE(yse_system_create_clock(sys, name, 120.0f) == YSE_OK);
     CHECK(yse_system_clock_exists(sys, name) == 1);
     CHECK(yse_system_current_tempo(sys, name) == doctest::Approx(120.0f));
     CHECK(yse_system_beat_position(sys, name) >= 0.0);
@@ -523,7 +525,7 @@ TEST_SUITE("capilowcov") {
     // A 60 BPM clock advances one beat per second of rendered audio, so its
     // beat delta over a render_offline call measures the frames rendered.
     const char* name = "capilowcov.blocksize";
-    REQUIRE(yse_system_create_clock(sys, name, 60.0f) == 1);
+    REQUIRE(yse_system_create_clock(sys, name, 60.0f) == YSE_OK);
     yse_system_render_offline(sys, 1); // let the clock take its first block
     const double sr = yse_system_get_sample_rate(sys);
     REQUIRE(sr > 0.0);
@@ -872,11 +874,17 @@ TEST_SUITE("capilowcov") {
     // Handle guard vs argument guard are distinct status codes on all three
     // load entry points.
     CHECK(yse_sound_load_file(nullptr, "x.wav", nullptr, 0, 1.f, 0) == YSE_ERR_INVALID_HANDLE);
+    yse_clear_last_error();
     CHECK(yse_sound_load_file(s, nullptr, nullptr, 0, 1.f, 0) == YSE_ERR_INVALID_ARGUMENT);
+    CHECK_FALSE(std::string(yse_last_error()).empty()); // issue #910
     CHECK(yse_sound_load_buffer(nullptr, nullptr, nullptr, 0, 1.f) == YSE_ERR_INVALID_HANDLE);
+    yse_clear_last_error();
     CHECK(yse_sound_load_buffer(s, nullptr, nullptr, 0, 1.f) == YSE_ERR_INVALID_ARGUMENT);
+    CHECK_FALSE(std::string(yse_last_error()).empty()); // issue #910
     CHECK(yse_sound_load_patcher(nullptr, nullptr, nullptr, 1.f) == YSE_ERR_INVALID_HANDLE);
+    yse_clear_last_error();
     CHECK(yse_sound_load_patcher(s, nullptr, nullptr, 1.f) == YSE_ERR_INVALID_ARGUMENT);
+    CHECK_FALSE(std::string(yse_last_error()).empty()); // issue #910
 
     yse_sound_destroy(s);
     yse_sound_destroy(nullptr);

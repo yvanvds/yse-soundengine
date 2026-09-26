@@ -361,8 +361,12 @@ TEST_SUITE("capilowcov") {
     REQUIRE(buf != nullptr);
 
     // NULL filename is an argument error, distinct from an invalid handle.
+    yse_clear_last_error();
     CHECK(yse_dsp_buffer_load_file(buf, nullptr, 0) == YSE_ERR_INVALID_ARGUMENT);
+    CHECK_FALSE(std::string(yse_last_error()).empty()); // issue #910
+    yse_clear_last_error();
     CHECK(yse_dsp_buffer_save_file(buf, nullptr) == YSE_ERR_INVALID_ARGUMENT);
+    CHECK_FALSE(std::string(yse_last_error()).empty()); // issue #910
 
     // A missing file reports FILE_NOT_FOUND and names the path in last_error.
     yse_clear_last_error();

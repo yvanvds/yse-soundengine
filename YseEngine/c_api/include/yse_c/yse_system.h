@@ -186,9 +186,11 @@ YSE_C_API size_t yse_system_midi_out_device_name(YseSystem* sys, unsigned int id
    and current_tempo may be read from the UI thread at frame rate. None run on
    or block the audio callback. `name` is a NUL-terminated UTF-8 string. */
 
-/* Returns 1 on success, 0 if `sys`/`name` is NULL, the name is empty, or a
-   live clock already owns the name (first registration wins). */
-YSE_C_API int yse_system_create_clock(YseSystem* sys, const char* name, float initial_tempo);
+/* YSE_OK on success; YSE_ERR_INVALID_HANDLE on a NULL `sys`,
+   YSE_ERR_INVALID_ARGUMENT when `name` is NULL or empty or a live clock
+   already owns it (first registration wins — the existing clock is left
+   unchanged). Every failure leaves its reason in yse_last_error(). */
+YSE_C_API YseStatus yse_system_create_clock(YseSystem* sys, const char* name, float initial_tempo);
 
 /* Destroy the named clock. No-op for an unknown name or NULL args. */
 YSE_C_API void yse_system_destroy_clock(YseSystem* sys, const char* name);
