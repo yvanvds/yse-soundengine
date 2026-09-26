@@ -128,6 +128,13 @@ YSE_C_API int yse_sound_is_streaming(YseSound* s) {
   return s && to_cpp(s)->isStreaming() ? 1 : 0;
 }
 
+YSE_C_API void yse_sound_set_name(YseSound* s, const char* name) {
+  // NULL is treated as "" (clear), matching yse_synth_set_name. The engine's
+  // name() does the bus (de)registration and logs a duplicate-name rejection.
+  if (!s) return;
+  yse_c::guard_void("yse_sound_set_name", [&] { to_cpp(s)->name(name ? name : ""); });
+}
+
 YSE_C_API void yse_sound_play(YseSound* s) {
   if (s) to_cpp(s)->play();
 }

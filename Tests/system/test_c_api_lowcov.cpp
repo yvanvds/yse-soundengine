@@ -509,7 +509,11 @@ TEST_SUITE("capilowcov") {
     CHECK(yse_channel_get_virtual(nullptr) == 0);
     CHECK(yse_channel_is_valid(nullptr) == 0);
     CHECK(yse_channel_is_return(nullptr) == 0);
-    CHECK(std::string(yse_channel_get_name(nullptr)).empty());
+    yse_channel_set_name(nullptr, "x");
+    char nameBuf[4] = {'z', 'z', 'z', '\0'};
+    CHECK(yse_channel_get_name(nullptr, nameBuf, sizeof(nameBuf)) == 0);
+    CHECK(nameBuf[0] == '\0'); // NULL handle clears the caller's buffer
+    CHECK(yse_channel_get_name(nullptr, nullptr, 0) == 0);
     CHECK(yse_channel_get_num_outputs(nullptr) == 0);
     CHECK(yse_channel_get_peak_linear_pre(nullptr) == doctest::Approx(0.0f));
     CHECK(yse_channel_get_peak_linear_post(nullptr) == doctest::Approx(0.0f));
@@ -559,8 +563,9 @@ TEST_SUITE("capilowcov") {
     // set a volume.
     for (size_t i = 1; i < sizeof(builtins) / sizeof(builtins[0]); ++i) {
       CHECK(builtins[i] != builtins[0]);
-      CHECK(std::string(yse_channel_get_name(builtins[i])) !=
-            std::string(yse_channel_get_name(builtins[0])));
+      CHECK(
+          readString([&](char* b, size_t c) { return yse_channel_get_name(builtins[i], b, c); }) !=
+          readString([&](char* b, size_t c) { return yse_channel_get_name(builtins[0], b, c); }));
     }
   }
 
@@ -573,7 +578,12 @@ TEST_SUITE("capilowcov") {
 
     CHECK(yse_channel_is_valid(ch) == 1);
     CHECK(yse_channel_is_return(ch) == 0);
-    CHECK(std::string(yse_channel_get_name(ch)) == "capilowcov.channel");
+    CHECK(readString([&](char* b, size_t c) { return yse_channel_get_name(ch, b, c); }) ==
+          "capilowcov.channel");
+    // snprintf contract: full length returned, output truncated to cap-1.
+    char small[5];
+    CHECK(yse_channel_get_name(ch, small, sizeof(small)) == std::strlen("capilowcov.channel"));
+    CHECK(std::string(small) == "capi");
 
     yse_channel_set_volume(ch, 0.25f);
     CHECK(yse_channel_get_volume(ch) == doctest::Approx(0.25f));
@@ -702,6 +712,7 @@ TEST_SUITE("capilowcov") {
     CHECK(p.y == doctest::Approx(0.0f));
     CHECK(p.z == doctest::Approx(0.0f));
 
+    yse_sound_set_name(nullptr, "x");
     yse_sound_play(nullptr);
     yse_sound_pause(nullptr);
     yse_sound_stop(nullptr);

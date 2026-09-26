@@ -60,6 +60,18 @@ YSE_C_API int yse_sound_is_valid(YseSound* s);
 YSE_C_API int yse_sound_is_ready(YseSound* s);
 YSE_C_API int yse_sound_is_streaming(YseSound* s);
 
+/* Assign a bus-addressable name to the sound (mirrors YSE::sound::name, issue
+   #905). Once named "foo", the sound subscribes to the global named bus
+   addresses sound.foo.volume and sound.foo.speed (float, also accept int) and
+   sound.foo.position (list of 3 floats), so a host can drive it with
+   yse_bus_publish_*. Values that arrive before a load succeeds are dropped.
+   NULL or "" clears the name and removes the subscriptions; renaming
+   re-subscribes under the new name. Names are unique per sound: a duplicate
+   is rejected and logged engine-side (first registration wins — no error
+   return, matching yse_synth_set_name). Only effective while the engine is
+   between init and close. */
+YSE_C_API void yse_sound_set_name(YseSound* s, const char* name);
+
 /* Transport. */
 YSE_C_API void yse_sound_play(YseSound* s);
 YSE_C_API void yse_sound_pause(YseSound* s);

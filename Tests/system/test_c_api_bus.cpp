@@ -21,7 +21,10 @@
 #include <vector>
 
 #include "yse_c/yse_bus.h"
+#include "yse_c/yse_channel.h"
+#include "yse_c/yse_dsp.h"
 #include "yse_c/yse_patcher.h"
+#include "yse_c/yse_sound.h"
 #include "yse_c/yse_system.h"
 
 #include "yse.hpp"
@@ -297,6 +300,93 @@ TEST_SUITE("buscapi") {
 
     yse_bus_unsubscribe(sub);
     yse_patcher_destroy(p);
+  }
+
+  // #905: a C host names a channel, then drives its volume by bus address
+  // with yse_bus_publish_* — no C++ handle in the loop.
+  TEST_CASE("c-api bus: yse_channel_set_name makes channel.<name>.volume addressable (#905)") {
+    YseChannel* a = yse_channel_create("cap905.a.log", yse_channel_master());
+    YseChannel* b = yse_channel_create("cap905.b.log", yse_channel_master());
+    REQUIRE(a != nullptr);
+    REQUIRE(b != nullptr);
+    yse_system_update(yse_system_get());
+    REQUIRE(yse_channel_is_valid(a) == 1);
+    yse_channel_set_volume(a, 1.0f);
+    yse_channel_set_volume(b, 1.0f);
+
+    yse_channel_set_name(a, "cap905ch");
+    CHECK(yse_bus_publish_float("channel.cap905ch.volume", 0.25f) == YSE_OK);
+    CHECK(yse_channel_get_volume(a) == doctest::Approx(0.25f));
+    CHECK(yse_bus_publish_int("channel.cap905ch.volume", 0) == YSE_OK);
+    CHECK(yse_channel_get_volume(a) == doctest::Approx(0.0f));
+
+    // The bus name is independent of the log name, which the getter reports.
+    char buf[64];
+    CHECK(yse_channel_get_name(a, buf, sizeof(buf)) == std::string("cap905.a.log").size());
+    CHECK(std::string(buf) == "cap905.a.log");
+
+    // Duplicate: rejected engine-side, first registration keeps the address.
+    yse_channel_set_name(b, "cap905ch");
+    CHECK(yse_bus_publish_float("channel.cap905ch.volume", 0.5f) == YSE_OK);
+    CHECK(yse_channel_get_volume(a) == doctest::Approx(0.5f));
+    CHECK(yse_channel_get_volume(b) == doctest::Approx(1.0f));
+
+    // NULL clears: the address goes dead and the name is free to reclaim.
+    yse_channel_set_name(a, nullptr);
+    CHECK(yse_bus_publish_float("channel.cap905ch.volume", 0.75f) == YSE_OK);
+    CHECK(yse_channel_get_volume(a) == doctest::Approx(0.5f));
+    yse_channel_set_name(b, ""); // b holds no claim; clearing is harmless
+    yse_channel_set_name(b, "cap905ch"); // now free — b takes it
+    CHECK(yse_bus_publish_float("channel.cap905ch.volume", 0.75f) == YSE_OK);
+    CHECK(yse_channel_get_volume(b) == doctest::Approx(0.75f));
+
+    yse_channel_destroy(b);
+    yse_channel_destroy(a);
+    yse_system_update(yse_system_get());
+  }
+
+  TEST_CASE("c-api bus: yse_sound_set_name makes sound.<name>.* addressable (#905)") {
+    const unsigned int len = 1024;
+    YseDspBuffer* buf = yse_dsp_buffer_create(len, 0);
+    REQUIRE(buf != nullptr);
+    std::vector<float> tone(len, 0.25f);
+    REQUIRE(yse_dsp_buffer_write(buf, 0, tone.data(), len) == len);
+
+    YseSound* s = yse_sound_create();
+    YseSound* dup = yse_sound_create();
+    REQUIRE(s != nullptr);
+    REQUIRE(dup != nullptr);
+    REQUIRE(yse_sound_load_buffer(s, buf, yse_channel_master(), 1, 1.0f) == YSE_OK);
+    REQUIRE(yse_sound_load_buffer(dup, buf, yse_channel_master(), 1, 1.0f) == YSE_OK);
+    REQUIRE(yse_sound_is_valid(s) == 1);
+
+    yse_sound_set_name(s, "cap905snd");
+    CHECK(yse_bus_publish_float("sound.cap905snd.volume", 0.25f) == YSE_OK);
+    CHECK(yse_sound_get_volume(s) == doctest::Approx(0.25f));
+    CHECK(yse_bus_publish_float("sound.cap905snd.speed", 2.0f) == YSE_OK);
+    CHECK(yse_sound_get_speed(s) == doctest::Approx(2.0f));
+    const float where[] = {1.0f, 2.0f, 3.0f};
+    CHECK(yse_bus_publish_list("sound.cap905snd.position", where, 3) == YSE_OK);
+    const yse_pos_t p = yse_sound_get_pos(s);
+    CHECK(p.x == doctest::Approx(1.0f));
+    CHECK(p.y == doctest::Approx(2.0f));
+    CHECK(p.z == doctest::Approx(3.0f));
+
+    // Duplicate is rejected; the first sound keeps the address.
+    yse_sound_set_name(dup, "cap905snd");
+    CHECK(yse_bus_publish_float("sound.cap905snd.volume", 0.5f) == YSE_OK);
+    CHECK(yse_sound_get_volume(s) == doctest::Approx(0.5f));
+    CHECK(yse_sound_get_volume(dup) == doctest::Approx(1.0f));
+
+    // NULL clears the name and its subscriptions.
+    yse_sound_set_name(s, nullptr);
+    CHECK(yse_bus_publish_float("sound.cap905snd.volume", 0.75f) == YSE_OK);
+    CHECK(yse_sound_get_volume(s) == doctest::Approx(0.5f));
+
+    yse_sound_destroy(dup);
+    yse_sound_destroy(s);
+    yse_system_update(yse_system_get());
+    yse_dsp_buffer_destroy(buf);
   }
 
   TEST_CASE("c-api bus: yse_system_close invalidates taps; hosts re-create after re-init") {
