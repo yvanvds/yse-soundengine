@@ -33,8 +33,8 @@ The `gh` CLI is authenticated in the project environment.
 Yes:
 - A new engine class / method / enum was added and needs C-ABI exposure.
 - The user asks to audit the C API for drift from the engine.
-- The user is starting a new C-API milestone (M3 buffer overloads,
-  M5 patcher sources, etc. — see `yse_sound.h`'s top-of-file note).
+- The user is starting a new C-API wrapping pass (e.g. a sub-issue of
+  a C API audit epic such as #898).
 
 No:
 - Modifying behaviour of an *existing* C-API function without adding
@@ -103,7 +103,15 @@ Every `include/yse_c/yse_<module>.h`:
   engine C++ header.
 - `#ifdef __cplusplus / extern "C" { ... } / #endif` wraps the body.
 - `YSE_C_API` on every exported function declaration.
-- `YSE_C_CALLBACK` on every callback typedef.
+- `YSE_C_CALLBACK` on every callback typedef, named
+  `Yse<Module><What>Callback` in PascalCase (`YseBusTapCallback`,
+  `YseScriptErrorCallback`, `YsePatcherSendCallback`) — never a
+  lowercase `yse_*_cb` (#911 renamed the last of those).
+- Functions carry their header's module prefix: `yse_<module>_...`
+  (`yse_python_run_script`, not `yse_run_script`).
+- General-purpose helpers live in `yse_common.h` (`yse_last_error`,
+  `yse_free_string` for library-allocated strings), not in whichever
+  module first needed them.
 - All booleans as `int` (0/1), never `bool`. All sizes as `size_t` or
   `unsigned int`. Strings as `const char*` (in) or `char* + size_t`
   (snprintf-style out).
@@ -223,7 +231,7 @@ When the engine adds an enum value that should be visible from the C API:
 
 If the engine adds a brand-new enum, add the full mirror block + a full
 set of `YSE_ASSERT_ENUM` lines. The drift guard is the only safety net
-until a generator replaces the hand-mirrored file.
+for the hand-mirrored file.
 
 ### 6. Build + test integration
 
@@ -235,7 +243,19 @@ until a generator replaces the hand-mirrored file.
   null device use [`TestHelpers::engineInit()`](../../../Tests/support/null_device.hpp).
 - **Build with the project wrapper**, never raw cmake invocations:
   `python yse.py build && python yse.py test`. CTest must stay green
-  across all 14 entries.
+  across all 44 entries (count them with
+  `ctest --test-dir build-tests -N`; the number grows as suites are
+  isolated).
+- **C API mirror suites run per process.** capilowcov, capilowcovlife,
+  capisurface, close_interleaving, buscapi and the other C-API suites are
+  registered as their own ctest entries and are *not* all exercised by
+  the monolithic `yse_unit_tests` binary. When touching the registry,
+  metadata, protocols or lifecycle, run the relevant entries
+  individually (`ctest --test-dir build-tests -R <name>`), not just the
+  monolithic binary.
+- **Python-gated surface** (`yse_python.h`, `yse_module`) only builds
+  its live half under `python yse.py build --python` /
+  `python yse.py test --python` — run those when touching it.
 
 ## Workflow
 
@@ -267,6 +287,15 @@ Stop and surface a design note rather than emit code that:
 
 - Contains `std::mutex` or `std::lock_guard` in any callback bridge body.
   (PR #63 had to remove these from `yse_log.cpp`; do not put them back.)
+  The rule is about bridge dispatch paths and anything the audio thread
+  can reach. The one allowed exception today is the live-handle registry
+  in [yse_instrument.cpp](../../../YseEngine/c_api/yse_instrument.cpp)
+  (`registryMutex()`): SFZ-instrument / DX7-bank handles are validated
+  against it to turn double-free and use-after-destroy into logged
+  no-ops (#178), and every caller is a control / setup-thread entry
+  point that already allocates and reads files. Nothing on the audio
+  thread or in a callback touches it. A new mutex needs the same
+  argument, written beside it in a comment, or it is refused.
 - Allocates memory (`malloc`, `new`, `std::string` construction) in a
   callback that fires on the audio thread. If the host genuinely needs
   byte ownership, design a preallocated pool.
@@ -305,11 +334,12 @@ issue describing the conflict and wait for a decision before proceeding.
 Before reporting the wrapping task complete:
 
 - `python yse.py build` succeeds with **no new warnings**.
-- `python yse.py test` passes **14/14 CTest entries** (the project's
-  full suite, not just the new test).
+- `python yse.py test` passes **all 44 CTest entries** (the
+  project's full suite, not just the new test), plus the per-process
+  C-API entries you touched run individually.
 - `grep "std::mutex\|std::lock_guard" YseEngine/c_api/` returns
-  **nothing** beyond pre-existing lines (there should be none after
-  PR #63).
+  **nothing** beyond the documented `yse_instrument.cpp` handle-registry
+  exception (see Hard refusals).
 - Every new public function in `include/yse_c/*.h` is either covered by
   the header-top void-no-op convention or carries its own explanatory
   comment.

@@ -4,7 +4,7 @@
 // Tests/CMakeLists.txt); the macro guard is belt-and-suspenders.
 //
 // These drive the real script path: source is submitted through the C API
-// (yse_run_script), executed asynchronously on the engine's script thread, and
+// (yse_python_run_script), executed asynchronously on the engine's script thread, and
 // observed two ways —
 //   * C++ bus subscribers, since yse.send dispatches T_GUI synchronously; and
 //   * the #125 error callback, for type errors and raising handlers.
@@ -95,7 +95,7 @@ namespace {
   }
 
   void run(const char* src) {
-    yse_run_script(src);
+    yse_python_run_script(src);
   }
 
   // Error-callback sink, mirroring test_c_api_python.cpp.
@@ -353,7 +353,7 @@ TEST_SUITE("python") {
   TEST_CASE("yse module: send rejects non-bus types via the error callback") {
     if (!TestHelpers::engineInit()) return;
     ErrSink sink;
-    yse_set_script_error_callback(&captureErr, &sink);
+    yse_python_set_script_error_callback(&captureErr, &sink);
 
     // bool is rejected (not coerced to int).
     run("yse.send('ysemod.err.bool', True)\n");
@@ -371,13 +371,13 @@ TEST_SUITE("python") {
     REQUIRE(pumpUntil([&] { return sink.count >= 3; }));
     CHECK(sink.last.find("ValueError") != std::string::npos);
 
-    yse_set_script_error_callback(nullptr, nullptr);
+    yse_python_set_script_error_callback(nullptr, nullptr);
   }
 
   TEST_CASE("yse module: an exception in an on callback routes to the error callback") {
     if (!TestHelpers::engineInit()) return;
     ErrSink sink;
-    yse_set_script_error_callback(&captureErr, &sink);
+    yse_python_set_script_error_callback(&captureErr, &sink);
 
     BusCapture ready;
     ScopedSub readySub("ysemod.cberr.ready", ready);
@@ -390,7 +390,7 @@ TEST_SUITE("python") {
     REQUIRE(pumpUntil([&] { return sink.count >= 1; }));
     CHECK(sink.last.find("ZeroDivisionError") != std::string::npos);
 
-    yse_set_script_error_callback(nullptr, nullptr);
+    yse_python_set_script_error_callback(nullptr, nullptr);
   }
 
 } // TEST_SUITE("python")

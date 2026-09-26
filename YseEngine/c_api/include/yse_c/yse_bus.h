@@ -60,10 +60,10 @@ typedef enum YseBusValueKind {
 
    `address`, `str` and `list` are owned by the engine and valid ONLY for the
    duration of the call — copy anything you need to retain before returning.
-   There is no free function (same contract as yse_script_error_cb). */
-typedef void(YSE_C_CALLBACK* yse_bus_tap_cb)(const char* address, YseBusValueKind kind, int i,
-                                             float f, const char* str, const float* list,
-                                             size_t list_len, void* user_data);
+   There is no free function (same contract as YseScriptErrorCallback). */
+typedef void(YSE_C_CALLBACK* YseBusTapCallback)(const char* address, YseBusValueKind kind, int i,
+                                                float f, const char* str, const float* list,
+                                                size_t list_len, void* user_data);
 
 /* Subscribe `cb` to every bus publish whose address starts with `prefix`
    (plain byte-wise prefix match; an empty string matches every address).
@@ -79,7 +79,7 @@ typedef void(YSE_C_CALLBACK* yse_bus_tap_cb)(const char* address, YseBusValueKin
    Threading: call create and destroy on the control thread (the one driving
    yse_system_update()). That guarantees no callback fires after destroy
    returns. */
-YSE_C_API YseBusTap* yse_bus_tap_create(const char* prefix, yse_bus_tap_cb cb, void* user_data);
+YSE_C_API YseBusTap* yse_bus_tap_create(const char* prefix, YseBusTapCallback cb, void* user_data);
 
 /* Unsubscribe and release the tap. Null-safe no-op. */
 YSE_C_API void yse_bus_tap_destroy(YseBusTap* tap);
@@ -123,12 +123,12 @@ YSE_C_API YseStatus yse_bus_publish_list(const char* address, const float* value
 /* Owned — release with yse_bus_unsubscribe. */
 typedef struct YseBusSub YseBusSub;
 
-/* Same frame contract as yse_bus_tap_cb: `address` is the subscribed
+/* Same frame contract as YseBusTapCallback: `address` is the subscribed
    address, exactly one payload parameter is meaningful per `kind`, and every
    pointer is engine-owned and valid only for the duration of the call. */
-typedef void(YSE_C_CALLBACK* yse_bus_sub_cb)(const char* address, YseBusValueKind kind, int i,
-                                             float f, const char* str, const float* list,
-                                             size_t list_len, void* user_data);
+typedef void(YSE_C_CALLBACK* YseBusSubCallback)(const char* address, YseBusValueKind kind, int i,
+                                                float f, const char* str, const float* list,
+                                                size_t list_len, void* user_data);
 
 /* Subscribe `cb` to every publish on exactly `address`. Returns NULL — with
    the reason in yse_last_error() — if `address` is NULL or empty, `cb` is
@@ -140,7 +140,7 @@ typedef void(YSE_C_CALLBACK* yse_bus_sub_cb)(const char* address, YseBusValueKin
    subscription (the handle stays safe to release, but does not reattach
    after a re-init); call subscribe and unsubscribe on the control thread,
    which guarantees no callback fires after unsubscribe returns. */
-YSE_C_API YseBusSub* yse_bus_subscribe(const char* address, yse_bus_sub_cb cb, void* user_data);
+YSE_C_API YseBusSub* yse_bus_subscribe(const char* address, YseBusSubCallback cb, void* user_data);
 
 /* Unsubscribe and release the subscription. Null-safe no-op. */
 YSE_C_API void yse_bus_unsubscribe(YseBusSub* sub);

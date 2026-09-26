@@ -2,8 +2,8 @@
   yse_enums.h — C mirrors of YSE::enums.
 
   Values MUST stay in lockstep with YseEngine/headers/enums.hpp.
-  A generator (tools/gen_c_enums.py) will replace this hand-written file
-  in a later milestone; for now the M1 surface only needs YseChannelType.
+  The file is hand-mirrored; yse_enums_check.cpp static_asserts every value
+  against the engine, so a drifted value fails the build.
 */
 
 #ifndef YSE_C_ENUMS_H_INCLUDED

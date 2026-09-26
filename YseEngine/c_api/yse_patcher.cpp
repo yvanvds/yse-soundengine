@@ -901,8 +901,4 @@ YSE_C_API char* yse_patcher_get_metadata_json(void) {
   }
 }
 
-YSE_C_API void yse_free_string(char* s) {
-  std::free(s);
-}
-
 } // extern "C"

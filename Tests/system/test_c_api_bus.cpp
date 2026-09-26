@@ -1,6 +1,6 @@
 // C-API host bus tap tests (issue #389) — exercises YseEngine/c_api/yse_bus.*
 // through the flat C ABI: yse_bus_tap_create / yse_bus_tap_destroy plus the
-// yse_bus_tap_cb frame contract (five payload kinds incl. bang, engine-owned
+// YseBusTapCallback frame contract (five payload kinds incl. bang, engine-owned
 // buffers valid only for the call).
 //
 // Publishes are driven through INTERNAL::Bus() directly (the tests link

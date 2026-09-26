@@ -75,7 +75,7 @@ namespace {
   }
 
   // Unpack one BusValue into the flat (address, kind, payload…) frame shared
-  // by yse_bus_tap_cb and yse_bus_sub_cb. Everything handed to the host is
+  // by YseBusTapCallback and YseBusSubCallback. Everything handed to the host is
   // engine-owned and valid only for this call — the header tells the host to
   // copy before returning.
   template <typename Cb>
@@ -131,7 +131,7 @@ namespace {
 
 extern "C" {
 
-YSE_C_API YseBusTap* yse_bus_tap_create(const char* prefix, yse_bus_tap_cb cb, void* user_data) {
+YSE_C_API YseBusTap* yse_bus_tap_create(const char* prefix, YseBusTapCallback cb, void* user_data) {
   if (prefix == nullptr || cb == nullptr) {
     yse_c::set_last_error("yse_bus_tap_create: prefix and cb must be non-NULL");
     return nullptr;
@@ -220,7 +220,7 @@ YSE_C_API YseStatus yse_bus_publish_list(const char* address, const float* value
   }
 }
 
-YSE_C_API YseBusSub* yse_bus_subscribe(const char* address, yse_bus_sub_cb cb, void* user_data) {
+YSE_C_API YseBusSub* yse_bus_subscribe(const char* address, YseBusSubCallback cb, void* user_data) {
   if (address == nullptr || address[0] == '\0' || cb == nullptr) {
     yse_c::set_last_error("yse_bus_subscribe: address must be a non-empty string and cb non-NULL");
     return nullptr;

@@ -25,9 +25,11 @@
   must enforce the subclass themselves by remembering which constructor
   produced the handle.
 
-  Custom DSP source objects (subclassing dspSourceObject) are not yet
-  wrapped — that surface needs audio-thread callbacks, which lands in a
-  later milestone alongside the patcher callback plumbing.
+  Custom DSP source objects (subclassing dspSourceObject) are not wrapped:
+  that surface runs a user callback on the audio thread and needs a design
+  of its own (preallocated, allocation-free dispatch) before it can cross
+  the C ABI. A patcher (yse_patcher.h) is the supported way to build a
+  custom source from C.
 */
 
 #ifndef YSE_C_DSP_H_INCLUDED

@@ -3,6 +3,7 @@
 
 #include "../system.hpp"
 
+#include <cstdlib>
 #include <string>
 
 namespace {
@@ -52,6 +53,10 @@ YSE_C_API const char* yse_last_error(void) {
 
 YSE_C_API void yse_clear_last_error(void) {
   g_last_error.clear();
+}
+
+YSE_C_API void yse_free_string(char* s) {
+  std::free(s);
 }
 
 } // extern "C"

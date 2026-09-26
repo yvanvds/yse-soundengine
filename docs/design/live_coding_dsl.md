@@ -484,7 +484,7 @@ The monotonic engine tick counter. Increments by 1 each
 
 - **Type:** `int`.
 - **Reset:** reset to 0 on `System::init`. Survives across
-  `yse_run_script` calls.
+  `yse_python_run_script` calls.
 - **Not a function.** Reading `yse.tick` is a cheap attribute access.
 
 ```python
@@ -520,18 +520,18 @@ yse.cancel_all()  # wipe everything from the previous evaluation
 ## Error model
 
 There is exactly one error sink: the C API error callback installed
-via `yse_set_script_error_callback` ([#125][gh-125]). All error paths
+via `yse_python_set_script_error_callback` ([#125][gh-125]). All error paths
 funnel there.
 
 ### What triggers the callback
 
-1. **Syntax error** in the script source passed to `yse_run_script`.
+1. **Syntax error** in the script source passed to `yse_python_run_script`.
    `SyntaxError` traceback, including line and caret.
 2. **Uncaught exception** during top-level script execution.
 3. **Uncaught exception** inside a `yse.on` callback.
 4. **Uncaught exception** inside a `yse.schedule` callback.
 5. **Compile-time off-state:** when libYSE is built without
-   `YSE_ENABLE_PYTHON`, *every* call to `yse_run_script` invokes the
+   `YSE_ENABLE_PYTHON`, *every* call to `yse_python_run_script` invokes the
    callback synchronously with the fixed string
    `"YSE compiled without YSE_ENABLE_PYTHON"`. See [#125][gh-125] for
    the OFF stub contract.
@@ -543,7 +543,7 @@ The runtime calls Python's
 result. The string the host receives is exactly what `traceback`
 produces — no engine-side prefix, no JSON wrapper, no escaping.
 
-The script source passed to `yse_run_script` is compiled with the
+The script source passed to `yse_python_run_script` is compiled with the
 filename `"<script>"`, so traceback lines read:
 
 ```
@@ -592,7 +592,7 @@ This is intentional:
 
 After an exception is captured and the callback dispatched, the
 interpreter state is cleared (`PyErr_Clear`) and the script thread
-remains alive. Subsequent `yse_run_script` calls work normally.
+remains alive. Subsequent `yse_python_run_script` calls work normally.
 Subscriptions installed *before* the failing line remain active;
 subscriptions the failing script intended to install *after* the
 failing line are not installed.
@@ -620,7 +620,7 @@ The script thread wakes:
 
 - When `system::update()` finishes its bus drain — exactly one wake per
   tick.
-- When `yse_run_script` enqueues new source.
+- When `yse_python_run_script` enqueues new source.
 
 On wake, the script thread:
 
@@ -657,7 +657,7 @@ drain).
 ### GIL discipline
 
 - The script thread holds the GIL only while running script code.
-- `yse_run_script` does **not** acquire the GIL — it enqueues a copy
+- `yse_python_run_script` does **not** acquire the GIL — it enqueues a copy
   of the source onto the inbound queue and returns.
 - The error-callback dispatch (from `system::update`) runs on the main
   thread, with the GIL released. The traceback string is already
@@ -668,7 +668,7 @@ drain).
 
 ## Hot-reload semantics
 
-A *script evaluation* is one call to `yse_run_script`. The DSL is
+A *script evaluation* is one call to `yse_python_run_script`. The DSL is
 designed around the assumption that performers re-evaluate scripts
 constantly while playing.
 
@@ -711,7 +711,7 @@ That is the *only* thing it clears. It does **not** touch:
   `cancel_all` is called after they were installed in the same
   evaluation.
 
-The generation counter increments once per `yse_run_script`
+The generation counter increments once per `yse_python_run_script`
 ([#127][gh-127]). Every `yse.on` / `yse.schedule` handle is tagged
 with the generation at creation. `cancel_all` walks the registries and
 removes anything with `generation < currentGeneration`.
@@ -859,7 +859,7 @@ silently, per the [engine-property mapping](#mapping-to-engine-properties). The
 example above uses a `dict`, which is genuinely outside the
 [value type table](#value-types).)
 
-The interpreter state is cleared; subsequent `yse_run_script` calls
+The interpreter state is cleared; subsequent `yse_python_run_script` calls
 work normally.
 
 ### Example 5 — generation tagging across reloads
@@ -907,7 +907,7 @@ issues each cite it:
   `sound.<name>.<prop>` and `channel.<name>.<prop>` prefixes).
 - [#124][gh-124] — CPython embedding infrastructure (script thread,
   GIL, queues, frozen stdlib).
-- [#125][gh-125] — C API (`yse_run_script`, error callback).
+- [#125][gh-125] — C API (`yse_python_run_script`, error callback).
 - [#126][gh-126] — `yse` Python module + DSL implementation (the
   primitives in this document).
 - [#127][gh-127] — Hot-reload cleanup + scheduling lifecycle

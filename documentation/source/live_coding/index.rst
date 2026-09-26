@@ -28,8 +28,8 @@ install once:
        fprintf(stderr, "%s\n", traceback);
    }
 
-   yse_set_script_error_callback(on_error, NULL);
-   yse_run_script("yse.send('patcher.lead.cutoff', 800)\n");
+   yse_python_set_script_error_callback(on_error, NULL);
+   yse_python_run_script("yse.send('patcher.lead.cutoff', 800)\n");
 
 The ``yse`` module is already bound into the script's namespace — scripts call
 ``yse.send(...)`` directly, no ``import`` needed.

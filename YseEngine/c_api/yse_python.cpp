@@ -11,7 +11,7 @@
 
   Unlike scriptRuntime.cpp (compiled only when YSE_ENABLE_PYTHON=ON), this TU is
   always built so the C ABI surface is uniform: the three symbols exist with
-  identical signatures in both configurations, and only the yse_run_script /
+  identical signatures in both configurations, and only the yse_python_run_script /
   yse_python_enabled bodies branch on the macro.
 */
 
@@ -27,7 +27,7 @@ namespace {
 
   // Host-facing callback + user_data. user_data is published before the
   // function pointer (release) and read after it (acquire); see the bridge.
-  std::atomic<yse_script_error_cb> g_userCb{nullptr};
+  std::atomic<YseScriptErrorCallback> g_userCb{nullptr};
   std::atomic<void*> g_userData{nullptr};
 
   // Fixed sink handed to the engine. The `userdata` slot from the engine side
@@ -52,10 +52,10 @@ YSE_C_API int yse_python_enabled(void) {
 #endif
 }
 
-YSE_C_API void yse_run_script(const char* src) {
+YSE_C_API void yse_python_run_script(const char* src) {
 #if YSE_ENABLE_PYTHON
   if (src == nullptr) return;
-  yse_c::guard_void("yse_run_script",
+  yse_c::guard_void("yse_python_run_script",
                     [&] { YSE::INTERNAL::Global().pushScript(std::string(src)); });
 #else
   // No interpreter to run on: report the misconfiguration synchronously through
@@ -68,7 +68,7 @@ YSE_C_API void yse_run_script(const char* src) {
 #endif
 }
 
-YSE_C_API void yse_set_script_error_callback(yse_script_error_cb cb, void* userdata) {
+YSE_C_API void yse_python_set_script_error_callback(YseScriptErrorCallback cb, void* userdata) {
   // Publish user_data before the function pointer, both release — pairs with the
   // acquire loads in the bridge.
   g_userData.store(userdata, std::memory_order_release);

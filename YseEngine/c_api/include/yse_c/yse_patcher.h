@@ -117,10 +117,13 @@ YSE_C_API int yse_patcher_is_valid_object(const char* type);
 
 /* A subpatcher is an object of type "patcher" that other objects are
    placed *inside*, so the parent patch addresses the group as one object
-   (issue #545). Its boundary is made of ".inlet" and ".outlet" objects:
-   inlet N of a subpatcher is the ".inlet" inside it whose index is N, and
-   yse_patcher_connect resolves that for you — connecting to a subpatcher
-   records an ordinary edge straight to the boundary object.
+   (issue #545). Its boundary is made of ".inlet" / ".outlet" objects for
+   message pins and "~inlet" / "~outlet" objects for signal pins (issue
+   #764). Both rates share ONE index space: inlet N of a subpatcher is the
+   ".inlet" or "~inlet" inside it whose index is N — a ".inlet 0" beside a
+   "~inlet 1" presents two inlets, and one index cannot be claimed at both
+   rates. yse_patcher_connect resolves that for you — connecting to a
+   subpatcher records an ordinary edge straight to the boundary object.
 
    Containment is addressing, not storage. A nested object is an ordinary
    object in the patcher's one flat graph: it takes part in the same
@@ -144,8 +147,9 @@ YSE_C_API void yse_patcher_set_container(YsePatcher* p, YsePHandle* obj, YsePHan
 YSE_C_API YsePHandle* yse_patcher_get_container(YsePatcher* p, YsePHandle* obj);
 
 /* How many inlets / outlets a subpatcher presents to its parent: one past
-   the highest index claimed by a ".inlet" / ".outlet" object among its
-   contents, so a sparsely numbered boundary reports the range a parent
+   the highest index claimed by a boundary object among its contents —
+   ".inlet" and "~inlet" (resp. ".outlet" and "~outlet") alike, counted in
+   their one shared numbering — so a sparsely numbered boundary reports the range a parent
    can address rather than the number of boundary objects. 0 when the
    handle is not a subpatcher.
 
@@ -274,7 +278,10 @@ YSE_C_API size_t yse_phandle_get_gui_value_at(YsePHandle* h, unsigned int index,
 
    1 means yse_phandle_set_list(h, 0, <what get_gui_value returned>)
    restores the state that was read, and yse_phandle_set_list(h, 0,
-   "set <index> <value>") writes one cell. That is the write half of the
+   "set <index> <value>") writes one cell — except on a one-cell control
+   whose cell is free text (".textedit"), which drops the "set" form so it
+   can hold the text "set 0 hello"; there the whole-state write is the
+   cell write, and the round trip still holds. That is the write half of the
    protocol, and the whole of it: there is no GUI-value setter. State goes
    into an object as an ordinary message on the control thread, so it
    passes through the object's own clamps and outlet sends and never races
@@ -380,10 +387,9 @@ YSE_C_API void yse_patcher_get_param_info(const char* type_name, int idx, const 
 /* Returns a fresh malloc'd JSON snapshot of every registered object's
    metadata. One-stop shop for bindings that want to cache the metadata
    or regenerate their own reference at build time. The caller must
-   release the buffer with yse_free_string(); returns NULL on
-   allocation failure. */
+   release the buffer with yse_free_string() (declared in yse_common.h);
+   returns NULL on allocation failure. */
 YSE_C_API char* yse_patcher_get_metadata_json(void);
-YSE_C_API void yse_free_string(char* s);
 
 #ifdef __cplusplus
 }
