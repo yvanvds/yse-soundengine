@@ -417,6 +417,81 @@ TEST_SUITE("capilowcov") {
     yse_patcher_destroy(p);
   }
 
+  TEST_CASE("c-api phandle: a malformed set_params on a rebuilt object keeps the old one (#915)") {
+    // `.i` above re-parses through the scalar plan, which throws before
+    // anything is allocated. `.gate` registers parse/clear callbacks, so a
+    // live set_params takes the structural rebuild instead: the patcher builds
+    // a replacement and re-parses *that*, and its int param makes std::stoi
+    // throw there. Before #915 the half-built replacement was leaked (ASan's
+    // leak checker names it); now it is freed and the published object —
+    // params, outlets and wiring — is untouched and still rebuildable.
+    YsePatcher* p = yse_patcher_create();
+    REQUIRE(p != nullptr);
+    yse_patcher_init(p, 2);
+
+    YsePHandle* gate = yse_patcher_create_object(p, ".gate", "3");
+    YsePHandle* sink = yse_patcher_create_object(p, kInt, "");
+    REQUIRE(gate != nullptr);
+    REQUIRE(sink != nullptr);
+    yse_patcher_connect(p, gate, 2, sink, 0);
+    REQUIRE(yse_phandle_get_outputs(gate) == 3);
+    REQUIRE(yse_phandle_get_connections(gate, 2) == 1u);
+
+    yse_clear_last_error();
+    yse_phandle_set_params(gate, "not_a_number");
+    CHECK(std::strlen(yse_last_error()) > 0u);
+    CHECK(readString([gate](char* b, size_t c) { return yse_phandle_get_params(gate, b, c); }) ==
+          "3");
+    CHECK(yse_phandle_get_outputs(gate) == 3);
+    CHECK(yse_phandle_get_connections(gate, 2) == 1u);
+
+    // A well-formed rebuild still lands on the same handle and keeps the cord.
+    yse_clear_last_error();
+    yse_phandle_set_params(gate, "4");
+    CHECK(std::strlen(yse_last_error()) == 0u);
+    CHECK(yse_phandle_get_outputs(gate) == 4);
+    CHECK(yse_phandle_get_connections(gate, 2) == 1u);
+
+    yse_patcher_destroy(p);
+  }
+
+  TEST_CASE("c-api patcher: a create whose args fail to parse leaves nothing behind (#919)") {
+    // `.gate`'s int param makes std::stoi throw on a malformed creation arg.
+    // Before #919 the freshly built object was held in a raw pointer across
+    // that parse and leaked (ASan's leak checker names the gGate); now it is
+    // freed, the create reports the error and returns NULL, and the patcher is
+    // left exactly as it was — no extra object, no change to the saved patch —
+    // so later creates still work.
+    YsePatcher* p = yse_patcher_create();
+    REQUIRE(p != nullptr);
+    yse_patcher_init(p, 2);
+
+    YsePHandle* first = yse_patcher_create_object(p, ".gate", "2");
+    REQUIRE(first != nullptr);
+    const unsigned int objectsBefore = yse_patcher_objects(p);
+    const std::string jsonBefore =
+        readString([p](char* b, size_t c) { return yse_patcher_dump_json(p, b, c); });
+
+    yse_clear_last_error();
+    CHECK(yse_patcher_create_object(p, ".gate", "not_a_number") == nullptr);
+    CHECK(std::strlen(yse_last_error()) > 0u);
+    CHECK(yse_patcher_objects(p) == objectsBefore);
+    CHECK(readString([p](char* b, size_t c) { return yse_patcher_dump_json(p, b, c); }) ==
+          jsonBefore);
+
+    // A well-formed create afterwards lands and can be wired as usual.
+    yse_clear_last_error();
+    YsePHandle* second = yse_patcher_create_object(p, ".gate", "3");
+    REQUIRE(second != nullptr);
+    CHECK(std::strlen(yse_last_error()) == 0u);
+    CHECK(yse_patcher_objects(p) == objectsBefore + 1u);
+    CHECK(yse_phandle_get_outputs(second) == 3);
+    yse_patcher_connect(p, first, 1, second, 0);
+    CHECK(yse_phandle_get_connections(first, 1) == 1u);
+
+    yse_patcher_destroy(p);
+  }
+
   TEST_CASE("c-api phandle: the GUI value protocol's cell form mirrors the engine") {
     // Issue #551. `.i` is a scalar control, so it is the one-cell case: it
     // reports one cell, cell 0 is exactly the whole-state read, and

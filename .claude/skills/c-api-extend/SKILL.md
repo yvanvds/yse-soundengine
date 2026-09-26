@@ -182,7 +182,10 @@ occlusion / `dspSourceObject` / `customFileReader` paths), the bridge:
    a named grace period proves no dispatch still reads it: the log bridge
    waits for the sink mutex every dispatch runs under; the MIDI raw bridge
    uses a seq_cst reader-count handshake around the pointer load, with no
-   user code inside the window the installer waits on.
+   user code inside the window the installer waits on. A straight
+   passthrough to an engine setter is fine only when that setter keeps the
+   pair as one node itself (`YSE::midiIn`'s raw / parsed setters do since
+   #917); still wrap the install in the exception barrier.
 4. **Does not `malloc` / `new` / construct `std::string` on dispatch when
    the bridge can fire from the audio callback.** For raw byte buffers
    needed by an async-Dart host, preallocate a per-handle pool keyed by

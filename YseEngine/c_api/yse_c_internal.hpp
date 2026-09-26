@@ -54,6 +54,11 @@
        handshake around the pointer load (yse_midi.cpp). Keep user code out
        of the window the installer waits on.
 
+       Passing cb + user_data straight through to an engine setter is only
+       safe when that setter keeps them as one pair itself — YSE::midiIn's
+       raw / parsed setters do since #917 (the parsed C callback relies on
+       it). Wrap such an install in the exception barrier: it allocates.
+
     2. No malloc / new / std::string / container ops on the dispatch path
        when the bridge can fire from the audio callback. For occlusion and
        dspSourceObject, pass values by stack copy. For raw byte buffers

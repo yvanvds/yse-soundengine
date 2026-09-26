@@ -39,6 +39,7 @@
 #include <atomic>
 #include <cstddef>
 #include <cstring>
+#include <memory>
 #include <mutex>
 #include <string>
 #include <vector>
@@ -900,8 +901,14 @@ YSE::pHandle* patcherImplementation::CreateObjectUnlocked(const std::string& typ
     // rendered graph always uses this channel-matched instance.
     object = new pAdc((int)output.size());
   } else {
-    object = Register().Get(type);
-    if (object != nullptr) object->SetParams(args);
+    // SetParams is the step that can throw (std::stoi/std::stof on a malformed
+    // token), so the new object stays owned until it has succeeded: a throw
+    // frees it (issue #919). Nothing shared has been touched yet — no storage
+    // ID, no parent, no handle, no graph ids — so the delete is a complete
+    // undo and a failed create leaves the patcher exactly as it was.
+    std::unique_ptr<pObject> staged(Register().Get(type));
+    if (staged != nullptr) staged->SetParams(args);
+    object = staged.release();
   }
 
   if (object == nullptr) {
@@ -1107,8 +1114,8 @@ void patcherImplementation::ApplyPendingParams(const GraphState* g) {
 
 void patcherImplementation::ReplaceObjectUnlocked(YSE::pHandle* handle, const std::string& args) {
   pObject* old = handle->object;
-  pObject* fresh = Register().Get(old->Type());
-  if (fresh == nullptr) {
+  std::unique_ptr<pObject> staged(Register().Get(old->Type()));
+  if (staged == nullptr) {
     // Not registry-built (the DAC) — but the DAC registers no params, so a
     // re-parse can never legitimately land here. Leave the object untouched.
     INTERNAL::LogImpl().emit(E_ERROR, "Patcher: cannot rebuild " + std::string(old->Type()) +
@@ -1120,7 +1127,15 @@ void patcherImplementation::ReplaceObjectUnlocked(YSE::pHandle* handle, const st
   // gReceive/gSend anchors its bus subscription/address under the *new*
   // dataName. The object is not yet published: pin callbacks may freely
   // grow/shrink its inlets/outlets here.
-  fresh->SetParams(args);
+  //
+  // The re-parse is the step that can throw (std::stoi/std::stof on a
+  // malformed token), so the replacement stays owned until it has succeeded:
+  // a throw frees it and leaves the old object in place (issue #915). Until
+  // then it has touched nothing shared — no parent, no ids, no edges — so a
+  // plain delete is a complete undo. Ownership is handed over right after,
+  // before SetParent can anchor anything the destructor would not unwind.
+  staged->SetParams(args);
+  pObject* fresh = staged.release();
   fresh->CopyStorageIdentity(*old);
   fresh->SetParent(this);
   AssignGraphIds(fresh);

@@ -13,6 +13,8 @@
 //     callbacks
 //   - C API mirrors the C++ class: create/destroy, is_open, callback setters,
 //     free_message handles nullptr
+//   - Re-installing a callback (engine raw / parsed, C raw / parsed) never
+//     pairs one install's callback with another's user_data (#916, #917)
 //
 // Windows / Linux only — the entire TU is gated on the same condition that
 // gates device.cpp. No engine initialisation is required (the MIDI subsystem
@@ -92,6 +94,93 @@ namespace {
     if (ctx->tag != 'B') ctx->mismatched.fetch_add(1, std::memory_order_relaxed);
     ctx->calls.fetch_add(1, std::memory_order_relaxed);
     yse_midi_in_free_message(bytes);
+  }
+
+  // Issue #917: the same tagged check for the parsed C callback and for the
+  // engine's own raw / parsed setters.
+  void noteMismatch(void* user_data, int expected) {
+    auto* ctx = static_cast<TaggedCtx*>(user_data);
+    if (ctx->tag != expected) ctx->mismatched.fetch_add(1, std::memory_order_relaxed);
+    ctx->calls.fetch_add(1, std::memory_order_relaxed);
+  }
+
+  void YSE_C_CALLBACK parsedReceiveA(double, unsigned char, unsigned char, unsigned char,
+                                     unsigned char, void* user_data) {
+    noteMismatch(user_data, 'A');
+  }
+
+  void YSE_C_CALLBACK parsedReceiveB(double, unsigned char, unsigned char, unsigned char,
+                                     unsigned char, void* user_data) {
+    noteMismatch(user_data, 'B');
+  }
+
+  void engineRawA(double, const unsigned char*, std::size_t, void* user_data) {
+    noteMismatch(user_data, 'A');
+  }
+
+  void engineRawB(double, const unsigned char*, std::size_t, void* user_data) {
+    noteMismatch(user_data, 'B');
+  }
+
+  void engineParsedA(double, unsigned char, unsigned char, unsigned char, unsigned char,
+                     void* user_data) {
+    noteMismatch(user_data, 'A');
+  }
+
+  void engineParsedB(double, unsigned char, unsigned char, unsigned char, unsigned char,
+                     void* user_data) {
+    noteMismatch(user_data, 'B');
+  }
+
+  // Swaps between two tagged installs (install(true) = A, install(false) = B)
+  // while another thread, standing in for RtMidi's input thread, feeds `port`.
+  // Ends with detach(), then checks nothing fires afterwards, every call
+  // arrived with its own context, and both installs were actually reached.
+  // Under TSan this also exercises the reader-count reclamation of the
+  // replaced pair.
+  template <typename Install, typename Detach>
+  void runSwapRace(YSE::midiIn& port, Install install, Detach detach) {
+    TaggedCtx a;
+    a.tag = 'A';
+    TaggedCtx b;
+    b.tag = 'B';
+    install(true, &a);
+
+    std::atomic<bool> stop{false};
+    const unsigned char msg[3] = {0x90, 0x3C, 0x64};
+    std::thread input([&] {
+      while (!stop.load(std::memory_order_acquire))
+        MidiInDispatchTester::dispatch(port, 0.0, msg, 3);
+    });
+
+    // Keep swapping until the input thread has delivered a good number of
+    // messages through both installs (a thread can start late), bounded in
+    // time so a stalled thread fails the count check below rather than hanging.
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(10);
+    for (int i = 0; std::chrono::steady_clock::now() < deadline; ++i) {
+      if (i % 2 == 0)
+        install(false, &b);
+      else
+        install(true, &a);
+      if (i >= 20000 && a.calls.load(std::memory_order_relaxed) >= 5000 &&
+          b.calls.load(std::memory_order_relaxed) >= 5000)
+        break;
+    }
+    // Detaching must be just as consistent, and leaves nothing installed.
+    detach();
+    stop.store(true, std::memory_order_release);
+    input.join();
+
+    const int aCalls = a.calls.load();
+    const int bCalls = b.calls.load();
+    MidiInDispatchTester::dispatch(port, 0.0, msg, 3);
+    CHECK(a.calls.load() == aCalls);
+    CHECK(b.calls.load() == bCalls);
+
+    CHECK(a.mismatched.load() == 0);
+    CHECK(b.mismatched.load() == 0);
+    CHECK(aCalls > 0);
+    CHECK(bCalls > 0);
   }
 
   void resetSinks() {
@@ -282,50 +371,53 @@ TEST_SUITE("midi") {
     REQUIRE(m != nullptr);
     YSE::midiIn* port = yse_c::midi_in_from_handle(m);
     REQUIRE(port != nullptr);
-
-    TaggedCtx a;
-    a.tag = 'A';
-    TaggedCtx b;
-    b.tag = 'B';
-    yse_midi_in_set_raw_callback(m, &rawReceiveA, &a);
-
-    std::atomic<bool> stop{false};
-    std::thread input([&] {
-      const unsigned char msg[3] = {0x90, 0x3C, 0x64};
-      while (!stop.load(std::memory_order_acquire))
-        MidiInDispatchTester::dispatch(*port, 0.0, msg, 3);
-    });
-
-    // Keep swapping until the input thread has delivered a good number of
-    // messages through both installs (a thread can start late), bounded in
-    // time so a stalled thread fails the count check below rather than hanging.
-    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(10);
-    for (int i = 0; std::chrono::steady_clock::now() < deadline; ++i) {
-      if (i % 2 == 0)
-        yse_midi_in_set_raw_callback(m, &rawReceiveB, &b);
-      else
-        yse_midi_in_set_raw_callback(m, &rawReceiveA, &a);
-      if (i >= 20000 && a.calls.load(std::memory_order_relaxed) >= 5000 &&
-          b.calls.load(std::memory_order_relaxed) >= 5000)
-        break;
-    }
-    // Detaching must be just as consistent, and leaves nothing installed.
-    yse_midi_in_set_raw_callback(m, nullptr, nullptr);
-    stop.store(true, std::memory_order_release);
-    input.join();
-
-    const int aCalls = a.calls.load();
-    const int bCalls = b.calls.load();
-    const unsigned char msg[3] = {0x90, 0x3C, 0x64};
-    MidiInDispatchTester::dispatch(*port, 0.0, msg, 3);
-    CHECK(a.calls.load() == aCalls);
-    CHECK(b.calls.load() == bCalls);
-
-    CHECK(a.mismatched.load() == 0);
-    CHECK(b.mismatched.load() == 0);
-    CHECK(aCalls > 0);
-    CHECK(bCalls > 0);
+    runSwapRace(
+        *port,
+        [m](bool useA, TaggedCtx* ctx) {
+          yse_midi_in_set_raw_callback(m, useA ? &rawReceiveA : &rawReceiveB, ctx);
+        },
+        [m] { yse_midi_in_set_raw_callback(m, nullptr, nullptr); });
     yse_midi_in_destroy(m);
+  }
+
+  // Issue #917: the parsed C callback passes straight through to
+  // midiIn::setParsedCallback, which kept cb and user_data as two atomics.
+  TEST_CASE("yse_midi_in C API: re-installing the parsed callback never pairs it with another "
+            "install's user_data") {
+    YseMidiIn* m = yse_midi_in_create();
+    REQUIRE(m != nullptr);
+    YSE::midiIn* port = yse_c::midi_in_from_handle(m);
+    REQUIRE(port != nullptr);
+    runSwapRace(
+        *port,
+        [m](bool useA, TaggedCtx* ctx) {
+          yse_midi_in_set_parsed_callback(m, useA ? &parsedReceiveA : &parsedReceiveB, ctx);
+        },
+        [m] { yse_midi_in_set_parsed_callback(m, nullptr, nullptr); });
+    yse_midi_in_destroy(m);
+  }
+
+  // Issue #917: C++ users of the engine setters get the same guarantee.
+  TEST_CASE("midiIn: re-installing the raw callback never pairs it with another install's "
+            "user_data") {
+    YSE::midiIn in;
+    runSwapRace(
+        in,
+        [&in](bool useA, TaggedCtx* ctx) {
+          in.setRawCallback(useA ? &engineRawA : &engineRawB, ctx);
+        },
+        [&in] { in.setRawCallback(nullptr, nullptr); });
+  }
+
+  TEST_CASE("midiIn: re-installing the parsed callback never pairs it with another install's "
+            "user_data") {
+    YSE::midiIn in;
+    runSwapRace(
+        in,
+        [&in](bool useA, TaggedCtx* ctx) {
+          in.setParsedCallback(useA ? &engineParsedA : &engineParsedB, ctx);
+        },
+        [&in] { in.setParsedCallback(nullptr, nullptr); });
   }
 
   TEST_CASE("yse_midi_in C API: free_message safely handles nullptr") {

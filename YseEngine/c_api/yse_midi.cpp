@@ -326,8 +326,13 @@ YSE_C_API void yse_midi_in_set_parsed_callback(YseMidiIn* m, YseMidiInParsedCall
   if (!m) return;
   // The parsed callback signature is layout-compatible between the C ABI
   // typedef and the C++ class typedef (same scalar args, same calling
-  // convention), so pass straight through.
-  to_impl(m)->cpp.setParsedCallback(reinterpret_cast<YSE::midiIn::ParsedCallback>(cb), user_data);
+  // convention), so pass straight through. midiIn publishes (cb, user_data)
+  // as one pair (issue #917); that install allocates, so it runs inside the
+  // ABI exception barrier.
+  auto* impl = to_impl(m);
+  yse_c::guard_void("yse_midi_in_set_parsed_callback", [&] {
+    impl->cpp.setParsedCallback(reinterpret_cast<YSE::midiIn::ParsedCallback>(cb), user_data);
+  });
 }
 
 YSE_C_API void yse_midi_in_free_message(unsigned char* bytes) {
