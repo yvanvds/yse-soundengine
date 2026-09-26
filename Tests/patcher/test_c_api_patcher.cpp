@@ -39,6 +39,7 @@
 #include "yse_c/yse_common.h"
 #include "yse_c/yse_enums.h"
 #include "yse_c/yse_patcher.h"
+#include "yse_c/yse_system.h"
 
 namespace {
 
@@ -679,6 +680,59 @@ TEST_SUITE("capilowcov") {
     const int after = a.calls.load() + b.calls.load();
     std::this_thread::sleep_for(std::chrono::milliseconds(20));
     CHECK(a.calls.load() + b.calls.load() == after);
+  }
+
+  // ─── engine RNG seeding (issue #908) ───────────────────────────────────────
+
+  TEST_CASE("c-api patcher: yse_random_seed makes a .random patch replay, yse_randomize "
+            "moves it (#908)") {
+    // The user-visible contract: a host seeds the engine generator through the
+    // C ABI and a patch's .random draws replay. Drawn on this thread, which has
+    // already drawn before — so the replay also proves a seed reaches a thread
+    // whose stream was already running, not only fresh ones.
+    if (!capilowcov::ensureOffline()) return; // engine unavailable → skip
+
+    YsePatcher* p = yse_patcher_create();
+    REQUIRE(p != nullptr);
+    yse_patcher_init(p, 2);
+    YsePHandle* random = yse_patcher_create_object(p, ".random", "1000000");
+    YsePHandle* send = yse_patcher_create_object(p, ".s", "rng");
+    REQUIRE(random != nullptr);
+    REQUIRE(send != nullptr);
+    yse_patcher_connect(p, random, 0, send, 0);
+
+    SendLog log;
+    REQUIRE(yse_patcher_set_send_callback(p, &SendLog::record, &log) == YSE_OK);
+
+    auto draw = [&](int n) {
+      for (int i = 0; i < n; ++i)
+        yse_phandle_set_bang(random, 0);
+      std::vector<int> values;
+      for (const SendMsg& m : log.take()) {
+        CHECK(m.kind == YSE_OUT_INT);
+        values.push_back(m.i);
+      }
+      return values;
+    };
+
+    const int kN = 16;
+    CHECK(draw(3).size() == 3u); // this thread's stream is running before the seed
+
+    yse_random_seed(4242);
+    const std::vector<int> first = draw(kN);
+    REQUIRE(first.size() == static_cast<size_t>(kN));
+
+    draw(5); // advance, then publish the same seed again
+    yse_random_seed(4242);
+    CHECK(draw(kN) == first);
+
+    yse_random_seed(4243);
+    CHECK(draw(kN) != first);
+
+    yse_randomize();
+    CHECK(draw(kN) != first);
+
+    yse_patcher_destroy(p);
   }
 
   // ─── pHandle accessors ─────────────────────────────────────────────────────

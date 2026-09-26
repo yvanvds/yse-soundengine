@@ -92,7 +92,24 @@ YSE_C_API YseStatus yse_dsp_buffer_draw_flat(YseDspBuffer* buf, unsigned int sta
 /* fileBuffer-only. */
 YSE_C_API YseStatus yse_dsp_buffer_load_file(YseDspBuffer* buf, const char* filename,
                                              unsigned int channel);
+
+/* Writes the buffer to a mono 32-bit float WAV file. filename is used
+   verbatim (no extension is appended). The file is written at the sample
+   rate of the file this buffer was last loaded from, or at the engine rate
+   if it was never loaded from one. Returns YSE_ERR_GENERIC (reason in
+   yse_last_error) when the file cannot be created, the buffer is empty, or a
+   custom BufferIO backend is active (yse_buffer_io_set_active(io, 1)): that
+   backend is read-only, so save refuses rather than bypass it (#580, #637).
+   File I/O — never call it from the audio callback. */
 YSE_C_API YseStatus yse_dsp_buffer_save_file(YseDspBuffer* buf, const char* filename);
+
+/* Native sample rate, in Hz, of the file this buffer was last loaded from;
+   0 before a successful yse_dsp_buffer_load_file() and for a NULL handle.
+   Unlike yse_dsp_buffer_sample_rate_adjustment() — a ratio against the
+   engine rate in effect at load time — this does not change when the engine
+   is re-initialised at another rate, so hosts can re-derive the playback
+   speed against the live rate (#637). */
+YSE_C_API float yse_dsp_buffer_get_file_sample_rate(YseDspBuffer* buf);
 
 /* wavetable-only. */
 YSE_C_API YseStatus yse_dsp_wavetable_create_saw(YseDspBuffer* buf, int harmonics, int length);

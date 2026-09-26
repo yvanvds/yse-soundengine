@@ -248,6 +248,30 @@ typedef float(YSE_C_CALLBACK* YseOcclusionCallback)(const yse_pos_t* src, const 
 YSE_C_API void yse_system_set_occlusion_callback(YseSystem* sys, YseOcclusionCallback cb,
                                                  void* user_data);
 
+/* Engine block size in frames (issue #908): the fixed number of samples the
+   engine renders per block (128). yse_system_render_offline(sys, blocks)
+   renders blocks * yse_block_size() frames. Independent of the device's
+   frames-per-callback reported by yse_system_get_active_buffer_size(). */
+YSE_C_API unsigned int yse_block_size(void);
+
+/* Engine random generator (issue #908) — the one behind the patcher's .random
+   object, granulator jitter, the LFO random shapes and the seed-0 stream of
+   the seedable patcher objects. These run inside the engine library, so they
+   seed the engine's own generator even when the host links it as a shared
+   library (the C++ YSE::Randomize() inline would seed the host's copy).
+
+   Without either call the engine is reproducible by default. yse_randomize()
+   seeds from the system clock; yse_random_seed() seeds with a fixed value, so
+   the same seed replays the same sequence on the n-th thread to draw after
+   the call — in particular on the audio thread when it is the only one
+   drawing. Every engine thread re-seeds on its next draw, so the audio
+   thread's running stream is affected too. Call from a control thread (not
+   from an audio callback), typically before creating the patch or sounds
+   whose output should be reproducible; objects that drew their stream at
+   construction keep it. */
+YSE_C_API void yse_randomize(void);
+YSE_C_API void yse_random_seed(unsigned int seed);
+
 #ifdef __cplusplus
 }
 #endif

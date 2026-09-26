@@ -87,6 +87,7 @@ TEST_SUITE("capilowcov") {
     CHECK(yse_dsp_buffer_max_value(nullptr) == doctest::Approx(0.0f));
     CHECK(yse_dsp_buffer_get_back(nullptr) == doctest::Approx(0.0f));
     CHECK(yse_dsp_buffer_sample_rate_adjustment(nullptr) == doctest::Approx(0.0f));
+    CHECK(yse_dsp_buffer_get_file_sample_rate(nullptr) == doctest::Approx(0.0f));
 
     // Void setters no-op.
     yse_dsp_buffer_set_sample_rate_adjustment(nullptr, 2.0f);
@@ -371,10 +372,14 @@ TEST_SUITE("capilowcov") {
 
     // The bundled mono fixture loads: the buffer is resized to the file's frame
     // count and the sample-rate adjustment is set from the file's rate.
+    // Nothing loaded yet: no file rate to report (issue #908).
+    CHECK(yse_dsp_buffer_get_file_sample_rate(buf) == 0.0f);
     const std::string wav = fixture("test_mono_44100.wav");
     REQUIRE(yse_dsp_buffer_load_file(buf, wav.c_str(), 0) == YSE_OK);
     CHECK(yse_dsp_buffer_length(buf) > 8u); // grew past the constructed length
     CHECK(yse_dsp_buffer_sample_rate_adjustment(buf) > 0.0f);
+    // The file's native rate, independent of the engine rate (#637, #908).
+    CHECK(yse_dsp_buffer_get_file_sample_rate(buf) == doctest::Approx(44100.0f));
 
     // Asking for a channel the mono file does not have fails cleanly.
     CHECK(yse_dsp_buffer_load_file(buf, wav.c_str(), 1) == YSE_ERR_FILE_NOT_FOUND);
@@ -401,6 +406,8 @@ TEST_SUITE("capilowcov") {
     REQUIRE(reloaded != nullptr);
     REQUIRE(yse_dsp_buffer_load_file(reloaded, tmp.string().c_str(), 0) == YSE_OK);
     CHECK(yse_dsp_buffer_length(reloaded) == saved_length);
+    // save writes at the source file's rate, not the engine's (#637, #908).
+    CHECK(yse_dsp_buffer_get_file_sample_rate(reloaded) == doctest::Approx(44100.0f));
     std::vector<float> after(saved_length);
     REQUIRE(yse_dsp_buffer_read(reloaded, 0, after.data(), saved_length) == saved_length);
     // Float WAV is lossless, so the samples come back exactly as written.

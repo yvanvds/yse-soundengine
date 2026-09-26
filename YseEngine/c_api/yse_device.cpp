@@ -18,6 +18,9 @@ namespace {
   inline YSE::deviceSetup* to_cpp(YseDeviceSetup* s) {
     return reinterpret_cast<YSE::deviceSetup*>(s);
   }
+  inline const YSE::deviceSetup* to_cpp(const YseDeviceSetup* s) {
+    return reinterpret_cast<const YSE::deviceSetup*>(s);
+  }
 
   // snprintf-style string copy: writes at most cap-1 bytes plus terminator
   // into buf, returns the full source length (excluding terminator).
@@ -160,6 +163,10 @@ YSE_C_API void yse_device_setup_set_sample_rate(YseDeviceSetup* setup, double va
 
 YSE_C_API void yse_device_setup_set_buffer_size(YseDeviceSetup* setup, int value) {
   if (setup) to_cpp(setup)->setBufferSize(value);
+}
+
+YSE_C_API int yse_device_setup_get_output_channels(const YseDeviceSetup* setup) {
+  return setup ? to_cpp(setup)->getOutputChannels() : 0;
 }
 
 } // extern "C"

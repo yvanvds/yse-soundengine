@@ -257,6 +257,11 @@ YSE_C_API YseStatus yse_dsp_buffer_save_file(YseDspBuffer* buf, const char* file
   });
 }
 
+YSE_C_API float yse_dsp_buffer_get_file_sample_rate(YseDspBuffer* buf) {
+  const auto* f = as<YSE::DSP::fileBuffer>(buf);
+  return f ? f->getFileSampleRate() : 0.0f;
+}
+
 YSE_C_API YseStatus yse_dsp_wavetable_create_saw(YseDspBuffer* buf, int harmonics, int length) {
   auto* w = as<YSE::DSP::wavetable>(buf);
   if (!w) {

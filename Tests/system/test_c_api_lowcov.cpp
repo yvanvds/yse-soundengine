@@ -514,6 +514,29 @@ TEST_SUITE("capilowcov") {
     CHECK(yse_system_beat_position(sys, name) == doctest::Approx(0.0));
   }
 
+  TEST_CASE("c-api system: render_offline(n) renders n * yse_block_size() frames (#908)") {
+    if (!capilowcov::ensureOffline()) return;
+    YseSystem* sys = yse_system_get();
+
+    CHECK(yse_block_size() == 128u);
+
+    // A 60 BPM clock advances one beat per second of rendered audio, so its
+    // beat delta over a render_offline call measures the frames rendered.
+    const char* name = "capilowcov.blocksize";
+    REQUIRE(yse_system_create_clock(sys, name, 60.0f) == 1);
+    yse_system_render_offline(sys, 1); // let the clock take its first block
+    const double sr = yse_system_get_sample_rate(sys);
+    REQUIRE(sr > 0.0);
+
+    const int blocks = 25;
+    const double before = yse_system_beat_position(sys, name);
+    yse_system_render_offline(sys, blocks);
+    const double frames = (yse_system_beat_position(sys, name) - before) * sr;
+    CHECK(frames == doctest::Approx(static_cast<double>(blocks) * yse_block_size()).epsilon(1e-6));
+
+    yse_system_destroy_clock(sys, name);
+  }
+
   TEST_CASE("c-api system: device / host name strings follow the snprintf convention") {
     if (!capilowcov::ensureOffline()) return;
     YseSystem* sys = yse_system_get();

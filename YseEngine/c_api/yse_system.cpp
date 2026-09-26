@@ -6,6 +6,8 @@
 #include "../reverb/reverbInterface.hpp"
 #include "../device/deviceInterface.hpp"
 #include "../device/deviceSetup.hpp"
+#include "../headers/constants.hpp"
+#include "../utils/misc.hpp"
 
 #include <atomic>
 #include <cstring>
@@ -473,6 +475,21 @@ YSE_C_API void yse_system_set_occlusion_callback(YseSystem* sys, YseOcclusionCal
     }
     delete old;
   });
+}
+
+YSE_C_API unsigned int yse_block_size(void) {
+  return YSE::STANDARD_BUFFERSIZE;
+}
+
+// Both run in this translation unit, inside the engine library, so they reach
+// the library's own copy of the header-inline generator state — the one the
+// engine's draws use — rather than the host's (issue #908).
+YSE_C_API void yse_randomize(void) {
+  YSE::Randomize();
+}
+
+YSE_C_API void yse_random_seed(unsigned int seed) {
+  YSE::RandomSeed(seed);
 }
 
 } // extern "C"
