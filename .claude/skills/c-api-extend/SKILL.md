@@ -170,11 +170,19 @@ When the engine invokes a user-provided callback on a **non-host thread**
 (audio callback, RtMidi input thread, file streaming worker, future
 occlusion / `dspSourceObject` / `customFileReader` paths), the bridge:
 
-1. Holds the callback + user_data pair as `std::atomic<>`. **Never
-   `std::mutex` or `std::lock_guard`.**
-2. Installs with `memory_order_release` stores (user_data first, then cb).
-3. Dispatches with `memory_order_acquire` loads (cb first; return if null;
-   then user_data).
+1. Holds the callback + user_data as **one immutable pair node behind a
+   single `std::atomic<Pair*>`** — never two separate atomics, which let a
+   dispatch between the two stores of a re-install pair one install's cb
+   with another's user_data (#902, #916). **Never `std::mutex` or
+   `std::lock_guard` on the dispatch path.**
+2. Installs by allocating the new pair (inside the ABI exception barrier)
+   and publishing it with one atomic `exchange`.
+3. Dispatches by loading the pointer once (return if null) and reading cb
+   and user_data from that same node. The replaced node is freed only after
+   a named grace period proves no dispatch still reads it: the log bridge
+   waits for the sink mutex every dispatch runs under; the MIDI raw bridge
+   uses a seq_cst reader-count handshake around the pointer load, with no
+   user code inside the window the installer waits on.
 4. **Does not `malloc` / `new` / construct `std::string` on dispatch when
    the bridge can fire from the audio callback.** For raw byte buffers
    needed by an async-Dart host, preallocate a per-handle pool keyed by
@@ -187,10 +195,11 @@ occlusion / `dspSourceObject` / `customFileReader` paths), the bridge:
 
 Canonical examples:
 - [yse_midi.cpp](../../../YseEngine/c_api/yse_midi.cpp) — `c_raw_bridge`,
-  atomic-swap, malloc per call is acceptable because the RtMidi input
-  thread is not the audio callback.
+  pair-pointer swap reclaimed by a reader-count handshake; malloc per call
+  is acceptable because the RtMidi input thread is not the audio callback.
 - [yse_log.cpp](../../../YseEngine/c_api/yse_log.cpp) — `CallbackBridge`,
-  same atomic-swap shape, same Dart-ownership malloc.
+  same pair-pointer swap reclaimed behind the log sink mutex, same
+  Dart-ownership malloc.
 
 The "Callback bridge rules" block at the head of
 [yse_c_internal.hpp](../../../YseEngine/c_api/yse_c_internal.hpp) restates

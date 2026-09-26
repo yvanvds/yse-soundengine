@@ -20,11 +20,14 @@
 
 #include <doctest/doctest.h>
 #include <atomic>
+#include <chrono>
 #include <cstring>
+#include <thread>
 #include "headers/defines.hpp"
 
 #if YSE_ENABLE_MIDI_DEVICE
 
+#include "c_api/yse_c_internal.hpp"
 #include "midi/device.hpp"
 #include "yse_c/yse_midi.h"
 #include "support/midi_dispatch_tester.hpp"
@@ -67,6 +70,28 @@ namespace {
     g_parsed.channel.store(c, std::memory_order_relaxed);
     g_parsed.data1.store(d1, std::memory_order_relaxed);
     g_parsed.data2.store(d2, std::memory_order_relaxed);
+  }
+
+  // Issue #916: each raw callback owns a context tagged with its own letter,
+  // so a call that arrives with the other install's user_data is counted.
+  struct TaggedCtx {
+    int tag = 0;
+    std::atomic<int> calls{0};
+    std::atomic<int> mismatched{0};
+  };
+
+  void YSE_C_CALLBACK rawReceiveA(double, unsigned char* bytes, std::size_t, void* user_data) {
+    auto* ctx = static_cast<TaggedCtx*>(user_data);
+    if (ctx->tag != 'A') ctx->mismatched.fetch_add(1, std::memory_order_relaxed);
+    ctx->calls.fetch_add(1, std::memory_order_relaxed);
+    yse_midi_in_free_message(bytes);
+  }
+
+  void YSE_C_CALLBACK rawReceiveB(double, unsigned char* bytes, std::size_t, void* user_data) {
+    auto* ctx = static_cast<TaggedCtx*>(user_data);
+    if (ctx->tag != 'B') ctx->mismatched.fetch_add(1, std::memory_order_relaxed);
+    ctx->calls.fetch_add(1, std::memory_order_relaxed);
+    yse_midi_in_free_message(bytes);
   }
 
   void resetSinks() {
@@ -242,6 +267,65 @@ TEST_SUITE("midi") {
     yse_midi_in_set_parsed_callback(m, nullptr, nullptr);
     yse_midi_in_destroy(m);
     CHECK(true);
+  }
+
+  // Issue #916: the raw bridge kept cb and user_data as two separate atomics,
+  // so a message dispatched in the middle of a re-install could reach
+  // callback A with callback B's user_data. Two callbacks, each owning a
+  // tagged context, are swapped back and forth while another thread (standing
+  // in for RtMidi's input thread) feeds the port; every call must arrive with
+  // its own context. Under TSan this also exercises the reader-count
+  // reclamation of the replaced pair.
+  TEST_CASE("yse_midi_in C API: re-installing the raw callback never pairs it with another "
+            "install's user_data") {
+    YseMidiIn* m = yse_midi_in_create();
+    REQUIRE(m != nullptr);
+    YSE::midiIn* port = yse_c::midi_in_from_handle(m);
+    REQUIRE(port != nullptr);
+
+    TaggedCtx a;
+    a.tag = 'A';
+    TaggedCtx b;
+    b.tag = 'B';
+    yse_midi_in_set_raw_callback(m, &rawReceiveA, &a);
+
+    std::atomic<bool> stop{false};
+    std::thread input([&] {
+      const unsigned char msg[3] = {0x90, 0x3C, 0x64};
+      while (!stop.load(std::memory_order_acquire))
+        MidiInDispatchTester::dispatch(*port, 0.0, msg, 3);
+    });
+
+    // Keep swapping until the input thread has delivered a good number of
+    // messages through both installs (a thread can start late), bounded in
+    // time so a stalled thread fails the count check below rather than hanging.
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(10);
+    for (int i = 0; std::chrono::steady_clock::now() < deadline; ++i) {
+      if (i % 2 == 0)
+        yse_midi_in_set_raw_callback(m, &rawReceiveB, &b);
+      else
+        yse_midi_in_set_raw_callback(m, &rawReceiveA, &a);
+      if (i >= 20000 && a.calls.load(std::memory_order_relaxed) >= 5000 &&
+          b.calls.load(std::memory_order_relaxed) >= 5000)
+        break;
+    }
+    // Detaching must be just as consistent, and leaves nothing installed.
+    yse_midi_in_set_raw_callback(m, nullptr, nullptr);
+    stop.store(true, std::memory_order_release);
+    input.join();
+
+    const int aCalls = a.calls.load();
+    const int bCalls = b.calls.load();
+    const unsigned char msg[3] = {0x90, 0x3C, 0x64};
+    MidiInDispatchTester::dispatch(*port, 0.0, msg, 3);
+    CHECK(a.calls.load() == aCalls);
+    CHECK(b.calls.load() == bCalls);
+
+    CHECK(a.mismatched.load() == 0);
+    CHECK(b.mismatched.load() == 0);
+    CHECK(aCalls > 0);
+    CHECK(bCalls > 0);
+    yse_midi_in_destroy(m);
   }
 
   TEST_CASE("yse_midi_in C API: free_message safely handles nullptr") {

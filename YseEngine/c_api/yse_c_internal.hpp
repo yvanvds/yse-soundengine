@@ -38,10 +38,21 @@
   The canonical pattern lives in yse_midi.cpp's c_raw_bridge. Any new bridge
   must follow the same rules:
 
-    1. Callback + user_data live as std::atomic<>. Install stores both with
-       release ordering (user_data first, then cb); dispatch loads with
-       acquire ordering (cb first, returns if null, then user_data). No
-       mutex, no lock_guard.
+    1. Callback + user_data are published together: install builds an
+       immutable {cb, user_data} node and swaps it into one std::atomic<>
+       pointer; dispatch loads that pointer once and reads both fields from
+       the same node. Never keep them as two separate atomics — a dispatch
+       between the two stores of a re-install pairs one install's callback
+       with another's user_data (issues #902, #916). No mutex, no
+       lock_guard on the dispatch path.
+
+       The replaced node may only be freed once no dispatch can still be
+       reading it. Name the grace period that proves this beside the code:
+       the log bridge frees after setHandler() has taken the sink mutex that
+       every dispatch runs under (yse_log.cpp); the MIDI raw bridge, whose
+       input thread holds no such lock, uses a seq_cst reader-count
+       handshake around the pointer load (yse_midi.cpp). Keep user code out
+       of the window the installer waits on.
 
     2. No malloc / new / std::string / container ops on the dispatch path
        when the bridge can fire from the audio callback. For occlusion and
@@ -81,11 +92,13 @@
 // in yse_synth.cpp (YseSynthImpl) and the engine synth headers.
 struct YseSynth;
 struct YseDspBuffer;
+struct YseMidiIn;
 namespace YSE {
   namespace SYNTH {
     class interfaceObject;
   }
   typedef SYNTH::interfaceObject synth;
+  class midiIn;
   namespace DSP {
     class buffer;
   }
@@ -166,5 +179,13 @@ namespace yse_c {
   // Any TU that needs the engine object must go through here, never through a
   // reinterpret_cast of the handle.
   YSE::DSP::buffer* buffer_from_handle(YseDspBuffer* h);
+
+  // Return the engine input port backing a YseMidiIn handle, or nullptr for a
+  // NULL handle. Defined in yse_midi.cpp, and only on builds with MIDI device
+  // support (YSE_ENABLE_MIDI_DEVICE). A YseMidiIn* is not a midiIn* — the
+  // handle wraps the port together with the raw-callback bridge state. Tests
+  // use this to drive the port's dispatch path, and so the C bridge, without
+  // a hardware device (issue #916).
+  YSE::midiIn* midi_in_from_handle(YseMidiIn* h);
 
 } // namespace yse_c

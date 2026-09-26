@@ -17,6 +17,7 @@
 #include <cstring>
 #include <exception>
 #include <string>
+#include <thread>
 
 namespace {
   inline YSE::MIDI::file* to_cpp(YseMidiFile* f) {
@@ -39,10 +40,52 @@ namespace {
   // a malloc'd buffer that the receiver owns (mirrors the log-callback
   // ownership contract). A wrapper struct carries that bridge state per
   // YseMidiIn handle.
+  //
+  // ### One pair, one pointer (issue #916)
+  //
+  // The user-facing callback and its user_data used to be two separate
+  // atomics, stored one after the other. A message dispatched between the two
+  // stores of a re-install could call the old callback with the new user_data.
+  // Each install now builds an immutable RawPair and publishes it with one
+  // atomic exchange, so a dispatch sees either the whole old pair or the whole
+  // new one — the shape the log bridge got in #902.
+  //
+  // ### Reclaiming the old pair
+  //
+  // The log bridge frees its old pair behind the log sink's mutex. The RtMidi
+  // input thread holds no lock the installer could wait on, so this bridge
+  // uses its own quiescence handshake instead: the dispatcher bumps
+  // rawReaders, loads the pair, copies cb and user_data onto its stack and
+  // drops rawReaders again — all before it allocates or calls out. The
+  // installer exchanges the pointer, then waits for rawReaders to read zero
+  // before deleting what it swapped out. Every access here is seq_cst, so
+  // either the installer's read of the counter sees a dispatcher's increment
+  // (and waits for its release decrement), or the dispatcher's load of the
+  // pair comes after the exchange in the single total order and sees the new
+  // pair. The window the installer waits on is a handful of instructions and
+  // never contains user code, so the wait is short and a callback that
+  // re-installs from inside itself cannot deadlock on its own dispatch.
+  struct RawPair {
+    YseMidiInRawCallback cb;
+    void* user_data;
+  };
+
   struct YseMidiInImpl {
     YSE::midiIn cpp;
-    std::atomic<YseMidiInRawCallback> rawCb{nullptr};
-    std::atomic<void*> rawUser{nullptr};
+    std::atomic<RawPair*> raw{nullptr};
+    std::atomic<unsigned int> rawReaders{0};
+
+    YseMidiInImpl() = default;
+    YseMidiInImpl(const YseMidiInImpl&) = delete;
+    YseMidiInImpl& operator=(const YseMidiInImpl&) = delete;
+    YseMidiInImpl(YseMidiInImpl&&) = delete;
+    YseMidiInImpl& operator=(YseMidiInImpl&&) = delete;
+
+    ~YseMidiInImpl() {
+      // Stop input delivery before freeing the last installed pair.
+      cpp.close();
+      delete raw.load(std::memory_order_acquire);
+    }
   };
 
   inline YseMidiInImpl* to_impl(YseMidiIn* m) {
@@ -50,15 +93,18 @@ namespace {
   }
 
   // Bridge registered with YSE::midiIn::setRawCallback. user_data is the
-  // YseMidiInImpl pointer; the user-facing callback + user_data live on the
-  // impl as atomics so they can be swapped from the host thread while the
-  // RtMidi input thread is dispatching.
+  // YseMidiInImpl pointer; the user-facing (cb, user_data) pair lives on the
+  // impl behind one atomic pointer so it can be swapped from the host thread
+  // while the RtMidi input thread is dispatching (see the notes above).
   void c_raw_bridge(double ts, const unsigned char* bytes, std::size_t len, void* userData) {
     auto* impl = static_cast<YseMidiInImpl*>(userData);
     if (!impl || len == 0) return;
-    auto cb = impl->rawCb.load(std::memory_order_acquire);
+    impl->rawReaders.fetch_add(1, std::memory_order_seq_cst);
+    const RawPair* pair = impl->raw.load(std::memory_order_seq_cst);
+    YseMidiInRawCallback cb = pair != nullptr ? pair->cb : nullptr;
+    void* user = pair != nullptr ? pair->user_data : nullptr;
+    impl->rawReaders.fetch_sub(1, std::memory_order_release);
     if (!cb) return;
-    auto user = impl->rawUser.load(std::memory_order_acquire);
     // Strings/buffers passed across NativeCallable.listener bridges to Dart
     // are marshalled by pointer value, not deep copy — by the time the Dart
     // handler runs, the std::vector backing the RtMidi-side pointer has been
@@ -70,6 +116,12 @@ namespace {
   }
 #endif
 } // namespace
+
+#if YSE_C_HAVE_MIDI_OUT
+YSE::midiIn* yse_c::midi_in_from_handle(YseMidiIn* h) {
+  return h != nullptr ? &to_impl(h)->cpp : nullptr;
+}
+#endif
 
 extern "C" {
 
@@ -252,14 +304,21 @@ YSE_C_API void yse_midi_in_set_raw_callback(YseMidiIn* m, YseMidiInRawCallback c
                                             void* user_data) {
   if (!m) return;
   auto* impl = to_impl(m);
-  // Publish the user-facing callback first so the bridge can never observe
-  // a half-installed state — release on both stores, acquire on read in
-  // c_raw_bridge.
-  impl->rawUser.store(user_data, std::memory_order_release);
-  impl->rawCb.store(cb, std::memory_order_release);
-  // Wire (or detach) the C++ side. The bridge carries impl* through the
-  // user_data slot so multiple YseMidiIn instances stay independent.
-  impl->cpp.setRawCallback(cb ? &c_raw_bridge : nullptr, impl);
+  // The install allocates, so it runs inside the ABI exception barrier.
+  yse_c::guard_void("yse_midi_in_set_raw_callback", [&] {
+    // Publish (cb, user_data) as one unit (issue #916).
+    RawPair* next = cb != nullptr ? new RawPair{cb, user_data} : nullptr;
+    RawPair* old = impl->raw.exchange(next, std::memory_order_seq_cst);
+    // Wire (or detach) the C++ side. The bridge carries impl* through the
+    // user_data slot so multiple YseMidiIn instances stay independent.
+    impl->cpp.setRawCallback(cb ? &c_raw_bridge : nullptr, impl);
+    if (old == nullptr) return;
+    // Quiescence: once no dispatcher is between its increment and decrement
+    // of rawReaders, none can still be reading `old` (see the notes above).
+    while (impl->rawReaders.load(std::memory_order_seq_cst) != 0)
+      std::this_thread::yield();
+    delete old;
+  });
 }
 
 YSE_C_API void yse_midi_in_set_parsed_callback(YseMidiIn* m, YseMidiInParsedCallback cb,
