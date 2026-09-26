@@ -101,12 +101,13 @@ gArrayThin::gArrayThin() : gArrayEndsBase() {
              "still landed and reports 0, where a refused one reports nothing at all. An "
              "unnamed (private) array counts as well — an answer is a value, not an identity.",
              "0-255");
-  PARAM_DOC("name", "",
-            "The array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an "
-            ".array of the same name in this patcher holds. Resolved once, on the control "
-            "thread, which is why no message re-points it at run time. Empty thins a private, "
-            "empty array: the thin lands with count 0 and no reference leaves.",
-            "any identifier");
+  PARAM_DOC(
+      "name", "",
+      "The array's shared name, addressed as \"patcher.<patcherName>.<name>\" — the sequence an "
+      ".array of the same name in this patcher holds. Resolved once, on the control "
+      "thread, which is why no message re-points it at run time. Empty thins a private, "
+      "empty array: the thin lands with count 0 and no reference leaves.",
+      "any identifier");
   PARAM_DOC("tolerance", "0",
             "The initial tolerance — how far apart two numeric neighbours may sit and still "
             "count as duplicates. Absent (0) means the exact thin, the family's byte compare "

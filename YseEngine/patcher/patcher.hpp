@@ -60,7 +60,7 @@ namespace YSE {
      *  @brief Set the patcher's name (used as the prefix on the global bus).
      *
      *  Every ``gSend`` inside this patcher publishes its value to the global
-     *  ``NamedBus`` under ``"<patcherName>.<dataName>"`` (issue #122). Two
+     *  ``NamedBus`` under ``"patcher.<patcherName>.<dataName>"`` (issue #122). Two
      *  patchers that share the same name route their sends/receives
      *  together; patchers with distinct names stay isolated even when their
      *  inner ``dataName`` values collide.

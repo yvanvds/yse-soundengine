@@ -19,7 +19,8 @@ CONSTRUCT() {
 
   ADD_DESCRIPTION(
       "Named send endpoint. Broadcasts incoming values to every gReceive in the patcher whose "
-      "dataName matches, and publishes them on the global bus as \"<patcherName>.<dataName>\" so "
+      "dataName matches, and publishes them on the global bus as "
+      "\"patcher.<patcherName>.<dataName>\" so "
       "cross-patcher routing works without explicit wiring.");
   ADD_CATEGORY(pCategory::GENERIC);
   INLET_DOC(0, "in", "Value inlet — accepts bang / int / float / list.", "");

@@ -30,7 +30,8 @@ namespace {
       "the binding is the creation argument, resolved on the control thread — and anything "
       "else is refused and counted.";
   constexpr char kNameParamDoc[] =
-      "The array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an .array "
+      "The array's shared name, addressed as \"patcher.<patcherName>.<name>\" — the sequence an "
+      ".array "
       "of the same name in this patcher holds. Resolved once, on the control thread, which is "
       "why no message re-points it at run time. Empty reads a private, empty array: every ask "
       "bangs the empty outlet.";

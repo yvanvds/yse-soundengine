@@ -52,7 +52,7 @@ using YSE::PATCHER::gDictGroup;
 namespace {
 
   // Two .dict objects and a .dict.group over them, sharing one
-  // patcherImplementation so the names actually bind ("<patcherName>.<name>"
+  // patcherImplementation so the names actually bind ("patcher.<patcherName>.<name>"
   // needs a patcher to prefix with — a parentless object stays private). The
   // sink is declared before the objects so they are torn down first, while
   // the inlet it is wired to still exists (see sinks.hpp on why that
@@ -247,7 +247,7 @@ TEST_SUITE("patcher") {
 
   TEST_CASE("dict.group: unnamed sides are private, and an unnamed target says nothing (#772)") {
     // No arguments means two private, empty dictionaries — .dict's rule that
-    // an unnamed object does not pool on "<patcherName>.". And an unnamed
+    // an unnamed object does not pool on "patcher.<patcherName>.". And an unnamed
     // target has no name to pass on, so the outlet stays silent.
     MultiSink sink;
     gDictGroup g;
@@ -344,18 +344,18 @@ TEST_SUITE("patcher") {
     gDictGroup g;
     g.SetParams("s772k t772k instrument");
     g.SetParent(&p);
-    CHECK(g.SourceAddress() == "dg772k_before.s772k");
-    CHECK(g.TargetAddress() == "dg772k_before.t772k");
+    CHECK(g.SourceAddress() == "patcher.dg772k_before.s772k");
+    CHECK(g.TargetAddress() == "patcher.dg772k_before.t772k");
     CHECK(g.GroupKey() == "instrument");
 
     // Idempotent: a rebind to the addresses it already has keeps the stores.
     g.RefreshBinding();
-    CHECK(g.SourceAddress() == "dg772k_before.s772k");
+    CHECK(g.SourceAddress() == "patcher.dg772k_before.s772k");
 
     p.SetName("dg772k_after");
     g.RefreshBinding();
-    CHECK(g.SourceAddress() == "dg772k_after.s772k");
-    CHECK(g.TargetAddress() == "dg772k_after.t772k");
+    CHECK(g.SourceAddress() == "patcher.dg772k_after.s772k");
+    CHECK(g.TargetAddress() == "patcher.dg772k_after.t772k");
   }
 
   TEST_CASE("dict.group: patcherImplementation::SetName re-anchors it (#772)") {

@@ -226,7 +226,7 @@ namespace YSE {
      *  creation argument is that name, and a named ``.coll`` binds to a
      *  ``collStore`` held in the patcher's shared-name registry
      *  (``AcquireNamedStore`` in ``namedStore.h``) under
-     *  ``"<patcherName>.<name>"`` — the ``INTERNAL::NamedBus`` address form, so
+     *  ``"patcher.<patcherName>.<name>"`` — the ``INTERNAL::NamedBus`` address form, so
      *  ``.coll notes``, ``.s notes`` and ``.r notes`` in one patcher speak about
      *  one word, and two patchers given the same ``patcher::name()`` share
      *  their collections exactly as they already share their sends.
@@ -242,7 +242,7 @@ namespace YSE {
      *  Three consequences worth stating, because a patch cannot see them:
      *
      *  - **An unnamed ``.coll`` is private**, not "shares the empty name".
-     *    ``"<patcherName>."`` is a real, reachable address, so unnamed objects
+     *    ``"patcher.<patcherName>."`` is a real, reachable address, so unnamed objects
      *    pooling on it would silently connect two collections a patch author
      *    never wired together. ``.value``'s rule, for ``.value``'s reason — and
      *    it is also what keeps every patch written against #494 behaving exactly
@@ -638,7 +638,7 @@ namespace YSE {
 
     /**
      *  @brief The address the store is registered under —
-     *         ``"<patcherName>.<name>"`` — or empty while the store is private.
+     *         ``"patcher.<patcherName>.<name>"`` — or empty while the store is private.
      *
      *  Spelled ``StoreAddress`` rather than ``.value``'s ``Address``, because
      *  this object already has an ``Address`` — the resolved entry key its

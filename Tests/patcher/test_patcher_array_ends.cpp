@@ -52,7 +52,7 @@ using YSE::PATCHER::gArrayUnshift;
 namespace {
 
   // An .array and one end-mutator on one name, sharing one
-  // patcherImplementation so the name actually binds ("<patcherName>.<name>"
+  // patcherImplementation so the name actually binds ("patcher.<patcherName>.<name>"
   // needs a patcher to prefix with — a parentless object stays private). The
   // sinks are declared before the objects so they are torn down last, while
   // the outlets wired to them still exist (see sinks.hpp on why that
@@ -521,16 +521,16 @@ TEST_SUITE("patcher") {
     g.SetParams("b784a");
     g.SetParent(&p);
     CHECK(g.ArrayName() == "b784a");
-    CHECK(g.Address() == "aeb784a_before.b784a");
+    CHECK(g.Address() == "patcher.aeb784a_before.b784a");
     CHECK(g.Reference() == "array b784a");
 
     // Idempotent: a rebind to the address it already has keeps the store.
     g.RefreshBinding();
-    CHECK(g.Address() == "aeb784a_before.b784a");
+    CHECK(g.Address() == "patcher.aeb784a_before.b784a");
 
     p.SetName("aeb784a_after");
     g.RefreshBinding();
-    CHECK(g.Address() == "aeb784a_after.b784a");
+    CHECK(g.Address() == "patcher.aeb784a_after.b784a");
     CHECK(g.Reference() == "array b784a");
   }
 

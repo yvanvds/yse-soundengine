@@ -338,7 +338,7 @@ namespace YSE {
      *
      *  - **Storage lives in the named registry.** ``AcquireNamedStore<dictStore>``
      *    (``patcher/namedStore.h``, #684) keys real storage by
-     *    ``"<patcherName>.<name>"`` — the ``INTERNAL::NamedBus`` address form,
+     *    ``"patcher.<patcherName>.<name>"`` — the ``INTERNAL::NamedBus`` address form,
      *    so a ``.dict tempo``, a ``.value tempo``, a ``.s tempo`` and a ``.r
      *    tempo`` in one patcher all speak about one word.
      *  - **The registry holds stores weakly, so ownership is exactly "whoever
@@ -398,7 +398,7 @@ namespace YSE {
      *
      *  ### An unnamed ``.dict`` is private
      *
-     *  Not "shares the empty name". ``"<patcherName>."`` is a real, reachable
+     *  Not "shares the empty name". ``"patcher.<patcherName>."`` is a real, reachable
      *  address, so unnamed objects pooling on it would silently connect two
      *  dictionaries a patch author never wired together. ``.value``'s rule, for
      *  ``.value``'s reason. A ``.dict`` with no parent yet is private for the
@@ -463,7 +463,7 @@ namespace YSE {
     }
 
     /** @brief The address the store is registered under —
-     *         ``"<patcherName>.<name>"`` — or empty while it is private. */
+     *         ``"patcher.<patcherName>.<name>"`` — or empty while it is private. */
     const std::string& Address() const {
       return boundAddress;
     }

@@ -58,7 +58,8 @@ CONSTRUCT() {
   ADD_DESCRIPTION(
       "Named send endpoint whose destination is chosen at runtime. Delivers incoming values "
       "exactly as .s does — to every .r in the patcher whose dataName matches, and on the global "
-      "bus as \"<patcherName>.<destination>\" — but takes the destination name from its right "
+      "bus as \"patcher.<patcherName>.<destination>\" — but takes the destination name from its "
+      "right "
       "inlet, so a patch can re-aim it with a message instead of being rewired. Sends nothing "
       "until a destination is set.");
   ADD_CATEGORY(pCategory::GENERIC);

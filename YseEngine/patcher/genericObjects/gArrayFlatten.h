@@ -144,7 +144,7 @@ namespace YSE {
       std::string ExtraName(std::size_t index) const;
 
       /** @brief The address the trailing source at @p index is registered
-       *         under — ``"<patcherName>.<name>"`` — or empty while it is
+       *         under — ``"patcher.<patcherName>.<name>"`` — or empty while it is
        *         private or past the bound count. Diagnostics and tests. */
       std::string ExtraAddress(std::size_t index) const;
 

@@ -435,7 +435,7 @@ namespace YSE {
     // tables do not share contents here. Control thread only.
     std::string tableName;
 
-    // "<patcherName>.", built in SetParent and prefixed to a `send` destination.
+    // "patcher.<patcherName>.", built in SetParent and prefixed to a `send` destination.
     // Reserved for the longest destination this object accepts, so the message
     // path only ever refills the address rather than growing it.
     std::string busPrefix;

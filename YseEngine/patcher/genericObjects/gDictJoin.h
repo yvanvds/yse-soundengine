@@ -128,7 +128,7 @@ namespace YSE {
     }
 
     /** @brief The address the left store is registered under —
-     *         ``"<patcherName>.<name>"`` — or empty while it is private. */
+     *         ``"patcher.<patcherName>.<name>"`` — or empty while it is private. */
     const std::string& LeftAddress() const {
       return boundLeftAddress;
     }

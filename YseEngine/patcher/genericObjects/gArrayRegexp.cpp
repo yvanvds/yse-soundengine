@@ -41,7 +41,8 @@ namespace {
       ".array.sect's empty outlet, for .array.sect's reason. A refused ask is a counted "
       "refusal instead: neither outlet fires.";
   constexpr char kNameParamDoc[] =
-      "The array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an .array "
+      "The array's shared name, addressed as \"patcher.<patcherName>.<name>\" — the sequence an "
+      ".array "
       "of the same name in this patcher holds. Resolved once, on the control thread, which is "
       "why no message re-points it at run time. Empty matches over a private, empty array: "
       "always the no-match bang.";

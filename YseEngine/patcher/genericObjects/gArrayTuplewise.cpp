@@ -77,7 +77,7 @@ gArrayTuplewise::gArrayTuplewise() : gArraySetOpBase(false) {
              "result is unknown, so neither outlet fires.",
              "");
   PARAM_DOC("left", "",
-            "The left array's shared name, addressed as \"<patcherName>.<name>\" — the "
+            "The left array's shared name, addressed as \"patcher.<patcherName>.<name>\" — the "
             "sequence an .array of the same name in this patcher holds. Resolved once, on the "
             "control thread, which is why no message re-points it at run time. Empty reads a "
             "private, empty array on that side: every ask bangs the empty outlet.",

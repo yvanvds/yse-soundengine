@@ -58,7 +58,7 @@ using YSE::PATCHER::gArrayRandom;
 namespace {
 
   // An .array and one .array.random on one name, sharing one
-  // patcherImplementation so the name actually binds ("<patcherName>.<name>"
+  // patcherImplementation so the name actually binds ("patcher.<patcherName>.<name>"
   // needs a patcher to prefix with — a parentless object stays private). The
   // sinks are declared before the objects so they are torn down last, while
   // the outlets wired to them still exist (see sinks.hpp on why that

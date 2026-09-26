@@ -41,7 +41,8 @@ namespace YSE {
       // reserve prefix.size() + MAX_NAME_LENGTH up front so the append never
       // allocates. Both allocate, so they are control thread only — reached
       // from SetParams / SetParent / OnPatcherRenamed, never from Calculate.
-      // Current form: "<patcherName>.<name>".
+      // Form: "patcher.<patcherName>.<name>" (issue #894). Patchers with the
+      // same name share one scope; the auto-name keeps anonymous ones apart.
       std::string ScopedAddressPrefix() const;
       std::string ScopedAddress(const std::string& name) const;
 

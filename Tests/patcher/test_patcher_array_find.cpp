@@ -57,7 +57,7 @@ namespace {
 
   // An .array, an .array.indexof and an .array.index on one name, sharing
   // one patcherImplementation so the name actually binds
-  // ("<patcherName>.<name>" needs a patcher to prefix with — a parentless
+  // ("patcher.<patcherName>.<name>" needs a patcher to prefix with — a parentless
   // object stays private). The sinks are declared before the objects so they
   // are torn down last, while the outlets wired to them still exist (see
   // sinks.hpp on why that matters).
@@ -465,15 +465,15 @@ TEST_SUITE("patcher") {
     g.SetParams("a786m");
     g.SetParent(&p);
     CHECK(g.ArrayName() == "a786m");
-    CHECK(g.Address() == "afd786m_before.a786m");
+    CHECK(g.Address() == "patcher.afd786m_before.a786m");
 
     // Idempotent: a rebind to the address it already has keeps the store.
     g.RefreshBinding();
-    CHECK(g.Address() == "afd786m_before.a786m");
+    CHECK(g.Address() == "patcher.afd786m_before.a786m");
 
     p.SetName("afd786m_after");
     g.RefreshBinding();
-    CHECK(g.Address() == "afd786m_after.a786m");
+    CHECK(g.Address() == "patcher.afd786m_after.a786m");
   }
 
   TEST_CASE("array.indexof/.index: patcherImplementation::SetName re-anchors them (#786)") {

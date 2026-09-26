@@ -51,7 +51,7 @@ using YSE::PATCHER::gDictJoin;
 namespace {
 
   // Three .dict objects and a .dict.join over them, sharing one
-  // patcherImplementation so the names actually bind ("<patcherName>.<name>"
+  // patcherImplementation so the names actually bind ("patcher.<patcherName>.<name>"
   // needs a patcher to prefix with — a parentless object stays private). The
   // sink is declared before the objects so they are torn down first, while
   // the inlet it is wired to still exists (see sinks.hpp on why that
@@ -243,7 +243,7 @@ TEST_SUITE("patcher") {
 
   TEST_CASE("dict.join: unnamed sides are private, and an unnamed target says nothing (#774)") {
     // No arguments means private, empty dictionaries — .dict's rule that an
-    // unnamed object does not pool on "<patcherName>.". And an unnamed
+    // unnamed object does not pool on "patcher.<patcherName>.". And an unnamed
     // target has no name to pass on, so the outlet stays silent.
     MultiSink sink;
     gDictJoin g;
@@ -350,19 +350,19 @@ TEST_SUITE("patcher") {
     gDictJoin g;
     g.SetParams("l774j r774j t774j");
     g.SetParent(&p);
-    CHECK(g.LeftAddress() == "dj774j_before.l774j");
-    CHECK(g.RightAddress() == "dj774j_before.r774j");
-    CHECK(g.TargetAddress() == "dj774j_before.t774j");
+    CHECK(g.LeftAddress() == "patcher.dj774j_before.l774j");
+    CHECK(g.RightAddress() == "patcher.dj774j_before.r774j");
+    CHECK(g.TargetAddress() == "patcher.dj774j_before.t774j");
 
     // Idempotent: a rebind to the addresses it already has keeps the stores.
     g.RefreshBinding();
-    CHECK(g.LeftAddress() == "dj774j_before.l774j");
+    CHECK(g.LeftAddress() == "patcher.dj774j_before.l774j");
 
     p.SetName("dj774j_after");
     g.RefreshBinding();
-    CHECK(g.LeftAddress() == "dj774j_after.l774j");
-    CHECK(g.RightAddress() == "dj774j_after.r774j");
-    CHECK(g.TargetAddress() == "dj774j_after.t774j");
+    CHECK(g.LeftAddress() == "patcher.dj774j_after.l774j");
+    CHECK(g.RightAddress() == "patcher.dj774j_after.r774j");
+    CHECK(g.TargetAddress() == "patcher.dj774j_after.t774j");
   }
 
   TEST_CASE("dict.join: patcherImplementation::SetName re-anchors it (#774)") {

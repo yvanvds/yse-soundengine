@@ -34,7 +34,8 @@ namespace {
       "half the point of asking. A lost try-lock on either store is a counted refusal instead: "
       "the arrays' state is unknown, so neither outlet fires.";
   constexpr char kLeftParamDoc[] =
-      "The left array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an "
+      "The left array's shared name, addressed as \"patcher.<patcherName>.<name>\" — the sequence "
+      "an "
       ".array of the same name in this patcher holds. Resolved once, on the control thread, "
       "which is why no message re-points it at run time. Empty reads a private, empty array on "
       "that side.";
@@ -108,7 +109,7 @@ void gArraySetOpBase::RebindRight() {
   // The exact mirror of gArrayEndsBase::Rebind over the second name. No
   // name, or no patcher to prefix it with, means no address — and no address
   // means a private, empty array on that side. See gArray.h for why an
-  // unnamed side does not pool on "<patcherName>.".
+  // unnamed side does not pool on "patcher.<patcherName>.".
   std::string address;
   if (!rightName.empty() && parent != nullptr) {
     auto* p = static_cast<patcherImplementation*>(parent);
@@ -362,12 +363,13 @@ gArrayUnique::gArrayUnique() : gArrayEndsBase() {
              "lost try-lock is a counted refusal instead: the array's state is unknown, so "
              "neither outlet fires.",
              "");
-  PARAM_DOC("name", "",
-            "The array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an "
-            ".array of the same name in this patcher holds. Resolved once, on the control "
-            "thread, which is why no message re-points it at run time. Empty reads a private, "
-            "empty array: every ask bangs the empty outlet.",
-            "any identifier");
+  PARAM_DOC(
+      "name", "",
+      "The array's shared name, addressed as \"patcher.<patcherName>.<name>\" — the sequence an "
+      ".array of the same name in this patcher holds. Resolved once, on the control "
+      "thread, which is why no message re-points it at run time. Empty reads a private, "
+      "empty array: every ask bangs the empty outlet.",
+      "any identifier");
 }
 
 BANG_IN(BangIn) {

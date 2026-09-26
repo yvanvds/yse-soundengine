@@ -40,7 +40,8 @@ namespace {
       "saw.";
 
   constexpr char kNameDoc[] =
-      "The dictionary's shared name, addressed as \"<patcherName>.<name>\" — the dictionary a "
+      "The dictionary's shared name, addressed as \"patcher.<patcherName>.<name>\" — the "
+      "dictionary a "
       ".dict of the same name in this patcher holds. Resolved once, on the control thread, "
       "which is why no message re-points it at run time. Empty leaves the object inert: a "
       "private dictionary has no name to pass on, so there is nothing to route.";
@@ -168,7 +169,7 @@ void gDictRoute::RefreshBinding() {
 void gDictRoute::Rebind() {
   // No name, or no patcher to prefix it with, means no address — and no
   // address means a private, empty dictionary. See gDict.h for why an
-  // unnamed object does not pool on "<patcherName>.".
+  // unnamed object does not pool on "patcher.<patcherName>.".
   std::string address;
   if (!dictName.empty() && parent != nullptr) {
     auto* p = static_cast<patcherImplementation*>(parent);

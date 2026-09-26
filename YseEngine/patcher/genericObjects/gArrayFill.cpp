@@ -86,12 +86,13 @@ gArrayFill::gArrayFill() : gArrayEndsBase() {
              "can plant, a value no element can hold — and an unnamed object stays silent: "
              "the fill happens, but there is no name to pass on.",
              "");
-  PARAM_DOC("name", "",
-            "The array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an "
-            ".array of the same name in this patcher holds. Resolved once, on the control "
-            "thread, which is why no message re-points it at run time. Empty fills a private, "
-            "empty array: the fill lands, but nothing shares it and no reference leaves.",
-            "any identifier");
+  PARAM_DOC(
+      "name", "",
+      "The array's shared name, addressed as \"patcher.<patcherName>.<name>\" — the sequence an "
+      ".array of the same name in this patcher holds. Resolved once, on the control "
+      "thread, which is why no message re-points it at run time. Empty fills a private, "
+      "empty array: the fill lands, but nothing shares it and no reference leaves.",
+      "any identifier");
   PARAM_DOC("count", "0",
             "The initial stored count — how many copies a bang fills the array with before "
             "any int on the count inlet has moved it. 0, the default, makes a bare bang "

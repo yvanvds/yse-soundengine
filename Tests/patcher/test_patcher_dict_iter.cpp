@@ -85,7 +85,7 @@ namespace {
   };
 
   // A .dict and a .dict.iter on one name, sharing one patcherImplementation
-  // so the name actually binds ("<patcherName>.<name>" needs a patcher to
+  // so the name actually binds ("patcher.<patcherName>.<name>" needs a patcher to
   // prefix with — a parentless object stays private). The sinks are declared
   // before the objects so they are torn down last, while the outlets wired
   // to them still exist (see sinks.hpp on why that matters). One sink per
@@ -362,15 +362,15 @@ TEST_SUITE("patcher") {
     g.SetParams("d773g");
     g.SetParent(&p);
     CHECK(g.DictName() == "d773g");
-    CHECK(g.Address() == "di773g_before.d773g");
+    CHECK(g.Address() == "patcher.di773g_before.d773g");
 
     // Idempotent: a rebind to the address it already has keeps the store.
     g.RefreshBinding();
-    CHECK(g.Address() == "di773g_before.d773g");
+    CHECK(g.Address() == "patcher.di773g_before.d773g");
 
     p.SetName("di773g_after");
     g.RefreshBinding();
-    CHECK(g.Address() == "di773g_after.d773g");
+    CHECK(g.Address() == "patcher.di773g_after.d773g");
   }
 
   TEST_CASE("dict.iter: patcherImplementation::SetName re-anchors it (#773)") {

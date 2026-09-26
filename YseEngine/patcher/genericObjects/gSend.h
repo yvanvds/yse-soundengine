@@ -13,7 +13,7 @@ namespace YSE {
     _BANG_IN(SetBangValue)
     _LIST_IN(SetListValue)
 
-    // Cache the bus address ("<patcherName>.<dataName>") the moment the
+    // Cache the bus address ("patcher.<patcherName>.<dataName>") the moment the
     // parent is known, so the audio-path publishes never concatenate a
     // std::string on the callback thread (issue #187).
     void SetParent(pObject* parent) override;
@@ -33,7 +33,7 @@ namespace YSE {
     // constructor argument (issue #122).
     int globalOnly = 0;
 
-    // Precomputed "<patcherName>.<dataName>" bus address. Written on the main
+    // Precomputed "patcher.<patcherName>.<dataName>" bus address. Written on the main
     // thread (SetParent / RefreshBusAddress), read on the audio thread under
     // the owning patcher's lock; empty until a parent is assigned.
     std::string busAddress_;

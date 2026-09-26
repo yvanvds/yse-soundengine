@@ -503,7 +503,8 @@ CONSTRUCT() {
       "A nested key/value dictionary shared by name — Max's dict. Paths nest with \"::\", so "
       "\"voice::1::freq\" is one entry three levels deep, and the contents are a proper nested "
       "JSON object when the patch is saved. The dictionary is addressed as "
-      "\"<patcherName>.<name>\", the same address form .s, .r, .value and .coll use, so every "
+      "\"patcher.<patcherName>.<name>\", the same address form .s, .r, .value and .coll use, so "
+      "every "
       ".dict of one name shares one dictionary and two patchers given one name share theirs. "
       "A bang emits \"dictionary <name>\" out outlet 1 — the reference the dict.* family binds. "
       "Dictionaries are addressed by name rather than passed down a cord: an outlet carries a "
@@ -516,7 +517,8 @@ CONSTRUCT() {
   OUTLET_DOC(2, "miss", kMissDoc, "");
   PARAM_DOC("name", "",
             "Max's shared context: all .dict objects of this name share their contents, through a "
-            "store addressed as \"<patcherName>.<name>\". Empty gives this object a dictionary of "
+            "store addressed as \"patcher.<patcherName>.<name>\". Empty gives this object a "
+            "dictionary of "
             "its own rather than pooling it with every other unnamed .dict in the patcher. The "
             "name is resolved once, on the control thread, which is why there is no message that "
             "re-points a .dict at another name at run time.",
@@ -552,7 +554,7 @@ void gDict::RefreshBinding() {
 void gDict::Rebind() {
   // No name, or no patcher to prefix it with, means no address — and no address
   // means a private dictionary. See the class documentation for why an unnamed
-  // .dict does not pool on "<patcherName>.".
+  // .dict does not pool on "patcher.<patcherName>.".
   std::string address;
   if (!dictName.empty() && parent != nullptr) {
     auto* p = static_cast<patcherImplementation*>(parent);

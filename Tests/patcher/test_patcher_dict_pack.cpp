@@ -49,7 +49,7 @@ using YSE::PATCHER::gDictPack;
 namespace {
 
   // A .dict and a .dict.pack over one name, sharing one
-  // patcherImplementation so the name actually binds ("<patcherName>.<name>"
+  // patcherImplementation so the name actually binds ("patcher.<patcherName>.<name>"
   // needs a patcher to prefix with — a parentless object stays private). The
   // keeper .dict is how a test reads what the pack wrote, through the store
   // itself rather than through the object under test. The sink is declared
@@ -217,7 +217,7 @@ TEST_SUITE("patcher") {
 
   TEST_CASE("dict.pack: an unnamed pack lands in a private store and says nothing (#775)") {
     // No arguments means no name and no keys — .dict's rule that an unnamed
-    // object does not pool on "<patcherName>.". The bare trigger still
+    // object does not pool on "patcher.<patcherName>.". The bare trigger still
     // packs (the empty dictionary, into the private store) but has no name
     // to pass on, so the outlet stays silent.
     MultiSink sink;
@@ -343,16 +343,16 @@ TEST_SUITE("patcher") {
     gDictPack g;
     g.SetParams("ctl775k freq");
     g.SetParent(&p);
-    CHECK(g.Address() == "dp775i_before.ctl775k");
+    CHECK(g.Address() == "patcher.dp775i_before.ctl775k");
     CHECK(g.Reference() == "dictionary ctl775k");
 
     // Idempotent: a rebind to the address it already has keeps the store.
     g.RefreshBinding();
-    CHECK(g.Address() == "dp775i_before.ctl775k");
+    CHECK(g.Address() == "patcher.dp775i_before.ctl775k");
 
     p.SetName("dp775i_after");
     g.RefreshBinding();
-    CHECK(g.Address() == "dp775i_after.ctl775k");
+    CHECK(g.Address() == "patcher.dp775i_after.ctl775k");
   }
 
   TEST_CASE("dict.pack: patcherImplementation::SetName re-anchors it (#775)") {

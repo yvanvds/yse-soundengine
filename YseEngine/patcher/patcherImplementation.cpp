@@ -126,7 +126,9 @@ patcherImplementation::patcherImplementation(int mainOutputs, YSE::patcher* head
 }
 
 std::string patcherImplementation::ScopedAddressPrefix() const {
-  return patcherName + ".";
+  // Reserved "patcher." prefix (issue #894), matching sound./channel./synth.:
+  // a patcher named "synth1" no longer shares the freeform "synth1.*" space.
+  return "patcher." + patcherName + ".";
 }
 
 std::string patcherImplementation::ScopedAddress(const std::string& name) const {

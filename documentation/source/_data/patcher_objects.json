@@ -998,7 +998,7 @@
   },
   ".array": {
     "category": "GENERIC",
-    "description": "An ordered, index-addressed sequence shared by name — Max's array. Every element is one atom, so an array and the list text it spells are the same thing seen twice: \"append 0 4 7\" adds three elements and \"getvalue\" sends them back as the list \"0 4 7\". The array is addressed as \"<patcherName>.<name>\", the same address form .s, .r, .value, .coll and .dict use, so every .array of one name shares one sequence and two patchers given one name share theirs. A bang emits \"array <name>\" out outlet 1 — the reference the array.* family binds. Arrays are addressed by name rather than passed down a cord: an outlet carries a value, never an identity, so the name is what travels and the store is resolved once, on the control thread. Indices are zero-based and an index out of range is refused rather than wrapped or clamped. An unnamed .array keeps a sequence of its own.",
+    "description": "An ordered, index-addressed sequence shared by name — Max's array. Every element is one atom, so an array and the list text it spells are the same thing seen twice: \"append 0 4 7\" adds three elements and \"getvalue\" sends them back as the list \"0 4 7\". The array is addressed as \"patcher.<patcherName>.<name>\", the same address form .s, .r, .value, .coll and .dict use, so every .array of one name shares one sequence and two patchers given one name share theirs. A bang emits \"array <name>\" out outlet 1 — the reference the array.* family binds. Arrays are addressed by name rather than passed down a cord: an outlet carries a value, never an identity, so the name is what travels and the store is resolved once, on the control thread. Indices are zero-based and an index out of range is refused rather than wrapped or clamped. An unnamed .array keeps a sequence of its own.",
     "inlets": [
       {
         "accepts": [
@@ -1039,7 +1039,7 @@
     "params": [
       {
         "default": "",
-        "doc": "Max's shared context: all .array objects of this name share their contents, through a store addressed as \"<patcherName>.<name>\". Empty gives this object a sequence of its own rather than pooling it with every other unnamed .array in the patcher. The name is resolved once, on the control thread, which is why there is no message that re-points an .array at another name at run time.",
+        "doc": "Max's shared context: all .array objects of this name share their contents, through a store addressed as \"patcher.<patcherName>.<name>\". Empty gives this object a sequence of its own rather than pooling it with every other unnamed .array in the patcher. The name is resolved once, on the control thread, which is why there is no message that re-points an .array at another name at run time.",
         "name": "name",
         "range": "any identifier"
       }
@@ -1092,7 +1092,7 @@
     "params": [
       {
         "default": "",
-        "doc": "The array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty reads a private, empty array: every fetch is a miss.",
+        "doc": "The array's shared name, addressed as \"patcher.<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty reads a private, empty array: every fetch is a miss.",
         "name": "name",
         "range": "any identifier"
       },
@@ -1149,7 +1149,7 @@
     "params": [
       {
         "default": "",
-        "doc": "The array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty watches a private, empty array: every poll answers 0 and the reference outlet never fires. A re-parse and a patcher rename both reset the baseline to the empty array — the object then watches a different binding, and whatever that array holds is news.",
+        "doc": "The array's shared name, addressed as \"patcher.<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty watches a private, empty array: every poll answers 0 and the reference outlet never fires. A re-parse and a patcher rename both reset the baseline to the empty array — the object then watches a different binding, and whatever that array holds is news.",
         "name": "name",
         "range": "any identifier"
       }
@@ -1193,7 +1193,7 @@
     "params": [
       {
         "default": "",
-        "doc": "The left array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty compares a private, empty array on that side.",
+        "doc": "The left array's shared name, addressed as \"patcher.<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty compares a private, empty array on that side.",
         "name": "left",
         "range": "any identifier"
       },
@@ -1250,7 +1250,7 @@
     "params": [
       {
         "default": "",
-        "doc": "The left array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty reads a private, empty array on that side.",
+        "doc": "The left array's shared name, addressed as \"patcher.<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty reads a private, empty array on that side.",
         "name": "left",
         "range": "any identifier"
       },
@@ -1290,7 +1290,7 @@
     "params": [
       {
         "default": "",
-        "doc": "The array the parsed document fills, addressed as \"<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty fills a private array: the document still loads, but there is no name to announce.",
+        "doc": "The array the parsed document fills, addressed as \"patcher.<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty fills a private array: the document still loads, but there is no name to announce.",
         "name": "name",
         "range": "any identifier"
       }
@@ -1334,7 +1334,7 @@
     "params": [
       {
         "default": "",
-        "doc": "The array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty acts on a private, empty array of the object's own.",
+        "doc": "The array's shared name, addressed as \"patcher.<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty acts on a private, empty array of the object's own.",
         "name": "name",
         "range": "any identifier"
       },
@@ -1391,7 +1391,7 @@
     "params": [
       {
         "default": "",
-        "doc": "The array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty acts on a private, empty array of the object's own.",
+        "doc": "The array's shared name, addressed as \"patcher.<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty acts on a private, empty array of the object's own.",
         "name": "name",
         "range": "any identifier"
       },
@@ -1453,7 +1453,7 @@
     "params": [
       {
         "default": "",
-        "doc": "The array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty fills a private, empty array: the fill lands, but nothing shares it and no reference leaves.",
+        "doc": "The array's shared name, addressed as \"patcher.<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty fills a private, empty array: the fill lands, but nothing shares it and no reference leaves.",
         "name": "name",
         "range": "any identifier"
       },
@@ -1509,7 +1509,7 @@
     "params": [
       {
         "default": "",
-        "doc": "The array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty acts on a private, empty array of the object's own.",
+        "doc": "The array's shared name, addressed as \"patcher.<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty acts on a private, empty array of the object's own.",
         "name": "name",
         "range": "any identifier"
       },
@@ -1566,7 +1566,7 @@
     "params": [
       {
         "default": "",
-        "doc": "The first array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty reads a private, empty array on that side.",
+        "doc": "The first array's shared name, addressed as \"patcher.<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty reads a private, empty array on that side.",
         "name": "first",
         "range": "any identifier"
       },
@@ -1623,7 +1623,7 @@
     "params": [
       {
         "default": "",
-        "doc": "The array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty acts on a private, empty array of the object's own.",
+        "doc": "The array's shared name, addressed as \"patcher.<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty acts on a private, empty array of the object's own.",
         "name": "name",
         "range": "any identifier"
       },
@@ -1680,7 +1680,7 @@
     "params": [
       {
         "default": "",
-        "doc": "The array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty groups a private, empty array: no buckets, just the done bang.",
+        "doc": "The array's shared name, addressed as \"patcher.<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty groups a private, empty array: no buckets, just the done bang.",
         "name": "name",
         "range": "any identifier"
       }
@@ -1733,7 +1733,7 @@
     "params": [
       {
         "default": "",
-        "doc": "The array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty searches a private, empty array: every search misses.",
+        "doc": "The array's shared name, addressed as \"patcher.<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty searches a private, empty array: every search misses.",
         "name": "name",
         "range": "any identifier"
       },
@@ -1796,7 +1796,7 @@
     "params": [
       {
         "default": "",
-        "doc": "The array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty reorders a private, empty array: the picks all miss, and no reference leaves.",
+        "doc": "The array's shared name, addressed as \"patcher.<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty reorders a private, empty array: the picks all miss, and no reference leaves.",
         "name": "name",
         "range": "any identifier"
       },
@@ -1848,7 +1848,7 @@
     "params": [
       {
         "default": "",
-        "doc": "The array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty searches a private, empty array: every search misses.",
+        "doc": "The array's shared name, addressed as \"patcher.<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty searches a private, empty array: every search misses.",
         "name": "name",
         "range": "any identifier"
       },
@@ -1909,7 +1909,7 @@
     "params": [
       {
         "default": "",
-        "doc": "The array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty writes into a private, empty array: the inserts land, but nothing shares them and no reference leaves.",
+        "doc": "The array's shared name, addressed as \"patcher.<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty writes into a private, empty array: the inserts land, but nothing shares them and no reference leaves.",
         "name": "name",
         "range": "any identifier"
       },
@@ -1966,7 +1966,7 @@
     "params": [
       {
         "default": "",
-        "doc": "The array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty walks a private, empty array: no elements, just the done bang.",
+        "doc": "The array's shared name, addressed as \"patcher.<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty walks a private, empty array: no elements, just the done bang.",
         "name": "name",
         "range": "any identifier"
       }
@@ -2017,7 +2017,7 @@
     "params": [
       {
         "default": "",
-        "doc": "The array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty reads a private, empty array: every ask bangs the empty outlet.",
+        "doc": "The array's shared name, addressed as \"patcher.<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty reads a private, empty array: every ask bangs the empty outlet.",
         "name": "name",
         "range": "any identifier"
       },
@@ -2067,7 +2067,7 @@
     "params": [
       {
         "default": "",
-        "doc": "The array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty reads a private, empty array: every ask answers 0.",
+        "doc": "The array's shared name, addressed as \"patcher.<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty reads a private, empty array: every ask answers 0.",
         "name": "name",
         "range": "any identifier"
       }
@@ -2111,7 +2111,7 @@
     "params": [
       {
         "default": "",
-        "doc": "The array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty acts on a private, empty array of the object's own.",
+        "doc": "The array's shared name, addressed as \"patcher.<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty acts on a private, empty array of the object's own.",
         "name": "name",
         "range": "any identifier"
       },
@@ -2168,7 +2168,7 @@
     "params": [
       {
         "default": "",
-        "doc": "The array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty reads a private, empty array: every ask bangs the empty outlet.",
+        "doc": "The array's shared name, addressed as \"patcher.<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty reads a private, empty array: every ask bangs the empty outlet.",
         "name": "name",
         "range": "any identifier"
       }
@@ -2219,7 +2219,7 @@
     "params": [
       {
         "default": "",
-        "doc": "The array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty reads a private, empty array: every ask bangs the empty outlet.",
+        "doc": "The array's shared name, addressed as \"patcher.<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty reads a private, empty array: every ask bangs the empty outlet.",
         "name": "name",
         "range": "any identifier"
       }
@@ -2270,7 +2270,7 @@
     "params": [
       {
         "default": "",
-        "doc": "The array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty reads a private, empty array: every ask bangs the empty outlet.",
+        "doc": "The array's shared name, addressed as \"patcher.<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty reads a private, empty array: every ask bangs the empty outlet.",
         "name": "name",
         "range": "any identifier"
       }
@@ -2321,7 +2321,7 @@
     "params": [
       {
         "default": "",
-        "doc": "The array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty reads a private, empty array: every ask bangs the empty outlet.",
+        "doc": "The array's shared name, addressed as \"patcher.<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty reads a private, empty array: every ask bangs the empty outlet.",
         "name": "name",
         "range": "any identifier"
       }
@@ -2372,7 +2372,7 @@
     "params": [
       {
         "default": "",
-        "doc": "The array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty reads a private, empty array: every ask bangs the empty outlet.",
+        "doc": "The array's shared name, addressed as \"patcher.<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty reads a private, empty array: every ask bangs the empty outlet.",
         "name": "name",
         "range": "any identifier"
       }
@@ -2423,7 +2423,7 @@
     "params": [
       {
         "default": "",
-        "doc": "The array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty reads a private, empty array: every trigger bangs the empty outlet.",
+        "doc": "The array's shared name, addressed as \"patcher.<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty reads a private, empty array: every trigger bangs the empty outlet.",
         "name": "name",
         "range": "any identifier"
       }
@@ -2468,7 +2468,7 @@
     "params": [
       {
         "default": "",
-        "doc": "The array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty writes into a private, empty array: the pushes land, but nothing shares them and no reference leaves.",
+        "doc": "The array's shared name, addressed as \"patcher.<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty writes into a private, empty array: the pushes land, but nothing shares them and no reference leaves.",
         "name": "name",
         "range": "any identifier"
       }
@@ -2529,7 +2529,7 @@
     "params": [
       {
         "default": "",
-        "doc": "The array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty picks from a private, empty array: every ask bangs the empty outlet.",
+        "doc": "The array's shared name, addressed as \"patcher.<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty picks from a private, empty array: every ask bangs the empty outlet.",
         "name": "name",
         "range": "any identifier"
       },
@@ -2586,7 +2586,7 @@
     "params": [
       {
         "default": "",
-        "doc": "The array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty acts on a private, empty array of the object's own.",
+        "doc": "The array's shared name, addressed as \"patcher.<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty acts on a private, empty array of the object's own.",
         "name": "name",
         "range": "any identifier"
       },
@@ -2643,7 +2643,7 @@
     "params": [
       {
         "default": "",
-        "doc": "The array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty matches over a private, empty array: always the no-match bang.",
+        "doc": "The array's shared name, addressed as \"patcher.<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty matches over a private, empty array: always the no-match bang.",
         "name": "name",
         "range": "any identifier"
       },
@@ -2702,7 +2702,7 @@
     "params": [
       {
         "default": "",
-        "doc": "The array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty reads a private, empty array: every ask bangs the miss outlet.",
+        "doc": "The array's shared name, addressed as \"patcher.<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty reads a private, empty array: every ask bangs the miss outlet.",
         "name": "name",
         "range": "any identifier"
       },
@@ -2772,7 +2772,7 @@
     "params": [
       {
         "default": "",
-        "doc": "The array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty rewrites a private, empty array: the replace lands with count 0 and no reference leaves.",
+        "doc": "The array's shared name, addressed as \"patcher.<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty rewrites a private, empty array: the replace lands with count 0 and no reference leaves.",
         "name": "name",
         "range": "any identifier"
       },
@@ -2828,7 +2828,7 @@
     "params": [
       {
         "default": "",
-        "doc": "The array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty permutes a private, empty array: the trigger lands, but nothing shares it and no reference leaves.",
+        "doc": "The array's shared name, addressed as \"patcher.<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty permutes a private, empty array: the trigger lands, but nothing shares it and no reference leaves.",
         "name": "name",
         "range": "any identifier"
       }
@@ -2884,7 +2884,7 @@
     "params": [
       {
         "default": "",
-        "doc": "The array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty permutes a private, empty array: the trigger lands, but nothing shares it and no reference leaves.",
+        "doc": "The array's shared name, addressed as \"patcher.<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty permutes a private, empty array: the trigger lands, but nothing shares it and no reference leaves.",
         "name": "name",
         "range": "any identifier"
       },
@@ -2934,7 +2934,7 @@
     "params": [
       {
         "default": "",
-        "doc": "The array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty leaves the object inert: a private array has no name to pass on, so there is nothing to route.",
+        "doc": "The array's shared name, addressed as \"patcher.<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty leaves the object inert: a private array has no name to pass on, so there is nothing to route.",
         "name": "name",
         "range": "any identifier"
       },
@@ -3001,7 +3001,7 @@
     "params": [
       {
         "default": "",
-        "doc": "The array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty permutes a private, empty array: the trigger lands, but nothing shares it and no reference leaves.",
+        "doc": "The array's shared name, addressed as \"patcher.<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty permutes a private, empty array: the trigger lands, but nothing shares it and no reference leaves.",
         "name": "name",
         "range": "any identifier"
       },
@@ -3058,7 +3058,7 @@
     "params": [
       {
         "default": "",
-        "doc": "The left array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty reads a private, empty array on that side.",
+        "doc": "The left array's shared name, addressed as \"patcher.<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty reads a private, empty array on that side.",
         "name": "left",
         "range": "any identifier"
       },
@@ -3115,7 +3115,7 @@
     "params": [
       {
         "default": "",
-        "doc": "The array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty reads a private, empty array: every trigger bangs the empty outlet.",
+        "doc": "The array's shared name, addressed as \"patcher.<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty reads a private, empty array: every trigger bangs the empty outlet.",
         "name": "name",
         "range": "any identifier"
       }
@@ -3176,7 +3176,7 @@
     "params": [
       {
         "default": "",
-        "doc": "The array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty permutes a private, empty array: the trigger lands, but nothing shares it and no reference leaves.",
+        "doc": "The array's shared name, addressed as \"patcher.<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty permutes a private, empty array: the trigger lands, but nothing shares it and no reference leaves.",
         "name": "name",
         "range": "any identifier"
       },
@@ -3253,7 +3253,7 @@
     "params": [
       {
         "default": "",
-        "doc": "The array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty reads a private, empty array: every ask bangs the empty outlet.",
+        "doc": "The array's shared name, addressed as \"patcher.<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty reads a private, empty array: every ask bangs the empty outlet.",
         "name": "name",
         "range": "any identifier"
       },
@@ -3309,7 +3309,7 @@
     "params": [
       {
         "default": "",
-        "doc": "The array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty acts on a private, empty array of the object's own.",
+        "doc": "The array's shared name, addressed as \"patcher.<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty acts on a private, empty array of the object's own.",
         "name": "name",
         "range": "any identifier"
       },
@@ -3378,7 +3378,7 @@
     "params": [
       {
         "default": "",
-        "doc": "The array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty sorts a private, empty array: the trigger lands, but nothing shares it and no reference leaves.",
+        "doc": "The array's shared name, addressed as \"patcher.<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty sorts a private, empty array: the trigger lands, but nothing shares it and no reference leaves.",
         "name": "name",
         "range": "any identifier"
       },
@@ -3445,7 +3445,7 @@
     "params": [
       {
         "default": "",
-        "doc": "The array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty reads a private, empty array: every ask bangs the empty outlet.",
+        "doc": "The array's shared name, addressed as \"patcher.<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty reads a private, empty array: every ask bangs the empty outlet.",
         "name": "name",
         "range": "any identifier"
       },
@@ -3502,7 +3502,7 @@
     "params": [
       {
         "default": "",
-        "doc": "The array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty reads a private, empty array: every ask bangs the empty outlet.",
+        "doc": "The array's shared name, addressed as \"patcher.<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty reads a private, empty array: every ask bangs the empty outlet.",
         "name": "name",
         "range": "any identifier"
       }
@@ -3565,7 +3565,7 @@
     "params": [
       {
         "default": "",
-        "doc": "The array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty streams into a private, empty array: the values land and the shortfall counts, but nothing shares them and no reference leaves.",
+        "doc": "The array's shared name, addressed as \"patcher.<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty streams into a private, empty array: the values land and the shortfall counts, but nothing shares them and no reference leaves.",
         "name": "name",
         "range": "any identifier"
       },
@@ -3642,7 +3642,7 @@
     "params": [
       {
         "default": "",
-        "doc": "The array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty reads a private, empty array: every ask bangs the empty outlet.",
+        "doc": "The array's shared name, addressed as \"patcher.<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty reads a private, empty array: every ask bangs the empty outlet.",
         "name": "name",
         "range": "any identifier"
       },
@@ -3725,7 +3725,7 @@
     "params": [
       {
         "default": "",
-        "doc": "The array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty reads a private, empty array: every ask bangs the empty outlet.",
+        "doc": "The array's shared name, addressed as \"patcher.<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty reads a private, empty array: every ask bangs the empty outlet.",
         "name": "name",
         "range": "any identifier"
       },
@@ -3798,7 +3798,7 @@
     "params": [
       {
         "default": "",
-        "doc": "The array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty thins a private, empty array: the thin lands with count 0 and no reference leaves.",
+        "doc": "The array's shared name, addressed as \"patcher.<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty thins a private, empty array: the thin lands with count 0 and no reference leaves.",
         "name": "name",
         "range": "any identifier"
       },
@@ -3855,7 +3855,7 @@
     "params": [
       {
         "default": "",
-        "doc": "The array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty reads a private, empty array: every ask bangs the empty outlet.",
+        "doc": "The array's shared name, addressed as \"patcher.<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty reads a private, empty array: every ask bangs the empty outlet.",
         "name": "name",
         "range": "any identifier"
       }
@@ -3906,7 +3906,7 @@
     "params": [
       {
         "default": "",
-        "doc": "The array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty reads a private, empty array: every ask bangs the empty outlet.",
+        "doc": "The array's shared name, addressed as \"patcher.<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty reads a private, empty array: every ask bangs the empty outlet.",
         "name": "name",
         "range": "any identifier"
       }
@@ -3957,7 +3957,7 @@
     "params": [
       {
         "default": "",
-        "doc": "The array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty reads a private, empty array: every ask bangs the empty outlet.",
+        "doc": "The array's shared name, addressed as \"patcher.<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty reads a private, empty array: every ask bangs the empty outlet.",
         "name": "name",
         "range": "any identifier"
       }
@@ -4008,7 +4008,7 @@
     "params": [
       {
         "default": "",
-        "doc": "The left array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty reads a private, empty array on that side: every ask bangs the empty outlet.",
+        "doc": "The left array's shared name, addressed as \"patcher.<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty reads a private, empty array on that side: every ask bangs the empty outlet.",
         "name": "left",
         "range": "any identifier"
       },
@@ -4071,7 +4071,7 @@
     "params": [
       {
         "default": "",
-        "doc": "The left array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty reads a private, empty array on that side.",
+        "doc": "The left array's shared name, addressed as \"patcher.<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty reads a private, empty array on that side.",
         "name": "left",
         "range": "any identifier"
       },
@@ -4128,7 +4128,7 @@
     "params": [
       {
         "default": "",
-        "doc": "The array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty reads a private, empty array: every ask bangs the empty outlet.",
+        "doc": "The array's shared name, addressed as \"patcher.<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty reads a private, empty array: every ask bangs the empty outlet.",
         "name": "name",
         "range": "any identifier"
       }
@@ -4173,7 +4173,7 @@
     "params": [
       {
         "default": "",
-        "doc": "The array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty writes into a private, empty array: the adds land, but nothing shares them and no reference leaves.",
+        "doc": "The array's shared name, addressed as \"patcher.<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty writes into a private, empty array: the adds land, but nothing shares them and no reference leaves.",
         "name": "name",
         "range": "any identifier"
       }
@@ -4226,7 +4226,7 @@
     "params": [
       {
         "default": "",
-        "doc": "The array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty reads a private, empty array: every fetch bangs the empty outlet.",
+        "doc": "The array's shared name, addressed as \"patcher.<patcherName>.<name>\" — the sequence an .array of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty reads a private, empty array: every fetch bangs the empty outlet.",
         "name": "name",
         "range": "any identifier"
       },
@@ -4506,7 +4506,7 @@
   },
   ".bag": {
     "category": "GENERIC",
-    "description": "Stores an unordered collection of numbers that a patch adds to and removes from — Max's bag, which 'stores and manages a collection of numbers' that 'you can add to or delete an integer from ... as well as report its contents'. A multiset, and the classic use is the one nothing else in the patcher can spell: tracking which notes are currently held, so a patch can answer what is sounding right now. A note-on adds the note number, the matching note-off removes it, and a bang hands back exactly the notes still down, which pairs directly with YSE's synth voice model. It is not .coll, which is a keyed store whose point is to look an address up; this has no addresses at all and answers only how many and which ones. Nor is it .bucket, which remembers the last N values positionally. Inlet 0 is the value and is hot, inlet 1 is the flag and is cold: non-zero adds the number, 0 removes it, and a float is converted to an int on either inlet. A list is Max's list method and its order is '<value> <flag>' — Max's 'the first list item was sent to the left inlet and the second list item was sent to the right inlet' — so 60 1 adds 60 and 60 0 removes it, the reverse of the shorthand in the issue; a patcher whose argument order is the reverse of Max's would be a trap for every patch brought across. The flag starts at 0, which Max does not document and is the conservative choice, and the list form sets it before applying the value. Any creation argument turns on duplicate entries: Max's 'bag with any argument maintains multiple entries with the same item; otherwise it holds only one of each', and the argument is read for its presence rather than its value. Without it, adding a value already present is nothing at all and the entry keeps the position it had. A bang sends every stored number one at a time in Max's 'reverse order from that in which they were stored', newest first; 'cut' sends the oldest and deletes it; 'length' reports the count; 'clear' empties the collection. Adding and removing are silent, which is Max's 'no output is triggered by a number received in either inlet'. Which instance a remove takes when duplicates are on is the one thing Max leaves open: the newest is taken, so an add and a remove of the same value are an exact undo of each other and a held-note tracker unwinds in the order the keys came up. The store is bounded at 256 numbers, allocated whole at construction and never resized, with .value's non-blocking guard around it — .coll's model and for .coll's reason, since a copy-on-write GraphState publish assumes the writer is the control thread while a .bag is written by whichever thread its message arrived on and in-patcher delivery dispatches on the audio thread. An add past the capacity is refused whole and silently, a loser of the guard drops rather than waiting, and the guard is never held across a send: a bang captures the whole collection into a stack array first, .bucket's trick, so a patch looping the outlet back into the inlet cannot change the burst it is still receiving. Calculate() does nothing. The duplicate flag survives a save because it is a creation argument; the contents deliberately do not, since Max's bag has no 'save data with patcher' flag — that is coll's — and a reloaded patch holding the notes that were down when it was saved would be holding notes nothing is sounding. 'send <receive-name>' is Max's 'the word send, followed by the name of a receive object, sends the result of a bang message to all receive objects with that name, instead of out the bag object's outlet': one message rather than a mode, the shape .table's send has, so it dumps the collection then and there — a bang's numbers in a bang's order — to every .r of that name and on the global bus as '<patcherName>.<name>', while outlet 0 stays silent for that dump. Nothing is redirected, so a later bang goes out the outlet as usual, 'cut' and 'length' always keep the outlet, and a bare 'send' with no name does nothing at all. The name is refused rather than truncated past 63 characters, since the bus truncates there and the in-patcher path does not.",
+    "description": "Stores an unordered collection of numbers that a patch adds to and removes from — Max's bag, which 'stores and manages a collection of numbers' that 'you can add to or delete an integer from ... as well as report its contents'. A multiset, and the classic use is the one nothing else in the patcher can spell: tracking which notes are currently held, so a patch can answer what is sounding right now. A note-on adds the note number, the matching note-off removes it, and a bang hands back exactly the notes still down, which pairs directly with YSE's synth voice model. It is not .coll, which is a keyed store whose point is to look an address up; this has no addresses at all and answers only how many and which ones. Nor is it .bucket, which remembers the last N values positionally. Inlet 0 is the value and is hot, inlet 1 is the flag and is cold: non-zero adds the number, 0 removes it, and a float is converted to an int on either inlet. A list is Max's list method and its order is '<value> <flag>' — Max's 'the first list item was sent to the left inlet and the second list item was sent to the right inlet' — so 60 1 adds 60 and 60 0 removes it, the reverse of the shorthand in the issue; a patcher whose argument order is the reverse of Max's would be a trap for every patch brought across. The flag starts at 0, which Max does not document and is the conservative choice, and the list form sets it before applying the value. Any creation argument turns on duplicate entries: Max's 'bag with any argument maintains multiple entries with the same item; otherwise it holds only one of each', and the argument is read for its presence rather than its value. Without it, adding a value already present is nothing at all and the entry keeps the position it had. A bang sends every stored number one at a time in Max's 'reverse order from that in which they were stored', newest first; 'cut' sends the oldest and deletes it; 'length' reports the count; 'clear' empties the collection. Adding and removing are silent, which is Max's 'no output is triggered by a number received in either inlet'. Which instance a remove takes when duplicates are on is the one thing Max leaves open: the newest is taken, so an add and a remove of the same value are an exact undo of each other and a held-note tracker unwinds in the order the keys came up. The store is bounded at 256 numbers, allocated whole at construction and never resized, with .value's non-blocking guard around it — .coll's model and for .coll's reason, since a copy-on-write GraphState publish assumes the writer is the control thread while a .bag is written by whichever thread its message arrived on and in-patcher delivery dispatches on the audio thread. An add past the capacity is refused whole and silently, a loser of the guard drops rather than waiting, and the guard is never held across a send: a bang captures the whole collection into a stack array first, .bucket's trick, so a patch looping the outlet back into the inlet cannot change the burst it is still receiving. Calculate() does nothing. The duplicate flag survives a save because it is a creation argument; the contents deliberately do not, since Max's bag has no 'save data with patcher' flag — that is coll's — and a reloaded patch holding the notes that were down when it was saved would be holding notes nothing is sounding. 'send <receive-name>' is Max's 'the word send, followed by the name of a receive object, sends the result of a bang message to all receive objects with that name, instead of out the bag object's outlet': one message rather than a mode, the shape .table's send has, so it dumps the collection then and there — a bang's numbers in a bang's order — to every .r of that name and on the global bus as 'patcher.<patcherName>.<name>', while outlet 0 stays silent for that dump. Nothing is redirected, so a later bang goes out the outlet as usual, 'cut' and 'length' always keep the outlet, and a bare 'send' with no name does nothing at all. The name is refused rather than truncated past 63 characters, since the bus truncates there and the in-patcher path does not.",
     "inlets": [
       {
         "accepts": [
@@ -5267,7 +5267,7 @@
   },
   ".coll": {
     "category": "GENERIC",
-    "description": "Stores and recalls a collection of messages held at addresses — Max's coll, 'store and edit a collection of different messages'. The general-purpose data store of Max patching: presets, note tables, mapping curves and sequences all live in one, and until this object nothing in the YSE patcher could hold more than a single value at all, so a patch that wanted a table had to spell it out as one object per entry. An address is a number or a symbol, decided by the strict reader .sel and .route share, and the two never collide — the address 1 and the address one are different entries — while numeric addresses need be neither contiguous nor in order, exactly as in Max. Entries keep storage order rather than address order, which is what makes dump, next and prev mean anything: Max sends them 'in the order in which they are stored', so a patch that stored a sequence gets that sequence back. A list whose first item is a number stores the rest of it at that address (Max's list method), a bare number or symbol recalls, a bang outputs the entry at the pointer, and store, insert, append, remove, delete, clear, length, goto, start, end, next, prev, dump, sub, nsub, nth, min, max, sort, swap, merge, separate, renumber, renumber2, assoc, deassoc, nstore and subsym are read as commands when they lead a message. Reserving those words is Max's own contract for coll and not a shortcut: this is the one object in the family whose inlet is a command inlet rather than a data inlet, which is exactly why the .prepend discipline — never reserve a word on an inlet that must carry arbitrary text — does not apply to it, and the data an entry holds is never parsed for commands. The address leaves outlet 1 only where Max sends it (bang, dump, next, prev, sub) and always before the data, which is Max's right-to-left order; outlet 2 bangs when a dump has finished and outlet 3 when a read has. The first creation argument is Max's shared name: all .coll objects of one name share their contents, through a store held weakly in the patcher's shared-name registry under '<patcherName>.<name>' — the address form .s, .r and .value already use. An unnamed .coll keeps a store of its own rather than pooling on the empty name, the traversal pointer stays per-object so two .coll objects on one name walk the collection independently, and Max's refer is not ported: it resolves a name from a message, and a name resolves under a mutex on the control thread, never on the audio callback a message handler may be running on. Max's second argument, no-search, is accepted and inert — there is no automatic hunt for a file named after the collection to suppress. sub and nsub replace the element at a 1-based position inside a stored message, nth reads one out, min and max scan an element position across every entry, sort reorders storage (stably, ascending on -1 and descending on 1, by the address when the second argument is -1 and by the nth element otherwise), swap exchanges two entries' addresses without moving their data, merge appends to what an address already holds, separate opens a numeric gap, renumber renumbers the numeric entries consecutively from the address it is given (0 by default), and renumber2 moves every numeric address at or above the one it is given (also 0 by default) up by one. assoc, deassoc, nstore and subsym are Max's symbol/number address aliasing: a numeric entry can be given a second, symbol address, and from then on any reference to that symbol is a reference to the number — a store, a remove, an nth or a bare recall all reach the entry by either name. One symbol reaches one entry, which is what keeps a lookup's answer independent of storage order, so associating a symbol that already reached another entry removes that entry, as Max's own reference says it does. The alias rides with its entry through insert, delete, renumber, renumber2 and separate, and with the address through swap; the address outlet reports the number for an entry that has both; and a plain store at an aliased address keeps the alias, which is where this departs from cyclone. read, readagain, write and writeagain move the collection through a plain-text file in Max's format, one '<address>, <message>;' record per line — an aliased entry writing both of its addresses, number first and symbol second, the order Max 5's format paragraph gives and the one cyclone writes, while a read accepts either order — and a read replaces what is held. None of that happens on the message path: a read arrives on whichever thread dispatched it, which may be the audio callback, so the request is a wait-free claim on a patcher-owned slot, the disk work runs on the background pool, and the contents are parsed in the completion the patcher delivers at the top of a later block — which is also when outlet 3 bangs. The bare forms of read and write reuse the last name given, since Max's open a file dialog and a headless patcher has none, and filetype is consumed and inert for the same reason. Records past the 256-entry bound are dropped and the rest kept, one whose address or message does not fit is skipped, and a file larger than a slot is refused whole with outlet 3 silent. The format inherits Max's one limitation: a stored message containing a comma or a semicolon cannot round-trip through a file. The contents survive a DumpJSON / ParseJSON round trip, which is Max's 'save data with patcher' and the reason pObject grew a state hook: a creation parameter is what an object was made with, not what it has since been told, so rewriting one from run-time state would quietly change the arguments a patch author typed. Every .coll on a shared name writes those contents and only the one that created the store reads them back, so a sibling does not reload identical entries over the top and a patcher loaded into an engine where the name is already live joins the running collection instead of resetting it. The pointer is not saved — it is run-time position, as .cycle's thresh and .bucket's freeze are. The store is bounded at 256 entries of at most 256 characters each, held at addresses of at most 64, and the whole table is allocated when the store is built and never resized: that bound is what makes the object real-time safe, and it is why the store is not published as a copy-on-write snapshot the way GraphState is. That model assumes the writer is the control thread, and a .coll is written by whichever thread its message arrived on — in-patcher delivery dispatches on the audio thread — so a store reaching it from a rendering graph would have to allocate a replacement table there. Bounded storage with .value's non-blocking guard gives what the mandate is after without that: nothing on any path allocates, locks or blocks, the guard is never held across a send, and a store that loses the guard drops rather than waiting. Even sort keeps that promise — the sort key of every entry is read once into a fixed array, the indices are insertion-sorted against it, and the permutation is applied by cycle-following through a single scratch entry, so no input costs more than one entry copy per entry. Anything that does not fit is refused whole and silently. Calculate() does nothing. Not ported: the editor window (open, wclose), refer, and the embed / flags save switch.",
+    "description": "Stores and recalls a collection of messages held at addresses — Max's coll, 'store and edit a collection of different messages'. The general-purpose data store of Max patching: presets, note tables, mapping curves and sequences all live in one, and until this object nothing in the YSE patcher could hold more than a single value at all, so a patch that wanted a table had to spell it out as one object per entry. An address is a number or a symbol, decided by the strict reader .sel and .route share, and the two never collide — the address 1 and the address one are different entries — while numeric addresses need be neither contiguous nor in order, exactly as in Max. Entries keep storage order rather than address order, which is what makes dump, next and prev mean anything: Max sends them 'in the order in which they are stored', so a patch that stored a sequence gets that sequence back. A list whose first item is a number stores the rest of it at that address (Max's list method), a bare number or symbol recalls, a bang outputs the entry at the pointer, and store, insert, append, remove, delete, clear, length, goto, start, end, next, prev, dump, sub, nsub, nth, min, max, sort, swap, merge, separate, renumber, renumber2, assoc, deassoc, nstore and subsym are read as commands when they lead a message. Reserving those words is Max's own contract for coll and not a shortcut: this is the one object in the family whose inlet is a command inlet rather than a data inlet, which is exactly why the .prepend discipline — never reserve a word on an inlet that must carry arbitrary text — does not apply to it, and the data an entry holds is never parsed for commands. The address leaves outlet 1 only where Max sends it (bang, dump, next, prev, sub) and always before the data, which is Max's right-to-left order; outlet 2 bangs when a dump has finished and outlet 3 when a read has. The first creation argument is Max's shared name: all .coll objects of one name share their contents, through a store held weakly in the patcher's shared-name registry under 'patcher.<patcherName>.<name>' — the address form .s, .r and .value already use. An unnamed .coll keeps a store of its own rather than pooling on the empty name, the traversal pointer stays per-object so two .coll objects on one name walk the collection independently, and Max's refer is not ported: it resolves a name from a message, and a name resolves under a mutex on the control thread, never on the audio callback a message handler may be running on. Max's second argument, no-search, is accepted and inert — there is no automatic hunt for a file named after the collection to suppress. sub and nsub replace the element at a 1-based position inside a stored message, nth reads one out, min and max scan an element position across every entry, sort reorders storage (stably, ascending on -1 and descending on 1, by the address when the second argument is -1 and by the nth element otherwise), swap exchanges two entries' addresses without moving their data, merge appends to what an address already holds, separate opens a numeric gap, renumber renumbers the numeric entries consecutively from the address it is given (0 by default), and renumber2 moves every numeric address at or above the one it is given (also 0 by default) up by one. assoc, deassoc, nstore and subsym are Max's symbol/number address aliasing: a numeric entry can be given a second, symbol address, and from then on any reference to that symbol is a reference to the number — a store, a remove, an nth or a bare recall all reach the entry by either name. One symbol reaches one entry, which is what keeps a lookup's answer independent of storage order, so associating a symbol that already reached another entry removes that entry, as Max's own reference says it does. The alias rides with its entry through insert, delete, renumber, renumber2 and separate, and with the address through swap; the address outlet reports the number for an entry that has both; and a plain store at an aliased address keeps the alias, which is where this departs from cyclone. read, readagain, write and writeagain move the collection through a plain-text file in Max's format, one '<address>, <message>;' record per line — an aliased entry writing both of its addresses, number first and symbol second, the order Max 5's format paragraph gives and the one cyclone writes, while a read accepts either order — and a read replaces what is held. None of that happens on the message path: a read arrives on whichever thread dispatched it, which may be the audio callback, so the request is a wait-free claim on a patcher-owned slot, the disk work runs on the background pool, and the contents are parsed in the completion the patcher delivers at the top of a later block — which is also when outlet 3 bangs. The bare forms of read and write reuse the last name given, since Max's open a file dialog and a headless patcher has none, and filetype is consumed and inert for the same reason. Records past the 256-entry bound are dropped and the rest kept, one whose address or message does not fit is skipped, and a file larger than a slot is refused whole with outlet 3 silent. The format inherits Max's one limitation: a stored message containing a comma or a semicolon cannot round-trip through a file. The contents survive a DumpJSON / ParseJSON round trip, which is Max's 'save data with patcher' and the reason pObject grew a state hook: a creation parameter is what an object was made with, not what it has since been told, so rewriting one from run-time state would quietly change the arguments a patch author typed. Every .coll on a shared name writes those contents and only the one that created the store reads them back, so a sibling does not reload identical entries over the top and a patcher loaded into an engine where the name is already live joins the running collection instead of resetting it. The pointer is not saved — it is run-time position, as .cycle's thresh and .bucket's freeze are. The store is bounded at 256 entries of at most 256 characters each, held at addresses of at most 64, and the whole table is allocated when the store is built and never resized: that bound is what makes the object real-time safe, and it is why the store is not published as a copy-on-write snapshot the way GraphState is. That model assumes the writer is the control thread, and a .coll is written by whichever thread its message arrived on — in-patcher delivery dispatches on the audio thread — so a store reaching it from a rendering graph would have to allocate a replacement table there. Bounded storage with .value's non-blocking guard gives what the mandate is after without that: nothing on any path allocates, locks or blocks, the guard is never held across a send, and a store that loses the guard drops rather than waiting. Even sort keeps that promise — the sort key of every entry is read once into a fixed array, the indices are insertion-sorted against it, and the permutation is applied by cycle-following through a single scratch entry, so no input costs more than one entry copy per entry. Anything that does not fit is refused whole and silently. Calculate() does nothing. Not ported: the editor window (open, wclose), refer, and the embed / flags save switch.",
     "inlets": [
       {
         "accepts": [
@@ -5317,7 +5317,7 @@
     "params": [
       {
         "default": "",
-        "doc": "Max's shared context: all .coll objects of this name share their contents, through a store addressed as \"<patcherName>.<name>\" — the same address form .s, .r and .value use, so two patchers given one name share their collections as they already share their sends. Empty gives this object a store of its own rather than pooling it with every other unnamed .coll in the patcher. The name is resolved once, on the control thread, which is why Max's runtime 'refer' is not ported.",
+        "doc": "Max's shared context: all .coll objects of this name share their contents, through a store addressed as \"patcher.<patcherName>.<name>\" — the same address form .s, .r and .value use, so two patchers given one name share their collections as they already share their sends. Empty gives this object a store of its own rather than pooling it with every other unnamed .coll in the patcher. The name is resolved once, on the control thread, which is why Max's runtime 'refer' is not ported.",
         "name": "name",
         "range": "any identifier"
       },
@@ -5839,7 +5839,7 @@
   },
   ".dict": {
     "category": "GENERIC",
-    "description": "A nested key/value dictionary shared by name — Max's dict. Paths nest with \"::\", so \"voice::1::freq\" is one entry three levels deep, and the contents are a proper nested JSON object when the patch is saved. The dictionary is addressed as \"<patcherName>.<name>\", the same address form .s, .r, .value and .coll use, so every .dict of one name shares one dictionary and two patchers given one name share theirs. A bang emits \"dictionary <name>\" out outlet 1 — the reference the dict.* family binds. Dictionaries are addressed by name rather than passed down a cord: an outlet carries a value, never an identity, so the name is what travels and the store is resolved once, on the control thread. An unnamed .dict keeps a dictionary of its own.",
+    "description": "A nested key/value dictionary shared by name — Max's dict. Paths nest with \"::\", so \"voice::1::freq\" is one entry three levels deep, and the contents are a proper nested JSON object when the patch is saved. The dictionary is addressed as \"patcher.<patcherName>.<name>\", the same address form .s, .r, .value and .coll use, so every .dict of one name shares one dictionary and two patchers given one name share theirs. A bang emits \"dictionary <name>\" out outlet 1 — the reference the dict.* family binds. Dictionaries are addressed by name rather than passed down a cord: an outlet carries a value, never an identity, so the name is what travels and the store is resolved once, on the control thread. An unnamed .dict keeps a dictionary of its own.",
     "inlets": [
       {
         "accepts": [
@@ -5880,7 +5880,7 @@
     "params": [
       {
         "default": "",
-        "doc": "Max's shared context: all .dict objects of this name share their contents, through a store addressed as \"<patcherName>.<name>\". Empty gives this object a dictionary of its own rather than pooling it with every other unnamed .dict in the patcher. The name is resolved once, on the control thread, which is why there is no message that re-points a .dict at another name at run time.",
+        "doc": "Max's shared context: all .dict objects of this name share their contents, through a store addressed as \"patcher.<patcherName>.<name>\". Empty gives this object a dictionary of its own rather than pooling it with every other unnamed .dict in the patcher. The name is resolved once, on the control thread, which is why there is no message that re-points a .dict at another name at run time.",
         "name": "name",
         "range": "any identifier"
       }
@@ -5931,7 +5931,7 @@
     "params": [
       {
         "default": "",
-        "doc": "The left dictionary's shared name, addressed as \"<patcherName>.<name>\" — the dictionary a .dict of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty compares a private, empty dictionary.",
+        "doc": "The left dictionary's shared name, addressed as \"patcher.<patcherName>.<name>\" — the dictionary a .dict of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty compares a private, empty dictionary.",
         "name": "left",
         "range": "any identifier"
       },
@@ -5971,7 +5971,7 @@
     "params": [
       {
         "default": "",
-        "doc": "The dictionary the parsed document fills, addressed as \"<patcherName>.<name>\" — the dictionary a .dict of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty binds a private dictionary: the document still loads, but there is no name to announce.",
+        "doc": "The dictionary the parsed document fills, addressed as \"patcher.<patcherName>.<name>\" — the dictionary a .dict of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty binds a private dictionary: the document still loads, but there is no name to announce.",
         "name": "name",
         "range": "any identifier"
       }
@@ -6015,7 +6015,7 @@
     "params": [
       {
         "default": "",
-        "doc": "The source dictionary's shared name, addressed as \"<patcherName>.<name>\" — the dictionary a .dict of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty groups a private, empty dictionary.",
+        "doc": "The source dictionary's shared name, addressed as \"patcher.<patcherName>.<name>\" — the dictionary a .dict of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty groups a private, empty dictionary.",
         "name": "source",
         "range": "any identifier"
       },
@@ -6069,7 +6069,7 @@
     "params": [
       {
         "default": "",
-        "doc": "The dictionary's shared name, addressed as \"<patcherName>.<name>\" — the dictionary a .dict of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty walks a private, empty dictionary: no pairs, just the done bang.",
+        "doc": "The dictionary's shared name, addressed as \"patcher.<patcherName>.<name>\" — the dictionary a .dict of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty walks a private, empty dictionary: no pairs, just the done bang.",
         "name": "name",
         "range": "any identifier"
       }
@@ -6113,7 +6113,7 @@
     "params": [
       {
         "default": "",
-        "doc": "The left dictionary's shared name — the base of the join, addressed as \"<patcherName>.<name>\", the dictionary a .dict of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty joins a private, empty dictionary.",
+        "doc": "The left dictionary's shared name — the base of the join, addressed as \"patcher.<patcherName>.<name>\", the dictionary a .dict of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty joins a private, empty dictionary.",
         "name": "left",
         "range": "any identifier"
       },
@@ -6160,7 +6160,7 @@
     "params": [
       {
         "default": "",
-        "doc": "The packed dictionary's shared name — the first creation argument, addressed as \"<patcherName>.<name>\", the dictionary a .dict of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. The result goes into a bound dictionary rather than a new anonymous one because there is no way to hand a fresh dictionary's identity down a cord. Empty packs into a private store and sends nothing.",
+        "doc": "The packed dictionary's shared name — the first creation argument, addressed as \"patcher.<patcherName>.<name>\", the dictionary a .dict of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. The result goes into a bound dictionary rather than a new anonymous one because there is no way to hand a fresh dictionary's identity down a cord. Empty packs into a private store and sends nothing.",
         "name": "name",
         "range": "any identifier"
       },
@@ -6193,7 +6193,7 @@
     "params": [
       {
         "default": "",
-        "doc": "The dictionary's shared name, addressed as \"<patcherName>.<name>\" — the dictionary a .dict of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Also the label in front of every printed line, which is what makes two of these in one patch tellable apart; a name longer than 32 characters labels with its first 32. Empty binds a private, empty dictionary — the dump is then '{}' under the label 'dict.print'.",
+        "doc": "The dictionary's shared name, addressed as \"patcher.<patcherName>.<name>\" — the dictionary a .dict of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Also the label in front of every printed line, which is what makes two of these in one patch tellable apart; a name longer than 32 characters labels with its first 32. Empty binds a private, empty dictionary — the dump is then '{}' under the label 'dict.print'.",
         "name": "name",
         "range": "any identifier"
       },
@@ -6234,7 +6234,7 @@
     "params": [
       {
         "default": "",
-        "doc": "The dictionary's shared name, addressed as \"<patcherName>.<name>\" — the dictionary a .dict of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty leaves the object inert: a private dictionary has no name to pass on, so there is nothing to route.",
+        "doc": "The dictionary's shared name, addressed as \"patcher.<patcherName>.<name>\" — the dictionary a .dict of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty leaves the object inert: a private dictionary has no name to pass on, so there is nothing to route.",
         "name": "name",
         "range": "any identifier"
       },
@@ -6275,7 +6275,7 @@
     "params": [
       {
         "default": "",
-        "doc": "The dictionary's shared name, addressed as \"<patcherName>.<name>\" — the dictionary a .dict of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty binds a private, empty dictionary — the document is then {}.",
+        "doc": "The dictionary's shared name, addressed as \"patcher.<patcherName>.<name>\" — the dictionary a .dict of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty binds a private, empty dictionary — the document is then {}.",
         "name": "name",
         "range": "any identifier"
       }
@@ -6335,7 +6335,7 @@
     "params": [
       {
         "default": "",
-        "doc": "The source dictionary's shared name, addressed as \"<patcherName>.<name>\" — the dictionary a .dict of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty splits a private, empty dictionary.",
+        "doc": "The source dictionary's shared name, addressed as \"patcher.<patcherName>.<name>\" — the dictionary a .dict of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty splits a private, empty dictionary.",
         "name": "source",
         "range": "any identifier"
       },
@@ -6388,7 +6388,7 @@
     "params": [
       {
         "default": "",
-        "doc": "The dictionary's shared name, addressed as \"<patcherName>.<name>\" — the dictionary a .dict of the same name in this patcher holds, edited in place. Resolved once, on the control thread, which is why no message re-points it at run time. Empty strips a private, empty dictionary.",
+        "doc": "The dictionary's shared name, addressed as \"patcher.<patcherName>.<name>\" — the dictionary a .dict of the same name in this patcher holds, edited in place. Resolved once, on the control thread, which is why no message re-points it at run time. Empty strips a private, empty dictionary.",
         "name": "name",
         "range": "any identifier"
       },
@@ -6421,7 +6421,7 @@
     "params": [
       {
         "default": "",
-        "doc": "The dictionary's shared name — the first creation argument, addressed as \"<patcherName>.<name>\", the dictionary a .dict of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty reads a private, empty dictionary: every path misses and nothing is sent.",
+        "doc": "The dictionary's shared name — the first creation argument, addressed as \"patcher.<patcherName>.<name>\", the dictionary a .dict of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty reads a private, empty dictionary: every path misses and nothing is sent.",
         "name": "name",
         "range": "any identifier"
       },
@@ -6681,7 +6681,7 @@
   },
   ".forward": {
     "category": "GENERIC",
-    "description": "Named send endpoint whose destination is chosen at runtime. Delivers incoming values exactly as .s does — to every .r in the patcher whose dataName matches, and on the global bus as \"<patcherName>.<destination>\" — but takes the destination name from its right inlet, so a patch can re-aim it with a message instead of being rewired. Sends nothing until a destination is set.",
+    "description": "Named send endpoint whose destination is chosen at runtime. Delivers incoming values exactly as .s does — to every .r in the patcher whose dataName matches, and on the global bus as \"patcher.<patcherName>.<destination>\" — but takes the destination name from its right inlet, so a patch can re-aim it with a message instead of being rewired. Sends nothing until a destination is set.",
     "inlets": [
       {
         "accepts": [
@@ -10367,7 +10367,7 @@
   },
   ".r": {
     "category": "GENERIC",
-    "description": "Named receive endpoint. Forwards values arriving from any matching gSend (same dataName) in the patcher, and from any gSend in any patcher with the same name via the global bus (\"<patcherName>.<dataName>\").",
+    "description": "Named receive endpoint. Forwards values arriving from any matching gSend (same dataName) in the patcher, and from any gSend in any patcher with the same name via the global bus (\"patcher.<patcherName>.<dataName>\").",
     "inlets": [
       {
         "accepts": [
@@ -10944,7 +10944,7 @@
   },
   ".s": {
     "category": "GENERIC",
-    "description": "Named send endpoint. Broadcasts incoming values to every gReceive in the patcher whose dataName matches, and publishes them on the global bus as \"<patcherName>.<dataName>\" so cross-patcher routing works without explicit wiring.",
+    "description": "Named send endpoint. Broadcasts incoming values to every gReceive in the patcher whose dataName matches, and publishes them on the global bus as \"patcher.<patcherName>.<dataName>\" so cross-patcher routing works without explicit wiring.",
     "inlets": [
       {
         "accepts": [
@@ -13274,7 +13274,7 @@
   },
   ".value": {
     "category": "GENERIC",
-    "description": "Named cell shared by every .value with the same name. A value arriving on the inlet is stored for all of them and emitted by none; a bang emits what is stored. The cell is addressed as \"<patcherName>.<name>\", the same address form .s and .r use, so patchers sharing a name share their values. An unnamed .value keeps a cell of its own.",
+    "description": "Named cell shared by every .value with the same name. A value arriving on the inlet is stored for all of them and emitted by none; a bang emits what is stored. The cell is addressed as \"patcher.<patcherName>.<name>\", the same address form .s and .r use, so patchers sharing a name share their values. An unnamed .value keeps a cell of its own.",
     "inlets": [
       {
         "accepts": [

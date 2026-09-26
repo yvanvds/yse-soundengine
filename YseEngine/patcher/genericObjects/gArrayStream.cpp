@@ -97,13 +97,14 @@ gArrayStream::gArrayStream() : gArrayEndsBase() {
              "nothing at all. An unnamed (private) array still counts: an answer is a value, "
              "not an identity.",
              "0-255");
-  PARAM_DOC("name", "",
-            "The array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an "
-            ".array of the same name in this patcher holds. Resolved once, on the control "
-            "thread, which is why no message re-points it at run time. Empty streams into a "
-            "private, empty array: the values land and the shortfall counts, but nothing "
-            "shares them and no reference leaves.",
-            "any identifier");
+  PARAM_DOC(
+      "name", "",
+      "The array's shared name, addressed as \"patcher.<patcherName>.<name>\" — the sequence an "
+      ".array of the same name in this patcher holds. Resolved once, on the control "
+      "thread, which is why no message re-points it at run time. Empty streams into a "
+      "private, empty array: the values land and the shortfall counts, but nothing "
+      "shares them and no reference leaves.",
+      "any identifier");
   PARAM_DOC("size", "0",
             "The window size — how many of the most recent values the array holds. 1 to the "
             "store's 256; absent (0) means unconfigured, and every trigger is refused, "

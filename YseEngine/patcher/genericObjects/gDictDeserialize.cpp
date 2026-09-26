@@ -76,7 +76,8 @@ namespace {
       "a failed parse, which installed nothing.";
 
   constexpr char kNameDoc[] =
-      "The dictionary the parsed document fills, addressed as \"<patcherName>.<name>\" — the "
+      "The dictionary the parsed document fills, addressed as \"patcher.<patcherName>.<name>\" — "
+      "the "
       "dictionary a .dict of the same name in this patcher holds. Resolved once, on the control "
       "thread, which is why no message re-points it at run time. Empty binds a private "
       "dictionary: the document still loads, but there is no name to announce.";
@@ -189,7 +190,7 @@ void gDictDeserialize::RefreshBinding() {
 void gDictDeserialize::Rebind() {
   // No name, or no patcher to prefix it with, means no address — and no
   // address means a private dictionary. See gDict.h for why an unnamed
-  // object does not pool on "<patcherName>.".
+  // object does not pool on "patcher.<patcherName>.".
   std::string address;
   if (!dictName.empty() && parent != nullptr) {
     auto* p = static_cast<patcherImplementation*>(parent);

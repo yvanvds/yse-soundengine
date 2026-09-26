@@ -56,7 +56,7 @@ using YSE::PATCHER::gArrayRemove;
 namespace {
 
   // An .array and one position-mutator on one name, sharing one
-  // patcherImplementation so the name actually binds ("<patcherName>.<name>"
+  // patcherImplementation so the name actually binds ("patcher.<patcherName>.<name>"
   // needs a patcher to prefix with — a parentless object stays private). The
   // sinks are declared before the objects so they are torn down last, while
   // the outlets wired to them still exist (see sinks.hpp on why that
@@ -483,7 +483,7 @@ TEST_SUITE("patcher") {
     insert.SetParent(&p);
     insert.SetParams("c785a 2");
     CHECK(insert.ArrayName() == "c785a");
-    CHECK(insert.Address() == "apc785a.c785a");
+    CHECK(insert.Address() == "patcher.apc785a.c785a");
     CHECK(insert.Index() == 2);
     CHECK(insert.Reference() == "array c785a");
 

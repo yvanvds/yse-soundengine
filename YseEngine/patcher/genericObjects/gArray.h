@@ -288,7 +288,7 @@ namespace YSE {
      *
      *  - **Storage lives in the named registry.**
      *    ``AcquireNamedStore<arrayStore>`` (``patcher/namedStore.h``, #684) keys
-     *    real storage by ``"<patcherName>.<name>"`` — the ``INTERNAL::NamedBus``
+     *    real storage by ``"patcher.<patcherName>.<name>"`` — the ``INTERNAL::NamedBus``
      *    address form, so an ``.array seq``, a ``.dict seq``, a ``.value seq`` and
      *    a ``.r seq`` in one patcher all speak about one word. One namespace per
      *    store type, so an ``.array notes`` and a ``.dict notes`` are different
@@ -359,7 +359,7 @@ namespace YSE {
      *
      *  ### An unnamed ``.array`` is private
      *
-     *  Not "shares the empty name". ``"<patcherName>."`` is a real, reachable
+     *  Not "shares the empty name". ``"patcher.<patcherName>."`` is a real, reachable
      *  address, so unnamed objects pooling on it would silently connect two arrays
      *  a patch author never wired together. ``.value``'s rule, for ``.value``'s
      *  reason. An ``.array`` with no parent yet is private for the same reason —
@@ -420,7 +420,7 @@ namespace YSE {
     }
 
     /** @brief The address the store is registered under —
-     *         ``"<patcherName>.<name>"`` — or empty while it is private. */
+     *         ``"patcher.<patcherName>.<name>"`` — or empty while it is private. */
     const std::string& Address() const {
       return boundAddress;
     }

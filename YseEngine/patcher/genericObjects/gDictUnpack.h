@@ -154,7 +154,7 @@ namespace YSE {
     }
 
     /** @brief The address the store is registered under —
-     *         ``"<patcherName>.<name>"`` — or empty while it is private. */
+     *         ``"patcher.<patcherName>.<name>"`` — or empty while it is private. */
     const std::string& Address() const {
       return boundAddress;
     }

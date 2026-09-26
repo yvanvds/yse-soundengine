@@ -98,13 +98,14 @@ CONSTRUCT() {
       "locks or blocks.");
   ADD_CATEGORY(pCategory::GENERIC);
   INLET_DOC(0, "unpack", kInletDoc, "");
-  PARAM_DOC("name", "",
-            "The dictionary's shared name — the first creation argument, addressed as "
-            "\"<patcherName>.<name>\", the dictionary a .dict of the same name in this patcher "
-            "holds. Resolved once, on the control thread, which is why no message re-points it "
-            "at run time. Empty reads a private, empty dictionary: every path misses and "
-            "nothing is sent.",
-            "any identifier");
+  PARAM_DOC(
+      "name", "",
+      "The dictionary's shared name — the first creation argument, addressed as "
+      "\"patcher.<patcherName>.<name>\", the dictionary a .dict of the same name in this patcher "
+      "holds. Resolved once, on the control thread, which is why no message re-points it "
+      "at run time. Empty reads a private, empty dictionary: every path misses and "
+      "nothing is sent.",
+      "any identifier");
   PARAM_DOC("keys", "",
             "One key path per outlet, in order — the shape of the unpacked dictionary, "
             ".dict.pack's convention read backwards so the pair reads as a pair. Paths nest "
@@ -149,7 +150,7 @@ void gDictUnpack::RefreshBinding() {
 void gDictUnpack::Rebind() {
   // No name, or no patcher to prefix it with, means no address — and no
   // address means a private, empty dictionary. See gDict.h for why an
-  // unnamed object does not pool on "<patcherName>.".
+  // unnamed object does not pool on "patcher.<patcherName>.".
   std::string address;
   if (!dictName.empty() && parent != nullptr) {
     auto* p = static_cast<patcherImplementation*>(parent);

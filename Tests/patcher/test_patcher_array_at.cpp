@@ -57,7 +57,7 @@ using YSE::PATCHER::gArrayAt;
 namespace {
 
   // An .array and an .array.at on one name, sharing one
-  // patcherImplementation so the name actually binds ("<patcherName>.<name>"
+  // patcherImplementation so the name actually binds ("patcher.<patcherName>.<name>"
   // needs a patcher to prefix with — a parentless object stays private). The
   // sinks are declared before the objects so they are torn down last, while
   // the outlets wired to them still exist (see sinks.hpp on why that
@@ -388,15 +388,15 @@ TEST_SUITE("patcher") {
     g.SetParams("a782l");
     g.SetParent(&p);
     CHECK(g.ArrayName() == "a782l");
-    CHECK(g.Address() == "aat782l_before.a782l");
+    CHECK(g.Address() == "patcher.aat782l_before.a782l");
 
     // Idempotent: a rebind to the address it already has keeps the store.
     g.RefreshBinding();
-    CHECK(g.Address() == "aat782l_before.a782l");
+    CHECK(g.Address() == "patcher.aat782l_before.a782l");
 
     p.SetName("aat782l_after");
     g.RefreshBinding();
-    CHECK(g.Address() == "aat782l_after.a782l");
+    CHECK(g.Address() == "patcher.aat782l_after.a782l");
   }
 
   TEST_CASE("array.at: patcherImplementation::SetName re-anchors it (#782)") {

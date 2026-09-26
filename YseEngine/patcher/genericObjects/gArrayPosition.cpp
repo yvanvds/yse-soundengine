@@ -24,7 +24,8 @@ namespace {
       "The initial stored position — where the operation applies before any int has moved it. "
       "Zero-based, exactly as every position the index inlet takes.";
   constexpr char kNameParamDoc[] =
-      "The array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an .array "
+      "The array's shared name, addressed as \"patcher.<patcherName>.<name>\" — the sequence an "
+      ".array "
       "of the same name in this patcher holds. Resolved once, on the control thread, which is "
       "why no message re-points it at run time.";
 

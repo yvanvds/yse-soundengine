@@ -36,7 +36,8 @@ namespace {
       "sub-tree gone. Silent for an unnamed dictionary, which has no name to pass on — the "
       "strip still ran, on the private store.";
   constexpr char kNameDoc[] =
-      "The dictionary's shared name, addressed as \"<patcherName>.<name>\" — the dictionary a "
+      "The dictionary's shared name, addressed as \"patcher.<patcherName>.<name>\" — the "
+      "dictionary a "
       ".dict of the same name in this patcher holds, edited in place. Resolved once, on the "
       "control thread, which is why no message re-points it at run time. Empty strips a "
       "private, empty dictionary.";
@@ -125,7 +126,7 @@ void gDictStrip::RefreshBinding() {
 void gDictStrip::Rebind() {
   // No name, or no patcher to prefix it with, means no address — and no
   // address means a private, empty dictionary. See gDict.h for why an
-  // unnamed object does not pool on "<patcherName>.".
+  // unnamed object does not pool on "patcher.<patcherName>.".
   auto* p = static_cast<patcherImplementation*>(parent);
 
   std::string address;

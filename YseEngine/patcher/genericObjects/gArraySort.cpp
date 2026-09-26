@@ -115,12 +115,13 @@ gArraySort::gArraySort() : gArrayPermuteBase() {
              "order leaves as the int it spells, which .array.indexmap's map inlet accepts as "
              "the one-entry map; an empty array publishes no order.",
              "0-255 each");
-  PARAM_DOC("name", "",
-            "The array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an "
-            ".array of the same name in this patcher holds. Resolved once, on the control "
-            "thread, which is why no message re-points it at run time. Empty sorts a private, "
-            "empty array: the trigger lands, but nothing shares it and no reference leaves.",
-            "any identifier");
+  PARAM_DOC(
+      "name", "",
+      "The array's shared name, addressed as \"patcher.<patcherName>.<name>\" — the sequence an "
+      ".array of the same name in this patcher holds. Resolved once, on the control "
+      "thread, which is why no message re-points it at run time. Empty sorts a private, "
+      "empty array: the trigger lands, but nothing shares it and no reference leaves.",
+      "any identifier");
   PARAM_DOC("direction", "0",
             "The initial stored direction — what a bang sorts by before any int has moved it. "
             "Negative sorts descending, anything else ascending, so the absent argument is an "

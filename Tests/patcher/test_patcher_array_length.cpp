@@ -47,7 +47,7 @@ using YSE::PATCHER::gArrayLength;
 namespace {
 
   // An .array and an .array.length on one name, sharing one
-  // patcherImplementation so the name actually binds ("<patcherName>.<name>"
+  // patcherImplementation so the name actually binds ("patcher.<patcherName>.<name>"
   // needs a patcher to prefix with — a parentless object stays private). The
   // sink is declared before the objects so it is torn down last, while the
   // outlet wired to it still exists (see sinks.hpp on why that matters).
@@ -254,15 +254,15 @@ TEST_SUITE("patcher") {
     g.SetParams("a783f");
     g.SetParent(&p);
     CHECK(g.ArrayName() == "a783f");
-    CHECK(g.Address() == "aln783f_before.a783f");
+    CHECK(g.Address() == "patcher.aln783f_before.a783f");
 
     // Idempotent: a rebind to the address it already has keeps the store.
     g.RefreshBinding();
-    CHECK(g.Address() == "aln783f_before.a783f");
+    CHECK(g.Address() == "patcher.aln783f_before.a783f");
 
     p.SetName("aln783f_after");
     g.RefreshBinding();
-    CHECK(g.Address() == "aln783f_after.a783f");
+    CHECK(g.Address() == "patcher.aln783f_after.a783f");
   }
 
   TEST_CASE("array.length: patcherImplementation::SetName re-anchors it (#783)") {

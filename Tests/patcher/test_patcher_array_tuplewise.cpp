@@ -62,7 +62,7 @@ using YSE::PATCHER::gArrayTuplewise;
 namespace {
 
   // Two .arrays and one .array.tuplewise on their names, sharing one
-  // patcherImplementation so the names actually bind ("<patcherName>.<name>"
+  // patcherImplementation so the names actually bind ("patcher.<patcherName>.<name>"
   // needs a patcher to prefix with — a parentless object stays private). The
   // sinks are declared before the objects so they are torn down last, while
   // the outlets wired to them still exist (see sinks.hpp on why that
@@ -413,8 +413,8 @@ TEST_SUITE("patcher") {
     op.SetParent(&p);
     CHECK(op.ArrayName() == "lft808");
     CHECK(op.RightName() == "rgt808");
-    CHECK(op.Address() == "atw808n.lft808");
-    CHECK(op.RightAddress() == "atw808n.rgt808");
+    CHECK(op.Address() == "patcher.atw808n.lft808");
+    CHECK(op.RightAddress() == "patcher.atw808n.rgt808");
     CHECK(op.ProgramReady());
 
     op.SetParams("");

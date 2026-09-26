@@ -90,7 +90,8 @@ CONSTRUCT() {
   ADD_DESCRIPTION(
       "Named cell shared by every .value with the same name. A value arriving on the inlet is "
       "stored for all of them and emitted by none; a bang emits what is stored. The cell is "
-      "addressed as \"<patcherName>.<name>\", the same address form .s and .r use, so patchers "
+      "addressed as \"patcher.<patcherName>.<name>\", the same address form .s and .r use, so "
+      "patchers "
       "sharing a name share their values. An unnamed .value keeps a cell of its own.");
   ADD_CATEGORY(pCategory::GENERIC);
   INLET_DOC(0, "in",
@@ -145,7 +146,7 @@ void gValue::RefreshBinding() {
 void gValue::Rebind() {
   // No name, or no patcher to prefix it with, means no address — and no
   // address means a private cell. See the class documentation for why an
-  // unnamed .value does not pool on "<patcherName>.".
+  // unnamed .value does not pool on "patcher.<patcherName>.".
   std::string address;
   if (!valueName.empty() && parent != nullptr) {
     auto* p = static_cast<patcherImplementation*>(parent);

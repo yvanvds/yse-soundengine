@@ -42,7 +42,7 @@ namespace {
       "name to pass on, and silent on a failed parse, which installed nothing.";
 
   constexpr char kNameDoc[] =
-      "The array the parsed document fills, addressed as \"<patcherName>.<name>\" — the "
+      "The array the parsed document fills, addressed as \"patcher.<patcherName>.<name>\" — the "
       "sequence an .array of the same name in this patcher holds. Resolved once, on the control "
       "thread, which is why no message re-points it at run time. Empty fills a private array: "
       "the document still loads, but there is no name to announce.";

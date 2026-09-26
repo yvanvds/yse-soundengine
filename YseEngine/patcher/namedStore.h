@@ -52,11 +52,11 @@ namespace YSE {
      *  - **One namespace per store type.** ``Store`` selects the map, so a
      *    ``.coll`` called ``notes`` and a ``.table`` called ``notes`` are
      *    different things, which is Max's arrangement too.
-     *  - **The address is ``"<patcherName>.<name>"``** by convention of every
-     *    caller — the ``INTERNAL::NamedBus`` address form, so a shared store, a
-     *    ``.s`` and a ``.r`` in one patcher all speak about one word. Building
-     *    that address is the caller's job; this file only maps strings to
-     *    storage.
+     *  - **The address is ``"patcher.<patcherName>.<name>"``** (#894) — the
+     *    ``INTERNAL::NamedBus`` address form, so a shared store, a ``.s`` and a
+     *    ``.r`` in one patcher all speak about one word. Every caller builds it
+     *    with ``patcherImplementation::ScopedAddress``; this file only maps
+     *    strings to storage.
      *
      *  What ``Store`` itself must provide is only default-constructibility. The
      *  real-time discipline lives there rather than here: a store reached from a

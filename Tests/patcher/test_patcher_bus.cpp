@@ -13,6 +13,8 @@
 
 #include "yse.hpp"
 #include "internal/namedBus.h"
+#include "patcher/genericObjects/gColl.h"
+#include "patcher/namedStore.h"
 #include "patcher/patcher.hpp"
 #include "patcher/patcherImplementation.h"
 #include "patcher/pHandle.hpp"
@@ -170,19 +172,133 @@ TEST_SUITE("patcher") {
     CHECK(sink.intValue == 7);
   }
 
-  TEST_CASE("patcher: ScopedAddress spells <patcherName>.<name> and follows a rename (#893)") {
+  TEST_CASE("patcher: ScopedAddress spells patcher.<patcherName>.<name> and follows a rename "
+            "(#893, #894)") {
     // The one helper every name-scoped object builds its address with. The
     // prefix is exposed on its own for the objects that append a runtime name
     // on the audio thread, so the two must agree.
     YSE::PATCHER::patcherImplementation p(1, nullptr);
     p.SetName("scoped.before");
-    CHECK(p.ScopedAddressPrefix() == "scoped.before.");
-    CHECK(p.ScopedAddress("slot") == "scoped.before.slot");
+    CHECK(p.ScopedAddressPrefix() == "patcher.scoped.before.");
+    CHECK(p.ScopedAddress("slot") == "patcher.scoped.before.slot");
     CHECK(p.ScopedAddress("slot") == p.ScopedAddressPrefix() + "slot");
 
     p.SetName("scoped.after");
-    CHECK(p.ScopedAddressPrefix() == "scoped.after.");
-    CHECK(p.ScopedAddress("slot") == "scoped.after.slot");
+    CHECK(p.ScopedAddressPrefix() == "patcher.scoped.after.");
+    CHECK(p.ScopedAddress("slot") == "patcher.scoped.after.slot");
+
+    // The anonymous default keeps its own scope under the reserved prefix.
+    YSE::PATCHER::patcherImplementation anon(1, nullptr);
+    CHECK(anon.ScopedAddressPrefix() == "patcher." + anon.Name() + ".");
+    CHECK(anon.Name().rfind("patcher_", 0) == 0);
+  }
+
+  // ─── The reserved "patcher." prefix (issue #894) ────────────────────────────
+  //
+  // These run through the real bus from outside the patcher — a host
+  // subscriber / publisher, the way Python and FFI wrappers address it — so
+  // they pin the spelled address, not just the in-process agreement between
+  // two patchers (which holds for any prefix).
+
+  TEST_CASE("bus routing: .s publishes on patcher.<name>.<slot>, not the freeform <name>.<slot> "
+            "(#894)") {
+    REQUIRE(TestHelpers::engineInit());
+
+    YSE::patcher a;
+    a.name("synth1").create(2);
+    YSE::pHandle* send = a.CreateObject(YSE::OBJ::G_SEND, "cutoff");
+    REQUIRE(send != nullptr);
+
+    int scoped = 0;
+    int scopedValue = -1;
+    int freeform = 0;
+    const YSE::INTERNAL::SubHandle scopedSub = YSE::INTERNAL::Bus().subscribe(
+        "patcher.synth1.cutoff", [&scoped, &scopedValue](const YSE::INTERNAL::BusValue& value) {
+          scoped++;
+          if (const int* i = std::get_if<int>(&value)) scopedValue = *i;
+        });
+    const YSE::INTERNAL::SubHandle freeformSub = YSE::INTERNAL::Bus().subscribe(
+        "synth1.cutoff", [&freeform](const YSE::INTERNAL::BusValue&) { freeform++; });
+
+    send->SetIntData(0, 42);
+    YSE::System().update();
+
+    CHECK(scoped == 1);
+    CHECK(scopedValue == 42);
+    // The collision #894 removes: a script name "synth1" no longer sees it.
+    CHECK(freeform == 0);
+
+    YSE::INTERNAL::Bus().unsubscribe(scopedSub);
+    YSE::INTERNAL::Bus().unsubscribe(freeformSub);
+  }
+
+  TEST_CASE("bus routing: .r listens on patcher.<name>.<slot>, not the freeform <name>.<slot> "
+            "(#894)") {
+    REQUIRE(TestHelpers::engineInit());
+
+    YSE::patcher b;
+    b.name("synth2").create(2);
+    YSE::pHandle* recv = b.CreateObject(YSE::OBJ::G_RECEIVE, "cutoff");
+    REQUIRE(recv != nullptr);
+
+    MultiSink sink;
+    YSE::pHandle sinkHandle(&sink);
+    b.Connect(recv, 0, &sinkHandle, 0);
+
+    // A freeform script publish on the old address no longer reaches it...
+    YSE::INTERNAL::Bus().publish("synth2.cutoff", YSE::INTERNAL::BusValue{3}, YSE::T_GUI);
+    YSE::System().update();
+    CHECK_FALSE(sink.gotInt);
+
+    // ...the reserved one does.
+    YSE::INTERNAL::Bus().publish("patcher.synth2.cutoff", YSE::INTERNAL::BusValue{9}, YSE::T_GUI);
+    YSE::System().update();
+    CHECK(sink.gotInt);
+    CHECK(sink.intValue == 9);
+  }
+
+  TEST_CASE("shared stores are keyed on patcher.<name>.<slot>, the bus address form (#894)") {
+    // namedStore.h: a shared store, a .s and a .r in one patcher speak about
+    // one word — so the store key carries the same reserved prefix.
+    YSE::patcher p;
+    p.name("store894").create(2);
+    YSE::pHandle* coll = p.CreateObject(YSE::OBJ::G_COLL, "notes894");
+    REQUIRE(coll != nullptr);
+
+    bool created = true;
+    auto scoped = YSE::PATCHER::AcquireNamedStore<YSE::PATCHER::collStore>(
+        "patcher.store894.notes894", created);
+    CHECK_FALSE(created); // the .coll already holds it under the reserved key
+
+    auto freeform =
+        YSE::PATCHER::AcquireNamedStore<YSE::PATCHER::collStore>("store894.notes894", created);
+    CHECK(created); // nothing lives on the freeform key
+    CHECK(freeform != scoped);
+  }
+
+  TEST_CASE("bus routing: a rename moves the reserved address along with it (#894)") {
+    REQUIRE(TestHelpers::engineInit());
+
+    YSE::patcher a;
+    a.name("rn.before").create(2);
+    YSE::pHandle* send = a.CreateObject(YSE::OBJ::G_SEND, "v");
+    REQUIRE(send != nullptr);
+
+    int before = 0;
+    int after = 0;
+    const YSE::INTERNAL::SubHandle beforeSub = YSE::INTERNAL::Bus().subscribe(
+        "patcher.rn.before.v", [&before](const YSE::INTERNAL::BusValue&) { before++; });
+    const YSE::INTERNAL::SubHandle afterSub = YSE::INTERNAL::Bus().subscribe(
+        "patcher.rn.after.v", [&after](const YSE::INTERNAL::BusValue&) { after++; });
+
+    a.name("rn.after");
+    send->SetIntData(0, 1);
+    YSE::System().update();
+    CHECK(before == 0);
+    CHECK(after == 1);
+
+    YSE::INTERNAL::Bus().unsubscribe(beforeSub);
+    YSE::INTERNAL::Bus().unsubscribe(afterSub);
   }
 
   TEST_CASE("bus routing: gSend globalOnly=1 skips in-patcher PassData") {
@@ -226,7 +342,7 @@ TEST_SUITE("patcher") {
   // The object-level suite (test_patcher_forward.cpp) runs without an engine, so
   // it can only reach the in-patcher PassData half. These cases run the real
   // thing end to end: a live engine, the global bus, and receivers in a *second*
-  // patcher — which is where the "<patcherName>.<destination>" address is
+  // patcher — which is where the "patcher.<patcherName>.<destination>" address is
   // actually exercised, and the only place the cached prefix can be caught
   // going stale.
 
@@ -278,7 +394,7 @@ TEST_SUITE("patcher") {
   }
 
   TEST_CASE("bus routing: renaming the parent patcher re-anchors a .forward (#485)") {
-    // .forward caches the "<patcherName>." prefix its destination is appended
+    // .forward caches the "patcher.<patcherName>." prefix its destination is appended
     // to, exactly as gSend caches the whole address — so patcherImplementation
     // ::SetName has to refresh it or the object keeps publishing under the old
     // patcher name.
@@ -311,7 +427,7 @@ TEST_SUITE("patcher") {
 
   TEST_CASE("bus routing: renaming the parent patcher re-anchors a .table (#699)") {
     // Same miss as #485, one object later: .table's `send` (#498) caches the
-    // "<patcherName>." prefix through .forward's pre-reserved-string pattern but
+    // "patcher.<patcherName>." prefix through .forward's pre-reserved-string pattern but
     // was left out of patcherImplementation::SetName, so it kept publishing under
     // the old patcher name while every .r around it re-anchored under the new
     // one. The receiver lives in the *other* patcher deliberately: the in-patcher
@@ -349,7 +465,7 @@ TEST_SUITE("patcher") {
   }
 
   TEST_CASE("bus routing: a .forward with no destination publishes nothing (#485)") {
-    // "<patcherName>." is a real, reachable bus address — the one an unnamed
+    // "patcher.<patcherName>." is a real, reachable bus address — the one an unnamed
     // gReceive subscribes to. An unconfigured .forward that published to it
     // would broadcast into every same-named patcher in the process.
     REQUIRE(TestHelpers::engineInit());
@@ -460,7 +576,7 @@ TEST_SUITE("patcher") {
     int received = 0;
     int intValue = -1;
     const YSE::INTERNAL::SubHandle sub = YSE::INTERNAL::Bus().subscribe(
-        "deferred.bus.out", [&received, &intValue](const YSE::INTERNAL::BusValue& value) {
+        "patcher.deferred.bus.out", [&received, &intValue](const YSE::INTERNAL::BusValue& value) {
           received++;
           if (const int* i = std::get_if<int>(&value)) intValue = *i;
         });
@@ -508,7 +624,7 @@ TEST_SUITE("patcher") {
 
     int received = 0;
     const YSE::INTERNAL::SubHandle sub = YSE::INTERNAL::Bus().subscribe(
-        "deferred.bang.out", [&received](const YSE::INTERNAL::BusValue&) { received++; });
+        "patcher.deferred.bang.out", [&received](const YSE::INTERNAL::BusValue&) { received++; });
 
     CHECK(p.PassBang("trigger", YSE::T_GUI));
     for (int block = 0; block < 8; ++block) {

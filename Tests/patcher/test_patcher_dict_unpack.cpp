@@ -78,7 +78,7 @@ namespace {
   };
 
   // A .dict and a .dict.unpack on one name, sharing one
-  // patcherImplementation so the name actually binds ("<patcherName>.<name>"
+  // patcherImplementation so the name actually binds ("patcher.<patcherName>.<name>"
   // needs a patcher to prefix with — a parentless object stays private).
   // Three key paths, one sink each. The sinks are declared before the
   // objects so they are torn down last, while the outlets wired to them
@@ -395,15 +395,15 @@ TEST_SUITE("patcher") {
     g.SetParams("d781m freq");
     g.SetParent(&p);
     CHECK(g.DictName() == "d781m");
-    CHECK(g.Address() == "du781m_before.d781m");
+    CHECK(g.Address() == "patcher.du781m_before.d781m");
 
     // Idempotent: a rebind to the address it already has keeps the store.
     g.RefreshBinding();
-    CHECK(g.Address() == "du781m_before.d781m");
+    CHECK(g.Address() == "patcher.du781m_before.d781m");
 
     p.SetName("du781m_after");
     g.RefreshBinding();
-    CHECK(g.Address() == "du781m_after.d781m");
+    CHECK(g.Address() == "patcher.du781m_after.d781m");
   }
 
   TEST_CASE("dict.unpack: patcherImplementation::SetName re-anchors it (#781)") {

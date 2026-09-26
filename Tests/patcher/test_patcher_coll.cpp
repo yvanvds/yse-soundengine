@@ -1194,10 +1194,10 @@ TEST_SUITE("patcher") {
     named.SetParams("notes684a");
     named.SetParent(&p);
     CHECK(named.IsShared());
-    CHECK(named.StoreAddress() == "coll_song.notes684a");
+    CHECK(named.StoreAddress() == "patcher.coll_song.notes684a");
     CHECK(named.CollName() == "notes684a");
 
-    // An unnamed .coll is private rather than pooled on "<patcherName>.", which
+    // An unnamed .coll is private rather than pooled on "patcher.<patcherName>.", which
     // is a real reachable address: two unconfigured objects sharing it would be
     // wired together in a way no patch author could see.
     gColl unnamed;
@@ -1296,7 +1296,7 @@ TEST_SUITE("patcher") {
   }
 
   TEST_CASE("coll: patchers sharing a name share their collections (#684)") {
-    // The address is "<patcherName>.<name>", so the isolation between patchers
+    // The address is "patcher.<patcherName>.<name>", so the isolation between patchers
     // is the patcher name — exactly as it already is for .s, .r and .value. Two
     // patchers left on their auto-generated "patcher_<N>" names stay apart.
     MultiSink shared;
@@ -1379,18 +1379,18 @@ TEST_SUITE("patcher") {
     gColl obj;
     obj.SetParams("notes684j");
     obj.SetParent(&p);
-    CHECK(obj.StoreAddress() == "coll_684j_before.notes684j");
+    CHECK(obj.StoreAddress() == "patcher.coll_684j_before.notes684j");
 
     // Idempotent: a rebind to the address it already has keeps the store, and
     // with it everything in it.
     obj.GetInlet(0)->SetList("store triad 0 4 7", YSE::T_GUI);
     obj.RefreshBinding();
-    CHECK(obj.StoreAddress() == "coll_684j_before.notes684j");
+    CHECK(obj.StoreAddress() == "patcher.coll_684j_before.notes684j");
     CHECK(obj.Count() == 1);
 
     p.SetName("coll_684j_after");
     obj.RefreshBinding();
-    CHECK(obj.StoreAddress() == "coll_684j_after.notes684j");
+    CHECK(obj.StoreAddress() == "patcher.coll_684j_after.notes684j");
     CHECK(obj.Count() == 0);
   }
 
@@ -1454,7 +1454,7 @@ TEST_SUITE("patcher") {
     // A different name is a different store, and this one has nothing in it —
     // while the name it left still holds what was written to it.
     obj.SetParams("notes684g_other");
-    CHECK(obj.StoreAddress() == "coll_684g.notes684g_other");
+    CHECK(obj.StoreAddress() == "patcher.coll_684g.notes684g_other");
     CHECK(obj.Count() == 0);
     CHECK(sibling.Count() == 1);
 

@@ -145,7 +145,7 @@ namespace YSE {
     }
 
     /** @brief The address the source store is registered under —
-     *         ``"<patcherName>.<name>"`` — or empty while it is private. */
+     *         ``"patcher.<patcherName>.<name>"`` — or empty while it is private. */
     const std::string& SourceAddress() const {
       return boundSourceAddress;
     }

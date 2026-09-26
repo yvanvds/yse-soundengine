@@ -74,7 +74,7 @@ namespace {
   };
 
   // An .array and an .array.routepass on one name, sharing one
-  // patcherImplementation so the name actually binds ("<patcherName>.<name>"
+  // patcherImplementation so the name actually binds ("patcher.<patcherName>.<name>"
   // needs a patcher to prefix with — a parentless object stays private).
   // The first two match outlets and the reject, one sink each: outA is
   // match outlet 0, outB match outlet 1 when there is one, and outNone is
@@ -394,15 +394,15 @@ TEST_SUITE("patcher") {
     g.SetParams("a804n note");
     g.SetParent(&p);
     CHECK(g.ArrayName() == "a804n");
-    CHECK(g.Address() == "ar804n_before.a804n");
+    CHECK(g.Address() == "patcher.ar804n_before.a804n");
 
     // Idempotent: a rebind to the address it already has keeps the store.
     g.RefreshBinding();
-    CHECK(g.Address() == "ar804n_before.a804n");
+    CHECK(g.Address() == "patcher.ar804n_before.a804n");
 
     p.SetName("ar804n_after");
     g.RefreshBinding();
-    CHECK(g.Address() == "ar804n_after.a804n");
+    CHECK(g.Address() == "patcher.ar804n_after.a804n");
   }
 
   TEST_CASE("array.routepass: patcherImplementation::SetName re-anchors it (#804)") {

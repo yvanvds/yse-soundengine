@@ -32,7 +32,8 @@ namespace {
       "error. A lost try-lock on any store is a counted refusal instead: the sources' state "
       "is unknown, so neither outlet fires.";
   constexpr char kFlattenFirstParamDoc[] =
-      "The first array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an "
+      "The first array's shared name, addressed as \"patcher.<patcherName>.<name>\" — the sequence "
+      "an "
       ".array of the same name in this patcher holds. Resolved once, on the control thread, "
       "which is why no message re-points it at run time. Empty reads a private, empty array on "
       "that side.";

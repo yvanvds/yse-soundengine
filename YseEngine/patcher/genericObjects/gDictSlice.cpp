@@ -95,12 +95,13 @@ CONSTRUCT() {
   INLET_DOC(2, "remainder reference", kRemainderInletDoc, "");
   OUTLET_DOC(0, "slice reference", kSliceOutletDoc, "");
   OUTLET_DOC(1, "remainder reference", kRemainderOutletDoc, "");
-  PARAM_DOC("source", "",
-            "The source dictionary's shared name, addressed as \"<patcherName>.<name>\" — the "
-            "dictionary a .dict of the same name in this patcher holds. Resolved once, on the "
-            "control thread, which is why no message re-points it at run time. Empty splits a "
-            "private, empty dictionary.",
-            "any identifier");
+  PARAM_DOC(
+      "source", "",
+      "The source dictionary's shared name, addressed as \"patcher.<patcherName>.<name>\" — the "
+      "dictionary a .dict of the same name in this patcher holds. Resolved once, on the "
+      "control thread, which is why no message re-points it at run time. Empty splits a "
+      "private, empty dictionary.",
+      "any identifier");
   PARAM_DOC("slice", "",
             "The slice target's shared name, bound exactly as the source. A split replaces its "
             "contents whole with the entries under the path, prefix stripped. The result goes "
@@ -153,7 +154,7 @@ void gDictSlice::RefreshBinding() {
 void gDictSlice::Rebind() {
   // No name, or no patcher to prefix it with, means no address — and no
   // address means a private, empty dictionary on that side. See gDict.h for
-  // why an unnamed side does not pool on "<patcherName>.".
+  // why an unnamed side does not pool on "patcher.<patcherName>.".
   auto* p = static_cast<patcherImplementation*>(parent);
 
   std::string sourceAddress;

@@ -54,7 +54,7 @@ using YSE::PATCHER::gArrayFlatten;
 namespace {
 
   // Three .arrays and one flatten on their names, sharing one
-  // patcherImplementation so the names actually bind ("<patcherName>.<name>"
+  // patcherImplementation so the names actually bind ("patcher.<patcherName>.<name>"
   // needs a patcher to prefix with — a parentless object stays private). The
   // sinks are declared before the objects so they are torn down last, while
   // the outlets wired to them still exist (see sinks.hpp on why that
@@ -311,8 +311,8 @@ TEST_SUITE("patcher") {
     CHECK_FALSE(op.Overflowed());
     CHECK(op.ExtraSources() == 15u);
     CHECK(op.ExtraName(0) == "cap795x1");
-    CHECK(op.ExtraAddress(0) == "af795g.cap795x1");
-    CHECK(op.ExtraAddress(14) == "af795g.cap795x15");
+    CHECK(op.ExtraAddress(0) == "patcher.af795g.cap795x1");
+    CHECK(op.ExtraAddress(14) == "patcher.af795g.cap795x15");
 
     op.GetInlet(0)->SetBang(YSE::T_GUI);
     CHECK(out.gotInt);
@@ -669,14 +669,14 @@ TEST_SUITE("patcher") {
     CHECK(flat->ExtraSources() == 2u);
     CHECK(flat->ExtraName(0) == "two795");
     CHECK(flat->ExtraName(1) == "three795");
-    CHECK(flat->Address() == "af795n.one795");
-    CHECK(flat->ExtraAddress(0) == "af795n.two795");
-    CHECK(flat->ExtraAddress(1) == "af795n.three795");
+    CHECK(flat->Address() == "patcher.af795n.one795");
+    CHECK(flat->ExtraAddress(0) == "patcher.af795n.two795");
+    CHECK(flat->ExtraAddress(1) == "patcher.af795n.three795");
 
     // A shorter line drops the slots past it.
     flat->SetParams("one795 two795");
     CHECK(flat->ExtraSources() == 1u);
-    CHECK(flat->ExtraAddress(0) == "af795n.two795");
+    CHECK(flat->ExtraAddress(0) == "patcher.af795n.two795");
     CHECK(flat->ExtraName(1).empty());
     CHECK(flat->ExtraAddress(1).empty());
 

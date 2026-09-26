@@ -13,7 +13,7 @@
 //     `patcher::name()` are one cell too, exactly as their sends and receives
 //     already are. Two patchers left with their auto-generated names are not.
 //   - **an unnamed .value is private.** Not "shares the empty name":
-//     `"<patcherName>."` is a real address, so pooling there would silently
+//     `"patcher.<patcherName>."` is a real address, so pooling there would silently
 //     join every unconfigured `.value` in the patcher.
 //   - **the initial argument belongs to whoever creates the cell.** A second
 //     `.value tempo 60` joining an established name must adopt what is stored
@@ -213,7 +213,7 @@ TEST_SUITE("patcher") {
   }
 
   TEST_CASE("value: unnamed .value objects do not pool with each other (#486)") {
-    // "<patcherName>." is a real, reachable address, so sharing it would join
+    // "patcher.<patcherName>." is a real, reachable address, so sharing it would join
     // two objects a patch author has not connected in any visible way.
     Rig rig("", "");
     rig.va->SetIntData(0, 5);
@@ -233,7 +233,7 @@ TEST_SUITE("patcher") {
     v.SetParams("tempo");
     v.SetParent(&p);
     CHECK(v.IsShared());
-    CHECK(v.Address() == "value_song.tempo");
+    CHECK(v.Address() == "patcher.value_song.tempo");
 
     gValue unnamed;
     unnamed.SetParent(&p);

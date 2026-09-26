@@ -7,7 +7,7 @@
 
   Forwards values that arrive through the in-patcher `PassData` path *and*
   through the global named bus (issue #122). The bus subscription is keyed
-  on "<patcherName>.<dataName>"; matching producers in *any* patcher with
+  on "patcher.<patcherName>.<dataName>"; matching producers in *any* patcher with
   the same name reach this receiver. Subscription happens when the
   receiver learns its parent patcher (`SetParent`); destruction
   unsubscribes.

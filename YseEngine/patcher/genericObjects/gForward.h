@@ -34,7 +34,7 @@ namespace YSE {
      *
      *  Everything downstream of the name is deliberately identical to ``.s``: the
      *  in-patcher ``PassData`` fan-out to matching ``.r`` nodes, the global-bus
-     *  publish under ``"<patcherName>.<destination>"``, and the ``globalOnly``
+     *  publish under ``"patcher.<patcherName>.<destination>"``, and the ``globalOnly``
      *  second argument that suppresses the first of those. A ``.forward`` whose
      *  destination never changes *is* a ``.s``, which is what makes it safe to
      *  reach for.
@@ -88,7 +88,7 @@ namespace YSE {
      *  object starts with no destination at all.
      *
      *  The same limit is what lets the address buffer be sized once. ``.s``
-     *  precomputes ``"<patcherName>.<dataName>"`` on the control thread because
+     *  precomputes ``"patcher.<patcherName>.<dataName>"`` on the control thread because
      *  concatenating it per message would allocate on the audio path (issue
      *  #187); here the name half moves, so the *prefix* is what is precomputed,
      *  and the address is refilled into a buffer reserved for the longest
@@ -118,7 +118,7 @@ namespace YSE {
      *
      *  Not "sends to the empty name". A ``.forward`` with no creation argument
      *  and no name yet is an object that has not been told where to point, and
-     *  publishing to ``"<patcherName>."`` would give it a real, reachable bus
+     *  publishing to ``"patcher.<patcherName>."`` would give it a real, reachable bus
      *  address that a second unconfigured ``.forward`` in a same-named patcher
      *  would share. Dropping is the only reading under which "not configured"
      *  stays distinguishable from "configured to send there".
@@ -174,7 +174,7 @@ namespace YSE {
       return globalOnly;
     }
 
-    // Cache the "<patcherName>." address prefix the moment the parent is known,
+    // Cache the "patcher.<patcherName>." address prefix the moment the parent is known,
     // so a publish never concatenates the patcher name on the message path.
     // Mirrors gSend::SetParent, which caches the whole address for the same
     // reason (issue #187).
@@ -213,7 +213,7 @@ namespace YSE {
     // construction so the inlet path refills it without allocating.
     std::string destination;
 
-    // "<patcherName>.", precomputed on the control thread (SetParent /
+    // "patcher.<patcherName>.", precomputed on the control thread (SetParent /
     // RefreshBusAddress) and empty until a parent is assigned.
     std::string busPrefix;
 

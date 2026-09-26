@@ -128,7 +128,7 @@ namespace {
   };
 
   // A .dict and a .dict.print on one name, sharing one patcherImplementation
-  // so the name actually binds ("<patcherName>.<name>" needs a patcher to
+  // so the name actually binds ("patcher.<patcherName>.<name>" needs a patcher to
   // prefix with — a parentless object stays private).
   struct Rig {
     YSE::PATCHER::patcherImplementation p{2, nullptr};
@@ -431,15 +431,15 @@ TEST_SUITE("patcher") {
     g.SetParams("d776f");
     g.SetParent(&p);
     CHECK(g.DictName() == "d776f");
-    CHECK(g.Address() == "dp776f_before.d776f");
+    CHECK(g.Address() == "patcher.dp776f_before.d776f");
 
     // Idempotent: a rebind to the address it already has keeps the store.
     g.RefreshBinding();
-    CHECK(g.Address() == "dp776f_before.d776f");
+    CHECK(g.Address() == "patcher.dp776f_before.d776f");
 
     p.SetName("dp776f_after");
     g.RefreshBinding();
-    CHECK(g.Address() == "dp776f_after.d776f");
+    CHECK(g.Address() == "patcher.dp776f_after.d776f");
   }
 
   TEST_CASE("dict.print: patcherImplementation::SetName re-anchors it (#776)") {

@@ -85,12 +85,13 @@ gArrayIter::gArrayIter() : gArrayEndsBase() {
   INLET_DOC(1, "array reference", kReferenceInletDoc, "");
   OUTLET_DOC(0, "element", kElementOutletDoc, "");
   OUTLET_DOC(1, "done", kDoneOutletDoc, "");
-  PARAM_DOC("name", "",
-            "The array's shared name, addressed as \"<patcherName>.<name>\" — the sequence an "
-            ".array of the same name in this patcher holds. Resolved once, on the control "
-            "thread, which is why no message re-points it at run time. Empty walks a private, "
-            "empty array: no elements, just the done bang.",
-            "any identifier");
+  PARAM_DOC(
+      "name", "",
+      "The array's shared name, addressed as \"patcher.<patcherName>.<name>\" — the sequence an "
+      ".array of the same name in this patcher holds. Resolved once, on the control "
+      "thread, which is why no message re-points it at run time. Empty walks a private, "
+      "empty array: no elements, just the done bang.",
+      "any identifier");
 }
 
 // ─── messages ─────────────────────────────────────────────────────────────────
