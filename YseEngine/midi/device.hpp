@@ -217,10 +217,26 @@ namespace YSE {
 
     RtMidiIn* device;
 
-    std::atomic<RawCallback> rawCb{nullptr};
-    std::atomic<void*> rawUser{nullptr};
-    std::atomic<ParsedCallback> parsedCb{nullptr};
-    std::atomic<void*> parsedUser{nullptr};
+    // Each host callback and its user_data are published together, as one
+    // immutable pair behind one atomic pointer, so a dispatch can never call
+    // one install's callback with another install's user_data (issue #917).
+    // dispatch() copies both pairs out while it holds `readers` raised; a
+    // setter frees the pair it replaced only once `readers` reads zero. See
+    // the notes above setRawCallback() in device.cpp.
+    struct rawPair {
+      RawCallback cb;
+      void* user_data;
+    };
+    struct parsedPair {
+      ParsedCallback cb;
+      void* user_data;
+    };
+    std::atomic<rawPair*> raw{nullptr};
+    std::atomic<parsedPair*> parsed{nullptr};
+    std::atomic<unsigned int> readers{0};
+
+    // Blocks until no dispatch() is between its raise and drop of `readers`.
+    void awaitNoReaders() const;
 
     // Internal synth subscribers (issue #155). A fixed-size atomic table so
     // connect/disconnect (control thread) never lock and dispatch() (RtMidi

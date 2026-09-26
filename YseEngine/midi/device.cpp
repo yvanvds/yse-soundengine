@@ -5,6 +5,7 @@
 #include "midiDeviceManager.h"
 #include "synth/synthInterface.hpp"
 #include "midi/midiSynthRouting.hpp"
+#include <thread>
 
 YSE::midiOut::midiOut() : device(nullptr) {}
 
@@ -217,7 +218,10 @@ bool YSE::midiOut::isPrepared() {
 YSE::midiIn::midiIn() : device(nullptr) {}
 
 YSE::midiIn::~midiIn() {
+  // Stop input delivery before freeing the last installed pairs.
   close();
+  delete raw.load(std::memory_order_acquire);
+  delete parsed.load(std::memory_order_acquire);
 }
 
 void YSE::midiIn::create(unsigned int port) {
@@ -261,14 +265,47 @@ bool YSE::midiIn::isOpen() const {
   return device != nullptr && device->isPortOpen();
 }
 
+// ### One pair, one pointer (issue #917)
+//
+// The host callbacks and their user_data used to be four separate atomics,
+// stored one after the other. A message dispatched between the two stores of
+// a re-install could call the old callback with the new user_data. Each
+// install now builds an immutable pair and publishes it with one atomic
+// exchange, so a dispatch sees either the whole old pair or the whole new one
+// — the shape the log bridge got in #902 and the C API raw bridge in #916.
+//
+// ### Reclaiming the old pair
+//
+// RtMidi's input thread holds no lock a setter could wait on, so this uses
+// the same quiescence handshake as the #916 C bridge: dispatch() raises
+// `readers`, loads both pairs, copies their fields onto its stack and drops
+// `readers` again — before it calls out. A setter exchanges the pointer, then
+// waits for `readers` to read zero before deleting what it swapped out. Every
+// access is seq_cst, so either the setter's read of the counter sees a
+// dispatcher's raise (and waits for its drop), or the dispatcher's load of
+// the pair comes after the exchange in the single total order and sees the
+// new pair. The waited-on window never contains user code, so a callback that
+// re-installs from inside itself cannot deadlock on its own dispatch.
+
+void YSE::midiIn::awaitNoReaders() const {
+  while (readers.load(std::memory_order_seq_cst) != 0)
+    std::this_thread::yield();
+}
+
 void YSE::midiIn::setRawCallback(RawCallback cb, void* user_data) {
-  rawUser.store(user_data, std::memory_order_release);
-  rawCb.store(cb, std::memory_order_release);
+  rawPair* next = cb != nullptr ? new rawPair{cb, user_data} : nullptr;
+  rawPair* old = raw.exchange(next, std::memory_order_seq_cst);
+  if (old == nullptr) return;
+  awaitNoReaders();
+  delete old;
 }
 
 void YSE::midiIn::setParsedCallback(ParsedCallback cb, void* user_data) {
-  parsedUser.store(user_data, std::memory_order_release);
-  parsedCb.store(cb, std::memory_order_release);
+  parsedPair* next = cb != nullptr ? new parsedPair{cb, user_data} : nullptr;
+  parsedPair* old = parsed.exchange(next, std::memory_order_seq_cst);
+  if (old == nullptr) return;
+  awaitNoReaders();
+  delete old;
 }
 
 void YSE::midiIn::connect(YSE::synth& synth, int channelFilter) {
@@ -317,19 +354,31 @@ void YSE::midiIn::dispatch(double timestampSec, const unsigned char* bytes, std:
   // Raw subscriber sees the byte pointer as-is; ownership stays with the
   // RtMidi vector that survives the call. Consumers that need to forward
   // across threads must copy (the C API bridge already does).
-  if (auto rcb = rawCb.load(std::memory_order_acquire)) {
-    rcb(timestampSec, bytes, len, rawUser.load(std::memory_order_acquire));
+  //
+  // Both host pairs are copied out under the `readers` handshake before
+  // either callback runs (issue #917 — see the notes above setRawCallback).
+  readers.fetch_add(1, std::memory_order_seq_cst);
+  const rawPair* rp = raw.load(std::memory_order_seq_cst);
+  const parsedPair* pp = parsed.load(std::memory_order_seq_cst);
+  const RawCallback rcb = rp != nullptr ? rp->cb : nullptr;
+  void* const rawUser = rp != nullptr ? rp->user_data : nullptr;
+  const ParsedCallback pcb = pp != nullptr ? pp->cb : nullptr;
+  void* const parsedUser = pp != nullptr ? pp->user_data : nullptr;
+  readers.fetch_sub(1, std::memory_order_release);
+
+  if (rcb != nullptr) {
+    rcb(timestampSec, bytes, len, rawUser);
   }
 
   // Parsed subscriber wants the typed nibbles. For 1- and 2-byte messages
   // (real-time clock, channel pressure, program change) the missing data
   // bytes are reported as zero.
-  if (auto pcb = parsedCb.load(std::memory_order_acquire)) {
+  if (pcb != nullptr) {
     const unsigned char status = static_cast<unsigned char>(bytes[0] & 0xF0);
     const unsigned char channel = static_cast<unsigned char>(bytes[0] & 0x0F);
     const unsigned char data1 = len > 1 ? bytes[1] : 0;
     const unsigned char data2 = len > 2 ? bytes[2] : 0;
-    pcb(timestampSec, status, channel, data1, data2, parsedUser.load(std::memory_order_acquire));
+    pcb(timestampSec, status, channel, data1, data2, parsedUser);
   }
 
   // Internal synth subscribers (issue #155). This is the additive fan-out the
