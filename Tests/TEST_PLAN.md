@@ -784,6 +784,65 @@ measurable. The #860 build did not reproduce its recorded W = 8 regression
 remainder is six more spinning workers on a ~1.4 us block; back to back, so it
 stays parallel, `serial` = 0); `BM_VaVoice_SingleSaw` 4.13 -> 4.09 us.
 
+**Topology-aware render workers (#862).** `INTERNAL::cpuTopology` reads the
+physical cores the process may run on — SMT siblings merged, the affinity mask
+applied (Windows `GetLogicalProcessorInformationEx` + process mask; Linux and
+Android sysfs `core_cpus_list`/`thread_siblings_list` + `sched_getaffinity`) —
+and their performance class (Windows `EfficiencyClass`; sysfs `cpu_capacity`,
+else `cpufreq/cpuinfo_max_freq`). A part is hybrid when its weakest core is
+below 0.85x its strongest; the cores within 0.85x of the weakest are its
+efficiency cores (favoured-core boost bins stay one class; on a
+prime + big + little phone only the little cluster is "efficiency"). Worker i
+is planned onto entry i mod n of performance-cores-first order (entry 0 left
+to the calling thread) and applies a soft hint on its own thread before its
+first block: Windows `SetThreadIdealProcessorEx`; Linux/Android on a hybrid part
+an affinity mask of the whole performance cluster (a uniform machine gets no
+hint — a one-core mask would be a hard pin). `global::init()` logs the count
+and each worker's core at debug level, e.g. on the bench machine (Ryzen AI 9
+HX 370, 4 Zen 5 + 8 Zen 5c, Windows EfficiencyClass 1/0):
+`render workers: 8 (auto); 12 physical cores (hybrid: 4 performance, 8
+efficiency); cores: cpu2 cpu4 cpu6 cpu8(e) cpu10(e) cpu12(e) cpu14(e) cpu16(e)`.
+
+The auto count stays physical cores − 1 capped at 8 — now counting only cores
+inside the affinity mask — rather than dropping to performance cores − 1 as
+the issue first proposed. Measured unmasked (all 24 logical CPUs, first A/B
+round with the performance-core count), the heavy scenes keep scaling onto
+the efficiency cores: `RenderHeavy_Channels` 10.2 / 6.85 / 4.57 / 2.33 ms at
+W = 2 / 4 / 8 / 24, so the 3-worker default would have cost ~75% against
+#861's 8 on exactly the scenes the scheduler exists for. The same round showed
+what that default would buy: `RenderOffline_100Sounds` 174 -> 80 us (eight
+spinning workers on a ~2 us back-to-back block). Under the old 0xFF mask of
+earlier rounds the new count is 3 (4 cores in the mask, not 12).
+
+Coverage: `test_cpu_topology.cpp` (CPU-list parsing; uniform, favoured-core,
+unknown-capacity, Zen 5/5c, three-cluster classification; performance-first
+order; the count rule for hybrid, uniform, capped, single-core and unknown
+topologies; a fake sysfs tree — SMT merge, offline CPU, the older sibling-file
+name, cpufreq fallback, an affinity mask dropping a sibling and two cores,
+arm64 `cpu_capacity` taking precedence, no capacity at all, no tree — run on
+every host; the live machine), `test_render_scheduler.cpp` (each worker's
+planned core, wrap-around past the core count, every hint tried and on
+Windows accepted, performance cores filled first with one core per worker, a
+re-size re-plans) and a `lifecycle` case in `system/test_render_placement.cpp`
+(an auto-sized offline session logs the count and every worker's core at init,
+the workers apply their hints, and a scene renders with gating off).
+Fail-without-fix, verified: counting logical CPUs or ignoring the
+performance-first order fails the count and placement cases.
+
+Interleaved A/B (#861 = 5798499 vs. #862, three rounds of 3 repetitions,
+median of the round medians, unmasked; the machine ran ~1.6x slower than in
+earlier sessions — `BM_VaVoice_SingleSaw` 6.56 / 6.63 us — equally for both
+builds): `RenderHeavy_Channels` W = 0/1/2/4/8/24 37.1 / 24.5 / 16.6 / 9.15 /
+4.80 / 2.33 -> 37.7 / 24.8 / 16.7 / 9.07 / 4.80 / 2.33 ms;
+`RenderHeavy_Swarm` 48.1 / 25.3 / 17.7 / 9.97 / 6.28 / 3.76 -> 47.5 / 25.3 /
+17.6 / 10.2 / 6.32 / 3.80 ms; `RenderOffline_100Sounds` 193 -> 197 us;
+`RenderPaced_100Sounds` (serial-gated) W = 0 4.61 -> 4.90 us, auto 6.70 ->
+5.78 us (both noisy). No regression and no measurable difference beyond
+~2%: the Windows scheduler already keeps a raised-priority worker on a
+performance core, so the ideal-processor hint stays best-effort and minimal.
+An earlier clean round showed W = 8 at -2% (Channels) and -4% (Swarm), which
+the three-round run did not reproduce.
+
 ---
 
 ## Summary Table

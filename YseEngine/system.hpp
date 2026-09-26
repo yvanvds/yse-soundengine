@@ -429,7 +429,9 @@ namespace YSE {
      *
      *  - ``-1`` (default, and any negative value): auto — the number of
      *    physical cores minus one (the audio thread renders too, and the host
-     *    keeps a core), capped at 8.
+     *    keeps a core), capped at 8. Only cores the process may run on
+     *    count, and on a hybrid CPU the workers are placed on performance
+     *    cores first (issue #862).
      *  - ``0``: serial — the audio thread renders everything, no workers
      *    are started. Use on constrained hardware.
      *  - ``n > 0``: exactly ``n`` workers (at most 64).

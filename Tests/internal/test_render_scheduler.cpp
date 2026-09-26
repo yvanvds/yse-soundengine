@@ -494,6 +494,74 @@ TEST_SUITE("internal") {
     CHECK(big.workerCount() == renderScheduler::MAX_WORKERS);
   }
 
+  TEST_CASE("renderScheduler: workers are placed on performance cores first (#862)") {
+    using YSE::INTERNAL::cpuTopology;
+    const cpuTopology& topo = cpuTopology::machine();
+    const auto order = topo.placementOrder();
+    // One more worker than there are cores, so the plan wraps around.
+    const Int count = static_cast<Int>(order.size()) + 1;
+    renderScheduler s(count > renderScheduler::MAX_WORKERS ? renderScheduler::MAX_WORKERS : count);
+    const Int n = s.workerCount();
+    for (Int i = 1; i <= n; ++i) {
+      if (order.empty()) {
+        CHECK(s.workerCore(i) == nullptr);
+      } else {
+        // Worker i takes entry i % size: entry 0 — the first performance
+        // core — is the calling thread's until every other core has a worker.
+        CHECK(s.workerCore(i) == order[static_cast<std::size_t>(i) % order.size()]);
+      }
+    }
+    CHECK(s.workerCore(0) == nullptr);
+    CHECK(s.workerCore(n + 1) == nullptr);
+
+    // Each worker tries its hint first thing on its own thread.
+    const bool settled = waitFor([&s] { return s.placementHintsPending() == 0; });
+    REQUIRE(settled);
+    const Int accepted = s.placementHintsAccepted();
+    INFO(s.describePlacement());
+    CHECK(s.describePlacement().rfind("render workers: " + std::to_string(n) + " (requested)", 0) ==
+          0);
+#if defined(_WIN32)
+    // An ideal processor within the process's own affinity is always
+    // accepted.
+    if (!order.empty()) CHECK(accepted == n);
+#elif defined(__linux__)
+    // Uniform machine: no hint (a single-core mask would be a hard pin).
+    // Hybrid: every worker on a performance core narrows itself to that
+    // cluster; the wrapped-around ones on efficiency cores are left alone.
+    if (!topo.hybrid) {
+      CHECK(accepted == 0);
+    } else {
+      CHECK(accepted <= topo.performanceCores());
+    }
+#else
+    CHECK(accepted == 0);
+#endif
+
+    // Performance cores fill first: a worker lands on an efficiency core only
+    // once every performance core but the calling thread's has one, and the
+    // auto count gives every worker a physical core of its own.
+    renderScheduler a(-1);
+    const Int perf = topo.performanceCores();
+    for (Int i = 1; i <= a.workerCount(); ++i) {
+      const auto* c = a.workerCore(i);
+      if (c == nullptr) continue;
+      CHECK(c->efficient == (i >= perf));
+      for (Int j = 1; j < i; ++j)
+        CHECK(a.workerCore(j) != c);
+    }
+
+    // A re-size re-plans; the blocks still run.
+    TreeGraph g(2, 3);
+    s.setWorkerCount(2);
+    g.build(s);
+    for (int b = 0; b < 8; ++b)
+      s.run(*g.root);
+    CHECK(g.allRan(8));
+    CHECK(g.violations.load() == 0);
+    if (!order.empty()) CHECK(s.workerCore(1) == order[1 % order.size()]);
+  }
+
   TEST_CASE("renderScheduler: a graph without leaves is refused, not spun on (#859)") {
     renderScheduler s(1);
     CountRoot root;

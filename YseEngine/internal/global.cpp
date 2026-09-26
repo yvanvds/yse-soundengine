@@ -165,6 +165,8 @@ void YSE::INTERNAL::global::init() {
   if (render.requestedWorkerCount() != renderWorkersRequest)
     render.setWorkerCount(renderWorkersRequest);
   render.startup();
+  // Worker count and placement, once per session (issue #862).
+  LogImpl().emit(E_DEBUG, render.describePlacement());
   REVERB::Manager().create();
   bus = std::make_unique<NamedBus>();
 }

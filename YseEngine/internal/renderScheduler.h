@@ -13,8 +13,10 @@
 #include <atomic>
 #include <cstdint>
 #include <memory>
+#include <string>
 #include <vector>
 #include "../headers/types.hpp"
+#include "cpuTopology.h"
 
 namespace YSE {
   namespace INTERNAL {
@@ -135,9 +137,14 @@ namespace YSE {
       static constexpr float INITIAL_WAKE_COST_NS = 20000.f;
 
       // The auto-sized worker count on this machine: physical cores - 1,
-      // clamped to [0, MAX_AUTO_WORKERS]. A single-core machine renders
-      // serially.
+      // clamped to [0, MAX_AUTO_WORKERS]. Since #862 only cores inside the
+      // process affinity mask count, SMT siblings as one core; efficiency
+      // cores count too (placement fills performance cores first, see
+      // workerCore()). A single-core machine renders serially.
       static Int autoWorkerCount();
+      // The same rule for a given topology; an empty one falls back to
+      // std::thread::hardware_concurrency() (the #861 policy).
+      static Int autoWorkerCount(const cpuTopology& topology);
 
       // numWorkers: -1 auto-sizes (autoWorkerCount()); 0 means no worker
       // threads — the calling thread runs every task. Spawns the workers.
@@ -224,6 +231,26 @@ namespace YSE {
       Int parkedWorkers() const {
         return parked.load(std::memory_order_acquire);
       }
+
+      /////////////////////////////////////////////////////
+      // Placement (issue #862) — control thread
+      /////////////////////////////////////////////////////
+
+      // The core worker @p index (1-based) was placed on: entry index % n of
+      // cpuTopology::machine().placementOrder(): the performance cores are
+      // filled first, one worker per physical core, and entry 0 (the first
+      // performance core) is left to the calling thread. nullptr when out of
+      // range or when the machine topology is unknown.
+      const cpuTopology::core* workerCore(Int index) const;
+
+      // Placement hints the OS accepted, and workers that have not tried
+      // theirs yet (they do so first thing on their own thread). Test hooks.
+      Int placementHintsAccepted() const;
+      Int placementHintsPending() const;
+
+      // One line for the log: worker count, the core counts it was sized
+      // from, and each worker's core.
+      std::string describePlacement() const;
 
       // Cost the last build dealt to leaf list @p list (0 = the calling
       // thread's), unmeasured leaves counting 1 ns each; 0 when out of range.

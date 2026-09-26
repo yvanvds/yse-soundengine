@@ -10,13 +10,9 @@
 #include "renderScheduler.h"
 #include <chrono>
 #include <thread>
-#include <vector>
-#if defined(__linux__)
-#include <fstream>
-#include <set>
 #include <string>
-#include <utility>
-#endif
+#include <vector>
+#include "cpuTopology.h"
 #include "thread.h"
 #include "denormalGuard.h"
 #include "../implementations/logImplementation.h"
@@ -108,47 +104,6 @@ namespace {
 #endif
   }
 
-  // Physical cores (not SMT siblings) on this machine, or 0 when the platform
-  // cannot tell. Control thread; allocates. Hybrid parts count every core
-  // alike — telling performance cores apart is #862.
-  Int physicalCoreCount() {
-#if defined(_WIN32)
-    DWORD bytes = 0;
-    GetLogicalProcessorInformationEx(RelationProcessorCore, nullptr, &bytes);
-    if (bytes == 0) return 0;
-    std::vector<unsigned char> buffer(bytes);
-    auto* info = reinterpret_cast<SYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX*>(buffer.data());
-    if (!GetLogicalProcessorInformationEx(RelationProcessorCore, info, &bytes)) return 0;
-    Int cores = 0;
-    for (DWORD offset = 0; offset < bytes;) {
-      auto* entry =
-          reinterpret_cast<SYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX*>(buffer.data() + offset);
-      if (entry->Relationship == RelationProcessorCore) ++cores;
-      if (entry->Size == 0) break;
-      offset += entry->Size;
-    }
-    return cores;
-#elif defined(__linux__)
-    // Distinct (package, core) pairs over the CPUs sysfs lists. Android
-    // exposes the same topology files.
-    std::set<std::pair<int, int>> cores;
-    for (int cpu = 0; cpu < 1024; ++cpu) {
-      const std::string base = "/sys/devices/system/cpu/cpu" + std::to_string(cpu) + "/topology/";
-      std::ifstream coreFile(base + "core_id");
-      if (!coreFile) break;
-      int core = -1;
-      int package = 0;
-      coreFile >> core;
-      std::ifstream packageFile(base + "physical_package_id");
-      if (packageFile) packageFile >> package;
-      if (core >= 0) cores.emplace(package, core);
-    }
-    return (Int)cores.size();
-#else
-    return 0;
-#endif
-  }
-
   Int resolveWorkerCount(Int requested) {
     if (requested < 0) return YSE::INTERNAL::renderScheduler::autoWorkerCount();
     if (requested > YSE::INTERNAL::renderScheduler::MAX_WORKERS)
@@ -182,7 +137,19 @@ namespace {
 } // namespace
 
 Int YSE::INTERNAL::renderScheduler::autoWorkerCount() {
-  Int cores = physicalCoreCount();
+  return autoWorkerCount(cpuTopology::machine());
+}
+
+Int YSE::INTERNAL::renderScheduler::autoWorkerCount(const cpuTopology& topology) {
+  // Physical cores the process may run on (issue #862): SMT siblings share
+  // one core's execution units, and cores outside the affinity mask (a
+  // container's cpuset, a masked process) cannot take a worker at all. On a
+  // hybrid part efficiency cores count too: measured on a 4 Zen 5 + 8 Zen 5c
+  // part, the heavy scenes keep scaling onto them (Tests/TEST_PLAN.md, #862)
+  // — limiting the default to the performance cores cost ~75% there. What
+  // hybrid awareness changes is placement: performance cores are filled
+  // first. No topology: the #861 fallback on logical CPUs.
+  Int cores = static_cast<Int>(topology.cores.size());
   if (cores <= 0) cores = (Int)std::thread::hardware_concurrency();
   // The calling (audio) thread renders too, and the host keeps a core.
   Int workers = cores - 1;
@@ -194,10 +161,20 @@ Int YSE::INTERNAL::renderScheduler::autoWorkerCount() {
 // One render worker thread. Its list index is fixed for its lifetime.
 class YSE::INTERNAL::renderScheduler::worker : public YSE::INTERNAL::thread {
 public:
-  worker(renderScheduler& owner, Int index) : owner(owner), index(index) {}
+  worker(renderScheduler& owner, Int index, const cpuTopology::core* place)
+    : place(place), owner(owner), index(index) {}
   void run() override {
+    // Soft placement (issue #862), once, before the first block: an ideal
+    // processor / performance-cluster hint, never a hard pin. Best-effort —
+    // a declined hint leaves the OS to place the thread, as before.
+    const bool accepted = place != nullptr && cpuTopology::machine().placeCurrentThread(*place);
+    hint.store(accepted ? 1 : -1, std::memory_order_release);
     owner.workerLoop(index);
   }
+
+  const cpuTopology::core* const place; // nullptr: no topology, no hint
+  // 0 until the worker has tried its hint; then 1 accepted, -1 not applied.
+  std::atomic<int> hint{0};
 
 private:
   renderScheduler& owner;
@@ -233,8 +210,13 @@ void YSE::INTERNAL::renderScheduler::startup() {
   active = true;
   running.store(true, std::memory_order_seq_cst);
   workers.reserve(static_cast<std::size_t>(numWorkers));
+  // Placement plan (issue #862): performance cores first, entry 0 left to the
+  // calling thread. Empty when the topology is unknown — then no hints.
+  const std::vector<const cpuTopology::core*> order = cpuTopology::machine().placementOrder();
   for (Int i = 1; i <= numWorkers; ++i) {
-    workers.push_back(std::make_unique<worker>(*this, i));
+    const cpuTopology::core* place =
+        order.empty() ? nullptr : order[static_cast<std::size_t>(i) % order.size()];
+    workers.push_back(std::make_unique<worker>(*this, i, place));
     workers.back()->start();
     // A worker races the callback deadline: raise it so ordinary threads can't
     // preempt one mid-task (the bounded dependence of D5). Best-effort — a
@@ -250,6 +232,43 @@ void YSE::INTERNAL::renderScheduler::startup() {
       }
     }
   }
+}
+
+const YSE::INTERNAL::cpuTopology::core*
+YSE::INTERNAL::renderScheduler::workerCore(Int index) const {
+  if (index < 1 || index > static_cast<Int>(workers.size())) return nullptr;
+  return workers[static_cast<std::size_t>(index) - 1]->place;
+}
+
+Int YSE::INTERNAL::renderScheduler::placementHintsAccepted() const {
+  Int count = 0;
+  for (const auto& w : workers)
+    if (w->hint.load(std::memory_order_acquire) == 1) ++count;
+  return count;
+}
+
+Int YSE::INTERNAL::renderScheduler::placementHintsPending() const {
+  Int count = 0;
+  for (const auto& w : workers)
+    if (w->hint.load(std::memory_order_acquire) == 0) ++count;
+  return count;
+}
+
+std::string YSE::INTERNAL::renderScheduler::describePlacement() const {
+  const cpuTopology& topo = cpuTopology::machine();
+  std::string line = "render workers: " + std::to_string(numWorkers) +
+                     (requestedWorkers < 0 ? " (auto)" : " (requested)");
+  if (topo.cores.empty()) return line + "; CPU topology unknown, no placement hints";
+  line += "; " + std::to_string(topo.cores.size()) + " physical cores";
+  if (topo.hybrid)
+    line += " (hybrid: " + std::to_string(topo.performanceCores()) + " performance, " +
+            std::to_string(topo.cores.size() - static_cast<std::size_t>(topo.performanceCores())) +
+            " efficiency)";
+  if (workers.empty()) return line;
+  line += "; cores:";
+  for (const auto& w : workers)
+    line += " " + (w->place != nullptr ? cpuTopology::describe(*w->place) : std::string("-"));
+  return line;
 }
 
 void YSE::INTERNAL::renderScheduler::shutdown() {

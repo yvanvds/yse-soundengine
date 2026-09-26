@@ -28,7 +28,9 @@ sounds* those voices load (SFZ instruments and samples, wavetables, DX7/FM
 **Multi-core rendering.** The mix is rendered as a task graph that the audio
 thread works through together with a pool of render workers, so channels and
 large groups of voices spread over the CPU. By default the engine starts one
-worker per physical core minus one (capped at 8); in real-time rendering,
+worker per physical core minus one (capped at 8), counting only the cores the
+process may run on, and places workers on performance cores first on hybrid
+CPUs (Intel P/E, AMD Zen 5c, ARM big.LITTLE); in real-time rendering,
 small scenes that cost less than waking a worker are rendered by the audio
 thread alone. Set the count
 before `init()` with `YSE::System().renderThreads(n)` — or

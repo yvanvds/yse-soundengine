@@ -77,6 +77,8 @@ set(YSE_SRCS
   implementations/listenerImplementation.cpp
   implementations/logImplementation.cpp
   internal/abstractSoundFile.cpp
+  # Processor topology: render worker sizing and placement (issue #862).
+  internal/cpuTopology.cpp
   internal/customFileReader.cpp
   internal/global.cpp
   internal/lsfSoundfile.cpp
