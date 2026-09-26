@@ -25,6 +25,20 @@ sounds* those voices load (SFZ instruments and samples, wavetables, DX7/FM
 `.SYX` banks) ship separately as an opt-in download — see
 [Content pack](#content-pack-optional-instrument-assets).
 
+**Multi-core rendering.** The mix is rendered as a task graph that the audio
+thread works through together with a pool of render workers, so channels and
+large groups of voices spread over the CPU. By default the engine starts one
+worker per physical core minus one (capped at 8), counting only the cores the
+process may run on, and places workers on performance cores first on hybrid
+CPUs (Intel P/E, AMD Zen 5c, ARM big.LITTLE); in real-time rendering,
+small scenes that cost less than waking a worker are rendered by the audio
+thread alone. Set the count
+before `init()` with `YSE::System().renderThreads(n)` — or
+`yse_system_set_render_threads(sys, n)` from the C API — where `-1` is auto,
+`0` renders serially on the audio thread (useful on constrained hardware such
+as Android), and `n` is exactly `n` workers. The setting decides only which
+thread renders each part of the mix, never how it is summed.
+
 **What is YSE trying to be?** Neither a game-audio engine nor a DAW: an
 authored signal graph played by spatial and physical controllers, built
 for experimental electronic music and live performance. The full

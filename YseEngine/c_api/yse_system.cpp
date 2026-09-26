@@ -117,6 +117,32 @@ YSE_C_API unsigned int yse_system_get_requested_sample_rate(YseSystem* sys) {
   return to_cpp(sys)->requestSampleRate();
 }
 
+YSE_C_API YseStatus yse_system_set_render_threads(YseSystem* sys, int count) {
+  if (!sys) return YSE_ERR_INVALID_HANDLE;
+  try {
+    // Applying the count joins and spawns render workers, and spawning a
+    // thread can throw std::system_error.
+    to_cpp(sys)->renderThreads(count);
+    return YSE_OK;
+  } catch (const std::exception& e) {
+    yse_c::set_last_error(e.what());
+    return YSE_ERR_EXCEPTION;
+  } catch (...) {
+    yse_c::set_last_error("unknown C++ exception in yse_system_set_render_threads");
+    return YSE_ERR_EXCEPTION;
+  }
+}
+
+YSE_C_API int yse_system_get_render_threads(YseSystem* sys) {
+  if (!sys) return 0;
+  return to_cpp(sys)->renderThreads();
+}
+
+YSE_C_API int yse_system_get_active_render_threads(YseSystem* sys) {
+  if (!sys) return 0;
+  return to_cpp(sys)->activeRenderThreads();
+}
+
 YSE_C_API double yse_system_get_sample_rate(YseSystem* sys) {
   if (!sys) return 0.0;
   return to_cpp(sys)->getSampleRate();

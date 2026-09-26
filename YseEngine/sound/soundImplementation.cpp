@@ -1001,7 +1001,11 @@ void YSE::SOUND::implementationObject::computeFinalGains() {
   }
 }
 
-void YSE::SOUND::implementationObject::toChannels() {
+void YSE::SOUND::implementationObject::toChannels(std::vector<DSP::buffer>& dest) {
+  // `dest` is this sound's voice-slice accumulation target (issue #860): only
+  // this slice's task writes it this block, so sounds in other slices of the
+  // same channel render concurrently without sharing a buffer. It is sized
+  // with the parent's `out`, so parent->outConf indexes it one to one.
   // Route 2 pre-spatialized bed (issue #169): the source already panned each
   // voice across the device output channels, so play it straight through 1:1
   // WITHOUT the cardioid pan — re-panning would pan an already-panned signal.
@@ -1014,14 +1018,14 @@ void YSE::SOUND::implementationObject::toChannels() {
     if (occlusionActive) aggGain *= 1 - occlusion_dsp;
     if (virtualFadeOut) aggGain = 0.f;
     const UInt srcN = static_cast<UInt>(buffer->size());
-    for (UInt j = 0; j < parent->out.size(); ++j) {
+    for (UInt j = 0; j < dest.size(); ++j) {
       if (parent->outConf[j].isLFE) continue; // the bed carries no LFE content
       if (j >= srcN) continue; // source narrower than the device (transient on restart)
       const Flt* src = (*buffer)[j].getPtr();
       UInt length = (*buffer)[j].getLength();
       // lastGain[j][0] is the single smoothing scalar for this 1:1 tap; inner
       // index 0 is always valid (buffer has >= 1 channel).
-      gainAccumulate(src, faderPtr, parent->out[j].getPtr(), length, lastGain[j][0], aggGain);
+      gainAccumulate(src, faderPtr, dest[j].getPtr(), length, lastGain[j][0], aggGain);
     }
     return;
   }
@@ -1049,7 +1053,7 @@ void YSE::SOUND::implementationObject::toChannels() {
     // pristine source and accumulates straight into each output (issue #213).
     const Flt* src = (*buffer)[x].getPtr();
     UInt length = (*buffer)[x].getLength();
-    for (UInt j = 0; j < parent->out.size(); ++j) {
+    for (UInt j = 0; j < dest.size(); ++j) {
       if (parent->outConf[j].isLFE) continue; // leave the LFE buffer silent
       Flt finalGain = finalGainCache[j][x];
       // Farewell block for a sound going virtual (#206): target gain 0 so the
@@ -1059,7 +1063,7 @@ void YSE::SOUND::implementationObject::toChannels() {
       // into computeFinalGains().
       if (virtualFadeOut) finalGain = 0.f;
       // Single fused pass: out[j][i] += (src[i] * gainRamp[i]) * fader[i].
-      gainAccumulate(src, faderPtr, parent->out[j].getPtr(), length, lastGain[j][x], finalGain);
+      gainAccumulate(src, faderPtr, dest[j].getPtr(), length, lastGain[j][x], finalGain);
     }
   }
 }

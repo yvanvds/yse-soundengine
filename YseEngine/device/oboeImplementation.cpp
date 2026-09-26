@@ -166,8 +166,7 @@ oboe::DataCallbackResult OboeImplementation::onAudioReady(oboe::AudioStream* /*s
 
   while (pos < totalFrames) {
     if (bufferPos == YSE::STANDARD_BUFFERSIZE) {
-      master.dsp();
-      master.buffersToParent();
+      YSE::DEVICE::Manager().renderOneBlock();
       bufferPos = 0;
     }
 

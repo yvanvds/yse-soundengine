@@ -68,6 +68,25 @@ YSE_C_API void yse_system_request_sample_rate(YseSystem* sys, unsigned int rate_
 /* Currently requested sample rate in Hz, or 0 when no request is set. */
 YSE_C_API unsigned int yse_system_get_requested_sample_rate(YseSystem* sys);
 
+/* Render thread count (issue #861): how many worker threads help the audio
+   thread render the mix. count < 0 (default -1) is auto — physical cores minus
+   one, capped at 8; 0 is serial — the audio thread renders alone and no
+   worker is started (constrained hardware, Android); n > 0 is exactly n
+   workers (at most 64). Whatever the count, no worker is woken for a block
+   estimated to cost less than the wake (in real-time rendering the audio
+   thread renders it alone); the setting decides only which thread renders
+   each part of the mix, never how it is summed. Call before yse_system_init /
+   yse_system_init_offline: with no session or an offline one it applies at once; during a device
+   session it is stored for the next init. The setting survives close. Returns YSE_ERR_EXCEPTION
+   (see yse_last_error) if the workers could not be started.
+
+   yse_system_get_render_threads() returns the setting (-1 = auto);
+   yse_system_get_active_render_threads() the workers currently running. Both
+   return 0 on a NULL handle. */
+YSE_C_API YseStatus yse_system_set_render_threads(YseSystem* sys, int count);
+YSE_C_API int yse_system_get_render_threads(YseSystem* sys);
+YSE_C_API int yse_system_get_active_render_threads(YseSystem* sys);
+
 /* Engine session sample rate in Hz. Stays constant for the lifetime of an
    init()/close() session, including across pause/resume cycles where the
    live "active" rate transiently drops to 0. Returns 0 before init(). Use

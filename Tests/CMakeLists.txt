@@ -22,6 +22,8 @@ set(YSE_TEST_SOURCES
   utils/test_intrusive_list.cpp
   utils/test_random.cpp
   internal/test_threadpool.cpp
+  internal/test_render_scheduler.cpp
+  internal/test_cpu_topology.cpp
   internal/test_log_nothrow.cpp
   internal/test_log_sink_concurrency.cpp
   internal/test_time.cpp
@@ -247,6 +249,7 @@ set(YSE_TEST_SOURCES
   channel/test_channel_dsp.cpp
   channel/test_channel_sends.cpp
   channel/test_render_golden.cpp
+  channel/test_voice_slices.cpp
   channel/test_channel_underwater.cpp
   channel/test_c_api_channel.cpp
   sound/test_sound_state.cpp
@@ -299,6 +302,7 @@ set(YSE_TEST_SOURCES
   system/test_system_active_state.cpp
   system/test_offline_session.cpp
   system/test_lifecycle.cpp
+  system/test_render_placement.cpp
   clock/test_domain_clocks.cpp
   clip/test_clip_transport.cpp
   clip/test_c_api_clip.cpp

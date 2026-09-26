@@ -150,6 +150,9 @@ TEST_SUITE("capilowcov") {
     CHECK(yse_system_get_global_reverb(nullptr) == nullptr);
     CHECK(yse_system_num_midi_in_devices(nullptr) == 0u);
     CHECK(yse_system_num_midi_out_devices(nullptr) == 0u);
+    CHECK(yse_system_set_render_threads(nullptr, 2) == YSE_ERR_INVALID_HANDLE);
+    CHECK(yse_system_get_render_threads(nullptr) == 0);
+    CHECK(yse_system_get_active_render_threads(nullptr) == 0);
 
     // Clock helpers reject both a NULL system and a NULL name.
     CHECK(yse_system_create_clock(nullptr, "c", 120.f) == 0);
@@ -237,6 +240,67 @@ TEST_SUITE("capilowcov") {
     yse_system_resume(sys);
     capilowcov::pump(2);
     CHECK(yse_system_get_sample_rate(sys) > 0.0);
+  }
+
+  TEST_CASE("c-api system: render thread count applies to an offline session (#861)") {
+    if (!capilowcov::ensureOffline()) return;
+    YseSystem* sys = yse_system_get();
+    const int before = yse_system_get_render_threads(sys);
+
+    // A looping buffer-backed tone on its own channel, so every count below is
+    // judged on a real mix: the playhead advances and signal reaches the meter.
+    const unsigned int len = 4096;
+    YseDspBuffer* buf = yse_dsp_buffer_create(len, 0);
+    REQUIRE(buf != nullptr);
+    std::vector<float> tone(len);
+    for (unsigned int i = 0; i < len; ++i)
+      tone[i] = 0.5f * std::sin(2.0f * 3.14159265f * 16.0f * static_cast<float>(i) /
+                                static_cast<float>(len));
+    REQUIRE(yse_dsp_buffer_write(buf, 0, tone.data(), len) == len);
+    YseChannel* ch = yse_channel_create("capi_threads861", yse_channel_master());
+    REQUIRE(ch != nullptr);
+    capilowcov::pump(5);
+    YseSound* s = yse_sound_create();
+    REQUIRE(s != nullptr);
+    REQUIRE(yse_sound_load_buffer(s, buf, ch, /*loop=*/1, /*volume=*/0.8f) == YSE_OK);
+    pumpUntilReady(s);
+    yse_sound_play(s);
+    capilowcov::pump(10);
+    REQUIRE(yse_sound_is_playing(s) == 1);
+
+    const auto renders = [s, ch] {
+      const float t0 = yse_sound_get_time(s);
+      capilowcov::pump(4);
+      return yse_sound_get_time(s) != t0 && yse_channel_get_peak_linear_post(ch) > 0.01f;
+    };
+
+    // 0 = serial: no workers at all. The offline session applies it at once.
+    CHECK(yse_system_set_render_threads(sys, 0) == YSE_OK);
+    CHECK(yse_system_get_render_threads(sys) == 0);
+    CHECK(yse_system_get_active_render_threads(sys) == 0);
+    CHECK(renders());
+
+    CHECK(yse_system_set_render_threads(sys, 3) == YSE_OK);
+    CHECK(yse_system_get_render_threads(sys) == 3);
+    CHECK(yse_system_get_active_render_threads(sys) == 3);
+    CHECK(renders());
+
+    // Any negative count is auto: physical cores - 1, capped at 8.
+    CHECK(yse_system_set_render_threads(sys, -5) == YSE_OK);
+    CHECK(yse_system_get_render_threads(sys) == -1);
+    const int autoCount = yse_system_get_active_render_threads(sys);
+    CHECK(autoCount >= 0);
+    CHECK(autoCount <= 8);
+    CHECK(renders());
+
+    yse_system_set_render_threads(sys, before);
+    yse_sound_stop(s);
+    capilowcov::pump(5);
+    yse_sound_destroy(s);
+    capilowcov::pump(10);
+    yse_channel_destroy(ch);
+    capilowcov::pump(10);
+    yse_dsp_buffer_destroy(buf);
   }
 
   TEST_CASE("c-api system: clock create / tempo / destroy round-trip") {
@@ -1146,6 +1210,31 @@ TEST_SUITE("capilowcovlife") {
     yse_system_close(sys);
     yse_system_close(sys); // idempotent
     CHECK(true); // reached here without a crash on the teardown path
+  }
+
+  TEST_CASE("c-api system: the render thread count survives close and init (#861)") {
+    YseSystem* sys = yse_system_get();
+    REQUIRE(sys != nullptr);
+    yse_system_close(sys);
+
+    // Set with no session: applies at once and is what the next session uses.
+    CHECK(yse_system_set_render_threads(sys, 1) == YSE_OK);
+    CHECK(yse_system_get_render_threads(sys) == 1);
+    CHECK(yse_system_get_active_render_threads(sys) == 1);
+    if (yse_system_init_offline(sys) != YSE_OK) return; // unavailable → skip
+    CHECK(yse_system_get_active_render_threads(sys) == 1);
+    for (int i = 0; i < 4; ++i) {
+      yse_system_update(sys);
+      yse_system_render_offline(sys, 2);
+    }
+    yse_system_close(sys);
+
+    // Still set after close; a second session starts with it too.
+    CHECK(yse_system_get_render_threads(sys) == 1);
+    if (yse_system_init_offline(sys) != YSE_OK) return;
+    CHECK(yse_system_get_active_render_threads(sys) == 1);
+    CHECK(yse_system_set_render_threads(sys, -1) == YSE_OK);
+    yse_system_close(sys);
   }
 
 } // TEST_SUITE("capilowcovlife")

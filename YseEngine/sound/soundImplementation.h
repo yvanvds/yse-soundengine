@@ -22,6 +22,10 @@
 #include "../utils/lfQueue.hpp"
 
 namespace YSE {
+  namespace CHANNEL {
+    class voiceSlice;
+  }
+
   namespace SOUND {
 
     /**
@@ -107,11 +111,12 @@ namespace YSE {
       */
       Bool dsp();
 
-      /** After all channels, subchannels and soundImplementations are done with their
-          dsp functions, the toChannels() method is called recursively from the main
-          mix, as to gather all calculated buffers into a single main buffer.
+      /** Pan this sound's block into @p dest, its voice slice's buffers (issue
+          #860): the parent channel's `out` for slice 0, the slice's private
+          buffers otherwise. Called from the slice's render task right after
+          dsp(). @p dest has the parent's output count.
       */
-      void toChannels();
+      void toChannels(std::vector<DSP::buffer>& dest);
 
       /** This function is called from soundManager::setup and checks if the soundfile
           connected to this sound is ready. If so, it will setup the buffers needed for this
@@ -330,6 +335,10 @@ namespace YSE {
       // std::forward_list<T*> nodes they replace — but without heap churn.
       implementationObject* _mgrNext = nullptr;
       implementationObject* _channelNext = nullptr;
+      // The voice slice of `parent` whose `sounds` list `_channelNext` threads
+      // this impl through (issue #860), or nullptr while it is in none.
+      // Audio-thread-owned, like the link itself.
+      CHANNEL::voiceSlice* slice = nullptr;
 
       void dspFunc_parseIntent();
 
@@ -507,6 +516,7 @@ namespace YSE {
 
       friend class YSE::SOUND::managerObject;
       friend class YSE::CHANNEL::implementationObject;
+      friend class YSE::CHANNEL::voiceSlice;
     };
   } // namespace SOUND
 

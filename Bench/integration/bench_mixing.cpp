@@ -17,11 +17,13 @@
 
 #include "yse.hpp"
 #include "dsp/buffer.hpp"
+#include "internal/global.h"
 #include "support/bench_helpers.hpp"
 
 #include <benchmark/benchmark.h>
 
 #include <array>
+#include <chrono>
 #include <memory>
 #include <vector>
 
@@ -226,8 +228,53 @@ static void BM_Engine_RenderOffline_100Sounds(benchmark::State& state) {
         benchmark::ClobberMemory();
     }
     state.SetItemsProcessed(state.iterations() * kBlocksPerIter * YSE::STANDARD_BUFFERSIZE);
+    // 1 when the render scheduler's serial gate kept the last block on this
+    // thread (issue #861). Back to back, as here, a light block still goes to
+    // the spinning workers, so this reads 0; see RenderPaced_100Sounds.
+    state.counters["serial"] = YSE::INTERNAL::Global().renderer().lastBlockSerial() ? 1 : 0;
 }
 BENCHMARK(BM_Engine_RenderOffline_100Sounds);
+
+// The same scene at real-time cadence (issue #861): one block, then an idle
+// gap past the render workers' 50 us post-block spin, so every block starts
+// with the workers parked — what a device callback sees. Only the blocks are
+// timed (manual time, per block). W is the render worker count; -1 is the
+// auto-sized default. The serial gate should keep this light scene on the
+// calling thread (`serial` = 1) at a cost matching W = 0.
+static void BM_Engine_RenderPaced_100Sounds(benchmark::State& state) {
+    if (!BenchHelpers::engineInitOffline()) {
+        state.SkipWithError("YSE::System().initOffline() failed");
+        return;
+    }
+    if (!requireSoundPool(state)) return;
+    YSE::INTERNAL::Global().setRenderWorkerCount(static_cast<Int>(state.range(0)));
+    YSE::System().renderOffline(8);
+    BenchHelpers::settleControlPlane();
+    constexpr int kPacedBlocks = 16;
+    const auto gap = std::chrono::microseconds(300);
+    for (auto _ : state) {
+        std::chrono::steady_clock::duration rendering{};
+        for (int b = 0; b < kPacedBlocks; ++b) {
+            const auto idleUntil = std::chrono::steady_clock::now() + gap;
+            while (std::chrono::steady_clock::now() < idleUntil) {}
+            const auto t0 = std::chrono::steady_clock::now();
+            YSE::System().renderOffline(1);
+            rendering += std::chrono::steady_clock::now() - t0;
+        }
+        state.SetIterationTime(std::chrono::duration<double>(rendering).count() / kPacedBlocks);
+    }
+    state.counters["serial"] = YSE::INTERNAL::Global().renderer().lastBlockSerial() ? 1 : 0;
+    YSE::INTERNAL::Global().setRenderWorkerCount(-1);
+}
+BENCHMARK(BM_Engine_RenderPaced_100Sounds)
+    ->ArgName("workers")
+    ->Arg(0)
+    ->Arg(-1)
+    // Manual time counts only the ~2 us blocks, not the 300 us gaps, so a
+    // min-time budget would run for minutes: a fixed count (~1 s wall) instead.
+    ->Iterations(200)
+    ->UseManualTime()
+    ->Unit(benchmark::kMicrosecond);
 
 static void BM_Engine_RenderOffline_100Sounds_Reverb(benchmark::State& state) {
     if (!BenchHelpers::engineInitOffline()) {

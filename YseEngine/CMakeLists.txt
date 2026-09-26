@@ -77,6 +77,8 @@ set(YSE_SRCS
   implementations/listenerImplementation.cpp
   implementations/logImplementation.cpp
   internal/abstractSoundFile.cpp
+  # Processor topology: render worker sizing and placement (issue #862).
+  internal/cpuTopology.cpp
   internal/customFileReader.cpp
   internal/global.cpp
   internal/lsfSoundfile.cpp
@@ -84,6 +86,8 @@ set(YSE_SRCS
   # The real-time on-ramp to the engine log (issue #546): what `.print` pushes
   # onto from a render thread and system::update() drains on the control one.
   internal/rtLogQueue.cpp
+  # The task-graph render scheduler (issue #859).
+  internal/renderScheduler.cpp
   internal/reverbDSP.cpp
   internal/settings.cpp
   internal/thread.cpp

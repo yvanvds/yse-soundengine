@@ -305,6 +305,19 @@ unsigned int YSE::system::requestSampleRate() {
   return DEVICE::Manager().getRequestedSampleRate();
 }
 
+YSE::system& YSE::system::renderThreads(int count) {
+  INTERNAL::Global().requestRenderWorkers((Int)count);
+  return *this;
+}
+
+int YSE::system::renderThreads() {
+  return (int)INTERNAL::Global().requestedRenderWorkers();
+}
+
+int YSE::system::activeRenderThreads() {
+  return (int)INTERNAL::Global().renderWorkerCount();
+}
+
 YSE::system& YSE::system::autoReconnect(bool on, int delay) {
   doAutoReconnect = on;
   // Milliseconds, as documented — it used to be compared against a count of

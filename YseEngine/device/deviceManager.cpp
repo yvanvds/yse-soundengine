@@ -73,8 +73,7 @@ bool YSE::DEVICE::deviceManager::doOnCallback(int numSamples) {
 }
 
 void YSE::DEVICE::deviceManager::renderOneBlock() {
-  master->dsp();
-  master->buffersToParent();
+  CHANNEL::Manager().render(*master);
 }
 
 void YSE::DEVICE::deviceManager::renderOffline(int blocks) {

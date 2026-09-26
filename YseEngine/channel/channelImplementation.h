@@ -11,13 +11,14 @@
 #ifndef CHANNELIMPLEMENTATION_H_INCLUDED
 #define CHANNELIMPLEMENTATION_H_INCLUDED
 
+#include <array>
 #include <atomic>
 #include <memory>
 #include <vector>
 #include "../classes.hpp"
 #include "../utils/lfQueue.hpp"
 #include "../utils/intrusiveForwardList.hpp"
-#include "../internal/threadPool.h"
+#include "../internal/renderScheduler.h"
 // The `sounds` intrusive list forms a pointer-to-member into
 // SOUND::implementationObject, which requires the complete type here (a bare
 // forward declaration sufficed for the old std::forward_list<T*>). This is an
@@ -54,25 +55,111 @@ namespace YSE {
     // docs/design/send_return_buses.md §6). A channel owns a fixed vector of
     // these, sized once at setup() on the slow pool and never resized on the
     // render path, so `&sends[i]` is a stable node address. A slot is active
-    // when `target != nullptr`; the send then accumulates a ramped, scaled copy
-    // of the channel's `out` into `target->out` during the serial summation
-    // walk. `regNext` is the intrusive back-reference link: the slot is threaded
-    // into `target`'s sendRegistry so a return teardown can sever every slot
-    // pointing at it before the impl is freed (the many-to-one generalization of
-    // the insert chain's `calledfrom` guard). All fields are touched only on the
-    // audio thread.
+    // when `target != nullptr`. `regNext` is the intrusive back-reference link:
+    // the slot is threaded into `target`'s sendRegistry so a return teardown can
+    // sever every slot pointing at it before the impl is freed (the many-to-one
+    // generalization of the insert chain's `calledfrom` guard).
+    //
+    // Since the task-graph scheduler (issue #859) source channels render in
+    // parallel, so a send no longer adds into `target->out` directly — two
+    // sources on two workers would race on it, and the sum order would depend
+    // on who finished first. Instead the source writes its ramped, scaled copy
+    // into the slot's own `tap` buffer and sets `tapped`; the return's task,
+    // which depends on every source, sums the tapped slots of its registry in
+    // registry order (gatherSends) and clears the flags. Every field is written
+    // by exactly one task per block (the source's, then the return's), and the
+    // task graph orders the two.
     struct sendSlot {
       implementationObject* target = nullptr; // a return, or nullptr = empty
       Flt newLevel = 0.f; // control-thread target level (via SEND_LEVEL)
       Flt lastLevel = 0.f; // audio-thread ramp state
       Bool preFader = false; // tap point for this slot
+      Bool tapped = false; // `tap` holds this block's send, not yet gathered
       sendSlot* regNext = nullptr; // next slot in target's back-reference registry
+      std::vector<DSP::buffer> tap; // this block's send, one buffer per output
+    };
+
+    // Voice-slice policy (issues #860, #861).
+    //
+    // Measured (#861): once any sound of the channel has been timed, a sound
+    // joins the slice with the lowest measured cost, and a new slice opens
+    // only when joining even that one would take it past sliceTargetCost() —
+    // a slice cheaper than waking a worker is not worth being its own task.
+    // Between control ticks the channel also re-shapes its slices by cost
+    // (rebalanceSlices): it merges the last slice away when every sound fits
+    // in fewer slices at half the target, splits the heaviest slice when it
+    // costs more than twice the target, and otherwise moves sounds from the
+    // heaviest slice to the lightest when they are far apart (leveling).
+    //
+    // Unmeasured (a channel whose sounds have not rendered yet): by count, as
+    // #860 — the least-loaded slice, and a new one only when every active
+    // slice already holds SLICE_CAPACITY sounds. Past MAX_SLICES the capacity
+    // is soft either way: sounds keep joining the lightest slice.
+    //
+    // Slice membership decides the order of the float sums, so it changes
+    // only at connect/disconnect and control ticks — never inside a block, and
+    // never with the worker count: the mix stays bit-identical at 0/1/2/N
+    // workers.
+    constexpr Int SLICE_CAPACITY = 32;
+    constexpr Int MAX_SLICES = 16;
+
+    // Bounds on the slice target cost, in nanoseconds (issue #861).
+    constexpr float MIN_SLICE_TARGET_NS = 10000.f;
+    constexpr float MAX_SLICE_TARGET_NS = 200000.f;
+
+    /** The measured cost a voice slice is sized to (issue #861): the render
+        scheduler's measured wake cost, clamped to [MIN_SLICE_TARGET_NS,
+        MAX_SLICE_TARGET_NS]. Nanoseconds. */
+    float sliceTargetCost();
+
+    // One voice slice (issue #860): a stable, fixed-capacity group of a
+    // channel's sounds, rendered as one leaf task of the render graph (#859).
+    // Every slice accumulates into its own buffer set, so slices of one channel
+    // render in parallel without sharing a buffer (single-writer discipline,
+    // #165). Slice 0 accumulates straight into the channel's `out`; slices 1..n
+    // into their private `buffers`, which the channel's mix task adds to `out`
+    // in fixed slice order — the sum does not depend on which worker finished
+    // first.
+    //
+    // A channel owns MAX_SLICES of these for its whole lifetime; `activeSlices`
+    // of them are in the graph. Sound connect/disconnect moves a sound in or
+    // out of a slice list without touching the graph; only a change in the
+    // active slice count marks it dirty. Every field is audio-thread-owned and
+    // mutated only between blocks.
+    class voiceSlice final : public INTERNAL::renderTask {
+    public:
+      voiceSlice() = default;
+      void execute(INTERNAL::renderScheduler& scheduler) override;
+
+    private:
+      friend class implementationObject;
+
+      implementationObject* owner = nullptr;
+      Int index = 0; // position in the owner's slice array
+      Int count = 0; // sounds in `sounds`
+      IntrusiveForwardList<SOUND::implementationObject, &SOUND::implementationObject::_channelNext>
+          sounds;
+      // Private accumulation buffers, one per output (slices 1..n only; sized
+      // wherever the owner's `out` is).
+      std::vector<DSP::buffer> buffers;
+      // Where this slice's sounds accumulate: the owner's `out` for slice 0,
+      // `buffers` otherwise. Set once in the owner's constructor.
+      std::vector<DSP::buffer>* dest = nullptr;
+    };
+
+    class mixTask final : public INTERNAL::renderTask {
+    public:
+      explicit mixTask(implementationObject* owner) : owner(owner) {}
+      void execute(INTERNAL::renderScheduler& scheduler) override;
+
+    private:
+      implementationObject* owner;
     };
 
     /**
       This is the implementation side of a channel. It should only be used internally.
     */
-    class implementationObject : public INTERNAL::threadPoolJob {
+    class implementationObject {
     public:
       //////////////////////////////////////////////////
       // Setup and maintenance functions
@@ -86,10 +173,13 @@ namespace YSE {
       implementationObject(channel* head);
 
       /**
-      Removes the implementation from the threadpool and moves all sounds and subchannels
-      to its parent (if there is one).
+      Moves all sounds and subchannels to its parent (if there is one).
       */
-      ~implementationObject() noexcept override;
+      ~implementationObject() noexcept;
+      implementationObject(const implementationObject&) = delete;
+      implementationObject& operator=(const implementationObject&) = delete;
+      implementationObject(implementationObject&&) = delete;
+      implementationObject& operator=(implementationObject&&) = delete;
 
       /** This function is called from channelManager::setup and creates the buffers
       needed for this channel.
@@ -187,29 +277,84 @@ namespace YSE {
       Bool disconnect(SOUND::implementationObject* sound);
 
       /////////////////////////////////////////////////////
-      // DSP calculations
+      // DSP calculations — render-graph task bodies (issue #859)
       /////////////////////////////////////////////////////
       /**
-        This is the threadpool function that calls the dsp for this channel.
-        Every channel has its own threadPoolJob for running the dsp calculations.
-        This will scale all sounds nicely over several cpu's as long as you don't
-        put them all in one channel.
+        Voice-slice leaf body (issue #860): render the slice's sounds into its
+        buffers. Slice 0 clears and fills `out`: a channel with neither sounds
+        nor subchannels is skipped, exactly like the old dsp() (its buffer is
+        left as is and never summed), and the master is always cleared, since
+        returns fold into it. A slice 1..n with no sounds is skipped and not
+        summed.
       */
-      void run() override;
+      void renderSlice(voiceSlice& slice);
 
       /**
-        This is the one that does all the work. It allso calls the dsp function
-        of all child channels and of all sounds. Effects are also calculated
-        here, but applied in the buffersToParent function.
+        Mix task body, run once every active voice slice and every child
+        channel's mix task have finished. Mixer bus order (D3 on issue #859):
+        sum slices 1..n in slice order (#860), then the children in list order,
+        then insert chain, reverb and pre-fader meter,
+        pre-fader send taps, the channel fader, post-fader meter and post-fader
+        send taps. The parent's mix task later sums this channel's `out` in.
+        The master also sums every return before its insert chain and has no
+        send taps. A return runs renderReturn() instead. mixTask::execute()
+        then arrives at the successors.
       */
-      void dsp();
+      void renderMix();
 
       /**
-        Waits until the dsp job is done and recursively calls this function for
-        all subchannels. If this is not the Master channel, this will copy the
-        current buffers to the parent channel.
+        A return's mix task body: gather the sends tapped into it this block
+        (gatherSends), run its insert chain and reverb (processReturnInsert),
+        then its fader and its own send taps (finalizeReturn). The master's mix
+        task sums the result in.
       */
-      void buffersToParent();
+      void renderReturn();
+
+      /** True when this channel has sounds or subchannels, i.e. renders into
+          `out` this block. Stable for the duration of a block: both lists are
+          mutated only on the audio thread, between blocks. */
+      bool hasWork() const {
+        return !(children.empty() && soundCount == 0);
+      }
+
+      /** Voice slices currently in the render graph (issue #860), >= 1.
+          Audio thread (or a test driving the impl directly). */
+      Int getActiveSlices() const {
+        return activeSlices;
+      }
+
+      /** Sounds connected to this channel, over every slice. Audio thread. */
+      Int getSoundCount() const {
+        return soundCount;
+      }
+
+      /** Sounds in slice @p index, or -1 when out of range. Audio thread. */
+      Int getSliceLoad(Int index) const {
+        if (index < 0 || index >= MAX_SLICES) return -1;
+        return slices[(std::size_t)index].count;
+      }
+
+      /** Slice @p index's render task, whose cost() is the slice's measured
+          (or membership-adjusted) cost. Test hook: a test may setCost() it to
+          drive the cost policy. @p index must be in [0, MAX_SLICES). */
+      INTERNAL::renderTask& getSliceTask(Int index) {
+        return slices[(std::size_t)index];
+      }
+
+      /** The measured cost of one of this channel's sounds, in nanoseconds:
+          the summed cost of the slices holding sounds over their sound
+          count; 0 while none of them has been measured (the count policy
+          then applies). Audio thread. */
+      float soundCost() const;
+
+      /** Re-shape the voice slices by measured cost against @p target (issue
+          #861): merge the last slice into the others when every sound fits in
+          one slice fewer at half the target, else split the heaviest slice
+          when it costs more than twice the target, else level the heaviest
+          and the lightest slice when they differ by more than a quarter of
+          the heavy one. At most one step per call. No-op while the channel is unmeasured. Audio
+         thread, between blocks — from CHANNEL::managerObject::update(). */
+      void rebalanceSlices(float target);
 
       /** dsp utility function to set all output buffers to zero before filling again
        */
@@ -235,9 +380,9 @@ namespace YSE {
       void addDSP(DSP::dspObject* ptr);
 
       /**
-        Run the attached insert chain over `out` in place. Called from dsp()
-        pre-fader (before reverb); public so the pre-fader insert behaviour can
-        be driven directly in tests after populating `out`.
+        Run the attached insert chain over `out` in place. Called from the mix
+        task pre-fader (before reverb); public so the pre-fader insert
+        behaviour can be driven directly in tests after populating `out`.
       */
       void processInsertDSP();
 
@@ -245,33 +390,40 @@ namespace YSE {
       // Send / return buses (issue #165)
       /////////////////////////////////////////////////////
       /**
-        Accumulate a ramped, scaled copy of this channel's `out` into every
-        active send slot whose tap point matches @p preFaderPhase. Runs on the
-        audio callback thread only, from the serial summation walk
-        (buffersToParent) for source channels and from finalizeReturn() for
-        returns — never on a parallel worker. The ramp is fused into the
-        multiply-accumulate exactly like adjustVolume(), so live send-level moves
-        are click-free. Public so tests can drive it after populating `out`.
+        Write a ramped, scaled copy of this channel's `out` into the `tap`
+        buffer of every active send slot whose tap point matches
+        @p preFaderPhase, and mark the slot tapped. Runs inside this channel's
+        mix task (a return's, for return->return sends), on whichever thread
+        runs it; it writes only this channel's own slots, so parallel sources
+        never share a buffer. The target return sums the taps later
+        (gatherSends). The ramp is fused into the multiply exactly like
+        adjustVolume(), so live send-level moves are click-free. Public so
+        tests can drive it after populating `out`.
       */
       void runSendTaps(bool preFaderPhase);
 
       /**
-        The fast-pool job body for a return bus: runs the return's own DSP
-        (insert chain + optional reverb) in place over the
-        already-accumulated `out`, then publishes the pre-fader peak. Mirrors the
-        tail of dsp(); dispatched from CHANNEL::Manager::processReturns() exactly
-        like a source channel's dsp(). Single-writer over this return's own `out`.
+        Add every tapped slot of this return's send registry into `out`, in
+        registry order, and clear the tapped flags. Runs in the return's mix
+        task, which depends on every source (issue #859), so each tap it reads
+        is complete. Public so tests can drive it after runSendTaps().
+      */
+      void gatherSends();
+
+      /**
+        A return bus's own DSP: runs its insert chain and optional reverb in
+        place over the gathered `out`, then publishes the pre-fader peak.
+        Single-writer over this return's own `out`.
       */
       void processReturnInsert();
 
       /**
-        Serial finalize step for a return, run on the audio thread after its
-        processReturnInsert() job is joined: applies the return fader, publishes
-        the post-fader peak, runs the return's own send taps (targets are always
-        a strictly higher generation), then folds the return into @p master. See
-        design §7.
+        The tail of a return's mix task: pre-fader send taps, the return
+        fader, the post-fader peak and post-fader send taps (targets are always
+        a strictly higher generation, which depends on this return). The
+        master's mix task folds the return in. See design §7.
       */
-      void finalizeReturn(implementationObject* master);
+      void finalizeReturn();
 
       /**
         Audio-thread teardown of every send this impl participates in, run at
@@ -373,11 +525,34 @@ namespace YSE {
       IntrusiveForwardList<CHANNEL::implementationObject,
                            &CHANNEL::implementationObject::_childNext>
           children;
-      IntrusiveForwardList<SOUND::implementationObject, &SOUND::implementationObject::_channelNext>
-          sounds;
 
       std::vector<output> outConf;
       std::vector<DSP::buffer> out;
+
+      // Voice slices (issue #860). The sounds of this channel live in the
+      // slices' intrusive lists; `activeSlices` of them are in the render
+      // graph. See voiceSlice. Audio-thread-owned, mutated between blocks.
+      std::array<voiceSlice, MAX_SLICES> slices;
+      Int activeSlices = 1;
+      Int soundCount = 0;
+
+      /** The slice a newly connected sound joins (see the policy above),
+          opening one when the policy calls for it. @p perSound is
+          soundCost(): 0 selects the count policy. */
+      voiceSlice& pickSlice(float perSound);
+      /** Move @p s from slice @p from to slice @p to, carrying its share of
+          the measured cost. */
+      void moveSound(SOUND::implementationObject* s, voiceSlice& from, voiceSlice& to);
+      /** Open slices[activeSlices] (empty, no cost) and mark the graph dirty. */
+      voiceSlice& openSlice();
+      /** Drop trailing empty slices once the sounds fit comfortably in fewer
+          (hysteresis: half a slice of slack, so a count hovering at a
+          boundary does not open and close a slice every block). */
+      void shrinkSlices();
+      /** Size the private slice buffers to @p numOutputs. Wherever `out` is. */
+      void sizeSliceBuffers(UInt numOutputs);
+      /** Add slices 1..n into `out`, in slice order. Mix task. */
+      void sumSlices();
 
       // Head of the pre-fader insert DSP chain, or nullptr when none is
       // attached. Owned by the caller (the interface's dspObject), not by this
@@ -429,10 +604,26 @@ namespace YSE {
       // Empty for non-return channels.
       IntrusiveForwardList<sendSlot, &sendSlot::regNext> sendRegistry;
 
-      /** Accumulate one active slot's ramped, scaled `out` into its target
-          return's `out`. Audio thread only; no allocation or locking. */
+      /** Write one active slot's ramped, scaled `out` into the slot's `tap`.
+          Render path; no allocation or locking. */
       void accumulateSend(sendSlot& slot);
 
+      /** Size every send slot's `tap` to @p numOutputs buffers. setup() (slow
+          pool, pre-live) and resize() (audio thread, device reconfiguration). */
+      void sizeSendTaps(UInt numOutputs);
+
+      /** Mix-task helpers (issue #859). */
+      void sumChildren(); // add every working child's `out`, in list order
+      void postMixProcess(); // insert chain, reverb, pre-fader peak
+      void publishPostPeak(); // post-fader peak
+
+      // Render-graph task (issue #859). Declared after every member its body
+      // touches; its address is stable for the impl's lifetime. The leaves are
+      // the voice slices above.
+      mixTask mix{this};
+
+      friend class voiceSlice;
+      friend class mixTask;
       friend class SOUND::implementationObject;
       friend class YSE::channel;
       friend class YSE::REVERB::managerObject;
