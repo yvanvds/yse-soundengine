@@ -49,8 +49,12 @@ namespace {
     return s;
   }
 
-  void logIgnored(const char* what) {
-    YSE::INTERNAL::LogImpl().emit(YSE::E_WARNING, std::string(what));
+  // Reached from entry points (destroy, handle lookups) that have no other
+  // failure path, so building the message must not throw across the ABI
+  // (issue #901).
+  void logIgnored(const char* what) noexcept {
+    yse_c::guard_void("yse_instrument",
+                      [what] { YSE::INTERNAL::LogImpl().emit(YSE::E_WARNING, std::string(what)); });
   }
 
   // Register a freshly created handle.
@@ -239,7 +243,9 @@ YSE_C_API size_t yse_dx7_get_patch_name(YseDx7Bank* h, int index, char* buf, siz
     if (buf && cap > 0) buf[0] = '\0';
     return 0;
   }
-  return copy_string(toBank(h)->bank.name(static_cast<size_t>(index)), buf, cap);
+  return yse_c::guard_string("yse_dx7_get_patch_name", buf, cap, [&] {
+    return copy_string(toBank(h)->bank.name(static_cast<size_t>(index)), buf, cap);
+  });
 }
 
 YSE_C_API void yse_dx7_destroy(YseDx7Bank* h) {

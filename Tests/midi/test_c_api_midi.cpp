@@ -117,6 +117,8 @@ TEST_SUITE("capilowcov") {
     yse_midi_out_omni(nullptr, 1);
     yse_midi_out_poly(nullptr, 1);
     yse_midi_out_raw3(nullptr, 0x90, 60, 100);
+    const unsigned char programChange[] = {0xC0, 12};
+    yse_midi_out_raw(nullptr, programChange, sizeof(programChange));
     yse_midi_out_destroy(nullptr);
     CHECK(true); // reached here without dereferencing a NULL handle
   }
@@ -163,6 +165,39 @@ TEST_SUITE("capilowcov") {
 
     yse_midi_out_destroy(m);
     CHECK(true); // the whole surface ran without an open port
+  }
+
+  TEST_CASE("c-api midi out: raw sends any length and refuses empty input (#903)") {
+    // Clear any error a previous case left behind so the check below sees only
+    // what this case's calls report.
+    yse_clear_last_error();
+    YseMidiOut* m = yse_midi_out_create();
+#if YSE_ENABLE_MIDI_DEVICE
+    REQUIRE(m != nullptr);
+#else
+    CHECK(m == nullptr);
+    yse_clear_last_error();
+#endif
+    yse_midi_out_open(m, 9999); // no such port: every send early-returns
+
+    const unsigned char channelPressure[] = {0xD0, 64}; // 2 bytes
+    const unsigned char noteOn[] = {0x90, 60, 100}; // 3 bytes
+    const unsigned char sysex[] = {0xF0, 0x7E, 0x7F, 0x06, 0x01, 0xF7}; // SysEx
+
+    yse_midi_out_raw(m, channelPressure, sizeof(channelPressure));
+    yse_midi_out_raw(m, noteOn, sizeof(noteOn));
+    yse_midi_out_raw(m, sysex, sizeof(sysex));
+    yse_midi_out_raw(m, noteOn, 1); // a one-byte prefix is still a message
+
+    // The documented no-op inputs: nothing to send, or nothing to send it from.
+    yse_midi_out_raw(m, noteOn, 0);
+    yse_midi_out_raw(m, nullptr, 3);
+    yse_midi_out_raw(m, nullptr, 0);
+
+    // None of these is a failure, so none of them reports one.
+    CHECK(std::string(yse_last_error()).empty());
+
+    yse_midi_out_destroy(m);
   }
 
   // ─── midi in ───────────────────────────────────────────────────────────────

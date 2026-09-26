@@ -38,10 +38,21 @@
   The canonical pattern lives in yse_midi.cpp's c_raw_bridge. Any new bridge
   must follow the same rules:
 
-    1. Callback + user_data live as std::atomic<>. Install stores both with
-       release ordering (user_data first, then cb); dispatch loads with
-       acquire ordering (cb first, returns if null, then user_data). No
-       mutex, no lock_guard.
+    1. Callback + user_data are published together: install builds an
+       immutable {cb, user_data} node and swaps it into one std::atomic<>
+       pointer; dispatch loads that pointer once and reads both fields from
+       the same node. Never keep them as two separate atomics — a dispatch
+       between the two stores of a re-install pairs one install's callback
+       with another's user_data (issues #902, #916). No mutex, no
+       lock_guard on the dispatch path.
+
+       The replaced node may only be freed once no dispatch can still be
+       reading it. Name the grace period that proves this beside the code:
+       the log bridge frees after setHandler() has taken the sink mutex that
+       every dispatch runs under (yse_log.cpp); the MIDI raw bridge, whose
+       input thread holds no such lock, uses a seq_cst reader-count
+       handshake around the pointer load (yse_midi.cpp). Keep user code out
+       of the window the installer waits on.
 
     2. No malloc / new / std::string / container ops on the dispatch path
        when the bridge can fire from the audio callback. For occlusion and
@@ -71,18 +82,23 @@
 
 #pragma once
 
+#include <cstddef>
+#include <exception>
 #include <string>
+#include <utility>
 
 // Forward declarations for the cross-TU synth-handle accessor below. Kept
 // minimal so this header stays free of engine includes; the definitions live
 // in yse_synth.cpp (YseSynthImpl) and the engine synth headers.
 struct YseSynth;
 struct YseDspBuffer;
+struct YseMidiIn;
 namespace YSE {
   namespace SYNTH {
     class interfaceObject;
   }
   typedef SYNTH::interfaceObject synth;
+  class midiIn;
   namespace DSP {
     class buffer;
   }
@@ -91,9 +107,63 @@ namespace YSE {
 namespace yse_c {
 
   // Stash a human-readable error in the thread-local last_error slot.
-  // Retrieved by the C client via yse_last_error().
-  void set_last_error(const char* msg);
-  void set_last_error(const std::string& msg);
+  // Retrieved by the C client via yse_last_error(). noexcept because both are
+  // called from inside catch handlers at the ABI boundary: if storing the
+  // message itself runs out of memory, the slot is cleared instead of a second
+  // exception escaping the extern "C" function (issue #901).
+  void set_last_error(const char* msg) noexcept;
+  void set_last_error(const std::string& msg) noexcept;
+
+  // Record "<where>: unknown C++ exception" for a catch (...) handler, without
+  // letting the string concatenation throw.
+  void set_unknown_exception(const char* where) noexcept;
+
+  // ─── Exception barrier (issue #901) ─────────────────────────────────────
+  // An exception escaping an extern "C" function is undefined behaviour and in
+  // practice terminates the host. Every entry point that reaches C++ which can
+  // throw — anything that builds a std::string, re-parses, or allocates — runs
+  // its body through one of these: std::exception and anything else are both
+  // caught, reported through yse_last_error(), and turned into the function's
+  // documented failure value.
+
+  // Value-returning body: returns `body()`, or `fallback` if it threw.
+  template <typename R, typename F> R guard(const char* where, R fallback, F&& body) noexcept {
+    try {
+      return std::forward<F>(body)();
+    } catch (const std::exception& e) {
+      set_last_error(e.what());
+    } catch (...) {
+      set_unknown_exception(where);
+    }
+    return fallback;
+  }
+
+  // Void body: a state change that failed is reported and otherwise a no-op.
+  template <typename F> void guard_void(const char* where, F&& body) noexcept {
+    try {
+      std::forward<F>(body)();
+    } catch (const std::exception& e) {
+      set_last_error(e.what());
+    } catch (...) {
+      set_unknown_exception(where);
+    }
+  }
+
+  // snprintf-style string getter: `body()` returns the full length it copied
+  // into buf. On a throw the caller's buffer is cleared and 0 is returned — the
+  // same answer as a NULL handle — so a host never reads a half-written buffer.
+  template <typename F>
+  std::size_t guard_string(const char* where, char* buf, std::size_t cap, F&& body) noexcept {
+    try {
+      return std::forward<F>(body)();
+    } catch (const std::exception& e) {
+      set_last_error(e.what());
+    } catch (...) {
+      set_unknown_exception(where);
+    }
+    if (buf != nullptr && cap > 0) buf[0] = '\0';
+    return 0;
+  }
 
   // Return the engine synth backing a YseSynth handle, or nullptr for a NULL
   // handle. Defined in yse_synth.cpp — lets yse_music.cpp's player create()
@@ -109,5 +179,13 @@ namespace yse_c {
   // Any TU that needs the engine object must go through here, never through a
   // reinterpret_cast of the handle.
   YSE::DSP::buffer* buffer_from_handle(YseDspBuffer* h);
+
+  // Return the engine input port backing a YseMidiIn handle, or nullptr for a
+  // NULL handle. Defined in yse_midi.cpp, and only on builds with MIDI device
+  // support (YSE_ENABLE_MIDI_DEVICE). A YseMidiIn* is not a midiIn* — the
+  // handle wraps the port together with the raw-callback bridge state. Tests
+  // use this to drive the port's dispatch path, and so the C bridge, without
+  // a hardware device (issue #916).
+  YSE::midiIn* midi_in_from_handle(YseMidiIn* h);
 
 } // namespace yse_c

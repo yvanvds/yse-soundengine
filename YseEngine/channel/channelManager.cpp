@@ -322,6 +322,8 @@ void YSE::CHANNEL::managerObject::changeChannelConf() {
   case CT_CUSTOM:
     break; // we've set number of outputs. CT_CUSTOM expects the positions will be
            // set later
+  case CT_COUNT_:
+    break; // sentinel, not a layout
   }
 
   REVERB::Manager().setOutputChannels(outputChannels);

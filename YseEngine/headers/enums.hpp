@@ -26,6 +26,7 @@ namespace YSE {
     CT_61,
     CT_71,
     CT_CUSTOM, // custom type, you need to set speaker positions yourself if you choose this
+    CT_COUNT_, // sentinel: number of layouts, not a valid value; keep last (C API drift guard)
   };
 
   enum REVERB_PRESET {
@@ -52,6 +53,7 @@ namespace YSE {
     // REVERB_PARKINGLOT				,
     REVERB_SEWERPIPE,
     REVERB_UNDERWATER,
+    REVERB_COUNT_, // sentinel: number of presets, not a valid value; keep last (C API drift guard)
   };
 
   enum SOUND_STATUS {
@@ -117,6 +119,7 @@ namespace YSE {
     BUFFER,
     LIST,
     ANY,
+    OUT_TYPE_COUNT_, // sentinel: number of types, not a valid value; keep last (C API drift guard)
   };
 
   enum THREAD {
@@ -130,6 +133,7 @@ namespace YSE {
     EL_ERROR,
     EL_WARNING,
     EL_DEBUG,
+    EL_COUNT_, // sentinel: number of levels, not a valid value; keep last (C API drift guard)
   };
 
   // used by utils/error.hpp

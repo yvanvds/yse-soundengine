@@ -84,6 +84,44 @@ namespace {
     }
   }
 
+  // ---- per-synth note-callback probes (issue #899) ---------------------------
+  // Two distinct C callbacks, each recording the raw `int note_on` it receives.
+  // The C API must call them through their own int-typed signature via a
+  // trampoline, so note_on is exactly 1 / 0 as a full int, and each synth's
+  // events must reach only the callback installed on that synth.
+  std::atomic<int> g_aOn{0}, g_aOff{0}, g_aBad{0};
+  std::atomic<int> g_bOn{0}, g_bOff{0}, g_bBad{0};
+
+  void YSE_C_CALLBACK noteCbA(int note_on, float* note_number, float* velocity) {
+    (void)note_number;
+    (void)velocity;
+    if (note_on == 1) {
+      g_aOn.fetch_add(1, std::memory_order_relaxed);
+    } else if (note_on == 0) {
+      g_aOff.fetch_add(1, std::memory_order_relaxed);
+    } else {
+      g_aBad.fetch_add(1, std::memory_order_relaxed);
+    }
+  }
+
+  void YSE_C_CALLBACK noteCbB(int note_on, float* note_number, float* velocity) {
+    (void)note_number;
+    (void)velocity;
+    if (note_on == 1) {
+      g_bOn.fetch_add(1, std::memory_order_relaxed);
+    } else if (note_on == 0) {
+      g_bOff.fetch_add(1, std::memory_order_relaxed);
+    } else {
+      g_bBad.fetch_add(1, std::memory_order_relaxed);
+    }
+  }
+
+  void resetAB() {
+    for (auto* c : {&g_aOn, &g_aOff, &g_aBad, &g_bOn, &g_bOff, &g_bBad}) {
+      c->store(0, std::memory_order_relaxed);
+    }
+  }
+
 } // namespace
 
 TEST_SUITE("synthcapi") {
@@ -227,6 +265,77 @@ TEST_SUITE("synthcapi") {
     yse_sound_destroy(snd);
     yse_synth_destroy(syn);
     drainFor(sys, 300); // let the delete jobs free the impls before close
+    yse_system_close(sys);
+  }
+
+  // ─── note callbacks route per synth with an exact int note_on (#899) ──────
+
+  TEST_CASE("c-api synth: note callbacks route per synth with int note_on") {
+    YseSystem* sys = yse_system_get();
+    REQUIRE(sys != nullptr);
+    yse_system_close(sys);
+    if (yse_system_init_offline(sys) != YSE_OK) return;
+    resetAB();
+
+    YseSynth* synA = yse_synth_create();
+    YseSynth* synB = yse_synth_create();
+    REQUIRE(synA != nullptr);
+    REQUIRE(synB != nullptr);
+    REQUIRE(yse_synth_add_voices_sine(synA, 4, 0, 0, 127, 0.001f, 0.001f, 1.0f, 0.02f) == YSE_OK);
+    REQUIRE(yse_synth_add_voices_sine(synB, 4, 0, 0, 127, 0.001f, 0.001f, 1.0f, 0.02f) == YSE_OK);
+
+    YseSound* sndA = yse_sound_create();
+    YseSound* sndB = yse_sound_create();
+    REQUIRE(sndA != nullptr);
+    REQUIRE(sndB != nullptr);
+    REQUIRE(yse_synth_attach_to_sound(synA, sndA, nullptr, 1.0f) == YSE_OK);
+    REQUIRE(yse_synth_attach_to_sound(synB, sndB, nullptr, 1.0f) == YSE_OK);
+    yse_sound_play(sndA);
+    yse_sound_play(sndB);
+    REQUIRE(drainUntilVoices(sys, synA, 4));
+    REQUIRE(drainUntilVoices(sys, synB, 4));
+
+    // Distinct callbacks on two synths: each sees only its own synth's events.
+    yse_synth_set_note_callback(synA, &noteCbA);
+    yse_synth_set_note_callback(synB, &noteCbB);
+    yse_synth_note_on(synA, 1, 60, 1.0f);
+    yse_synth_note_on(synB, 1, 62, 1.0f);
+    yse_synth_note_on(synB, 1, 64, 1.0f);
+    render(sys, 3);
+    yse_synth_note_off(synA, 1, 60, 0.0f);
+    yse_synth_note_off(synB, 1, 62, 0.0f);
+    yse_synth_note_off(synB, 1, 64, 0.0f);
+    render(sys, 3);
+
+    CHECK(g_aOn.load(std::memory_order_relaxed) == 1);
+    CHECK(g_aOff.load(std::memory_order_relaxed) == 1);
+    CHECK(g_bOn.load(std::memory_order_relaxed) == 2);
+    CHECK(g_bOff.load(std::memory_order_relaxed) == 2);
+    CHECK(g_aBad.load(std::memory_order_relaxed) == 0); // note_on always exactly 0 / 1
+    CHECK(g_bBad.load(std::memory_order_relaxed) == 0);
+
+    // Share one callback across both synths, then clear it on A only: B keeps
+    // dispatching through the shared trampoline, A goes silent.
+    resetAB();
+    yse_synth_set_note_callback(synB, &noteCbA);
+    yse_synth_set_note_callback(synA, nullptr);
+    yse_synth_note_on(synA, 1, 60, 1.0f);
+    yse_synth_note_on(synB, 1, 62, 1.0f);
+    render(sys, 3);
+    CHECK(g_aOn.load(std::memory_order_relaxed) == 1); // only synB's note-on
+    CHECK(g_bOn.load(std::memory_order_relaxed) == 0);
+    CHECK(g_aBad.load(std::memory_order_relaxed) == 0);
+
+    yse_synth_set_note_callback(synB, nullptr);
+    yse_synth_all_notes_off(synA, 0);
+    yse_synth_all_notes_off(synB, 0);
+    render(sys, 4);
+
+    yse_sound_destroy(sndA);
+    yse_sound_destroy(sndB);
+    yse_synth_destroy(synA);
+    yse_synth_destroy(synB);
+    drainFor(sys, 300);
     yse_system_close(sys);
   }
 

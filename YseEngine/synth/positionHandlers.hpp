@@ -42,6 +42,7 @@ namespace YSE {
       HP_CENTER_X = 0,
       HP_CENTER_Y = 1,
       HP_CENTER_Z = 2,
+      HP_COUNT_, ///< Sentinel: number of named indices, not a valid value. Keep last.
     };
 
     /**

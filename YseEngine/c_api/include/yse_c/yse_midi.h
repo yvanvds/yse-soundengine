@@ -90,6 +90,14 @@ YSE_C_API void yse_midi_out_poly(YseMidiOut* m, int on);
 
 YSE_C_API void yse_midi_out_raw3(YseMidiOut* m, unsigned char a, unsigned char b, unsigned char c);
 
+/* Send `length` bytes from `data` as one message, exactly as given — no
+   padding and no truncation (issue #903, mirrors
+   YSE::midiOut::Raw(const unsigned char*, size_t)). Use it for two-byte
+   messages (program change, channel pressure) and for SysEx. The bytes are
+   copied out before the call returns. A NULL handle, NULL data or a zero
+   length is a no-op. */
+YSE_C_API void yse_midi_out_raw(YseMidiOut* m, const unsigned char* data, size_t length);
+
 /* ─── MIDI device input ───────────────────────────────────────────── */
 
 /* Raw-bytes callback. `bytes` is malloc'd by the engine; the receiver owns

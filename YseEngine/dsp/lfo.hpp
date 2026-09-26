@@ -25,6 +25,7 @@ namespace YSE {
       LFO_SINE, ///< Sine, mapped to [0, 1].
       LFO_SQUARE, ///< Square wave alternating between 0 and 1.
       LFO_RANDOM, ///< Stepped random (sample-and-hold) between 0 and 1.
+      LFO_COUNT_, ///< Sentinel: number of types, not a valid value. Keep last (C API drift guard).
     };
 
     /**

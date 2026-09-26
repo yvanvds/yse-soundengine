@@ -26,6 +26,7 @@ namespace YSE {
       enum chorusMode {
         MODE_CHORUS, ///< Longer base delay, wide slow sweep — thickening/detune.
         MODE_FLANGER, ///< Short base delay, feedback — sweeping comb notches.
+        MODE_COUNT_, ///< Sentinel: number of modes, not a valid value. Keep last.
       };
 
       /**

@@ -39,6 +39,7 @@ namespace YSE {
           FIRST,
           SECOND,
           THIRD,
+          DELAY_NR_COUNT_, // sentinel: number of taps, not a valid value; keep last
         };
 
         basicDelay();

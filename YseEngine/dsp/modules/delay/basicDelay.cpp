@@ -28,6 +28,8 @@ YSE::DSP::MODULES::basicDelay& YSE::DSP::MODULES::basicDelay::set(basicDelay::DE
     time2.store(time);
     gain2.store(gain);
     break;
+  case DELAY_NR_COUNT_:
+    break; // sentinel, not a tap
   }
 
   return *this;
@@ -41,6 +43,8 @@ Flt YSE::DSP::MODULES::basicDelay::time(basicDelay::DELAY_NR nr) {
     return time1;
   case THIRD:
     return time2;
+  case DELAY_NR_COUNT_:
+    break; // sentinel, not a tap
   }
   return time0; // stop complaining about control paths
 }
@@ -53,6 +57,8 @@ Flt YSE::DSP::MODULES::basicDelay::gain(basicDelay::DELAY_NR nr) {
     return gain1;
   case THIRD:
     return gain2;
+  case DELAY_NR_COUNT_:
+    break; // sentinel, not a tap
   }
   return gain0; // stop complaining about control paths
 }

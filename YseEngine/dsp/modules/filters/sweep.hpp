@@ -39,6 +39,7 @@ namespace YSE {
           TRIANGLE,
           SAW,
           SQUARE,
+          SHAPE_COUNT_, // sentinel: number of shapes, not a valid value; keep last
         };
 
         /** @brief Construct with the chosen sweep shape. */

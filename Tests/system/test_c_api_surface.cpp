@@ -31,11 +31,14 @@
 
 #include <doctest/doctest.h>
 
+#include <atomic>
+#include <chrono>
 #include <cstring>
 #include <mutex>
 #include <new> // placement new — constructs a device over pre-dirtied storage
 #include <stdexcept>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include "yse_c/yse_buffer_io.h"
@@ -558,6 +561,74 @@ TEST_SUITE("capisurface") {
     yse_log_set_callback(log, nullptr, nullptr);
     yse_log_send_message(log, "capisurface-after-detach");
     CHECK(sink.countMatching("capisurface-after-detach") == 0);
+  }
+
+  // Issue #902: cb and user_data used to be published as two separate atomics,
+  // so a line dispatched in the middle of a re-install could reach callback A
+  // with callback B's user_data. Two callbacks, each owning a tagged context,
+  // are swapped back and forth while another thread logs; every call must
+  // arrive with its own context. The pair is now one atomic pointer, so this
+  // holds by construction — the case is the regression guard, and under TSan
+  // it also exercises the retire-after-setHandler reclamation of the old pair.
+  struct TaggedCtx {
+    int tag;
+    std::atomic<int> calls{0};
+    std::atomic<int> mismatched{0};
+  };
+
+  void YSE_C_CALLBACK logReceiveA(char* msg, void* user_data) {
+    auto* ctx = static_cast<TaggedCtx*>(user_data);
+    if (ctx->tag != 'A') ctx->mismatched.fetch_add(1, std::memory_order_relaxed);
+    ctx->calls.fetch_add(1, std::memory_order_relaxed);
+    yse_log_free_message(msg);
+  }
+
+  void YSE_C_CALLBACK logReceiveB(char* msg, void* user_data) {
+    auto* ctx = static_cast<TaggedCtx*>(user_data);
+    if (ctx->tag != 'B') ctx->mismatched.fetch_add(1, std::memory_order_relaxed);
+    ctx->calls.fetch_add(1, std::memory_order_relaxed);
+    yse_log_free_message(msg);
+  }
+
+  TEST_CASE("c-api log: re-installing never pairs a callback with another install's user_data") {
+    LogStateGuard guard;
+    YseLog* log = yse_log_get();
+    yse_log_set_level(log, YSE_EL_DEBUG);
+
+    TaggedCtx a;
+    a.tag = 'A';
+    TaggedCtx b;
+    b.tag = 'B';
+    yse_log_set_callback(log, &logReceiveA, &a);
+
+    std::atomic<bool> stop{false};
+    std::thread logger([&] {
+      while (!stop.load(std::memory_order_acquire))
+        yse_log_send_message(log, "capisurface-swap");
+    });
+
+    // Keep swapping until the logger has delivered a good number of lines
+    // through both installs (a thread can start late), bounded in time so a
+    // stalled logger fails the count check below rather than hanging.
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(10);
+    for (int i = 0; std::chrono::steady_clock::now() < deadline; ++i) {
+      if (i % 2 == 0)
+        yse_log_set_callback(log, &logReceiveB, &b);
+      else
+        yse_log_set_callback(log, &logReceiveA, &a);
+      if (i >= 20000 && a.calls.load(std::memory_order_relaxed) >= 5000 &&
+          b.calls.load(std::memory_order_relaxed) >= 5000)
+        break;
+    }
+    // Detaching must be just as consistent, and leaves nothing installed.
+    yse_log_set_callback(log, nullptr, nullptr);
+    stop.store(true, std::memory_order_release);
+    logger.join();
+
+    CHECK(a.mismatched.load() == 0);
+    CHECK(b.mismatched.load() == 0);
+    CHECK(a.calls.load() > 0);
+    CHECK(b.calls.load() > 0);
   }
 
   TEST_CASE("c-api log: level EL_NONE drops messages") {
