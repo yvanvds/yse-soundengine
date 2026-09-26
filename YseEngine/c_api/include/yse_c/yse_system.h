@@ -222,6 +222,32 @@ YSE_C_API YseReverb* yse_system_get_global_reverb(YseSystem* sys);
 YSE_C_API void yse_system_underwater_fx(YseSystem* sys, const YseChannel* target);
 YSE_C_API void yse_system_set_underwater_depth(YseSystem* sys, float depth);
 
+/* Sound occlusion (issue #906). The callback returns how much geometry sits
+   between `src` and `listener`, 0 (clear line of sight) to 1 (fully blocked);
+   the result is clamped to that range and applied as a gain duck
+   (gain *= 1 - occlusion) to every sound with yse_sound_set_occlusion(s, 1).
+   Typical hosts raycast through their world geometry here.
+
+   Threading: the callback runs on the thread that calls yse_system_update(),
+   once per occlusion-enabled sound per update — never on the audio callback
+   thread, so it may lock, allocate or query a physics engine. `src` and
+   `listener` point to stack copies valid only for the duration of the call;
+   positions are already multiplied by the engine's distance factor.
+
+   There is one occlusion callback per process. Installing replaces the
+   previous callback + user_data as one unit; NULL `cb` removes it (sounds
+   then keep the last occlusion value they received). Install and remove may
+   be called from any host thread, including from inside the callback itself.
+   A dispatch never pairs one install's callback with another's user_data, and
+   every update that starts after the install returns uses the new pair; an
+   update already running on another thread may finish its current call with
+   the old one, so keep old user_data alive until that update has returned.
+   A NULL `sys` is a no-op. */
+typedef float(YSE_C_CALLBACK* YseOcclusionCallback)(const yse_pos_t* src, const yse_pos_t* listener,
+                                                    void* user_data);
+YSE_C_API void yse_system_set_occlusion_callback(YseSystem* sys, YseOcclusionCallback cb,
+                                                 void* user_data);
+
 #ifdef __cplusplus
 }
 #endif

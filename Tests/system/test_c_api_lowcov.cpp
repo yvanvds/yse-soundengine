@@ -43,10 +43,12 @@
 
 #include <doctest/doctest.h>
 
+#include <atomic>
 #include <chrono>
 #include <cmath>
 #include <cstring>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include "support/capilowcov_offline.hpp"
@@ -114,6 +116,53 @@ namespace {
     return s;
   }
 
+  // Host-side state an occlusion callback reaches through its user_data
+  // (issue #906). `ret` is what the host's "raycast" reports.
+  struct OcclusionProbe {
+    std::atomic<int> calls{0};
+    std::atomic<float> ret{0.f};
+    yse_pos_t lastSrc{0.f, 0.f, 0.f};
+  };
+
+  float YSE_C_CALLBACK occlusionProbeCb(const yse_pos_t* src, const yse_pos_t* /*listener*/,
+                                        void* ud) {
+    auto* p = static_cast<OcclusionProbe*>(ud);
+    p->lastSrc = *src;
+    p->calls.fetch_add(1);
+    return p->ret.load();
+  }
+
+  // A second callback with its own identity, so a test can tell which
+  // (callback, user_data) pair a dispatch used.
+  struct PairTag {
+    int id;
+    std::atomic<int> calls{0};
+    std::atomic<int> mismatches{0};
+  };
+
+  float YSE_C_CALLBACK occlusionTagA(const yse_pos_t*, const yse_pos_t*, void* ud) {
+    auto* t = static_cast<PairTag*>(ud);
+    if (t->id != 1) t->mismatches.fetch_add(1);
+    t->calls.fetch_add(1);
+    return 0.f;
+  }
+
+  float YSE_C_CALLBACK occlusionTagB(const yse_pos_t*, const yse_pos_t*, void* ud) {
+    auto* t = static_cast<PairTag*>(ud);
+    if (t->id != 2) t->mismatches.fetch_add(1);
+    t->calls.fetch_add(1);
+    return 0.f;
+  }
+
+  // Re-installs itself from inside its own dispatch: the bridge's reclaim wait
+  // must not include user code, or this deadlocks.
+  float YSE_C_CALLBACK occlusionReinstall(const yse_pos_t*, const yse_pos_t*, void* ud) {
+    auto* p = static_cast<OcclusionProbe*>(ud);
+    p->calls.fetch_add(1);
+    yse_system_set_occlusion_callback(yse_system_get(), occlusionProbeCb, p);
+    return 0.f;
+  }
+
 } // namespace
 
 TEST_SUITE("capilowcov") {
@@ -139,6 +188,7 @@ TEST_SUITE("capilowcov") {
     yse_system_close_current_device(nullptr);
     yse_system_set_underwater_depth(nullptr, 0.5f);
     yse_system_underwater_fx(nullptr, nullptr);
+    yse_system_set_occlusion_callback(nullptr, nullptr, nullptr);
 
     CHECK(yse_system_missed_callbacks(nullptr) == 0);
     CHECK(yse_system_cpu_load(nullptr) == doctest::Approx(0.0f));
@@ -303,6 +353,143 @@ TEST_SUITE("capilowcov") {
     yse_channel_destroy(ch);
     capilowcov::pump(10);
     yse_dsp_buffer_destroy(buf);
+  }
+
+  // ─── Occlusion callback bridge (issue #906) ─────────────────────────────
+  //
+  // Before #906 nothing in C could install the engine's occlusion callback, so
+  // yse_sound_set_occlusion() did nothing from FFI. The host-visible contract:
+  // yse_system_update() calls the host's callback with its user_data and the
+  // sound's position, and what it returns audibly ducks the sound.
+
+  TEST_CASE("c-api system: occlusion callback reaches the host and ducks the sound (#906)") {
+    if (!capilowcov::ensureOffline()) return;
+    YseSystem* sys = yse_system_get();
+
+    const unsigned int len = 4096;
+    YseDspBuffer* buf = yse_dsp_buffer_create(len, 0);
+    REQUIRE(buf != nullptr);
+    std::vector<float> tone(len);
+    for (unsigned int i = 0; i < len; ++i)
+      tone[i] = 0.5f * std::sin(2.0f * 3.14159265f * 16.0f * static_cast<float>(i) /
+                                static_cast<float>(len));
+    REQUIRE(yse_dsp_buffer_write(buf, 0, tone.data(), len) == len);
+    YseChannel* ch = yse_channel_create("capi_occlusion906", yse_channel_master());
+    REQUIRE(ch != nullptr);
+    capilowcov::pump(5);
+    YseSound* s = yse_sound_create();
+    REQUIRE(s != nullptr);
+    REQUIRE(yse_sound_load_buffer(s, buf, ch, /*loop=*/1, /*volume=*/0.8f) == YSE_OK);
+    pumpUntilReady(s);
+    const yse_pos_t where{0.5f, 0.f, 1.f};
+    yse_sound_set_pos(s, &where);
+    yse_sound_set_occlusion(s, 1);
+    yse_sound_play(s);
+
+    OcclusionProbe probe;
+
+    // A NULL system installs nothing.
+    yse_system_set_occlusion_callback(nullptr, occlusionProbeCb, &probe);
+    capilowcov::pump(5);
+    CHECK(probe.calls.load() == 0);
+
+    // Clear line of sight: the host is asked, with its own user_data and the
+    // sound's position, and the sound is heard.
+    probe.ret = 0.f;
+    yse_system_set_occlusion_callback(sys, occlusionProbeCb, &probe);
+    capilowcov::pump(20);
+    REQUIRE(probe.calls.load() > 0);
+    CHECK(probe.lastSrc.x == doctest::Approx(where.x));
+    CHECK(probe.lastSrc.y == doctest::Approx(where.y));
+    CHECK(probe.lastSrc.z == doctest::Approx(where.z));
+    const float open = yse_channel_get_peak_linear_post(ch);
+    REQUIRE(open > 0.001f);
+
+    // Fully blocked: the host's answer silences the sound. Values above 1 are
+    // clamped, so this is the same as 1.
+    probe.ret = 2.f;
+    capilowcov::pump(30);
+    CHECK(yse_channel_get_peak_linear_post(ch) < open * 0.05f);
+
+    // Removing the callback stops the calls; the sound keeps its last value.
+    yse_system_set_occlusion_callback(sys, nullptr, nullptr);
+    const int callsAtRemove = probe.calls.load();
+    capilowcov::pump(10);
+    CHECK(probe.calls.load() == callsAtRemove);
+    CHECK(yse_channel_get_peak_linear_post(ch) < open * 0.05f);
+
+    // Reinstalling with a clear answer brings the sound back.
+    probe.ret = 0.f;
+    yse_system_set_occlusion_callback(sys, occlusionProbeCb, &probe);
+    capilowcov::pump(30);
+    CHECK(yse_channel_get_peak_linear_post(ch) > open * 0.5f);
+
+    yse_system_set_occlusion_callback(sys, nullptr, nullptr);
+    yse_sound_stop(s);
+    capilowcov::pump(5);
+    yse_sound_destroy(s);
+    capilowcov::pump(10);
+    yse_channel_destroy(ch);
+    capilowcov::pump(10);
+    yse_dsp_buffer_destroy(buf);
+  }
+
+  TEST_CASE("c-api system: occlusion re-install swaps callback and user_data as one pair (#906)") {
+    if (!capilowcov::ensureOffline()) return;
+    YseSystem* sys = yse_system_get();
+    YseSound* s = makeLoadedSound();
+    if (!s) return; // fixture unavailable → skip
+    yse_sound_set_occlusion(s, 1);
+
+    PairTag a{1};
+    PairTag b{2};
+    yse_system_set_occlusion_callback(sys, occlusionTagA, &a);
+    yse_system_update(sys);
+    CHECK(a.calls.load() > 0);
+    CHECK(b.calls.load() == 0);
+
+    // Once the install returns, the next update uses the new pair only.
+    yse_system_set_occlusion_callback(sys, occlusionTagB, &b);
+    const int aCalls = a.calls.load();
+    yse_system_update(sys);
+    CHECK(a.calls.load() == aCalls);
+    CHECK(b.calls.load() > 0);
+
+    // A callback may re-install from inside its own dispatch without
+    // deadlocking; the next update runs the newly installed callback.
+    OcclusionProbe probe;
+    yse_system_set_occlusion_callback(sys, occlusionReinstall, &probe);
+    yse_system_update(sys);
+    const int afterReinstall = probe.calls.load();
+    CHECK(afterReinstall > 0);
+    yse_system_update(sys);
+    CHECK(probe.calls.load() > afterReinstall);
+
+    // Installs racing updates on another thread never mix one install's
+    // callback with the other's user_data. This is the case ThreadSanitizer
+    // watches for the pair node's publish / reclaim.
+    std::atomic<bool> stop{false};
+    std::thread installer([&] {
+      bool flip = false;
+      while (!stop.load()) {
+        if (flip)
+          yse_system_set_occlusion_callback(sys, occlusionTagA, &a);
+        else
+          yse_system_set_occlusion_callback(sys, occlusionTagB, &b);
+        flip = !flip;
+      }
+    });
+    for (int i = 0; i < 2000; ++i)
+      yse_system_update(sys);
+    stop = true;
+    installer.join();
+    CHECK(a.mismatches.load() == 0);
+    CHECK(b.mismatches.load() == 0);
+
+    yse_system_set_occlusion_callback(sys, nullptr, nullptr);
+    yse_sound_set_occlusion(s, 0);
+    yse_sound_destroy(s);
+    capilowcov::pump(10);
   }
 
   TEST_CASE("c-api system: clock create / tempo / destroy round-trip") {

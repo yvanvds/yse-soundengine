@@ -32,7 +32,8 @@
 
   Several C API entry points install user-provided C function pointers that
   the engine then invokes from a non-host thread (audio callback, RtMidi
-  input thread, future occlusion / dspSourceObject / customFileReader paths).
+  input thread, the control-thread occlusion driver in yse_system.cpp, future
+  dspSourceObject / customFileReader paths).
   These bridges sit on RT-sensitive paths even when they don't realise it.
 
   The canonical pattern lives in yse_midi.cpp's c_raw_bridge. Any new bridge
@@ -60,8 +61,9 @@
        it). Wrap such an install in the exception barrier: it allocates.
 
     2. No malloc / new / std::string / container ops on the dispatch path
-       when the bridge can fire from the audio callback. For occlusion and
-       dspSourceObject, pass values by stack copy. For raw byte buffers
+       when the bridge can fire from the audio callback. For
+       dspSourceObject, pass values by stack copy (the occlusion bridge does
+       too, though it runs on the control thread). For raw byte buffers
        (file reader, MIDI raw), preallocate a per-handle pool — do not
        malloc per call.
 

@@ -40,8 +40,8 @@ No:
 - Modifying behaviour of an *existing* C-API function without adding
   surface — that's a regular fix, use the normal workflow.
 - Internal engine refactors that don't change the public C++ surface.
-- Adding audio-thread-reachable callbacks (occlusion,
-  `dspSourceObject` user callback, `customFileReader`) on a casual
+- Adding audio-thread-reachable callbacks (`dspSourceObject` user
+  callback, `customFileReader`) on a casual
   wrapping pass. Those need design work — see the "Callback bridge
   rules" block in [yse_c_internal.hpp](../../../YseEngine/c_api/yse_c_internal.hpp).
 
@@ -167,8 +167,9 @@ Canonical example for the snprintf pattern: [yse_device.cpp](../../../YseEngine/
 ### 4. Callback bridges — RT-safe shape
 
 When the engine invokes a user-provided callback on a **non-host thread**
-(audio callback, RtMidi input thread, file streaming worker, future
-occlusion / `dspSourceObject` / `customFileReader` paths), the bridge:
+(audio callback, RtMidi input thread, file streaming worker, the
+control-thread occlusion driver, future `dspSourceObject` /
+`customFileReader` paths), the bridge:
 
 1. Holds the callback + user_data as **one immutable pair node behind a
    single `std::atomic<Pair*>`** — never two separate atomics, which let a
@@ -288,11 +289,14 @@ issue describing the conflict and wait for a decision before proceeding.
 - Add new public methods, classes, or enums to the engine. Engine changes
   go through the engine's own workflow first; this skill mirrors them.
 - Refactor existing C-API surface unless the engine change requires it.
-- Wrap callbacks that fire on the audio thread (occlusion,
-  `dspSourceObject`, `customFileReader`) — those need additional design
+- Wrap callbacks that fire on the audio thread (`dspSourceObject`,
+  `customFileReader`) — those need additional design
   work (preallocated pools, stack-only return paths) per
   [yse_c_internal.hpp](../../../YseEngine/c_api/yse_c_internal.hpp)'s
-  rules block. Surface a design proposal first.
+  rules block. Surface a design proposal first. (Occlusion is no longer
+  deferred: since #209 it runs on the control thread inside
+  `System().update()`, and #906 bridged it as
+  `yse_system_set_occlusion_callback` in `yse_system.cpp`.)
 - Modify CLAUDE.md or PROJECT_OVERVIEW.md unless the wrapping pass
   introduces a structural change worth documenting at the project root.
 
