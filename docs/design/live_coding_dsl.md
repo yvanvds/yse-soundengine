@@ -147,7 +147,10 @@ publishes above.
 > receives every publish whose address starts with it (e.g. a
 > `phi.ctl.` tap for the live-coding control plane). That is host-only
 > plumbing, matched on the control thread; it does not add globbing or
-> wildcards to the DSL.
+> wildcards to the DSL. The same header also lets a host publish
+> (`yse_bus_publish_*`, attributed like a script's `yse.send()`) and
+> subscribe to one exact address (`yse_bus_subscribe`) ([#904][gh-904]),
+> so an FFI host reaches every address a script can.
 
 The set of valid `<prop>`, `<slot>` and `<event>` names is fixed by
 the engine (see [#123][gh-123] for the initial sound/channel
@@ -938,5 +941,6 @@ sections wrong, update this document in the same PR.
 [gh-894]: https://github.com/yvanvds/yse-soundengine/issues/894
 [gh-896]: https://github.com/yvanvds/yse-soundengine/issues/896
 [gh-897]: https://github.com/yvanvds/yse-soundengine/issues/897
+[gh-904]: https://github.com/yvanvds/yse-soundengine/issues/904
 [gh-921]: https://github.com/yvanvds/yse-soundengine/issues/921
 [gh-922]: https://github.com/yvanvds/yse-soundengine/issues/922
