@@ -795,7 +795,7 @@ TEST_SUITE("patcher") {
       std::unique_ptr<YSE::PATCHER::pObject> obj(YSE::PATCHER::Register().Get(type));
       REQUIRE(obj != nullptr);
       CHECK_FALSE(obj->GetDescription().empty());
-      CHECK(obj->GetCategory() == YSE::PATCHER::pCategory::GENERIC);
+      CHECK(obj->GetCategory() == YSE::PATCHER::pCategory::ARRAY);
       const auto& docs = obj->GetParamDocs();
       const bool isUnique = std::string(type) == std::string(YSE::OBJ::G_ARRAY_UNIQUE);
       REQUIRE(docs.size() == (isUnique ? 1u : 2u));

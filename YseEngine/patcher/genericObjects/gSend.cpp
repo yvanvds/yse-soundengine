@@ -24,7 +24,7 @@ CONSTRUCT() {
       "dataName matches, and publishes them on the global bus as "
       "\"patcher.<patcherName>.<dataName>\" so "
       "cross-patcher routing works without explicit wiring.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::IO);
   INLET_DOC(0, "in", "Value inlet — accepts bang / int / float / list.", "");
   PARAM_DOC("dataName", "",
             "Name to broadcast on; matching gReceive nodes will emit the forwarded value. A name "

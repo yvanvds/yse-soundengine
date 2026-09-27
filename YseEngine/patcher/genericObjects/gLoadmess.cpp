@@ -135,7 +135,7 @@ CONSTRUCT() {
       "wired back into this object's own inlet drops, which is really a second benefit. "
       "Calculate() does nothing. The creation arguments are saved verbatim whatever a later set "
       "did, because a set is a live override and the typed message is what the object is.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::CONTROL);
 
   INLET_DOC(0, "trigger/set", kInletDoc, "bang, or 'set <message>'");
   OUTLET_DOC(0, "out", kOutletDoc, "any");

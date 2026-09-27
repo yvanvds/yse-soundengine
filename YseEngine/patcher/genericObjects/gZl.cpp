@@ -531,7 +531,7 @@ CONSTRUCT() {
       "switch. Two threads sending to the same object are serialised by a single test-and-set "
       "guard whose loser is dropped and counted rather than made to spin, which is also what stops "
       "an object wired back into its own inlet from recursing on the audio thread.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::LIST);
 
   INLET_DOC(0, "list", kInletDocLeft,
             "a list, a number, bang, 'mode <name>', 'zlclear', "

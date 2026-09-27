@@ -183,7 +183,7 @@ CONSTRUCT() {
       "loser is dropped and counted rather than made to spin, which is also what stops an object "
       "wired back into its own inlet from recursing on the audio thread.");
 
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::LIST);
 
   INLET_DOC(0, "in", kInletDoc, "any");
 

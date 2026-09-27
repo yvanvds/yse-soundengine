@@ -319,7 +319,7 @@ CONSTRUCT() {
       "Max 8's dictionary surface (bang, info, dump, dictionary), the patcher having no dictionary "
       "type; its transport-sync attributes, there being no patcher-to-domain-clock bridge yet "
       "(issue #688); and the editing window, the patcher being headless.");
-  ADD_CATEGORY(pCategory::TIME);
+  ADD_CATEGORY(pCategory::SEQUENCE);
   PARAM_DOC("tracks", "1",
             "How many tracks to build, which is also how many inlets and outlets the object gets "
             "beyond the leftmost pair. Max: 'if there is no argument, there will be only one "

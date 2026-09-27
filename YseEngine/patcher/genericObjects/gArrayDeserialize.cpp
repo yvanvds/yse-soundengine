@@ -92,7 +92,7 @@ gArrayDeserialize::gArrayDeserialize() : gArrayEndsBase() {
       "fails to parse to a JSON array is counted and changes nothing, so a bad document never "
       "costs an array its contents. Only the creation argument persists across a save; the "
       "array's contents persist with the .array that owns them.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::ARRAY);
   INLET_DOC(0, "json", kInletDoc, "at most 255 characters");
   OUTLET_DOC(0, "reference", kOutletDoc, "");
   PARAM_DOC("name", "", kNameDoc, "any identifier");

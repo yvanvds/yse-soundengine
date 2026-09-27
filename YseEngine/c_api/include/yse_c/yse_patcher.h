@@ -388,7 +388,15 @@ YSE_C_API void yse_patcher_get_param_info(const char* type_name, int idx, const 
    metadata. One-stop shop for bindings that want to cache the metadata
    or regenerate their own reference at build time. The caller must
    release the buffer with yse_free_string() (declared in yse_common.h);
-   returns NULL on allocation failure. */
+   returns NULL on allocation failure.
+
+   Each object entry carries "name", "category" (the YsePCategory name
+   without its YSE_PCAT_ prefix, e.g. "ROUTING"), "is_dsp",
+   "requires_midi_device", "description", "inlets", "outlets" and
+   "params". "requires_midi_device" is true for the objects that hold a
+   MIDI device port; those exist only in builds with
+   YSE_ENABLE_MIDI_DEVICE (not macOS or Android), so a palette built from
+   one platform's metadata can mark them as non-portable. */
 YSE_C_API char* yse_patcher_get_metadata_json(void);
 
 #ifdef __cplusplus

@@ -123,7 +123,7 @@ gArrayInsert::gArrayInsert() : gArrayPositionBase() {
       "indexing rule. An int on the index inlet stores the position silently; an insert that "
       "lands emits the array's reference, \"array <name>\", so the family chains. The insert is "
       "applied entirely under one hold of the store's guard. .array.remove's exact inverse.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::ARRAY);
   INLET_DOC(0, "element",
             "An int or a float is inserted at the stored position as the text that spells it; a "
             "symbol is inserted as itself; a list lands whole, in the order sent, or is refused "
@@ -326,7 +326,7 @@ gArrayRemove::gArrayRemove() : gArrayPositionBase() {
       "have bangs the miss outlet instead: nothing removed, nothing counted, and never a wrap or "
       "a clamp — the family's indexing rule. The message an .array's reference outlet emits on a "
       "bang removes at the stored position, the family gesture. .array.insert's exact inverse.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::ARRAY);
   INLET_DOC(0, "position",
             "An int removes the element at that position and stores the position; a bang removes "
             "at the stored position; a float truncates to an int first — Max's float method. A "

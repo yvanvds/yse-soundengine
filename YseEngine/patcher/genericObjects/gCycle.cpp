@@ -108,7 +108,7 @@ CONSTRUCT() {
       "survive a save; the creation argument is what a patch carries. At most 256 outlets, built "
       "once before the object is published — Calculate() does nothing, and no message path "
       "allocates, locks or blocks.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::ROUTING);
   PARAM_DOC("outlets", "1",
             "Max's argument list, in Max's order. The first whole number is how many outlets to "
             "build, clamped to 1-256 and defaulting to 1. A second whole number is Max's output "

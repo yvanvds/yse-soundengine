@@ -43,7 +43,7 @@ CONSTRUCT() {
       "high) are treated as an ordered pair and still split on the right two numbers. Nothing is "
       "computed and so nothing is substituted — a non-finite value is routed, and a NaN leaves the "
       "out-of-range outlet.");
-  ADD_CATEGORY(pCategory::MATH);
+  ADD_CATEGORY(pCategory::ROUTING);
   INLET_DOC(0, "value", "Value to route — fires the evaluation.", "any float");
   INLET_DOC(1, "low", "Lower limit, inclusive — stored until the next evaluation.", "any float");
   INLET_DOC(2, "high", "Upper limit, inclusive — stored until the next evaluation.", "any float");

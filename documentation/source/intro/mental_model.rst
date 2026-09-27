@@ -98,7 +98,7 @@ presets as plain text.
 
 The full set of registered object types — every inlet, outlet,
 parameter, and accepted message type — is listed on the
-:doc:`../api/patcher_objects` reference page, generated directly from
+:doc:`/patcher/objects/index` reference page, generated directly from
 the engine source so it can never drift.
 
 Putting it together

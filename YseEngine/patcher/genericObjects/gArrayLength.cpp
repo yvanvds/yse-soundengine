@@ -68,7 +68,7 @@ CONSTRUCT() {
       "no miss outlet. The length leaves only when asked, never on a write to the array — "
       "the number every .uzi-driven walk over an array needs before it can start, and the one "
       ".zl len gives for a list.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::ARRAY);
   INLET_DOC(0, "trigger", kTriggerInletDoc, "");
   INLET_DOC(1, "array reference", kReferenceInletDoc, "");
   OUTLET_DOC(0, "length", kLengthDoc, "0-256");

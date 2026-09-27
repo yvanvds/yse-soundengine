@@ -270,7 +270,7 @@ CONSTRUCT() {
       "been read successfully from disk, is appended after the end outlet rather than inserted, "
       "which is the family's rule and here also Max's own position for it. Not ported: the editing "
       "window and everything addressing it, the patcher being headless.");
-  ADD_CATEGORY(pCategory::TIME);
+  ADD_CATEGORY(pCategory::SEQUENCE);
   INLET_DOC(0, "in", kInletDoc, "at most 256 cue lines of 256 characters");
   OUTLET_DOC(0, "data", kDataDoc, "");
   OUTLET_DOC(1, "end", kEndDoc, "");

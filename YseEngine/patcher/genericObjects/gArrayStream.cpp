@@ -48,7 +48,7 @@ gArrayStream::gArrayStream() : gArrayEndsBase() {
       "first. The size inlet stores a new window silently (1-256, refused rather than "
       "clamped); no window configured means every trigger is refused, counted. However many "
       "atoms one message carries, the whole collect is one hold of the store's guard.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::ARRAY);
   INLET_DOC(0, "value",
             "An int, a float or a symbol is collected: appended to the bound array as the text "
             "that spells it (7.5 stays visibly a float), the oldest element sliding off the "

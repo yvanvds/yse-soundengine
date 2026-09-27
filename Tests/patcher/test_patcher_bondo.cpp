@@ -761,7 +761,7 @@ TEST_SUITE("patcher") {
   TEST_CASE("bondo: documents itself as GENERIC with a labelled port set (#474)") {
     std::unique_ptr<YSE::PATCHER::pObject> obj(YSE::PATCHER::Register().Get(YSE::OBJ::G_BONDO));
     REQUIRE(obj != nullptr);
-    CHECK(obj->GetCategory() == YSE::PATCHER::pCategory::GENERIC);
+    CHECK(obj->GetCategory() == YSE::PATCHER::pCategory::CONTROL);
     CHECK_FALSE(obj->GetDescription().empty());
 
     REQUIRE(obj->NumInputs() == 2);

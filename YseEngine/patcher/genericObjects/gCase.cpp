@@ -48,7 +48,7 @@ gCaseBase::gCaseBase(caseDirection fold) : pObject(false), direction(fold) {
   // any message the patcher's queues can deliver.
   outText.reserve(TEXT_CAPACITY);
 
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::STRING);
 }
 
 void gCaseBase::Document(const char* summary, const char* inDoc, const char* outDoc) {

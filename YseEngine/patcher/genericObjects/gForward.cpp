@@ -63,7 +63,7 @@ CONSTRUCT() {
       "right "
       "inlet, so a patch can re-aim it with a message instead of being rewired. Sends nothing "
       "until a destination is set.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::IO);
   INLET_DOC(0, "in",
             "Value inlet — accepts bang / int / float / list. Forwarded verbatim to the current "
             "destination; no word in it is reserved.",

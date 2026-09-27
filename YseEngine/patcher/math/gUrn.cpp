@@ -41,7 +41,7 @@ CONSTRUCT() {
       "same whether the urn is full or has one value left — no rejection sampling, no unbounded "
       "retry loop. A non-zero seed makes the order reproducible across runs; seed 0 takes an "
       "arbitrary stream. The limit is clamped to 1-4096.");
-  ADD_CATEGORY(pCategory::MATH);
+  ADD_CATEGORY(pCategory::RANDOM);
   INLET_DOC(0, "control",
             "Bang to draw the next unused value / list 'clear' to refill and reshuffle the urn / "
             "list 'seed <n>' to restart the random sequence and reshuffle what is left.",

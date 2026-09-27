@@ -250,7 +250,7 @@ gArrayUnion::gArrayUnion() : gArraySetOpBase(false) {
       "alone, so no two guards are ever held at once and \".array.union chord chord\" answers "
       "instead of tripping over its own try-lock. \"Everything either hand plays\" — the "
       "combining half of the harmonic patch .array.sect is the filtering half of.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::ARRAY);
   INLET_DOC(0, "trigger", kPairTriggerInletDoc, "");
   INLET_DOC(1, "right reference", kRightReferenceInletDoc, "");
   OUTLET_DOC(0, "union",
@@ -286,7 +286,7 @@ gArraySect::gArraySect() : gArraySetOpBase(true) {
       "tested against the right under that guard alone, so no two guards are ever held at once. "
       "\"Which notes are in both chords\" — the operation a harmonic or scale patch is written "
       "from.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::ARRAY);
   INLET_DOC(0, "trigger", kPairTriggerInletDoc, "");
   INLET_DOC(1, "right reference", kRightReferenceInletDoc, "");
   OUTLET_DOC(0, "intersection",
@@ -335,7 +335,7 @@ gArrayUnique::gArrayUnique() : gArrayEndsBase() {
       "would write the thinned result back. An empty or unnamed (private) array bangs the "
       "empty outlet. The whole selection happens under one hold of the store's guard, so the "
       "result is the array as it stood at the trigger.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::ARRAY);
   INLET_DOC(0, "trigger",
             "A bang asks for the thinned array — every element once, at its first occurrence, "
             "collected under one hold of the store's guard and sent after it is released. "

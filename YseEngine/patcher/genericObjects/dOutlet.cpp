@@ -62,7 +62,7 @@ CONSTRUCT_DSP() {
       "outlet N is one pin whichever rate is behind it. One creation argument, the boundary outlet "
       "number, default 0. Calculate is a null check and a send; nothing allocates, locks or "
       "blocks.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::ENCAPSULATION);
 
   INLET_DOC(0, "from patch", kInletDoc, "-1.0 to 1.0");
   OUTLET_DOC(0, "to parent", kOutletDoc, "-1.0 to 1.0");

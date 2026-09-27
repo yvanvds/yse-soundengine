@@ -50,7 +50,7 @@ gArrayRandom::gArrayRandom() : gArrayEndsBase() {
       "Repeats are allowed — every pick is an independent uniform draw; drawing without "
       "replacement is .urn's behaviour, a second object rather than a mode of this one. An "
       "empty or unnamed (private) array bangs the empty outlet instead, taking no draw.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::ARRAY);
   INLET_DOC(0, "trigger",
             "A bang picks one element at random — one guarded read at a drawn position, the "
             "element out the element outlet typed by its spelling, or the empty outlet when "

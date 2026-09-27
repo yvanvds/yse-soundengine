@@ -113,7 +113,7 @@ gArrayRoutepass::gArrayRoutepass() : gArrayEndsBase() {
       "are refused and counted rather than resolved, a registry lookup being a mutex on "
       "whatever thread the message arrived on. Only the creation arguments persist across a "
       "save; the array's contents persist with the .array that owns them.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::ARRAY);
   INLET_DOC(0, "route", kTriggerInletDoc, "");
   INLET_DOC(1, "array reference", kReferenceInletDoc, "");
   PARAM_DOC("name", "", kNameParamDoc, "any identifier");

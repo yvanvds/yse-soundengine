@@ -619,7 +619,7 @@ TEST_SUITE("patcher") {
     for (YSE::PATCHER::pObject* object : objects) {
       CAPTURE(object->Type());
       CHECK_FALSE(object->GetDescription().empty());
-      CHECK(object->GetCategory() == YSE::PATCHER::pCategory::GENERIC);
+      CHECK(object->GetCategory() == YSE::PATCHER::pCategory::ARRAY);
       REQUIRE(object->GetParamDocs().size() == 1);
       CHECK(object->GetParamDocs()[0].name == "name");
     }

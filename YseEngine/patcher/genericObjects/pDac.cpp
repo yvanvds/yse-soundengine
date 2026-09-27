@@ -35,7 +35,7 @@ void pDac::build(int chans) {
   ADD_DESCRIPTION("Audio output of a patcher graph. Each inlet takes one channel of audio and the "
                   "patcher passes it on to whatever hosts it — a channel, a sound, or the engine's "
                   "output. A patch is only audible once something reaches this object.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::IO);
 }
 
 BUFFER_IN(SetBuffer) {

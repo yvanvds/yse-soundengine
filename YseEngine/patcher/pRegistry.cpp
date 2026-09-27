@@ -1219,7 +1219,7 @@ pRegistry::pRegistry() {
 
 #if YSE_ENABLE_MIDI_DEVICE
   // The one sender that holds a device port, so the one that stays guarded.
-  Add(OBJ::M_OUT, mMidiOut::Create);
+  AddMidiDevice(OBJ::M_OUT, mMidiOut::Create);
 #endif
 
   // The MIDI codec pair (issue #530): raw bytes to structure and back. Not
@@ -1304,34 +1304,34 @@ pRegistry::pRegistry() {
 
   // The undecoded byte stream: the whole protocol, for SysEx, song position and
   // anything the decoding objects filter out — and the format `.seq` records.
-  Add(OBJ::M_IN, mMidiIn::Create);
+  AddMidiDevice(OBJ::M_IN, mMidiIn::Create);
 
   // Notes, and with them a playable patch.
-  Add(OBJ::M_NOTEIN, mNoteIn::Create);
+  AddMidiDevice(OBJ::M_NOTEIN, mNoteIn::Create);
 
   // Knobs, faders, wheels and pedals.
-  Add(OBJ::M_CTLIN, mCtlIn::Create);
+  AddMidiDevice(OBJ::M_CTLIN, mCtlIn::Create);
 
   // The pitch wheel, at Max's 7-bit resolution; `.xbendin` (#533) has the rest.
-  Add(OBJ::M_BENDIN, mBendIn::Create);
+  AddMidiDevice(OBJ::M_BENDIN, mBendIn::Create);
 
   // Program changes, numbered 1-128 as the hardware displays them.
-  Add(OBJ::M_PGMIN, mPgmIn::Create);
+  AddMidiDevice(OBJ::M_PGMIN, mPgmIn::Create);
 
   // Channel aftertouch — one pressure for the whole channel.
-  Add(OBJ::M_TOUCHIN, mTouchIn::Create);
+  AddMidiDevice(OBJ::M_TOUCHIN, mTouchIn::Create);
 
   // Polyphonic key pressure — the per-note counterpart of the above.
-  Add(OBJ::M_POLYIN, mPolyIn::Create);
+  AddMidiDevice(OBJ::M_POLYIN, mPolyIn::Create);
 
   // System real time: the clock, start, continue and stop a patch follows an
   // external sequencer by.
-  Add(OBJ::M_RTIN, mRtIn::Create);
+  AddMidiDevice(OBJ::M_RTIN, mRtIn::Create);
 
   // The receiving half of the system-exclusive pair (issue #531): a voice dump
   // off a port, with everything that is not a dump filtered out. Guarded with
   // the input family it belongs to; its partner below is not.
-  Add(OBJ::M_SYSEXIN, mSysExIn::Create);
+  AddMidiDevice(OBJ::M_SYSEXIN, mSysExIn::Create);
 
   // The extended-precision input objects (issue #533). Same plumbing as the
   // family above — port, subscription, block poll, bounded drain — reading the
@@ -1339,24 +1339,24 @@ pRegistry::pRegistry() {
   // of its bits (or as the two that make them), a controller as its MSB/LSB
   // pair, a note-off with its release velocity, and the raw stream framed into
   // whole messages.
-  Add(OBJ::M_XBENDIN, mXBendIn::Create);
-  Add(OBJ::M_XBENDIN2, mXBendIn2::Create);
-  Add(OBJ::M_XCTLIN, mXCtlIn::Create);
-  Add(OBJ::M_XNOTEIN, mXNoteIn::Create);
-  Add(OBJ::M_XMIDIIN, mXMidiIn::Create);
+  AddMidiDevice(OBJ::M_XBENDIN, mXBendIn::Create);
+  AddMidiDevice(OBJ::M_XBENDIN2, mXBendIn2::Create);
+  AddMidiDevice(OBJ::M_XCTLIN, mXCtlIn::Create);
+  AddMidiDevice(OBJ::M_XNOTEIN, mXNoteIn::Create);
+  AddMidiDevice(OBJ::M_XMIDIIN, mXMidiIn::Create);
 
   // The parameter-number input objects (issue #534). Same plumbing again, with
   // the one piece of real state in the family: a value carries no parameter
   // number of its own, so these two remember per channel what the selecting
   // controllers last pointed at and report only the writes of their own kind.
-  Add(OBJ::M_RPNIN, mRpnIn::Create);
-  Add(OBJ::M_NRPNIN, mNrpnIn::Create);
+  AddMidiDevice(OBJ::M_RPNIN, mRpnIn::Create);
+  AddMidiDevice(OBJ::M_NRPNIN, mNrpnIn::Create);
 
   // The port directory (issue #536). Not an input object at all — it opens
   // nothing and receives nothing — but it asks the same backend which ports
   // exist, so it lives and dies with it. It is what lets a patch find out what
   // the bare index every other MIDI object takes actually refers to.
-  Add(OBJ::M_MIDIINFO, mMidiInfo::Create);
+  AddMidiDevice(OBJ::M_MIDIINFO, mMidiInfo::Create);
 #endif
 
   // The building half of the system-exclusive pair (issue #531). Unguarded for
@@ -1374,6 +1374,15 @@ pObject* pRegistry::Get(const std::string& objectID) {
 
 void pRegistry::Add(const std::string& objectID, pObjectFunc f) {
   map.insert(std::pair<std::string, pObjectFunc>(objectID, f));
+}
+
+void pRegistry::AddMidiDevice(const std::string& objectID, pObjectFunc f) {
+  Add(objectID, f);
+  midiDevice.insert(objectID);
+}
+
+bool pRegistry::RequiresMidiDevice(const std::string& objectID) const {
+  return midiDevice.count(objectID) != 0;
 }
 
 bool pRegistry::IsValidObject(const char* objectID) {

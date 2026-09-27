@@ -26,7 +26,7 @@ CONSTRUCT_DSP() {
 
   ADD_DESCRIPTION("Linear-ramp generator. Ramps an audio-rate value toward a target over a given "
                   "time in ms. The 'stop' message freezes the ramp at the current value.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::OSC);
   INLET_DOC(0, "target", "Target value to ramp toward.", "any float");
   INLET_DOC(1, "time", "Ramp duration in milliseconds.", "0+ ms");
   OUTLET_DOC(0, "out", "Audio-rate ramp output.", "any float");

@@ -128,7 +128,7 @@ CONSTRUCT() {
       "rather than resolved, a registry lookup being a mutex on whatever thread the message "
       "arrived on. Only the creation arguments persist across a save; the dictionary's contents "
       "persist with the .dict that owns them.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::DICT);
   INLET_DOC(0, "route", kInletDoc, "");
   PARAM_DOC("name", "", kNameDoc, "any identifier");
   PARAM_DOC("keys", "", kKeysDoc, "key paths");

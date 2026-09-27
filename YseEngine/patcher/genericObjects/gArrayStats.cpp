@@ -196,7 +196,7 @@ gArrayMin::gArrayMin() : gArrayExtremumBase(false) {
       "as the float it is. An array with no numeric element bangs the empty outlet instead: the "
       "minimum of nothing does not exist, and a sentinel would be indistinguishable from a real "
       "answer.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::ARRAY);
   INLET_DOC(0, "trigger", kTriggerInletDoc, "");
   INLET_DOC(1, "array reference", kReferenceInletDoc, "");
   OUTLET_DOC(0, "minimum",
@@ -228,7 +228,7 @@ gArrayMax::gArrayMax() : gArrayExtremumBase(true) {
       "as the float it is. An array with no numeric element bangs the empty outlet instead: the "
       "maximum of nothing does not exist, and a sentinel would be indistinguishable from a real "
       "answer.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::ARRAY);
   INLET_DOC(0, "trigger", kTriggerInletDoc, "");
   INLET_DOC(1, "array reference", kReferenceInletDoc, "");
   OUTLET_DOC(0, "maximum",
@@ -265,7 +265,7 @@ gArrayMean::gArrayMean() : gArrayNumericStatsBase() {
       "the sum's magnitude. An array with no numeric element bangs the empty outlet instead: "
       "the mean of nothing does not exist, and a sentinel would be indistinguishable from a "
       "real answer.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::ARRAY);
   INLET_DOC(0, "trigger", kTriggerInletDoc, "");
   INLET_DOC(1, "array reference", kReferenceInletDoc, "");
   OUTLET_DOC(0, "mean",
@@ -318,7 +318,7 @@ gArrayMedian::gArrayMedian() : gArrayNumericStatsBase() {
       "shared store — a statistic must not move the array under everything else reading it; "
       ".array.sort is the object that exists to do that. An array with no numeric element "
       "bangs the empty outlet instead.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::ARRAY);
   INLET_DOC(0, "trigger", kTriggerInletDoc, "");
   INLET_DOC(1, "array reference", kReferenceInletDoc, "");
   OUTLET_DOC(0, "median",
@@ -407,7 +407,7 @@ gArrayMode::gArrayMode() : gArrayStatsBase() {
       "keeps the element whose first occurrence is earliest. The answer is the element itself, "
       "typed the way the patcher spells it. Only an empty array has no answer; it bangs the "
       "empty outlet instead.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::ARRAY);
   INLET_DOC(0, "trigger", kTriggerInletDoc, "");
   INLET_DOC(1, "array reference", kReferenceInletDoc, "");
   OUTLET_DOC(0, "mode",
@@ -533,7 +533,7 @@ gArrayStdDev::gArrayStdDev() : gArrayNumericStatsBase() {
       "one: what the patch collected is what the statistic describes. A one-element population "
       "answers 0. Always a float, accumulated in double through the two-pass form. An array "
       "with no numeric element bangs the empty outlet instead.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::ARRAY);
   INLET_DOC(0, "trigger", kTriggerInletDoc, "");
   INLET_DOC(1, "array reference", kReferenceInletDoc, "");
   OUTLET_DOC(0, "standard deviation",

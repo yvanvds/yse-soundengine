@@ -108,16 +108,29 @@ typedef enum YseCompressorDetector {
 /* Mirrors YSE::PATCHER::pCategory in patcher/pEnums.h. The patcher
    registry exposes this through the metadata API so binding-side
    documentation generators can group objects without inspecting the
-   engine source. */
+   engine source. Values are only ever appended, so a number a host stored
+   keeps its meaning. GENERIC is the fallback for an object that fits no
+   other category. */
 typedef enum YsePCategory {
   YSE_PCAT_UNSET = 0,
-  YSE_PCAT_OSC = 1,
-  YSE_PCAT_FILTER = 2,
-  YSE_PCAT_MATH = 3,
-  YSE_PCAT_GENERIC = 4,
-  YSE_PCAT_GUI = 5,
-  YSE_PCAT_TIME = 6,
-  YSE_PCAT_MIDI = 7
+  YSE_PCAT_OSC = 1, /* Signal generators (~sine, ~noise, ~line, ...). */
+  YSE_PCAT_FILTER = 2, /* Filters. */
+  YSE_PCAT_MATH = 3, /* Arithmetic, conversion, analysis. */
+  YSE_PCAT_GENERIC = 4, /* Uncategorisable fallback. */
+  YSE_PCAT_GUI = 5, /* User-facing controls and message boxes. */
+  YSE_PCAT_TIME = 6, /* Timing utilities (.metro, .delay, .line, ...). */
+  YSE_PCAT_MIDI = 7, /* MIDI formatting, parsing and device I/O. */
+  YSE_PCAT_ROUTING = 8, /* Steering messages (.gate, .route, .sel, ...). */
+  YSE_PCAT_CONTROL = 9, /* Control flow and ordering (.trigger, .uzi, ...). */
+  YSE_PCAT_LIST = 10, /* Building and taking apart lists (.pack, .zl, ...). */
+  YSE_PCAT_STRING = 11, /* Symbols and text (.sprintf, .regexp, ...). */
+  YSE_PCAT_COLLECTION = 12, /* Stores (.coll, .table, .bag, ...). */
+  YSE_PCAT_DICT = 13, /* The .dict family. */
+  YSE_PCAT_ARRAY = 14, /* The .array family. */
+  YSE_PCAT_RANDOM = 15, /* Random and probabilistic sources. */
+  YSE_PCAT_IO = 16, /* Audio and host I/O (~adc, ~dac, .s, .r, .print, ...). */
+  YSE_PCAT_ENCAPSULATION = 17, /* Subpatchers and their inlets/outlets. */
+  YSE_PCAT_SEQUENCE = 18 /* Timed recorders / players (.seq, .mtr, .qlist). */
 } YsePCategory;
 
 /* Bitmask of message types an inlet accepts; mirrors

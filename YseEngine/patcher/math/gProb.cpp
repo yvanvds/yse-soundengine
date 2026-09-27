@@ -55,7 +55,7 @@ CONSTRUCT() {
       "random "
       "draw is taken per bang. Pairs with .anal, which builds the same table from an input "
       "stream.");
-  ADD_CATEGORY(pCategory::MATH);
+  ADD_CATEGORY(pCategory::RANDOM);
   INLET_DOC(
       0, "control",
       "Bang to make a weighted transition / int or float to set the current state without "

@@ -531,7 +531,7 @@ TEST_SUITE("patcher") {
   TEST_CASE("array.random: carries complete documentation metadata (#805)") {
     gArrayRandom random;
     CHECK_FALSE(random.GetDescription().empty());
-    CHECK(random.GetCategory() == YSE::PATCHER::pCategory::GENERIC);
+    CHECK(random.GetCategory() == YSE::PATCHER::pCategory::ARRAY);
     REQUIRE(random.GetParamDocs().size() == 2);
     CHECK(random.GetParamDocs()[0].name == "name");
     CHECK(random.GetParamDocs()[1].name == "seed");

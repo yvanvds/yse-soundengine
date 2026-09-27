@@ -91,7 +91,7 @@ CONSTRUCT() {
       "outlet fires per input. Calculate() does nothing, and no message path allocates except for "
       "a remainder of two or more items, which is one string — the cost stripping has and "
       "pass-through does not.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::ROUTING);
   INLET_DOC(0, "in",
             "Value inlet — accepts bang / int / float / list. The first item decides: a list's "
             "leading token, a bare number itself, or the symbol 'bang'. What leaves the matching "

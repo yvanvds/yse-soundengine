@@ -506,7 +506,7 @@ TEST_SUITE("patcher") {
   TEST_CASE("dict.pack: carries complete documentation metadata (#775)") {
     gDictPack g;
     CHECK_FALSE(g.GetDescription().empty());
-    CHECK(g.GetCategory() == YSE::PATCHER::pCategory::GENERIC);
+    CHECK(g.GetCategory() == YSE::PATCHER::pCategory::DICT);
     const auto& docs = g.GetParamDocs();
     REQUIRE(docs.size() == 2);
     CHECK(docs[0].name == "name");

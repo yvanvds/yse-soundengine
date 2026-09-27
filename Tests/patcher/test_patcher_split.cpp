@@ -439,7 +439,7 @@ TEST_SUITE("patcher") {
   TEST_CASE("split: documents itself as MATH with three inlets and two outlets (#448)") {
     std::unique_ptr<YSE::PATCHER::pObject> obj(YSE::PATCHER::Register().Get(YSE::OBJ::G_SPLIT));
     REQUIRE(obj != nullptr);
-    CHECK(obj->GetCategory() == YSE::PATCHER::pCategory::MATH);
+    CHECK(obj->GetCategory() == YSE::PATCHER::pCategory::ROUTING);
     CHECK_FALSE(obj->GetDescription().empty());
 
     REQUIRE(obj->NumInputs() == 3);

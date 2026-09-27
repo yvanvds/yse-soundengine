@@ -174,6 +174,7 @@ namespace {
     std::string description;
     YsePCategory category;
     bool isDsp;
+    bool requiresMidiDevice;
     std::vector<InletMeta> inlets;
     std::vector<OutletMeta> outlets;
     std::vector<ParamMeta> params;
@@ -198,6 +199,28 @@ namespace {
       return YSE_PCAT_TIME;
     case pCategory::MIDI:
       return YSE_PCAT_MIDI;
+    case pCategory::ROUTING:
+      return YSE_PCAT_ROUTING;
+    case pCategory::CONTROL:
+      return YSE_PCAT_CONTROL;
+    case pCategory::LIST:
+      return YSE_PCAT_LIST;
+    case pCategory::STRING:
+      return YSE_PCAT_STRING;
+    case pCategory::COLLECTION:
+      return YSE_PCAT_COLLECTION;
+    case pCategory::DICT:
+      return YSE_PCAT_DICT;
+    case pCategory::ARRAY:
+      return YSE_PCAT_ARRAY;
+    case pCategory::RANDOM:
+      return YSE_PCAT_RANDOM;
+    case pCategory::IO:
+      return YSE_PCAT_IO;
+    case pCategory::ENCAPSULATION:
+      return YSE_PCAT_ENCAPSULATION;
+    case pCategory::SEQUENCE:
+      return YSE_PCAT_SEQUENCE;
     case pCategory::COUNT_:
       break; // sentinel, not a category (drift guard in yse_enums_check.cpp)
     }
@@ -222,6 +245,28 @@ namespace {
       return "TIME";
     case YSE_PCAT_MIDI:
       return "MIDI";
+    case YSE_PCAT_ROUTING:
+      return "ROUTING";
+    case YSE_PCAT_CONTROL:
+      return "CONTROL";
+    case YSE_PCAT_LIST:
+      return "LIST";
+    case YSE_PCAT_STRING:
+      return "STRING";
+    case YSE_PCAT_COLLECTION:
+      return "COLLECTION";
+    case YSE_PCAT_DICT:
+      return "DICT";
+    case YSE_PCAT_ARRAY:
+      return "ARRAY";
+    case YSE_PCAT_RANDOM:
+      return "RANDOM";
+    case YSE_PCAT_IO:
+      return "IO";
+    case YSE_PCAT_ENCAPSULATION:
+      return "ENCAPSULATION";
+    case YSE_PCAT_SEQUENCE:
+      return "SEQUENCE";
     }
     return "UNKNOWN";
   }
@@ -265,6 +310,7 @@ namespace {
         tm.description = obj->GetDescription();
         tm.category = mapCategory(obj->GetCategory());
         tm.isDsp = obj->IsDSPObject();
+        tm.requiresMidiDevice = YSE::PATCHER::Register().RequiresMidiDevice(name);
 
         tm.inlets.reserve(static_cast<size_t>(obj->NumInputs()));
         for (int i = 0; i < obj->NumInputs(); ++i) {
@@ -836,6 +882,7 @@ YSE_C_API char* yse_patcher_get_metadata_json(void) {
       entry["name"] = tm.name;
       entry["category"] = categoryName(tm.category);
       entry["is_dsp"] = tm.isDsp;
+      entry["requires_midi_device"] = tm.requiresMidiDevice;
       entry["description"] = tm.description;
 
       nlohmann::json inlets = nlohmann::json::array();

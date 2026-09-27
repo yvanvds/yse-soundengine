@@ -147,7 +147,7 @@ CONSTRUCT() {
       "made to spin, which is also what stops an object wired back into one of its own inlets from "
       "recursing on the audio thread.");
 
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::LIST);
 }
 
 // ─── the creation arguments ─────────────────────────────────────────────────

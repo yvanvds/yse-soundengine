@@ -61,7 +61,7 @@ gArrayConcat::gArrayConcat() : gArraySetOpBase(false) {
       "two guards are ever held at once and \".array.concat seq seq\" answers the array "
       "doubled. A result that outruns what a cord carries is refused whole and counted — a "
       "partial concatenation would be truncation by another name.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::ARRAY);
   INLET_DOC(0, "trigger", kConcatTriggerInletDoc, "");
   INLET_DOC(1, "right reference", kConcatRightInletDoc, "");
   OUTLET_DOC(0, "concatenation",
@@ -143,7 +143,7 @@ gArrayJoin::gArrayJoin() : gArrayEndsBase() {
       "it belongs. A result past the cord's ceiling is refused whole and counted. The whole "
       "join happens under one hold of the store's guard, so the answer is the array as it "
       "stood at the trigger; an empty or unnamed (private) array bangs the empty outlet.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::ARRAY);
   INLET_DOC(0, "trigger",
             "A bang asks for the joined text — every element in order, the separator between "
             "each pair, built under one hold of the store's guard and sent after it is "

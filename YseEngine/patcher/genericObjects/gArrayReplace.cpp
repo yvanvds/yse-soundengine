@@ -77,7 +77,7 @@ gArrayReplace::gArrayReplace() : gArrayEndsBase() {
       "lost try-lock, a trigger before both values exist) emits nothing. The whole replace is "
       "one hold of the store's guard, and nothing renumbers: every element keeps its position, "
       "only its spelling changes.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::ARRAY);
   INLET_DOC(0, "find",
             "An int, a float or a symbol stores the find value and replaces every occurrence of "
             "it now; a bang re-replaces with the stored find and replacement. Equality is the "

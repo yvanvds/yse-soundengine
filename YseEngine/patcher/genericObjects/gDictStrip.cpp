@@ -86,7 +86,7 @@ CONSTRUCT() {
       "removal .dict's delete cannot spell (one path, not a sub-tree), and the in-place half "
       "of .dict.slice's partition: what a slice of the same path leaves in its remainder is "
       "exactly what a strip leaves behind.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::DICT);
   INLET_DOC(0, "strip", kInletDoc, "");
   OUTLET_DOC(0, "dictionary reference", kOutletDoc, "");
   PARAM_DOC("name", "", kNameDoc, "any identifier");

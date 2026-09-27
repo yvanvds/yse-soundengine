@@ -34,7 +34,7 @@ Max/MSP:
 
 The full list of types lives in :file:`YseEngine/patcher/pObjectList.hpp`
 as ``YSE::OBJ::*`` constants, and is rendered in the
-:doc:`/api/patcher_objects` reference page.
+:doc:`/patcher/objects/index` reference page.
 
 Creating a patcher and attaching it to a sound
 ----------------------------------------------
@@ -154,7 +154,7 @@ Where to find the full object reference
 
 The 37 registered object types — every inlet, outlet, parameter, default
 value, and accepted message type — are listed on the
-:doc:`/api/patcher_objects` reference page. That page is generated
+:doc:`/patcher/objects/index` reference page. That page is generated
 directly from the engine source, so it can never drift from what
 ``CreateObject`` actually accepts.
 
@@ -172,7 +172,7 @@ What you learned
 Next
 ----
 
-- :doc:`/api/patcher_objects` — every patcher object, with inlets,
+- :doc:`/patcher/objects/index` — every patcher object, with inlets,
   outlets, parameters, and value ranges.
 - :cpp:class:`YSE::patcher` — patcher class reference.
 - :cpp:class:`YSE::pHandle` — per-object handle reference.

@@ -108,7 +108,7 @@ CONSTRUCT() {
       "position under one hold of the store's guard, so the reply is the array as it stood at "
       "the trigger, and the stored index is this object's own: two .array.at on one name fetch "
       "independently.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::ARRAY);
   INLET_DOC(0, "index", kIndexInletDoc, "0-255");
   INLET_DOC(1, "array reference", kReferenceInletDoc, "");
   OUTLET_DOC(0, "element", kElementDoc, "");

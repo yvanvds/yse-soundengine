@@ -100,7 +100,7 @@ gArrayRegexp::gArrayRegexp() : gArrayEndsBase() {
       "itself: a matched list past what a cord carries, a scan that ran out of budget, and a "
       "lost try-lock each refuse the whole ask, counted. A malformed pattern is reported when "
       "the parameter is set and the object then refuses every trigger.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::ARRAY);
   INLET_DOC(0, "trigger", kTriggerInletDoc, "");
   INLET_DOC(1, "array reference", kReferenceInletDoc, "");
   OUTLET_DOC(0, "matched", kMatchedOutletDoc, "");

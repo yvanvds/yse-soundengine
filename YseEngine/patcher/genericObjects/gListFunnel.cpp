@@ -143,7 +143,7 @@ CONSTRUCT() {
       "keeps the index base fixed for the length of one list rather than able to change halfway "
       "down it.");
 
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::LIST);
 
   INLET_DOC(0, "in", kInletDoc, "any");
   OUTLET_DOC(0, "out", kOutletDoc, "list");

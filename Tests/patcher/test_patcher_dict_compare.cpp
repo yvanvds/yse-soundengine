@@ -587,7 +587,7 @@ TEST_SUITE("patcher") {
   TEST_CASE("dict.compare: carries complete documentation metadata (#770, #833)") {
     gDictCompare c;
     CHECK_FALSE(c.GetDescription().empty());
-    CHECK(c.GetCategory() == YSE::PATCHER::pCategory::GENERIC);
+    CHECK(c.GetCategory() == YSE::PATCHER::pCategory::DICT);
     const auto& docs = c.GetParamDocs();
     REQUIRE(docs.size() == 2);
     CHECK(docs[0].name == "left");

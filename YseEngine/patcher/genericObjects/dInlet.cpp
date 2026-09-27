@@ -68,7 +68,7 @@ CONSTRUCT_DSP() {
       "object cannot answer both honestly — the same split as '.+' and '~+'. One creation "
       "argument, the boundary inlet number, default 0. Calculate is a null check and a send; "
       "nothing allocates, locks or blocks.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::ENCAPSULATION);
 
   INLET_DOC(0, "from parent", kInletDoc, "-1.0 to 1.0");
   OUTLET_DOC(0, "out", kOutletDoc, "-1.0 to 1.0");

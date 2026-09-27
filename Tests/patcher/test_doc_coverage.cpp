@@ -22,6 +22,7 @@
 
 #include <doctest/doctest.h>
 #include <memory>
+#include <set>
 #include <string>
 #include "patcher/pObject.h"
 #include "patcher/pObjectList.hpp"
@@ -75,6 +76,51 @@ TEST_SUITE("patcher") {
         REQUIRE_FALSE(p.doc.empty());
       }
     }
+  }
+
+  TEST_CASE("doc coverage: no registered object falls back to GENERIC (#870)") {
+    // The category is the page an object lands on in the reference and the
+    // palette group an editor shows it in. GENERIC used to hold 133 objects —
+    // every array, dict, list, string, routing and I/O object — which made
+    // both useless. It is now the fallback for an object that genuinely fits
+    // no other category; if a new object really is one, name it here rather
+    // than dropping it into GENERIC by default.
+    const std::set<std::string> genuinelyGeneric = {};
+
+    for (const auto& name : Register().AllNames()) {
+      CAPTURE(name);
+      std::unique_ptr<pObject> obj(Register().Get(name));
+      REQUIRE(obj != nullptr);
+      if (genuinelyGeneric.count(name) != 0) continue;
+      CHECK(obj->GetCategory() != pCategory::GENERIC);
+    }
+  }
+
+  TEST_CASE("registry: device-port MIDI objects are flagged, the rest are not (#870)") {
+    // RequiresMidiDevice() is what the metadata JSON's "requires_midi_device"
+    // and the docs' platform note are built from. It must name exactly the
+    // objects registered inside the YSE_ENABLE_MIDI_DEVICE guard.
+    auto& reg = Register();
+    CHECK_FALSE(reg.RequiresMidiDevice(YSE::OBJ::M_NOTEON)); // a formatter
+    CHECK_FALSE(reg.RequiresMidiDevice(YSE::OBJ::M_PARSE));
+    CHECK_FALSE(reg.RequiresMidiDevice(YSE::OBJ::M_SXFORMAT));
+    CHECK_FALSE(reg.RequiresMidiDevice("no_such_object_for_test"));
+#if YSE_ENABLE_MIDI_DEVICE
+    for (const char* type :
+         {YSE::OBJ::M_OUT, YSE::OBJ::M_IN, YSE::OBJ::M_NOTEIN, YSE::OBJ::M_SYSEXIN,
+          YSE::OBJ::M_XMIDIIN, YSE::OBJ::M_RPNIN, YSE::OBJ::M_MIDIINFO}) {
+      CAPTURE(type);
+      CHECK(reg.IsValidObject(type));
+      CHECK(reg.RequiresMidiDevice(type));
+    }
+#else
+    // Without the backend the flagged objects are not registered at all, so
+    // nothing the live registry holds can carry the flag.
+    for (const auto& name : reg.AllNames()) {
+      CAPTURE(name);
+      CHECK_FALSE(reg.RequiresMidiDevice(name));
+    }
+#endif
   }
 
   TEST_CASE("registry: every registered object reports its own name (#749)") {

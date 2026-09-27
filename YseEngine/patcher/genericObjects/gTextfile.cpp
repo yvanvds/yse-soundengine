@@ -254,7 +254,7 @@ CONSTRUCT() {
       "value, which loses nothing and pads nothing, and a second spelling on one object would make "
       "its text disagree with every other's — and stringout, there being no string atom to "
       "output.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::COLLECTION);
   INLET_DOC(0, "in", kInletDoc, "at most 256 lines of 256 characters");
   OUTLET_DOC(0, "text", kTextDoc, "");
   OUTLET_DOC(1, "lines", kCountDoc, "0-256");

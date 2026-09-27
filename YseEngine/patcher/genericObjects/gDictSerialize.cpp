@@ -135,7 +135,7 @@ CONSTRUCT() {
       "to the patcher's file scheduler — background disk work, up to the scheduler slot's 128 "
       "KiB, past which the document is refused whole. Only the creation argument persists "
       "across a save; the dictionary's contents persist with the .dict that owns them.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::DICT);
   INLET_DOC(0, "serialize", kInletDoc, "");
   OUTLET_DOC(0, "json", kOutletDoc, "");
   PARAM_DOC("name", "", kNameDoc, "any identifier");

@@ -23,4 +23,4 @@ a ``DSP::dspObject`` chain goes — a channel or per-sound insert.
    :maxdepth: 1
    :caption: Object reference
 
-   patcher_objects
+   /patcher/objects/index

@@ -62,7 +62,7 @@ gArrayThin::gArrayThin() : gArrayEndsBase() {
       "guard — survivors close ranks in original order, each moved at most once — and yes, it "
       "renumbers under every other object on the name, exactly as .array.remove does: "
       "renumbering is what a removal is.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::ARRAY);
   INLET_DOC(0, "trigger",
             "A bang thins the array now: one scan against the last survivor, near-duplicate "
             "neighbours removed, under one hold of the store's guard. \"array <name>\" does the "

@@ -112,7 +112,7 @@ CONSTRUCT() {
       "empty symbol. It also means the list '5 6' leaves an i outlet as 0 rather than as 5, which "
       "is what Max says a list reaching an i outlet does: .trigger is not a list reader, .route "
       "and .sel are. At most 256 outlets are built.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::CONTROL);
   INLET_DOC(0, "in",
             "Bang, int, float or list. Whatever arrives is sent out every outlet, right to left, "
             "converted per outlet.",

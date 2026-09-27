@@ -187,7 +187,7 @@ CONSTRUCT() {
       "changeable arguments. Calculate() does nothing, and no message path allocates, locks or "
       "blocks: formatting is a bounded walk of the compiled pieces into a buffer reserved before "
       "the object was published for the literal text plus the widest thing every slot can render.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::STRING);
 
   PARAM_DOC("format", "",
             "Max's argument list: an optional leading 'symout' followed by the format itself, "

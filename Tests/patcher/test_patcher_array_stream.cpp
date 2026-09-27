@@ -635,7 +635,7 @@ TEST_SUITE("patcher") {
   TEST_CASE("array.stream: carries complete documentation metadata (#806)") {
     gArrayStream stream;
     CHECK_FALSE(stream.GetDescription().empty());
-    CHECK(stream.GetCategory() == YSE::PATCHER::pCategory::GENERIC);
+    CHECK(stream.GetCategory() == YSE::PATCHER::pCategory::ARRAY);
     REQUIRE(stream.GetParamDocs().size() == 2);
     CHECK(stream.GetParamDocs()[0].name == "name");
     CHECK(stream.GetParamDocs()[1].name == "size");

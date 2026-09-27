@@ -69,7 +69,7 @@ CONSTRUCT() {
       "when a patch wants one. A join past the 256-entry capacity is refused entry by entry and "
       "counted rather than truncated, so a partial merge is possible — whatever fits, left "
       "entries first, is the result.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::DICT);
   INLET_DOC(0, "join", kLeftInletDoc, "");
   INLET_DOC(1, "right reference", kRightInletDoc, "");
   OUTLET_DOC(0, "reference", kOutletDoc, "");

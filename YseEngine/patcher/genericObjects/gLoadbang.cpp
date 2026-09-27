@@ -64,7 +64,7 @@ CONSTRUCT() {
       "whatever had happened since. The inlet is the manual trigger for that case — a bang in "
       "makes it output, which is Max's documented behaviour. One inlet, one bang outlet, no "
       "creation arguments. Calculate() does nothing, and neither send allocates, locks or blocks.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::CONTROL);
 
   INLET_DOC(0, "trigger", kInletDoc, "bang");
   OUTLET_DOC(0, "out", kOutletDoc, "bang");

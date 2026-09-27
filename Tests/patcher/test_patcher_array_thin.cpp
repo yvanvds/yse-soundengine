@@ -635,7 +635,7 @@ TEST_SUITE("patcher") {
   TEST_CASE("array.thin: carries complete documentation metadata (#807)") {
     gArrayThin thin;
     CHECK_FALSE(thin.GetDescription().empty());
-    CHECK(thin.GetCategory() == YSE::PATCHER::pCategory::GENERIC);
+    CHECK(thin.GetCategory() == YSE::PATCHER::pCategory::ARRAY);
     REQUIRE(thin.GetParamDocs().size() == 2);
     CHECK(thin.GetParamDocs()[0].name == "name");
     CHECK(thin.GetParamDocs()[1].name == "tolerance");

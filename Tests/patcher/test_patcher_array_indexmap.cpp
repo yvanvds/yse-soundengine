@@ -627,7 +627,7 @@ TEST_SUITE("patcher") {
   TEST_CASE("array.indexmap: carries complete documentation metadata (#787)") {
     gArrayIndexMap map;
     CHECK_FALSE(map.GetDescription().empty());
-    CHECK(map.GetCategory() == YSE::PATCHER::pCategory::GENERIC);
+    CHECK(map.GetCategory() == YSE::PATCHER::pCategory::ARRAY);
     const auto& docs = map.GetParamDocs();
     REQUIRE(docs.size() == 2);
     CHECK(docs[0].name == "name");

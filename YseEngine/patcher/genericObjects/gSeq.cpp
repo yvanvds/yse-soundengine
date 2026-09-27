@@ -457,7 +457,7 @@ CONSTRUCT() {
       "dump and the editing window it opens a file into, the patcher being headless; and print, "
       "for a neighbouring reason, the patcher's log building a string and taking a lock on a path "
       "that must do neither.");
-  ADD_CATEGORY(pCategory::MIDI);
+  ADD_CATEGORY(pCategory::SEQUENCE);
   INLET_DOC(0, "in", kInletDoc, "0-255");
   OUTLET_DOC(0, "midi", kByteOutletDoc, "0-255");
   OUTLET_DOC(1, "end", kEndOutletDoc, "");

@@ -21,7 +21,7 @@ CONSTRUCT() {
 
   ADD_DESCRIPTION(
       "Random integer generator. On bang, emits a uniformly distributed integer in [0, range).");
-  ADD_CATEGORY(pCategory::MATH);
+  ADD_CATEGORY(pCategory::RANDOM);
   INLET_DOC(0, "bang", "Trigger — emits a fresh random integer.", "");
   INLET_DOC(1, "range", "Sets the exclusive upper bound of the output range.", "1+");
   OUTLET_DOC(0, "out", "Random integer in [0, range).", "0 to range-1");

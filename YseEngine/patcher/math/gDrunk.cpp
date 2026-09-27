@@ -49,7 +49,7 @@ CONSTRUCT() {
       "through .pong for a reflecting or wrapping boundary instead. A non-zero seed makes the "
       "whole sequence reproducible across runs; seed 0 takes an arbitrary stream. Exactly one "
       "random draw is taken per bang.");
-  ADD_CATEGORY(pCategory::MATH);
+  ADD_CATEGORY(pCategory::RANDOM);
   INLET_DOC(0, "control",
             "Bang to take a step / int or float to set the position and emit it / list 'set <n>' "
             "to set it without emitting / list 'seed <n>' to restart the random sequence.",

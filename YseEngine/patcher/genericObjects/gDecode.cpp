@@ -128,7 +128,7 @@ CONSTRUCT() {
       "and nothing more. At most 256 outlets, built once before the object is published; "
       "Calculate() does nothing, and no message path allocates, locks or blocks — a burst is three "
       "ints on the stack and one integer compare per outlet.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::ROUTING);
   PARAM_DOC("outlets", "1",
             "Max's one creation argument: how many outlets to build, clamped to 1-256 and "
             "defaulting to 1. A float is truncated, as Max's own argument list documents; anything "

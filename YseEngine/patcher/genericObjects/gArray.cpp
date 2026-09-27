@@ -250,7 +250,7 @@ CONSTRUCT() {
       "value, never an identity, so the name is what travels and the store is resolved once, on "
       "the control thread. Indices are zero-based and an index out of range is refused rather than "
       "wrapped or clamped. An unnamed .array keeps a sequence of its own.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::ARRAY);
   INLET_DOC(0, "in", kInletDoc, "at most 256 elements");
   OUTLET_DOC(0, "data", kDataDoc, "");
   OUTLET_DOC(1, "reference", kReferenceDoc, "");

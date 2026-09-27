@@ -79,7 +79,7 @@ CONSTRUCT() {
       "is set; evaluation only walks the compiled form and writes into a buffer reserved up front, "
       "so it allocates nothing and takes no lock. A malformed statement is reported to the log at "
       "parse time and the object then sends nothing.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::CONTROL);
   INLET_DOC(0, kInletLabels[0],
             "Value for the $i1 / $f1 placeholders — stores and fires the evaluation. Also accepts "
             "a bang (re-evaluate with the stored values) and a list (fill the inlets left to "

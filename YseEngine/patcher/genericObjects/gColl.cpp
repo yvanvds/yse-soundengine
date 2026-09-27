@@ -351,7 +351,7 @@ CONSTRUCT() {
       "more than one entry copy per entry. Anything that does not fit is refused whole and "
       "silently. Calculate() does nothing. Not ported: the editor window (open, wclose), refer, "
       "and the embed / flags save switch.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::COLLECTION);
   INLET_DOC(0, "in", kInletDoc, "at most 256 entries");
   OUTLET_DOC(0, "data", kDataDoc, "");
   OUTLET_DOC(1, "address", kAddressDoc, "");

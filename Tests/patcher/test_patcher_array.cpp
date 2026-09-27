@@ -807,7 +807,7 @@ TEST_SUITE("patcher") {
   TEST_CASE("array: carries complete documentation metadata (#548)") {
     gArray a;
     CHECK_FALSE(a.GetDescription().empty());
-    CHECK(a.GetCategory() == YSE::PATCHER::pCategory::GENERIC);
+    CHECK(a.GetCategory() == YSE::PATCHER::pCategory::ARRAY);
     const auto& docs = a.GetParamDocs();
     REQUIRE(docs.size() == 1);
     CHECK(docs[0].name == "name");

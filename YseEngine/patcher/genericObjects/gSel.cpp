@@ -85,7 +85,7 @@ CONSTRUCT() {
       "float and replaces the value of the single selector. With more than one selector there is "
       "no way to change them, which is Max's answer too: the argument list is the object's shape, "
       "and changing it changes the outlet count. At most 256 selectors are held.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::ROUTING);
   INLET_DOC(0, "in",
             "Bang, int, float or list to match against the selectors. A match bangs the "
             "corresponding outlet; anything else leaves the rightmost outlet unchanged and in its "

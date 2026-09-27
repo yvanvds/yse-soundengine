@@ -680,7 +680,7 @@ TEST_SUITE("patcher") {
   TEST_CASE("next: documents itself as GENERIC with a labelled port set (#471)") {
     std::unique_ptr<YSE::PATCHER::pObject> obj(YSE::PATCHER::Register().Get(YSE::OBJ::G_NEXT));
     REQUIRE(obj != nullptr);
-    CHECK(obj->GetCategory() == YSE::PATCHER::pCategory::GENERIC);
+    CHECK(obj->GetCategory() == YSE::PATCHER::pCategory::CONTROL);
     CHECK_FALSE(obj->GetDescription().empty());
 
     REQUIRE(obj->NumInputs() == 1);

@@ -45,7 +45,7 @@ gPackBase::gPackBase(const char* name, packTrigger policy)
   // the audio callback.
   AtomList::ReserveRender(render);
 
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::LIST);
 }
 
 void gPackBase::Document(const char* summary, const char* leftInlet, const char* otherInlets,

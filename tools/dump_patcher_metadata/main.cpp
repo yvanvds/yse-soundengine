@@ -1,9 +1,10 @@
 // dump_patcher_metadata — walks the patcher registry and emits a JSON
 // description of every registered object's in-code documentation
 // (description, category, inlet/outlet/parameter docs with ranges and
-// accepted message types). The output is the source of truth for the
-// auto-generated documentation/source/api/patcher_objects page; see
-// issue #103.
+// accepted message types, and whether the object needs the MIDI device
+// backend). The output is the source of truth for the auto-generated
+// per-category pages under documentation/source/patcher/objects/; see
+// issues #103 and #870.
 //
 // Linkage mirrors the test binary: this TU is added to a target that
 // links yse_objects directly, bypassing the DLL export boundary so the
@@ -56,6 +57,17 @@ const char * CategoryName(pCategory c) {
         case pCategory::GUI:     return "GUI";
         case pCategory::TIME:    return "TIME";
         case pCategory::MIDI:    return "MIDI";
+        case pCategory::ROUTING: return "ROUTING";
+        case pCategory::CONTROL: return "CONTROL";
+        case pCategory::LIST:    return "LIST";
+        case pCategory::STRING:  return "STRING";
+        case pCategory::COLLECTION: return "COLLECTION";
+        case pCategory::DICT:    return "DICT";
+        case pCategory::ARRAY:   return "ARRAY";
+        case pCategory::RANDOM:  return "RANDOM";
+        case pCategory::IO:      return "IO";
+        case pCategory::ENCAPSULATION: return "ENCAPSULATION";
+        case pCategory::SEQUENCE: return "SEQUENCE";
         case pCategory::COUNT_:  break; // sentinel, not a category
     }
     return "UNKNOWN";
@@ -114,6 +126,7 @@ int main(int argc, char ** argv) {
         entry["name"] = name;
         entry["category"] = CategoryName(obj->GetCategory());
         entry["is_dsp"] = obj->IsDSPObject();
+        entry["requires_midi_device"] = reg.RequiresMidiDevice(name);
         entry["description"] = obj->GetDescription();
 
         json inlets = json::array();

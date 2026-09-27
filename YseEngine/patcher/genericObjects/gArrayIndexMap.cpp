@@ -107,7 +107,7 @@ gArrayIndexMap::gArrayIndexMap() : gArrayEndsBase() {
       "store's guard, through a scratch table the object owns, so the order applied is the "
       "array as it stood at the trigger; a reorder that lands emits the array's reference, so "
       "the family chains.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::ARRAY);
   INLET_DOC(0, "trigger", kTriggerInletDoc, "0-255 each");
   INLET_DOC(1, "index map", kMapInletDoc, "0-255 each");
   INLET_DOC(2, "array reference", kReferenceInletDoc, "");

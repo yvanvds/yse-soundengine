@@ -36,9 +36,10 @@ local.properties
 
 documentation/build/
 documentation/source/_doxygen/
-# patcher_objects.rst is rendered from patcher_objects.json by the Sphinx
-# pre-build hook in conf.py; the JSON is committed, the rendered .rst is not.
-documentation/source/api/patcher_objects.rst
+# The patcher object reference (one page per category) is rendered from
+# patcher_objects.json by the Sphinx pre-build hook in conf.py; the JSON is
+# committed, the rendered .rst pages are not.
+documentation/source/patcher/objects/
 
 #################
 ## Visual Studio

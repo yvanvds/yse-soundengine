@@ -171,7 +171,7 @@ TEST_SUITE("patcher") {
     std::unique_ptr<YSE::PATCHER::pObject> obj(YSE::PATCHER::Register().Get(YSE::OBJ::G_REGEXP));
     REQUIRE(obj != nullptr);
     CHECK_FALSE(obj->GetDescription().empty());
-    CHECK(obj->GetCategory() == YSE::PATCHER::pCategory::GENERIC);
+    CHECK(obj->GetCategory() == YSE::PATCHER::pCategory::STRING);
     REQUIRE(obj->NumInputs() == 1);
     REQUIRE(obj->NumOutputs() == 4);
     for (int i = 0; i < obj->NumOutputs(); i++) {

@@ -66,7 +66,7 @@ CONSTRUCT() {
       "set of outlet pins and outlet N is one pin whichever rate is behind it. One creation "
       "argument, the boundary outlet number, default 0. Every handler is one send; nothing "
       "allocates, locks or blocks.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::ENCAPSULATION);
 
   INLET_DOC(0, "from patch", kInletDoc, "");
   OUTLET_DOC(0, "to parent", kOutletDoc, "");

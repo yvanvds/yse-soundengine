@@ -49,7 +49,7 @@ gArrayFill::gArrayFill() : gArrayEndsBase() {
       "than truncated; the value is one atom of at most 64 characters. The whole fill is one "
       "hold of the store's guard, and a fill that lands emits the array's reference, so the "
       "family chains.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::ARRAY);
   INLET_DOC(0, "value",
             "A bang fills the bound array with the stored count of copies of the stored value "
             "— the array becomes exactly that, whatever it held. An int or a float fills with "

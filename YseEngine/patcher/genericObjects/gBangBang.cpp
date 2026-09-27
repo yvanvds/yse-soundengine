@@ -49,7 +49,7 @@ CONSTRUCT() {
       "whole finite number, or no argument at all, gives two outlets, which is Max's default shape "
       "and .trigger's. Calculate() does nothing: the object is driven by its inlet, and emitting "
       "on a DSP tick would re-fire the whole fan-out every block.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::CONTROL);
   INLET_DOC(0, "in",
             "Bang, int, float or list. Whatever arrives is discarded and a bang is sent out every "
             "outlet, right to left.",

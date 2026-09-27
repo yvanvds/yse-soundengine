@@ -226,7 +226,7 @@ TEST_SUITE("patcher") {
     gQlist obj;
     CHECK(obj.NumInputs() == 1);
     CHECK(obj.NumOutputs() == 3);
-    CHECK(obj.GetCategory() == YSE::PATCHER::pCategory::TIME);
+    CHECK(obj.GetCategory() == YSE::PATCHER::pCategory::SEQUENCE);
   }
 
   TEST_CASE("qlist: a fresh object is empty and not playing (#500)") {

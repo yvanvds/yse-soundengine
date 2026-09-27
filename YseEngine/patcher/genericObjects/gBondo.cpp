@@ -97,7 +97,7 @@ CONSTRUCT() {
       "object outside any patcher has no dispatch to defer into and releases immediately. At most "
       "256 inlet/outlet pairs are built, and the slot table is sized once before the object is "
       "published — Calculate() does nothing, and no message path allocates, locks or blocks.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::CONTROL);
   PARAM_DOC("ports", "2",
             "Max's argument list, in Max's order and read by type. The first whole number is how "
             "many inlet/outlet pairs to build, clamped to 1-256 and defaulting to 2. A second "
