@@ -25,9 +25,9 @@
 //
 // A few cases reach past the C ABI into the engine headers — building a device
 // descriptor (the engine's enumerator is the only other producer, and it needs
-// real hardware) and reading back deviceSetup::getOutputChannels(), which has no
-// C getter. That mirrors what test_c_api_bus.cpp does for bus publishes: the
-// tests link yse_objects with full symbol access.
+// real hardware) and cross-checking yse_device_setup_get_output_channels()
+// against deviceSetup::getOutputChannels(). That mirrors what test_c_api_bus.cpp does for bus
+// publishes: the tests link yse_objects with full symbol access.
 
 #include <doctest/doctest.h>
 
@@ -356,9 +356,11 @@ TEST_SUITE("capisurface") {
     yse_device_setup_set_sample_rate(setup, 48000.0);
     yse_device_setup_set_buffer_size(setup, 256);
 
-    // getOutputChannels() has no C getter; read it off the engine object to
-    // prove set_output landed on the right slot.
-    CHECK(reinterpret_cast<YSE::deviceSetup*>(setup)->getOutputChannels() == 2);
+    // The output channel count follows the device set_output attached (issue
+    // #908), which also proves set_output landed on the output slot.
+    CHECK(yse_device_setup_get_output_channels(setup) == 2);
+    CHECK(yse_device_setup_get_output_channels(setup) ==
+          reinterpret_cast<YSE::deviceSetup*>(setup)->getOutputChannels());
 
     yse_device_setup_destroy(setup);
   }
@@ -369,6 +371,7 @@ TEST_SUITE("capisurface") {
     yse_device_setup_set_output(nullptr, nullptr);
     yse_device_setup_set_sample_rate(nullptr, 44100.0);
     yse_device_setup_set_buffer_size(nullptr, 512);
+    CHECK(yse_device_setup_get_output_channels(nullptr) == 0);
 
     YseDeviceSetup* setup = yse_device_setup_create();
     REQUIRE(setup != nullptr);
@@ -376,7 +379,7 @@ TEST_SUITE("capisurface") {
     // (0 outputs here, because nothing was ever set).
     yse_device_setup_set_input(setup, nullptr);
     yse_device_setup_set_output(setup, nullptr);
-    CHECK(reinterpret_cast<YSE::deviceSetup*>(setup)->getOutputChannels() == 0);
+    CHECK(yse_device_setup_get_output_channels(setup) == 0);
     yse_device_setup_destroy(setup);
   }
 

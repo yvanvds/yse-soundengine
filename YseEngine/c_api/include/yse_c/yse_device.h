@@ -81,6 +81,11 @@ YSE_C_API void yse_device_setup_set_output(YseDeviceSetup* setup, const YseDevic
 YSE_C_API void yse_device_setup_set_sample_rate(YseDeviceSetup* setup, double value);
 YSE_C_API void yse_device_setup_set_buffer_size(YseDeviceSetup* setup, int value);
 
+/* Output channel count of the device attached with
+   yse_device_setup_set_output() — the count yse_system_open_device() opens
+   the stream with. 0 before an output device is set, and for a NULL setup. */
+YSE_C_API int yse_device_setup_get_output_channels(const YseDeviceSetup* setup);
+
 #ifdef __cplusplus
 }
 #endif

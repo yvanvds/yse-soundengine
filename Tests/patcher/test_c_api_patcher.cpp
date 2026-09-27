@@ -39,6 +39,7 @@
 #include "yse_c/yse_common.h"
 #include "yse_c/yse_enums.h"
 #include "yse_c/yse_patcher.h"
+#include "yse_c/yse_system.h"
 
 namespace {
 
@@ -458,22 +459,61 @@ TEST_SUITE("capilowcov") {
 
     YsePatcher* dst = yse_patcher_create();
     REQUIRE(dst != nullptr);
-    yse_patcher_init(dst, 2);
-    yse_patcher_parse_json(dst, json.c_str());
+
+    // Before init there is nothing to load into: refused, not a silent success
+    // (issue #910).
+    yse_clear_last_error();
+    CHECK(yse_patcher_parse_json(dst, json.c_str()) == YSE_ERR_NOT_INITIALIZED);
+    CHECK_FALSE(std::string(yse_last_error()).empty());
+    CHECK(yse_patcher_objects(dst) == 0u);
+
+    REQUIRE(yse_patcher_init(dst, 2) == YSE_OK);
+    CHECK(yse_patcher_parse_json(dst, json.c_str()) == YSE_OK);
     CHECK(yse_patcher_objects(dst) == yse_patcher_objects(src));
 
-    // Malformed input is reported through last_error, not thrown across the ABI.
+    // Malformed input is told apart from success by its status and reported
+    // through last_error, not thrown across the ABI (issue #910).
+    const unsigned int before = yse_patcher_objects(dst);
     yse_clear_last_error();
-    yse_patcher_parse_json(dst, "{ this is not json");
-    CHECK(std::string(yse_last_error()).empty() == false);
-    yse_clear_last_error();
+    CHECK(yse_patcher_parse_json(dst, "{ this is not json") == YSE_ERR_EXCEPTION);
+    CHECK_FALSE(std::string(yse_last_error()).empty());
+    CHECK(yse_patcher_objects(dst) == before);
 
-    // NULL handle / NULL content are no-ops.
-    yse_patcher_parse_json(nullptr, json.c_str());
-    yse_patcher_parse_json(dst, nullptr);
+    // NULL handle / NULL content are refused with a status and a reason.
+    yse_clear_last_error();
+    CHECK(yse_patcher_parse_json(nullptr, json.c_str()) == YSE_ERR_INVALID_HANDLE);
+    CHECK_FALSE(std::string(yse_last_error()).empty());
+    yse_clear_last_error();
+    CHECK(yse_patcher_parse_json(dst, nullptr) == YSE_ERR_INVALID_ARGUMENT);
+    CHECK_FALSE(std::string(yse_last_error()).empty());
+    yse_clear_last_error();
 
     yse_patcher_destroy(dst);
     yse_patcher_destroy(src);
+  }
+
+  TEST_CASE("c-api patcher: init reports its outcome as a YseStatus (#910)") {
+    YsePatcher* p = yse_patcher_create();
+    REQUIRE(p != nullptr);
+
+    yse_clear_last_error();
+    CHECK(yse_patcher_init(p, -1) == YSE_ERR_INVALID_ARGUMENT);
+    CHECK_FALSE(std::string(yse_last_error()).empty());
+    // The refused call left the patcher uninitialized.
+    CHECK(yse_patcher_create_object(p, kSine, nullptr) == nullptr);
+
+    CHECK(yse_patcher_init(p, 2) == YSE_OK);
+    CHECK(yse_patcher_create_object(p, kSine, nullptr) != nullptr);
+    // A repeat init is accepted and changes nothing, as the engine ignores it.
+    CHECK(yse_patcher_init(p, 4) == YSE_OK);
+    CHECK(yse_patcher_objects(p) == 1u);
+
+    yse_clear_last_error();
+    CHECK(yse_patcher_init(nullptr, 2) == YSE_ERR_INVALID_HANDLE);
+    CHECK_FALSE(std::string(yse_last_error()).empty());
+    yse_clear_last_error();
+
+    yse_patcher_destroy(p);
   }
 
   // ─── value path (PassBang / PassData) ──────────────────────────────────────
@@ -679,6 +719,59 @@ TEST_SUITE("capilowcov") {
     const int after = a.calls.load() + b.calls.load();
     std::this_thread::sleep_for(std::chrono::milliseconds(20));
     CHECK(a.calls.load() + b.calls.load() == after);
+  }
+
+  // ─── engine RNG seeding (issue #908) ───────────────────────────────────────
+
+  TEST_CASE("c-api patcher: yse_random_seed makes a .random patch replay, yse_randomize "
+            "moves it (#908)") {
+    // The user-visible contract: a host seeds the engine generator through the
+    // C ABI and a patch's .random draws replay. Drawn on this thread, which has
+    // already drawn before — so the replay also proves a seed reaches a thread
+    // whose stream was already running, not only fresh ones.
+    if (!capilowcov::ensureOffline()) return; // engine unavailable → skip
+
+    YsePatcher* p = yse_patcher_create();
+    REQUIRE(p != nullptr);
+    yse_patcher_init(p, 2);
+    YsePHandle* random = yse_patcher_create_object(p, ".random", "1000000");
+    YsePHandle* send = yse_patcher_create_object(p, ".s", "rng");
+    REQUIRE(random != nullptr);
+    REQUIRE(send != nullptr);
+    yse_patcher_connect(p, random, 0, send, 0);
+
+    SendLog log;
+    REQUIRE(yse_patcher_set_send_callback(p, &SendLog::record, &log) == YSE_OK);
+
+    auto draw = [&](int n) {
+      for (int i = 0; i < n; ++i)
+        yse_phandle_set_bang(random, 0);
+      std::vector<int> values;
+      for (const SendMsg& m : log.take()) {
+        CHECK(m.kind == YSE_OUT_INT);
+        values.push_back(m.i);
+      }
+      return values;
+    };
+
+    const int kN = 16;
+    CHECK(draw(3).size() == 3u); // this thread's stream is running before the seed
+
+    yse_random_seed(4242);
+    const std::vector<int> first = draw(kN);
+    REQUIRE(first.size() == static_cast<size_t>(kN));
+
+    draw(5); // advance, then publish the same seed again
+    yse_random_seed(4242);
+    CHECK(draw(kN) == first);
+
+    yse_random_seed(4243);
+    CHECK(draw(kN) != first);
+
+    yse_randomize();
+    CHECK(draw(kN) != first);
+
+    yse_patcher_destroy(p);
   }
 
   // ─── pHandle accessors ─────────────────────────────────────────────────────
@@ -1097,7 +1190,7 @@ TEST_SUITE("capilowcov") {
     YsePHandle* h = yse_patcher_create_object(p, kSine, nullptr);
     REQUIRE(h != nullptr);
 
-    yse_patcher_init(nullptr, 2);
+    CHECK(yse_patcher_init(nullptr, 2) == YSE_ERR_INVALID_HANDLE);
     CHECK(yse_patcher_create_object(nullptr, kSine, nullptr) == nullptr);
     CHECK(yse_patcher_create_object(p, nullptr, nullptr) == nullptr);
     yse_patcher_delete_object(nullptr, h);

@@ -231,7 +231,10 @@ YSE_C_API YseStatus yse_dsp_buffer_load_file(YseDspBuffer* buf, const char* file
     yse_c::set_last_error("buffer is not a fileBuffer");
     return YSE_ERR_INVALID_HANDLE;
   }
-  if (!filename) return YSE_ERR_INVALID_ARGUMENT;
+  if (!filename) {
+    yse_c::set_last_error("yse_dsp_buffer_load_file: filename is NULL");
+    return YSE_ERR_INVALID_ARGUMENT;
+  }
   return yse_c::guard("yse_dsp_buffer_load_file", YSE_ERR_EXCEPTION, [&] {
     if (!f->load(filename, channel)) {
       yse_c::set_last_error(std::string("file_buffer load failed for: ") + filename);
@@ -247,7 +250,10 @@ YSE_C_API YseStatus yse_dsp_buffer_save_file(YseDspBuffer* buf, const char* file
     yse_c::set_last_error("buffer is not a fileBuffer");
     return YSE_ERR_INVALID_HANDLE;
   }
-  if (!filename) return YSE_ERR_INVALID_ARGUMENT;
+  if (!filename) {
+    yse_c::set_last_error("yse_dsp_buffer_save_file: filename is NULL");
+    return YSE_ERR_INVALID_ARGUMENT;
+  }
   return yse_c::guard("yse_dsp_buffer_save_file", YSE_ERR_EXCEPTION, [&] {
     if (!f->save(filename)) {
       yse_c::set_last_error(std::string("file_buffer save failed for: ") + filename);
@@ -255,6 +261,11 @@ YSE_C_API YseStatus yse_dsp_buffer_save_file(YseDspBuffer* buf, const char* file
     }
     return YSE_OK;
   });
+}
+
+YSE_C_API float yse_dsp_buffer_get_file_sample_rate(YseDspBuffer* buf) {
+  const auto* f = as<YSE::DSP::fileBuffer>(buf);
+  return f ? f->getFileSampleRate() : 0.0f;
 }
 
 YSE_C_API YseStatus yse_dsp_wavetable_create_saw(YseDspBuffer* buf, int harmonics, int length) {

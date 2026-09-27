@@ -7,7 +7,18 @@
   (RtMidi-backed). Querying device counts/names lives in yse_system.h
   (yse_system_num_midi_{in,out}_devices, yse_system_midi_{in,out}_device_name).
 
-  Channels are 0..15 (use the same indexing as YSE::MIDI::M_CHANNEL).
+  ── MIDI CHANNEL NUMBERING: TWO BASES IN THIS API ──
+  The wire-level functions here count channels from ZERO: yse_midi_out_*
+  takes 0..15 (the YSE::MIDI::M_CHANNEL indexing; out-of-range values are
+  clamped), and the parsed input callback reports the raw 0..15 nibble.
+  The musical layer counts from ONE: yse_synth_* (yse_synth.h), clip events
+  (yse_clip.h) and the `channel_filter` of yse_midi_in_connect_synth take
+  1..16; on the synth calls and the filter, 0 means omni / every channel.
+  So MIDI channel 1 is 0 on a yse_midi_out_* call and 1 on a synth or clip
+  call — and a 0 passed to a synth is not channel 1 but all of them.
+  Convert with +1 / -1 at the boundary. (A clip bound to a MIDI output
+  does that conversion itself: its events stay 1..16.)
+
   Pitches are 0..127 raw MIDI note numbers.
 
   Input callbacks fire on RtMidi's internal input thread. They MUST return

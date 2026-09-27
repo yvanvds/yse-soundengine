@@ -14,6 +14,7 @@
 
 #include <doctest/doctest.h>
 
+#include <atomic>
 #include <cstddef>
 #include <limits>
 #include <set>
@@ -231,6 +232,43 @@ TEST_SUITE("utils") {
       seen.insert(v);
     }
     CHECK(seen.size() == 16);
+  }
+
+  TEST_CASE("RandomSeed(): reaches a thread whose stream was already running (#908)") {
+    // A host seeds from its control thread while the audio thread has long been
+    // drawing. The seed must reach that running stream: its next draw has to
+    // be the first draw of one of the new base's streams. Which stream depends
+    // on how many threads drew first after the seed, so the check accepts any
+    // of the first 64 rather than racing unrelated threads in this process for
+    // index 0.
+    constexpr UInt base = 0xC0FFEEu;
+    auto firstDrawOfStream = [](U64 stream) {
+      const U64 s0 = YSE::RANDOM::Mix((static_cast<U64>(base) << 32) ^ (stream + 1));
+      const U64 s1 = YSE::RANDOM::Mix(s0) | 1ULL;
+      U64 x = s0;
+      x ^= x << 23;
+      return (x ^ s1 ^ (x >> 17) ^ (s1 >> 26)) + s1;
+    };
+    std::set<U64> expected;
+    for (U64 k = 0; k < 64; ++k)
+      expected.insert(firstDrawOfStream(k));
+
+    std::atomic<int> phase{0};
+    U64 afterSeed = 0;
+    std::thread worker([&]() {
+      (void)YSE::RANDOM::Next(); // this thread's stream is now running
+      phase.store(1);
+      while (phase.load() != 2)
+        std::this_thread::yield();
+      afterSeed = YSE::RANDOM::Next();
+    });
+    while (phase.load() != 1)
+      std::this_thread::yield();
+    YSE::RandomSeed(base);
+    phase.store(2);
+    worker.join();
+
+    CHECK(expected.count(afterSeed) == 1);
   }
 
   // --- threading / real-time properties ---

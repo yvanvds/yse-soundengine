@@ -1,5 +1,6 @@
 /*
-  yse_bus.h — host tap onto the global named bus (issue #389).
+  yse_bus.h — host access to the global named bus: prefix taps (issue #389),
+  plus publish and exact-address subscribe (issue #904).
 
   Lets a host (Phi via dart-yse, Python ctypes, …) subscribe to a bus address
   *prefix* and receive an (address, value) frame for every publish whose
@@ -59,10 +60,10 @@ typedef enum YseBusValueKind {
 
    `address`, `str` and `list` are owned by the engine and valid ONLY for the
    duration of the call — copy anything you need to retain before returning.
-   There is no free function (same contract as yse_script_error_cb). */
-typedef void(YSE_C_CALLBACK* yse_bus_tap_cb)(const char* address, YseBusValueKind kind, int i,
-                                             float f, const char* str, const float* list,
-                                             size_t list_len, void* user_data);
+   There is no free function (same contract as YseScriptErrorCallback). */
+typedef void(YSE_C_CALLBACK* YseBusTapCallback)(const char* address, YseBusValueKind kind, int i,
+                                                float f, const char* str, const float* list,
+                                                size_t list_len, void* user_data);
 
 /* Subscribe `cb` to every bus publish whose address starts with `prefix`
    (plain byte-wise prefix match; an empty string matches every address).
@@ -78,10 +79,71 @@ typedef void(YSE_C_CALLBACK* yse_bus_tap_cb)(const char* address, YseBusValueKin
    Threading: call create and destroy on the control thread (the one driving
    yse_system_update()). That guarantees no callback fires after destroy
    returns. */
-YSE_C_API YseBusTap* yse_bus_tap_create(const char* prefix, yse_bus_tap_cb cb, void* user_data);
+YSE_C_API YseBusTap* yse_bus_tap_create(const char* prefix, YseBusTapCallback cb, void* user_data);
 
 /* Unsubscribe and release the tap. Null-safe no-op. */
 YSE_C_API void yse_bus_tap_destroy(YseBusTap* tap);
+
+/* ── Publish (issue #904) ─────────────────────────────────────────────────
+
+   Publish a value to one exact bus address — the same path a script's
+   yse.send() takes, so it reaches everything a script can: a named synth's
+   "synth.<name>.note", a patcher's .r on "patcher.<name>.<slot>", a named
+   channel's "channel.<name>.volume", exact subscriptions and prefix taps.
+
+   Thread attribution: the publish is tagged as a control-rate (non-audio)
+   publish, like a script's. On the control thread (the one driving
+   yse_system_update()) it dispatches synchronously — every subscriber and
+   tap has run when the call returns. From any other host thread it is
+   parked in the bus's control inbox (a short mutex-guarded append, no
+   dispatch) and delivered during the next yse_system_update(). Do not call
+   these from inside a real-time audio callback, and do not publish from
+   another thread concurrently with yse_system_close().
+
+   Returns YSE_ERR_NOT_INITIALIZED when the engine is down,
+   YSE_ERR_INVALID_ARGUMENT for a NULL or empty address (or a NULL string /
+   a NULL list with a non-zero count), YSE_ERR_EXCEPTION on an internal
+   failure — each with the reason in yse_last_error(). A publish no one
+   listens to is not an error. */
+YSE_C_API YseStatus yse_bus_publish_bang(const char* address);
+YSE_C_API YseStatus yse_bus_publish_int(const char* address, int value);
+YSE_C_API YseStatus yse_bus_publish_float(const char* address, float value);
+/* `value` is NUL-terminated UTF-8, copied before the call returns. */
+YSE_C_API YseStatus yse_bus_publish_string(const char* address, const char* value);
+/* `values` is copied before the call returns; it may be NULL when `count` is
+   0 (an empty list). */
+YSE_C_API YseStatus yse_bus_publish_list(const char* address, const float* values, size_t count);
+
+/* ── Exact subscription (issue #904) ──────────────────────────────────────
+
+   Unlike a tap, a subscription matches ONE address exactly: subscribing to
+   "patcher.lead.cutoff" does not see "patcher.lead.cutoff2". No glob or
+   wildcard forms (the DSL spec rules them out). */
+
+/* Owned — release with yse_bus_unsubscribe. */
+typedef struct YseBusSub YseBusSub;
+
+/* Same frame contract as YseBusTapCallback: `address` is the subscribed
+   address, exactly one payload parameter is meaningful per `kind`, and every
+   pointer is engine-owned and valid only for the duration of the call. */
+typedef void(YSE_C_CALLBACK* YseBusSubCallback)(const char* address, YseBusValueKind kind, int i,
+                                                float f, const char* str, const float* list,
+                                                size_t list_len, void* user_data);
+
+/* Subscribe `cb` to every publish on exactly `address`. Returns NULL — with
+   the reason in yse_last_error() — if `address` is NULL or empty, `cb` is
+   NULL, or the engine is not initialised.
+
+   Delivery, lifecycle and threading follow the tap rules above: callbacks
+   fire on the control thread (inline for a control-thread publish, else
+   during yse_system_update()); yse_system_close() invalidates every live
+   subscription (the handle stays safe to release, but does not reattach
+   after a re-init); call subscribe and unsubscribe on the control thread,
+   which guarantees no callback fires after unsubscribe returns. */
+YSE_C_API YseBusSub* yse_bus_subscribe(const char* address, YseBusSubCallback cb, void* user_data);
+
+/* Unsubscribe and release the subscription. Null-safe no-op. */
+YSE_C_API void yse_bus_unsubscribe(YseBusSub* sub);
 
 #ifdef __cplusplus
 }

@@ -255,7 +255,9 @@ TEST_SUITE("instrumentcapi") {
 
     YseSynth* syn = yse_synth_create();
     REQUIRE(syn != nullptr);
+    yse_clear_last_error();
     CHECK(yse_synth_add_voices_sampler(syn, inst, 4, 0, 0, 127) == YSE_ERR_INVALID_ARGUMENT);
+    CHECK_FALSE(std::string(yse_last_error()).empty()); // issue #910
     yse_synth_destroy(syn);
   }
 
@@ -409,6 +411,9 @@ TEST_SUITE("instrumentcapi") {
     // reached from C. Out-of-range / destroyed-bank guards return errors.
     REQUIRE(yse_synth_fm_set_patch(syn, bank, 0) == YSE_OK);
     CHECK(yse_synth_fm_set_patch(syn, bank, 999) == YSE_ERR_INVALID_ARGUMENT);
+    yse_clear_last_error();
+    CHECK(yse_synth_fm_set_patch(syn, nullptr, 0) == YSE_ERR_INVALID_ARGUMENT);
+    CHECK_FALSE(std::string(yse_last_error()).empty()); // issue #910
 
     // PARITY: the headline FM params, reachable directly from C.
     yse_synth_fm_set_algorithm(syn, 0);

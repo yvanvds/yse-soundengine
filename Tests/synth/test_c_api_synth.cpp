@@ -13,6 +13,7 @@
 
 #include <atomic>
 #include <cmath>
+#include <string>
 
 #include "support/timer_pacing.hpp"
 #include "yse_c/yse_synth.h"
@@ -162,11 +163,17 @@ TEST_SUITE("synthcapi") {
     CHECK(yse_synth_is_valid(syn) == 1);
 
     // Invalid voice count is rejected before any group is recorded.
+    yse_clear_last_error();
     CHECK(yse_synth_add_voices_sine(syn, 0, 0, 0, 127, 0.01f, 0.1f, 0.8f, 0.2f) ==
           YSE_ERR_INVALID_ARGUMENT);
+    CHECK_FALSE(std::string(yse_last_error()).empty()); // issue #910
 
     // 8-voice omni pool, snappy envelope so releases finish quickly.
     REQUIRE(yse_synth_add_voices_sine(syn, 8, 0, 0, 127, 0.001f, 0.001f, 1.0f, 0.05f) == YSE_OK);
+
+    yse_clear_last_error();
+    CHECK(yse_synth_attach_to_sound(syn, nullptr, nullptr, 0.8f) == YSE_ERR_INVALID_ARGUMENT);
+    CHECK_FALSE(std::string(yse_last_error()).empty()); // issue #910
 
     YseSound* snd = yse_sound_create();
     REQUIRE(snd != nullptr);

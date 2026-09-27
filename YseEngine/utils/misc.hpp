@@ -78,6 +78,16 @@ namespace YSE {
     inline std::atomic<UInt> StreamCounter{0}; // NOSONAR
 
     /**
+     *  @brief Bumped by every re-seed (``Randomize()``, ``Reseed()``).
+     *
+     *  A thread whose ``Epoch`` no longer matches re-seeds on its next draw,
+     *  which is how a seed published from the control thread reaches the
+     *  audio thread's already-running stream (issue #908). The check is one
+     *  relaxed 32-bit load per draw — a plain load on every target.
+     */
+    inline std::atomic<UInt> SeedEpoch{0}; // NOSONAR
+
+    /**
      *  @brief Per-thread generator state; ``{0, 0}`` means "not seeded yet".
      *
      *  Constant-initialised on purpose: a dynamically initialised
@@ -86,6 +96,9 @@ namespace YSE {
      *  still a constant initializer and the state stays in ``.tbss``.
      */
     inline thread_local std::array<U64, 2> State{}; // NOSONAR
+
+    /** @brief The ``SeedEpoch`` the calling thread's ``State`` was seeded under. */
+    inline thread_local UInt Epoch{0}; // NOSONAR
 
     /** @brief SplitMix64 finalizer — turns a counter into well-distributed bits. */
     inline U64 Mix(U64 z) {
@@ -103,6 +116,9 @@ namespace YSE {
      *  thread lands unless the host calls it earlier.
      */
     inline void SeedThread() {
+      // Acquire pairs with the release bump in Reseed(): a thread that sees
+      // the new epoch also sees the base and counter reset published with it.
+      Epoch = SeedEpoch.load(std::memory_order_acquire);
       const auto base = static_cast<U64>(SeedBase.load(std::memory_order_relaxed));
       const auto stream = static_cast<U64>(StreamCounter.fetch_add(1, std::memory_order_relaxed));
       State[0] = Mix((base << 32) ^ (stream + 1));
@@ -111,7 +127,8 @@ namespace YSE {
 
     /** @brief xorshift128+ — 64 pseudo-random bits in a handful of instructions. */
     inline U64 Next() {
-      if ((State[0] | State[1]) == 0) SeedThread();
+      if (((State[0] | State[1]) == 0) || (Epoch != SeedEpoch.load(std::memory_order_relaxed)))
+        SeedThread();
       U64 x = State[0];
       const U64 y = State[1];
       State[0] = y;
@@ -146,29 +163,53 @@ namespace YSE {
       return static_cast<Flt>(Next() >> 40) * (1.0f / 16777216.0f);
     }
 
+    /**
+     *  @brief Publish a new seed base and make every thread re-seed from it.
+     *
+     *  Resets the stream counter too, so the n-th thread to draw after the
+     *  call gets the same stream every time the same ``base`` is published.
+     *  Lock- and allocation-free; the re-seed itself happens lazily on each
+     *  thread's next draw.
+     */
+    inline void Reseed(UInt base) {
+      SeedBase.store(base, std::memory_order_relaxed);
+      StreamCounter.store(0, std::memory_order_relaxed);
+      SeedEpoch.fetch_add(1, std::memory_order_release);
+    }
+
   } // namespace RANDOM
 
   /**
    *  @brief Seed the random generator from the current time. Call once at startup.
    *
    *  Optional — without it the engine still produces random-looking output, only
-   *  reproducibly so. This publishes a clock-derived seed base and re-seeds the
-   *  calling thread immediately; other threads pick the new base up on their
-   *  next draw.
+   *  reproducibly so. This publishes a clock-derived seed base; every thread,
+   *  the calling one included, re-seeds from it on its next draw.
    *
    *  Not real-time safe (it reads the system clock): call it from the control
    *  thread at startup, never from an audio callback. Note that the generator
    *  state is header-local, so a host that links the engine as a shared library
-   *  seeds its own copy, not the engine's.
+   *  seeds its own copy, not the engine's — such a host calls the C API's
+   *  ``yse_randomize()``, which runs inside the library (issue #908).
    */
   inline void Randomize() {
     const auto now =
         static_cast<U64>(std::chrono::high_resolution_clock::now().time_since_epoch().count());
-    RANDOM::SeedBase.store(static_cast<UInt>(RANDOM::Mix(now) >> 32), std::memory_order_relaxed);
-    // Zeroing the state makes the calling thread re-seed from the new base on
-    // its next draw.
-    RANDOM::State[0] = 0;
-    RANDOM::State[1] = 0;
+    RANDOM::Reseed(static_cast<UInt>(RANDOM::Mix(now) >> 32));
+  }
+
+  /**
+   *  @brief Seed the random generator with a fixed value, for reproducible runs.
+   *
+   *  After ``RandomSeed(s)`` the n-th thread to draw gets the same sequence
+   *  every time ``s`` is published — in particular a thread that is the only
+   *  one drawing (the audio thread running a patch) replays exactly. Every
+   *  thread re-seeds on its next draw. Lock- and allocation-free. The same
+   *  shared-library caveat as ``Randomize()`` applies: C hosts call
+   *  ``yse_random_seed()``.
+   */
+  inline void RandomSeed(UInt seed) {
+    RANDOM::Reseed(seed);
   }
 
   /**

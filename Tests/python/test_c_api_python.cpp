@@ -56,20 +56,20 @@ TEST_SUITE("python") {
 
   TEST_CASE("c-api python (OFF): run_script reports the missing feature synchronously") {
     ErrSink sink;
-    yse_set_script_error_callback(&captureCb, &sink);
+    yse_python_set_script_error_callback(&captureCb, &sink);
 
     // No interpreter to defer to: the callback must fire before run_script
     // returns, with the documented string.
-    yse_run_script("result = 1 + 1");
+    yse_python_run_script("result = 1 + 1");
     CHECK(sink.count == 1);
     CHECK(sink.last == "YSE compiled without YSE_ENABLE_PYTHON");
 
-    yse_set_script_error_callback(nullptr, nullptr);
+    yse_python_set_script_error_callback(nullptr, nullptr);
   }
 
   TEST_CASE("c-api python (OFF): run_script with no callback registered is a safe no-op") {
-    yse_set_script_error_callback(nullptr, nullptr);
-    yse_run_script("anything"); // must not crash with no callback installed
+    yse_python_set_script_error_callback(nullptr, nullptr);
+    yse_python_run_script("anything"); // must not crash with no callback installed
     CHECK(yse_python_enabled() == 0);
   }
 
@@ -93,60 +93,60 @@ TEST_SUITE("python") {
   TEST_CASE("c-api python (ON): a clean script fires no error callback") {
     if (!TestHelpers::engineInit()) return;
     ErrSink sink;
-    yse_set_script_error_callback(&captureCb, &sink);
+    yse_python_set_script_error_callback(&captureCb, &sink);
 
-    yse_run_script("result = 1 + 1");
+    yse_python_run_script("result = 1 + 1");
     // Give the worker an ample window of the suite's reference ticks — a window
     // that grows with the load rather than a fixed one a busy box makes
     // vacuously quiet (issue #753); a successful eval must stay silent.
     pumpUntil(sink, 1, 200);
     CHECK(sink.count == 0);
 
-    yse_set_script_error_callback(nullptr, nullptr);
+    yse_python_set_script_error_callback(nullptr, nullptr);
   }
 
   TEST_CASE("c-api python (ON): a raised exception delivers a traceback") {
     if (!TestHelpers::engineInit()) return;
     ErrSink sink;
-    yse_set_script_error_callback(&captureCb, &sink);
+    yse_python_set_script_error_callback(&captureCb, &sink);
 
-    yse_run_script("raise ValueError('boom')");
+    yse_python_run_script("raise ValueError('boom')");
     REQUIRE(pumpUntil(sink, 1));
     CHECK(sink.count == 1);
     CHECK(sink.last.find("ValueError: boom") != std::string::npos);
     // The DSL spec / issue #125 mandate the "<script>" source filename.
     CHECK(sink.last.find("\"<script>\"") != std::string::npos);
 
-    yse_set_script_error_callback(nullptr, nullptr);
+    yse_python_set_script_error_callback(nullptr, nullptr);
   }
 
   TEST_CASE("c-api python (ON): a syntax error delivers a SyntaxError traceback") {
     if (!TestHelpers::engineInit()) return;
     ErrSink sink;
-    yse_set_script_error_callback(&captureCb, &sink);
+    yse_python_set_script_error_callback(&captureCb, &sink);
 
-    yse_run_script("def f(:\n  pass\n");
+    yse_python_run_script("def f(:\n  pass\n");
     REQUIRE(pumpUntil(sink, 1));
     CHECK(sink.last.find("SyntaxError") != std::string::npos);
     // SyntaxError formatting names the source file too; must read "<script>".
     CHECK(sink.last.find("\"<script>\"") != std::string::npos);
 
-    yse_set_script_error_callback(nullptr, nullptr);
+    yse_python_set_script_error_callback(nullptr, nullptr);
   }
 
   TEST_CASE("c-api python (ON): replacing the callback retires the previous one") {
     if (!TestHelpers::engineInit()) return;
     ErrSink first, second;
-    yse_set_script_error_callback(&captureCb, &first);
+    yse_python_set_script_error_callback(&captureCb, &first);
     // Swap before any error is produced; the error must reach only `second`.
-    yse_set_script_error_callback(&captureCb, &second);
+    yse_python_set_script_error_callback(&captureCb, &second);
 
-    yse_run_script("raise RuntimeError('after swap')");
+    yse_python_run_script("raise RuntimeError('after swap')");
     REQUIRE(pumpUntil(second, 1));
     CHECK(second.count == 1);
     CHECK(first.count == 0);
 
-    yse_set_script_error_callback(nullptr, nullptr);
+    yse_python_set_script_error_callback(nullptr, nullptr);
   }
 
 #endif // YSE_ENABLE_PYTHON

@@ -16,6 +16,7 @@
 
 #include <doctest/doctest.h>
 
+#include <string>
 #include <vector>
 
 #include "yse_c/yse_clip.h"
@@ -55,11 +56,11 @@ TEST_SUITE("clip") {
 
   TEST_CASE("c-api clip: create -> bind -> play -> stop through the flat ABI") {
     YseSystem* sys = yse_system_get();
-    REQUIRE(yse_system_create_clock(sys, "capi.clip.run", 60.f) == 1); // 1 beat/second
+    REQUIRE(yse_system_create_clock(sys, "capi.clip.run", 60.f) == YSE_OK); // 1 beat/second
 
     YseClip* c = yse_clip_create();
     REQUIRE(c != nullptr);
-    CHECK(yse_clip_bind(c, "capi.clip.run") == 1);
+    CHECK(yse_clip_bind(c, "capi.clip.run") == YSE_OK);
 
     const std::vector<YseClipEvent> events{cev(1.0, 1.0, 1, 60), cev(2.0, 1.0, 1, 64)};
     yse_clip_set_events(c, events.data(), events.size());
@@ -81,14 +82,23 @@ TEST_SUITE("clip") {
 
   TEST_CASE("c-api clip: bind rejects an unknown clock and NULL arguments") {
     YseSystem* sys = yse_system_get();
-    REQUIRE(yse_system_create_clock(sys, "capi.clip.bind", 120.f) == 1);
+    REQUIRE(yse_system_create_clock(sys, "capi.clip.bind", 120.f) == YSE_OK);
 
     YseClip* c = yse_clip_create();
     REQUIRE(c != nullptr);
-    CHECK(yse_clip_bind(c, "capi.clip.bind") == 1);
-    CHECK(yse_clip_bind(c, "capi.clip.bind.nope") == 0);
-    CHECK(yse_clip_bind(c, nullptr) == 0);
-    CHECK(yse_clip_bind(nullptr, "capi.clip.bind") == 0);
+    CHECK(yse_clip_bind(c, "capi.clip.bind") == YSE_OK);
+
+    // Every refusal carries a status and a reason (issue #910).
+    yse_clear_last_error();
+    CHECK(yse_clip_bind(c, "capi.clip.bind.nope") == YSE_ERR_INVALID_ARGUMENT);
+    CHECK(std::string(yse_last_error()).find("capi.clip.bind.nope") != std::string::npos);
+    yse_clear_last_error();
+    CHECK(yse_clip_bind(c, nullptr) == YSE_ERR_INVALID_ARGUMENT);
+    CHECK_FALSE(std::string(yse_last_error()).empty());
+    yse_clear_last_error();
+    CHECK(yse_clip_bind(nullptr, "capi.clip.bind") == YSE_ERR_INVALID_HANDLE);
+    CHECK_FALSE(std::string(yse_last_error()).empty());
+    yse_clear_last_error();
 
     yse_clip_destroy(c);
     yse_system_destroy_clock(sys, "capi.clip.bind");

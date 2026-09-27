@@ -144,7 +144,10 @@ YSE_C_API void yse_midi_file_destroy(YseMidiFile* f) {
 
 YSE_C_API YseStatus yse_midi_file_load(YseMidiFile* f, const char* filename) {
   if (!f) return YSE_ERR_INVALID_HANDLE;
-  if (!filename) return YSE_ERR_INVALID_ARGUMENT;
+  if (!filename) {
+    yse_c::set_last_error("yse_midi_file_load: filename is NULL");
+    return YSE_ERR_INVALID_ARGUMENT;
+  }
   try {
     if (!to_cpp(f)->create(filename)) {
       yse_c::set_last_error(std::string("midi file load failed for: ") + filename);

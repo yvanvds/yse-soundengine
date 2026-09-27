@@ -6,10 +6,14 @@
 #include "../reverb/reverbInterface.hpp"
 #include "../device/deviceInterface.hpp"
 #include "../device/deviceSetup.hpp"
+#include "../headers/constants.hpp"
+#include "../utils/misc.hpp"
 
+#include <atomic>
 #include <cstring>
 #include <exception>
 #include <string>
+#include <thread>
 
 namespace {
   inline YSE::system* to_cpp(YseSystem* s) {
@@ -29,6 +33,51 @@ namespace {
       buf[n] = '\0';
     }
     return src.size();
+  }
+
+  // ─── Occlusion callback bridge (issue #906) ──────────────────────────────
+  //
+  // YSE::system::occlusionCallback() takes a bare function pointer with no
+  // user_data slot, so the C bridge installs a static trampoline there and
+  // keeps the host's (cb, user_data) in one process-global pair node. The
+  // engine calls the trampoline from SOUND::updateOcclusion() on the thread
+  // that runs System().update() — never the audio callback (#209) — but the
+  // install may come from any host thread, so the node is still published and
+  // reclaimed like yse_midi.cpp's raw bridge:
+  //
+  //   * One immutable node behind one atomic pointer, swapped with a single
+  //     exchange, so a dispatch never pairs one install's callback with
+  //     another's user_data (#902, #916).
+  //   * Reclaiming the replaced node — grace period: the trampoline bumps
+  //     g_occlusionReaders, loads the node, copies cb and user_data onto its
+  //     stack and drops the count, all before calling user code. The installer
+  //     exchanges the pointer, then waits for the count to read zero before
+  //     deleting the old node. Every access is seq_cst, so either the
+  //     installer sees the dispatcher's increment (and waits out its
+  //     decrement) or the dispatcher's load follows the exchange and sees the
+  //     new node. User code is never inside the waited-on window, so a
+  //     callback that re-installs from inside itself cannot deadlock.
+  struct OcclusionPair {
+    YseOcclusionCallback cb;
+    void* user_data;
+  };
+
+  std::atomic<OcclusionPair*> g_occlusion{nullptr};
+  std::atomic<unsigned int> g_occlusionReaders{0};
+
+  float occlusion_trampoline(const YSE::Pos& source, const YSE::Pos& listener) {
+    g_occlusionReaders.fetch_add(1, std::memory_order_seq_cst);
+    const OcclusionPair* pair = g_occlusion.load(std::memory_order_seq_cst);
+    YseOcclusionCallback cb = pair != nullptr ? pair->cb : nullptr;
+    void* user = pair != nullptr ? pair->user_data : nullptr;
+    g_occlusionReaders.fetch_sub(1, std::memory_order_seq_cst);
+    // Only reachable with no pair when an update already running on another
+    // thread loaded the trampoline just before a removal detached it: report
+    // "not occluded" for the rest of that one tick.
+    if (cb == nullptr) return 0.f;
+    const yse_pos_t src{source.x, source.y, source.z};
+    const yse_pos_t lis{listener.x, listener.y, listener.z};
+    return cb(&src, &lis, user);
   }
 } // namespace
 
@@ -178,17 +227,25 @@ YSE_C_API int yse_system_get_max_sounds(YseSystem* sys) {
   return to_cpp(sys)->maxSounds();
 }
 
-YSE_C_API int yse_system_create_clock(YseSystem* sys, const char* name, float initial_tempo) {
-  if (!sys || !name) return 0;
-  try {
-    return to_cpp(sys)->createClock(name, initial_tempo) ? 1 : 0;
-  } catch (const std::exception& e) {
-    yse_c::set_last_error(e.what());
-    return 0;
-  } catch (...) {
-    yse_c::set_last_error("unknown C++ exception in yse_system_create_clock");
-    return 0;
+YSE_C_API YseStatus yse_system_create_clock(YseSystem* sys, const char* name, float initial_tempo) {
+  if (!sys) {
+    yse_c::set_last_error("yse_system_create_clock: system handle is NULL");
+    return YSE_ERR_INVALID_HANDLE;
   }
+  if (!name || name[0] == '\0') {
+    yse_c::set_last_error("yse_system_create_clock: name must be a non-empty string");
+    return YSE_ERR_INVALID_ARGUMENT;
+  }
+  return yse_c::guard("yse_system_create_clock", YSE_ERR_EXCEPTION, [&] {
+    // With the name known non-empty, the engine's only refusal left is a live
+    // clock already owning it (first registration wins).
+    if (!to_cpp(sys)->createClock(name, initial_tempo)) {
+      yse_c::set_last_error(std::string("yse_system_create_clock: a live clock named \"") + name +
+                            "\" already exists; it is unchanged");
+      return YSE_ERR_INVALID_ARGUMENT;
+    }
+    return YSE_OK;
+  });
 }
 
 YSE_C_API void yse_system_destroy_clock(YseSystem* sys, const char* name) {
@@ -278,7 +335,10 @@ YSE_C_API YseDevice* yse_system_get_device(YseSystem* sys, unsigned int idx) {
 YSE_C_API YseStatus yse_system_open_device(YseSystem* sys, const YseDeviceSetup* setup,
                                            YseChannelType layout) {
   if (!sys) return YSE_ERR_INVALID_HANDLE;
-  if (!setup) return YSE_ERR_INVALID_ARGUMENT;
+  if (!setup) {
+    yse_c::set_last_error("yse_system_open_device: setup is NULL");
+    return YSE_ERR_INVALID_ARGUMENT;
+  }
   try {
     // The engine refuses a setup it cannot open (no output device, an unknown
     // device id, a stream error, an offline backend) by returning false rather
@@ -402,6 +462,45 @@ YSE_C_API void yse_system_underwater_fx(YseSystem* sys, const YseChannel* target
 YSE_C_API void yse_system_set_underwater_depth(YseSystem* sys, float depth) {
   if (!sys) return;
   to_cpp(sys)->setUnderWaterDepth(depth);
+}
+
+// ─── occlusion ─────────────────────────────────────────────────────────────
+
+YSE_C_API void yse_system_set_occlusion_callback(YseSystem* sys, YseOcclusionCallback cb,
+                                                 void* user_data) {
+  if (!sys) return;
+  // The install allocates, so it runs inside the ABI exception barrier.
+  yse_c::guard_void("yse_system_set_occlusion_callback", [&] {
+    OcclusionPair* next = cb != nullptr ? new OcclusionPair{cb, user_data} : nullptr;
+    OcclusionPair* old = g_occlusion.exchange(next, std::memory_order_seq_cst);
+    if (next != nullptr) {
+      to_cpp(sys)->occlusionCallback(&occlusion_trampoline);
+    } else if (to_cpp(sys)->occlusionCallback() == &occlusion_trampoline) {
+      // Detach only our own trampoline: a C++ host that installed its own
+      // engine callback directly keeps it.
+      to_cpp(sys)->occlusionCallback(nullptr);
+    }
+    // Grace period for `old` — see the bridge comment above.
+    while (g_occlusionReaders.load(std::memory_order_seq_cst) != 0) {
+      std::this_thread::yield();
+    }
+    delete old;
+  });
+}
+
+YSE_C_API unsigned int yse_block_size(void) {
+  return YSE::STANDARD_BUFFERSIZE;
+}
+
+// Both run in this translation unit, inside the engine library, so they reach
+// the library's own copy of the header-inline generator state — the one the
+// engine's draws use — rather than the host's (issue #908).
+YSE_C_API void yse_randomize(void) {
+  YSE::Randomize();
+}
+
+YSE_C_API void yse_random_seed(unsigned int seed) {
+  YSE::RandomSeed(seed);
 }
 
 } // extern "C"

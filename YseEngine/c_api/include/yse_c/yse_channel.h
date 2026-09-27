@@ -104,7 +104,23 @@ YSE_C_API void yse_channel_attach_reverb(YseChannel* ch);
 YSE_C_API void yse_channel_set_virtual(YseChannel* ch, int value);
 YSE_C_API int yse_channel_get_virtual(YseChannel* ch);
 YSE_C_API int yse_channel_is_valid(YseChannel* ch);
-YSE_C_API const char* yse_channel_get_name(YseChannel* ch);
+
+/* Copy the channel's log name (the `name` passed at create — not the bus name
+   set by yse_channel_set_name) into buf, snprintf-style: writes at most cap-1
+   bytes plus a NUL, returns the full length. Pass buf=NULL/cap=0 to size the
+   buffer first. Returns 0 (and clears buf) on a NULL handle. */
+YSE_C_API size_t yse_channel_get_name(YseChannel* ch, char* buf, size_t cap);
+
+/* Assign a bus-addressable name to the channel (mirrors YSE::channel::name,
+   issue #905). Once named "foo", the channel subscribes to the global named
+   bus address channel.foo.volume (float, also accepts int), so a host can set
+   its volume with yse_bus_publish_float("channel.foo.volume", v). Independent
+   of the log name. NULL or "" clears the name and removes the subscription;
+   renaming re-subscribes under the new name. Names are unique per channel: a
+   duplicate is rejected and logged engine-side (first registration wins — no
+   error return, matching yse_synth_set_name). Only effective while the engine
+   is between init and close. */
+YSE_C_API void yse_channel_set_name(YseChannel* ch, const char* name);
 
 /* Output peak metering — see channelInterface.hpp for semantics.
  *

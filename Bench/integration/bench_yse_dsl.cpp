@@ -3,9 +3,9 @@
 // The DSL spec (docs/design/live_coding_dsl.md) promises a yse.send published
 // from the script thread reaches its bus subscriber within one engine update
 // tick. This benchmark measures that round trip end to end: submit a one-line
-// script through the C API (yse_run_script), then drive System().update() until
+// script through the C API (yse_python_run_script), then drive System().update() until
 // a C++ bus subscriber observes the value, timing the whole path —
-//   yse_run_script enqueue -> script-thread wake -> exec -> T_GUI dispatch ->
+//   yse_python_run_script enqueue -> script-thread wake -> exec -> T_GUI dispatch ->
 //   C++ subscriber.
 //
 // Each timed iteration also counts how many update() ticks the round trip
@@ -42,7 +42,7 @@ void BM_Dsl_SendRoundTrip(benchmark::State& state) {
 
   // Warm the interpreter + binding import so the first timed iteration does not
   // pay one-time import cost.
-  yse_run_script("yse.send('bench.dsl.rt', 0)\n");
+  yse_python_run_script("yse.send('bench.dsl.rt', 0)\n");
   for (int i = 0; i < 50 && received.load() == 0; ++i) {
     YSE::System().update();
     YSE::System().sleep(1);
@@ -53,7 +53,7 @@ void BM_Dsl_SendRoundTrip(benchmark::State& state) {
   for (auto _ : state) {
     const long long target = received.load() + 1;
     std::string src = "yse.send('bench.dsl.rt', " + std::to_string(seq++) + ")\n";
-    yse_run_script(src.c_str());
+    yse_python_run_script(src.c_str());
 
     int ticks = 0;
     while (received.load() < target) {

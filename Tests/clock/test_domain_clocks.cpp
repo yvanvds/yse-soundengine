@@ -19,6 +19,8 @@
 #include "clock/clockManager.h"
 #include "yse_c/yse_system.h"
 
+#include <string>
+
 namespace {
   // One audio-block tick of `seconds` at the current tempo of every live clock.
   void tick(float seconds) {
@@ -172,11 +174,17 @@ TEST_SUITE("clock") {
     YseSystem* sys = yse_system_get();
     REQUIRE(sys != nullptr);
 
-    CHECK(yse_system_create_clock(sys, "clk.capi", 90.f) == 1);
+    CHECK(yse_system_create_clock(sys, "clk.capi", 90.f) == YSE_OK);
     CHECK(yse_system_clock_exists(sys, "clk.capi") == 1);
-    // Duplicate + empty names rejected.
-    CHECK(yse_system_create_clock(sys, "clk.capi", 90.f) == 0);
-    CHECK(yse_system_create_clock(sys, "", 90.f) == 0);
+    // Duplicate + empty names rejected with a status and a reason (issue #910);
+    // the duplicate leaves the live clock's tempo untouched.
+    yse_clear_last_error();
+    CHECK(yse_system_create_clock(sys, "clk.capi", 45.f) == YSE_ERR_INVALID_ARGUMENT);
+    CHECK(std::string(yse_last_error()).find("clk.capi") != std::string::npos);
+    yse_clear_last_error();
+    CHECK(yse_system_create_clock(sys, "", 90.f) == YSE_ERR_INVALID_ARGUMENT);
+    CHECK_FALSE(std::string(yse_last_error()).empty());
+    yse_clear_last_error();
 
     CHECK(yse_system_current_tempo(sys, "clk.capi") == doctest::Approx(90.0f));
     CHECK(yse_system_beat_position(sys, "clk.capi") == doctest::Approx(0.0));
@@ -189,7 +197,7 @@ TEST_SUITE("clock") {
     YseSystem* sys = yse_system_get();
     REQUIRE(sys != nullptr);
 
-    REQUIRE(yse_system_create_clock(sys, "clk.capi2", 120.f) == 1);
+    REQUIRE(yse_system_create_clock(sys, "clk.capi2", 120.f) == YSE_OK);
     yse_system_set_tempo(sys, "clk.capi2", 60.f, 0.f);
     tick(0.5f); // drive one block so the request is applied and beat advances
 
@@ -207,8 +215,13 @@ TEST_SUITE("clock") {
 
   TEST_CASE("clock: C API guards NULL system and name") {
     YseSystem* sys = yse_system_get();
-    CHECK(yse_system_create_clock(nullptr, "x", 120.f) == 0);
-    CHECK(yse_system_create_clock(sys, nullptr, 120.f) == 0);
+    yse_clear_last_error();
+    CHECK(yse_system_create_clock(nullptr, "x", 120.f) == YSE_ERR_INVALID_HANDLE);
+    CHECK_FALSE(std::string(yse_last_error()).empty());
+    yse_clear_last_error();
+    CHECK(yse_system_create_clock(sys, nullptr, 120.f) == YSE_ERR_INVALID_ARGUMENT);
+    CHECK_FALSE(std::string(yse_last_error()).empty());
+    yse_clear_last_error();
     CHECK(yse_system_clock_exists(nullptr, "x") == 0);
     CHECK(yse_system_clock_exists(sys, nullptr) == 0);
     CHECK(yse_system_beat_position(nullptr, "x") == doctest::Approx(0.0));

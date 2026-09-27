@@ -170,7 +170,10 @@ YSE_C_API YseStatus yse_synth_add_voices_sine(YseSynth* h, int num_voices, int c
                                               int lowest_note, int highest_note, float attack,
                                               float decay, float sustain, float release) {
   if (!h) return YSE_ERR_INVALID_HANDLE;
-  if (num_voices <= 0) return YSE_ERR_INVALID_ARGUMENT;
+  if (num_voices <= 0) {
+    yse_c::set_last_error("yse_synth_add_voices_sine: num_voices must be positive");
+    return YSE_ERR_INVALID_ARGUMENT;
+  }
   try {
     auto* impl = to_impl(h);
     // Build and configure the prototype, then hand ownership to the handle
@@ -198,11 +201,17 @@ YSE_C_API YseStatus yse_synth_add_voices_sampler(YseSynth* h, YseSfzInstrument* 
                                                  int num_voices, int channel, int lowest_note,
                                                  int highest_note) {
   if (!h) return YSE_ERR_INVALID_HANDLE;
-  if (num_voices <= 0) return YSE_ERR_INVALID_ARGUMENT;
+  if (num_voices <= 0) {
+    yse_c::set_last_error("yse_synth_add_voices_sampler: num_voices must be positive");
+    return YSE_ERR_INVALID_ARGUMENT;
+  }
   // Validated against the instrument-handle registry; a NULL / destroyed handle
   // returns nullptr (and is logged) rather than dereferencing junk.
   auto inst = yse_c::sampler_instrument_from_handle(instrument);
-  if (!inst) return YSE_ERR_INVALID_ARGUMENT;
+  if (!inst) {
+    yse_c::set_last_error("yse_synth_add_voices_sampler: instrument handle is NULL or destroyed");
+    return YSE_ERR_INVALID_ARGUMENT;
+  }
   try {
     auto* impl = to_impl(h);
     // Same prototype-ownership discipline as the sine path: build the prototype,
@@ -226,7 +235,10 @@ YSE_C_API YseStatus yse_synth_add_voices_sampler(YseSynth* h, YseSfzInstrument* 
 YSE_C_API YseStatus yse_synth_add_voices_va(YseSynth* h, int num_voices, int channel,
                                             int lowest_note, int highest_note) {
   if (!h) return YSE_ERR_INVALID_HANDLE;
-  if (num_voices <= 0) return YSE_ERR_INVALID_ARGUMENT;
+  if (num_voices <= 0) {
+    yse_c::set_last_error("yse_synth_add_voices_va: num_voices must be positive");
+    return YSE_ERR_INVALID_ARGUMENT;
+  }
   try {
     auto* impl = to_impl(h);
     auto proto = std::make_unique<YSE::SYNTH::vaVoice>();
@@ -249,7 +261,10 @@ YSE_C_API YseStatus yse_synth_add_voices_va(YseSynth* h, int num_voices, int cha
 YSE_C_API YseStatus yse_synth_add_voices_fm(YseSynth* h, int num_voices, int channel,
                                             int lowest_note, int highest_note) {
   if (!h) return YSE_ERR_INVALID_HANDLE;
-  if (num_voices <= 0) return YSE_ERR_INVALID_ARGUMENT;
+  if (num_voices <= 0) {
+    yse_c::set_last_error("yse_synth_add_voices_fm: num_voices must be positive");
+    return YSE_ERR_INVALID_ARGUMENT;
+  }
   try {
     auto* impl = to_impl(h);
     auto proto = std::make_unique<YSE::SYNTH::fmVoice>();
@@ -395,7 +410,10 @@ YSE_C_API YseStatus yse_synth_fm_set_patch(YseSynth* h, YseDx7Bank* bank, int in
   auto* p = fm(h);
   if (!p) return YSE_ERR_INVALID_HANDLE; // no FM group established
   const YSE::SYNTH::dx7Bank* b = yse_c::dx7_bank_from_handle(bank);
-  if (!b) return YSE_ERR_INVALID_ARGUMENT; // NULL / destroyed bank (logged)
+  if (!b) {
+    yse_c::set_last_error("yse_synth_fm_set_patch: bank handle is NULL or destroyed");
+    return YSE_ERR_INVALID_ARGUMENT;
+  }
   if (index < 0 || static_cast<size_t>(index) >= b->voices.size()) {
     yse_c::set_last_error("yse_synth_fm_set_patch: patch index out of range");
     return YSE_ERR_INVALID_ARGUMENT;
@@ -523,7 +541,10 @@ YSE_C_API void yse_synth_set_note_callback(YseSynth* h, YseSynthNoteCallback cb)
 YSE_C_API YseStatus yse_synth_attach_to_sound(YseSynth* h, YseSound* sound, YseChannel* channel,
                                               float volume) {
   if (!h) return YSE_ERR_INVALID_HANDLE;
-  if (!sound) return YSE_ERR_INVALID_ARGUMENT;
+  if (!sound) {
+    yse_c::set_last_error("yse_synth_attach_to_sound: sound handle is NULL");
+    return YSE_ERR_INVALID_ARGUMENT;
+  }
   try {
     to_cpp(sound)->create(to_impl(h)->synth, to_cpp(channel), volume);
     // create() leaves the sound invalid if it could not attach the synth's

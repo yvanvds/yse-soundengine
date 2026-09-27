@@ -66,6 +66,12 @@ YSE_C_API const char* yse_version(void);
 YSE_C_API const char* yse_last_error(void);
 YSE_C_API void yse_clear_last_error(void);
 
+/* Release a string the library allocated and handed to the caller — any
+   function whose comment says its result is released with yse_free_string
+   (e.g. yse_patcher_get_metadata_json). NULL is a no-op. Never pass it a
+   pointer to engine-owned storage or a buffer the caller allocated. */
+YSE_C_API void yse_free_string(char* s);
+
 #ifdef __cplusplus
 }
 #endif
