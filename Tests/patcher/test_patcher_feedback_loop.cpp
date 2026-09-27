@@ -12,10 +12,11 @@
 //      Two gReceive nodes wired output->input in a ring; a value driven into
 //      one recurses through outlet::SendInt on the live wiring.
 //   2. The canonical bus-routed gSend/gReceive feedback: a send and a receive
-//      with the same dataName in one patcher, the receive's output wired back
-//      into the send's inlet. Publishing a value makes the T_GUI bus dispatch
-//      re-enter the send synchronously. This needs a live engine because the
-//      bus only routes between init() and close().
+//      with the same dataName, the receive's output wired back into the send's
+//      inlet, in two patchers with the same name (a receive ignores its own
+//      patcher's publishes since #943). Publishing a value makes the T_GUI bus
+//      dispatch re-enter the sends synchronously. This needs a live engine
+//      because the bus only routes between init() and close().
 
 #include <doctest/doctest.h>
 #include <string>
@@ -56,26 +57,37 @@ TEST_SUITE("patcher") {
   TEST_CASE("feedback loop: bus-routed gSend/gReceive cycle terminates instead of overflowing") {
     REQUIRE(TestHelpers::engineInit());
 
+    // Two patchers with the same name, each with `.r a` wired into `.s a`. A
+    // `.r` ignores its own patcher's bus publishes (issue #943 — it already has
+    // them through PassData), so the synchronous bus cycle runs between the two:
+    // p's send reaches q's receive, whose send reaches p's receive, and so on.
+    // Before #943 a single patcher closed the same loop on its own echo.
     YSE::patcher p;
     p.name("loop.feedback").create(2);
+    YSE::patcher q;
+    q.name("loop.feedback").create(2);
 
-    // send "a" and receive "a" in the same patcher: the send publishes on the
-    // bus, the receive (same dataName) is subscribed to it.
     YSE::pHandle* send = p.CreateObject(YSE::OBJ::G_SEND, "a");
     YSE::pHandle* recv = p.CreateObject(YSE::OBJ::G_RECEIVE, "a");
+    YSE::pHandle* peerSend = q.CreateObject(YSE::OBJ::G_SEND, "a");
+    YSE::pHandle* peerRecv = q.CreateObject(YSE::OBJ::G_RECEIVE, "a");
     REQUIRE(send != nullptr);
     REQUIRE(recv != nullptr);
+    REQUIRE(peerSend != nullptr);
+    REQUIRE(peerRecv != nullptr);
 
-    // Wire the receive's output back into the send's inlet, closing the loop,
-    // and also into a sink so we can confirm the value actually circulated.
+    // Wire each receive's output back into its send's inlet, closing the loop,
+    // and q's also into a sink so we can confirm the value actually circulated.
     MultiSink sink;
     YSE::pHandle sinkHandle(&sink);
     p.Connect(recv, 0, send, 0);
-    p.Connect(recv, 0, &sinkHandle, 0);
+    q.Connect(peerRecv, 0, peerSend, 0);
+    q.Connect(peerRecv, 0, &sinkHandle, 0);
 
     // One value into the send. On T_GUI the bus dispatches synchronously, so
-    // recv -> send -> publish -> recv ... would recurse without bound. The
-    // guard breaks it; control must return here.
+    // send -> publish -> peer recv -> peer send -> publish -> recv -> send ...
+    // would recurse without bound. The guard breaks it; control must return
+    // here.
     send->SetIntData(0, 7);
 
     CHECK(sink.gotInt);

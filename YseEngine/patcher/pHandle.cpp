@@ -94,7 +94,15 @@ bool YSE::pHandle::IsDSPInput(unsigned int inlet) {
 }
 
 YSE::OUT_TYPE YSE::pHandle::OutputDataType(unsigned int pin) {
-  return object->GetOutputType(pin);
+  // The outlet side of IsDSPInput (issue #942): a subpatcher has no outlets of
+  // its own, so asking the façade answered INVALID for every pin. Resolve
+  // through the boundary instead — BUFFER for a `~outlet`, ANY for a `.outlet`,
+  // INVALID only for a pin no boundary object claims.
+  if (object == nullptr) return OUT_TYPE::INVALID;
+  PATCHER::pObject* parent = object->Parent();
+  if (parent == nullptr) return object->GetOutputType(pin);
+  return static_cast<PATCHER::patcherImplementation*>(parent)->ResolveOutputType(
+      object, static_cast<int>(pin));
 }
 
 int YSE::pHandle::GetInputs() {

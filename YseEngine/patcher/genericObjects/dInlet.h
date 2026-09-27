@@ -99,12 +99,17 @@ namespace YSE {
     /**
      *  @brief Which inlet of the enclosing subpatcher this object is.
      *
-     *  Atomic for the reason `gInlet::Index()` is: read on the control thread
-     *  during boundary resolution while a live `SetParams` may be storing a new
-     *  value from the audio thread's param drain (issue #234).
+     *  Control-side and atomic for the reason `gInlet::Index()` is: read and
+     *  written only on the control thread, under the patcher's mtx, while the
+     *  object is published (issue #941).
      */
     int Index() const {
       return index.load(std::memory_order_relaxed);
+    }
+
+    // The index is never read on the audio thread (issue #941).
+    bool ParamsAreControlSide() const override {
+      return true;
     }
 
   private:

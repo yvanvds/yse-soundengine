@@ -21,6 +21,14 @@ namespace {
     return YSE::INTERNAL::Global().isActive();
   }
 
+  // gSend's origin rule (issue #943): tag the publish with the patcher's origin
+  // when the in-patcher path already delivered it, so the patcher's own .r
+  // objects skip the bus echo; untagged under globalOnly, where the bus is the
+  // only path.
+  inline YSE::INTERNAL::BusOrigin OriginFor(int globalOnly, const patcherImplementation* p) {
+    return globalOnly ? 0 : p->BusOrigin();
+  }
+
   // The bus truncates a published name at kNameCapacity while the in-patcher
   // PassData path does not, so the two would disagree about where an over-long
   // destination points. gForward refuses such a name outright; this keeps the
@@ -172,7 +180,7 @@ BANG_IN(SetBangValue) {
   // takes a mutex and allocates. gSend.cpp carries the full note (issue #690).
   if (busAvailable() && p->CallingThread(thread) == YSE::T_GUI) {
     // Bang on the bus is a monostate publish — only delivered on T_GUI.
-    Bus().publish(busAddress, BusValue{}, thread);
+    Bus().publish(busAddress, BusValue{}, thread, OriginFor(globalOnly, p));
   }
 }
 
@@ -183,7 +191,7 @@ INT_IN(SetIntValue) {
     p->PassData(value, destination, thread);
   }
   if (busAvailable()) {
-    Bus().publish(busAddress, BusValue{value}, p->CallingThread(thread));
+    Bus().publish(busAddress, BusValue{value}, p->CallingThread(thread), OriginFor(globalOnly, p));
   }
 }
 
@@ -194,7 +202,7 @@ FLOAT_IN(SetFloatValue) {
     p->PassData(value, destination, thread);
   }
   if (busAvailable()) {
-    Bus().publish(busAddress, BusValue{value}, p->CallingThread(thread));
+    Bus().publish(busAddress, BusValue{value}, p->CallingThread(thread), OriginFor(globalOnly, p));
   }
 }
 
@@ -206,6 +214,6 @@ LIST_IN(SetListValue) {
   }
   // Built only when it can be delivered: the variant copy is the allocation.
   if (busAvailable() && p->CallingThread(thread) == YSE::T_GUI) {
-    Bus().publish(busAddress, BusValue{value}, thread);
+    Bus().publish(busAddress, BusValue{value}, thread, OriginFor(globalOnly, p));
   }
 }

@@ -888,22 +888,24 @@ LIST_IN(ListIn) {
 
 // ─── persistence ──────────────────────────────────────────────────────────────
 
-void gTable::DumpState(nlohmann::json::value_type& json) {
+bool gTable::DumpState(nlohmann::json::value_type& json) {
   // Control thread — patcherImplementation::DumpJSON holds mtx — but the guard is
   // still taken, because a message may be arriving from a rendering graph while
-  // the patch is being saved.
-  storeGuard guard(busy);
-  if (!guard.Held()) return;
+  // the patch is being saved. Through saveGuard, which waits that message out
+  // rather than skipping the contents and the flag (issue #940).
+  const saveGuard guard(busy);
+  if (!guard.Held()) return false;
 
   // The flag is written whether it is on or off, which is what makes `embed 0`
   // survive a reload: this object's default is on, so silence would bring it back
   // saving itself again. .funbuff can write nothing at all because its default is
   // off and silence there means the same thing as "off".
   json["embed"] = embed;
-  if (!embed) return;
+  if (!embed) return true;
 
   for (std::size_t i = 0; i < size; i++)
     json["values"].push_back(values[i]);
+  return true;
 }
 
 void gTable::RestoreState(const nlohmann::json::value_type& json) {

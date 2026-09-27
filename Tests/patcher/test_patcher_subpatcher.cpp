@@ -36,9 +36,12 @@
 
 #include <doctest/doctest.h>
 
+#include <atomic>
+#include <cstdint>
 #include <cstdio>
 #include <memory>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include "patcher/genericObjects/gInlet.h"
@@ -590,6 +593,115 @@ TEST_SUITE("patcher") {
     // The boundary is untouched by the edit: the parent's cord still lands on
     // the same `.outlet`, which is why it did not have to be rewired.
     CHECK(p.SubpatcherOutlets(sub) == 1);
+  }
+
+  TEST_CASE("subpatcher: renumbering a boundary object takes effect at once, idle (#941)") {
+    // The editor case: a patcher nobody is rendering, a boundary object built
+    // with one index and renumbered with SetParams, then wired. The index is a
+    // number, so SetParams used to queue it for the audio thread — and on a
+    // patcher that never renders, the queue is never drained, so Connect and
+    // the pin-count queries kept answering for the old number for good.
+    Tap tap;
+    YSE::pHandle tapHandle(&tap);
+
+    patcherImplementation p(1, nullptr);
+    YSE::pHandle* sub = p.CreateObject(YSE::OBJ::PATCHER, "");
+    YSE::pHandle* in = p.CreateObject(YSE::OBJ::G_INLET, "2");
+    YSE::pHandle* out = p.CreateObject(YSE::OBJ::G_OUTLET, "3");
+    YSE::pHandle* sin = p.CreateObject(YSE::OBJ::D_INLET, "4");
+    YSE::pHandle* sout = p.CreateObject(YSE::OBJ::D_OUTLET, "5");
+    REQUIRE(sub != nullptr);
+    for (YSE::pHandle* h : {in, out, sin, sout}) {
+      REQUIRE(h != nullptr);
+      p.SetObjectContainer(h, sub);
+    }
+    p.Connect(in, 0, out, 0);
+    REQUIRE(p.SubpatcherInlets(sub) == 5);
+    REQUIRE(p.SubpatcherOutlets(sub) == 6);
+
+    // Every one of the four boundary types, each read back straight away.
+    in->SetParams("0");
+    sin->SetParams("1");
+    CHECK(p.SubpatcherInlets(sub) == 2);
+    out->SetParams("0");
+    sout->SetParams("1");
+    CHECK(p.SubpatcherOutlets(sub) == 2);
+    CHECK(in->GetParams() == "0");
+
+    // And the new numbers are the ones Connect and the host setters resolve.
+    p.Connect(sub, 0, &tapHandle, 0);
+    sub->SetIntData(0, 5);
+    CHECK(tap.trace() == "i5");
+  }
+
+  TEST_CASE("subpatcher: renumbering a boundary object takes effect at once, rendering (#941)") {
+    // The same edit on a patcher that is being rendered. The new index has to
+    // be visible before the next block, not at it — and a later block must not
+    // bring the old number back from a stale queued plan. The first half steps
+    // the blocks by hand so "before the next block" is a fact rather than a
+    // race the renderer usually wins; the second half renumbers again under a
+    // free-running audio thread, which is what the TSan gate watches.
+    Tap tap;
+    YSE::pHandle tapHandle(&tap);
+
+    patcherImplementation p(1, nullptr);
+    YSE::pHandle* sub = p.CreateObject(YSE::OBJ::PATCHER, "");
+    YSE::pHandle* in = p.CreateObject(YSE::OBJ::G_INLET, "2");
+    YSE::pHandle* out = p.CreateObject(YSE::OBJ::G_OUTLET, "0");
+    YSE::pHandle* sout = p.CreateObject(YSE::OBJ::D_OUTLET, "3");
+    REQUIRE(sub != nullptr);
+    for (YSE::pHandle* h : {in, out, sout}) {
+      REQUIRE(h != nullptr);
+      p.SetObjectContainer(h, sub);
+    }
+    p.Connect(in, 0, out, 0);
+    p.Connect(sub, 0, &tapHandle, 0);
+    p.Calculate(YSE::T_DSP);
+    p.Calculate(YSE::T_DSP);
+
+    in->SetParams("1");
+    sout->SetParams("4");
+    CHECK(p.SubpatcherInlets(sub) == 2);
+    CHECK(p.SubpatcherOutlets(sub) == 5);
+    p.Calculate(YSE::T_DSP);
+    CHECK(p.SubpatcherInlets(sub) == 2);
+    CHECK(p.SubpatcherOutlets(sub) == 5);
+
+    std::atomic<bool> stop{false};
+    std::atomic<std::uint64_t> blocks{0};
+    std::thread render([&] {
+      while (!stop.load(std::memory_order_relaxed)) {
+        p.Calculate(YSE::T_DSP);
+        blocks.fetch_add(1, std::memory_order_relaxed);
+      }
+    });
+    while (blocks.load(std::memory_order_relaxed) < 4)
+      std::this_thread::yield();
+
+    in->SetParams("0");
+    sout->SetParams("1");
+    const int inlets = p.SubpatcherInlets(sub);
+    const int outlets = p.SubpatcherOutlets(sub);
+    YSE::pHandle* source = p.CreateObject(YSE::OBJ::G_INT, "");
+    REQUIRE(source != nullptr);
+    p.Connect(source, 0, sub, 0);
+    const int edges = source->GetConnections(0);
+
+    // Let the renderer run past the edit before looking again.
+    const std::uint64_t mark = blocks.load(std::memory_order_relaxed);
+    while (blocks.load(std::memory_order_relaxed) < mark + 4)
+      std::this_thread::yield();
+    stop.store(true, std::memory_order_relaxed);
+    render.join();
+
+    CHECK(inlets == 1);
+    CHECK(outlets == 2);
+    CHECK(edges == 1);
+    CHECK(p.SubpatcherInlets(sub) == 1);
+    CHECK(p.SubpatcherOutlets(sub) == 2);
+
+    source->SetIntData(0, 9);
+    CHECK(tap.trace() == "i9");
   }
 
   // ─── lifetime ─────────────────────────────────────────────────────────────

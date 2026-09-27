@@ -209,7 +209,7 @@ namespace YSE {
     // save with the patch. Control thread; the guard is still taken because a
     // timer-thread recall may land mid-save. Entries are written as ranks —
     // see the class comment.
-    void DumpState(nlohmann::json::value_type& json) override;
+    bool DumpState(nlohmann::json::value_type& json) override;
 
     // The other half: ParseJSON, on a freshly built object the audio thread
     // cannot see yet. A rank read back *is* the fresh storage ID.

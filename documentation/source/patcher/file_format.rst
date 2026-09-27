@@ -312,13 +312,12 @@ and in :doc:`data` and :doc:`gui`. Two rules apply to all of them:
   saved contents are not applied.
 - A ``state`` key on a type that does not save anything is ignored.
 
-.. note::
-
-   A save made while one of these objects is busy with a message can
-   currently leave its ``state`` out of the file without a warning. For
-   ``.funbuff`` and ``.mtr`` that also turns ``embed`` off after reloading.
-   This is tracked in `#940
-   <https://github.com/yvanvds/yse-soundengine/issues/940>`_.
+A save can run while the patch plays. If a message is inside one of these
+objects when the save reaches it, the save waits for the message to finish
+before it reads the contents. The audio thread never waits for the save. If
+an object stays busy through all of the save's retries (roughly 100 ms), the file is still
+written without that object's ``state``, and an error naming the object is
+logged.
 
 The round-trip guarantee
 ------------------------

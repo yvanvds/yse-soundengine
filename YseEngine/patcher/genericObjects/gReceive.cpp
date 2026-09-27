@@ -92,19 +92,26 @@ void gReceive::subscribeFromParent() {
   // `NamedBus::drainPending` on the main thread. Either way it is safe to
   // route through the receive object's outlet with T_GUI semantics.
   const std::string address = p->ScopedAddress(dataName);
-  busHandle = Bus().subscribe(address, [this](const BusValue& v) {
-    if (std::holds_alternative<int>(v)) {
-      outputs[0].SendInt(std::get<int>(v), YSE::T_GUI);
-    } else if (std::holds_alternative<float>(v)) {
-      outputs[0].SendFloat(std::get<float>(v), YSE::T_GUI);
-    } else if (std::holds_alternative<std::string>(v)) {
-      outputs[0].SendList(std::get<std::string>(v), YSE::T_GUI);
-    } else if (std::holds_alternative<std::monostate>(v)) {
-      // Bang carries no payload — the monostate sentinel is the signal.
-      outputs[0].SendBang(YSE::T_GUI);
-    }
-    // vector<float> payloads are not currently exposed by gSend; ignore.
-  });
+  // Ignores its own patcher's .s / .forward publishes (issue #943): the
+  // in-patcher path already delivered those, and taking the echo too made this
+  // object fire twice per value. Re-read on every resubscribe, but a patcher's
+  // origin never changes.
+  busHandle = Bus().subscribe(
+      address,
+      [this](const BusValue& v) {
+        if (std::holds_alternative<int>(v)) {
+          outputs[0].SendInt(std::get<int>(v), YSE::T_GUI);
+        } else if (std::holds_alternative<float>(v)) {
+          outputs[0].SendFloat(std::get<float>(v), YSE::T_GUI);
+        } else if (std::holds_alternative<std::string>(v)) {
+          outputs[0].SendList(std::get<std::string>(v), YSE::T_GUI);
+        } else if (std::holds_alternative<std::monostate>(v)) {
+          // Bang carries no payload — the monostate sentinel is the signal.
+          outputs[0].SendBang(YSE::T_GUI);
+        }
+        // vector<float> payloads are not currently exposed by gSend; ignore.
+      },
+      p->BusOrigin());
 }
 
 BANG_IN(SetBangValue) {

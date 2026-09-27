@@ -560,23 +560,25 @@ void gArray::HandleGetValue(YSE::THREAD thread) {
 
 // ─── persistence ──────────────────────────────────────────────────────────────
 
-void gArray::DumpState(nlohmann::json::value_type& json) {
+bool gArray::DumpState(nlohmann::json::value_type& json) {
   // Control thread — patcherImplementation::DumpJSON holds mtx — but the guard
   // is still taken, because a message may be arriving from a rendering graph
-  // while the patch is being saved.
+  // while the patch is being saved. Through saveGuard, which waits that message
+  // out rather than skipping the contents (issue #940).
   //
   // Every .array bound to a shared sequence writes the contents, not one
   // nominated owner: they are all reading one table, so the copies are
   // identical, and a single writer would mean the array silently stopped being
   // saved the day that one object was deleted from the patch. Restoring is where
   // the duplication is resolved — see RestoreState.
-  const arrayStoreGuard guard(store->busy);
-  if (!guard.Held()) return;
-  if (store->count == 0) return;
+  const saveGuard guard(store->busy);
+  if (!guard.Held()) return false;
+  if (store->count == 0) return true;
 
   nlohmann::json contents;
   ArrayToJson(*store, contents);
   json["contents"] = contents;
+  return true;
 }
 
 void gArray::RestoreState(const nlohmann::json::value_type& json) {

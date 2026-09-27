@@ -15,6 +15,7 @@
 #include "../utils/json.hpp"
 #include <algorithm>
 #include <atomic>
+#include <chrono>
 #include <cstddef>
 #include <cstring>
 #include <memory>
@@ -31,11 +32,16 @@ using namespace YSE::PATCHER;
 
 namespace {
   // Process-wide counter feeding the auto-generated "patcher_<N>" default
-  // name (issue #122). Deliberately the only process-wide counter left in the
-  // patcher: object storage IDs became per-patcher in #730, but a patcher's
-  // *own* default name has to be distinct from every other patcher's in the
-  // process, because it is the bus prefix inner gSend/gReceive route on.
+  // name (issue #122). Object storage IDs became per-patcher in #730, but a
+  // patcher's *own* default name has to be distinct from every other patcher's
+  // in the process, because it is the bus prefix inner gSend/gReceive route on.
   std::atomic<unsigned int> g_nextPatcherIndex{0};
+
+  // Process-wide source of patcher bus origins (issue #943) — distinct from
+  // every other patcher's for the same reason, and 64-bit so it never wraps
+  // back onto a value a queued publish may still carry. Starts at 1: 0 is the
+  // bus's "no origin".
+  std::atomic<std::uint64_t> g_nextBusOrigin{1};
 
   // Shared empty list argument for DispatchToReceiver on the non-list value
   // kinds (Bang/Int/Float), so those paths pass a std::string& without building
@@ -152,7 +158,8 @@ patcherImplementation::patcherImplementation(int mainOutputs, YSE::patcher* head
     head(head),
     autoName_("patcher_" +
               std::to_string(g_nextPatcherIndex.fetch_add(1, std::memory_order_relaxed))),
-    patcherName(autoName_) {
+    patcherName(autoName_),
+    busOrigin_(g_nextBusOrigin.fetch_add(1, std::memory_order_relaxed)) {
   output.resize(mainOutputs);
   // Pre-size the audio-thread list-delivery scratch so SetList never allocates
   // on the callback path (issue #225).
@@ -573,6 +580,14 @@ YSE::PATCHER::inlet* patcherImplementation::ResolveInlet(pObject* obj, int pin) 
   return boundary == nullptr ? nullptr : boundary->GetInlet(0);
 }
 
+YSE::OUT_TYPE patcherImplementation::ResolveOutputType(pObject* obj, int pin) {
+  if (obj == nullptr) return YSE::OUT_TYPE::INVALID;
+  if (!IsSubpatcher(obj)) return obj->GetOutputType(static_cast<unsigned int>(pin));
+  std::scoped_lock lk(mtx);
+  pObject* boundary = BoundaryChild(obj, BoundarySide::OUTLETS, pin);
+  return boundary == nullptr ? YSE::OUT_TYPE::INVALID : boundary->GetOutputType(0);
+}
+
 void patcherImplementation::ConnectUnlocked(YSE::pHandle* from, int outlet, YSE::pHandle* to,
                                             int inlet) {
   // Resolve subpatcher façades to the boundary objects that carry the pins
@@ -854,6 +869,13 @@ void patcherImplementation::SetObjectParams(YSE::pHandle* handle, const std::str
     msg.target = object;
     const int count = object->BuildParamPlan(*staged, msg.ops, (int)kParamOpsCap);
     if (count == 0) return; // no parameters: only the stored string changes
+    if (count > 0 && object->ParamsAreControlSide()) {
+      // Nothing on the audio thread reads these parameters, so there is no
+      // block boundary to wait for: apply now, under mtx, which is where
+      // every reader of them runs (issue #941). The stores are atomic.
+      ApplyParamOps(msg.ops, count);
+      return;
+    }
     if (count > 0) {
       msg.count = count;
       if (!paramQueue_.try_push(msg)) {
@@ -889,24 +911,28 @@ void patcherImplementation::ApplyPendingParams(const GraphState* g) {
       }
     }
     if (!present) continue;
-    for (int i = 0; i < msg.count; i++) {
-      const ParamOp& op = msg.ops[i];
-      switch (op.type) {
-      case PARM_TYPE::FLOAT:
-        *((float*)op.dest) = op.f;
-        break;
-      case PARM_TYPE::ATOMIC_FLOAT:
-        ((std::atomic<float>*)op.dest)->store(op.f, std::memory_order_relaxed);
-        break;
-      case PARM_TYPE::INT:
-        *((int*)op.dest) = op.i;
-        break;
-      case PARM_TYPE::ATOMIC_INT:
-        ((std::atomic<int>*)op.dest)->store(op.i, std::memory_order_relaxed);
-        break;
-      default:
-        break; // STRING/LIST never ride the scalar queue
-      }
+    ApplyParamOps(msg.ops, msg.count);
+  }
+}
+
+void patcherImplementation::ApplyParamOps(const ParamOp* ops, int count) {
+  for (int i = 0; i < count; i++) {
+    const ParamOp& op = ops[i];
+    switch (op.type) {
+    case PARM_TYPE::FLOAT:
+      *((float*)op.dest) = op.f;
+      break;
+    case PARM_TYPE::ATOMIC_FLOAT:
+      ((std::atomic<float>*)op.dest)->store(op.f, std::memory_order_relaxed);
+      break;
+    case PARM_TYPE::INT:
+      *((int*)op.dest) = op.i;
+      break;
+    case PARM_TYPE::ATOMIC_INT:
+      ((std::atomic<int>*)op.dest)->store(op.i, std::memory_order_relaxed);
+      break;
+    default:
+      break; // STRING/LIST never ride the scalar plan
     }
   }
 }
@@ -1219,9 +1245,25 @@ using json = nlohmann::json;
 std::string patcherImplementation::DumpJSON() {
   json j;
 
-  // Read a consistent object set under mtx. mtx is control-thread only (issue
-  // #226), so serialising here never blocks the audio callback.
-  {
+  // A stateful object's DumpState waits a short, bounded time for a message
+  // that holds its store (pObject.h's saveGuard) and reports false if the
+  // message is still there — a DumpState that gave up at the first miss is how
+  // a save used to leave an object's contents out of the file without a word
+  // (issue #940). The whole dump is then taken again with mtx released in
+  // between: the holder may be a control-side thread waiting on mtx (a
+  // `.preset` recall looking an object up), and it can only finish once this
+  // lets go. Nothing here makes the audio thread wait; only this thread does.
+  // Out of passes, the file is still written but the loss is logged as an
+  // error, naming the object, rather than being silent.
+  constexpr int kDumpPasses = 50;
+  std::vector<std::string> incomplete;
+  for (int pass = 0; pass < kDumpPasses; pass++) {
+    if (pass > 0) std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    j = json();
+    incomplete.clear();
+
+    // Read a consistent object set under mtx. mtx is control-thread only (issue
+    // #226), so serialising here never blocks the audio callback.
     std::scoped_lock lk(mtx);
     // `objects` is keyed by pHandle*, so walking it hands the serialiser its
     // objects in heap-address order — which is a property of the allocator, not
@@ -1247,7 +1289,10 @@ std::string patcherImplementation::DumpJSON() {
 
     int counter = 0;
     for (pObject* object : ordered) {
-      object->DumpJson(j["object " + std::to_string(counter)]);
+      if (!object->DumpJson(j["object " + std::to_string(counter)])) {
+        incomplete.push_back(std::string(object->Type()) + " (ID " +
+                             std::to_string(object->GetID()) + ")");
+      }
       counter++;
     }
 
@@ -1259,6 +1304,14 @@ std::string patcherImplementation::DumpJSON() {
     // could land it in some unrelated patcher's scope. Leaving it out also keeps
     // an unnamed patch's dump exactly what it was before this key existed.
     if (patcherName != autoName_) j["name"] = patcherName;
+
+    if (incomplete.empty()) break;
+  }
+
+  for (const std::string& object : incomplete) {
+    INTERNAL::LogImpl().emit(E_ERROR, "Patcher: DumpJSON could not read the state of " + object +
+                                          "; a message held it for the whole save, so its "
+                                          "contents are missing from the saved patch");
   }
 
   std::string result = j.dump(2, ' ', true);
@@ -1481,7 +1534,19 @@ void patcherImplementation::BuildParsedGraph(json& j, std::vector<pObject*>& loa
   RebuildAndPublish();
 }
 
+// The three enumeration calls take mtx like every edit does (issue #937): an
+// edit on another control thread inserts into and erases from `objects`, and
+// walking the map meanwhile can step onto a freed tree node. mtx is
+// control-thread only (issue #226) and none of these is reached from the audio
+// thread (`.preset`, the one engine caller, refuses to run there). Code that
+// already holds mtx — an object's DumpState under DumpJSON — uses the
+// *Unlocked forms instead, since mtx is not recursive.
 unsigned int patcherImplementation::Objects() {
+  std::scoped_lock lk(mtx);
+  return ObjectsUnlocked();
+}
+
+unsigned int patcherImplementation::ObjectsUnlocked() const {
   return static_cast<unsigned int>(objects.size());
 }
 
@@ -1506,17 +1571,27 @@ std::size_t patcherImplementation::FreeIdCount() {
 }
 
 YSE::pHandle* patcherImplementation::GetHandleFromList(unsigned int obj) {
+  std::scoped_lock lk(mtx);
+  return GetHandleFromListUnlocked(obj);
+}
+
+YSE::pHandle* patcherImplementation::GetHandleFromListUnlocked(unsigned int obj) const {
   // TODO: not really brilliant, this code
   unsigned int pos = 0;
-  for (auto& x : objects) {
+  for (const auto& x : objects) {
     if (pos == obj) return x.first;
     pos++;
   }
-  return 0;
+  return nullptr;
 }
 
 YSE::pHandle* patcherImplementation::GetHandleFromID(unsigned int objID) {
-  for (auto& x : objects) {
+  std::scoped_lock lk(mtx);
+  return GetHandleFromIDUnlocked(objID);
+}
+
+YSE::pHandle* patcherImplementation::GetHandleFromIDUnlocked(unsigned int objID) const {
+  for (const auto& x : objects) {
     if (x.second->GetID() == objID) return x.first;
   }
   return nullptr;

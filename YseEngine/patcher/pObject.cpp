@@ -167,7 +167,7 @@ YSE::PATCHER::outlet* pObject::GetOutlet(int number) {
   return &(outputs[number]);
 }
 
-void pObject::DumpJson(nlohmann::json::value_type& json) {
+bool pObject::DumpJson(nlohmann::json::value_type& json) {
   json["type"] = Type();
   json["ID"] = ID;
   json["parms"] = parms.Get();
@@ -199,8 +199,9 @@ void pObject::DumpJson(nlohmann::json::value_type& json) {
   // so an object without state of its own serialises exactly as it always did
   // and no "state": null appears in every saved patch.
   nlohmann::json state;
-  DumpState(state);
+  const bool complete = DumpState(state);
   if (!state.is_null()) json["state"] = state;
+  return complete;
 }
 
 const std::string& pObject::GetParams() {

@@ -79,12 +79,19 @@ namespace YSE {
     /**
      *  @brief Which inlet of the enclosing subpatcher this object is.
      *
-     *  Read on the control thread by `patcherImplementation`'s boundary
-     *  resolution while a live `SetParams` may be storing a new value from the
-     *  audio thread's param drain (issue #234), which is why it is atomic.
+     *  Read only on the control thread, by `patcherImplementation`'s boundary
+     *  resolution under its mtx. A live `SetParams` stores the new value there
+     *  too, before it returns (issue #941), so the next `Connect` or
+     *  `SubpatcherInlets` already sees it. Atomic because the object is
+     *  published while that store happens.
      */
     int Index() const {
       return index.load(std::memory_order_relaxed);
+    }
+
+    // The index is never read on the audio thread (issue #941).
+    bool ParamsAreControlSide() const override {
+      return true;
     }
 
   private:

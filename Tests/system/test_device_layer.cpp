@@ -81,7 +81,10 @@
 #include "device/deviceSetup.hpp"
 #include "headers/constants.hpp"
 #include "log.hpp"
+#include "patcher/pObjectList.hpp"
+#include "patcher/patcher.hpp"
 #include "sound/soundInterface.hpp"
+#include "sound/soundManager.h"
 
 // DEVICE::Manager() returns a managerObject&, so every use of it below — even
 // the backend-agnostic getMaster() inherited from deviceManager — needs the
@@ -892,6 +895,125 @@ TEST_SUITE("devicelayer") {
     pump();
 
     // Leave the singleton as the other cases expect to find it.
+    YSE::System().closeCurrentDevice();
+  }
+
+  // Domain clocks advance per rendered block, not per device callback
+  // (issue #944).
+  //
+  // A device callback larger than one block renders several blocks back to
+  // back. The clocks used to tick once per callback, by the whole callback,
+  // before the first of those blocks rendered — so every beat deadline in the
+  // callback came due in its first block, up to one device buffer early. The
+  // patcher checks beat deadlines at the top of each block, so the user-visible
+  // symptom is audio: an event on the beat lands in the wrong block of the
+  // rendered output. renderOffline() ticks once per block and never showed it,
+  // which is why this case drives paCallback with a 512-frame buffer instead.
+  //
+  // The patch turns a beat crossing into a step in the audio: `.timepoint`
+  // bangs `.f 1`, which sets a `~line` (0 ms) into `~dac`. The first non-silent
+  // output sample says which block the patcher delivered the bang in.
+  TEST_CASE("device manager: a patcher beat wait fires in its own block of a large callback "
+            "(issue #944)") {
+    if (!ensureOffline()) return;
+
+    auto& mgr = YSE::DEVICE::Manager();
+    const size_t channels = mgr.getMaster().GetBuffers().size();
+    REQUIRE(channels > 0);
+
+    constexpr unsigned long kCallback = 512; // four engine blocks per callback
+    constexpr float kTempo = 120.f;
+    const std::string clockName = "dl944";
+    const double beatsPerSample = kTempo / 60.0 / (double)YSE::SAMPLERATE;
+    const double beatsPerBlock = beatsPerSample * YSE::STANDARD_BUFFERSIZE;
+
+    std::vector<std::vector<float>> storage(channels, std::vector<float>(kCallback));
+    std::vector<float*> planes;
+    planes.reserve(channels);
+    for (size_t c = 0; c < channels; ++c)
+      planes.push_back(storage[c].data());
+    void* const output = static_cast<void*>(planes.data());
+
+    // Flush any sound an earlier case released, so the first half below
+    // really runs the no-render path.
+    pump();
+    REQUIRE(YSE::System().createClock(clockName, 0.f));
+
+    // (1) Nothing renders while no sound is alive, so renderOneBlock() never
+    // runs — the clocks still have to advance, by the whole callback.
+    REQUIRE(YSE::SOUND::Manager().empty());
+    YSE::System().setTempo(clockName, kTempo, 0.f);
+    const double before = YSE::System().beatPosition(clockName);
+    REQUIRE(YSE::DEVICE::managerObject::paCallback(nullptr, output, kCallback, nullptr, 0, &mgr) ==
+            0);
+    CHECK(YSE::System().beatPosition(clockName) - before ==
+          doctest::Approx(beatsPerSample * kCallback));
+    // Stop the clock again. The request is consumed by the next tick, which at
+    // tempo 0 moves nothing.
+    YSE::System().setTempo(clockName, 0.f, 0.f);
+    REQUIRE(YSE::DEVICE::managerObject::paCallback(nullptr, output, kCallback, nullptr, 0, &mgr) ==
+            0);
+    const double base = YSE::System().beatPosition(clockName);
+
+    // (2) The patch. The target sits half-way through the sixth block after the
+    // clock starts, so it is reached by the clock tick in front of block 5
+    // (0-based) and by no earlier one.
+    const double target = base + 5.5 * beatsPerBlock;
+    YSE::patcher patch;
+    patch.create(2);
+    YSE::pHandle* point = patch.CreateObject(YSE::OBJ::G_TIMEPOINT, clockName);
+    YSE::pHandle* one = patch.CreateObject(YSE::OBJ::G_FLOAT, "1");
+    YSE::pHandle* line = patch.CreateObject(YSE::OBJ::D_LINE);
+    YSE::pHandle* dac = patch.CreateObject(YSE::OBJ::D_DAC);
+    REQUIRE(point != nullptr);
+    REQUIRE(one != nullptr);
+    REQUIRE(line != nullptr);
+    REQUIRE(dac != nullptr);
+    point->SetFloatData(0, (float)target);
+    patch.Connect(point, 0, one, 0);
+    patch.Connect(one, 0, line, 0);
+    patch.Connect(line, 0, dac, 0);
+    patch.Connect(line, 0, dac, 1);
+
+    YSE::sound s;
+    s.create(patch);
+    s.relative(true);
+    s.play();
+    // Attaches the sound and lets the patcher resolve its clock binding. The
+    // clock is stopped, so none of these blocks moves it.
+    pump();
+    REQUIRE(YSE::System().beatPosition(clockName) == doctest::Approx(base));
+
+    // Start the next callback on a block boundary (close() drops the partial
+    // block, issue #717), then start the clock.
+    YSE::System().closeCurrentDevice();
+    YSE::System().setTempo(clockName, kTempo, 0.f);
+
+    std::vector<float> rendered;
+    for (int cb = 0; cb < 4; ++cb) {
+      for (auto& plane : storage)
+        std::fill(plane.begin(), plane.end(), 0.f);
+      REQUIRE(YSE::DEVICE::managerObject::paCallback(nullptr, output, kCallback, nullptr, 0,
+                                                     &mgr) == 0);
+      rendered.insert(rendered.end(), storage[0].begin(), storage[0].end());
+    }
+
+    long firstSound = -1;
+    for (size_t i = 0; i < rendered.size(); ++i) {
+      if (std::fabs(rendered[i]) > 1e-6f) {
+        firstSound = (long)i;
+        break;
+      }
+    }
+    REQUIRE(firstSound >= 0);
+    // Block 5 is the second block of the second callback. Before the fix the
+    // second callback's tick moved the clock past the target before its first
+    // block, block 4, rendered — one block early here, up to three at worst.
+    CHECK(firstSound / (long)YSE::STANDARD_BUFFERSIZE == 5);
+
+    s.stop();
+    pump();
+    YSE::System().destroyClock(clockName);
     YSE::System().closeCurrentDevice();
   }
 

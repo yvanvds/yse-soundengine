@@ -28,7 +28,7 @@ namespace YSE {
     // managers use (#156 / #190): the control thread emplaces a clock into the
     // canonical list under `implementationsMutex` and hands it to the audio
     // thread through a lock-free inbox; the audio thread owns the `inUse`
-    // working list, advances each clock every callback, and — when a clock is
+    // working list, advances each clock every rendered block (#944), and — when a clock is
     // released — retires it for the slow-pool delete job. The audio thread never
     // allocates, locks, or frees.
     //

@@ -70,6 +70,17 @@ namespace YSE {
       std::string ScopedAddressPrefix() const;
       std::string ScopedAddress(const std::string& name) const;
 
+      // This patcher's bus origin (issue #943): a process-unique, non-zero tag
+      // its .s / .forward put on every bus publish, and its .r subscribes with as
+      // the origin to ignore. The in-patcher path already delivered the value to
+      // those .r objects, so the bus echo would be a second copy; a .r in another
+      // patcher with the same name has a different origin and still takes it.
+      // Never reused, so a publish still queued from a destroyed patcher cannot
+      // be mistaken for a newer one's.
+      std::uint64_t BusOrigin() const {
+        return busOrigin_;
+      }
+
       const char* Type() const override;
       void ResetDSP() override;
       void Calculate(THREAD thread) override;
@@ -174,12 +185,26 @@ namespace YSE {
       // shaped around. Only the lookup is locked.
       PATCHER::inlet* ResolveInlet(pObject* obj, int pin);
 
+      // The outlet-side twin, for `pHandle::OutputDataType` (issue #942): the
+      // type `obj`'s outlet `pin` produces, resolved through a subpatcher's
+      // boundary the way `Connect` resolves a cord leaving it — the type of
+      // the `.outlet` / `~outlet` claiming that index. INVALID when no
+      // boundary object claims it. It returns a value rather than a pointer,
+      // so unlike ResolveInlet the whole read stays under mtx.
+      YSE::OUT_TYPE ResolveOutputType(pObject* obj, int pin);
+
       std::string DumpJSON();
       void ParseJSON(const std::string& content);
 
+      // Take mtx (issue #937), so control-thread only and never from under mtx.
       unsigned int Objects();
       YSE::pHandle* GetHandleFromList(unsigned int obj);
       YSE::pHandle* GetHandleFromID(unsigned int objID);
+      // The same reads for a caller that already holds mtx — an object's
+      // DumpState, which DumpJSON runs under the lock.
+      unsigned int ObjectsUnlocked() const;
+      YSE::pHandle* GetHandleFromListUnlocked(unsigned int obj) const;
+      YSE::pHandle* GetHandleFromIDUnlocked(unsigned int objID) const;
 
       // Number of retired GraphStates + objects still awaiting background
       // reclamation (issue #227). Diagnostics / tests only: takes reclaimMtx_,
@@ -368,6 +393,12 @@ namespace YSE {
       // queued scalar plan whose target is still in the pinned snapshot.
       // Plain/atomic stores only — no allocation, no locks.
       void ApplyPendingParams(const GraphState* g);
+
+      // The stores of one scalar plan. Called by ApplyPendingParams on the
+      // audio thread, and by SetObjectParams on the control thread for an
+      // object whose parameters are control-side (issue #941). No allocation,
+      // no locks.
+      static void ApplyParamOps(const ParamOp* ops, int count);
 
       // Structural re-parse: build a replacement object with the new params
       // off the live path, transfer identity (storage ID, GUI properties, the
@@ -680,6 +711,8 @@ namespace YSE {
       // Bus-prefix for inner gSend/gReceive routing (issue #122). Defaulted
       // to autoName_ in the ctor; mutated by SetName().
       std::string patcherName;
+      // See BusOrigin(). Set once in the ctor.
+      const std::uint64_t busOrigin_;
 
       std::string GetRecieveObjectsAsString();
     };

@@ -338,6 +338,175 @@ TEST_SUITE("patcher") {
     CHECK(peerSink.intValue == 5);
   }
 
+  // ─── One value in, one message out (issue #943) ─────────────────────────────
+  //
+  // A default `.s` delivers to its own patcher's `.r` through PassData *and*
+  // publishes on the address that same `.r` subscribes to. Before #943 nothing
+  // told the two apart, so a same-patcher `.r` fired twice per value once the
+  // engine was running. These count deliveries across a whole cycle — block,
+  // update, block — so a late second copy on either path is caught.
+  //
+  // patcherImplementation directly, as for the deferred cases below: the
+  // render-thread half needs `Calculate`.
+
+  namespace {
+    // Block, bus drain, block: long enough for both paths to have landed.
+    void RunCycle(YSE::PATCHER::patcherImplementation& p) {
+      p.Calculate(YSE::T_DSP);
+      YSE::System().update();
+      p.Calculate(YSE::T_DSP);
+      YSE::System().update();
+    }
+  } // namespace
+
+  TEST_CASE("bus routing: a .r in the same patcher as its .s gets each control-thread value "
+            "once (#943)") {
+    REQUIRE(TestHelpers::engineInit());
+
+    YSE::PATCHER::patcherImplementation p(1, nullptr);
+    p.SetName("dup943.gui");
+    YSE::pHandle* send = p.CreateObject(YSE::OBJ::G_SEND, "x");
+    YSE::pHandle* recv = p.CreateObject(YSE::OBJ::G_RECEIVE, "x");
+    REQUIRE(send != nullptr);
+    REQUIRE(recv != nullptr);
+    TestHelpers::OrderSink sink;
+    YSE::pHandle sinkHandle(&sink);
+    p.Connect(recv, 0, &sinkHandle, 0);
+    p.Calculate(YSE::T_DSP);
+
+    send->SetIntData(0, 5);
+    RunCycle(p);
+    CHECK(sink.count == 1);
+    CHECK(sink.lastKind == TestHelpers::OrderSink::INT);
+    CHECK(sink.lastInt == 5);
+
+    send->SetFloatData(0, 0.25f);
+    RunCycle(p);
+    CHECK(sink.count == 2);
+    CHECK(sink.lastFloat == doctest::Approx(0.25f));
+
+    send->SetBang(0);
+    RunCycle(p);
+    CHECK(sink.count == 3);
+    CHECK(sink.lastKind == TestHelpers::OrderSink::BANG);
+
+    send->SetListData(0, "a b");
+    RunCycle(p);
+    CHECK(sink.count == 4);
+    CHECK(sink.lastList == "a b");
+  }
+
+  TEST_CASE("bus routing: a .r in the same patcher as its .s gets each render-thread value once "
+            "(#943)") {
+    REQUIRE(TestHelpers::engineInit());
+
+    YSE::PATCHER::patcherImplementation p(1, nullptr);
+    p.SetName("dup943.dsp");
+    // `.r trig` → `.s x`: the host value is drained at the top of the block, so
+    // the `.s` fires on the audio thread.
+    YSE::pHandle* trig = p.CreateObject(YSE::OBJ::G_RECEIVE, "trig");
+    YSE::pHandle* send = p.CreateObject(YSE::OBJ::G_SEND, "x");
+    YSE::pHandle* recv = p.CreateObject(YSE::OBJ::G_RECEIVE, "x");
+    REQUIRE(trig != nullptr);
+    REQUIRE(send != nullptr);
+    REQUIRE(recv != nullptr);
+    p.Connect(trig, 0, send, 0);
+    TestHelpers::OrderSink sink;
+    YSE::pHandle sinkHandle(&sink);
+    p.Connect(recv, 0, &sinkHandle, 0);
+
+    CHECK(p.PassData(7, "trig", YSE::T_GUI));
+    p.Calculate(YSE::T_DSP);
+    CHECK(sink.count == 1); // same block, through PassData
+    YSE::System().update();
+    p.Calculate(YSE::T_DSP);
+    YSE::System().update();
+    CHECK(sink.count == 1); // and the bus copy is not delivered on the drain
+    CHECK(sink.lastInt == 7);
+  }
+
+  TEST_CASE("bus routing: with a local .r, a same-named patcher's .r still gets each value once "
+            "(#943)") {
+    REQUIRE(TestHelpers::engineInit());
+
+    YSE::PATCHER::patcherImplementation a(1, nullptr);
+    a.SetName("dup943.shared");
+    YSE::PATCHER::patcherImplementation b(1, nullptr);
+    b.SetName("dup943.shared");
+
+    YSE::pHandle* trig = a.CreateObject(YSE::OBJ::G_RECEIVE, "trig");
+    YSE::pHandle* send = a.CreateObject(YSE::OBJ::G_SEND, "x");
+    YSE::pHandle* localRecv = a.CreateObject(YSE::OBJ::G_RECEIVE, "x");
+    YSE::pHandle* peerRecv = b.CreateObject(YSE::OBJ::G_RECEIVE, "x");
+    REQUIRE(trig != nullptr);
+    REQUIRE(send != nullptr);
+    REQUIRE(localRecv != nullptr);
+    REQUIRE(peerRecv != nullptr);
+    a.Connect(trig, 0, send, 0);
+    TestHelpers::OrderSink local;
+    YSE::pHandle localHandle(&local);
+    a.Connect(localRecv, 0, &localHandle, 0);
+    TestHelpers::OrderSink peer;
+    YSE::pHandle peerHandle(&peer);
+    b.Connect(peerRecv, 0, &peerHandle, 0);
+    a.Calculate(YSE::T_DSP);
+    b.Calculate(YSE::T_DSP);
+
+    // From the control thread: the peer takes the bus copy right away.
+    send->SetIntData(0, 3);
+    RunCycle(a);
+    CHECK(local.count == 1);
+    CHECK(peer.count == 1);
+    CHECK(peer.lastInt == 3);
+
+    // From the render thread: the peer takes it on the drain.
+    CHECK(a.PassData(4, "trig", YSE::T_GUI));
+    RunCycle(a);
+    CHECK(local.count == 2);
+    CHECK(local.lastInt == 4);
+    CHECK(peer.count == 2);
+    CHECK(peer.lastInt == 4);
+  }
+
+  TEST_CASE("bus routing: a host bus publish reaches a .r that sits beside a .s once (#943)") {
+    REQUIRE(TestHelpers::engineInit());
+
+    YSE::PATCHER::patcherImplementation p(1, nullptr);
+    p.SetName("dup943.host");
+    REQUIRE(p.CreateObject(YSE::OBJ::G_SEND, "x") != nullptr);
+    YSE::pHandle* recv = p.CreateObject(YSE::OBJ::G_RECEIVE, "x");
+    REQUIRE(recv != nullptr);
+    TestHelpers::OrderSink sink;
+    YSE::pHandle sinkHandle(&sink);
+    p.Connect(recv, 0, &sinkHandle, 0);
+
+    // Untagged — the host is not the patcher, so the .r must not skip it.
+    YSE::INTERNAL::Bus().publish("patcher.dup943.host.x", YSE::INTERNAL::BusValue{9}, YSE::T_GUI);
+    RunCycle(p);
+    CHECK(sink.count == 1);
+    CHECK(sink.lastInt == 9);
+  }
+
+  TEST_CASE("bus routing: a .r in the same patcher as its .forward gets each value once (#943)") {
+    REQUIRE(TestHelpers::engineInit());
+
+    YSE::PATCHER::patcherImplementation p(1, nullptr);
+    p.SetName("dup943.fwd");
+    YSE::pHandle* fwd = p.CreateObject(YSE::OBJ::G_FORWARD, "x");
+    YSE::pHandle* recv = p.CreateObject(YSE::OBJ::G_RECEIVE, "x");
+    REQUIRE(fwd != nullptr);
+    REQUIRE(recv != nullptr);
+    TestHelpers::OrderSink sink;
+    YSE::pHandle sinkHandle(&sink);
+    p.Connect(recv, 0, &sinkHandle, 0);
+    p.Calculate(YSE::T_DSP);
+
+    fwd->SetIntData(0, 6);
+    RunCycle(p);
+    CHECK(sink.count == 1);
+    CHECK(sink.lastInt == 6);
+  }
+
   // ─── .forward (issue #485) ──────────────────────────────────────────────────
   //
   // The object-level suite (test_patcher_forward.cpp) runs without an engine, so

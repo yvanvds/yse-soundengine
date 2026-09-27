@@ -27,7 +27,6 @@
 #include <string>
 #include <thread>
 #include <unordered_map>
-#include <utility>
 #include <variant>
 #include <vector>
 
@@ -42,6 +41,12 @@ namespace YSE {
     using Subscriber = std::function<void(const BusValue&)>;
     using TapHandle = std::uint64_t;
     using TapSubscriber = std::function<void(const std::string& name, const BusValue&)>;
+    // Who published a value (issue #943). 0 means "nobody in particular" — the
+    // host, the C API, an engine object — and is delivered to every subscriber.
+    // A non-zero origin is skipped by a subscription registered with the same
+    // ignoreOrigin: a patcher's .r already got the value from its own .s through
+    // the in-patcher path, so it must not take the bus echo too.
+    using BusOrigin = std::uint64_t;
 
     class NamedBus {
     public:
@@ -79,9 +84,17 @@ namespace YSE {
       //                     non-trivial payloads through main-thread bridges.
       //                     Names longer than `kNameCapacity` bytes are
       //                     truncated; producers must keep names short.
-      void publish(const std::string& name, const BusValue& value, YSE::THREAD thread);
+      //
+      // `origin` rides with the value on every path (inline, parked, audio
+      // queue — a plain integer in the fixed-footprint entry, so the T_DSP path
+      // stays allocation- and lock-free) and is matched at dispatch against
+      // each subscription's ignoreOrigin (issue #943). Taps see every value.
+      void publish(const std::string& name, const BusValue& value, YSE::THREAD thread,
+                   BusOrigin origin = 0);
 
-      // Register a subscriber for `name`. The returned handle can be passed to
+      // Register a subscriber for `name`. A non-zero `ignoreOrigin` makes the
+      // subscription skip values published with that same origin (issue #943).
+      // The returned handle can be passed to
       // `unsubscribe()`. Like tap handles, subscription handles are unique
       // across every bus instance in the process (the counter is
       // process-global, issue #716), so a handle held by a subscriber that
@@ -89,7 +102,7 @@ namespace YSE {
       // .receive, whose teardown is guarded only by Global().isActive() — can
       // never alias a registration on the next session's bus. 0 is never
       // issued; callers use it as "not subscribed".
-      SubHandle subscribe(const std::string& name, Subscriber callback);
+      SubHandle subscribe(const std::string& name, Subscriber callback, BusOrigin ignoreOrigin = 0);
 
       // Drop the subscription that owns `handle`. No-op if the handle is
       // unknown (e.g. already unsubscribed, never issued, or issued by an
@@ -128,6 +141,7 @@ namespace YSE {
       struct PooledMessage {
         enum class Kind : std::uint8_t { Int = 1, Float = 2 };
         Kind kind{Kind::Int};
+        BusOrigin origin{0};
         char nameStorage[kNameCapacity + 1]{};
         union {
           int i;
@@ -138,6 +152,14 @@ namespace YSE {
       struct Subscription {
         SubHandle handle;
         Subscriber callback;
+        BusOrigin ignoreOrigin;
+      };
+
+      // A T_GUI publish parked off the control thread, with its origin.
+      struct PendingControl {
+        std::string name;
+        BusValue value;
+        BusOrigin origin;
       };
 
       struct TapSubscription {
@@ -146,7 +168,7 @@ namespace YSE {
         TapSubscriber callback;
       };
 
-      void dispatch(const std::string& name, const BusValue& value);
+      void dispatch(const std::string& name, const BusValue& value, BusOrigin origin);
 
       // Route this thread's T_DSP publish to its own SPSC queue, claiming a
       // slot on first use. Returns nullptr once every provisioned slot is
@@ -195,7 +217,7 @@ namespace YSE {
       // full BusValue keeps every payload kind — bang / int / float / string /
       // list — intact, unlike the fixed-footprint audio-path pool.
       std::mutex pendingMutex_;
-      std::vector<std::pair<std::string, BusValue>> pendingControl_;
+      std::vector<PendingControl> pendingControl_;
 
       mutable std::shared_mutex subsMutex_;
       std::unordered_map<std::string, std::vector<Subscription>> subs_;

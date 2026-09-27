@@ -134,7 +134,9 @@ namespace YSE {
          tree on the render scheduler (CHANNEL::Manager().render()).  Extracted from
          the audio backends' callbacks so the same path can be driven from
          a benchmark via renderOffline().  Caller must have run
-         doOnCallback() first.
+         doOnCallback() first.  Advances the domain clocks and clip
+         transports by one block before rendering it (issue #944), so beat
+         time moves per block whatever the device buffer size.
       */
       void renderOneBlock();
 
@@ -155,6 +157,12 @@ namespace YSE {
       const std::string& getDefaultDeviceName();
 
     protected:
+      /* Audio thread. Advance every domain clock by numSamples, then the clip
+         transports that read them. Called per rendered block from
+         renderOneBlock(), or per callback from doOnCallback() when nothing
+         renders (issue #944). */
+      void advanceDomainClocks(int numSamples);
+
       /* Backends call this once per successfully started stream. See
          getStreamStartCount(). */
       void notifyStreamStarted() {

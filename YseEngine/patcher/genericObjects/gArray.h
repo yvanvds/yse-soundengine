@@ -473,7 +473,7 @@ namespace YSE {
 
     // The contents, as a JSON array. See the class notes on who writes and who
     // restores. Control thread only, both of them.
-    void DumpState(nlohmann::json::value_type& json) override;
+    bool DumpState(nlohmann::json::value_type& json) override;
     void RestoreState(const nlohmann::json::value_type& json) override;
 
   private:

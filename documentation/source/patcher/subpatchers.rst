@@ -135,19 +135,21 @@ A ``patcher`` object has no pins of its own, so ``pHandle::GetInputs()`` and
    inlets, and inlets 0 and 1 refuse a connection. For a handle that is not a
    subpatcher, the answer is 0.
 
-Other per-pin queries on a subpatcher's handle behave differently depending
-on the side:
+The per-pin type queries on a subpatcher's handle resolve through the
+boundary, on both sides:
 
-- **Inlets resolve through the boundary.** ``pHandle::IsDSPInput(n)`` answers
-  for the boundary object behind inlet n (true for a ``~inlet``), and
-  ``SetBang``, ``SetIntData``, ``SetFloatData`` and ``SetListData`` deliver to
-  it. A host can push a value into a subpatcher's inlet without knowing what
-  is inside. For a pin no boundary object claims, ``IsDSPInput`` returns false
-  and the setters do nothing.
-- **Outlets do not.** ``pHandle::OutputDataType(n)`` returns
-  ``OUT_TYPE::INVALID`` for every pin of a subpatcher (issue `#942
-  <https://github.com/yvanvds/yse-soundengine/issues/942>`_). Ask the
-  boundary object itself until this is fixed.
+- ``pHandle::IsDSPInput(n)`` answers for the boundary object behind inlet n
+  (true for a ``~inlet``), and ``SetBang``, ``SetIntData``, ``SetFloatData``
+  and ``SetListData`` deliver to it. A host can push a value into a
+  subpatcher's inlet without knowing what is inside. For a pin no boundary
+  object claims, ``IsDSPInput`` returns false and the setters do nothing.
+- ``pHandle::OutputDataType(n)`` answers for the boundary object behind
+  outlet n: ``OUT_TYPE::BUFFER`` for a ``~outlet``, ``OUT_TYPE::ANY`` for a
+  ``.outlet``. For a pin no boundary object claims, it returns
+  ``OUT_TYPE::INVALID``.
+
+So an editor can tell a signal cord from a message cord at a subpatcher's
+pins the same way it does at any other object's.
 
 Worked example: a voice
 -----------------------
@@ -242,17 +244,13 @@ Adding a boundary object is also an ordinary edit. Create a ``.inlet 2``
 inside a subpatcher and the subpatcher has an inlet 2 from then on. The
 ``patcher`` object does not change.
 
-**Renumbering a boundary object is delayed.** The index is a number argument,
-so ``SetParams`` on a boundary object updates it in place, at the start of the
-next block the patcher renders (see :doc:`building`). Until then,
-``GetParams()`` and ``DumpJSON`` already report the new index, but
-``Connect``, ``Disconnect``, the ``pHandle`` setters and
-``SubpatcherInlets`` / ``SubpatcherOutlets`` still use the old one. On a
-patcher that is not attached to anything, the new index never takes effect.
-This is tracked in `#941
-<https://github.com/yvanvds/yse-soundengine/issues/941>`_. Until it is fixed,
-give a boundary object its final index when you create it, or delete it and
-create a new one.
+Renumbering a boundary object takes effect at once. ``SetParams`` on a
+boundary object changes its index before the call returns, whether or not
+the patcher is rendering. The next ``Connect``, ``Disconnect``, ``pHandle``
+setter and ``SubpatcherInlets`` / ``SubpatcherOutlets`` call uses the new
+number. Unlike other number arguments, the index does not wait for the next
+block (see :doc:`building`), because only these calls read it. Cords that
+already end at the object stay attached to it.
 
 Loading and saving
 ------------------

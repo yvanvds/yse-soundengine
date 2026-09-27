@@ -779,23 +779,25 @@ void gDict::HandleGetKeys(YSE::THREAD thread) {
 
 // ─── persistence ──────────────────────────────────────────────────────────────
 
-void gDict::DumpState(nlohmann::json::value_type& json) {
+bool gDict::DumpState(nlohmann::json::value_type& json) {
   // Control thread — patcherImplementation::DumpJSON holds mtx — but the guard
   // is still taken, because a message may be arriving from a rendering graph
-  // while the patch is being saved.
+  // while the patch is being saved. Through saveGuard, which waits that message
+  // out rather than skipping the contents (issue #940).
   //
   // Every .dict bound to a shared dictionary writes the contents, not one
   // nominated owner: they are all reading one table, so the copies are
   // identical, and a single writer would mean the dictionary silently stopped
   // being saved the day that one object was deleted from the patch. Restoring
   // is where the duplication is resolved — see RestoreState.
-  const dictStoreGuard guard(store->busy);
-  if (!guard.Held()) return;
-  if (store->count == 0) return;
+  const saveGuard guard(store->busy);
+  if (!guard.Held()) return false;
+  if (store->count == 0) return true;
 
   nlohmann::json contents;
   DictToJson(*store, contents);
   json["contents"] = contents;
+  return true;
 }
 
 void gDict::RestoreState(const nlohmann::json::value_type& json) {

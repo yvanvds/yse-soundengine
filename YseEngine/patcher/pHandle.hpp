@@ -61,7 +61,13 @@ namespace YSE {
     /** @brief Whether inlet ``inlet`` accepts an audio signal. */
     bool IsDSPInput(unsigned int inlet);
 
-    /** @brief Data type produced by outlet ``pin``. */
+    /** @brief Data type produced by outlet ``pin``.
+     *
+     *  On a subpatcher this answers for the ``.outlet`` / ``~outlet`` claiming
+     *  index ``pin`` (``ANY`` / ``BUFFER``), and ``OUT_TYPE::INVALID`` when no
+     *  boundary object claims it — the same resolution ``IsDSPInput`` makes on
+     *  the inlet side.
+     */
     YSE::OUT_TYPE OutputDataType(unsigned int pin);
 
     /** @brief Display name of this object (set in the patcher source). */
