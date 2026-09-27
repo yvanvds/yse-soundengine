@@ -336,25 +336,22 @@ void patcherImplementation::Calculate(YSE::THREAD thread) {
     output[i] = 0;
   }
 
-  // sum outputs
-  int counter = 0;
+  // Sum every ~dac into the output, channel by channel, as Max and Pd do with
+  // several dac~ objects (issue #932). This used to assign (`=`) and then
+  // divide by the ~dac count, so only the last ~dac was heard, attenuated, and
+  // an unconnected channel on a later ~dac left an earlier one's audio in
+  // place. Accumulating into the cleared, pre-sized output buffers neither
+  // allocates nor depends on ~dac creation order. There is no normalisation:
+  // levels add, and keeping them in range is the patch's job.
   if (g != nullptr) {
     for (unsigned int d = 0; d < g->dacs.size(); d++) {
       pDac* dac = static_cast<pDac*>(g->dacs[d]);
       for (unsigned int i = 0; i < output.size(); i++) {
         YSE::DSP::buffer* ptr = dac->GetBuffer(i);
         if (ptr != nullptr) {
-          output[i] = *ptr;
+          output[i] += *ptr;
         }
       }
-      counter++;
-    }
-  }
-
-  // normalize output
-  if (counter > 1) {
-    for (unsigned int i = 0; i < output.size(); i++) {
-      output[i] /= (float)counter;
     }
   }
 
