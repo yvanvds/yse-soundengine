@@ -65,7 +65,7 @@ namespace YSE {
        *  ### Trajectory note (design record, issue #326)
        *
        *  With zone-bound return buses
-       *  ([send_return_buses.md §12b](../../../docs/design/send_return_buses.md)),
+       *  (``docs/design/send_return_buses.md`` §12b in the repository),
        *  a reverb *zone* can instead be a return bus tied to a region of
        *  space, with proximity modulating the *send levels* into it — distinct
        *  spaces crossfading as real wet signals. The two tools coexist:

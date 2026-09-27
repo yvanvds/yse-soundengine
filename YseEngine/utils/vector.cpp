@@ -15,6 +15,8 @@ YSE::Pos::Pos(const aPos& v) {
   v.loadInto(x, y, z);
 }
 
+/// @cond INTERNAL
+// aPos is hidden from the docs in atomicPos.h; hide its out-of-line members too.
 YSE::aPos::aPos(const Pos& v) {
   store(v.x, v.y, v.z);
 }
@@ -33,3 +35,4 @@ YSE::Pos YSE::aPos::load() const {
   loadInto(x, y, z);
   return Pos(x, y, z);
 }
+/// @endcond

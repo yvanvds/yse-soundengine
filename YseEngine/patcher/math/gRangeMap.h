@@ -30,6 +30,12 @@ namespace YSE {
      *    the convention ``./``, ``.sqrt`` and ``.pow`` already use, so a NaN
      *    arriving from a neighbour cannot poison everything downstream.
      *
+     *  @param input     the value to map.
+     *  @param inLow     input value that maps to @p outLow.
+     *  @param inHigh    input value that maps to @p outHigh.
+     *  @param outLow    output value for @p inLow.
+     *  @param outHigh   output value for @p inHigh.
+     *  @param exponent  curve exponent; 1 is a straight line.
      *  @param clip  when true the result is clamped to the output range. The
      *               clamp uses the *ordered* output pair, so a descending
      *               mapping (outLow > outHigh) clips correctly.

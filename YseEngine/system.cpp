@@ -56,6 +56,9 @@ void YSE::system::renderOffline(int blocks) {
   DEVICE::Manager().renderOffline(blocks);
 }
 
+/// @cond INTERNAL
+// initShared() is private and hidden in system.hpp; keep its definition out of
+// the docs as well.
 Bool YSE::system::initShared(bool openDevice) {
   if (INTERNAL::Global().active) {
     INTERNAL::LogImpl().emit(E_DEBUG, "You're trying to initialize more than once!");
@@ -127,6 +130,7 @@ Bool YSE::system::initShared(bool openDevice) {
   INTERNAL::LogImpl().emit(E_ERROR, "YSE System object failed to initialize");
   return false;
 }
+/// @endcond
 
 void YSE::system::update() {
   INTERNAL::Global().flagForUpdate();
@@ -362,10 +366,14 @@ YSE::system& YSE::system::setUnderWaterDepth(float value) {
   return *this;
 }
 
+/// @cond INTERNAL
+// Documented in system.hpp. Doxygen cannot see through the Int typedef to match
+// this definition against the header's int declaration, so hide it.
 YSE::system& YSE::system::maxSounds(Int value) {
   VirtualSoundFinder().setLimit(value);
   return *this;
 }
+/// @endcond
 
 Int YSE::system::maxSounds() {
   return VirtualSoundFinder().getLimit();
