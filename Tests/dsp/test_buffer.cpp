@@ -213,6 +213,55 @@ TEST_SUITE("dsp") {
     CHECK(b.getPtr()[0] == doctest::Approx(1.0f));
   }
 
+  // #927: swap walked this buffer's whole storage (length + overflow), so two
+  // equal-length buffers with different overflow tails ran past the shorter
+  // allocation, and neither tail was rebuilt from its new head.
+  TEST_CASE("buffer: swap with a different overflow tail stays in bounds and rebuilds tails") {
+    auto fill = [](YSE::DSP::buffer& buf, float base) {
+      for (unsigned i = 0; i < buf.getLength(); ++i)
+        buf.getPtr()[i] = base + static_cast<float>(i);
+      buf.copyOverflow();
+    };
+
+    SUBCASE("plain buffer swaps with a tailed buffer") {
+      YSE::DSP::buffer plain(4), tailed(4, 1);
+      fill(plain, 10.f);
+      fill(tailed, 20.f);
+      plain.swap(tailed);
+      for (unsigned i = 0; i < 4; ++i) {
+        CHECK(plain.getPtr()[i] == doctest::Approx(20.f + static_cast<float>(i)));
+        CHECK(tailed.getPtr()[i] == doctest::Approx(10.f + static_cast<float>(i)));
+      }
+      // The tail mirrors the tailed buffer's new first sample, not its old one.
+      CHECK(tailed.getPtr()[4] == doctest::Approx(10.f));
+    }
+
+    SUBCASE("tailed buffer swaps with a plain buffer") {
+      YSE::DSP::buffer plain(4), tailed(4, 1);
+      fill(plain, 10.f);
+      fill(tailed, 20.f);
+      tailed.swap(plain);
+      for (unsigned i = 0; i < 4; ++i) {
+        CHECK(plain.getPtr()[i] == doctest::Approx(20.f + static_cast<float>(i)));
+        CHECK(tailed.getPtr()[i] == doctest::Approx(10.f + static_cast<float>(i)));
+      }
+      CHECK(tailed.getPtr()[4] == doctest::Approx(10.f));
+    }
+  }
+
+  TEST_CASE("buffer: swap refuses a length mismatch and leaves both buffers alone") {
+    YSE::DSP::buffer a(4), b(5);
+    a = 1.0f;
+    b = 2.0f;
+    a.swap(b);
+    CHECK(a.getLength() == 4u);
+    CHECK(b.getLength() == 5u);
+    for (unsigned i = 0; i < 4; ++i)
+      CHECK(a.getPtr()[i] == doctest::Approx(1.0f));
+    for (unsigned i = 0; i < 5; ++i)
+      CHECK(b.getPtr()[i] == doctest::Approx(2.0f));
+  }
+
   TEST_CASE("buffer: copyFrom") {
     YSE::DSP::buffer src(5), dst(5);
     src = 0.0f;

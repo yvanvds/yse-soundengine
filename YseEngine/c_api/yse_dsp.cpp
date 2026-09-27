@@ -257,13 +257,9 @@ YSE_C_API YseStatus yse_dsp_buffer_swap(YseDspBuffer* a, YseDspBuffer* b) {
     yse_c::set_last_error("yse_dsp_buffer_swap: buffers differ in length");
     return YSE_ERR_INVALID_ARGUMENT;
   }
-  // Not buffer::swap(): that walks this buffer's whole storage, overflow tail
-  // included, so two equal-length buffers with different tails (a wavetable
-  // and a plain buffer) would read past the shorter allocation. Swap the
-  // samples proper and rebuild each tail from its new head instead (#927).
-  std::swap_ranges(ca->getPtr(), ca->getPtr() + len, cb->getPtr());
-  ca->copyOverflow();
-  cb->copyOverflow();
+  // buffer::swap stays inside both allocations when the overflow tails differ
+  // and rebuilds each tail from its new head (#927).
+  ca->swap(*cb);
   return YSE_OK;
 }
 

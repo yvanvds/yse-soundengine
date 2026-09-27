@@ -131,7 +131,12 @@ namespace YSE {
        */
       buffer& copyFrom(const buffer& s, UInt SourcePos, UInt DestPos, UInt length);
 
-      /** @brief Swap contents with another buffer in O(1). */
+      /** @brief Swap samples with another buffer of the same length.
+       *
+       *  An O(n) element-wise swap of the ``getLength()`` samples; each
+       *  buffer then rebuilds its own overflow tail, so the two may carry
+       *  different tails. A length mismatch is refused: neither buffer changes.
+       */
       buffer& swap(buffer& s);
 
       /** @brief Last sample of the buffer. */

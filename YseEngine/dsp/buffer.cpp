@@ -8,7 +8,6 @@
   ==============================================================================
 */
 
-#include <cassert>
 #include <cstddef>
 #include "buffer.hpp"
 
@@ -335,13 +334,16 @@ namespace YSE {
     }
 
     buffer& buffer::swap(buffer& s) {
-      if (getLength() != s.getLength()) {
-        // only swap with a buffer of the same length
-        assert(false);
-        return (*this);
-      }
+      // Only buffers of the same length can swap; anything else is refused
+      // (a no-op) rather than asserted on (#927).
+      if (getLength() != s.getLength()) return (*this);
 
-      UInt l = (UInt)storage.size();
+      // Walk the samples proper, not storage.size(): that includes this
+      // buffer's overflow tail, and two equal-length buffers can carry
+      // different tails (a wavetable and a plain buffer), so the loop ran past
+      // the shorter allocation (#927). Each tail is rebuilt from its new head
+      // below.
+      UInt l = getLength();
       Flt* ptr1 = storage.data();
       Flt* ptr2 = s.storage.data();
       Flt extra;
@@ -378,6 +380,9 @@ namespace YSE {
         *ptr1++ = *ptr2;
         *ptr2++ = extra;
       }
+
+      copyOverflow();
+      s.copyOverflow();
       return (*this);
     }
 
