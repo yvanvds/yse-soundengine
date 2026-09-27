@@ -92,7 +92,7 @@ CONSTRUCT() {
       "release again until the recursion ceiling stopped it. At most 256 inlet/outlet pairs are "
       "built and both slot tables are sized once before the object is published — Calculate() does "
       "nothing, and no message path allocates, locks or blocks.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::CONTROL);
   PARAM_DOC("inlets", "2",
             "Max's argument: how many inlet/outlet pairs to build, clamped to 1-256 and defaulting "
             "to 2. A float is truncated. Anything that is not a whole finite number is ignored and "

@@ -77,7 +77,7 @@ CONSTRUCT() {
       "dictionary but never the walk in flight, and two .dict.iter on one name walk "
       "independently. A trigger arriving mid-walk is refused and counted, as .uzi refuses a "
       "re-entrant start.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::DICT);
   INLET_DOC(0, "walk", kInletDoc, "");
   OUTLET_DOC(0, "pair", kPairDoc, "");
   OUTLET_DOC(1, "done", kDoneDoc, "");

@@ -33,7 +33,7 @@ CONSTRUCT() {
       "exactly; seed 0 takes an arbitrary stream. An int on the right inlet, or the message 'seed "
       "<n>' on the left, restarts the sequence at runtime. Exactly one random draw is taken per "
       "flip.");
-  ADD_CATEGORY(pCategory::MATH);
+  ADD_CATEGORY(pCategory::RANDOM);
   INLET_DOC(0, "control",
             "Bang, int or float to flip the coin and emit the result / list 'seed <n>' to restart "
             "the random sequence.",

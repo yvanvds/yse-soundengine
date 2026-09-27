@@ -1,4 +1,5 @@
-/*
+/**
+  @file
   yse_listener.h — 3D listener position and orientation.
   C ABI mirror of YseEngine/listener.hpp (YSE::listener + YSE::Listener() singleton).
 */
@@ -12,11 +13,11 @@
 extern "C" {
 #endif
 
-/* Borrowed singleton — owned by the engine, never destroy.
+/** Borrowed singleton — owned by the engine, never destroy.
    Obtain via yse_listener_get(). */
 typedef struct YseListener YseListener;
 
-/* Borrowed singleton pointer — never destroy. */
+/** Borrowed singleton pointer — never destroy. */
 YSE_C_API YseListener* yse_listener_get(void);
 
 YSE_C_API void yse_listener_set_pos(YseListener* l, const yse_pos_t* p);

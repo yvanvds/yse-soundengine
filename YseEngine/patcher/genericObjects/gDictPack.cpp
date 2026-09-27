@@ -96,7 +96,7 @@ CONSTRUCT() {
       "spell. A value past 256 characters is refused whole and counted rather than truncated, "
       "and a reference naming an unbound dictionary is refused rather than resolved, a registry "
       "lookup being a mutex on whatever thread the message arrived on.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::DICT);
   PARAM_DOC(
       "name", "",
       "The packed dictionary's shared name — the first creation argument, addressed as "

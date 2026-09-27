@@ -339,6 +339,10 @@ Flt YSE::sound::spread() {
   return _spread;
 }
 
+/// @cond INTERNAL
+// Documented in soundInterface.hpp. Doxygen cannot see through the UInt typedef
+// to match this definition against the header's unsigned int declaration, so
+// hide it.
 void YSE::sound::volume(Flt value, UInt time) {
   if (pimpl == nullptr) return;
   Clamp(value, 0.f, 1.f);
@@ -357,6 +361,7 @@ void YSE::sound::volume(Flt value, UInt time) {
     }
   }
 }
+/// @endcond
 
 Flt YSE::sound::volume() {
   return _volume;

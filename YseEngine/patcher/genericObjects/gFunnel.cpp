@@ -127,7 +127,7 @@ CONSTRUCT() {
       "for character, while the tag itself is always an int. At most 256 inlets, built once before "
       "the object is published; Calculate() does nothing, and no message path allocates, locks or "
       "blocks.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::ROUTING);
   PARAM_DOC("inlets", "2",
             "Max's argument list, in Max's order. The first whole number is how many inlets to "
             "build, clamped to 1-256 and defaulting to 2. The second is the offset added to the "

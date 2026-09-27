@@ -150,7 +150,7 @@ CONSTRUCT() {
       "answering a question nobody had asked yet. Not ported: the editing window and everything "
       "addressing it (open, wclose, the double-click, the precision attribute), file writing, and "
       "the listout and size attributes, the patcher having no attribute mechanism.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::COLLECTION);
   INLET_DOC(0, "in", kInletDoc, "any");
   OUTLET_DOC(0, "dump", kDumpDoc, "any");
   OUTLET_DOC(1, "count", kCountDoc, "any int");

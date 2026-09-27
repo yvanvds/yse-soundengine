@@ -233,6 +233,29 @@ YSE_C_API YseDx7Bank* yse_dx7_import_sysex(const char* path) {
   }
 }
 
+YSE_C_API YseDx7Bank* yse_dx7_import_sysex_memory(const unsigned char* data, size_t length) {
+  if (!data || length == 0) {
+    yse_c::set_last_error("yse_dx7_import_sysex_memory: no data");
+    return nullptr;
+  }
+  return yse_c::guard("yse_dx7_import_sysex_memory", static_cast<YseDx7Bank*>(nullptr), [&] {
+    auto impl = std::make_unique<Dx7BankImpl>();
+    if (!YSE::SYNTH::dx7SysEx::parse(data, length, impl->bank) || impl->bank.empty()) {
+      yse_c::set_last_error("yse_dx7_import_sysex_memory: could not parse bank (" +
+                            std::to_string(length) + " bytes)");
+      return static_cast<YseDx7Bank*>(nullptr);
+    }
+    registerBank(impl.get());
+    return reinterpret_cast<YseDx7Bank*>(impl.release());
+  });
+}
+
+YSE_C_API int yse_dx7_find_patch(YseDx7Bank* h, const char* name) {
+  if (!name || !isLiveBank(h)) return -1;
+  // indexOf builds trimmed std::string names, so it can throw bad_alloc.
+  return yse_c::guard("yse_dx7_find_patch", -1, [&] { return toBank(h)->bank.indexOf(name); });
+}
+
 YSE_C_API int yse_dx7_get_patch_count(YseDx7Bank* h) {
   if (!isLiveBank(h)) return 0;
   return static_cast<int>(toBank(h)->bank.size());

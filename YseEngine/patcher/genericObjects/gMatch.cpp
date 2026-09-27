@@ -110,7 +110,7 @@ CONSTRUCT() {
       "an inlet that accepted it would only be a way of spelling 'do nothing'. Calculate() does "
       "nothing, an emitting one having no stimulus to report. At most 256 pattern elements are "
       "held.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::CONTROL);
   INLET_DOC(
       0, "in",
       "Int, float or list to feed into the sequence. Each number takes the next position in "

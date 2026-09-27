@@ -266,7 +266,7 @@ gArrayIndexOf::gArrayIndexOf() : gArrayFindBase() {
       "positions stale as a set where a single position is simply a position. The search is "
       "one scan under one hold of the store's guard, so the answer is the array as it stood at "
       "the trigger; .array.index is the same search with the miss split onto an outlet.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::ARRAY);
   INLET_DOC(0, "value", kValueInletDoc, "one atom");
   INLET_DOC(1, "array reference", kReferenceInletDoc, "");
   OUTLET_DOC(0, "position",
@@ -307,7 +307,7 @@ gArrayIndex::gArrayIndex() : gArrayFindBase() {
       "wire the position outlet to the held branch and the miss outlet to the not-held branch, "
       "no .sel -1 in between. The search is one scan under one hold of the store's guard; "
       ".array.indexof is the same search answered in-band as -1.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::ARRAY);
   INLET_DOC(0, "value", kValueInletDoc, "one atom");
   INLET_DOC(1, "array reference", kReferenceInletDoc, "");
   OUTLET_DOC(0, "position",

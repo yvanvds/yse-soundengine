@@ -644,7 +644,7 @@ TEST_SUITE("patcher") {
         YSE::PATCHER::Register().Get(YSE::OBJ::G_ARRAY_FLATTEN));
     REQUIRE(obj != nullptr);
     CHECK_FALSE(obj->GetDescription().empty());
-    CHECK(obj->GetCategory() == YSE::PATCHER::pCategory::GENERIC);
+    CHECK(obj->GetCategory() == YSE::PATCHER::pCategory::ARRAY);
     const auto& docs = obj->GetParamDocs();
     REQUIRE(docs.size() == 2u);
     CHECK(docs[0].name == "first");

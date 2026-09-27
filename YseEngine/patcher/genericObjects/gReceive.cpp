@@ -25,7 +25,7 @@ CONSTRUCT() {
   ADD_DESCRIPTION("Named receive endpoint. Forwards values arriving from any matching gSend (same "
                   "dataName) in the patcher, and from any gSend in any patcher with the same name "
                   "via the global bus (\"patcher.<patcherName>.<dataName>\").");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::IO);
   INLET_DOC(0, "in", "Wired inlet (rarely used — receives typically pair with gSend by name).", "");
   OUTLET_DOC(0, "out", "Forwarded value from matching gSend nodes.", "");
   PARAM_DOC("dataName", "",

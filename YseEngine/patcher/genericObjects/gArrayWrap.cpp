@@ -96,7 +96,7 @@ gArrayWrap::gArrayWrap() : gArrayEndsBase() {
       "spells it. An empty or unnamed (private) array bangs the empty outlet instead — there is "
       "nothing to wrap onto — and the stored index is this object's own: two .array.wrap on one "
       "name fetch independently.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::ARRAY);
   INLET_DOC(0, "index", kIndexInletDoc, "any int");
   INLET_DOC(1, "array reference", kReferenceInletDoc, "");
   OUTLET_DOC(0, "element", kElementDoc, "");

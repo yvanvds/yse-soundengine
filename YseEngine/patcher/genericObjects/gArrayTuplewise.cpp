@@ -40,7 +40,7 @@ gArrayTuplewise::gArrayTuplewise() : gArraySetOpBase(false) {
       "guards are ever held at once and \".array.tuplewise seq seq $f1 + $f2\" doubles the "
       "array instead of tripping over its own try-lock. A malformed expression fails loudly "
       "when the parameter is set and the object then refuses every trigger, counted.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::ARRAY);
   INLET_DOC(0, "trigger",
             "A bang asks for the combination — the expression compiled from the creation "
             "arguments, applied to the two bound arrays position by position as they stood at "

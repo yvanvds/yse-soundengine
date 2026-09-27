@@ -104,7 +104,7 @@ CONSTRUCT() {
       "family, as .change inf starting at 0 already establishes. Calculate() does nothing: the "
       "object is driven by its inlets, and emitting on a DSP tick would re-fire the gate every "
       "block, which for a one-shot is the exact failure it exists to prevent.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::CONTROL);
   INLET_DOC(0, "in",
             "Bang, int, float or list — whatever arrives is discarded and treated as a bang. If "
             "the gate is armed a bang leaves outlet 0 and the gate closes; if it is not, a bang "

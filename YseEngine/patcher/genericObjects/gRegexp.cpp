@@ -58,7 +58,7 @@ CONSTRUCT() {
       "std::regex is deliberately not used because it allocates and throws at match time and its "
       "backtracking is unbounded. A malformed pattern is reported to the log when it is compiled "
       "and the object then passes every message out the no-match outlet.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::STRING);
   INLET_DOC(0, "in",
             "The subject to match. A symbol or list is matched as it stands; an int or a float is "
             "matched as its text.",

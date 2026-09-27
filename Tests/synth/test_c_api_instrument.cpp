@@ -22,6 +22,7 @@
 
 #include <doctest/doctest.h>
 
+#include <algorithm>
 #include <cstdint>
 #include <cstdio>
 #include <fstream>
@@ -114,9 +115,9 @@ namespace {
     return static_cast<uint8_t>((0x80u - (sum & 0x7fu)) & 0x7fu);
   }
 
-  // Write a framed 32-voice packed bulk dump to `path`. Returns false on I/O
-  // failure. slot 0 = carrier, slots 1..31 = zeroed (silent) voices.
-  bool writeDx7Fixture(const std::string& path) {
+  // A framed 32-voice packed bulk dump: slot 0 = carrier, slots 1..31 = zeroed
+  // (silent) voices.
+  std::vector<uint8_t> buildDx7Bank() {
     std::vector<uint8_t> payload(4096, 0);
     packCarrierVoice(payload.data()); // slot 0
     std::vector<uint8_t> msg;
@@ -129,6 +130,12 @@ namespace {
     msg.insert(msg.end(), payload.begin(), payload.end());
     msg.push_back(sysexChecksum(payload.data(), payload.size()));
     msg.push_back(0xF7);
+    return msg;
+  }
+
+  // Write buildDx7Bank() to `path`. Returns false on I/O failure.
+  bool writeDx7Fixture(const std::string& path) {
+    const std::vector<uint8_t> msg = buildDx7Bank();
     std::ofstream f(path, std::ios::binary | std::ios::trunc);
     if (!f) return false;
     f.write(reinterpret_cast<const char*>(msg.data()), static_cast<std::streamsize>(msg.size()));
@@ -244,6 +251,54 @@ TEST_SUITE("instrumentcapi") {
     yse_dx7_destroy(bank);
 
     std::remove(path.c_str());
+  }
+
+  TEST_CASE("c-api instrument: DX7 bank imported from memory and patches found by name (#909)") {
+    // The in-memory path: the same bytes a host would ship as a bundled asset
+    // (an Android APK has no file path to hand yse_dx7_import_sysex()).
+    std::vector<uint8_t> bytes = buildDx7Bank();
+
+    YseDx7Bank* bank = yse_dx7_import_sysex_memory(bytes.data(), bytes.size());
+    REQUIRE(bank != nullptr);
+    CHECK(yse_dx7_get_patch_count(bank) == 32);
+    char name[32] = {0};
+    CHECK(yse_dx7_get_patch_name(bank, 0, name, sizeof(name)) > 0);
+    CHECK(std::string(name) == "YSE Capi");
+
+    // The bytes were read during the call, not retained: scribbling over them
+    // afterwards leaves the parsed bank intact.
+    std::fill(bytes.begin(), bytes.end(), uint8_t{0});
+    CHECK(yse_dx7_get_patch_count(bank) == 32);
+
+    // Lookup by the trimmed name, as yse_dx7_get_patch_name() reports it.
+    CHECK(yse_dx7_find_patch(bank, "YSE Capi") == 0);
+    CHECK(yse_dx7_find_patch(bank, "No Such Patch") == -1);
+    CHECK(yse_dx7_find_patch(bank, nullptr) == -1);
+    CHECK(yse_dx7_find_patch(nullptr, "YSE Capi") == -1);
+
+    yse_dx7_destroy(bank);
+    // A destroyed bank answers -1 like any unknown handle.
+    CHECK(yse_dx7_find_patch(bank, "YSE Capi") == -1);
+
+    // Bad input is refused with NULL and a reason.
+    const std::vector<uint8_t> good = buildDx7Bank();
+    yse_clear_last_error();
+    CHECK(yse_dx7_import_sysex_memory(nullptr, 100) == nullptr);
+    CHECK_FALSE(std::string(yse_last_error()).empty());
+    yse_clear_last_error();
+    CHECK(yse_dx7_import_sysex_memory(good.data(), 0) == nullptr);
+    CHECK_FALSE(std::string(yse_last_error()).empty());
+    // A corrupted checksum rejects the dump.
+    std::vector<uint8_t> corrupt = good;
+    corrupt[corrupt.size() - 2] ^= 0x01;
+    yse_clear_last_error();
+    CHECK(yse_dx7_import_sysex_memory(corrupt.data(), corrupt.size()) == nullptr);
+    CHECK(std::string(yse_last_error()).find("could not parse") != std::string::npos);
+    // A truncated dump is refused, not over-read.
+    yse_clear_last_error();
+    CHECK(yse_dx7_import_sysex_memory(good.data(), 64) == nullptr);
+    CHECK_FALSE(std::string(yse_last_error()).empty());
+    yse_clear_last_error();
   }
 
   TEST_CASE("c-api instrument: a destroyed instrument cannot be added to a synth") {

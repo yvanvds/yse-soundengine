@@ -110,7 +110,7 @@ CONSTRUCT() {
       "spelling is not a shorter word but a different one. Calculate() does nothing, and no "
       "message path allocates, locks or blocks: a spelling is one walk of the bytes into a buffer "
       "reserved at construction for every code at full width.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::STRING);
 
   INLET_DOC(0, "in", kInletDoc, "any");
   OUTLET_DOC(0, "out", kOutletDoc, "0-1114111 per code, at most 256 codes");

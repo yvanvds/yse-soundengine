@@ -218,7 +218,7 @@ CONSTRUCT() {
       "funbuff in the application, the same shared-name context .coll and .bag deferred; and "
       "interptab, which interpolates through a Max table object by name, the patcher having "
       "neither.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::COLLECTION);
   INLET_DOC(0, "x", kXDoc, "at most 256 pairs");
   INLET_DOC(1, "y", kYDoc, "any int");
   OUTLET_DOC(0, "y", kYOutDoc, "any");

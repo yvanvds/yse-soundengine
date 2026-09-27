@@ -341,7 +341,7 @@ gArrayPush::gArrayPush() : gArrayEndsWriter(false) {
       ".array.length it reports the new depth, into .array.pop's trigger it is a stack, into "
       ".array.shift's a queue. With .array.pop this is the stack, and with .array.shift the "
       "event buffer, a generative patch actually uses.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::ARRAY);
   INLET_DOC(0, "element",
             "An int or a float is appended as the text that spells it; a symbol is appended as "
             "itself; a list is appended whole, every atom one element in the order sent, or "
@@ -380,7 +380,7 @@ gArrayPop::gArrayPop() : gArrayEndsRemover(false) {
       "instead: \"nothing left\" is a queue-draining loop's exit condition, not an error. The "
       "message an .array's reference outlet emits on a bang triggers the same removal, so "
       "wiring that outlet here gives the family's gesture. With .array.push this is a stack.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::ARRAY);
   INLET_DOC(0, "trigger",
             "A bang removes the last element and emits it out the element outlet; on an empty "
             "array it bangs the empty outlet instead. \"array <name>\" does the same when it "
@@ -422,7 +422,7 @@ gArrayShift::gArrayShift() : gArrayEndsRemover(true) {
       "an error. The message an .array's reference outlet emits on a bang triggers the same "
       "removal. With .array.push this is the queue a generative patch pushes events onto and "
       "takes them off in arrival order.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::ARRAY);
   INLET_DOC(0, "trigger",
             "A bang removes the first element and emits it out the element outlet; on an empty "
             "array it bangs the empty outlet instead. \"array <name>\" does the same when it "
@@ -462,7 +462,7 @@ gArrayUnshift::gArrayUnshift() : gArrayEndsWriter(true) {
       "counted refusal and nothing changed, when the array cannot take all of it. After an add "
       "that lands, the outlet emits the array's reference, \"array <name>\", so the family "
       "chains. .array.shift's inverse: what unshift put in front is what shift takes out first.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::ARRAY);
   INLET_DOC(0, "element",
             "An int or a float is inserted at the front as the text that spells it; a symbol is "
             "inserted as itself; a list lands whole, in the order sent, or is refused whole — "

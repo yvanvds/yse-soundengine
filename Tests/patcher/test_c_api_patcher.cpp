@@ -61,6 +61,13 @@ namespace {
   constexpr const char* kButton = ".b";
   constexpr const char* kMetro = ".metro";
   constexpr const char* kCounter = ".counter";
+  // Multi-cell GUI controls (issue #551) and the signal-rate subpatcher
+  // boundary (issue #764), both reached through the ABI by #913.
+  constexpr const char* kRSlider = ".rslider";
+  constexpr const char* kMultiSlider = ".multislider";
+  constexpr const char* kMatrixCtrl = ".matrixctrl";
+  constexpr const char* kSigInlet = "~inlet";
+  constexpr const char* kSigOutlet = "~outlet";
 
   // Read a snprintf-convention getter into a std::string, using the two-call
   // size-then-fill pattern a binding would use.
@@ -71,7 +78,38 @@ namespace {
     return std::string(buf.data());
   }
 
-  // ─── send-callback recorders (issue #907) ──────────────────────────────────
+  // Every cell of a GUI control as a number, read one at a time through
+  // yse_phandle_get_gui_value_at up to the count the ABI reports — the loop a
+  // host repainting a structured control runs. Cells render as the engine's
+  // float text ("30." and the like), so they are compared as numbers.
+  std::vector<float> readCells(YsePHandle* h) {
+    std::vector<float> out;
+    const unsigned int count = yse_phandle_get_gui_value_count(h);
+    for (unsigned int i = 0; i < count; ++i) {
+      const std::string cell = readString(
+          [h, i](char* b, size_t c) { return yse_phandle_get_gui_value_at(h, i, b, c); });
+      out.push_back(std::strtof(cell.c_str(), nullptr));
+    }
+    return out;
+  }
+
+  // The whole-state read split on spaces, for comparing against the cells.
+  std::vector<float> readWhole(YsePHandle* h) {
+    const std::string whole =
+        readString([h](char* b, size_t c) { return yse_phandle_get_gui_value(h, b, c); });
+    std::vector<float> out;
+    const char* cursor = whole.c_str();
+    for (;;) {
+      char* end = nullptr;
+      const float v = std::strtof(cursor, &end);
+      if (end == cursor) break;
+      out.push_back(v);
+      cursor = end;
+    }
+    return out;
+  }
+
+  // ─── send-callback recorders (issue #907)──────────────────────────────────
 
   struct SendMsg {
     std::string address;
@@ -974,6 +1012,121 @@ TEST_SUITE("capilowcov") {
     yse_patcher_destroy(p);
   }
 
+  TEST_CASE("c-api phandle: multi-cell GUI controls report every cell through the ABI (#913)") {
+    // The structured half of the protocol, which the one-cell .i above cannot
+    // reach: a count above one, cells that differ from each other and from the
+    // whole-state string, and the "set <index> <value>" cell write landing on
+    // the one cell it names.
+    YsePatcher* p = yse_patcher_create();
+    REQUIRE(p != nullptr);
+    yse_patcher_init(p, 2);
+
+    SUBCASE(".rslider: two cells, low end first") {
+      YsePHandle* h = yse_patcher_create_object(p, kRSlider, "0 127");
+      REQUIRE(h != nullptr);
+      CHECK(yse_phandle_gui_value_is_settable(h) == 1);
+      CHECK(yse_phandle_get_gui_value_count(h) == 2u);
+
+      yse_phandle_set_list(h, 0, "30 60");
+      CHECK(readCells(h) == std::vector<float>{30.f, 60.f});
+      CHECK(readWhole(h) == readCells(h));
+
+      yse_phandle_set_list(h, 0, "set 1 90");
+      CHECK(readCells(h) == std::vector<float>{30.f, 90.f});
+
+      // Written high-then-low, the cells still present the range ordered.
+      yse_phandle_set_list(h, 0, "80 20");
+      CHECK(readCells(h) == std::vector<float>{20.f, 80.f});
+
+      // Cell 0 is one end, not the whole state as on a scalar control.
+      const std::string cell0 =
+          readString([h](char* b, size_t c) { return yse_phandle_get_gui_value_at(h, 0, b, c); });
+      const std::string whole =
+          readString([h](char* b, size_t c) { return yse_phandle_get_gui_value(h, b, c); });
+      CHECK(cell0 != whole);
+      CHECK(yse_phandle_get_gui_value_at(h, 2, nullptr, 0) == 0u);
+    }
+
+    SUBCASE(".multislider: the count follows the bank") {
+      YsePHandle* h = yse_patcher_create_object(p, kMultiSlider, "4 0 127");
+      REQUIRE(h != nullptr);
+      CHECK(yse_phandle_gui_value_is_settable(h) == 1);
+      CHECK(yse_phandle_get_gui_value_count(h) == 4u);
+
+      yse_phandle_set_list(h, 0, "10 20 30 40");
+      CHECK(readCells(h) == std::vector<float>{10.f, 20.f, 30.f, 40.f});
+      yse_phandle_set_list(h, 0, "set 2 99");
+      CHECK(readCells(h) == std::vector<float>{10.f, 20.f, 99.f, 40.f});
+      CHECK(readWhole(h) == readCells(h));
+
+      // A longer list reshapes the bank, and the count a host loops to follows.
+      yse_phandle_set_list(h, 0, "9 8 7 6 5 4");
+      CHECK(yse_phandle_get_gui_value_count(h) == 6u);
+      CHECK(readCells(h) == std::vector<float>{9.f, 8.f, 7.f, 6.f, 5.f, 4.f});
+      CHECK(yse_phandle_get_gui_value_at(h, 6, nullptr, 0) == 0u);
+    }
+
+    SUBCASE(".matrixctrl: columns x rows cells, column-major") {
+      YsePHandle* h = yse_patcher_create_object(p, kMatrixCtrl, "3 2 0 1");
+      REQUIRE(h != nullptr);
+      CHECK(yse_phandle_gui_value_is_settable(h) == 1);
+      CHECK(yse_phandle_get_gui_value_count(h) == 6u);
+      CHECK(readCells(h) == std::vector<float>(6, 0.f));
+
+      // Max's <column> <row> <value>: cell (1, 0) of a two-row grid is index 2.
+      yse_phandle_set_list(h, 0, "1 0 1");
+      CHECK(readCells(h) == std::vector<float>{0.f, 0.f, 1.f, 0.f, 0.f, 0.f});
+      // The protocol's flat-index write lands on the last cell.
+      yse_phandle_set_list(h, 0, "set 5 1");
+      CHECK(readCells(h) == std::vector<float>{0.f, 0.f, 1.f, 0.f, 0.f, 1.f});
+      CHECK(readWhole(h) == readCells(h));
+    }
+
+    yse_patcher_destroy(p);
+  }
+
+  // #928: the cell write addresses the presented cell, not the storage slot
+  // the end was written to, so "set 1" still moves the high end once the ends
+  // are stored inverted.
+  TEST_CASE("c-api phandle: .rslider \"set 1\" moves the high end of an inverted range (#928)") {
+    YsePatcher* p = yse_patcher_create();
+    REQUIRE(p != nullptr);
+    yse_patcher_init(p, 2);
+    YsePHandle* h = yse_patcher_create_object(p, kRSlider, "0 127");
+    REQUIRE(h != nullptr);
+
+    yse_phandle_set_list(h, 0, "60 30");
+    REQUIRE(readCells(h) == std::vector<float>{30.f, 60.f});
+    yse_phandle_set_list(h, 0, "set 1 90");
+    CHECK(readCells(h) == std::vector<float>{30.f, 90.f});
+
+    yse_patcher_destroy(p);
+  }
+
+  TEST_CASE("c-api phandle: .b and a GUI-less object are not settable (#913)") {
+    // The 0 answer on real objects rather than on NULL. `.b`'s value is a
+    // consume-on-read press report, which a restore could only replay; `~sine`
+    // has no GUI state at all.
+    YsePatcher* p = yse_patcher_create();
+    REQUIRE(p != nullptr);
+    yse_patcher_init(p, 2);
+
+    YsePHandle* button = yse_patcher_create_object(p, kButton, nullptr);
+    YsePHandle* sine = yse_patcher_create_object(p, kSine, nullptr);
+    YsePHandle* number = yse_patcher_create_object(p, kInt, nullptr);
+    REQUIRE(button != nullptr);
+    REQUIRE(sine != nullptr);
+    REQUIRE(number != nullptr);
+
+    CHECK(yse_phandle_gui_value_is_settable(button) == 0);
+    CHECK(yse_phandle_gui_value_is_settable(sine) == 0);
+    // ...next to a control in the same patch that does make the promise, so a
+    // stuck-at-0 answer would not pass.
+    CHECK(yse_phandle_gui_value_is_settable(number) == 1);
+
+    yse_patcher_destroy(p);
+  }
+
   TEST_CASE("c-api phandle: truncation still NUL-terminates and reports the full length") {
     YsePatcher* p = yse_patcher_create();
     REQUIRE(p != nullptr);
@@ -1006,10 +1159,13 @@ TEST_SUITE("capilowcov") {
     CHECK(yse_phandle_get_outputs(sine) > 0);
     // A DSP generator's first outlet carries a signal buffer.
     CHECK(yse_phandle_output_data_type(sine, 0) == YSE_OUT_BUFFER);
-    // ... and the object reports which of its inlets are DSP inlets. Whatever
-    // the answer, it must be a clean 0/1 rather than an uninitialised byte.
-    const int isDsp = yse_phandle_is_dsp_input(mul, 0);
-    CHECK((isDsp == 0 || isDsp == 1));
+    // ... and the object reports which of its inlets are DSP inlets (#913):
+    // ~sine's frequency inlet takes a signal, .*'s left inlet a number, and a
+    // pin the object does not have names nothing and is no DSP inlet.
+    CHECK(yse_phandle_is_dsp_input(sine, 0) == 1);
+    CHECK(yse_phandle_is_dsp_input(mul, 0) == 0);
+    CHECK(yse_phandle_is_dsp_input(mul, 1) == 0);
+    CHECK(yse_phandle_is_dsp_input(sine, 99) == 0);
 
     // An out-of-range pin is reported as INVALID rather than read past the end.
     CHECK(yse_phandle_output_data_type(sine, 99) == YSE_OUT_INVALID);
@@ -1147,6 +1303,56 @@ TEST_SUITE("capilowcov") {
     // that was never inside it survives.
     yse_patcher_delete_object(p, sub);
     CHECK(yse_patcher_objects(p) == 1u);
+
+    yse_patcher_destroy(p);
+  }
+
+  TEST_CASE("c-api patcher: subpatcher pins count ~inlet / ~outlet boundaries (#764, #913)") {
+    // Both rates share one index space: `.inlet 0` beside `~inlet 1` is two
+    // inlets, and a sparse `~outlet 2` beside `.outlet 0` is three outlets —
+    // the range a parent can address, not the number of boundary objects.
+    YsePatcher* p = yse_patcher_create();
+    REQUIRE(p != nullptr);
+    yse_patcher_init(p, 2);
+
+    YsePHandle* sub = yse_patcher_create_object(p, kPatcher, nullptr);
+    REQUIRE(sub != nullptr);
+    CHECK(yse_patcher_subpatcher_inlets(p, sub) == 0); // empty: no boundary yet
+    CHECK(yse_patcher_subpatcher_outlets(p, sub) == 0);
+
+    YsePHandle* cIn = yse_patcher_create_object(p, kInlet, "0");
+    YsePHandle* sIn = yse_patcher_create_object(p, kSigInlet, "1");
+    YsePHandle* cOut = yse_patcher_create_object(p, kOutlet, "0");
+    YsePHandle* sOut = yse_patcher_create_object(p, kSigOutlet, "2");
+    REQUIRE(cIn != nullptr);
+    REQUIRE(sIn != nullptr);
+    REQUIRE(cOut != nullptr);
+    REQUIRE(sOut != nullptr);
+
+    // A signal boundary alone is enough to give the subpatcher pins.
+    yse_patcher_set_container(p, sIn, sub);
+    yse_patcher_set_container(p, sOut, sub);
+    CHECK(yse_patcher_subpatcher_inlets(p, sub) == 2);
+    CHECK(yse_patcher_subpatcher_outlets(p, sub) == 3);
+
+    // Adding the message boundary at index 0 fills the range, not extends it.
+    yse_patcher_set_container(p, cIn, sub);
+    yse_patcher_set_container(p, cOut, sub);
+    CHECK(yse_patcher_subpatcher_inlets(p, sub) == 2);
+    CHECK(yse_patcher_subpatcher_outlets(p, sub) == 3);
+
+    // Each pin resolves to the boundary object claiming it, whatever its rate:
+    // pin 1 is the signal inlet, pin 0 the message one.
+    CHECK(yse_phandle_is_dsp_input(sub, 1) == 1);
+    CHECK(yse_phandle_is_dsp_input(sub, 0) == 0);
+    CHECK(yse_phandle_is_dsp_input(sub, 2) == 0); // past the boundary
+
+    // Taking the signal boundary back out shrinks the range to what is left.
+    yse_patcher_set_container(p, sIn, nullptr);
+    yse_patcher_set_container(p, sOut, nullptr);
+    CHECK(yse_patcher_subpatcher_inlets(p, sub) == 1);
+    CHECK(yse_patcher_subpatcher_outlets(p, sub) == 1);
+    CHECK(yse_phandle_is_dsp_input(sub, 1) == 0);
 
     yse_patcher_destroy(p);
   }

@@ -89,7 +89,7 @@ gArrayFlatten::gArrayFlatten() : gArrayEndsBase() {
       "outruns what a cord carries, a lost try-lock, or a creation line spelling more than "
       "sixteen arrays is refused whole and counted — a partial flatten would be truncation by "
       "another name.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::ARRAY);
   INLET_DOC(0, "trigger", kFlattenTriggerInletDoc, "");
   INLET_DOC(1, "sources reference", kFlattenSourcesInletDoc, "");
   OUTLET_DOC(0, "flattened",

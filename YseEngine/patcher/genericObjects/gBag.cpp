@@ -189,7 +189,7 @@ CONSTRUCT() {
       "usual, 'cut' and 'length' always keep the outlet, and a bare 'send' with no name does "
       "nothing at all. The name is refused rather than truncated past 63 characters, since the bus "
       "truncates there and the in-patcher path does not.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::COLLECTION);
   INLET_DOC(0, "value", kValueDoc, "any int");
   INLET_DOC(1, "flag", kFlagDoc, "0 or non-zero");
   OUTLET_DOC(0, "out", kOutletDoc, "any int");

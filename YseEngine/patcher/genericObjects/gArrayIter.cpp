@@ -80,7 +80,7 @@ gArrayIter::gArrayIter() : gArrayEndsBase() {
       "never the walk in flight — every element held at the trigger is emitted exactly once — "
       "and two .array.iter on one name walk independently, each over its own snapshot. A "
       "trigger arriving mid-walk is refused and counted, as .uzi refuses a re-entrant start.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::ARRAY);
   INLET_DOC(0, "trigger", kTriggerInletDoc, "");
   INLET_DOC(1, "array reference", kReferenceInletDoc, "");
   OUTLET_DOC(0, "element", kElementOutletDoc, "");

@@ -701,7 +701,7 @@ TEST_SUITE("patcher") {
   TEST_CASE("array.replace: carries complete documentation metadata (#802)") {
     gArrayReplace replace;
     CHECK_FALSE(replace.GetDescription().empty());
-    CHECK(replace.GetCategory() == YSE::PATCHER::pCategory::GENERIC);
+    CHECK(replace.GetCategory() == YSE::PATCHER::pCategory::ARRAY);
     REQUIRE(replace.GetParamDocs().size() == 3);
     CHECK(replace.GetParamDocs()[0].name == "name");
     CHECK(replace.GetParamDocs()[1].name == "find");

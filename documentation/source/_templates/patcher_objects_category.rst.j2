@@ -4,29 +4,32 @@
    Do not edit by hand — re-run ``python yse.py dump-patcher-meta`` to
    refresh the JSON, then ``make html`` to re-render this page.
 
-Patcher object reference
-========================
+{{ category.title }}
+{{ '=' * category.title|length }}
 
-Every patcher object that ``patcher::CreateObject`` knows about. Each
-entry shows the object's description, inlet/outlet/parameter
-documentation pulled directly from the engine source via the
-``ADD_DESCRIPTION`` / ``INLET_DOC`` / ``OUTLET_DOC`` / ``PARAM_DOC``
-macros (see :file:`YseEngine/patcher/pObject.h`).
+{{ category.summary }}
 
-The ``~`` prefix marks DSP / audio-rate objects; ``.`` marks
-control-rate objects.
+{{ category.objects|length }} object{{ 's' if category.objects|length != 1 }}. Every entry is
+pulled directly from the engine source via the ``ADD_DESCRIPTION`` /
+``INLET_DOC`` / ``OUTLET_DOC`` / ``PARAM_DOC`` macros (see
+:file:`YseEngine/patcher/pObject.h`). The ``~`` prefix marks DSP /
+audio-rate objects; ``.`` marks control-rate objects.
 
+{% if category.has_midi_device -%}
+.. note::
+
+   Objects marked *MIDI device only* below hold a MIDI device port. They
+   exist only in builds with ``YSE_ENABLE_MIDI_DEVICE`` — not on macOS or
+   Android.
+
+{% endif -%}
 .. contents::
    :local:
    :depth: 1
 
-{% for category, objects in by_category.items() -%}
-{{ category }}
-{{ '-' * category|length }}
-
-{% for obj in objects -%}
+{% for obj in category.objects -%}
 ``{{ obj.name }}``
-{{ '~' * (obj.name|length + 4) }}
+{{ '-' * (obj.name|length + 4) }}
 
 {{ obj.description }}
 
@@ -34,8 +37,16 @@ control-rate objects.
 :Kind: DSP (audio-rate)
 {% else -%}
 :Kind: Control-rate
+{% endif -%}
+{% if obj.requires_midi_device -%}
+:Availability: MIDI device only
 {% endif %}
+{% if obj.requires_midi_device -%}
+.. note::
 
+   {{ midi_device_note }}
+
+{% endif -%}
 {% if obj.inlets -%}
 **Inlets**
 
@@ -91,5 +102,4 @@ control-rate objects.
      - {{ param.doc or '—' }}
 {% endfor %}
 {% endif %}
-{% endfor %}
 {% endfor -%}

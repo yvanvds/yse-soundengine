@@ -510,7 +510,7 @@ CONSTRUCT() {
       "Dictionaries are addressed by name rather than passed down a cord: an outlet carries a "
       "value, never an identity, so the name is what travels and the store is resolved once, on "
       "the control thread. An unnamed .dict keeps a dictionary of its own.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::DICT);
   INLET_DOC(0, "in", kInletDoc, "at most 256 entries");
   OUTLET_DOC(0, "data", kDataDoc, "");
   OUTLET_DOC(1, "reference", kReferenceDoc, "");

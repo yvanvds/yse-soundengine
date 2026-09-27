@@ -142,7 +142,7 @@ CONSTRUCT() {
       "scheduler slot's 128 KiB, past which a file is refused whole. Only the creation argument "
       "persists across a save; the dictionary's contents persist with the .dict that owns "
       "them.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::DICT);
   INLET_DOC(0, "json", kInletDoc, "at most 255 characters inline; a file up to 128 KiB");
   OUTLET_DOC(0, "reference", kOutletDoc, "");
   PARAM_DOC("name", "", kNameDoc, "any identifier");

@@ -1,4 +1,5 @@
-/*
+/**
+  @file
   yse_clip.h — clip transport (issue #250).
   C ABI mirror of YseEngine/clip/clip.hpp.
 
@@ -25,28 +26,28 @@
 extern "C" {
 #endif
 
-/* Owned — release with yse_clip_destroy. */
+/** Owned — release with yse_clip_destroy. */
 typedef struct YseClip YseClip;
-/* Opaque synth handle (defined in yse_synth.h). */
+/** Opaque synth handle (defined in yse_synth.h). */
 typedef struct YseSynth YseSynth;
-/* Opaque MIDI-out handle (defined in yse_midi.h). */
+/** Opaque MIDI-out handle (defined in yse_midi.h). */
 typedef struct YseMidiOut YseMidiOut;
 
-/* One timed note event, positioned in beats on the bound domain clock.
+/** One timed note event, positioned in beats on the bound domain clock.
    Layout-compatible with YSE::clipEvent. */
 typedef struct YseClipEvent {
-  double start_beat; /* beat within the loop at which the note starts (>= 0) */
-  double duration_beats; /* note length in beats */
-  int channel; /* MIDI channel, 1..16 */
-  int pitch; /* MIDI note number, 0..127 */
-  float velocity; /* normalized to [0, 1] */
-  float pitch_bend; /* optional per-note bend, [-1, 1]; 0 = none */
+  double start_beat; /**< beat within the loop at which the note starts (>= 0) */
+  double duration_beats; /**< note length in beats */
+  int channel; /**< MIDI channel, 1..16 */
+  int pitch; /**< MIDI note number, 0..127 */
+  float velocity; /**< normalized to [0, 1] */
+  float pitch_bend; /**< optional per-note bend, [-1, 1]; 0 = none */
 } YseClipEvent;
 
 YSE_C_API YseClip* yse_clip_create(void);
 YSE_C_API void yse_clip_destroy(YseClip* c);
 
-/* Bind the clip to a live domain clock by name. YSE_OK on success;
+/** Bind the clip to a live domain clock by name. YSE_OK on success;
    YSE_ERR_INVALID_HANDLE on a NULL clip, YSE_ERR_INVALID_ARGUMENT on a NULL
    name or when no live clock owns the name — which also unbinds the clip
    from any clock it was bound to. Every failure leaves its reason in
@@ -55,19 +56,19 @@ YSE_C_API void yse_clip_destroy(YseClip* c);
    clock stops advancing and the clip simply stops firing. */
 YSE_C_API YseStatus yse_clip_bind(YseClip* c, const char* clock_name);
 
-/* Replace the event list (copied). Takes effect at the next audio block
+/** Replace the event list (copied). Takes effect at the next audio block
    boundary. `events` may be NULL only when `count` is 0 (clears the list). */
 YSE_C_API void yse_clip_set_events(YseClip* c, const YseClipEvent* events, size_t count);
 
-/* Loop length in beats. Values <= 0 disable looping (events fire once). */
+/** Loop length in beats. Values <= 0 disable looping (events fire once). */
 YSE_C_API void yse_clip_set_loop_length(YseClip* c, double beats);
 
-/* Route this clip's playback into a synth (may be called for several synths).
+/** Route this clip's playback into a synth (may be called for several synths).
    The synth must outlive the connection. */
 YSE_C_API void yse_clip_connect_synth(YseClip* c, YseSynth* synth);
 YSE_C_API void yse_clip_disconnect_synth(YseClip* c, YseSynth* synth);
 
-/* Route this clip's playback to an external MIDI output port (issue #350).
+/** Route this clip's playback to an external MIDI output port (issue #350).
    `m` must already have opened a port (yse_midi_out_open); connecting an
    unopened handle is ignored. The underlying device port is engine-owned and
    stays open, so `m` itself may be destroyed after connecting. May be called

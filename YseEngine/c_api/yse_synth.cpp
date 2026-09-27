@@ -15,6 +15,7 @@
 #include "../sound/soundInterface.hpp"
 #include "../channel/channelInterface.hpp"
 #include "../utils/vector.hpp"
+#include "../music/note.hpp"
 
 #include <algorithm>
 #include <array>
@@ -491,6 +492,12 @@ YSE_C_API void yse_synth_note_on(YseSynth* h, int channel, int note_number, floa
 }
 YSE_C_API void yse_synth_note_off(YseSynth* h, int channel, int note_number, float velocity) {
   if (h) to_impl(h)->synth.noteOff(channel, note_number, velocity);
+}
+YSE_C_API void yse_synth_note_on_note(YseSynth* h, const YseNote* note) {
+  if (h && note) to_impl(h)->synth.noteOn(*reinterpret_cast<const YSE::MUSIC::note*>(note));
+}
+YSE_C_API void yse_synth_note_off_note(YseSynth* h, const YseNote* note) {
+  if (h && note) to_impl(h)->synth.noteOff(*reinterpret_cast<const YSE::MUSIC::note*>(note));
 }
 YSE_C_API void yse_synth_all_notes_off(YseSynth* h, int channel) {
   if (h) to_impl(h)->synth.allNotesOff(channel);

@@ -606,7 +606,7 @@ TEST_SUITE("patcher") {
   TEST_CASE("array.sort: carries complete documentation metadata (#789)") {
     gArraySort sort;
     CHECK_FALSE(sort.GetDescription().empty());
-    CHECK(sort.GetCategory() == YSE::PATCHER::pCategory::GENERIC);
+    CHECK(sort.GetCategory() == YSE::PATCHER::pCategory::ARRAY);
     REQUIRE(sort.GetParamDocs().size() == 2);
     CHECK(sort.GetParamDocs()[0].name == "name");
     CHECK(sort.GetParamDocs()[1].name == "direction");

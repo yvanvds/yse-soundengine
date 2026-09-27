@@ -120,7 +120,7 @@ gCharCodeBase::gCharCodeBase(charCodeDirection convert) : pObject(false), direct
   scratch.reserve(capacity);
   sendBuffer.reserve(capacity);
 
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::STRING);
 }
 
 void gCharCodeBase::Document(const char* summary, const char* dataDoc, const char* appendDoc,

@@ -169,7 +169,7 @@ CONSTRUCT() {
       "connection message writes one byte, and the row is snapshotted onto the stack before the "
       "first send so a patch looping an outlet back into the control inlet cannot deliver one "
       "message under two different routings.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::ROUTING);
   PARAM_DOC("inlets", "2",
             "Max's argument list, in Max's order: how many routable inlets to build, then how many "
             "routable outlets. Each is clamped to 1-256 and defaults to 2 — Max documents both as "

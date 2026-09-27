@@ -91,7 +91,7 @@ CONSTRUCT() {
       "held. Calculate() does nothing, and no message path allocates, locks or blocks: matching is "
       "a bounded walk doing a float compare or a length-checked string compare against a character "
       "range, one Send follows, and a matched list is forwarded by reference rather than rebuilt.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::ROUTING);
   INLET_DOC(0, "in",
             "Bang, int, float or list to route. The first item decides — a list's leading token, a "
             "bare number itself, or the symbol 'bang' — and the whole message, that item still on "

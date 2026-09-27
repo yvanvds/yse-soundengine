@@ -65,8 +65,10 @@ namespace YSE {
      *  @p count is the number of bytes written, and is 0 for every result but
      *  ``numeric``.
      *
+     *  @param text   the message text to read.
      *  @param out    caller's buffer, at least @p max bytes.
      *  @param max    its size; ``MIDI_BYTE_LIST_MAX`` unless there is a reason.
+     *  @param count  receives the number of bytes written to @p out.
      */
     inline midiByteList ReadMidiByteList(const std::string& text, unsigned char* out, int max,
                                          int& count) {

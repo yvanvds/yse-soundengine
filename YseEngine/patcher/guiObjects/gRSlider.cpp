@@ -154,7 +154,14 @@ LIST_IN(ListIn) {
     // the patcher does.
     const float index = parsed[0];
     if (!(index >= 0.f) || index >= 2.f) return;
-    if ((int)index == 0) {
+    // The index names a presented cell (0 the low end, 1 the high end), not a
+    // storage slot: the ends are kept in write order and only sorted on the way
+    // out, so once they are stored inverted the low cell lives in `second`
+    // (issue #928). Pick the slot by comparing the bounded ends, exactly as
+    // Low()/High() present them; on a tie either slot is the same cell.
+    const bool firstIsLow = !(Bound(second.load()) < Bound(first.load()));
+    const bool writeLow = (int)index == 0;
+    if (writeLow == firstIsLow) {
       StoreFirst(parsed[1]);
     } else {
       StoreSecond(parsed[1]);

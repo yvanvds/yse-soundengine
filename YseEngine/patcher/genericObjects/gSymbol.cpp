@@ -89,7 +89,7 @@ gSymbolBase::gSymbolBase(symbolDirection convert) : pObject(false), direction(co
   // here rather than repeating it.
   ClearParams();
 
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::STRING);
 }
 
 void gSymbolBase::Document(const char* summary, const char* dataDoc, const char* outDoc,

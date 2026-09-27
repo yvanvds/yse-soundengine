@@ -125,7 +125,7 @@ CONSTRUCT() {
       "converts a float to an int. Calculate() does nothing — an emitting one would run the whole "
       "loop again on every DSP block from a stimulus no patch sent, which is the family's rule and "
       "here the most expensive possible way to break it.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::CONTROL);
   INLET_DOC(0, "start",
             "A bang runs the loop; an int or float sets the count and then runs it, truncating "
             "towards zero. Also takes five words: 'pause' (or 'break') stops a run that is in "

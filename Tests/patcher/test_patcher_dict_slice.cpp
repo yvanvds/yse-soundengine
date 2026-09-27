@@ -604,7 +604,7 @@ TEST_SUITE("patcher") {
   TEST_CASE("dict.slice: carries complete documentation metadata (#779)") {
     gDictSlice g;
     CHECK_FALSE(g.GetDescription().empty());
-    CHECK(g.GetCategory() == YSE::PATCHER::pCategory::GENERIC);
+    CHECK(g.GetCategory() == YSE::PATCHER::pCategory::DICT);
     const auto& docs = g.GetParamDocs();
     REQUIRE(docs.size() == 4);
     CHECK(docs[0].name == "source");

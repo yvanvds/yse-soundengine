@@ -113,7 +113,7 @@ CONSTRUCT() {
       "the next drain names as a single count. A row longer than the record is cut and marked "
       "with '...'. Only the creation arguments persist across a save; the lines already sent "
       "belong to the log rather than to the patch.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::DICT);
   INLET_DOC(0, "dump", kInletDoc, "");
   PARAM_DOC("name", "", kNameDoc, "any identifier");
   PARAM_DOC("lines", "64", kLimitDoc, "1-256");

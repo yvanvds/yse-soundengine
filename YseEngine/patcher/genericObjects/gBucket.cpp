@@ -123,7 +123,7 @@ CONSTRUCT() {
       "list still behaves exactly as Max's int. Anything else is ignored. At most 256 stages, "
       "built once before the object is published; Calculate() does nothing, and no message path "
       "allocates, locks or blocks.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::ROUTING);
   PARAM_DOC("outlets", "1",
             "Max's argument list, in Max's order. The first whole number is how many outlets — and "
             "therefore stages — to build, clamped to 1-256 and defaulting to 1. A second whole "

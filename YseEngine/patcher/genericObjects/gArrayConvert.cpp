@@ -134,7 +134,7 @@ gArrayToList::gArrayToList() : gArrayConvertBase(true) {
       "element a counted refusal — .array's own getvalue rule, and this object is exactly that "
       "message's patching form: it takes a reference, acts on a bang, and reports through "
       "outlets of its own.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::ARRAY);
   INLET_DOC(0, "trigger", kTriggerInletDoc, "");
   INLET_DOC(1, "array reference", kReferenceInletDoc, "");
   OUTLET_DOC(0, "list",
@@ -183,7 +183,7 @@ gArrayToString::gArrayToString() : gArrayConvertBase(false) {
       "of the store's guard, sent after release; an empty or unnamed (private) array bangs the "
       "empty outlet, and a longer array than a cord carries loses its tail, every lost element "
       "a counted refusal — getvalue's rule.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::ARRAY);
   INLET_DOC(0, "trigger", kTriggerInletDoc, "");
   INLET_DOC(1, "array reference", kReferenceInletDoc, "");
   OUTLET_DOC(0, "string",
@@ -234,7 +234,7 @@ gArrayToSymbol::gArrayToSymbol() : gArrayConvertBase(false) {
       "(private) array bangs the empty outlet. A result that cannot leave whole is refused "
       "whole and counted — a token that lost elements is a different name, so getvalue's "
       "tail-loss rule deliberately does not apply here, .array.join's whole-reply rule instead.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::ARRAY);
   INLET_DOC(0, "trigger", kTriggerInletDoc, "");
   INLET_DOC(1, "array reference", kReferenceInletDoc, "");
   OUTLET_DOC(0, "symbol",

@@ -96,7 +96,7 @@ CONSTRUCT() {
       "dictionary is refused rather than resolved, a registry lookup being a mutex on whatever "
       "thread the message arrived on. Calculate() does nothing and no message path allocates, "
       "locks or blocks.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::DICT);
   INLET_DOC(0, "unpack", kInletDoc, "");
   PARAM_DOC(
       "name", "",

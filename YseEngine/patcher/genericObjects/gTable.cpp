@@ -226,7 +226,7 @@ CONSTRUCT() {
       "non-goal), refer, and the second argument of 'flags', which concerns writing the data to "
       "the "
       "table's own file — the first argument is embed under another name and is honoured.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::COLLECTION);
   INLET_DOC(0, "address", kAddressDoc, "0 to size-1");
   INLET_DOC(1, "value", kValueDoc, "any int");
   OUTLET_DOC(0, "out", kOutDoc, "any int");

@@ -860,27 +860,27 @@ TEST_SUITE("patcher") {
   TEST_CASE("array.permute: all four carry complete documentation metadata (#788)") {
     gArrayReverse reverse;
     CHECK_FALSE(reverse.GetDescription().empty());
-    CHECK(reverse.GetCategory() == YSE::PATCHER::pCategory::GENERIC);
+    CHECK(reverse.GetCategory() == YSE::PATCHER::pCategory::ARRAY);
     REQUIRE(reverse.GetParamDocs().size() == 1);
     CHECK(reverse.GetParamDocs()[0].name == "name");
 
     gArrayRotate rotate;
     CHECK_FALSE(rotate.GetDescription().empty());
-    CHECK(rotate.GetCategory() == YSE::PATCHER::pCategory::GENERIC);
+    CHECK(rotate.GetCategory() == YSE::PATCHER::pCategory::ARRAY);
     REQUIRE(rotate.GetParamDocs().size() == 2);
     CHECK(rotate.GetParamDocs()[0].name == "name");
     CHECK(rotate.GetParamDocs()[1].name == "amount");
 
     gArrayScramble scramble;
     CHECK_FALSE(scramble.GetDescription().empty());
-    CHECK(scramble.GetCategory() == YSE::PATCHER::pCategory::GENERIC);
+    CHECK(scramble.GetCategory() == YSE::PATCHER::pCategory::ARRAY);
     REQUIRE(scramble.GetParamDocs().size() == 2);
     CHECK(scramble.GetParamDocs()[0].name == "name");
     CHECK(scramble.GetParamDocs()[1].name == "seed");
 
     gArrayShuffle shuffle;
     CHECK_FALSE(shuffle.GetDescription().empty());
-    CHECK(shuffle.GetCategory() == YSE::PATCHER::pCategory::GENERIC);
+    CHECK(shuffle.GetCategory() == YSE::PATCHER::pCategory::ARRAY);
     REQUIRE(shuffle.GetParamDocs().size() == 2);
     CHECK(shuffle.GetParamDocs()[0].name == "name");
     CHECK(shuffle.GetParamDocs()[1].name == "seed");

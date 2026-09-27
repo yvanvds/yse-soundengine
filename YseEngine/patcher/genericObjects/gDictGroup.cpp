@@ -72,7 +72,7 @@ CONSTRUCT() {
       "key; without one each entry groups under its own value, turning a flat table into an "
       "index. An entry without a group, or one whose composed path outgrows the 128-character "
       "key capacity, is refused whole and counted rather than truncated.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::DICT);
   INLET_DOC(0, "group", kSourceInletDoc, "");
   INLET_DOC(1, "target reference", kTargetInletDoc, "");
   OUTLET_DOC(0, "reference", kOutletDoc, "");

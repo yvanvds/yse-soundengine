@@ -289,7 +289,9 @@ namespace YSE {
      *
      *  Shared because ``.vexpr`` (#450) formats its whole output as a list.
      *
-     *  @param out  at least kExprValueTextMax bytes. Always NUL-terminated.
+     *  @param value  the number to render, int or float.
+     *  @param out    at least kExprValueTextMax bytes. Always NUL-terminated.
+     *  @param cap    size of @p out in bytes.
      *  @return how many characters were written, excluding the terminator; 0
      *          when @p cap is too small (nothing but the terminator is then
      *          written).

@@ -68,7 +68,7 @@ CONSTRUCT() {
       "so one subpatcher may have pins of both kinds, with distinct numbers. One creation "
       "argument, the boundary inlet number, default 0. Every handler is one send; nothing "
       "allocates, locks or blocks.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::ENCAPSULATION);
 
   INLET_DOC(0, "from parent", kInletDoc, "");
   OUTLET_DOC(0, "out", kOutletDoc, "");

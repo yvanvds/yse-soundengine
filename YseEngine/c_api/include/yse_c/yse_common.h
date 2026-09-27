@@ -1,4 +1,5 @@
-/*
+/**
+  @file
   yse_common.h — shared types, status codes, error reporting.
   Self-contained C header: no transitive includes outside <stddef.h>.
   Consumed by Dart ffigen and any other C ABI client.
@@ -59,14 +60,14 @@ typedef struct yse_pos_t {
 
 YSE_C_API const char* yse_version(void);
 
-/* Returns the last error message recorded on the calling thread (the
+/** Returns the last error message recorded on the calling thread (the
    slot is thread-local). The returned pointer is valid until the next
    yse_* call from the same thread; copy the string if you need to hold
    onto it. Empty string when no error has been recorded. */
 YSE_C_API const char* yse_last_error(void);
 YSE_C_API void yse_clear_last_error(void);
 
-/* Release a string the library allocated and handed to the caller — any
+/** Release a string the library allocated and handed to the caller — any
    function whose comment says its result is released with yse_free_string
    (e.g. yse_patcher_get_metadata_json). NULL is a no-op. Never pass it a
    pointer to engine-owned storage or a buffer the caller allocated. */

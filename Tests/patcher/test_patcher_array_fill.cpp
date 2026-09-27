@@ -603,7 +603,7 @@ TEST_SUITE("patcher") {
   TEST_CASE("array.fill: carries complete documentation metadata (#794)") {
     gArrayFill fill;
     CHECK_FALSE(fill.GetDescription().empty());
-    CHECK(fill.GetCategory() == YSE::PATCHER::pCategory::GENERIC);
+    CHECK(fill.GetCategory() == YSE::PATCHER::pCategory::ARRAY);
     REQUIRE(fill.GetParamDocs().size() == 3);
     CHECK(fill.GetParamDocs()[0].name == "name");
     CHECK(fill.GetParamDocs()[1].name == "count");

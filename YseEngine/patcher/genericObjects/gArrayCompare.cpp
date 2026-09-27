@@ -70,7 +70,7 @@ gArrayChange::gArrayChange() : gArrayEndsBase() {
       "first poll. \"array <name>\" on the baseline inlet re-baselines silently — Max's right "
       "inlet, and the scalar .change's set: it moves the object's idea of current without "
       "telling anybody. The guard a patch puts in front of expensive downstream work.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::ARRAY);
   INLET_DOC(0, "trigger",
             "A bang polls: the bound array is compared against the baseline under one hold of "
             "the store's guard, and the baseline is replaced by what was found whenever they "
@@ -245,7 +245,7 @@ gArrayCompare::gArrayCompare() : gArrayEndsBase() {
       "arrangement — so no two guards are ever held at once and \".array.compare seq seq\" "
       "answers 1 instead of tripping over its own try-lock. With .array.change it is the "
       "comparison pair: the guards a patch puts in front of expensive downstream work.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::ARRAY);
   INLET_DOC(0, "compare",
             "A bang compares the two bound arrays as they stand — the left copied out under its "
             "guard, the verdict decided against the right under that guard alone — and sends 1 "

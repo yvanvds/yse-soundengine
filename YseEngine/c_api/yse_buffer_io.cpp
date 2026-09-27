@@ -51,4 +51,16 @@ YSE_C_API int yse_buffer_io_remove_by_name(YseBufferIO* io, const char* id) {
   return to_cpp(io)->RemoveBufferByName(id) ? 1 : 0;
 }
 
+// The engine takes char* but only compares the address, never writes through
+// it, so the const_casts below are sound.
+YSE_C_API int yse_buffer_io_exists(YseBufferIO* io, const char* buffer) {
+  if (!io || !buffer) return 0;
+  return to_cpp(io)->BufferExists(const_cast<char*>(buffer)) ? 1 : 0;
+}
+
+YSE_C_API int yse_buffer_io_remove(YseBufferIO* io, const char* buffer) {
+  if (!io || !buffer) return 0;
+  return to_cpp(io)->RemoveBuffer(const_cast<char*>(buffer)) ? 1 : 0;
+}
+
 } // extern "C"

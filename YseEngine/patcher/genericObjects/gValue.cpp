@@ -93,7 +93,7 @@ CONSTRUCT() {
       "addressed as \"patcher.<patcherName>.<name>\", the same address form .s and .r use, so "
       "patchers "
       "sharing a name share their values. An unnamed .value keeps a cell of its own.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::IO);
   INLET_DOC(0, "in",
             "Bang emits the stored value; int / float / list store one for every .value of this "
             "name without emitting anything. A list longer than 256 characters is refused and the "

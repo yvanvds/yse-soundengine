@@ -89,7 +89,7 @@ CONSTRUCT() {
       "target unchanged. Each target's reference then leaves its outlet, remainder first — "
       "Max's right-to-left order. An empty path matches nothing, so the slice comes out empty "
       "and the remainder is the whole source.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::DICT);
   INLET_DOC(0, "slice", kSourceInletDoc, "");
   INLET_DOC(1, "slice reference", kSliceInletDoc, "");
   INLET_DOC(2, "remainder reference", kRemainderInletDoc, "");

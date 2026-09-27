@@ -684,7 +684,7 @@ TEST_SUITE("patcher") {
   TEST_CASE("array.indexof/.index: carry complete documentation metadata (#786)") {
     gArrayIndexOf indexOf;
     CHECK_FALSE(indexOf.GetDescription().empty());
-    CHECK(indexOf.GetCategory() == YSE::PATCHER::pCategory::GENERIC);
+    CHECK(indexOf.GetCategory() == YSE::PATCHER::pCategory::ARRAY);
     const auto& indexOfDocs = indexOf.GetParamDocs();
     REQUIRE(indexOfDocs.size() == 2);
     CHECK(indexOfDocs[0].name == "name");
@@ -692,7 +692,7 @@ TEST_SUITE("patcher") {
 
     gArrayIndex index;
     CHECK_FALSE(index.GetDescription().empty());
-    CHECK(index.GetCategory() == YSE::PATCHER::pCategory::GENERIC);
+    CHECK(index.GetCategory() == YSE::PATCHER::pCategory::ARRAY);
     const auto& indexDocs = index.GetParamDocs();
     REQUIRE(indexDocs.size() == 2);
     CHECK(indexDocs[0].name == "name");

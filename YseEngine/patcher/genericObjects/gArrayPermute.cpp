@@ -151,7 +151,7 @@ gArrayReverse::gArrayReverse() : gArrayPermuteBase() {
       "a bang triggers the same reversal, the family's gesture, and a reversal that lands "
       "emits the array's reference, so the family chains. An empty array reverses to itself "
       "and still announces.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::ARRAY);
   INLET_DOC(0, "trigger",
             "A bang reverses the bound array in place; an empty array reverses to itself and "
             "still announces. \"array <name>\" does the same when it names the array bound by "
@@ -248,7 +248,7 @@ gArrayRotate::gArrayRotate() : gArrayPermuteBase() {
       "stores nothing. The whole rotation is one hold of the store's guard through a scratch "
       "table the object owns; a rotation that lands emits the array's reference, so the "
       "family chains.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::ARRAY);
   INLET_DOC(0, "trigger",
             "A bang rotates the bound array by the stored amount — the amount the last int on "
             "the amount inlet stored, seeded by the second creation argument (0 when absent). "
@@ -518,7 +518,7 @@ gArrayScramble::gArrayScramble() : gArrayScrambleBase() {
       "map inlet and the reference to its trigger, and a parallel array lands in the same new "
       "order, .zl sort's idiom. Max ships array.scramble and array.shuffle as one object under "
       "two names, and so does this port: .array.shuffle is this same object.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::ARRAY);
   INLET_DOC(0, "trigger", kScrambleTriggerInletDoc, "");
   INLET_DOC(1, "seed", kScrambleSeedInletDoc, "any int");
   INLET_DOC(2, "array reference", kReferenceInletDoc, "");
@@ -546,7 +546,7 @@ gArrayShuffle::gArrayShuffle() : gArrayScrambleBase() {
       "map inlet and the reference to its trigger, and a parallel array lands in the same new "
       "order, .zl sort's idiom. Max ships array.shuffle and array.scramble as one object under "
       "two names, and so does this port: .array.scramble is this same object.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::ARRAY);
   INLET_DOC(0, "trigger", kScrambleTriggerInletDoc, "");
   INLET_DOC(1, "seed", kScrambleSeedInletDoc, "any int");
   INLET_DOC(2, "array reference", kReferenceInletDoc, "");

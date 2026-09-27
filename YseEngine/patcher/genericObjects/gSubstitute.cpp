@@ -133,7 +133,7 @@ CONSTRUCT() {
       "a buffer reserved at construction for the worst case a 256-character list can grow into, "
       "and a message that matched nothing is forwarded by reference rather than copied through "
       "it.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::LIST);
 
   INLET_DOC(0, "in",
             "Bang, int, float or list to rewrite. Every element equal to the match is replaced; if "

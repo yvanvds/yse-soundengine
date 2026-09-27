@@ -233,7 +233,7 @@ TEST_SUITE("patcher") {
     // not got — see the outlet's documentation for why it is here anyway.
     CHECK(obj.NumOutputs() == 3);
     CHECK(obj.FileOutlet() == 2);
-    CHECK(obj.GetCategory() == YSE::PATCHER::pCategory::TIME);
+    CHECK(obj.GetCategory() == YSE::PATCHER::pCategory::SEQUENCE);
   }
 
   TEST_CASE("mtr: the argument builds one inlet and one outlet per track (#501)") {

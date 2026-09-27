@@ -101,7 +101,7 @@ CONSTRUCT() {
       "being walked. The returning message is refused and counted, exactly as .uzi refuses a "
       "re-entrant start.");
 
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::LIST);
 
   INLET_DOC(0, "in", kInletDoc, "any");
   OUTLET_DOC(0, "out", kOutletDoc, "any");

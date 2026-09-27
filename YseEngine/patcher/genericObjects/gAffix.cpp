@@ -47,7 +47,7 @@ gAffixBase::gAffixBase(affixSide affix) : pObject(false), side(affix) {
   stored.reserve(MESSAGE_CAPACITY);
   outText.reserve(kOutTextCapacity);
 
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::LIST);
 }
 
 void gAffixBase::Document(const char* summary, const char* dataDoc, const char* outDoc,

@@ -561,7 +561,7 @@ TEST_SUITE("patcher") {
   TEST_CASE("bangbang: documents itself as GENERIC with a labelled port set (#467)") {
     std::unique_ptr<YSE::PATCHER::pObject> obj(YSE::PATCHER::Register().Get(YSE::OBJ::G_BANGBANG));
     REQUIRE(obj != nullptr);
-    CHECK(obj->GetCategory() == YSE::PATCHER::pCategory::GENERIC);
+    CHECK(obj->GetCategory() == YSE::PATCHER::pCategory::CONTROL);
     CHECK_FALSE(obj->GetDescription().empty());
 
     REQUIRE(obj->NumInputs() == 1);

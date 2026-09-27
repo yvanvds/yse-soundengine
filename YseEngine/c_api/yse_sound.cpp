@@ -99,6 +99,23 @@ YSE_C_API YseStatus yse_sound_load_buffer(YseSound* s, YseDspBuffer* buf, YseCha
   }
 }
 
+YSE_C_API YseStatus yse_sound_load_multi_buffer(YseSound* s, YseDspMultiBuffer* mb, YseChannel* ch,
+                                                int loop, float volume) {
+  if (!s) return YSE_ERR_INVALID_HANDLE;
+  if (!mb) {
+    yse_c::set_last_error("yse_sound_load_multi_buffer: multi-buffer handle is NULL");
+    return YSE_ERR_INVALID_ARGUMENT;
+  }
+  return yse_c::guard("yse_sound_load_multi_buffer", YSE_ERR_EXCEPTION, [&] {
+    to_cpp(s)->create(*yse_c::multi_buffer_from_handle(mb), to_cpp_chan(ch), loop != 0, volume);
+    if (!to_cpp(s)->isValid()) {
+      yse_c::set_last_error("sound is not valid after multi-buffer-source create");
+      return YSE_ERR_GENERIC;
+    }
+    return YSE_OK;
+  });
+}
+
 YSE_C_API YseStatus yse_sound_load_patcher(YseSound* s, YsePatcher* patch, YseChannel* ch,
                                            float volume) {
   if (!s) return YSE_ERR_INVALID_HANDLE;

@@ -1,4 +1,5 @@
-/*
+/**
+  @file
   yse_log.h — engine logging.
   C ABI mirror of YseEngine/log.hpp.
 
@@ -23,7 +24,7 @@
 extern "C" {
 #endif
 
-/* Borrowed singleton — owned by the engine, never destroy.
+/** Borrowed singleton — owned by the engine, never destroy.
    Obtain via yse_log_get(). */
 typedef struct YseLog YseLog;
 
@@ -35,16 +36,16 @@ YSE_C_API YseErrorLevel yse_log_get_level(YseLog* log);
 YSE_C_API void yse_log_set_logfile(YseLog* log, const char* path);
 YSE_C_API size_t yse_log_get_logfile(YseLog* log, char* buf, size_t cap);
 
-/* The receiver OWNS msg and must release it with yse_log_free_message
+/** The receiver OWNS msg and must release it with yse_log_free_message
    when finished. The pointer is allocated with malloc by the bridge so
    any C client can free() it directly if preferred. */
 typedef void(YSE_C_CALLBACK* YseLogCallback)(char* msg, void* user_data);
 
-/* Replaces the default file sink. Pass NULL for cb to restore the default.
+/** Replaces the default file sink. Pass NULL for cb to restore the default.
    user_data is opaque — forwarded to every callback invocation. */
 YSE_C_API void yse_log_set_callback(YseLog* log, YseLogCallback cb, void* user_data);
 
-/* Release a message string previously delivered to a YseLogCallback. */
+/** Release a message string previously delivered to a YseLogCallback. */
 YSE_C_API void yse_log_free_message(char* msg);
 
 #ifdef __cplusplus

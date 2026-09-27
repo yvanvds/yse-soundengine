@@ -391,7 +391,7 @@ TEST_SUITE("patcher") {
     gSeq obj;
     CHECK(obj.NumInputs() == 1);
     CHECK(obj.NumOutputs() == 4);
-    CHECK(obj.GetCategory() == YSE::PATCHER::pCategory::MIDI);
+    CHECK(obj.GetCategory() == YSE::PATCHER::pCategory::SEQUENCE);
   }
 
   TEST_CASE("seq: a fresh object is empty, stopped and at the recorded tempo (#502)") {

@@ -1,4 +1,5 @@
-/*
+/**
+  @file
   yse_enums.h — C mirrors of YSE::enums.
 
   Values MUST stay in lockstep with YseEngine/headers/enums.hpp.
@@ -13,7 +14,7 @@
 extern "C" {
 #endif
 
-/* Mirrors YSE::CHANNEL_TYPE in headers/enums.hpp. */
+/** Mirrors YSE::CHANNEL_TYPE in headers/enums.hpp. */
 typedef enum YseChannelType {
   YSE_CT_AUTO = 0,
   YSE_CT_MONO = 1,
@@ -26,7 +27,7 @@ typedef enum YseChannelType {
   YSE_CT_CUSTOM = 8
 } YseChannelType;
 
-/* Mirrors YSE::ERROR_LEVEL in headers/enums.hpp. */
+/** Mirrors YSE::ERROR_LEVEL in headers/enums.hpp. */
 typedef enum YseErrorLevel {
   YSE_EL_NONE = 0,
   YSE_EL_ERROR = 1,
@@ -34,7 +35,7 @@ typedef enum YseErrorLevel {
   YSE_EL_DEBUG = 3
 } YseErrorLevel;
 
-/* Mirrors YSE::OUT_TYPE in headers/enums.hpp (patcher outlet data type). */
+/** Mirrors YSE::OUT_TYPE in headers/enums.hpp (patcher outlet data type). */
 typedef enum YseOutType {
   YSE_OUT_INVALID = 0,
   YSE_OUT_BANG = 1,
@@ -45,7 +46,7 @@ typedef enum YseOutType {
   YSE_OUT_ANY = 6
 } YseOutType;
 
-/* Mirrors YSE::DSP::LFO_TYPE in dsp/lfo.hpp. */
+/** Mirrors YSE::DSP::LFO_TYPE in dsp/lfo.hpp. */
 typedef enum YseLfoType {
   YSE_LFO_NONE = 0,
   YSE_LFO_SAW = 1,
@@ -56,39 +57,39 @@ typedef enum YseLfoType {
   YSE_LFO_RANDOM = 6
 } YseLfoType;
 
-/* Mirrors YSE::SYNTH::VA_WAVEFORM in synth/vaVoice.hpp — the oscillator
+/** Mirrors YSE::SYNTH::VA_WAVEFORM in synth/vaVoice.hpp — the oscillator
    waveform selector for the virtual-analog voice (yse_synth_va_set_osc_wave). */
 typedef enum YseVaWaveform {
-  YSE_VA_SAW = 0, /* Band-limited sawtooth. */
-  YSE_VA_PULSE = 1, /* Band-limited pulse with variable width (PWM). */
-  YSE_VA_TRIANGLE = 2, /* Band-limited triangle. */
-  YSE_VA_SINE = 3, /* Sine. */
-  YSE_VA_NOISE = 4, /* White noise. */
-  YSE_VA_WAVETABLE = 5 /* Morph across the wavetable bank. */
+  YSE_VA_SAW = 0, /**< Band-limited sawtooth. */
+  YSE_VA_PULSE = 1, /**< Band-limited pulse with variable width (PWM). */
+  YSE_VA_TRIANGLE = 2, /**< Band-limited triangle. */
+  YSE_VA_SINE = 3, /**< Sine. */
+  YSE_VA_NOISE = 4, /**< White noise. */
+  YSE_VA_WAVETABLE = 5 /**< Morph across the wavetable bank. */
 } YseVaWaveform;
 
-/* Mirrors YSE::DSP::MODULES::sweepFilter::SHAPE. */
+/** Mirrors YSE::DSP::MODULES::sweepFilter::SHAPE. */
 typedef enum YseDspSweepShape {
   YSE_SWEEP_TRIANGLE = 0,
   YSE_SWEEP_SAW = 1,
   YSE_SWEEP_SQUARE = 2
 } YseDspSweepShape;
 
-/* Mirrors YSE::DSP::MODULES::basicDelay::DELAY_NR. */
+/** Mirrors YSE::DSP::MODULES::basicDelay::DELAY_NR. */
 typedef enum YseDspDelayTap {
   YSE_DELAY_TAP_FIRST = 0,
   YSE_DELAY_TAP_SECOND = 1,
   YSE_DELAY_TAP_THIRD = 2
 } YseDspDelayTap;
 
-/* Mirrors YSE::DSP::MODULES::chorusMode (chorus.hpp) — the chorus/flanger
+/** Mirrors YSE::DSP::MODULES::chorusMode (chorus.hpp) — the chorus/flanger
    topology switch. */
 typedef enum YseChorusMode {
-  YSE_CHORUS_MODE_CHORUS = 0, /* Longer base delay, wide slow sweep. */
-  YSE_CHORUS_MODE_FLANGER = 1 /* Short base delay, feedback comb. */
+  YSE_CHORUS_MODE_CHORUS = 0, /**< Longer base delay, wide slow sweep. */
+  YSE_CHORUS_MODE_FLANGER = 1 /**< Short base delay, feedback comb. */
 } YseChorusMode;
 
-/* Mirrors YSE::DSP::MODULES::eqBand (parametricEQ.hpp) — the four fixed
+/** Mirrors YSE::DSP::MODULES::eqBand (parametricEQ.hpp) — the four fixed
    bands of the parametric EQ. YSE_EQ_BAND_COUNT is the sentinel count. */
 typedef enum YseEqBand {
   YSE_EQ_LOW_SHELF = 0,
@@ -98,29 +99,42 @@ typedef enum YseEqBand {
   YSE_EQ_BAND_COUNT = 4
 } YseEqBand;
 
-/* Mirrors YSE::DSP::MODULES::compressorDetector (compressor.hpp) — the
+/** Mirrors YSE::DSP::MODULES::compressorDetector (compressor.hpp) — the
    level-detector mode. */
 typedef enum YseCompressorDetector {
-  YSE_COMPRESSOR_DETECT_PEAK = 0, /* Instantaneous linked peak. */
-  YSE_COMPRESSOR_DETECT_RMS = 1 /* Short mean-square window. */
+  YSE_COMPRESSOR_DETECT_PEAK = 0, /**< Instantaneous linked peak. */
+  YSE_COMPRESSOR_DETECT_RMS = 1 /**< Short mean-square window. */
 } YseCompressorDetector;
 
-/* Mirrors YSE::PATCHER::pCategory in patcher/pEnums.h. The patcher
+/** Mirrors YSE::PATCHER::pCategory in patcher/pEnums.h. The patcher
    registry exposes this through the metadata API so binding-side
    documentation generators can group objects without inspecting the
-   engine source. */
+   engine source. Values are only ever appended, so a number a host stored
+   keeps its meaning. GENERIC is the fallback for an object that fits no
+   other category. */
 typedef enum YsePCategory {
   YSE_PCAT_UNSET = 0,
-  YSE_PCAT_OSC = 1,
-  YSE_PCAT_FILTER = 2,
-  YSE_PCAT_MATH = 3,
-  YSE_PCAT_GENERIC = 4,
-  YSE_PCAT_GUI = 5,
-  YSE_PCAT_TIME = 6,
-  YSE_PCAT_MIDI = 7
+  YSE_PCAT_OSC = 1, /**< Signal generators (~sine, ~noise, ~line, ...). */
+  YSE_PCAT_FILTER = 2, /**< Filters. */
+  YSE_PCAT_MATH = 3, /**< Arithmetic, conversion, analysis. */
+  YSE_PCAT_GENERIC = 4, /**< Uncategorisable fallback. */
+  YSE_PCAT_GUI = 5, /**< User-facing controls and message boxes. */
+  YSE_PCAT_TIME = 6, /**< Timing utilities (.metro, .delay, .line, ...). */
+  YSE_PCAT_MIDI = 7, /**< MIDI formatting, parsing and device I/O. */
+  YSE_PCAT_ROUTING = 8, /**< Steering messages (.gate, .route, .sel, ...). */
+  YSE_PCAT_CONTROL = 9, /**< Control flow and ordering (.trigger, .uzi, ...). */
+  YSE_PCAT_LIST = 10, /**< Building and taking apart lists (.pack, .zl, ...). */
+  YSE_PCAT_STRING = 11, /**< Symbols and text (.sprintf, .regexp, ...). */
+  YSE_PCAT_COLLECTION = 12, /**< Stores (.coll, .table, .bag, ...). */
+  YSE_PCAT_DICT = 13, /**< The .dict family. */
+  YSE_PCAT_ARRAY = 14, /**< The .array family. */
+  YSE_PCAT_RANDOM = 15, /**< Random and probabilistic sources. */
+  YSE_PCAT_IO = 16, /**< Audio and host I/O (~adc, ~dac, .s, .r, .print, ...). */
+  YSE_PCAT_ENCAPSULATION = 17, /**< Subpatchers and their inlets/outlets. */
+  YSE_PCAT_SEQUENCE = 18 /**< Timed recorders / players (.seq, .mtr, .qlist). */
 } YsePCategory;
 
-/* Bitmask of message types an inlet accepts; mirrors
+/** Bitmask of message types an inlet accepts; mirrors
    YSE::PATCHER::InletType. OR the flags together; check with `&`. */
 typedef enum YseInletAccepts {
   YSE_IN_ACCEPTS_BUFFER = 1u << 0,
@@ -130,7 +144,7 @@ typedef enum YseInletAccepts {
   YSE_IN_ACCEPTS_LIST = 1u << 4
 } YseInletAccepts;
 
-/* Selects which built-in per-note position handler
+/** Selects which built-in per-note position handler
    yse_synth_set_position_handler attaches. Mirrors the three shipped handler
    classes in synth/positionHandlers.hpp (staticHandler / randomSpreadHandler /
    orbitHandler). This is a C-API-owned dispatch selector: the engine has no
@@ -139,13 +153,13 @@ typedef enum YseInletAccepts {
    plus the YSE_POSITION_HANDLER_COUNT sentinel and the is_base_of asserts in
    yse_enums_check.cpp. Keep YSE_POSITION_HANDLER_COUNT last. */
 typedef enum YseSynthPositionHandler {
-  YSE_POSITION_HANDLER_STATIC = 0, /* staticHandler — one fixed position. */
-  YSE_POSITION_HANDLER_RANDOM_SPREAD = 1, /* randomSpreadHandler — seeded scatter. */
-  YSE_POSITION_HANDLER_ORBIT = 2, /* orbitHandler — the swarm handler. */
-  YSE_POSITION_HANDLER_COUNT = 3 /* sentinel — number of kinds; keep last. */
+  YSE_POSITION_HANDLER_STATIC = 0, /**< staticHandler — one fixed position. */
+  YSE_POSITION_HANDLER_RANDOM_SPREAD = 1, /**< randomSpreadHandler — seeded scatter. */
+  YSE_POSITION_HANDLER_ORBIT = 2, /**< orbitHandler — the swarm handler. */
+  YSE_POSITION_HANDLER_COUNT = 3 /**< sentinel — number of kinds; keep last. */
 } YseSynthPositionHandler;
 
-/* Shared handler-parameter indices the built-in handlers read for their
+/** Shared handler-parameter indices the built-in handlers read for their
    steerable centre; mirrors YSE::SYNTH::HandlerParamIndex in
    synth/positionHandlers.hpp. Pass one to yse_synth_handler_param to move the
    swarm / spread centre at runtime. Indices 0..2 are the centre X / Y / Z;
@@ -156,7 +170,7 @@ typedef enum YseSynthHandlerParam {
   YSE_HANDLER_PARAM_CENTER_Z = 2
 } YseSynthHandlerParam;
 
-/* Mirrors YSE::REVERB_PRESET in headers/enums.hpp. */
+/** Mirrors YSE::REVERB_PRESET in headers/enums.hpp. */
 typedef enum YseReverbPreset {
   YSE_REVERB_OFF = 0,
   YSE_REVERB_GENERIC = 1,

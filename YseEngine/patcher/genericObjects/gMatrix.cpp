@@ -227,7 +227,7 @@ CONSTRUCT() {
       "into a bounded stack array once per message rather than once per destination, and the row "
       "is snapshotted before the first send so a patch looping an outlet back into the control "
       "inlet cannot deliver one message under two different sets of gains.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::ROUTING);
   PARAM_DOC("inputs", "2",
             "Max's argument list, in Max's order: how many routable inlets to build, how many "
             "routable outlets, then the gain a bare 'connect' uses. Each count is clamped to 1-256 "

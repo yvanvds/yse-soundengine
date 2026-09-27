@@ -210,7 +210,7 @@ gArrayExpr::gArrayExpr() : gArrayExprBase(2) {
       "Collected under one hold of the store's guard, sent after release; an empty or unnamed "
       "(private) array bangs the empty outlet, and a result list past what a cord carries loses "
       "its tail, every lost element a counted refusal — getvalue's rule.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::ARRAY);
   INLET_DOC(0, "trigger", kTriggerInletDoc, "");
   INLET_DOC(1, "array reference", kReferenceInletDoc, "");
   OUTLET_DOC(0, "results",
@@ -344,7 +344,7 @@ gArrayMap::gArrayMap() : gArrayExprMutateBase(2) {
       "family chains. An expression that did not compile was reported when the parameter was "
       "set, and every trigger then refuses, counted: a misconfigured object must not quietly "
       "rewrite shared data.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::ARRAY);
   INLET_DOC(0, "trigger", kTriggerInletDoc, "");
   INLET_DOC(1, "array reference", kReferenceInletDoc, "");
   OUTLET_DOC(0, "reference", kMutateOutletDoc, "");
@@ -399,7 +399,7 @@ gArrayFilter::gArrayFilter() : gArrayExprMutateBase(2) {
       "array's reference, so the family chains. An expression that did not compile was "
       "reported when the parameter was set, and every trigger then refuses, counted: a "
       "misconfigured filter must not quietly empty shared data.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::ARRAY);
   INLET_DOC(0, "trigger", kTriggerInletDoc, "");
   INLET_DOC(1, "array reference", kReferenceInletDoc, "");
   OUTLET_DOC(0, "reference", kMutateOutletDoc, "");
@@ -456,7 +456,7 @@ gArrayReduce::gArrayReduce() : gArrayExprBase(3) {
       "nothing in it bangs the empty outlet instead — the fold of nothing does not exist, and "
       "a sentinel would be indistinguishable from a real answer. One hold of the store's "
       "guard, the answer sent after release.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::ARRAY);
   INLET_DOC(0, "trigger", kTriggerInletDoc, "");
   INLET_DOC(1, "array reference", kReferenceInletDoc, "");
   OUTLET_DOC(0, "result",
@@ -579,7 +579,7 @@ gArrayEvery::gArrayEvery() : gArrayQuantifierBase(true) {
       "population answers 1: a claim about nothing is vacuously true, the logician's rule. "
       "One hold of the store's guard, the verdict sent after release; with .array.some this "
       "is the predicate pair every routing patch tests a collected array with.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::ARRAY);
   INLET_DOC(0, "trigger", kTriggerInletDoc, "");
   INLET_DOC(1, "array reference", kReferenceInletDoc, "");
   OUTLET_DOC(0, "verdict",
@@ -611,7 +611,7 @@ gArraySome::gArraySome() : gArrayQuantifierBase(false) {
       "population answers 0: nothing satisfied it. One hold of the store's guard, the verdict "
       "sent after release; with .array.every this is the predicate pair every routing patch "
       "tests a collected array with.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::ARRAY);
   INLET_DOC(0, "trigger", kTriggerInletDoc, "");
   INLET_DOC(1, "array reference", kReferenceInletDoc, "");
   OUTLET_DOC(0, "verdict",
@@ -656,7 +656,7 @@ gArrayForeach::gArrayForeach() : gArrayExprBase(2) {
       "arriving mid-walk is refused and counted, .uzi's re-entrant start rule; the done bang "
       "fires even for an empty array but never for a refused walk. Up to 256 subgraph "
       "traversals per trigger, on whichever thread sent it.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::ARRAY);
   INLET_DOC(0, "trigger", kTriggerInletDoc, "");
   INLET_DOC(1, "array reference", kReferenceInletDoc, "");
   OUTLET_DOC(0, "result",

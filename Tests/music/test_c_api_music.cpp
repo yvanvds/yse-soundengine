@@ -3,8 +3,10 @@
 //
 // yse_music.cpp wraps five types. The player half already has an end-to-end
 // suite (Tests/music/test_c_api_player.cpp, issue #268), so it is deliberately
-// NOT repeated here — only the three motif-weighting entry points that suite
-// never reaches are covered, plus the NULL contracts. The note / pNote / scale
+// NOT repeated here — only the motif entry points that suite never reaches are
+// covered: the three motif-weighting calls, and (issue #913) the three
+// motif-mode probabilities, observed in the pitches the synth receives. The
+// note / pNote / scale
 // / motif half had no C-level coverage at all, and that is the bulk of this
 // file.
 //
@@ -18,13 +20,147 @@
 
 #include <doctest/doctest.h>
 
+#include <array>
+#include <atomic>
 #include <string>
 
 #include "support/capilowcov_offline.hpp"
+#include "support/timer_pacing.hpp"
 
 #include "yse_c/yse_common.h"
 #include "yse_c/yse_music.h"
+#include "yse_c/yse_sound.h"
 #include "yse_c/yse_synth.h"
+
+namespace {
+
+  // ─── player motif-mode rig (issue #913) ─────────────────────────────────────
+  //
+  // The three motif-mode probabilities are only observable in the notes the
+  // player sends, so the rig records every note-on pitch a synth receives
+  // through its note hook (captureless, hence the global). The hook runs on the
+  // audio thread; offline, that is this thread inside render_offline, but the
+  // counters are atomic anyway.
+  std::array<std::atomic<int>, 128> g_motifPitchOns{};
+
+  void YSE_C_CALLBACK recordMotifPitch(int note_on, float* note_number, float* /*velocity*/) {
+    if (note_on == 0 || note_number == nullptr) return;
+    const int pitch = static_cast<int>(*note_number);
+    if (pitch >= 0 && pitch < 128) g_motifPitchOns[pitch].fetch_add(1, std::memory_order_relaxed);
+  }
+
+  void resetMotifPitches() {
+    for (auto& c : g_motifPitchOns)
+      c.store(0, std::memory_order_relaxed);
+  }
+
+  int motifPitchOns(int pitch) {
+    return g_motifPitchOns[pitch].load(std::memory_order_relaxed);
+  }
+
+  int motifNoteOns() {
+    int total = 0;
+    for (const auto& c : g_motifPitchOns)
+      total += c.load(std::memory_order_relaxed);
+    return total;
+  }
+
+  // Pump until `pred` holds, bounded in reference-timer ticks (issue #753).
+  template <typename P> bool pumpUntil(P pred) {
+    return TestHelpers::pacedPump(4000, pred, [] { capilowcov::pump(1); }, 0);
+  }
+
+  // A synth behind a playing sound, a player bound to it, and one motif:
+  //
+  //   pitch 60 at 0.0, 67 at 0.1, 64 at 0.2 — each 0.2 s, motif length 0.5
+  //
+  // The player's pitch range is pinned to exactly 60, so a random note is
+  // always 60 and a motif is always transposed to start on 60. Every pitch
+  // other than 60 therefore comes from a motif, and which ones arrive says
+  // which motif mode the player is in:
+  //
+  //   * whole motif        60, 67, 64
+  //   * partial motif      a piece of it re-based to 60: [60], [60 67] or
+  //                        [67] -> [60]. A piece never holds all three notes
+  //                        (start in [0, 2), count in [1, size - start)), so 64
+  //                        never sounds.
+  //   * fitted to {60 + 12k}  67 -> 72, 64 -> 60: 67 never sounds.
+  struct MotifRig {
+    YseSynth* syn = nullptr;
+    YseSound* snd = nullptr;
+    YsePlayer* pl = nullptr;
+    YseMotif* motif = nullptr;
+    YseScale* scale = nullptr;
+
+    bool setUp() {
+      syn = yse_synth_create();
+      if (syn == nullptr) return false;
+      if (yse_synth_add_voices_sine(syn, 8, 0, 0, 127, 0.001f, 0.001f, 1.0f, 0.05f) != YSE_OK)
+        return false;
+      yse_synth_set_note_callback(syn, &recordMotifPitch);
+      snd = yse_sound_create();
+      if (snd == nullptr) return false;
+      if (yse_synth_attach_to_sound(syn, snd, nullptr, 0.8f) != YSE_OK) return false;
+      yse_sound_play(snd);
+      if (!pumpUntil([this] { return yse_synth_get_num_voices(syn) >= 8; })) return false;
+
+      pl = yse_player_create(syn);
+      if (pl == nullptr) return false;
+
+      motif = yse_motif_create();
+      const float pitches[] = {60.f, 67.f, 64.f};
+      for (int i = 0; i < 3; ++i) {
+        YsePNote* n = yse_pnote_create(0.1f * static_cast<float>(i), pitches[i], 0.8f, 0.2f, 0);
+        yse_motif_add(motif, n);
+        yse_pnote_destroy(n);
+      }
+      yse_motif_set_length(motif, 0.5f);
+
+      scale = yse_scale_create();
+      yse_scale_add(scale, 60.f, 12.f);
+
+      yse_player_set_minimum_pitch(pl, 60.f, 0.f);
+      yse_player_set_maximum_pitch(pl, 60.f, 0.f);
+      yse_player_set_minimum_velocity(pl, 0.5f, 0.f);
+      yse_player_set_maximum_velocity(pl, 0.9f, 0.f);
+      yse_player_set_minimum_gap(pl, 0.f, 0.f);
+      yse_player_set_maximum_gap(pl, 0.f, 0.f);
+      yse_player_set_minimum_length(pl, 0.05f, 0.f);
+      yse_player_set_maximum_length(pl, 0.1f, 0.f);
+      yse_player_set_voices(pl, 4, 0.f);
+      yse_player_set_scale(pl, scale, 0.f);
+      yse_player_add_motif(pl, motif, 1);
+      return true;
+    }
+
+    // Drain the queued configuration into the player, then start it with a
+    // clean record.
+    void start() {
+      capilowcov::pump(10);
+      resetMotifPitches();
+      yse_player_play(pl);
+    }
+
+    // Enough notes for an absence check to mean something.
+    bool heardAtLeast(int notes) {
+      return pumpUntil([notes] { return motifNoteOns() >= notes; });
+    }
+
+    ~MotifRig() {
+      if (pl != nullptr) {
+        yse_player_stop(pl);
+        yse_player_destroy(pl);
+      }
+      capilowcov::pump(5); // the player lets go of the motif and scale first
+      if (motif != nullptr) yse_motif_destroy(motif);
+      if (scale != nullptr) yse_scale_destroy(scale);
+      if (snd != nullptr) yse_sound_destroy(snd); // sound before its synth
+      if (syn != nullptr) yse_synth_destroy(syn);
+      capilowcov::pump(5);
+    }
+  };
+
+} // namespace
 
 TEST_SUITE("capilowcov") {
 
@@ -82,15 +218,18 @@ TEST_SUITE("capilowcov") {
     CHECK(yse_pnote_get_pitch(n) == doctest::Approx(62.0f));
     CHECK(yse_pnote_get_volume(n) == doctest::Approx(0.7f));
     CHECK(yse_pnote_get_length(n) == doctest::Approx(0.3f));
+    CHECK(yse_pnote_get_channel(n) == 2); // the create() channel (#909)
 
     yse_pnote_set_position(n, 2.25f);
     yse_pnote_set_pitch(n, 65.0f);
     yse_pnote_set_volume(n, 0.4f);
     yse_pnote_set_length(n, 0.6f);
+    yse_pnote_set_channel(n, 7);
     CHECK(yse_pnote_get_position(n) == doctest::Approx(2.25f));
     CHECK(yse_pnote_get_pitch(n) == doctest::Approx(65.0f));
     CHECK(yse_pnote_get_volume(n) == doctest::Approx(0.4f));
     CHECK(yse_pnote_get_length(n) == doctest::Approx(0.6f));
+    CHECK(yse_pnote_get_channel(n) == 7);
 
     yse_pnote_destroy(n);
   }
@@ -104,6 +243,8 @@ TEST_SUITE("capilowcov") {
     CHECK(yse_pnote_get_pitch(nullptr) == doctest::Approx(0.0f));
     CHECK(yse_pnote_get_volume(nullptr) == doctest::Approx(0.0f));
     CHECK(yse_pnote_get_length(nullptr) == doctest::Approx(0.0f));
+    yse_pnote_set_channel(nullptr, 3);
+    CHECK(yse_pnote_get_channel(nullptr) == 0);
     yse_pnote_destroy(nullptr);
   }
 
@@ -291,6 +432,72 @@ TEST_SUITE("capilowcov") {
     capilowcov::pump(5); // let the delete jobs run before the synth goes
     yse_synth_destroy(syn);
     capilowcov::pump(5);
+  }
+
+  // ─── player motif modes (issue #913) ───────────────────────────────────────
+  //
+  // Each probability is driven at its two ends, 0 and 1, where the outcome is
+  // certain rather than statistical: the end that forbids a pitch runs first
+  // from a clean start and must never produce it, then the other end must.
+
+  TEST_CASE("c-api player: play_motifs switches between random notes and motifs (#913)") {
+    if (!capilowcov::ensureOffline()) return; // engine unavailable → skip
+    MotifRig rig;
+    REQUIRE(rig.setUp());
+
+    yse_player_play_partial_motifs(rig.pl, 0.f, 0.f);
+    yse_player_fit_motifs_to_scale(rig.pl, 0.f, 0.f);
+    yse_player_play_motifs(rig.pl, 0.f, 0.f);
+    rig.start();
+
+    // 0: random notes only, and the pinned range makes every one of them 60.
+    REQUIRE(rig.heardAtLeast(20));
+    CHECK(motifNoteOns() == motifPitchOns(60));
+
+    // 1: motifs only — the whole motif, so its other two pitches sound.
+    yse_player_play_motifs(rig.pl, 1.f, 0.f);
+    CHECK(pumpUntil([] { return motifPitchOns(67) > 0 && motifPitchOns(64) > 0; }));
+  }
+
+  TEST_CASE("c-api player: play_partial_motifs plays pieces of a motif (#913)") {
+    if (!capilowcov::ensureOffline()) return; // engine unavailable → skip
+    MotifRig rig;
+    REQUIRE(rig.setUp());
+
+    yse_player_play_motifs(rig.pl, 1.f, 0.f);
+    yse_player_fit_motifs_to_scale(rig.pl, 0.f, 0.f);
+    yse_player_play_partial_motifs(rig.pl, 1.f, 0.f);
+    rig.start();
+
+    // 1: only pieces, and no piece reaches the motif's third note.
+    REQUIRE(rig.heardAtLeast(20));
+    CHECK(motifPitchOns(64) == 0);
+
+    // 0: whole motifs again, third note included.
+    yse_player_play_partial_motifs(rig.pl, 0.f, 0.f);
+    CHECK(pumpUntil([] { return motifPitchOns(64) > 0; }));
+  }
+
+  TEST_CASE("c-api player: fit_motifs_to_scale snaps motif notes to the scale (#913)") {
+    if (!capilowcov::ensureOffline()) return; // engine unavailable → skip
+    MotifRig rig;
+    REQUIRE(rig.setUp());
+
+    yse_player_play_motifs(rig.pl, 1.f, 0.f);
+    yse_player_play_partial_motifs(rig.pl, 0.f, 0.f);
+    yse_player_fit_motifs_to_scale(rig.pl, 1.f, 0.f);
+    rig.start();
+
+    // 1: every motif note is moved onto the scale's pitch class, so only 60
+    // and 72 sound — 67 never does.
+    REQUIRE(rig.heardAtLeast(20));
+    CHECK(motifPitchOns(67) == 0);
+    CHECK(motifPitchOns(64) == 0);
+    CHECK(motifNoteOns() == motifPitchOns(60) + motifPitchOns(72));
+
+    // 0: motifs as written.
+    yse_player_fit_motifs_to_scale(rig.pl, 0.f, 0.f);
+    CHECK(pumpUntil([] { return motifPitchOns(67) > 0; }));
   }
 
 } // TEST_SUITE("capilowcov")

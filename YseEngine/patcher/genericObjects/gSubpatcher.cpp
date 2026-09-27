@@ -48,7 +48,7 @@ CONSTRUCT() {
       "fire their loadbangs in the same undefined-order pass as the top level: the whole tree is "
       "published in one swap, so 'loading has finished' becomes true for every level at the same "
       "instant. No creation arguments. Calculate() does nothing and is never reached.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::ENCAPSULATION);
 }
 
 #undef className

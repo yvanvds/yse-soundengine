@@ -270,7 +270,7 @@ gArraySlice::gArraySlice() : gArraySliceBase(false) {
       "they are bounds of a range, so the piece is the intersection with the live elements, "
       "and negative is refused — the family's indexing rule. Collected under one hold of the "
       "store's guard, so the piece is the array as it stood at the trigger.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::ARRAY);
   INLET_DOC(0, "trigger", kRangeTriggerInletDoc, "");
   INLET_DOC(1, "start", kStartInletDoc, "0-255");
   INLET_DOC(2, "end",
@@ -320,7 +320,7 @@ gArraySubarray::gArraySubarray() : gArraySliceBase(true) {
       "elements, and negative is refused — the family's indexing rule. Collected under one "
       "hold of the store's guard, so the piece is the array as it stood at the trigger. "
       ".array.sub is this object under Max's second name for it.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::ARRAY);
   INLET_DOC(0, "trigger", kRangeTriggerInletDoc, "");
   INLET_DOC(1, "start", kStartInletDoc, "0-255");
   INLET_DOC(2, "end", kInclusiveEndInletDoc, "0-255");
@@ -349,7 +349,7 @@ gArraySub::gArraySub() : gArraySliceBase(true) {
       "never as a new named array; bounds are zero-based, intersected with the live elements "
       "past the end, and negative is refused — the family's indexing rule. Collected under one "
       "hold of the store's guard, so the piece is the array as it stood at the trigger.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::ARRAY);
   INLET_DOC(0, "trigger", kRangeTriggerInletDoc, "");
   INLET_DOC(1, "start", kStartInletDoc, "0-255");
   INLET_DOC(2, "end", kInclusiveEndInletDoc, "0-255");
@@ -407,7 +407,7 @@ gArraySplit::gArraySplit() : gArrayEndsBase() {
       "nothing at all, so a recursive patch terminates by absence. A negative position is "
       "refused — the family's indexing rule. A bang splits at the stored position, seeded by "
       "the second creation argument and moved silently by the position inlet.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::ARRAY);
   INLET_DOC(0, "trigger",
             "A bang splits the array at the stored position — the position the last int on "
             "the position inlet stored, seeded by the second creation argument (0 when "

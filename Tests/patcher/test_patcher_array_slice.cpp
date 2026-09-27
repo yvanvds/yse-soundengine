@@ -929,7 +929,7 @@ TEST_SUITE("patcher") {
       std::unique_ptr<YSE::PATCHER::pObject> obj(YSE::PATCHER::Register().Get(type));
       REQUIRE(obj != nullptr);
       CHECK_FALSE(obj->GetDescription().empty());
-      CHECK(obj->GetCategory() == YSE::PATCHER::pCategory::GENERIC);
+      CHECK(obj->GetCategory() == YSE::PATCHER::pCategory::ARRAY);
       const auto& docs = obj->GetParamDocs();
       const bool isSplit = std::string(type) == std::string(YSE::OBJ::G_ARRAY_SPLIT);
       REQUIRE(docs.size() == (isSplit ? 2u : 3u));

@@ -76,7 +76,7 @@ CONSTRUCT() {
       "the differing key paths follow out the second outlet, so a patch that keeps a dictionary "
       "of live parameters can compare the preset it just loaded against what is running and "
       "repair exactly the keys that drifted.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::DICT);
   INLET_DOC(0, "compare", kLeftInletDoc, "");
   INLET_DOC(1, "right reference", kRightInletDoc, "");
   OUTLET_DOC(0, "equal", kOutletDoc, "0 or 1");

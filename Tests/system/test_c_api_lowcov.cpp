@@ -256,6 +256,37 @@ TEST_SUITE("capilowcov") {
     CHECK(yse_system_midi_out_device_name(nullptr, 0, nullptr, 0) == 0u);
   }
 
+  TEST_CASE("c-api common: yse_version is a static MAJOR.MINOR.PATCH string (#913)") {
+    // No engine needed. The pointer is library-owned and valid for the life of
+    // the process, so a host may cache it; the text is the release number a
+    // binding checks against the headers it was generated from.
+    const char* v = yse_version();
+    REQUIRE(v != nullptr);
+    const std::string version(v);
+
+    int parts = 0;
+    size_t pos = 0;
+    while (pos <= version.size()) {
+      size_t digits = 0;
+      while (pos + digits < version.size() && version[pos + digits] >= '0' &&
+             version[pos + digits] <= '9')
+        ++digits;
+      CHECK(digits > 0u); // every dot-separated part is a non-empty number
+      ++parts;
+      pos += digits;
+      if (pos == version.size()) break;
+      CHECK(version[pos] == '.');
+      ++pos;
+    }
+    CHECK(parts == 3);
+
+    // Stable across calls, and not the thread's error slot: clearing that
+    // leaves it alone.
+    CHECK(yse_version() == v);
+    yse_clear_last_error();
+    CHECK(std::string(yse_version()) == version);
+  }
+
   TEST_CASE("c-api system: offline session reports its runtime state") {
     if (!capilowcov::ensureOffline()) return; // engine unavailable → skip
     YseSystem* sys = yse_system_get();
@@ -355,6 +386,79 @@ TEST_SUITE("capilowcov") {
     yse_channel_destroy(ch);
     capilowcov::pump(10);
     yse_dsp_buffer_destroy(buf);
+  }
+
+  // ─── Multichannel buffer source (issue #909) ────────────────────────────
+  //
+  // Before #909 the sound::create(MULTICHANNELBUFFER&) overload had no C
+  // mirror, so a host holding decoded stereo audio in memory had to play it as
+  // two mono sounds. The host-visible contract: a sound loaded from a
+  // YseDspMultiBuffer plays, its length is the shortest channel, and the host
+  // may drop its per-channel source buffers once the multi-buffer is built.
+
+  TEST_CASE("c-api sound: a multichannel buffer loads and plays (#909)") {
+    if (!capilowcov::ensureOffline()) return;
+
+    // Two channels of different lengths; a 64-sample period keeps a full cycle
+    // in every 128-sample meter block (see the #925 note on the occlusion case).
+    const unsigned int lenL = 4096;
+    const unsigned int lenR = 2048;
+    YseDspBuffer* left = yse_dsp_buffer_create(lenL, 0);
+    YseDspBuffer* right = yse_dsp_buffer_create(lenR, 0);
+    REQUIRE(left != nullptr);
+    REQUIRE(right != nullptr);
+    std::vector<float> tone(lenL);
+    for (unsigned int i = 0; i < lenL; ++i)
+      tone[i] = 0.5f * std::sin(2.0f * 3.14159265f * static_cast<float>(i) / 64.0f);
+    REQUIRE(yse_dsp_buffer_write(left, 0, tone.data(), lenL) == lenL);
+    REQUIRE(yse_dsp_buffer_write(right, 0, tone.data(), lenR) == lenR);
+
+    YseDspBuffer* channels[2] = {left, right};
+    YseDspMultiBuffer* mb = yse_dsp_multi_buffer_create(channels, 2);
+    REQUIRE(mb != nullptr);
+    // The multi-buffer holds its own copies; the per-channel sources can go.
+    yse_dsp_buffer_destroy(left);
+    yse_dsp_buffer_destroy(right);
+
+    YseChannel* ch = yse_channel_create("capi_multibuffer909", yse_channel_master());
+    REQUIRE(ch != nullptr);
+    capilowcov::pump(5);
+
+    // Argument checks come first and leave the sound unloaded.
+    YseSound* s = yse_sound_create();
+    REQUIRE(s != nullptr);
+    CHECK(yse_sound_load_multi_buffer(nullptr, mb, ch, 1, 0.8f) == YSE_ERR_INVALID_HANDLE);
+    yse_clear_last_error();
+    CHECK(yse_sound_load_multi_buffer(s, nullptr, ch, 1, 0.8f) == YSE_ERR_INVALID_ARGUMENT);
+    CHECK_FALSE(std::string(yse_last_error()).empty());
+    yse_clear_last_error();
+    CHECK(yse_sound_is_valid(s) == 0);
+
+    REQUIRE(yse_sound_load_multi_buffer(s, mb, ch, /*loop=*/1, /*volume=*/0.8f) == YSE_OK);
+    CHECK(yse_sound_is_valid(s) == 1);
+    pumpUntilReady(s);
+    REQUIRE(yse_sound_is_ready(s) == 1);
+    // The seed values of the load are reported back (#583 contract).
+    CHECK(yse_sound_get_looping(s) == 1);
+    CHECK(yse_sound_get_volume(s) == doctest::Approx(0.8f));
+    // A multichannel source is as long as its shortest channel.
+    CHECK(yse_sound_length(s) == lenR);
+
+    CHECK(yse_channel_get_peak_linear_post(ch) == doctest::Approx(0.f)); // silent until played
+    yse_sound_play(s);
+    const float t0 = yse_sound_get_time(s);
+    capilowcov::pump(10);
+    CHECK(yse_sound_is_playing(s) == 1);
+    CHECK(yse_sound_get_time(s) != t0);
+    CHECK(yse_channel_get_peak_linear_post(ch) > 0.01f);
+
+    yse_sound_stop(s);
+    capilowcov::pump(5);
+    yse_sound_destroy(s);
+    capilowcov::pump(10);
+    yse_channel_destroy(ch);
+    capilowcov::pump(10);
+    yse_dsp_multi_buffer_destroy(mb);
   }
 
   // ─── Occlusion callback bridge (issue #906) ─────────────────────────────

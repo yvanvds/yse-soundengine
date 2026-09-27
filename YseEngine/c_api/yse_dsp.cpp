@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <cstring>
 #include <exception>
+#include <vector>
 
 namespace {
   // ─── Handle ownership (issue #662) ─────────────────────────────────────────
@@ -79,6 +80,9 @@ namespace {
 namespace yse_c {
   YSE::DSP::buffer* buffer_from_handle(YseDspBuffer* h) {
     return h ? to_cpp(h) : nullptr;
+  }
+  std::vector<YSE::DSP::buffer>* multi_buffer_from_handle(YseDspMultiBuffer* h) {
+    return reinterpret_cast<std::vector<YSE::DSP::buffer>*>(h);
   }
 } // namespace yse_c
 
@@ -201,6 +205,64 @@ YSE_C_API void yse_dsp_buffer_mul_scalar(YseDspBuffer* buf, float value) {
   if (buf) (*to_cpp(buf)) *= value;
 }
 
+YSE_C_API void yse_dsp_buffer_add_buffer(YseDspBuffer* buf, YseDspBuffer* other) {
+  if (buf && other) (*to_cpp(buf)) += *to_cpp(other);
+}
+YSE_C_API void yse_dsp_buffer_sub_buffer(YseDspBuffer* buf, YseDspBuffer* other) {
+  if (buf && other) (*to_cpp(buf)) -= *to_cpp(other);
+}
+YSE_C_API void yse_dsp_buffer_mul_buffer(YseDspBuffer* buf, YseDspBuffer* other) {
+  if (buf && other) (*to_cpp(buf)) *= *to_cpp(other);
+}
+YSE_C_API void yse_dsp_buffer_div_buffer(YseDspBuffer* buf, YseDspBuffer* other) {
+  if (buf && other) (*to_cpp(buf)) /= *to_cpp(other);
+}
+
+YSE_C_API YseStatus yse_dsp_buffer_copy_from(YseDspBuffer* dst, YseDspBuffer* src,
+                                             unsigned int src_pos, unsigned int dst_pos,
+                                             unsigned int count) {
+  if (!dst || !src) {
+    yse_c::set_last_error("yse_dsp_buffer_copy_from: buffer handle is NULL");
+    return YSE_ERR_INVALID_HANDLE;
+  }
+  auto* d = to_cpp(dst);
+  const auto* s = to_cpp(src);
+  // Bound by the buffers' lengths, not their storage (which includes the
+  // overflow tail), and in a form that cannot wrap: buffer::copyFrom checks
+  // `pos + length` in UInt and silently does nothing when it runs past the end.
+  const unsigned int srcLen = s->getLength();
+  const unsigned int dstLen = d->getLength();
+  if (src_pos > srcLen || count > srcLen - src_pos || dst_pos > dstLen ||
+      count > dstLen - dst_pos) {
+    yse_c::set_last_error("yse_dsp_buffer_copy_from: range runs past the end of a buffer");
+    return YSE_ERR_INVALID_ARGUMENT;
+  }
+  d->copyFrom(*s, src_pos, dst_pos, count);
+  // copyFrom does not refresh the wrap-around tail; a copy into the head of a
+  // wavetable would otherwise leave it stale.
+  d->copyOverflow();
+  return YSE_OK;
+}
+
+YSE_C_API YseStatus yse_dsp_buffer_swap(YseDspBuffer* a, YseDspBuffer* b) {
+  if (!a || !b) {
+    yse_c::set_last_error("yse_dsp_buffer_swap: buffer handle is NULL");
+    return YSE_ERR_INVALID_HANDLE;
+  }
+  if (a == b) return YSE_OK;
+  auto* ca = to_cpp(a);
+  auto* cb = to_cpp(b);
+  const unsigned int len = ca->getLength();
+  if (len != cb->getLength()) {
+    yse_c::set_last_error("yse_dsp_buffer_swap: buffers differ in length");
+    return YSE_ERR_INVALID_ARGUMENT;
+  }
+  // buffer::swap stays inside both allocations when the overflow tails differ
+  // and rebuilds each tail from its new head (#927).
+  ca->swap(*cb);
+  return YSE_OK;
+}
+
 YSE_C_API YseStatus yse_dsp_buffer_draw_line(YseDspBuffer* buf, unsigned int start,
                                              unsigned int stop, float start_value,
                                              float stop_value) {
@@ -297,6 +359,45 @@ YSE_C_API YseStatus yse_dsp_wavetable_create_triangle(YseDspBuffer* buf, int har
   }
   w->createTriangle(harmonics, length);
   return YSE_OK;
+}
+
+// ─── multichannel source buffer (issue #909) ───────────────────────────────
+
+YSE_C_API YseDspMultiBuffer* yse_dsp_multi_buffer_create(YseDspBuffer* const* channels,
+                                                         unsigned int count) {
+  if (!channels || count == 0) {
+    yse_c::set_last_error("yse_dsp_multi_buffer_create: no channels given");
+    return nullptr;
+  }
+  for (unsigned int i = 0; i < count; ++i) {
+    if (!channels[i]) {
+      yse_c::set_last_error("yse_dsp_multi_buffer_create: a channel buffer is NULL");
+      return nullptr;
+    }
+  }
+  return yse_c::guard("yse_dsp_multi_buffer_create", static_cast<YseDspMultiBuffer*>(nullptr), [&] {
+    auto* mb = new MULTICHANNELBUFFER();
+    try {
+      mb->reserve(count);
+      // Copy-constructs a plain DSP::buffer from each channel's base
+      // subobject: the samples and sample-rate adjustment, whichever subclass
+      // produced the handle.
+      for (unsigned int i = 0; i < count; ++i)
+        mb->push_back(*to_cpp(channels[i]));
+    } catch (...) {
+      delete mb;
+      throw;
+    }
+    return reinterpret_cast<YseDspMultiBuffer*>(mb);
+  });
+}
+
+YSE_C_API void yse_dsp_multi_buffer_destroy(YseDspMultiBuffer* mb) {
+  delete yse_c::multi_buffer_from_handle(mb);
+}
+
+YSE_C_API unsigned int yse_dsp_multi_buffer_get_channel_count(YseDspMultiBuffer* mb) {
+  return mb ? static_cast<unsigned int>(yse_c::multi_buffer_from_handle(mb)->size()) : 0u;
 }
 
 } // extern "C"

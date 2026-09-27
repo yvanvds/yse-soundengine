@@ -70,7 +70,18 @@ namespace {
       &yse_dsp_eq_create,
       &yse_dsp_compressor_create,
       &yse_dsp_morphing_reverb_create,
+      &yse_dsp_underwater_create,
   };
+
+  std::vector<float> readAll(YseDspBuffer* buf) {
+    std::vector<float> out(yse_dsp_buffer_length(buf));
+    yse_dsp_buffer_read(buf, 0, out.data(), static_cast<unsigned int>(out.size()));
+    return out;
+  }
+
+  void writeAll(YseDspBuffer* buf, const std::vector<float>& in) {
+    yse_dsp_buffer_write(buf, 0, in.data(), static_cast<unsigned int>(in.size()));
+  }
 
 } // namespace
 
@@ -499,6 +510,160 @@ TEST_SUITE("capilowcov") {
     yse_dsp_buffer_destroy(table);
   }
 
+  // ─── buffer ⊕ buffer, copy_from, swap (issue #909) ────────────────────────
+
+  TEST_CASE("c-api dsp buffer: sample-wise buffer math over the shorter length (#909)") {
+    YseDspBuffer* a = yse_dsp_buffer_create(4, 0);
+    YseDspBuffer* b = yse_dsp_buffer_create(3, 0);
+    REQUIRE(a != nullptr);
+    REQUIRE(b != nullptr);
+
+    writeAll(a, {1.f, 2.f, 3.f, 4.f});
+    writeAll(b, {10.f, 20.f, 0.f});
+
+    // Sample 3 lies past b's length and is left alone by every op.
+    yse_dsp_buffer_add_buffer(a, b);
+    CHECK(readAll(a) == std::vector<float>{11.f, 22.f, 3.f, 4.f});
+    yse_dsp_buffer_sub_buffer(a, b);
+    CHECK(readAll(a) == std::vector<float>{1.f, 2.f, 3.f, 4.f});
+    yse_dsp_buffer_mul_buffer(a, b);
+    CHECK(readAll(a) == std::vector<float>{10.f, 40.f, 0.f, 4.f});
+    // Division by a zero sample yields 0, not inf.
+    writeAll(a, {10.f, 40.f, 5.f, 4.f});
+    yse_dsp_buffer_div_buffer(a, b);
+    CHECK(readAll(a) == std::vector<float>{1.f, 2.f, 0.f, 4.f});
+
+    // A buffer combined with itself.
+    yse_dsp_buffer_add_buffer(a, a);
+    CHECK(readAll(a) == std::vector<float>{2.f, 4.f, 0.f, 8.f});
+
+    // NULL on either side is a no-op.
+    yse_dsp_buffer_add_buffer(a, nullptr);
+    yse_dsp_buffer_sub_buffer(nullptr, b);
+    yse_dsp_buffer_mul_buffer(a, nullptr);
+    yse_dsp_buffer_div_buffer(nullptr, nullptr);
+    CHECK(readAll(a) == std::vector<float>{2.f, 4.f, 0.f, 8.f});
+
+    yse_dsp_buffer_destroy(a);
+    yse_dsp_buffer_destroy(b);
+  }
+
+  TEST_CASE(
+      "c-api dsp buffer: copy_from copies a region and refuses one that does not fit (#909)") {
+    YseDspBuffer* src = yse_dsp_buffer_create(6, 0);
+    YseDspBuffer* dst = yse_dsp_buffer_create(5, 0);
+    REQUIRE(src != nullptr);
+    REQUIRE(dst != nullptr);
+    writeAll(src, {1.f, 2.f, 3.f, 4.f, 5.f, 6.f});
+
+    CHECK(yse_dsp_buffer_copy_from(dst, src, 2, 1, 3) == YSE_OK);
+    CHECK(readAll(dst) == std::vector<float>{0.f, 3.f, 4.f, 5.f, 0.f});
+
+    // Ranges ending exactly at the end are fine; one sample more is refused
+    // with nothing copied.
+    CHECK(yse_dsp_buffer_copy_from(dst, src, 5, 4, 1) == YSE_OK);
+    CHECK(readAll(dst) == std::vector<float>{0.f, 3.f, 4.f, 5.f, 6.f});
+    yse_clear_last_error();
+    CHECK(yse_dsp_buffer_copy_from(dst, src, 4, 0, 3) == YSE_ERR_INVALID_ARGUMENT); // src overrun
+    CHECK_FALSE(std::string(yse_last_error()).empty());
+    CHECK(yse_dsp_buffer_copy_from(dst, src, 0, 3, 3) == YSE_ERR_INVALID_ARGUMENT); // dst overrun
+    // Positions large enough to wrap `pos + count` in 32 bits are refused too.
+    CHECK(yse_dsp_buffer_copy_from(dst, src, 0xFFFFFFFFu, 0, 2) == YSE_ERR_INVALID_ARGUMENT);
+    CHECK(yse_dsp_buffer_copy_from(dst, src, 1, 0xFFFFFFFFu, 2) == YSE_ERR_INVALID_ARGUMENT);
+    CHECK(readAll(dst) == std::vector<float>{0.f, 3.f, 4.f, 5.f, 6.f});
+
+    CHECK(yse_dsp_buffer_copy_from(nullptr, src, 0, 0, 1) == YSE_ERR_INVALID_HANDLE);
+    CHECK(yse_dsp_buffer_copy_from(dst, nullptr, 0, 0, 1) == YSE_ERR_INVALID_HANDLE);
+    yse_clear_last_error();
+
+    yse_dsp_buffer_destroy(src);
+    yse_dsp_buffer_destroy(dst);
+  }
+
+  TEST_CASE("c-api dsp buffer: swap exchanges samples of equal-length buffers (#909)") {
+    YseDspBuffer* a = yse_dsp_buffer_create(4, 0);
+    YseDspBuffer* b = yse_dsp_drawable_buffer_create(4, 0);
+    YseDspBuffer* shorter = yse_dsp_buffer_create(3, 0);
+    REQUIRE(a != nullptr);
+    REQUIRE(b != nullptr);
+    REQUIRE(shorter != nullptr);
+    writeAll(a, {1.f, 2.f, 3.f, 4.f});
+    writeAll(b, {5.f, 6.f, 7.f, 8.f});
+
+    CHECK(yse_dsp_buffer_swap(a, b) == YSE_OK);
+    CHECK(readAll(a) == std::vector<float>{5.f, 6.f, 7.f, 8.f});
+    CHECK(readAll(b) == std::vector<float>{1.f, 2.f, 3.f, 4.f});
+
+    // With itself: a successful no-op.
+    CHECK(yse_dsp_buffer_swap(a, a) == YSE_OK);
+    CHECK(readAll(a) == std::vector<float>{5.f, 6.f, 7.f, 8.f});
+
+    // Lengths differ: refused, nothing moved.
+    yse_clear_last_error();
+    CHECK(yse_dsp_buffer_swap(a, shorter) == YSE_ERR_INVALID_ARGUMENT);
+    CHECK_FALSE(std::string(yse_last_error()).empty());
+    CHECK(readAll(a) == std::vector<float>{5.f, 6.f, 7.f, 8.f});
+
+    CHECK(yse_dsp_buffer_swap(nullptr, b) == YSE_ERR_INVALID_HANDLE);
+    CHECK(yse_dsp_buffer_swap(a, nullptr) == YSE_ERR_INVALID_HANDLE);
+    yse_clear_last_error();
+
+    // A wavetable carries a one-sample wrap-around tail a plain buffer of the
+    // same length does not, so the two allocations differ in size. Swapping
+    // must move only the samples and stay inside both allocations (buffer::swap
+    // walks the whole storage of `this`, tail included, #927 — ASan builds would
+    // flag that over-read of the plain buffer here).
+    YseDspBuffer* table = yse_dsp_wavetable_create(4);
+    REQUIRE(table != nullptr);
+    writeAll(table, {0.5f, 0.25f, 0.125f, 0.0625f});
+    CHECK(yse_dsp_buffer_swap(table, a) == YSE_OK);
+    CHECK(readAll(table) == std::vector<float>{5.f, 6.f, 7.f, 8.f});
+    CHECK(readAll(a) == std::vector<float>{0.5f, 0.25f, 0.125f, 0.0625f});
+    CHECK(yse_dsp_buffer_swap(a, table) == YSE_OK); // and the other way round
+    CHECK(readAll(a) == std::vector<float>{5.f, 6.f, 7.f, 8.f});
+
+    yse_dsp_buffer_destroy(table);
+    yse_dsp_buffer_destroy(a);
+    yse_dsp_buffer_destroy(b);
+    yse_dsp_buffer_destroy(shorter);
+  }
+
+  TEST_CASE("c-api dsp multi buffer: create copies its channels, refuses bad input (#909)") {
+    YseDspBuffer* left = yse_dsp_buffer_create(8, 0);
+    YseDspBuffer* right = yse_dsp_buffer_create(8, 0);
+    REQUIRE(left != nullptr);
+    REQUIRE(right != nullptr);
+
+    YseDspBuffer* channels[2] = {left, right};
+    YseDspMultiBuffer* mb = yse_dsp_multi_buffer_create(channels, 2);
+    REQUIRE(mb != nullptr);
+    CHECK(yse_dsp_multi_buffer_get_channel_count(mb) == 2u);
+    // The sources are copied, not retained: they can go right away.
+    yse_dsp_buffer_destroy(left);
+    yse_dsp_buffer_destroy(right);
+    CHECK(yse_dsp_multi_buffer_get_channel_count(mb) == 2u);
+    yse_dsp_multi_buffer_destroy(mb);
+
+    // Refusals: no array, no channels, a NULL entry.
+    yse_clear_last_error();
+    CHECK(yse_dsp_multi_buffer_create(nullptr, 2) == nullptr);
+    CHECK_FALSE(std::string(yse_last_error()).empty());
+    YseDspBuffer* one = yse_dsp_buffer_create(4, 0);
+    REQUIRE(one != nullptr);
+    YseDspBuffer* withHole[2] = {one, nullptr};
+    yse_clear_last_error();
+    CHECK(yse_dsp_multi_buffer_create(withHole, 0) == nullptr);
+    CHECK_FALSE(std::string(yse_last_error()).empty());
+    yse_clear_last_error();
+    CHECK(yse_dsp_multi_buffer_create(withHole, 2) == nullptr);
+    CHECK(std::string(yse_last_error()).find("NULL") != std::string::npos);
+    yse_clear_last_error();
+    yse_dsp_buffer_destroy(one);
+
+    CHECK(yse_dsp_multi_buffer_get_channel_count(nullptr) == 0u);
+    yse_dsp_multi_buffer_destroy(nullptr); // no-op
+  }
+
   // ═══ yse_dsp_modules.cpp — effect modules ═════════════════════════════════
 
   TEST_CASE("c-api dsp module: every no-arg constructor yields a destroyable handle") {
@@ -573,6 +738,113 @@ TEST_SUITE("capilowcov") {
 
     yse_dsp_object_destroy(head);
     yse_dsp_object_destroy(next);
+  }
+
+  TEST_CASE("c-api dsp module: get_next walks a chain the host built (#909)") {
+    YseDspObject* a = yse_dsp_lowpass_create();
+    YseDspObject* b = yse_dsp_highpass_create();
+    YseDspObject* c = yse_dsp_underwater_create();
+    REQUIRE(a != nullptr);
+    REQUIRE(b != nullptr);
+    REQUIRE(c != nullptr);
+
+    CHECK(yse_dsp_object_get_next(a) == nullptr); // unlinked: end of chain
+    CHECK(yse_dsp_object_get_next(nullptr) == nullptr);
+
+    // link() splices after the head: a->c, then a->b->c.
+    yse_dsp_object_link(a, c);
+    yse_dsp_object_link(a, b);
+    std::vector<YseDspObject*> walked;
+    for (YseDspObject* o = a; o != nullptr; o = yse_dsp_object_get_next(o))
+      walked.push_back(o);
+    CHECK(walked == std::vector<YseDspObject*>{a, b, c}); // the very handles linked in
+
+    // Detaching the head's forward edge leaves a standalone head; the rest of
+    // the chain keeps its own links.
+    yse_dsp_object_link(a, nullptr);
+    CHECK(yse_dsp_object_get_next(a) == nullptr);
+    CHECK(yse_dsp_object_get_next(b) == c);
+
+    yse_dsp_object_destroy(a);
+    yse_dsp_object_destroy(b);
+    yse_dsp_object_destroy(c);
+  }
+
+  TEST_CASE("c-api dsp module: underwater depth round-trips and clamps (#909)") {
+    YseDspObject* u = yse_dsp_underwater_create();
+    REQUIRE(u != nullptr);
+    CHECK(yse_dsp_underwater_get_depth(u) == doctest::Approx(0.0f)); // transparent default
+    yse_dsp_underwater_set_depth(u, 3.5f);
+    CHECK(yse_dsp_underwater_get_depth(u) == doctest::Approx(3.5f));
+    yse_dsp_underwater_set_depth(u, -2.0f); // above water clamps to 0
+    CHECK(yse_dsp_underwater_get_depth(u) == doctest::Approx(0.0f));
+
+    yse_dsp_underwater_set_depth(nullptr, 1.0f);
+    CHECK(yse_dsp_underwater_get_depth(nullptr) == doctest::Approx(0.0f));
+    yse_dsp_object_destroy(u);
+  }
+
+  TEST_CASE("c-api reverb presets: table values and morph match the engine (#909)") {
+    // The table the C API reads is the one every preset consumer applies: the
+    // morphing reverb's named endpoint decodes to exactly these values.
+    YseReverbPresetValues hall{};
+    YseReverbPresetValues cave{};
+    yse_reverb_preset_get_values(YSE_REVERB_HALL, &hall);
+    yse_reverb_preset_get_values(YSE_REVERB_CAVE, &cave);
+    YseDspObject* r = yse_dsp_morphing_reverb_create();
+    REQUIRE(r != nullptr);
+    yse_dsp_morphing_reverb_set_preset_a(r, YSE_REVERB_HALL);
+    YseReverbPresetValues fromModule{};
+    yse_dsp_morphing_reverb_get_preset_a(r, &fromModule);
+    CHECK(fromModule.roomsize == doctest::Approx(hall.roomsize));
+    CHECK(fromModule.damp == doctest::Approx(hall.damp));
+    CHECK(fromModule.dry == doctest::Approx(hall.dry));
+    CHECK(fromModule.wet == doctest::Approx(hall.wet));
+    CHECK(fromModule.mod_frequency == doctest::Approx(hall.mod_frequency));
+    CHECK(fromModule.mod_width == doctest::Approx(hall.mod_width));
+    for (int i = 0; i < 4; ++i) {
+      CHECK(fromModule.early_time[i] == doctest::Approx(hall.early_time[i]));
+      CHECK(fromModule.early_gain[i] == doctest::Approx(hall.early_gain[i]));
+    }
+    yse_dsp_object_destroy(r);
+    CHECK((hall.roomsize != cave.roomsize || hall.damp != cave.damp || hall.wet != cave.wet));
+
+    // A value outside the enum falls back to the OFF preset.
+    YseReverbPresetValues off{};
+    YseReverbPresetValues bogus{};
+    yse_reverb_preset_get_values(YSE_REVERB_OFF, &off);
+    bogus.roomsize = 9.f;
+    yse_reverb_preset_get_values(static_cast<YseReverbPreset>(999), &bogus);
+    CHECK(bogus.roomsize == doctest::Approx(off.roomsize));
+    CHECK(bogus.wet == doctest::Approx(off.wet));
+
+    // Morph: endpoints at t = 0 / 1, the midpoint in between, t clamped.
+    YseReverbPresetValues m{};
+    yse_reverb_preset_morph(&hall, &cave, 0.0f, &m);
+    CHECK(m.roomsize == doctest::Approx(hall.roomsize));
+    yse_reverb_preset_morph(&hall, &cave, 1.0f, &m);
+    CHECK(m.roomsize == doctest::Approx(cave.roomsize));
+    yse_reverb_preset_morph(&hall, &cave, 0.5f, &m);
+    CHECK(m.roomsize == doctest::Approx((hall.roomsize + cave.roomsize) * 0.5f));
+    CHECK(m.early_time[2] == doctest::Approx((hall.early_time[2] + cave.early_time[2]) * 0.5f));
+    CHECK(m.early_gain[3] == doctest::Approx((hall.early_gain[3] + cave.early_gain[3]) * 0.5f));
+    yse_reverb_preset_morph(&hall, &cave, 7.0f, &m);
+    CHECK(m.damp == doctest::Approx(cave.damp));
+
+    // out may alias an input.
+    YseReverbPresetValues inPlace = hall;
+    yse_reverb_preset_morph(&inPlace, &cave, 1.0f, &inPlace);
+    CHECK(inPlace.wet == doctest::Approx(cave.wet));
+
+    // NULL contracts: NULL out is a no-op, a NULL input zero-fills out.
+    yse_reverb_preset_get_values(YSE_REVERB_HALL, nullptr);
+    yse_reverb_preset_morph(&hall, &cave, 0.5f, nullptr);
+    m.roomsize = 9.f;
+    yse_reverb_preset_morph(nullptr, &cave, 0.5f, &m);
+    CHECK(m.roomsize == doctest::Approx(0.0f));
+    m.roomsize = 9.f;
+    yse_reverb_preset_morph(&hall, nullptr, 0.5f, &m);
+    CHECK(m.roomsize == doctest::Approx(0.0f));
   }
 
   TEST_CASE("c-api dsp module: the inherited surface is NULL-safe") {

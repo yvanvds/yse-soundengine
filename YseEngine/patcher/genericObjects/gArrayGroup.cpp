@@ -84,7 +84,7 @@ gArrayGroup::gArrayGroup() : gArrayEndsBase() {
       "but never the buckets in flight. A grouping any bucket of which cannot leave whole is "
       "refused whole before anything is sent, and a trigger arriving mid-grouping is refused "
       "and counted, as .uzi refuses a re-entrant start.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::ARRAY);
   INLET_DOC(0, "trigger", kTriggerInletDoc, "");
   INLET_DOC(1, "array reference", kReferenceInletDoc, "");
   OUTLET_DOC(0, "group", kGroupOutletDoc, "");

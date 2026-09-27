@@ -131,7 +131,7 @@ CONSTRUCT() {
       "line to read, where the first 240 characters are almost all of the information and silence "
       "is none of it. Only the creation arguments persist across a save; the lines already sent "
       "belong to the log rather than to the patch.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::IO);
 
   INLET_DOC(0, "in", kInletDoc, "any");
   PARAM_DOC("name", "print", kNameDoc, "any symbol, up to 32 characters");

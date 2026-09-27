@@ -73,7 +73,7 @@ gArraySort::gArraySort() : gArrayPermuteBase() {
       "applied order as zero-based indices out the order outlet, then emits the array's "
       "reference: feed the order to an .array.indexmap's map inlet and the reference to its "
       "trigger, and a parallel array lands in the same new order, .zl sort's idiom.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::ARRAY);
   INLET_DOC(0, "trigger",
             "A bang sorts the bound array in place by the stored direction — the direction the "
             "last int on the direction inlet stored, seeded by the second creation argument (0, "

@@ -97,7 +97,7 @@ CONSTRUCT() {
       "past that. Calculate() does nothing, and no message path allocates, locks or blocks: a join "
       "is one walk of the items into a buffer reserved before the object was published for every "
       "item at full length.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::STRING);
 
   PARAM_DOC("items", "",
             "An optional leading 'triggers <n>' followed by the items, one per inlet, each the "

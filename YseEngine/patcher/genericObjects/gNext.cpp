@@ -69,7 +69,7 @@ CONSTRUCT() {
       "ordinary tested message, each word learned would be a message that stopped being tested. "
       "Calculate() does nothing, since an emitting one would fire the object once per DSP block "
       "from a stimulus no patch sent.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::CONTROL);
   INLET_DOC(0, "in",
             "Bang, int, float or list — whatever arrives is discarded and only its timing in the "
             "message graph is read. A bang leaves outlet 0 if this message did not arrive as part "
