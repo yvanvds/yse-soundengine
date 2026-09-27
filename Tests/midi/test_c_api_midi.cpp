@@ -35,6 +35,15 @@
 #include "yse_c/yse_common.h"
 #include "yse_c/yse_midi.h"
 
+#if YSE_ENABLE_MIDI_DEVICE
+#include <cstddef>
+#include <cstring>
+#include <vector>
+
+#include "c_api/yse_c_internal.hpp"
+#include "support/midi_dispatch_tester.hpp"
+#endif
+
 #ifndef YSE_TEST_FIXTURES_DIR
 #define YSE_TEST_FIXTURES_DIR "../../Tests/support/fixtures"
 #endif
@@ -44,6 +53,25 @@ namespace {
   std::string fixture(const char* name) {
     return std::string(YSE_TEST_FIXTURES_DIR) + "/" + name;
   }
+
+#if YSE_ENABLE_MIDI_DEVICE
+  // Keeps every raw delivery it is handed instead of freeing it in the
+  // callback: the buffer is the receiver's, so it must outlive the call and be
+  // released later, from another thread, with yse_midi_in_free_message (#913).
+  struct KeptMessages {
+    struct Kept {
+      double ts;
+      unsigned char* bytes;
+      std::size_t len;
+      void* userData;
+    };
+    std::vector<Kept> kept;
+
+    static void YSE_C_CALLBACK keep(double ts, unsigned char* bytes, std::size_t len, void* ud) {
+      static_cast<KeptMessages*>(ud)->kept.push_back({ts, bytes, len, ud});
+    }
+  };
+#endif
 
 } // namespace
 
@@ -225,6 +253,51 @@ TEST_SUITE("capilowcov") {
 #endif
     yse_midi_in_destroy(m);
   }
+
+#if YSE_ENABLE_MIDI_DEVICE
+  TEST_CASE("c-api midi in: a raw delivery is the receiver's to free later (#913)") {
+    // A real message through the raw bridge, freed the documented way — after
+    // the callback has returned, which is the ownership transfer the header
+    // promises. The dispatch is synchronous on this thread (the tester stands
+    // in for RtMidi's input thread), so the vector needs no lock.
+    YseMidiIn* m = yse_midi_in_create();
+    REQUIRE(m != nullptr);
+    YSE::midiIn* port = yse_c::midi_in_from_handle(m);
+    REQUIRE(port != nullptr);
+
+    KeptMessages sink;
+    yse_midi_in_set_raw_callback(m, &KeptMessages::keep, &sink);
+
+    const unsigned char noteOn[] = {0x92, 0x3C, 0x64};
+    const unsigned char sysex[] = {0xF0, 0x7E, 0x7F, 0x06, 0x01, 0xF7};
+    MidiInDispatchTester::dispatch(*port, 1.5, noteOn, sizeof(noteOn));
+    MidiInDispatchTester::dispatch(*port, 2.25, sysex, sizeof(sysex));
+    yse_midi_in_set_raw_callback(m, nullptr, nullptr);
+    MidiInDispatchTester::dispatch(*port, 3.0, noteOn, sizeof(noteOn)); // detached
+
+    REQUIRE(sink.kept.size() == 2u);
+    const auto& a = sink.kept[0];
+    const auto& b = sink.kept[1];
+    CHECK(a.userData == &sink);
+    CHECK(a.ts == doctest::Approx(1.5));
+    REQUIRE(a.len == sizeof(noteOn));
+    REQUIRE(a.bytes != nullptr);
+    // A copy of its own, not a view of the dispatcher's buffer.
+    CHECK(a.bytes != noteOn);
+    CHECK(std::memcmp(a.bytes, noteOn, sizeof(noteOn)) == 0);
+    CHECK(b.ts == doctest::Approx(2.25));
+    REQUIRE(b.len == sizeof(sysex));
+    REQUIRE(b.bytes != nullptr);
+    CHECK(b.bytes != a.bytes);
+    CHECK(std::memcmp(b.bytes, sysex, sizeof(sysex)) == 0);
+
+    // Released after the dispatch, from the host side — under ASan a buffer the
+    // bridge still owned or had already freed fails here.
+    for (const auto& k : sink.kept)
+      yse_midi_in_free_message(k.bytes);
+    yse_midi_in_destroy(m);
+  }
+#endif
 
   // ─── midiNote ──────────────────────────────────────────────────────────────
 

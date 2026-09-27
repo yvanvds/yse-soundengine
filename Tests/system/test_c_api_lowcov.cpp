@@ -256,6 +256,37 @@ TEST_SUITE("capilowcov") {
     CHECK(yse_system_midi_out_device_name(nullptr, 0, nullptr, 0) == 0u);
   }
 
+  TEST_CASE("c-api common: yse_version is a static MAJOR.MINOR.PATCH string (#913)") {
+    // No engine needed. The pointer is library-owned and valid for the life of
+    // the process, so a host may cache it; the text is the release number a
+    // binding checks against the headers it was generated from.
+    const char* v = yse_version();
+    REQUIRE(v != nullptr);
+    const std::string version(v);
+
+    int parts = 0;
+    size_t pos = 0;
+    while (pos <= version.size()) {
+      size_t digits = 0;
+      while (pos + digits < version.size() && version[pos + digits] >= '0' &&
+             version[pos + digits] <= '9')
+        ++digits;
+      CHECK(digits > 0u); // every dot-separated part is a non-empty number
+      ++parts;
+      pos += digits;
+      if (pos == version.size()) break;
+      CHECK(version[pos] == '.');
+      ++pos;
+    }
+    CHECK(parts == 3);
+
+    // Stable across calls, and not the thread's error slot: clearing that
+    // leaves it alone.
+    CHECK(yse_version() == v);
+    yse_clear_last_error();
+    CHECK(std::string(yse_version()) == version);
+  }
+
   TEST_CASE("c-api system: offline session reports its runtime state") {
     if (!capilowcov::ensureOffline()) return; // engine unavailable → skip
     YseSystem* sys = yse_system_get();
