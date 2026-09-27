@@ -352,6 +352,35 @@ TEST_SUITE("capilowcov") {
     yse_patcher_destroy(p);
   }
 
+  TEST_CASE("c-api patcher: connect / disconnect refuse another patcher's handles (#934)") {
+    YsePatcher* p = yse_patcher_create();
+    YsePatcher* q = yse_patcher_create();
+    REQUIRE(p != nullptr);
+    REQUIRE(q != nullptr);
+    yse_patcher_init(p, 2);
+    yse_patcher_init(q, 2);
+
+    YsePHandle* sine = yse_patcher_create_object(p, kSine, nullptr);
+    YsePHandle* mul = yse_patcher_create_object(p, kMultiply, "2");
+    YsePHandle* foreign = yse_patcher_create_object(q, kMultiply, "2");
+    REQUIRE(sine != nullptr);
+    REQUIRE(mul != nullptr);
+    REQUIRE(foreign != nullptr);
+
+    yse_patcher_connect(p, sine, 0, foreign, 0);
+    CHECK(yse_phandle_get_connections(sine, 0) == 0u);
+    yse_patcher_connect(q, sine, 0, mul, 0);
+    CHECK(yse_phandle_get_connections(sine, 0) == 0u);
+
+    yse_patcher_connect(p, sine, 0, mul, 0);
+    REQUIRE(yse_phandle_get_connections(sine, 0) == 1u);
+    yse_patcher_disconnect(q, sine, 0, mul, 0);
+    CHECK(yse_phandle_get_connections(sine, 0) == 1u);
+
+    yse_patcher_destroy(q);
+    yse_patcher_destroy(p);
+  }
+
   TEST_CASE("c-api phandle: object-ID queries answer NONE, not 0, when there is no object") {
     // Issue #732. Object IDs are per-patcher and start at 0 since #730, so the
     // first object in every patch owns ID 0 — the value the blanket
@@ -528,6 +557,58 @@ TEST_SUITE("capilowcov") {
 
     yse_patcher_destroy(dst);
     yse_patcher_destroy(src);
+  }
+
+  TEST_CASE("c-api patcher: parse_json adds to the patch; clear first replaces it (#939)") {
+    YsePatcher* src = yse_patcher_create();
+    REQUIRE(src != nullptr);
+    REQUIRE(yse_patcher_init(src, 2) == YSE_OK);
+    REQUIRE(yse_patcher_create_object(src, kSine, nullptr) != nullptr);
+    REQUIRE(yse_patcher_create_object(src, kMultiply, "2") != nullptr);
+    const std::string json =
+        readString([src](char* b, size_t c) { return yse_patcher_dump_json(src, b, c); });
+    REQUIRE(!json.empty());
+
+    YsePatcher* dst = yse_patcher_create();
+    REQUIRE(dst != nullptr);
+    REQUIRE(yse_patcher_init(dst, 2) == YSE_OK);
+    YsePHandle* existing = yse_patcher_create_object(dst, kMultiply, "3");
+    REQUIRE(existing != nullptr);
+
+    // Additive: the object already there is kept, the file's two join it.
+    CHECK(yse_patcher_parse_json(dst, json.c_str()) == YSE_OK);
+    CHECK(yse_patcher_objects(dst) == 3u);
+    CHECK(yse_patcher_get_handle_from_id(dst, 0) == existing);
+
+    // Replace is clear + parse.
+    yse_patcher_clear(dst);
+    CHECK(yse_patcher_parse_json(dst, json.c_str()) == YSE_OK);
+    CHECK(yse_patcher_objects(dst) == 2u);
+
+    yse_patcher_destroy(dst);
+    yse_patcher_destroy(src);
+  }
+
+  TEST_CASE("c-api patcher: a parse_json that fails mid-load loads nothing (#938)") {
+    YsePatcher* p = yse_patcher_create();
+    REQUIRE(p != nullptr);
+    REQUIRE(yse_patcher_init(p, 2) == YSE_OK);
+    YsePHandle* existing = yse_patcher_create_object(p, kMultiply, "3");
+    REQUIRE(existing != nullptr);
+
+    // The first record creates an object; the second cannot be built. The
+    // status says nothing was loaded, and nothing was.
+    yse_clear_last_error();
+    CHECK(yse_patcher_parse_json(p, R"({"object 0":{"ID":0,"type":".mtof","parms":""},
+                                        "object 1":{"ID":1,"type":"~sine","parms":"abc"}})") ==
+          YSE_ERR_EXCEPTION);
+    CHECK_FALSE(std::string(yse_last_error()).empty());
+    CHECK(yse_patcher_objects(p) == 1u);
+    CHECK(yse_patcher_get_handle_from_id(p, 0) == existing);
+    CHECK(yse_patcher_get_handle_from_id(p, 1) == nullptr);
+    yse_clear_last_error();
+
+    yse_patcher_destroy(p);
   }
 
   TEST_CASE("c-api patcher: init reports its outcome as a YseStatus (#910)") {
@@ -954,6 +1035,33 @@ TEST_SUITE("capilowcov") {
     CHECK(yse_phandle_get_outputs(second) == 3);
     yse_patcher_connect(p, first, 1, second, 0);
     CHECK(yse_phandle_get_connections(first, 1) == 1u);
+
+    yse_patcher_destroy(p);
+  }
+
+  TEST_CASE("c-api patcher: creation arguments split on runs of whitespace (#936)") {
+    // Two spaces in a row, or a leading one, used to hand std::stof an empty
+    // token: create returned NULL with std::invalid_argument's text in
+    // yse_last_error(). A tab was no separator at all.
+    YsePatcher* p = yse_patcher_create();
+    REQUIRE(p != nullptr);
+    yse_patcher_init(p, 2);
+
+    for (const char* args : {"0  10", " 0 10", "0\t10"}) {
+      CAPTURE(args);
+      yse_clear_last_error();
+      YsePHandle* clip = yse_patcher_create_object(p, ".clip", args);
+      REQUIRE(clip != nullptr);
+      CHECK(std::strlen(yse_last_error()) == 0u);
+      CHECK(readString([clip](char* b, size_t c) { return yse_phandle_get_params(clip, b, c); }) ==
+            args);
+    }
+
+    yse_clear_last_error();
+    YsePHandle* gate = yse_patcher_create_object(p, ".gate", "  3  ");
+    REQUIRE(gate != nullptr);
+    CHECK(std::strlen(yse_last_error()) == 0u);
+    CHECK(yse_phandle_get_outputs(gate) == 3);
 
     yse_patcher_destroy(p);
   }

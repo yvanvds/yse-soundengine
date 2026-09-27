@@ -112,6 +112,8 @@ namespace YSE {
       // path and publish it with the usual GraphState swap. Control thread.
       void SetObjectParams(YSE::pHandle* handle, const std::string& args);
 
+      // Both refuse, with a log and without publishing, a null handle or one
+      // whose object another patcher owns (issue #934).
       void Connect(pHandle* from, int outlet, pHandle* to, int inlet);
       void Disconnect(pHandle* from, int outlet, pHandle* to, int inlet);
 
@@ -381,6 +383,18 @@ namespace YSE {
       // counterpart.
       void LoadbangObjects(const std::vector<pObject*>& loaded);
 
+      // Undo a ParseJSON that threw part-way through its build (issue #938):
+      // remove every object in `created` from the patcher again, unpublished,
+      // so the patcher is left exactly as it was before the load. Caller holds
+      // mtx and has not published any of them.
+      void DiscardLoadedUnlocked(const std::vector<pHandle*>& created);
+
+      // ParseJSON's build: create, nest and wire every record of `j` under
+      // mtx, then publish once. Appends each object it created to `loaded`
+      // for the loadbang pass. On a throw it has already rolled the objects
+      // back (DiscardLoadedUnlocked) and left `loaded` empty.
+      void BuildParsedGraph(nlohmann::json& j, std::vector<pObject*>& loaded);
+
       // Pass one of teardown (issue #758): tell every object in this patcher
       // that it is about to go away, while the patch is still whole. Called by
       // Clear() before it takes mtx and starts unwiring. See the definition for
@@ -395,6 +409,11 @@ namespace YSE {
       // publish (this is why no per-op re-entrancy flag is needed — issue #228).
       pHandle* CreateObjectUnlocked(const std::string& type, const std::string& args);
       void ConnectUnlocked(pHandle* from, int outlet, pHandle* to, int inlet);
+
+      // Connect / Disconnect guard (issue #934), caller holds mtx: false, with
+      // a log naming `what`, when a handle is null or its object belongs to
+      // another patcher.
+      bool AcceptsHandlesUnlocked(pHandle* from, pHandle* to, const char* what) const;
 
       // ---- Subpatcher boundary resolution (issues #545, #764), caller holds mtx ----
       //

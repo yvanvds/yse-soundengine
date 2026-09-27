@@ -148,6 +148,68 @@ TEST_SUITE("patcher") {
     CHECK(sine->GetConnections(0) == 1u);
   }
 
+  // Issue #934: Connect / Disconnect must refuse a handle the patcher does not
+  // own. A cross-patcher edge would put another patcher's object into this
+  // patcher's GraphState, rendered and reclaimed on schedules neither side
+  // coordinates.
+  TEST_CASE("patcher: Connect refuses a handle from another patcher (#934)") {
+    YSE::patcher p;
+    YSE::patcher q;
+    p.create(2);
+    q.create(2);
+    YSE::pHandle* a = p.CreateObject(YSE::OBJ::D_SINE);
+    YSE::pHandle* b = q.CreateObject(YSE::OBJ::D_ADD);
+    YSE::pHandle* c = p.CreateObject(YSE::OBJ::D_ADD);
+    REQUIRE(a != nullptr);
+    REQUIRE(b != nullptr);
+    REQUIRE(c != nullptr);
+
+    p.Connect(a, 0, b, 0); // target is q's
+    CHECK(a->GetConnections(0) == 0u);
+    q.Connect(a, 0, b, 0); // source is p's
+    CHECK(a->GetConnections(0) == 0u);
+    q.Connect(a, 0, c, 0); // both are p's, called on q
+    CHECK(a->GetConnections(0) == 0u);
+
+    // The guard does not get in the way of an ordinary edge.
+    p.Connect(a, 0, c, 0);
+    CHECK(a->GetConnections(0) == 1u);
+  }
+
+  TEST_CASE("patcher: Disconnect refuses handles from another patcher (#934)") {
+    YSE::patcher p;
+    YSE::patcher q;
+    p.create(2);
+    q.create(2);
+    YSE::pHandle* a = p.CreateObject(YSE::OBJ::D_SINE);
+    YSE::pHandle* c = p.CreateObject(YSE::OBJ::D_ADD);
+    REQUIRE(a != nullptr);
+    REQUIRE(c != nullptr);
+
+    p.Connect(a, 0, c, 0);
+    REQUIRE(a->GetConnections(0) == 1u);
+    q.Disconnect(a, 0, c, 0); // p's edge, cut through q: refused
+    CHECK(a->GetConnections(0) == 1u);
+    p.Disconnect(a, 0, c, 0);
+    CHECK(a->GetConnections(0) == 0u);
+  }
+
+  TEST_CASE("patcher: Connect / Disconnect with a null handle are safe no-ops (#934)") {
+    YSE::patcher p;
+    p.create(2);
+    YSE::pHandle* sine = p.CreateObject(YSE::OBJ::D_SINE);
+    YSE::pHandle* typo = p.CreateObject("~sien"); // unknown type -> nullptr
+    REQUIRE(sine != nullptr);
+    REQUIRE(typo == nullptr);
+
+    p.Connect(sine, 0, typo, 0);
+    p.Connect(typo, 0, sine, 0);
+    p.Disconnect(sine, 0, typo, 0);
+    p.Disconnect(typo, 0, sine, 0);
+    CHECK(sine->GetConnections(0) == 0u);
+    CHECK(p.Objects() == 1u);
+  }
+
   TEST_CASE("patcher: connection target reports correct object ID and inlet index") {
     YSE::patcher p;
     p.create(2);
@@ -285,6 +347,129 @@ TEST_SUITE("patcher") {
     target.create(2);
     target.ParseJSON(dump);
     CHECK(target.Objects() == 2u);
+  }
+
+  TEST_CASE("patcher: ParseJSON adds to the graph; Clear first replaces it (#939)") {
+    // The contract is additive: a load keeps what the patcher already holds and
+    // creates the file's objects next to it, on the next free storage IDs.
+    // Replacing is Clear() + ParseJSON. The header used to say "replace".
+    YSE::patcher source;
+    source.create(2);
+    YSE::pHandle* sine = source.CreateObject(YSE::OBJ::D_SINE, "440");
+    YSE::pHandle* mul = source.CreateObject(YSE::OBJ::G_MULTIPLY, "2");
+    REQUIRE(sine != nullptr);
+    REQUIRE(mul != nullptr);
+    const std::string dump = source.DumpJSON();
+
+    YSE::patcher target;
+    target.create(2);
+    YSE::pHandle* existing = target.CreateObject(YSE::OBJ::D_ADD);
+    REQUIRE(existing != nullptr);
+    REQUIRE(existing->GetID() == 0u);
+
+    target.ParseJSON(dump);
+    REQUIRE(target.Objects() == 3u);
+    // The object that was already there survives, untouched, on its own ID.
+    CHECK(target.GetHandleFromID(0) == existing);
+    CHECK(std::string(existing->Type()) == std::string("~+"));
+    // The loaded ones follow it; the file's IDs 0 and 1 are not kept.
+    YSE::pHandle* loadedSine = target.GetHandleFromID(1);
+    YSE::pHandle* loadedMul = target.GetHandleFromID(2);
+    REQUIRE(loadedSine != nullptr);
+    REQUIRE(loadedMul != nullptr);
+    CHECK(std::string(loadedSine->Type()) == std::string("~sine"));
+    CHECK(std::string(loadedMul->Type()) == std::string(".*"));
+
+    // Loading the same file again adds a second copy.
+    target.ParseJSON(dump);
+    CHECK(target.Objects() == 5u);
+
+    // Clear() then ParseJSON is the replace: exactly the file, numbered from 0.
+    target.Clear();
+    target.ParseJSON(dump);
+    CHECK(target.Objects() == 2u);
+    CHECK(target.DumpJSON() == dump);
+  }
+
+  TEST_CASE("patcher: a ParseJSON that throws mid-load leaves the patcher as it was (#938)") {
+    // Every throw below happens after at least one object of the file has been
+    // created. The load is all-or-nothing: the file's objects go again, the one
+    // already in the patcher stays on its own ID, and the dump is byte-for-byte
+    // what it was before the load.
+    const char* const bad[] = {
+        // A creation argument the object cannot parse (std::stof), on a later record.
+        R"({"object 0":{"ID":0,"type":".mtof","parms":""},
+            "object 1":{"ID":1,"type":"~sine","parms":"abc"}})",
+        // A later record without "parms".
+        R"({"object 0":{"ID":0,"type":".mtof","parms":""},
+            "object 1":{"ID":1,"type":".r","parms":"bus938"},
+            "object 2":{"ID":2,"type":".mtof"}})",
+        // A "gui" value that is not a string.
+        R"({"object 0":{"ID":0,"type":".mtof","parms":""},
+            "object 1":{"ID":1,"type":".mtof","parms":"","gui":{"x":12}}})",
+        // A non-integer "container", in the nesting pass.
+        R"({"object 0":{"ID":0,"type":"patcher","parms":""},
+            "object 1":{"ID":1,"type":".mtof","parms":"","container":"zero"}})",
+        // A cord without "Inlet", in the cord pass, after one cord was wired.
+        R"({"object 0":{"ID":0,"type":".mtof","parms":"","outputs":{"output 0":
+              {"Count":2,"0":{"Object":1,"Inlet":0},"1":{"Object":1}}}},
+            "object 1":{"ID":1,"type":".mtof","parms":""}})",
+    };
+
+    for (const char* file : bad) {
+      CAPTURE(file);
+      YSE::patcher p;
+      p.create(2);
+      YSE::pHandle* existing = p.CreateObject(YSE::OBJ::G_MULTIPLY, "2");
+      REQUIRE(existing != nullptr);
+      const std::string before = p.DumpJSON();
+
+      CHECK_THROWS(p.ParseJSON(file));
+
+      CHECK(p.Objects() == 1u);
+      CHECK(p.GetHandleFromID(0) == existing);
+      CHECK(p.DumpJSON() == before);
+
+      // Nothing was left behind for the next edit to publish, and the file's
+      // storage IDs were given back: the next object takes ID 1.
+      YSE::pHandle* next = p.CreateObject(YSE::OBJ::G_MULTIPLY);
+      REQUIRE(next != nullptr);
+      CHECK(next->GetID() == 1u);
+      CHECK(p.Objects() == 2u);
+    }
+  }
+
+  TEST_CASE("patcher: a ParseJSON that throws gives the saved name back (#938)") {
+    // The saved name is applied before any object is created; a load that
+    // fails afterwards must not leave the patcher under the file's name.
+    YSE::patcher p;
+    p.create(2);
+    const std::string autoName = p.name();
+    REQUIRE(autoName != "loaded938");
+    CHECK_THROWS(p.ParseJSON(R"({"name":"loaded938",
+        "object 0":{"ID":0,"type":".mtof","parms":""},
+        "object 1":{"ID":1,"type":"~sine","parms":"abc"}})"));
+    CHECK(p.name() == autoName);
+    CHECK(p.Objects() == 0u);
+
+    // A record without an ID fails before anything is created, and still
+    // restores the name.
+    CHECK_THROWS(p.ParseJSON(R"({"name":"loaded938",
+        "object 0":{"type":".mtof","parms":""}})"));
+    CHECK(p.name() == autoName);
+
+    // A name the host chose is not touched by the file, and not by the rollback.
+    p.name("hostname938");
+    CHECK_THROWS(p.ParseJSON(R"({"name":"loaded938",
+        "object 0":{"ID":0,"type":"~sine","parms":"abc"}})"));
+    CHECK(p.name() == "hostname938");
+
+    // The patcher is still usable: a good file loads normally afterwards.
+    YSE::patcher source;
+    source.create(2);
+    source.CreateObject(YSE::OBJ::G_MULTIPLY, "2");
+    p.ParseJSON(source.DumpJSON());
+    CHECK(p.Objects() == 1u);
   }
 
   // ─── Storage IDs (issue #730) ────────────────────────────────────────────────

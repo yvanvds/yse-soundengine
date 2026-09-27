@@ -161,6 +161,18 @@ namespace YSE {
 
       virtual void SetMessage(const std::string& message, float value) = 0;
 
+      // Whether SetMessage above does anything (issue #933). A message box's
+      // text reaches an inlet through inlet::SetMessage, which delivers it as
+      // the typed message it spells — bang, int, float or list — and keeps the
+      // word-command channel for the objects that implement one: text that
+      // starts with a word goes to SetMessage when this answers true, and so
+      // does a typed message the inlet has no handler for. Every other object
+      // gets the typed message or nothing, never a calculate on a message it
+      // ignored. True exactly for the objects declared with _DO_MESSAGES.
+      virtual bool HandlesMessages() const {
+        return false;
+      }
+
       void SetParams(const std::string& args);
       const std::string& GetParams();
 
@@ -170,8 +182,10 @@ namespace YSE {
       bool ParamsNeedRebuild() const {
         return parms.NeedsRebuild();
       }
-      int BuildParamPlan(const std::string& args, ParamOp* ops, int cap) {
-        return parms.BuildPlan(args, ops, cap);
+      // `staged` is a fresh object of the same type that has already run
+      // SetParams(args); see Parameters::BuildPlanFrom (issue #935).
+      int BuildParamPlan(const pObject& staged, ParamOp* ops, int cap) {
+        return parms.BuildPlanFrom(staged.parms, ops, cap);
       }
       // Take over the persistent identity of the object this one replaces:
       // the storage ID (DumpJSON references) and the GUI properties. Pin
@@ -615,7 +629,11 @@ namespace YSE {
     return new className();                                                                        \
   }
 
-#define _DO_MESSAGES void SetMessage(const std::string& message, float value) override;
+#define _DO_MESSAGES                                                                               \
+  void SetMessage(const std::string& message, float value) override;                               \
+  bool HandlesMessages() const override {                                                          \
+    return true;                                                                                   \
+  }
 #define _NO_MESSAGES                                                                               \
   void SetMessage(const std::string&, float) override {}
 #define MESSAGES() void className::SetMessage(const std::string& message, float value)

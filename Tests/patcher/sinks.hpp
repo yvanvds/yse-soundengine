@@ -129,7 +129,9 @@ namespace TestHelpers {
   };
 
   // Captures the inlet::SetMessage path (outlet::SendMessage -> obj->SetMessage).
-  // Used to test gMessage which sends via SendMessage rather than SendList.
+  // Used to test gMessage which sends via SendMessage rather than SendList. It
+  // declares a command channel (HandlesMessages) and no typed handlers, so every
+  // text a message box sends lands in SetMessage (issue #933).
   struct MessageSink : YSE::PATCHER::pObject {
     std::string received;
     bool gotMessage = false;
@@ -143,6 +145,9 @@ namespace TestHelpers {
     void SetMessage(const std::string& message, float) override {
       received = message;
       gotMessage = true;
+    }
+    bool HandlesMessages() const override {
+      return true;
     }
   };
 

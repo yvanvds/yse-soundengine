@@ -336,25 +336,22 @@ void patcherImplementation::Calculate(YSE::THREAD thread) {
     output[i] = 0;
   }
 
-  // sum outputs
-  int counter = 0;
+  // Sum every ~dac into the output, channel by channel, as Max and Pd do with
+  // several dac~ objects (issue #932). This used to assign (`=`) and then
+  // divide by the ~dac count, so only the last ~dac was heard, attenuated, and
+  // an unconnected channel on a later ~dac left an earlier one's audio in
+  // place. Accumulating into the cleared, pre-sized output buffers neither
+  // allocates nor depends on ~dac creation order. There is no normalisation:
+  // levels add, and keeping them in range is the patch's job.
   if (g != nullptr) {
     for (unsigned int d = 0; d < g->dacs.size(); d++) {
       pDac* dac = static_cast<pDac*>(g->dacs[d]);
       for (unsigned int i = 0; i < output.size(); i++) {
         YSE::DSP::buffer* ptr = dac->GetBuffer(i);
         if (ptr != nullptr) {
-          output[i] = *ptr;
+          output[i] += *ptr;
         }
       }
-      counter++;
-    }
-  }
-
-  // normalize output
-  if (counter > 1) {
-    for (unsigned int i = 0; i < output.size(); i++) {
-      output[i] /= (float)counter;
     }
   }
 
@@ -615,8 +612,37 @@ void patcherImplementation::ConnectUnlocked(YSE::pHandle* from, int outlet, YSE:
   }
 }
 
+bool patcherImplementation::AcceptsHandlesUnlocked(YSE::pHandle* from, YSE::pHandle* to,
+                                                   const char* what) const {
+  // A null handle is what CreateObject returns for an unknown type, and would
+  // be dereferenced below. A handle whose object another patcher owns would
+  // record an edge into an object whose lifetime and render schedule this
+  // patcher does not control: its GraphState would then dispatch into the
+  // other patcher's object, which that patcher may free on its own epoch
+  // (issue #934). Every object a patcher creates has that patcher as its
+  // parent (CreateObjectUnlocked, SetObjectParams), so the parent is the
+  // ownership test. A parentless object is no patcher's: nothing a host can
+  // reach through the public API makes one, and the unit-test rigs use it to
+  // hang a test-owned sink off an outlet.
+  const auto foreign = [this](const YSE::pHandle* h) {
+    const pObject* owner = h->object->Parent();
+    return owner != nullptr && owner != this;
+  };
+  if (from == nullptr || to == nullptr) {
+    INTERNAL::LogImpl().emit(E_ERROR, std::string("Patcher: ") + what + " refused: null handle");
+    return false;
+  }
+  if (foreign(from) || foreign(to)) {
+    INTERNAL::LogImpl().emit(E_ERROR, std::string("Patcher: ") + what +
+                                          " refused: the object belongs to another patcher");
+    return false;
+  }
+  return true;
+}
+
 void patcherImplementation::Connect(YSE::pHandle* from, int outlet, YSE::pHandle* to, int inlet) {
   std::scoped_lock lk(mtx);
+  if (!AcceptsHandlesUnlocked(from, to, "Connect")) return;
   ConnectUnlocked(from, outlet, to, inlet);
   RebuildAndPublish();
 }
@@ -624,6 +650,7 @@ void patcherImplementation::Connect(YSE::pHandle* from, int outlet, YSE::pHandle
 void patcherImplementation::Disconnect(YSE::pHandle* from, int outlet, YSE::pHandle* to,
                                        int inlet) {
   std::scoped_lock lk(mtx);
+  if (!AcceptsHandlesUnlocked(from, to, "Disconnect")) return;
   // Mirror ConnectUnlocked's guard: GetOutlet/GetInlet return null for an
   // out-of-range pin. Passing a null outlet into inlet::Disconnect segfaults
   // (a disconnected inlet has dspConnection == nullptr, so `dspConnection ==
@@ -811,16 +838,22 @@ void patcherImplementation::SetObjectParams(YSE::pHandle* handle, const std::str
   pObject* object = handle->object;
   if (object == nullptr) return;
 
-  if (!object->ParamsNeedRebuild()) {
-    // Scalar-only params: pre-parse into a POD plan on this thread (parse
-    // errors throw here, never on the audio thread) and hand it to the audio
-    // thread for an allocation-free apply at the top of the next block. The
-    // stored param string is updated eagerly, so GetParams/DumpJSON reflect
-    // the new args immediately.
+  std::unique_ptr<pObject> staged;
+  if (!object->ParamsNeedRebuild()) staged.reset(Register().Get(object->Type()));
+  if (staged != nullptr) {
+    // Scalar-only params: parse `args` into a fresh object of the same type,
+    // exactly as a rebuild or a reload would (parse errors throw here, never
+    // on the audio thread, and leave the live object alone), then plan every
+    // parameter from it — the ones `args` left out included, which take their
+    // defaults as they would on a rebuild (issue #935). The POD plan is
+    // applied allocation-free by the audio thread at the top of the next
+    // block. The stored param string is updated eagerly, so GetParams/DumpJSON
+    // reflect the new args immediately and reload to the same live state.
+    staged->SetParams(args);
     ParamMsg msg{};
     msg.target = object;
-    const int count = object->BuildParamPlan(args, msg.ops, (int)kParamOpsCap);
-    if (count == 0) return; // nothing to apply (empty args or no scalar writes)
+    const int count = object->BuildParamPlan(*staged, msg.ops, (int)kParamOpsCap);
+    if (count == 0) return; // no parameters: only the stored string changes
     if (count > 0) {
       msg.count = count;
       if (!paramQueue_.try_push(msg)) {
@@ -1042,6 +1075,48 @@ void patcherImplementation::LoadbangObjects(const std::vector<pObject*>& loaded)
   }
 }
 
+void patcherImplementation::DiscardLoadedUnlocked(const std::vector<YSE::pHandle*>& created) {
+  // A load is all-or-nothing (issue #938). The build pass threw, so every
+  // object it made goes again, and nothing else is touched: ParseJSON only ever
+  // wires a loaded object to another loaded object (the cord pass resolves
+  // targets through the file's own IDs) and only nests a loaded object inside
+  // another loaded one, so unwiring these objects from their peers cannot reach
+  // an object that was in the patcher before the load. Their storage IDs need
+  // no explicit return: ClaimStorageID derives the next free ID from the live
+  // object set, so leaving the set gives the numbers back.
+  //
+  // No Teardown pass: these objects were never published and never received a
+  // Loadbang, so nothing downstream of them has heard from them and there is
+  // nothing for them to release. No publish either: the active snapshot was
+  // built before the load and has never referenced any of them.
+  //
+  // The free still goes through the reclaimer rather than a plain delete. The
+  // objects were never in a GraphState, but some register themselves beyond the
+  // graph while being built — a `.r` on the named bus, a `.seq` with a file
+  // request in flight — and the reclaimer's deferred free is the path every
+  // other removal takes for exactly that reason. Their graph ids go back to the
+  // free-list with it.
+  std::vector<pObject*> doomed;
+  doomed.reserve(created.size());
+  for (YSE::pHandle* h : created) {
+    auto it = objects.find(h);
+    if (it == objects.end()) continue;
+    pObject* object = it->second;
+    objects.erase(it);
+    object->UnwireFromPeers();
+    doomed.push_back(object);
+    delete h; // handle: never referenced by a GraphState
+  }
+  if (doomed.empty()) return;
+  {
+    std::scoped_lock rlk(reclaimMtx_);
+    const std::uint64_t at = audioBlock_.load(std::memory_order_acquire);
+    for (pObject* object : doomed)
+      retiredObjects_.push_back({object, at, idGeneration_});
+  }
+  ScheduleReclaim();
+}
+
 void patcherImplementation::TeardownObjects() {
   // Pass one of teardown (issue #758). Three orderings make it correct, and
   // each of them was a way of getting it wrong:
@@ -1201,6 +1276,10 @@ void patcherImplementation::ParseJSON(const std::string& content) {
   // was already in the patcher. SetName takes mtx itself, so this must stay
   // outside the locked build below. An over-long name is refused there, logged,
   // and the auto-name kept, exactly as for a host call.
+  //
+  // A load that throws gives the name back along with the objects (issue #938),
+  // so remember the one the patcher had.
+  const std::string previousName = patcherName;
   const auto savedName = j.find("name");
   if (savedName != j.end()) {
     if (!savedName->is_string()) {
@@ -1210,6 +1289,35 @@ void patcherImplementation::ParseJSON(const std::string& content) {
     }
   }
 
+  // Everything this parse creates, in creation order, for the loadbang pass
+  // below. Declared out here because the lock is not: the pass runs after mtx
+  // is released (issue #547).
+  std::vector<pObject*> loaded;
+
+  // A load is all-or-nothing (issue #938). Several steps below throw on a
+  // malformed file — a record with no ID/type/parms, a non-string gui value, a
+  // creation argument the object cannot parse, a cord with no Object/Inlet —
+  // and the ones in the build pass used to leave every object created so far
+  // in the patcher: unwired, unpublished, and picked up by the next unrelated
+  // edit, while the caller was told the load had failed. The inner handler
+  // removes those objects while still holding mtx, so no other edit can
+  // publish them in between; the outer one restores the name, which has to
+  // wait until mtx is released because SetName takes it.
+  try {
+    BuildParsedGraph(j, loaded);
+  } catch (...) {
+    if (patcherName != previousName) SetName(previousName);
+    throw;
+  }
+
+  // The graph is built, wired and published: the patch is now the patch the
+  // file describes, which is the only moment at which "loading finished" is
+  // true (issue #547). Everything this parse created hears about it, once, on
+  // this thread and outside the lock.
+  LoadbangObjects(loaded);
+}
+
+void patcherImplementation::BuildParsedGraph(json& j, std::vector<pObject*>& loaded) {
   std::map<int, pHandle*> OldIDs;
 
   // Create in stored-ID order, not in the order the records come out of the
@@ -1235,11 +1343,10 @@ void patcherImplementation::ParseJSON(const std::string& content) {
                      return a.first < b.first;
                    });
 
-  // Everything this parse creates, in creation order, for the loadbang pass
-  // below. Declared out here because the lock is not: the pass runs after mtx
-  // is released (issue #547).
-  std::vector<pObject*> loaded;
   loaded.reserve(records.size());
+  // The same objects by handle, for the rollback below (issue #938).
+  std::vector<pHandle*> created;
+  created.reserve(records.size());
 
   // Build the whole parsed graph under one lock and publish it with a single
   // atomic swap at the end (issue #228): the audio thread never sees a
@@ -1248,11 +1355,11 @@ void patcherImplementation::ParseJSON(const std::string& content) {
   // the create/connect work without re-taking mtx or publishing per edit, which
   // is what let the old fileHandlerActive re-entrancy flag be retired.
   //
-  // Scoped rather than held to the end of the function so the loadbang pass
-  // that follows dispatches outside it — see LoadbangObjects for why sending
-  // under mtx would hang an ordinary patch.
-  {
-    std::scoped_lock lk(mtx);
+  // Released when this returns, so the loadbang pass ParseJSON runs next
+  // dispatches outside it — see LoadbangObjects for why sending under mtx would
+  // hang an ordinary patch.
+  std::scoped_lock lk(mtx);
+  try {
     // restore objects first
     for (const auto& record : records) {
       json& obj = *record.second;
@@ -1262,6 +1369,7 @@ void patcherImplementation::ParseJSON(const std::string& content) {
 
       // handle can be null if called without gui context
       if (handle != nullptr) {
+        created.push_back(handle);
         loaded.push_back(handle->object);
         auto gui = obj["gui"];
         for (auto prop = gui.begin(); prop != gui.end(); ++prop) {
@@ -1358,17 +1466,19 @@ void patcherImplementation::ParseJSON(const std::string& content) {
         }
       }
     }
-    // Every create/connect above mutated only the freshly-built objects (never
-    // referenced by the still-active snapshot); publish the whole parsed graph in
-    // a single atomic swap now.
-    RebuildAndPublish();
+  } catch (...) {
+    // Still under mtx and nothing published: take the loaded objects out again
+    // so the patcher is exactly what it was before the load (issue #938).
+    DiscardLoadedUnlocked(created);
+    loaded.clear();
+    throw;
   }
-
-  // The graph is built, wired and published: the patch is now the patch the
-  // file describes, which is the only moment at which "loading finished" is
-  // true (issue #547). Everything this parse created hears about it, once, on
-  // this thread and outside the lock.
-  LoadbangObjects(loaded);
+  // Every create/connect above mutated only the freshly-built objects (never
+  // referenced by the still-active snapshot); publish the whole parsed graph in
+  // a single atomic swap now. Outside the rollback on purpose: once the swap
+  // has happened the audio thread can be rendering these objects, so a throw
+  // after it must not free them.
+  RebuildAndPublish();
 }
 
 unsigned int patcherImplementation::Objects() {

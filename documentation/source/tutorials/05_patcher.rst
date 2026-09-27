@@ -121,7 +121,7 @@ to JSON with ``DumpJSON``. The demo writes it to a sibling file:
    :lines: 92-97
 
 Reloading is the inverse: read the file, hand the contents to
-``ParseJSON``, and the patcher rebuilds itself in place. ``Demo14``
+``ParseJSON``, and the patcher builds the graph the file describes. ``Demo14``
 attaches an empty patcher to a sound first, then populates it on
 demand:
 
@@ -129,8 +129,9 @@ demand:
    :language: cpp
    :lines: 23-41
 
-``ParseJSON`` replaces the current graph wholesale — any objects already
-in the patcher are discarded. After loading, push the initial control
+``ParseJSON`` adds the file's objects to the patcher. It does not remove
+the objects already there, so call ``Clear()`` first to replace a patch
+(Demo14 loads into an empty patcher). After loading, push the initial control
 values back in so the receives have something to forward:
 
 .. literalinclude:: ../../../Demo.Windows.Native/Demo14_LoadPatcher.cpp

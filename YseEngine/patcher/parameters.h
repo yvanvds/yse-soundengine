@@ -25,7 +25,7 @@ namespace YSE {
     typedef std::function<void()> parmFunc;
 
     // One pre-parsed scalar write of a live SetParams re-parse (issue #234).
-    // Built on the control thread by Parameters::BuildPlan and applied with a
+    // Built on the control thread by Parameters::BuildPlanFrom and applied with a
     // plain/atomic store on the audio thread at the top of the next block, so
     // the live field is never written concurrently with the render that reads
     // it. POD on purpose: plans ride a bounded lock-free queue by value.
@@ -57,7 +57,10 @@ namespace YSE {
       void Register(std::vector<std::string>& list);
 
       // Parse `args` into the registered parameters, left to right, one
-      // whitespace-separated token each.
+      // whitespace-separated token each. Tokens are split on runs of spaces,
+      // tabs and line breaks, like list messages, so "0  10" and "0\t10" mean
+      // "0 10" and a leading or trailing run is ignored; arguments that are
+      // only whitespace parse like "" (issue #936).
       //
       // Surplus arguments are *ignored*, not rejected: an object handed more
       // tokens than it has parameters keeps the ones it understands and logs
@@ -69,8 +72,8 @@ namespace YSE {
       // The argument string is stored verbatim either way, so Get() / DumpJSON
       // hand back what the object was given rather than a rewritten subset —
       // loading and re-saving a patch file must not quietly drop an argument a
-      // newer or older version of the object would use. BuildPlan() follows
-      // the same rules on the parented path.
+      // newer or older version of the object would use. BuildPlanFrom()
+      // carries the same result to a live object on the parented path.
       void Set(const std::string& args);
 
       // Whether a live re-parse must rebuild the object instead of patching
@@ -80,14 +83,21 @@ namespace YSE {
       // are read on both threads once the object is published).
       bool NeedsRebuild() const;
 
-      // Tokenize `args` exactly like Set(), but record the scalar writes into
-      // `ops` instead of touching the live fields, and update the stored
-      // param string. Returns the number of ops written, 0 for empty args, or
-      // -1 when the plan does not fit `cap` (or a non-scalar param sneaks in)
-      // — the caller must then fall back to the structural rebuild. Parse
-      // errors (std::stof on garbage) throw here, on the calling thread,
-      // exactly as Set() does. Only meaningful when NeedsRebuild() is false.
-      int BuildPlan(const std::string& args, ParamOp* ops, int cap);
+      // Plan a live re-parse (issue #234) as the object a rebuild would give
+      // (issue #935). `staged` is the parameter set of a fresh object of the
+      // same type that has just run Set(args): every registered parameter —
+      // the ones `args` named and the ones it left out, which hold their
+      // defaults there — becomes one op in `ops` writing the staged value to
+      // this object's field, and the stored string becomes `args`. So a live
+      // object, a rebuilt one and one reloaded from DumpJSON always agree, and
+      // "" resets every parameter, exactly as it does on a rebuild.
+      //
+      // The live fields are not touched: the ops are applied later with plain
+      // stores on the audio thread. Returns the number of ops written (0 for
+      // an object without parameters), or -1 when they do not fit `cap` or a
+      // non-scalar param sneaks in — the caller must then fall back to the
+      // structural rebuild. Only meaningful when NeedsRebuild() is false.
+      int BuildPlanFrom(const Parameters& staged, ParamOp* ops, int cap);
 
       void RegisterClear(parmFunc f);
       void RegisterParse(parmFunc f);

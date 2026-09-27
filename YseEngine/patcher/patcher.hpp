@@ -100,7 +100,12 @@ namespace YSE {
     /** @brief Remove every object from the patcher. */
     void Clear();
 
-    /** @brief Connect ``from``'s outlet to ``to``'s inlet. */
+    /** @brief Connect ``from``'s outlet to ``to``'s inlet.
+     *
+     *  Both handles must be objects of this patcher. A ``nullptr`` handle or
+     *  one from another patcher is refused: an error is logged and the graph
+     *  is left unchanged. The same holds for ``Disconnect``.
+     */
     void Connect(YSE::pHandle* from, int outlet, YSE::pHandle* to, int inlet);
 
     /** @brief Remove the connection from ``from``'s outlet to ``to``'s inlet. */
@@ -158,13 +163,22 @@ namespace YSE {
      */
     std::string DumpJSON();
 
-    /** @brief Replace the current graph with the contents of a JSON dump.
+    /** @brief Add the contents of a JSON dump to the current graph.
+     *
+     *  Loading is additive: nothing already in the patcher is removed. The
+     *  loaded objects are created next to the existing ones and get the
+     *  smallest storage IDs those do not hold, so the IDs in the file are not
+     *  kept. To replace the patch, call ``Clear()`` first (issue #939).
      *
      *  A top-level ``"name"`` key is applied only if this patcher still has its
      *  auto-generated name, so a name the host set before loading wins. It is
      *  applied before any object is created and before ``.loadbang`` fires, and
      *  is refused (logged, auto-name kept) like any over-long ``name()``
      *  (issue #897).
+     *
+     *  Throws on a malformed file. A load is all-or-nothing: on a throw the
+     *  patcher is left exactly as it was, with the objects the load had created
+     *  removed and a name it applied taken back (issue #938).
      */
     void ParseJSON(const std::string& content);
 

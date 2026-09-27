@@ -4,6 +4,29 @@
 
 using namespace YSE::PATCHER;
 
+namespace {
+  // The list tokenizer's separators (messages.rst), so a creation argument
+  // splits exactly like a list message does.
+  inline bool IsSeparator(char c) {
+    return c == ' ' || c == '\t' || c == '\n' || c == '\r';
+  }
+
+  // Advance `pos` past the next run of separators and the token after it.
+  // Returns false once only separators (or nothing) remain, so a run of
+  // them — leading, trailing or interior — never yields an empty token
+  // (issue #936).
+  bool NextToken(const std::string& text, std::size_t& pos, std::string& token) {
+    while (pos < text.size() && IsSeparator(text[pos]))
+      pos++;
+    if (pos >= text.size()) return false;
+    const std::size_t begin = pos;
+    while (pos < text.size() && !IsSeparator(text[pos]))
+      pos++;
+    token.assign(text, begin, pos - begin);
+    return true;
+  }
+} // namespace
+
 void Parameters::Register(int& value) {
   parms.emplace_back(PARM_TYPE::INT, &value);
 }
@@ -53,49 +76,44 @@ bool Parameters::NeedsRebuild() const {
   return false;
 }
 
-int Parameters::BuildPlan(const std::string& args, ParamOp* ops, int cap) {
-  if (args.size() == 0) return 0;
+int Parameters::BuildPlanFrom(const Parameters& staged, ParamOp* ops, int cap) {
+  // `staged` belongs to a fresh object of the same type, so its parameters
+  // were registered in the same order; anything else is not a plan this
+  // object can take.
+  if (staged.parms.size() != parms.size()) return -1;
+  if (parms.size() > static_cast<std::size_t>(cap)) return -1;
 
   int count = 0;
-  size_t pos = 0;
-  unsigned int currentArg = 0;
-  std::string arg = args + " "; // important to get the last argument
-  std::string token;
-  while ((pos = arg.find(' ')) != std::string::npos) {
-    token = arg.substr(0, pos);
-
-    if (currentArg < parms.size()) {
-      if (count >= cap) return -1;
-      switch (parms[currentArg].type) {
-      case FLOAT:
-      case ATOMIC_FLOAT: {
-        ops[count].type = parms[currentArg].type;
-        ops[count].dest = parms[currentArg].value;
-        ops[count].f = std::stof(token);
-        count++;
-        break;
-      }
-      case INT:
-      case ATOMIC_INT: {
-        ops[count].type = parms[currentArg].type;
-        ops[count].dest = parms[currentArg].value;
-        ops[count].i = std::stoi(token);
-        count++;
-        break;
-      }
-      default:
-        // STRING/LIST (or unknown) cannot be patched in place — signal the
-        // caller to take the structural-rebuild path instead.
-        return -1;
-      }
-    } else {
-      INTERNAL::LogImpl().emit(E_DEBUG, "Too many arguments for this object.");
+  for (std::size_t i = 0; i < parms.size(); i++) {
+    const parameter& from = staged.parms[i];
+    if (from.type != parms[i].type) return -1;
+    ParamOp& op = ops[count];
+    op.type = parms[i].type;
+    op.dest = parms[i].value;
+    op.i = 0;
+    op.f = 0.f;
+    switch (from.type) {
+    case FLOAT:
+      op.f = *static_cast<const float*>(from.value);
+      break;
+    case ATOMIC_FLOAT:
+      op.f = static_cast<const std::atomic<float>*>(from.value)->load();
+      break;
+    case INT:
+      op.i = *static_cast<const int*>(from.value);
+      break;
+    case ATOMIC_INT:
+      op.i = static_cast<const std::atomic<int>*>(from.value)->load();
+      break;
+    default:
+      // STRING/LIST (or unknown) cannot be patched in place — signal the
+      // caller to take the structural-rebuild path instead.
+      return -1;
     }
-    arg.erase(0, pos + 1);
-    currentArg++;
+    count++;
   }
 
-  current = args;
+  current = staged.current;
   return count;
 }
 
@@ -105,13 +123,15 @@ void Parameters::Set(const std::string& args) {
 
   current = args;
   INTERNAL::LogImpl().emit(E_DEBUG, "patcher: parsing arguments: " + args);
-  size_t pos = 0;
+  std::size_t pos = 0;
   unsigned int currentArg = 0;
-  std::string arg = args + " "; // important to get the last argument
   std::string token;
-  while ((pos = arg.find(" ")) != std::string::npos) {
-    token = arg.substr(0, pos);
-    INTERNAL::LogImpl().emit(E_DEBUG, "patcher: found argument: " + args);
+  // Whitespace-only arguments carry no token: the object keeps the
+  // no-argument shape onClear just restored, exactly as for "" — only the
+  // verbatim string is remembered, for GetParams / DumpJSON.
+  if (!NextToken(args, pos, token)) return;
+  do {
+    INTERNAL::LogImpl().emit(E_DEBUG, "patcher: found argument: " + token);
 
     if (currentArg < parms.size()) {
       switch (parms[currentArg].type) {
@@ -167,9 +187,8 @@ void Parameters::Set(const std::string& args) {
       }
       INTERNAL::LogImpl().emit(E_DEBUG, "Too many arguments for this object.");
     }
-    arg.erase(0, pos + 1);
     currentArg++;
-  }
+  } while (NextToken(args, pos, token));
 
   if (onParse != nullptr) {
     onParse();

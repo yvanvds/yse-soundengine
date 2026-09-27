@@ -171,7 +171,7 @@ The object record
      - The creation arguments, exactly as ``GetParams()`` returns them. An
        object without arguments writes ``""``. The rules from
        :doc:`building` apply on load: surplus arguments are ignored but kept
-       verbatim, and arguments must be separated by single spaces.
+       verbatim, and any run of whitespace separates arguments.
    * - ``outputs``
      - object
      - no
@@ -380,9 +380,7 @@ Loading adds to the patcher
 ``ParseJSON`` does not clear the patcher first. The loaded objects are added
 next to whatever is already there, and get the smallest IDs the existing objects
 do not hold (see :doc:`building`), so the IDs in the file are not kept. To replace a patch, call
-``Clear()`` (``yse_patcher_clear``) before loading. The header comment on
-``ParseJSON`` says "replace". That is tracked in `#939
-<https://github.com/yvanvds/yse-soundengine/issues/939>`_.
+``Clear()`` (``yse_patcher_clear``) before loading.
 
 The saved ``"name"`` is applied only while the patcher still has its
 automatic name. A name the host set before loading wins over the file. A
@@ -456,14 +454,12 @@ arguments) when:
 Through the C API these come back as ``YSE_ERR_EXCEPTION`` with the message
 in ``yse_last_error()``. No exception crosses the C boundary.
 
-.. warning::
-
-   A throw after the first object has been created currently leaves the
-   objects created so far in the patcher, without cords, and not yet
-   published: they appear at the next edit, and no ``.loadbang`` fires. Until
-   `#938 <https://github.com/yvanvds/yse-soundengine/issues/938>`_ is fixed,
-   ``Clear()`` the patcher after a failed load if you want it back to a known
-   state.
+A load is all-or-nothing. When ``ParseJSON`` throws, the patcher is left
+exactly as it was before the call: every object the load had already created
+is removed again, the objects that were there before are untouched and keep
+their IDs, a ``"name"`` the file applied is taken back, and no ``.loadbang``
+fires. The audio thread never sees any of it. You do not need to ``Clear()``
+after a failed load.
 
 These are **not** errors. The loader logs them and carries on:
 

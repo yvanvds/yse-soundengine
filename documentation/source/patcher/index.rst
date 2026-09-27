@@ -61,7 +61,9 @@ channel, and the number of channels is the count you pass to
 ``patcher::create``:
 
 - ``~dac`` is the graph's audio **output**. Each inlet is one output channel.
-  A patch is silent until something reaches a ``~dac``.
+  A patch is silent until something reaches a ``~dac``. A patch can hold
+  several ``~dac`` objects. Their channels are added together, as in Max and
+  Pd, with no scaling, so keep the combined level in range yourself.
 - ``~adc`` is the graph's audio **input**. Each outlet carries one channel of
   the host's incoming audio. It only has something to carry when the patcher
   runs as an insert (see below).

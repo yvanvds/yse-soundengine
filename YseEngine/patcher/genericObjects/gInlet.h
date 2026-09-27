@@ -48,7 +48,9 @@ namespace YSE {
      *  numbers. A `SetMessage` message is not forwarded
      *  either, for the reason `.loadbang` gives for not accepting one — the
      *  signature carries no `THREAD` tag, so forwarding would mean inventing
-     *  one.
+     *  one. A message box's text still crosses: the inlet reads it as the bang,
+     *  int, float or list it spells (issue #933), and a word command becomes a
+     *  list here because this object has no command channel of its own.
      *
      *  ### Index
      *

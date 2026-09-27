@@ -306,6 +306,56 @@ TEST_SUITE("patcher") {
     CHECK(exactlyEqual(io[1], dry1)); // ch1 left unchanged (dry)
   }
 
+  // ─── several ~dac objects are summed (issue #932) ─────────────────────────────
+
+  TEST_CASE("patcherInsert: several ~dac objects are summed, whatever their creation order") {
+    // Two ~dac objects fed from the host's two channels:
+    //   dacA: in0 -> ch0, in1 -> ch1
+    //   dacB: in1 -> ch0, ch1 left unconnected
+    // Summed, ch0 is in0 + in1 and ch1 is in1. The render used to assign each
+    // ~dac over the last and divide by the count, so ch0 came out as in1 / 2
+    // and ch1 as in1 / 2 (or 0, depending on which ~dac was created last).
+    for (int bFirst = 0; bFirst < 2; ++bFirst) {
+      CAPTURE(bFirst);
+      YSE::patcher p;
+      p.create(2);
+      YSE::pHandle* adc = p.CreateObject(YSE::OBJ::D_ADC);
+      YSE::pHandle* dacA = nullptr;
+      YSE::pHandle* dacB = nullptr;
+      if (bFirst != 0) {
+        dacB = p.CreateObject(YSE::OBJ::D_DAC);
+        dacA = p.CreateObject(YSE::OBJ::D_DAC);
+      } else {
+        dacA = p.CreateObject(YSE::OBJ::D_DAC);
+        dacB = p.CreateObject(YSE::OBJ::D_DAC);
+      }
+      REQUIRE(adc != nullptr);
+      REQUIRE(dacA != nullptr);
+      REQUIRE(dacB != nullptr);
+      p.Connect(adc, 0, dacA, 0);
+      p.Connect(adc, 1, dacA, 1);
+      p.Connect(adc, 1, dacB, 0);
+
+      YSE::DSP::patcherInsert insert(p);
+
+      MULTICHANNELBUFFER io;
+      io.resize(2);
+      io[0].resize(128);
+      io[1].resize(128);
+      fillPattern(io[0], 0.4f);
+      fillPattern(io[1], 2.3f);
+
+      YSE::DSP::buffer expected0(io[0]);
+      expected0 += io[1];
+      YSE::DSP::buffer expected1(io[1]);
+
+      insert.process(io);
+
+      CHECK(exactlyEqual(io[0], expected0));
+      CHECK(exactlyEqual(io[1], expected1));
+    }
+  }
+
   TEST_CASE("patcherInsert: null / uncreated patcher process is a safe no-op") {
     YSE::patcher p; // create() never called -> pimpl is null
     YSE::DSP::patcherInsert insert(p);

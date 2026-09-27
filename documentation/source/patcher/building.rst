@@ -33,10 +33,8 @@ use ``DeleteObject`` (see below).
 
 ``CreateObject`` returns ``nullptr`` when the type name is unknown. Check
 the result, or test the name first with the static
-``patcher::IsValidObject``. The patcher does not validate handles you pass to
-it later (issue `#934
-<https://github.com/yvanvds/yse-soundengine/issues/934>`_), so a ``nullptr``
-passed on to ``Connect`` crashes a C++ host.
+``patcher::IsValidObject``. ``Connect`` and ``Disconnect`` refuse a
+``nullptr`` handle: they log an error and leave the graph unchanged.
 
 Arguments
 ~~~~~~~~~
@@ -58,10 +56,11 @@ rules:
   ``std::out_of_range``). Nothing is added to the patcher. Through the C API,
   ``yse_patcher_create_object`` returns ``NULL`` and the reason is in
   ``yse_last_error()``.
-- **Use exactly one space between arguments.** Two spaces in a row count as
-  an empty argument, and an empty number argument throws as above. Tabs are
-  not separators. This is tracked in `#936
-  <https://github.com/yvanvds/yse-soundengine/issues/936>`_.
+- **Any run of whitespace separates arguments**, as in a list message:
+  spaces, tabs and line breaks, one or several. ``"0  10"`` and ``"0\t10"``
+  both mean ``0 10``, and leading or trailing whitespace is ignored. An
+  argument string that is only whitespace is the same as ``""``. The string
+  itself is still stored as you passed it.
 - ``~dac`` and ``~adc`` ignore their arguments. Their channel count is
   always the one passed to ``patcher::create``.
 
@@ -100,9 +99,8 @@ the inlet cannot handle is drawn, but nothing arrives along it (see
 prevent such cords.
 
 ``Disconnect`` for a cord that does not exist does nothing. Both handles must
-be objects of the patcher you call the method on. Connecting objects of two
-different patchers is not refused yet, but it is not supported (`#934
-<https://github.com/yvanvds/yse-soundengine/issues/934>`_).
+be objects of the patcher you call the method on. A call with a handle from
+another patcher is refused: it logs an error, and no cord is drawn or cut.
 
 A subpatcher's pins are numbered by the boundary objects inside it. When you
 pass a subpatcher to ``Connect``, the cord is drawn to that boundary object
@@ -170,14 +168,13 @@ properties and the subpatcher it is in, and ``GetParams()`` and
 
 Some rules to keep in mind:
 
-- **Pass the complete argument list every time.** The two kinds of object
-  currently disagree about arguments you leave out: an object that is
-  rebuilt resets them to their defaults, but an object updated in place keeps
-  their current values while ``GetParams()`` reports only the shorter
-  string. The live object then no longer matches the saved patch. This is
-  tracked in `#935 <https://github.com/yvanvds/yse-soundengine/issues/935>`_.
-  For the same reason, an empty string does nothing to an object that is
-  updated in place, but resets an object that is rebuilt.
+- **Arguments you leave out take their defaults.** Both kinds of object end
+  up exactly as ``CreateObject`` would build them from the new string, so
+  ``clip->SetParams("5")`` on a ``.clip 0 10`` sets the lower limit to 5 and
+  resets the upper one to its default of 1. An empty string resets every
+  argument. Because the object always matches its argument string, what
+  ``DumpJSON`` saves reloads to the object that is playing. To change one
+  argument and keep the others, pass them all again.
 - **An argument that does not parse** throws on the calling thread, like
   ``CreateObject``, and leaves the object unchanged. The C API catches the
   exception and leaves the reason in ``yse_last_error()``.
@@ -374,10 +371,10 @@ returns 0, ``NULL`` or the "no such" value from the table above:
    yse_patcher_delete_object(p, amp);  /* removes its cords too */
    yse_patcher_destroy(p);
 
-``yse_patcher_create_object`` accepts ``NULL`` for the arguments. Unlike the
+``yse_patcher_create_object`` accepts ``NULL`` for the arguments. Like the
 C++ calls, ``yse_patcher_connect`` and ``yse_patcher_disconnect`` ignore a
-``NULL`` handle, and no exception crosses the C boundary: a call that fails
-in the engine leaves its reason in ``yse_last_error()``. :doc:`c_api` covers embedding a patcher
+``NULL`` handle or one from another patcher. No exception crosses the C
+boundary: a call that throws in the engine leaves its reason in ``yse_last_error()``. :doc:`c_api` covers embedding a patcher
 through the C API in full.
 
 Where to go next

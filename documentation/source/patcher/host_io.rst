@@ -313,7 +313,9 @@ line (default ``print``, at most 32 characters):
 
 A bang prints ``bang``. An int prints its digits. A float always has a
 decimal point, so ``440.`` is still visibly a float. Lists and message box
-text print as they are. ``.print`` has no outlet.
+text print as they are, except that a message box holding one number sends
+it as a number (see :doc:`messages`), so ``.m 1.50`` prints ``1.5``.
+``.print`` has no outlet.
 
 The object never writes to the log directly, because it may run on the audio
 thread. It puts the line in a lock-free queue, and ``System::update()``

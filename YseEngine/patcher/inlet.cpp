@@ -2,7 +2,11 @@
 #include "outlet.h"
 #include "pObject.h"
 #include "graphState.h"
+#include "pListArgs.h"
+#include "pSelector.h"
+#include "math/gExprEval.h"
 #include <atomic>
+#include <cstring>
 
 using namespace YSE::PATCHER;
 
@@ -180,7 +184,78 @@ void inlet::SetBuffer(YSE::DSP::buffer* buffer, YSE::THREAD thread) {
   }
 }
 
+// A message box's text, delivered the way Max delivers one (issue #933).
+//
+// `.m` sends through outlet::SendMessage, and until #933 this handed the text
+// straight to pObject::SetMessage — a method only seven objects implement —
+// and then calculated a hot inlet whether or not the object had taken it. So
+// `.m 60` into `.mtof` fired `.mtof` with the note it already held.
+//
+// The text is now read as the typed message it spells, by the same rules
+// SendAtom / SendAtoms apply everywhere else in the patcher (pAtomList.h):
+//
+//   - one numeric token      -> an int or a float, by its spelling;
+//   - the single word `bang` -> a bang;
+//   - a list whose first token is a number -> the list;
+//   - text that starts with any other word -> Max's "anything": the object's
+//     word-command channel (SetMessage) when it has one, otherwise the list.
+//
+// A typed message the inlet has no handler for still reaches an object that
+// implements SetMessage, so the seven objects that relied on this path keep
+// every message they took before (a `.m` storing `.m 60`'s text, say). Anything
+// else nobody takes is dropped, like a typed message to an inlet without that
+// handler — no calculate on a message the object ignored.
+//
+// RT-safe: a walk of the characters, one ReadNumericToken (a stack copy and a
+// strtof), and the typed setters, which pass `message` on by reference. No
+// allocation, no lock.
 void inlet::SetMessage(const std::string& message, YSE::THREAD thread, float value) {
+  const char* text = message.c_str();
+  const std::size_t length = message.size();
+
+  std::size_t begin = 0;
+  while (begin < length && IsSelectorSeparator(text[begin]))
+    begin++;
+  std::size_t end = begin;
+  while (end < length && !IsSelectorSeparator(text[end]))
+    end++;
+  std::size_t rest = end;
+  while (rest < length && IsSelectorSeparator(text[rest]))
+    rest++;
+
+  const std::size_t tokenLength = end - begin;
+  const bool single = tokenLength > 0 && rest == length;
+  float number = 0.f;
+  const bool numeric = ReadNumericToken(text + begin, tokenLength, number);
+
+  if (numeric) {
+    if (single) {
+      if (TokenLooksLikeFloat(text + begin, tokenLength)) {
+        if (onFloat) {
+          SetFloat(number, thread);
+          return;
+        }
+      } else if (onInt) {
+        SetInt(ExprToInt(number), thread);
+        return;
+      }
+    } else if (onList) {
+      SetList(message, thread);
+      return;
+    }
+  } else if (single && tokenLength == 4 && std::memcmp(text + begin, "bang", 4) == 0) {
+    if (onBang) {
+      SetBang(thread);
+      return;
+    }
+  } else if (!obj->HandlesMessages()) {
+    // Starts with a word the object has no command channel for: the list.
+    if (tokenLength > 0 && onList) SetList(message, thread);
+    return;
+  }
+
+  if (!obj->HandlesMessages()) return;
+
   messageEventScope event;
   obj->SetMessage(message, value);
   if (active) {

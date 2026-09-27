@@ -290,27 +290,21 @@ TEST_SUITE("patcher") {
     CHECK(rig.outNone.count == 0);
   }
 
-  TEST_CASE("array.routepass: an empty or over-long token costs an unreachable outlet and "
-            "keeps the indices parallel (#804)") {
-    // Every kept token gets an outlet, empty ones included, so an index into
-    // the arguments is an index into the outlets — gDictRoute's rule. The
-    // tokenizer splits on single spaces, so the run of two below yields an
-    // empty token; no stored element can spell it, nor one past 64
-    // characters, so their outlets never fire and the values after them
-    // still route to their own.
+  TEST_CASE("array.routepass: an over-long token costs an unreachable outlet and keeps the "
+            "indices parallel (#804)") {
+    // Every kept token gets an outlet, so an index into the arguments is an
+    // index into the outlets — gDictRoute's rule. A run of spaces is one
+    // separator (#936), so "x  y" is two tokens, not an empty one between.
     Rig rig("ar804j", "a804j", "x  y");
-    REQUIRE(rig.route.SelectorCount() == 3);
-    CHECK(rig.route.SelectorAt(1).empty());
-    CHECK(rig.route.NumOutputs() == 4);
-
-    RefSink outY;
-    Wire(rig.route, 2, outY);
+    REQUIRE(rig.route.SelectorCount() == 2);
+    CHECK(rig.route.NumOutputs() == 3);
     rig.Store("append y");
     rig.Bang();
     CHECK(rig.outA.count == 0);
-    CHECK(rig.outB.count == 0); // the empty token's outlet, unreachable
-    CHECK(outY.count == 1);
+    CHECK(rig.outB.count == 1);
 
+    // No stored element can spell a token past 64 characters, so its outlet
+    // never fires.
     const std::string overlong(70, 'q');
     Rig longRig("ar804k", "a804k", overlong);
     longRig.Store("append q");

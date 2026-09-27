@@ -107,6 +107,9 @@ YSE_C_API YsePHandle* yse_patcher_create_object(YsePatcher* p, const char* type,
 YSE_C_API void yse_patcher_delete_object(YsePatcher* p, YsePHandle* obj);
 YSE_C_API void yse_patcher_clear(YsePatcher* p);
 
+/** Draw / remove a cord. Both handles must be objects of `p`: a NULL handle,
+   or one created by another patcher, is ignored (the engine logs the
+   refusal) and the graph is left unchanged. */
 YSE_C_API void yse_patcher_connect(YsePatcher* p, YsePHandle* from, int outlet, YsePHandle* to,
                                    int inlet);
 YSE_C_API void yse_patcher_disconnect(YsePatcher* p, YsePHandle* from, int outlet, YsePHandle* to,
@@ -163,12 +166,16 @@ YSE_C_API int yse_patcher_subpatcher_outlets(YsePatcher* p, YsePHandle* containe
 
 YSE_C_API size_t yse_patcher_dump_json(YsePatcher* p, char* buf, size_t cap);
 
-/** Load a patch previously produced by yse_patcher_dump_json. YSE_OK on
+/** Load a patch previously produced by yse_patcher_dump_json. Loading adds
+   to the patcher: objects already in it are kept, and the loaded ones are
+   created next to them. Call yse_patcher_clear first to replace the patch
+   (issue #939). YSE_OK on
    success; YSE_ERR_INVALID_HANDLE on a NULL patcher,
    YSE_ERR_INVALID_ARGUMENT on NULL content, YSE_ERR_NOT_INITIALIZED before
    yse_patcher_init, and YSE_ERR_EXCEPTION when the content is malformed
    JSON or not a patch. Every failure leaves its reason in
-   yse_last_error(). Control thread only. */
+   yse_last_error() and the patcher exactly as it was: nothing of the file
+   is loaded (issue #938). Control thread only. */
 YSE_C_API YseStatus yse_patcher_parse_json(YsePatcher* p, const char* content);
 
 /* ─── enumeration ─────────────────────────────────────────────────── */

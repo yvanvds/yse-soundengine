@@ -7945,11 +7945,11 @@
     "name": ".m",
     "outlets": [
       {
-        "doc": "Stored message broadcast as a SetMessage.",
+        "doc": "The stored message, as the message it spells: one number is an int or a float, the word 'bang' is a bang, a list starting with a number is a list, and text starting with any other word is a command to objects that take one ('stop' to '~line', 'allnotesoff' to '.midiout') and a list to every other object.",
         "index": 0,
         "label": "out",
         "range": "",
-        "type": "LIST"
+        "type": "ANY"
       }
     ],
     "params": [
