@@ -1,20 +1,48 @@
 name: Documentation
 
+# Build on every PR to dev and every push to dev/master so a broken Breathe
+# reference, malformed RST or new Doxygen warning fails at review time rather
+# than at the dev -> master release merge (#868). Only master deploys.
 on:
   push:
     branches:
       - master
+      - dev
+  pull_request:
+    branches:
+      - dev
+    # Everything the docs build reads: the Sphinx sources and Doxyfile, the
+    # engine sources Doxygen parses (INPUT = ../YseEngine, which also holds
+    # system.hpp, the source of the version banner), the logo/favicon, and
+    # this workflow.
+    paths:
+      - "documentation/**"
+      - "YseEngine/**"
+      - "logo/**"
+      - ".github/workflows/documentation.yml"
   workflow_dispatch:
 
-# Don't run two doc deploys at once; if a new push lands while one is in
-# flight, cancel the in-flight run.
+# One run per ref: a newer push or PR update cancels the in-flight run for
+# the same ref. PR runs can no longer cancel a master deploy, which the old
+# shared `pages` group would have allowed once PRs trigger this workflow.
 concurrency:
-  group: pages
+  group: documentation-${{ github.ref }}
   cancel-in-progress: true
+
+env:
+  # Pinned so CI and local builds see the same Doxygen warnings. The Ubuntu
+  # apt package lags (1.9.x on 24.04) and emits a different warning set, which
+  # matters now that WARN_AS_ERROR fails the build. Digest from the GitHub
+  # release asset metadata.
+  DOXYGEN_VERSION: "1.17.0"
+  DOXYGEN_SHA256: "75419ef4f446fc1c24ef12514b574e66e898ee6f527c6ae2ad84f91a905823c2"
 
 jobs:
   build:
     name: Build (Doxygen + Sphinx)
+    # Skip the master -> dev post-release sync PR, same as build.yml: every
+    # commit it carries already built on the PR that put it on master.
+    if: github.event_name != 'pull_request' || github.head_ref != 'master'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -25,34 +53,54 @@ jobs:
       - name: Install system packages
         run: |
           sudo apt-get update -y
-          sudo apt-get install -y doxygen graphviz
+          sudo apt-get install -y graphviz
+
+      - name: Install Doxygen ${{ env.DOXYGEN_VERSION }}
+        run: |
+          tarball="doxygen-${DOXYGEN_VERSION}.linux.bin.tar.gz"
+          tag="Release_${DOXYGEN_VERSION//./_}"
+          curl --proto '=https' --tlsv1.2 -fsSL --retry 3 -o "$RUNNER_TEMP/$tarball" \
+            "https://github.com/doxygen/doxygen/releases/download/$tag/$tarball"
+          echo "$DOXYGEN_SHA256  $RUNNER_TEMP/$tarball" | sha256sum -c -
+          tar -xzf "$RUNNER_TEMP/$tarball" -C "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/doxygen-${DOXYGEN_VERSION}/bin" >> "$GITHUB_PATH"
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
-          python-version: "3.12"
+          python-version: "3.14"
           cache: pip
           cache-dependency-path: documentation/requirements.txt
 
       - name: Install Python packages
         run: pip install -r documentation/requirements.txt
 
+      # WARN_AS_ERROR = FAIL_ON_WARNINGS in the Doxyfile: every warning is
+      # printed, then Doxygen exits non-zero.
       - name: Run Doxygen
-        run: doxygen Doxyfile
+        run: |
+          doxygen --version
+          doxygen Doxyfile
         working-directory: documentation
 
+      # -W turns Sphinx warnings into errors; --keep-going reports all of them
+      # before failing. The builder-inited hook in conf.py renders the
+      # gitignored patcher/objects/ pages from _data/patcher_objects.json here,
+      # exactly as a local `make html` does.
       - name: Build Sphinx HTML
-        run: sphinx-build -b html source build/html
+        run: sphinx-build -W --keep-going -b html source build/html
         working-directory: documentation
 
       - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/master'
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
           path: documentation/build/html
 
   deploy:
     name: Deploy to GitHub Pages
     needs: build
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
     # Was the only job in this workflow with no cap at all, so it inherited
     # GitHub's 360-minute default -- a deploy-pages call stuck polling would
@@ -69,4 +117,4 @@ jobs:
     steps:
       - name: Deploy
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1

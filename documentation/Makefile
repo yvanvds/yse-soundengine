@@ -7,6 +7,8 @@
 #   make clean       # delete build/ and source/_doxygen/
 
 SPHINXBUILD ?= sphinx-build
+# Same flags as CI (documentation.yml): warnings are errors, all reported.
+SPHINXOPTS  ?= -W --keep-going
 SOURCEDIR    = source
 BUILDDIR     = build
 
@@ -18,7 +20,7 @@ doxygen:
 	doxygen Doxyfile
 
 sphinx:
-	$(SPHINXBUILD) -b html "$(SOURCEDIR)" "$(BUILDDIR)/html"
+	$(SPHINXBUILD) $(SPHINXOPTS) -b html "$(SOURCEDIR)" "$(BUILDDIR)/html"
 
 serve:
 	@echo "Serving on http://localhost:8000 (Ctrl-C to stop)"

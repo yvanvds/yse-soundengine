@@ -317,7 +317,9 @@ comments change), and `make sphinx` rebuilds just the HTML (fast). Use
 ### CI
 
 `.github/workflows/documentation.yml` builds the docs on every push to
-`master` and publishes the result to GitHub Pages. The workflow assumes
+`dev` and `master` and on pull requests to `dev` that touch the docs or
+the engine sources, and fails on any Doxygen or Sphinx warning. Only a
+push to `master` publishes the result to GitHub Pages. The workflow assumes
 Pages is configured for the repo with **Source: GitHub Actions**
 (Settings → Pages).
 
