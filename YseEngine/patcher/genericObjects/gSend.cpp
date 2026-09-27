@@ -87,6 +87,17 @@ namespace {
   inline bool busAvailable() {
     return YSE::INTERNAL::Global().isActive();
   }
+
+  // Unless globalOnly, PassData has already handed the value to every matching
+  // .r in this patcher, and those .r objects are subscribed to the very address
+  // published here — so without a tag each of them fired twice per value
+  // (issue #943). The publish carries the patcher's origin, which its own .r
+  // subscriptions ignore; a .r in another patcher with the same name, a host
+  // subscriber and a tap all still see it. Under globalOnly the bus is the only
+  // path, so the publish goes untagged and reaches the local .r too.
+  inline YSE::INTERNAL::BusOrigin OriginFor(int globalOnly, const patcherImplementation* p) {
+    return globalOnly ? 0 : p->BusOrigin();
+  }
 } // namespace
 
 // `parent` is a patcherImplementation by construction (the patcher hands
@@ -114,7 +125,7 @@ BANG_IN(SetBangValue) {
   }
   if (busAvailable() && p->CallingThread(thread) == YSE::T_GUI) {
     // Bang on the bus is a monostate publish — only delivered on T_GUI.
-    Bus().publish(busAddress_, BusValue{}, thread);
+    Bus().publish(busAddress_, BusValue{}, thread, OriginFor(globalOnly, p));
   }
 }
 
@@ -125,7 +136,7 @@ INT_IN(SetIntValue) {
     p->PassData(value, dataName, thread);
   }
   if (busAvailable()) {
-    Bus().publish(busAddress_, BusValue{value}, p->CallingThread(thread));
+    Bus().publish(busAddress_, BusValue{value}, p->CallingThread(thread), OriginFor(globalOnly, p));
   }
 }
 
@@ -136,7 +147,7 @@ FLOAT_IN(SetFloatValue) {
     p->PassData(value, dataName, thread);
   }
   if (busAvailable()) {
-    Bus().publish(busAddress_, BusValue{value}, p->CallingThread(thread));
+    Bus().publish(busAddress_, BusValue{value}, p->CallingThread(thread), OriginFor(globalOnly, p));
   }
 }
 
@@ -148,6 +159,6 @@ LIST_IN(SetListValue) {
   }
   // Built only when it can be delivered: the variant copy is the allocation.
   if (busAvailable() && p->CallingThread(thread) == YSE::T_GUI) {
-    Bus().publish(busAddress_, BusValue{value}, thread);
+    Bus().publish(busAddress_, BusValue{value}, thread, OriginFor(globalOnly, p));
   }
 }

@@ -32,11 +32,16 @@ using namespace YSE::PATCHER;
 
 namespace {
   // Process-wide counter feeding the auto-generated "patcher_<N>" default
-  // name (issue #122). Deliberately the only process-wide counter left in the
-  // patcher: object storage IDs became per-patcher in #730, but a patcher's
-  // *own* default name has to be distinct from every other patcher's in the
-  // process, because it is the bus prefix inner gSend/gReceive route on.
+  // name (issue #122). Object storage IDs became per-patcher in #730, but a
+  // patcher's *own* default name has to be distinct from every other patcher's
+  // in the process, because it is the bus prefix inner gSend/gReceive route on.
   std::atomic<unsigned int> g_nextPatcherIndex{0};
+
+  // Process-wide source of patcher bus origins (issue #943) — distinct from
+  // every other patcher's for the same reason, and 64-bit so it never wraps
+  // back onto a value a queued publish may still carry. Starts at 1: 0 is the
+  // bus's "no origin".
+  std::atomic<std::uint64_t> g_nextBusOrigin{1};
 
   // Shared empty list argument for DispatchToReceiver on the non-list value
   // kinds (Bang/Int/Float), so those paths pass a std::string& without building
@@ -153,7 +158,8 @@ patcherImplementation::patcherImplementation(int mainOutputs, YSE::patcher* head
     head(head),
     autoName_("patcher_" +
               std::to_string(g_nextPatcherIndex.fetch_add(1, std::memory_order_relaxed))),
-    patcherName(autoName_) {
+    patcherName(autoName_),
+    busOrigin_(g_nextBusOrigin.fetch_add(1, std::memory_order_relaxed)) {
   output.resize(mainOutputs);
   // Pre-size the audio-thread list-delivery scratch so SetList never allocates
   // on the callback path (issue #225).

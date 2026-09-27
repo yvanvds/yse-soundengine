@@ -10,7 +10,9 @@
   on "patcher.<patcherName>.<dataName>"; matching producers in *any* patcher with
   the same name reach this receiver. Subscription happens when the
   receiver learns its parent patcher (`SetParent`); destruction
-  unsubscribes.
+  unsubscribes. The subscription ignores publishes tagged with its own
+  patcher's bus origin (issue #943): those already arrived through PassData,
+  so each value reaches this object once.
 */
 
 namespace YSE {

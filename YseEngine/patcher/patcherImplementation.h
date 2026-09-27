@@ -70,6 +70,17 @@ namespace YSE {
       std::string ScopedAddressPrefix() const;
       std::string ScopedAddress(const std::string& name) const;
 
+      // This patcher's bus origin (issue #943): a process-unique, non-zero tag
+      // its .s / .forward put on every bus publish, and its .r subscribes with as
+      // the origin to ignore. The in-patcher path already delivered the value to
+      // those .r objects, so the bus echo would be a second copy; a .r in another
+      // patcher with the same name has a different origin and still takes it.
+      // Never reused, so a publish still queued from a destroyed patcher cannot
+      // be mistaken for a newer one's.
+      std::uint64_t BusOrigin() const {
+        return busOrigin_;
+      }
+
       const char* Type() const override;
       void ResetDSP() override;
       void Calculate(THREAD thread) override;
@@ -700,6 +711,8 @@ namespace YSE {
       // Bus-prefix for inner gSend/gReceive routing (issue #122). Defaulted
       // to autoName_ in the ctor; mutated by SetName().
       std::string patcherName;
+      // See BusOrigin(). Set once in the ctor.
+      const std::uint64_t busOrigin_;
 
       std::string GetRecieveObjectsAsString();
     };

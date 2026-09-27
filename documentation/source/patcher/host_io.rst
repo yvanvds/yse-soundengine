@@ -110,24 +110,26 @@ does this in two ways:
    the same name is subscribed to that address, and so are any host or script
    subscribers.
 
+Each ``.r`` gets each value once. The patcher's own ``.r`` objects take it
+the first way and ignore the bus copy, which the patcher tags as its own.
+A ``.r`` in another patcher with the same name takes it from the bus. Host
+and script subscribers, and prefix taps, see every bus copy.
+
 A second argument of ``1`` (``.s cutoff 1``) turns off the first way. The
-value then only goes out on the bus, and the patcher's own ``.r`` objects get
-it from there. ``.r`` accepts the same second argument but ignores it for now.
+value then only goes out on the bus, untagged, and the patcher's own ``.r``
+objects get it from there. ``.r`` accepts the same second argument but
+ignores it for now.
+
+Which way the patcher's own ``.r`` objects are reached decides when they
+fire. By the first way, a value sent from the control thread arrives at the
+start of the next block, and a value sent while rendering arrives in the
+same block. By the bus (``.s <name> 1``), a value sent from the control
+thread arrives right away, and one sent while rendering arrives on the next
+``System::update()``. A bang or list sent while rendering never leaves the
+patch, so with ``.s <name> 1`` it reaches no ``.r`` at all.
 
 Names are at most 63 characters. A longer name is refused with a log line,
 and the object is left without a name.
-
-.. warning::
-
-   While the engine is running, a ``.r`` in the **same** patcher as its
-   ``.s`` currently receives each value **twice**, once through each of the
-   two ways above. A value sent from the control thread arrives right away
-   through the bus and again at the start of the next block. A value sent
-   while rendering arrives in the same block and again on the next
-   ``System::update()``. This is tracked in
-   `#943 <https://github.com/yvanvds/yse-soundengine/issues/943>`_. Until
-   it is fixed, use ``.s <name> 1`` when a ``.r`` in the same patcher must
-   see each value exactly once, or connect the two objects with a cord.
 
 ``.forward`` is a ``.s`` that can change its target while it runs. Its right
 inlet takes a new name. The first word of a list is used, and an int is read

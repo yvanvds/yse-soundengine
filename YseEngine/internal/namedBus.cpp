@@ -101,11 +101,13 @@ namespace YSE {
       return Global().namedBus();
     }
 
-    void NamedBus::publish(const std::string& name, const BusValue& value, YSE::THREAD thread) {
+    void NamedBus::publish(const std::string& name, const BusValue& value, YSE::THREAD thread,
+                           BusOrigin origin) {
       if (thread == T_DSP) {
         // Audio-thread path: must not allocate, must not lock. The queue entry
         // has a fixed footprint, so we accept only int and float.
         PooledMessage msg;
+        msg.origin = origin;
         if (const int* ip = std::get_if<int>(&value)) {
           msg.kind = PooledMessage::Kind::Int;
           msg.value.i = *ip;
@@ -143,7 +145,7 @@ namespace YSE {
       // control thread on those SPSC queues and cross-link their block lists
       // (issue #193). Park it for the next drainPending() instead.
       if (std::this_thread::get_id() == controlThread_) {
-        dispatch(name, value);
+        dispatch(name, value, origin);
         return;
       }
 
@@ -152,17 +154,18 @@ namespace YSE {
       // so taking a mutex here does not touch the real-time path.
       {
         std::lock_guard<std::mutex> lock(pendingMutex_);
-        pendingControl_.emplace_back(name, value);
+        pendingControl_.push_back(PendingControl{name, value, origin});
       }
     }
 
-    SubHandle NamedBus::subscribe(const std::string& name, Subscriber callback) {
+    SubHandle NamedBus::subscribe(const std::string& name, Subscriber callback,
+                                  BusOrigin ignoreOrigin) {
       // Process-global (issue #716), so a handle is never reused by a later
       // bus. 0 is reserved as "not subscribed" by every caller, so the first
       // handle issued in the process is 1.
       const SubHandle handle = g_subHandleCounter.fetch_add(1, std::memory_order_relaxed) + 1;
       std::unique_lock lock(subsMutex_);
-      subs_[name].push_back(Subscription{handle, std::move(callback)});
+      subs_[name].push_back(Subscription{handle, std::move(callback), ignoreOrigin});
       handleIndex_.emplace(handle, name);
       return handle;
     }
@@ -214,7 +217,7 @@ namespace YSE {
             value = msg.value.f;
             break;
           }
-          dispatch(std::string(msg.nameStorage), value);
+          dispatch(std::string(msg.nameStorage), value, msg.origin);
         }
       }
 
@@ -224,17 +227,17 @@ namespace YSE {
       // thread on the per-implementation SPSC message queues. Swap the inbox
       // out under the lock, then dispatch with the lock released so a
       // subscriber may re-enter publish() / subscribe() without deadlocking.
-      std::vector<std::pair<std::string, BusValue>> deferred;
+      std::vector<PendingControl> deferred;
       {
         std::lock_guard<std::mutex> lock(pendingMutex_);
         deferred.swap(pendingControl_);
       }
       for (auto& entry : deferred) {
-        dispatch(entry.first, entry.second);
+        dispatch(entry.name, entry.value, entry.origin);
       }
     }
 
-    void NamedBus::dispatch(const std::string& name, const BusValue& value) {
+    void NamedBus::dispatch(const std::string& name, const BusValue& value, BusOrigin origin) {
       // Copy out the matching callbacks under the shared lock, then invoke
       // them with the lock released. This lets a subscriber call back into
       // subscribe()/unsubscribe() without self-deadlock. When nothing matches
@@ -249,6 +252,8 @@ namespace YSE {
         if (it != subs_.end()) {
           callbacks.reserve(it->second.size());
           for (const auto& sub : it->second) {
+            // The publisher's own echo (issue #943): skipped, not delivered.
+            if (origin != 0 && sub.ignoreOrigin == origin) continue;
             callbacks.push_back(sub.callback);
           }
         }
