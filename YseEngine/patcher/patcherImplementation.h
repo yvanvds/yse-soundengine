@@ -182,7 +182,8 @@ namespace YSE {
       // happen outside mtx: an ordinary send runs the whole subgraph behind the
       // object, which may reach a `.forward` or a `.s` and take mtx on the
       // control thread — the deadlock LoadbangObjects and TeardownObjects are
-      // shaped around. Only the lookup is locked.
+      // shaped around. Only the lookup is locked, so a caller holds an
+      // objectPin (below) across the lookup and the delivery (issue #961).
       PATCHER::inlet* ResolveInlet(pObject* obj, int pin);
 
       // The outlet-side twin, for `pHandle::OutputDataType` (issue #942): the
@@ -205,6 +206,51 @@ namespace YSE {
       unsigned int ObjectsUnlocked() const;
       YSE::pHandle* GetHandleFromListUnlocked(unsigned int obj) const;
       YSE::pHandle* GetHandleFromIDUnlocked(unsigned int objID) const;
+
+      // ---- Control-side object pins (issue #961) ----
+      //
+      // A control thread that looks an object up under mtx and uses it after
+      // mtx is released — `.preset`'s store and recall, a host `Set*` into a
+      // subpatcher's boundary — must not have the object freed under it by a
+      // DeleteObject / Clear / structural SetParams on another control thread.
+      // mtx cannot be held across the use: the use is an ordinary send that
+      // may reach PassData and take mtx again. So the caller holds an
+      // objectPin across lookup *and* use, taking it before the lookup. While
+      // any pin is held the reclaimer leaves retired objects parked (retired
+      // graphs are still freed), so an object found live under mtx stays
+      // allocated until the pin is dropped; the pass that runs after the last
+      // pin goes frees them as usual.
+      //
+      // Lock-free — one atomic add, one atomic sub — and it never waits. The
+      // audio thread never pins and is never made to wait by a pin. Handles
+      // are not covered: DeleteObject frees a pHandle at once, so a pinned
+      // caller keeps the pObject*, never the pHandle*.
+      class objectPin {
+      public:
+        explicit objectPin(patcherImplementation& owner) : owner_(owner) {
+          owner_.objectPins_.fetch_add(1, std::memory_order_acq_rel);
+        }
+        ~objectPin() {
+          // Release: every use made under the pin happens-before the
+          // reclaimer's acquire load that lets the object go.
+          owner_.objectPins_.fetch_sub(1, std::memory_order_release);
+        }
+        objectPin(const objectPin&) = delete;
+        objectPin& operator=(const objectPin&) = delete;
+        objectPin(objectPin&&) = delete;
+        objectPin& operator=(objectPin&&) = delete;
+
+      private:
+        patcherImplementation& owner_;
+      };
+
+      // The live object with storage ID `objID`, or null. Takes mtx, so
+      // control-thread only and never from under mtx; the result is only
+      // safe to use while an objectPin taken *before* this call is held.
+      pObject* GetObjectFromID(unsigned int objID);
+      // Every live object, appended to `out` (cleared first). Same contract
+      // as GetObjectFromID.
+      void CollectObjects(std::vector<pObject*>& out);
 
       // Number of retired GraphStates + objects still awaiting background
       // reclamation (issue #227). Diagnostics / tests only: takes reclaimMtx_,
@@ -664,6 +710,9 @@ namespace YSE {
       // Set once at teardown to stop scheduling and re-arming reclaim passes so
       // the destructor's joins terminate. Read on the background pool.
       std::atomic<bool> shuttingDown_{false};
+      // Held objectPins (issue #961). Non-zero keeps ReclaimElapsed from
+      // freeing retired objects; read on the background pool.
+      std::atomic<unsigned int> objectPins_{0};
       // Per-patcher dense id counters for inlets / outlets. An id is fixed for a
       // live object's lifetime (the audio thread reads it unsynchronised to
       // index the pinned snapshot), so ids are never re-stamped while an object

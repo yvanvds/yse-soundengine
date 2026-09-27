@@ -421,22 +421,27 @@ void gPreset::Store(int slot, YSE::THREAD thread) {
   // the GetGuiValue answers allocate and none of this touches the slots.
   // Participation is checked *before* the value is read, so a consume-on-read
   // object (`.b`) is never polled and capturing a patch cannot eat a press.
+  //
+  // The objects are read with mtx released — a GetGuiValue may be anything an
+  // object likes — so another control thread may delete one mid-walk. The pin,
+  // taken before the snapshot, keeps every object in it allocated until the
+  // walk is done (issue #961); a handle would not be, so none is used.
   scratch.clear();
-  const unsigned int count = p->Objects();
-  for (unsigned int i = 0; i < count; i++) {
-    YSE::pHandle* handle = p->GetHandleFromList(i);
-    if (handle == nullptr) continue;
-    if (!handle->GuiValueIsSettable()) continue;
-    std::string value = handle->GetGuiValue();
+  const patcherImplementation::objectPin pin(*p);
+  p->CollectObjects(walk);
+  for (pObject* object : walk) {
+    if (!object->GuiValueIsSettable()) continue;
+    std::string value = object->GetGuiValue();
     // An empty string is not a message an inlet can take back, so the object
     // is left out of the slot and a recall leaves it untouched.
     if (value.empty()) continue;
     Entry entry;
-    entry.id = handle->GetID();
-    entry.type = handle->Type();
+    entry.id = object->GetID();
+    entry.type = object->Type();
     entry.value = std::move(value);
     scratch.push_back(std::move(entry));
   }
+  walk.clear();
 
   {
     storeGuard guard(busy);
@@ -476,18 +481,26 @@ void gPreset::Recall(int slot, YSE::THREAD thread) {
 
   active.store(slot, std::memory_order_relaxed);
 
+  // Each object is looked up under mtx and pushed with mtx released — the push
+  // runs a whole subgraph that may take mtx again — so another control thread
+  // may delete it in between. The pin, taken before any lookup, keeps every
+  // object found live allocated until the recall is done (issue #961). The
+  // object is used rather than its handle: DeleteObject frees a handle at once.
+  const patcherImplementation::objectPin pin(*p);
   for (const Entry& entry : scratch) {
-    YSE::pHandle* handle = p->GetHandleFromID(entry.id);
-    if (handle == nullptr) continue;
+    pObject* object = p->GetObjectFromID(entry.id);
+    if (object == nullptr) continue;
     // Storage IDs are reused after a delete (issue #733): without this check
     // a recall could write one control's state into whatever object inherited
     // its number. A stale entry is skipped; the rest of the slot still lands.
-    if (entry.type != handle->Type()) continue;
-    if (!handle->GuiValueIsSettable()) continue;
-    // The ordinary control-thread message path — the same call a host makes,
-    // so every clamp, side effect and outlet send the object's own inlet
-    // handler performs still happens. Never a poke into its fields.
-    handle->SetListData(0, entry.value);
+    if (entry.type != object->Type()) continue;
+    if (!object->GuiValueIsSettable()) continue;
+    // The ordinary control-thread message path — what pHandle::SetListData,
+    // the call a host makes, does — so every clamp, side effect and outlet
+    // send the object's own inlet handler performs still happens. Never a
+    // poke into its fields.
+    PATCHER::inlet* in = p->ResolveInlet(object, 0);
+    if (in != nullptr) in->SetList(entry.value, YSE::T_GUI);
   }
 
   // Announced after the pushes, so whatever this triggers sees the patch
@@ -638,7 +651,7 @@ bool gPreset::DumpState(nlohmann::json::value_type& json) {
   // Only `busy` is waited for, through saveGuard's bounded wait, rather than
   // skipped at the first miss and the slots lost (issue #940). Every `busy`
   // section is a few copies that never takes mtx; `sending`, which a recall
-  // holds across its GetHandleFromID lookups, is never touched here, so a
+  // holds across its GetObjectFromID lookups, is never touched here, so a
   // timer-thread recall blocked on this save's mtx cannot hold up the save.
   const saveGuard guard(busy);
   if (!guard.Held()) return false;

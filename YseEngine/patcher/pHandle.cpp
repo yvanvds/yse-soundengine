@@ -11,7 +11,8 @@ using namespace YSE;
 pHandle::pHandle(PATCHER::pObject* object) : object(object) {}
 
 namespace {
-  // The inlet a host-side `Set*` on this handle has to reach (issue #545).
+  // Hand a host-side `Set*` (or an inlet query) on this handle to the inlet it
+  // has to reach (issue #545).
   //
   // A `patcher` (subpatcher) object owns no pins of its own — its boundary is
   // the `.inlet` objects inside it — so `object->GetInlet(pin)` answers null for
@@ -24,15 +25,26 @@ namespace {
   // A standalone object (unit-test rig) has no patcher and answers for itself,
   // exactly as SetParams below splits the same two cases.
   //
-  // The null return is also the fix for a pin number that names nothing on an
+  // Skipping a null inlet is also the fix for a pin number that names nothing on an
   // ordinary object: that used to be an unchecked null dereference, and a
   // subpatcher makes it reachable with input that looks perfectly valid.
-  YSE::PATCHER::inlet* resolveInlet(YSE::PATCHER::pObject* object, unsigned int pin) {
-    if (object == nullptr) return nullptr;
+  //
+  // For a subpatcher the inlet belongs to a boundary object found under the
+  // patcher mutex, which is released before the delivery (the delivery may
+  // take it again). Another control thread may delete that boundary object in
+  // between, so the delivery holds an objectPin taken before the lookup: the
+  // reclaimer keeps it allocated until the send returns (issue #961).
+  template <typename Send>
+  void deliver(YSE::PATCHER::pObject* object, unsigned int pin, Send&& send) {
+    if (object == nullptr) return;
     YSE::PATCHER::pObject* parent = object->Parent();
-    if (parent == nullptr) return object->GetInlet(static_cast<int>(pin));
-    return static_cast<YSE::PATCHER::patcherImplementation*>(parent)->ResolveInlet(
-        object, static_cast<int>(pin));
+    if (parent == nullptr) {
+      if (YSE::PATCHER::inlet* in = object->GetInlet(static_cast<int>(pin))) send(*in);
+      return;
+    }
+    auto* owner = static_cast<YSE::PATCHER::patcherImplementation*>(parent);
+    const YSE::PATCHER::patcherImplementation::objectPin keep(*owner);
+    if (YSE::PATCHER::inlet* in = owner->ResolveInlet(object, static_cast<int>(pin))) send(*in);
   }
 } // namespace
 
@@ -45,19 +57,19 @@ const char* pHandle::Type() const {
 }
 
 void YSE::pHandle::SetBang(unsigned int inlet) {
-  if (PATCHER::inlet* in = resolveInlet(object, inlet)) in->SetBang(T_GUI);
+  deliver(object, inlet, [](PATCHER::inlet& in) { in.SetBang(T_GUI); });
 }
 
 void YSE::pHandle::SetIntData(unsigned int inlet, int value) {
-  if (PATCHER::inlet* in = resolveInlet(object, inlet)) in->SetInt(value, T_GUI);
+  deliver(object, inlet, [value](PATCHER::inlet& in) { in.SetInt(value, T_GUI); });
 }
 
 void YSE::pHandle::SetFloatData(unsigned int inlet, float value) {
-  if (PATCHER::inlet* in = resolveInlet(object, inlet)) in->SetFloat(value, T_GUI);
+  deliver(object, inlet, [value](PATCHER::inlet& in) { in.SetFloat(value, T_GUI); });
 }
 
 void YSE::pHandle::SetListData(unsigned int inlet, const std::string& value) {
-  if (PATCHER::inlet* in = resolveInlet(object, inlet)) in->SetList(value, T_GUI);
+  deliver(object, inlet, [&value](PATCHER::inlet& in) { in.SetList(value, T_GUI); });
 }
 
 void YSE::pHandle::SetParams(const std::string& args) {
@@ -89,8 +101,10 @@ bool YSE::pHandle::IsDSPInput(unsigned int inlet) {
   // subpatcher has no pins of its own, so asking one about inlet 0 used to
   // dereference null (issue #545). False for a pin that names nothing, which is
   // also the honest answer for a boundary that carries no signal.
-  PATCHER::inlet* in = resolveInlet(object, inlet);
-  return in != nullptr && in->AcceptsDSP();
+  // Read under the same pin as a delivery (issue #961).
+  bool accepts = false;
+  deliver(object, inlet, [&accepts](PATCHER::inlet& in) { accepts = in.AcceptsDSP(); });
+  return accepts;
 }
 
 YSE::OUT_TYPE YSE::pHandle::OutputDataType(unsigned int pin) {

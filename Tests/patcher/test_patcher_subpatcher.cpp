@@ -53,7 +53,9 @@
 #include "patcher/pRegistry.h"
 #include "patcher/patcher.hpp"
 #include "patcher/patcherImplementation.h"
+#include "patcher/sinks.hpp"
 #include "support/alloc_probe.hpp"
+#include "support/timer_pacing.hpp"
 
 using YSE::PATCHER::gInlet;
 using YSE::PATCHER::gOutlet;
@@ -872,6 +874,64 @@ TEST_SUITE("patcher") {
     // above exist at all.
     CHECK(sub->GetInputs() == 0);
     CHECK(sub->GetOutputs() == 0);
+  }
+
+  TEST_CASE("subpatcher: a boundary object deleted mid-push stays allocated until the push is done "
+            "(#961)") {
+    // A host Set* on a subpatcher resolves the pin to its `.inlet` under the
+    // patcher mutex and delivers into it with the mutex released. The push
+    // runs on its own thread and parks inside the delivery — the `.inlet`
+    // feeds a GateSink — while the test thread deletes that `.inlet` and runs
+    // the audio epoch far past the reclaimer's +2 grace. Before #961 the
+    // `.inlet` was freed right there, with the push still inside its outlet
+    // send. Now the push holds an objectPin from before the lookup, so the
+    // object stays parked until the push returns. FreeIdCount() is the
+    // observable, as in the `.preset` case: a freed object hands its graph
+    // ids back (issue #364).
+    TestHelpers::GateSink gate; // before the patcher: outlives it
+    YSE::pHandle gateHandle(&gate);
+    patcherImplementation p(1, nullptr);
+    YSE::pHandle* sub = p.CreateObject(YSE::OBJ::PATCHER, "");
+    YSE::pHandle* in = p.CreateObject(YSE::OBJ::G_INLET, "0");
+    YSE::pHandle* keep = p.CreateObject(YSE::OBJ::G_INT, "");
+    YSE::pHandle* other = p.CreateObject(YSE::OBJ::G_INT, "");
+    REQUIRE(sub != nullptr);
+    REQUIRE(in != nullptr);
+    REQUIRE(keep != nullptr);
+    REQUIRE(other != nullptr);
+    p.SetObjectContainer(in, sub);
+    p.Connect(in, 0, &gateHandle, 0);
+    REQUIRE(p.FreeIdCount() == 0);
+
+    bool wired = false;
+    const auto churn = [&] {
+      if (wired) {
+        p.Disconnect(keep, 0, other, 0);
+      } else {
+        p.Connect(keep, 0, other, 0);
+      }
+      wired = !wired;
+      p.Calculate(YSE::T_DSP);
+      p.Calculate(YSE::T_DSP);
+      p.Calculate(YSE::T_DSP);
+    };
+
+    std::thread pusher([&] { sub->SetIntData(0, 3); });
+    REQUIRE(gate.WaitEntered());
+
+    p.DeleteObject(in);
+    CHECK(TestHelpers::pacedPump(2000, [&] { return p.PendingRetired() <= 1; }, churn));
+    CHECK(p.PendingRetired() == 1);
+    CHECK(p.FreeIdCount() == 0);
+
+    gate.Release();
+    pusher.join();
+
+    CHECK(TestHelpers::pacedPump(
+        2000, [&] { return p.FreeIdCount() > 0 && p.PendingRetired() <= 1; }, churn));
+    CHECK(p.FreeIdCount() > 0);
+    // The subpatcher now has no boundary: a push goes nowhere, harmlessly.
+    sub->SetIntData(0, 4);
   }
 
 } // TEST_SUITE("patcher")

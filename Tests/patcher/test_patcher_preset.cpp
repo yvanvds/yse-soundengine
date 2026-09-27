@@ -55,6 +55,7 @@
 #include "patcher/patcherImplementation.h"
 #include "patcher/sinks.hpp"
 #include "support/alloc_probe.hpp"
+#include "support/timer_pacing.hpp"
 #include "utils/json.hpp"
 
 using TestHelpers::OrderSink;
@@ -924,6 +925,76 @@ TEST_SUITE("patcher") {
     p.Calculate(YSE::T_DSP);
     std::this_thread::sleep_for(std::chrono::milliseconds(20));
     CHECK(pad->GetGuiValue() == after);
+  }
+
+  TEST_CASE("preset: a target deleted mid-recall stays allocated until the recall is done (#961)") {
+    // The issue's interleaving, held open deterministically. The recall runs
+    // on its own thread and parks inside the push into `pad` — the pad's
+    // outlet feeds a GateSink, so the recall is stopped *between* the lookup
+    // and the end of the use. The test thread then deletes the pad and runs
+    // the audio epoch far past the reclaimer's +2 grace. Before #961 the pad
+    // was freed right there, with the recall still inside its handler: the
+    // recall resumed into freed memory (a crash natively, a
+    // heap-use-after-free under ASan). Now the recall holds an objectPin from
+    // before its first lookup, so the pad is parked until the recall returns.
+    //
+    // A freed object hands its graph ids back to the free-list (issue #364),
+    // so FreeIdCount() is the observable: 0 while the pad is still parked,
+    // non-zero once it has really been freed. `keep` / `other` stay live, so
+    // the id space is never compacted away under the check, and they give the
+    // pump an edit to make.
+    TestHelpers::GateSink gate; // before the patcher: outlives it
+    YSE::pHandle gateHandle(&gate);
+    patcherImplementation p(1, nullptr);
+    YSE::pHandle* preset = p.CreateObject(YSE::OBJ::G_PRESET, "4");
+    YSE::pHandle* pad = p.CreateObject(YSE::OBJ::G_SLIDER, "");
+    REQUIRE(preset != nullptr);
+    REQUIRE(pad != nullptr);
+    pad->SetFloatData(0, 0.5f);
+    preset->SetListData(0, "store 0"); // the slot holds the pad alone
+    REQUIRE(preset->GetGuiValue() == "0");
+    p.Connect(pad, 0, &gateHandle, 0);
+
+    YSE::pHandle* keep = p.CreateObject(YSE::OBJ::G_SLIDER, "");
+    YSE::pHandle* other = p.CreateObject(YSE::OBJ::G_SLIDER, "");
+    REQUIRE(keep != nullptr);
+    REQUIRE(other != nullptr);
+    REQUIRE(p.FreeIdCount() == 0);
+
+    // One edit plus three blocks per round: the edit re-arms the reclaimer
+    // and retires a graph, the blocks carry the epoch past the +2 grace.
+    bool wired = false;
+    const auto churn = [&] {
+      if (wired) {
+        p.Disconnect(keep, 0, other, 0);
+      } else {
+        p.Connect(keep, 0, other, 0);
+      }
+      wired = !wired;
+      p.Calculate(YSE::T_DSP);
+      p.Calculate(YSE::T_DSP);
+      p.Calculate(YSE::T_DSP);
+    };
+
+    std::thread recaller([&] { preset->SetIntData(0, 0); });
+    REQUIRE(gate.WaitEntered());
+
+    p.DeleteObject(pad);
+    // Everything retired except the pad drains — graphs are not held back by
+    // a pin — so what is left is exactly the one object, still allocated.
+    CHECK(TestHelpers::pacedPump(2000, [&] { return p.PendingRetired() <= 1; }, churn));
+    CHECK(p.PendingRetired() == 1);
+    CHECK(p.FreeIdCount() == 0);
+
+    // The recall finishes inside the pad's handler and announces the slot.
+    gate.Release();
+    recaller.join();
+    CHECK(preset->GetGuiValue() == "0");
+
+    // The pin is gone: the next passes free the pad and its ids come back.
+    CHECK(TestHelpers::pacedPump(
+        2000, [&] { return p.FreeIdCount() > 0 && p.PendingRetired() <= 1; }, churn));
+    CHECK(p.FreeIdCount() > 0);
   }
 
   TEST_CASE("preset: a standalone object trusts the tag and hands T_DSP off (#564, #952)") {

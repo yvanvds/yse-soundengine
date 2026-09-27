@@ -240,6 +240,12 @@ patcherImplementation::~patcherImplementation() {
     // std::thread::join, so they carry no system_error of their own.
     reclaimJobs_[0].join();
     reclaimJobs_[1].join();
+    // FreeAllRetired ignores pins, so let a control thread still inside a
+    // pinned use (issue #961) — one that looked an object up before Clear()
+    // removed it — finish first. Every object's Teardown has run, so nothing
+    // in the patch can start a new one.
+    while (objectPins_.load(std::memory_order_acquire) != 0)
+      std::this_thread::yield();
     // The audio thread is stopped at destruction, so reclaim unconditionally:
     // the remaining retire lists (and the final published snapshot) are freed
     // here rather than waiting on the block counter.
@@ -1597,6 +1603,22 @@ YSE::pHandle* patcherImplementation::GetHandleFromIDUnlocked(unsigned int objID)
   return nullptr;
 }
 
+YSE::PATCHER::pObject* patcherImplementation::GetObjectFromID(unsigned int objID) {
+  std::scoped_lock lk(mtx);
+  for (const auto& x : objects) {
+    if (x.second->GetID() == objID) return x.second;
+  }
+  return nullptr;
+}
+
+void patcherImplementation::CollectObjects(std::vector<pObject*>& out) {
+  out.clear();
+  std::scoped_lock lk(mtx);
+  out.reserve(objects.size());
+  for (const auto& x : objects)
+    out.push_back(x.second);
+}
+
 // Hands an unmatched message to the outgoing-message handler, if one is
 // installed (issue #907). The in-flight count brackets the load *and* the call,
 // so once SetHandler has swapped the pointer and seen the count fall to its own
@@ -1981,8 +2003,15 @@ bool patcherImplementation::ReclaimElapsed(std::uint64_t now) {
       ++i;
     }
   }
+  // A control thread holding an objectPin (issue #961) may be using an object
+  // it found live under mtx and that has been retired since; nothing retired
+  // is freed until the last pin is dropped. The pin was taken before that
+  // lookup, the lookup came before the retirement (both under mtx), and the
+  // retirement before this pass (reclaimMtx_), so this load sees the pin — or
+  // a later count, which is 0 only once every such pin has been released.
+  const bool pinned = objectPins_.load(std::memory_order_acquire) != 0;
   for (std::size_t i = 0; i < retiredObjects_.size();) {
-    if (now >= retiredObjects_[i].epoch + 2) {
+    if (!pinned && now >= retiredObjects_[i].epoch + 2) {
       // No live or retired snapshot can still index this object's ids now, so
       // hand them back to the free-list for reuse before freeing it (issue #364).
       RecycleObjectIds(retiredObjects_[i].object, retiredObjects_[i].idGen);

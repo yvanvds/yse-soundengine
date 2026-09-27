@@ -506,6 +506,11 @@ At most 64 of these queued messages can wait at once. Past that, further ones
 are dropped and counted rather than logged, because the audio thread must not
 log.
 
+Editing the patch while a store or recall runs on another thread is safe. An
+object deleted halfway through a recall stays allocated until the recall is
+done (see :doc:`realtime`). Whether it still receives its value depends on
+which comes first; a recall never touches freed memory either way.
+
 .. _gui-saved:
 
 What is saved with the patch

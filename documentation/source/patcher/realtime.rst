@@ -91,6 +91,15 @@ job frees them once the audio thread has **started two more blocks**. By then
 no block can still hold a pointer into them. The only thing the audio thread
 does for this is add one to its block counter.
 
+A removed object can also still be in use on another *control* thread. A
+``.preset`` recall, for example, finds each object under the patcher's lock
+and then sends it a value with the lock released, because that send may need
+the lock again. Such a thread marks itself as using objects before it looks
+any up, and while any thread holds that mark the job leaves removed objects
+alone (it still frees old snapshots). Setting the mark is one atomic add, so
+it never waits and never involves the audio thread. The object is freed by
+the first pass after the mark is dropped.
+
 When nothing renders (the engine is paused, or the patcher is not attached to
 anything), the block count stands still and nothing retired is freed. The
 memory is kept until rendering resumes and the next edit runs a new pass, or

@@ -79,7 +79,8 @@ namespace YSE {
      *  ### The write path
      *
      *  Recall restores a patch by sending each captured object the exact
-     *  string it produced, through ``pHandle::SetListData`` on inlet 0 — the
+     *  string it produced, as a list on inlet 0 (what ``pHandle::SetListData``
+     *  does) — the
      *  ordinary control-thread message path, the same call a host makes. It
      *  never reaches into another object's fields, which would race the audio
      *  thread and skip every clamp, side effect and outlet send the object's
@@ -93,6 +94,15 @@ namespace YSE {
      *  after a delete (issue #733), so without the type check a recall could
      *  write a ``.xyslider``'s state into whatever inherited its number.
      *  A stale entry is skipped silently; the rest of the slot still lands.
+     *
+     *  Store and recall find their objects under the patcher mutex and use
+     *  them with it released — a push runs a whole subgraph, which may take
+     *  the mutex again — so another control thread may delete an object in
+     *  between. Both therefore hold a ``patcherImplementation::objectPin``
+     *  from before the first lookup to the end of the operation: the
+     *  reclaimer leaves retired objects allocated while any pin is held
+     *  (issue #961). They keep the ``pObject*``, never the ``pHandle*``,
+     *  which ``DeleteObject`` frees at once.
      *
      *  ### Threads — control-side work, and the hand-off (issue #952)
      *
@@ -377,6 +387,10 @@ namespace YSE {
     // Capture/recall staging, reused across operations so a busy patch does
     // not regrow it every time. Only ever touched with `sending` held.
     std::vector<Entry> scratch;
+
+    // Store's snapshot of the live objects, read under an objectPin (issue
+    // #961). Only ever touched with `sending` held; emptied after each walk.
+    std::vector<pObject*> walk;
 
     int capacity = 0;
 
