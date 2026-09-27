@@ -1085,13 +1085,10 @@ TEST_SUITE("capilowcov") {
     yse_patcher_destroy(p);
   }
 
-  // Known bug #928: the cell write addresses the storage slot the end was
-  // written to, not the cell it is presented as, so once the ends are stored
-  // inverted "set 1" moves the LOW end. should_fail keeps the case honest
-  // both ways: it passes while the bug stands and fails the day #928 lands,
-  // at which point the decorator comes off.
-  TEST_CASE("c-api phandle: .rslider \"set 1\" moves the high end of an inverted range (#928)" *
-            doctest::should_fail()) {
+  // #928: the cell write addresses the presented cell, not the storage slot
+  // the end was written to, so "set 1" still moves the high end once the ends
+  // are stored inverted.
+  TEST_CASE("c-api phandle: .rslider \"set 1\" moves the high end of an inverted range (#928)") {
     YsePatcher* p = yse_patcher_create();
     REQUIRE(p != nullptr);
     yse_patcher_init(p, 2);

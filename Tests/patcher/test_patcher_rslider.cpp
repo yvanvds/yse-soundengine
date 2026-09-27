@@ -295,6 +295,28 @@ TEST_SUITE("patcher") {
     CHECK(slider.GetGuiValue() == Range(5.f, 90.f));
   }
 
+  TEST_CASE("rslider: \"set <index>\" addresses the presented cell of an inverted range (#928)") {
+    // The ends are stored in write order, so "60 30" leaves the low end in the
+    // second slot. The cell index must follow the presentation, not the slot.
+    gRSlider slider;
+    slider.GetInlet(0)->SetList("60 30", YSE::T_GUI);
+    REQUIRE(slider.GetGuiValue() == Range(30.f, 60.f));
+
+    slider.GetInlet(0)->SetList("set 1 90", YSE::T_GUI);
+    CHECK(slider.GetGuiValue() == Range(30.f, 90.f));
+
+    // Inverted again through the inlets: inlet 0 above what inlet 1 stored.
+    gRSlider other;
+    other.GetInlet(1)->SetFloat(20.f, YSE::T_GUI);
+    other.GetInlet(0)->SetFloat(80.f, YSE::T_GUI);
+    REQUIRE(other.GetGuiValue() == Range(20.f, 80.f));
+
+    other.GetInlet(0)->SetList("set 0 10", YSE::T_GUI);
+    CHECK(other.GetGuiValue() == Range(10.f, 80.f));
+    other.GetInlet(0)->SetList("set 1 70", YSE::T_GUI);
+    CHECK(other.GetGuiValue() == Range(10.f, 70.f));
+  }
+
   TEST_CASE("rslider: the \"set\" keyword is what disambiguates the two write forms (#553)") {
     // This object is the reason issue #551 spells the keyword out: with exactly
     // two numeric cells, "0 1" is both a legal whole state and a legal cell
