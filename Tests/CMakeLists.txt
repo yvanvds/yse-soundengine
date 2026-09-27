@@ -215,6 +215,7 @@ set(YSE_TEST_SOURCES
   patcher/test_patcher_teardown.cpp
   patcher/test_math_wrappers.cpp
   patcher/test_dsp_objects.cpp
+  patcher/test_patcher_fresh_state.cpp
   patcher/test_generic_objects.cpp
   patcher/test_gui_objects.cpp
   patcher/test_patcher_gui_protocol.cpp
@@ -1257,6 +1258,7 @@ set_source_files_properties(
   patcher/test_patcher_teardown.cpp
   patcher/test_math_wrappers.cpp
   patcher/test_dsp_objects.cpp
+  patcher/test_patcher_fresh_state.cpp
   patcher/test_generic_objects.cpp
   patcher/test_gui_objects.cpp
   patcher/test_patcher_gui_protocol.cpp
