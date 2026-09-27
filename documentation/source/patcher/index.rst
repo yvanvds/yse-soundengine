@@ -160,7 +160,8 @@ Working with patches:
 
 Connecting a patch to the outside world:
 
-- :doc:`host_io`: send/receive, the named bus, ``.print`` and ``.value``.
+- :doc:`host_io`: ``PassData``, send/receive, the named bus, the send
+  callback, ``.print`` and ``.value``.
 - :doc:`data`: collections, dictionaries and arrays, and sharing them by
   name.
 - :doc:`files`: reading and writing files from a patch.
