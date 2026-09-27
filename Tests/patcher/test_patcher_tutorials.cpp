@@ -253,17 +253,12 @@ namespace {
     return static_cast<float>(std::sqrt(sum / static_cast<double>(samples.size())));
   }
 
-  // The frequency of a waveform that crosses its mean twice per period, which
-  // a sine and a sawtooth both do. Measured against the mean rather than 0
-  // because ~saw runs from 0 to 1, not from -1 to 1.
+  // The frequency of a waveform that crosses zero twice per period, which a
+  // sine and a sawtooth both do.
   float Frequency(const std::vector<float>& samples) {
-    double mean = 0.0;
-    for (float s : samples)
-      mean += s;
-    const auto centre = static_cast<float>(mean / static_cast<double>(samples.size()));
     int crossings = 0;
     for (size_t i = 1; i < samples.size(); i++) {
-      if ((samples[i - 1] < centre) != (samples[i] < centre)) crossings++;
+      if ((samples[i - 1] < 0.f) != (samples[i] < 0.f)) crossings++;
     }
     const float seconds = static_cast<float>(samples.size()) / static_cast<float>(YSE::SAMPLERATE);
     return static_cast<float>(crossings) / 2.f / seconds;

@@ -488,11 +488,12 @@ And its source:
    }
 
    CALC() {
-     if (freqBuffer != nullptr) {
-       outputs[0].SendBuffer(&saw(*freqBuffer), thread);
-     } else {
-       outputs[0].SendBuffer(&saw(frequency), thread);
-     }
+     // DSP::saw is a phasor (0..1). Rescale it in place to a bipolar -1..1 saw.
+     DSP::buffer& out = freqBuffer != nullptr ? saw(*freqBuffer) : saw(frequency);
+     Flt* ptr = out.getPtr();
+     for (UInt i = 0; i < out.getLength(); ++i)
+       ptr[i] = 2.f * ptr[i] - 1.f;
+     outputs[0].SendBuffer(&out, thread);
    }
 
 How the render drives it:

@@ -4,7 +4,12 @@
 // No audio device required.
 
 #include <doctest/doctest.h>
+#include <algorithm>
+#include <cmath>
 #include <string>
+#include "dsp/patcherInsert.hpp"
+#include "headers/constants.hpp"
+#include "headers/defines.hpp"
 #include "patcher/patcher.hpp"
 #include "patcher/pHandle.hpp"
 #include "patcher/pObjectList.hpp"
@@ -156,7 +161,7 @@ TEST_SUITE("patcher") {
     CHECK_FALSE(sink.received->isSilent());
   }
 
-  TEST_CASE("dSaw: output samples are bounded within [0, 1]") {
+  TEST_CASE("dSaw: output samples are bipolar, within [-1, 1] (#955)") {
     struct BufferSink : YSE::PATCHER::pObject {
       YSE::DSP::buffer* received = nullptr;
       BufferSink() : pObject(false) {
@@ -182,10 +187,50 @@ TEST_SUITE("patcher") {
     REQUIRE(sink.received != nullptr);
     const float* ptr = sink.received->getPtr();
     unsigned int len = sink.received->getLength();
+    // The ramp starts at phase 0, which a bipolar saw puts at -1.
+    CHECK(ptr[0] == doctest::Approx(-1.0f));
     for (unsigned int i = 0; i < len; ++i) {
-      CHECK(ptr[i] >= 0.0f);
+      CHECK(ptr[i] >= -1.0f);
       CHECK(ptr[i] <= 1.0f);
     }
+  }
+
+  TEST_CASE("~saw in a patch: renders a bipolar -1..1 sawtooth with no DC offset (#955)") {
+    // The documented outlet range is -1.0 to 1.0. A 0..1 ramp (a phasor)
+    // would carry a DC offset of 0.5 into the mix.
+    YSE::patcher p;
+    p.create(1);
+    YSE::pHandle* saw = p.CreateObject("~saw", "375"); // ~35 periods over the 32 blocks below
+    YSE::pHandle* dac = p.CreateObject("~dac");
+    REQUIRE(saw != nullptr);
+    REQUIRE(dac != nullptr);
+    p.Connect(saw, 0, dac, 0);
+
+    YSE::DSP::patcherInsert insert(p);
+    MULTICHANNELBUFFER io(1);
+    io[0].resize(YSE::STANDARD_BUFFERSIZE);
+
+    float lo = 1.f;
+    float hi = -1.f;
+    double sum = 0.0;
+    unsigned int count = 0;
+    for (int block = 0; block < 32; ++block) {
+      io[0] = 0.f;
+      insert.process(io);
+      const float* ptr = io[0].getPtr();
+      for (unsigned int i = 0; i < io[0].getLength(); ++i) {
+        lo = std::min(lo, ptr[i]);
+        hi = std::max(hi, ptr[i]);
+        sum += ptr[i];
+        ++count;
+      }
+    }
+
+    CHECK(lo >= -1.0f);
+    CHECK(hi <= 1.0f);
+    CHECK(lo < -0.9f);
+    CHECK(hi > 0.9f);
+    CHECK(std::fabs(sum / count) < 0.05);
   }
 
 } // TEST_SUITE("patcher")
