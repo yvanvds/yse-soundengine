@@ -182,7 +182,11 @@ Reference:
 - :doc:`api`: the C++ classes, generated from the headers.
 - :doc:`extending`: writing a new patcher object (for contributors).
 
-For a hands-on start, see the :doc:`/tutorials/05_patcher` tutorial.
+For a hands-on start, see the tutorials: :doc:`/tutorials/05_patcher`, then
+:doc:`/tutorials/11_patcher_step_sequencer`,
+:doc:`/tutorials/12_patcher_subpatched_voice`,
+:doc:`/tutorials/13_patcher_midi_synth` and
+:doc:`/tutorials/14_patcher_presets`.
 
 .. toctree::
    :hidden:

@@ -213,6 +213,7 @@ set(YSE_TEST_SOURCES
   patcher/test_patcher_subpatcher.cpp
   patcher/test_patcher_subpatcher_signal.cpp
   patcher/test_patcher_teardown.cpp
+  patcher/test_patcher_tutorials.cpp
   patcher/test_math_wrappers.cpp
   patcher/test_dsp_objects.cpp
   patcher/test_generic_objects.cpp
@@ -334,6 +335,12 @@ endif()
 if(NOT ANDROID)
   list(APPEND YSE_TEST_SOURCES system/test_api_doc_coverage.cpp)
   set_source_files_properties(system/test_api_doc_coverage.cpp PROPERTIES
+    COMPILE_DEFINITIONS "YSE_REPO_ROOT=\"${CMAKE_SOURCE_DIR}\""
+  )
+  # The patcher tutorials' test (issue #883) loads the patch file tutorial 05
+  # walks through from TestResources/. Its other cases need no files and also
+  # run on Android.
+  set_source_files_properties(patcher/test_patcher_tutorials.cpp PROPERTIES
     COMPILE_DEFINITIONS "YSE_REPO_ROOT=\"${CMAKE_SOURCE_DIR}\""
   )
 endif()
@@ -1255,6 +1262,7 @@ set_source_files_properties(
   patcher/test_patcher_subpatcher.cpp
   patcher/test_patcher_subpatcher_signal.cpp
   patcher/test_patcher_teardown.cpp
+  patcher/test_patcher_tutorials.cpp
   patcher/test_math_wrappers.cpp
   patcher/test_dsp_objects.cpp
   patcher/test_generic_objects.cpp
