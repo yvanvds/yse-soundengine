@@ -57,7 +57,10 @@ namespace YSE {
       void Register(std::vector<std::string>& list);
 
       // Parse `args` into the registered parameters, left to right, one
-      // whitespace-separated token each.
+      // whitespace-separated token each. Tokens are split on runs of spaces,
+      // tabs and line breaks, like list messages, so "0  10" and "0\t10" mean
+      // "0 10" and a leading or trailing run is ignored; arguments that are
+      // only whitespace parse like "" (issue #936).
       //
       // Surplus arguments are *ignored*, not rejected: an object handed more
       // tokens than it has parameters keeps the ones it understands and logs
@@ -82,7 +85,8 @@ namespace YSE {
 
       // Tokenize `args` exactly like Set(), but record the scalar writes into
       // `ops` instead of touching the live fields, and update the stored
-      // param string. Returns the number of ops written, 0 for empty args, or
+      // param string. Returns the number of ops written, 0 for empty (or
+      // whitespace-only) args, which leave the stored string alone, or
       // -1 when the plan does not fit `cap` (or a non-scalar param sneaks in)
       // — the caller must then fall back to the structural rebuild. Parse
       // errors (std::stof on garbage) throw here, on the calling thread,

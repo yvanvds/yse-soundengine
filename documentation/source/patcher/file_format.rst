@@ -171,7 +171,7 @@ The object record
      - The creation arguments, exactly as ``GetParams()`` returns them. An
        object without arguments writes ``""``. The rules from
        :doc:`building` apply on load: surplus arguments are ignored but kept
-       verbatim, and arguments must be separated by single spaces.
+       verbatim, and any run of whitespace separates arguments.
    * - ``outputs``
      - object
      - no

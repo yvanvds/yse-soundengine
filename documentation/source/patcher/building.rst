@@ -58,10 +58,11 @@ rules:
   ``std::out_of_range``). Nothing is added to the patcher. Through the C API,
   ``yse_patcher_create_object`` returns ``NULL`` and the reason is in
   ``yse_last_error()``.
-- **Use exactly one space between arguments.** Two spaces in a row count as
-  an empty argument, and an empty number argument throws as above. Tabs are
-  not separators. This is tracked in `#936
-  <https://github.com/yvanvds/yse-soundengine/issues/936>`_.
+- **Any run of whitespace separates arguments**, as in a list message:
+  spaces, tabs and line breaks, one or several. ``"0  10"`` and ``"0\t10"``
+  both mean ``0 10``, and leading or trailing whitespace is ignored. An
+  argument string that is only whitespace is the same as ``""``. The string
+  itself is still stored as you passed it.
 - ``~dac`` and ``~adc`` ignore their arguments. Their channel count is
   always the one passed to ``patcher::create``.
 

@@ -453,4 +453,93 @@ TEST_SUITE("patcher") {
     CHECK(sink.floatValue == doctest::Approx(4.f)); // still {2, 4, 6}
   }
 
+  // ---- Whitespace between arguments (issue #936) ----
+  //
+  // The tokenizer split on every single ' ', so a run of two spaces, or a
+  // leading one, produced an empty token, and an empty token on an INT/FLOAT
+  // param went to std::stoi("") / std::stof("") and threw. A tab was not a
+  // separator at all. Arguments now split on runs of whitespace, like a list
+  // message; the string itself is still stored verbatim (#627).
+
+  namespace {
+    // Send `value` through a `.clip` and return what came out, so the limits
+    // the creation arguments set are observed through the object itself.
+    float ClipThrough(patcherImplementation& p, YSE::pHandle* clip, float value) {
+      MultiSink sink;
+      YSE::pHandle hSink(&sink);
+      p.Connect(clip, 0, &hSink, 0);
+      clip->SetFloatData(0, value);
+      p.Disconnect(clip, 0, &hSink, 0);
+      return sink.floatValue;
+    }
+  } // namespace
+
+  TEST_CASE("setparams: creation arguments split on runs of whitespace (#936)") {
+    const char* spellings[] = {"0  10", "  0 10", "0 10  ", "0\t10", " \t0 \r\n 10\t"};
+    for (const char* args : spellings) {
+      CAPTURE(args);
+      patcherImplementation p(1, nullptr);
+      YSE::pHandle* clip = nullptr;
+      CHECK_NOTHROW(clip = p.CreateObject(YSE::OBJ::G_CLIP, args));
+      REQUIRE(clip != nullptr);
+      // Both limits landed: 0 and 10, not the -1 / 1 defaults.
+      CHECK(ClipThrough(p, clip, 20.f) == doctest::Approx(10.f));
+      CHECK(ClipThrough(p, clip, -5.f) == doctest::Approx(0.f));
+      CHECK(clip->GetParams() == args);
+    }
+  }
+
+  TEST_CASE("setparams: whitespace-only creation arguments are the no-argument object (#936)") {
+    patcherImplementation p(1, nullptr);
+    YSE::pHandle* gate = p.CreateObject(YSE::OBJ::G_GATE, "   ");
+    REQUIRE(gate != nullptr);
+    CHECK(gate->GetOutputs() == 2); // .gate's default, as for ""
+    YSE::pHandle* clip = p.CreateObject(YSE::OBJ::G_CLIP, " \t ");
+    REQUIRE(clip != nullptr);
+    CHECK(ClipThrough(p, clip, 5.f) == doctest::Approx(1.f));
+  }
+
+  TEST_CASE("setparams: a live re-parse splits on runs of whitespace on both paths (#936)") {
+    patcherImplementation p(1, nullptr);
+
+    // Scalar plan (BuildPlan).
+    YSE::pHandle* clip = p.CreateObject(YSE::OBJ::G_CLIP, "0 1");
+    REQUIRE(clip != nullptr);
+    CHECK_NOTHROW(clip->SetParams("  -3\t\t3 "));
+    CHECK(clip->GetParams() == "  -3\t\t3 ");
+    p.Calculate(YSE::T_DSP);
+    CHECK(ClipThrough(p, clip, 9.f) == doctest::Approx(3.f));
+    CHECK(ClipThrough(p, clip, -9.f) == doctest::Approx(-3.f));
+
+    // Whitespace only is the scalar path's empty-args no-op.
+    clip->SetParams("   ");
+    p.Calculate(YSE::T_DSP);
+    CHECK(clip->GetParams() == "  -3\t\t3 ");
+    CHECK(ClipThrough(p, clip, 9.f) == doctest::Approx(3.f));
+
+    // Structural rebuild (Set on the replacement).
+    YSE::pHandle* gate = p.CreateObject(YSE::OBJ::G_GATE, "2");
+    REQUIRE(gate != nullptr);
+    CHECK_NOTHROW(gate->SetParams("  4  "));
+    CHECK(gate->GetOutputs() == 4);
+    CHECK(gate->GetParams() == "  4  ");
+  }
+
+  TEST_CASE("setparams: a patch file's parms string splits on whitespace and round-trips (#936)") {
+    // ParseJSON restores each object through the same Parameters::Set, so a
+    // hand-edited `parms` with a double space or a tab loads, and re-saving
+    // writes the string back exactly as it was read.
+    patcherImplementation p(1, nullptr);
+    REQUIRE(p.CreateObject(YSE::OBJ::G_CLIP, "0  10\t") != nullptr);
+    const std::string saved = p.DumpJSON();
+
+    patcherImplementation loaded(1, nullptr);
+    CHECK_NOTHROW(loaded.ParseJSON(saved));
+    REQUIRE(loaded.Objects() == 1u);
+    YSE::pHandle* clip = loaded.GetHandleFromList(0);
+    CHECK(clip->GetParams() == "0  10\t");
+    CHECK(ClipThrough(loaded, clip, 20.f) == doctest::Approx(10.f));
+    CHECK(loaded.DumpJSON() == saved);
+  }
+
 } // TEST_SUITE("patcher")

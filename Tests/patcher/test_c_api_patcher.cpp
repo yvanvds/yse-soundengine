@@ -1010,6 +1010,33 @@ TEST_SUITE("capilowcov") {
     yse_patcher_destroy(p);
   }
 
+  TEST_CASE("c-api patcher: creation arguments split on runs of whitespace (#936)") {
+    // Two spaces in a row, or a leading one, used to hand std::stof an empty
+    // token: create returned NULL with std::invalid_argument's text in
+    // yse_last_error(). A tab was no separator at all.
+    YsePatcher* p = yse_patcher_create();
+    REQUIRE(p != nullptr);
+    yse_patcher_init(p, 2);
+
+    for (const char* args : {"0  10", " 0 10", "0\t10"}) {
+      CAPTURE(args);
+      yse_clear_last_error();
+      YsePHandle* clip = yse_patcher_create_object(p, ".clip", args);
+      REQUIRE(clip != nullptr);
+      CHECK(std::strlen(yse_last_error()) == 0u);
+      CHECK(readString([clip](char* b, size_t c) { return yse_phandle_get_params(clip, b, c); }) ==
+            args);
+    }
+
+    yse_clear_last_error();
+    YsePHandle* gate = yse_patcher_create_object(p, ".gate", "  3  ");
+    REQUIRE(gate != nullptr);
+    CHECK(std::strlen(yse_last_error()) == 0u);
+    CHECK(yse_phandle_get_outputs(gate) == 3);
+
+    yse_patcher_destroy(p);
+  }
+
   TEST_CASE("c-api phandle: the GUI value protocol's cell form mirrors the engine") {
     // Issue #551. `.i` is a scalar control, so it is the one-cell case: it
     // reports one cell, cell 0 is exactly the whole-state read, and

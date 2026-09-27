@@ -4,6 +4,29 @@
 
 using namespace YSE::PATCHER;
 
+namespace {
+  // The list tokenizer's separators (messages.rst), so a creation argument
+  // splits exactly like a list message does.
+  inline bool IsSeparator(char c) {
+    return c == ' ' || c == '\t' || c == '\n' || c == '\r';
+  }
+
+  // Advance `pos` past the next run of separators and the token after it.
+  // Returns false once only separators (or nothing) remain, so a run of
+  // them — leading, trailing or interior — never yields an empty token
+  // (issue #936).
+  bool NextToken(const std::string& text, std::size_t& pos, std::string& token) {
+    while (pos < text.size() && IsSeparator(text[pos]))
+      pos++;
+    if (pos >= text.size()) return false;
+    const std::size_t begin = pos;
+    while (pos < text.size() && !IsSeparator(text[pos]))
+      pos++;
+    token.assign(text, begin, pos - begin);
+    return true;
+  }
+} // namespace
+
 void Parameters::Register(int& value) {
   parms.emplace_back(PARM_TYPE::INT, &value);
 }
@@ -57,13 +80,10 @@ int Parameters::BuildPlan(const std::string& args, ParamOp* ops, int cap) {
   if (args.size() == 0) return 0;
 
   int count = 0;
-  size_t pos = 0;
+  std::size_t pos = 0;
   unsigned int currentArg = 0;
-  std::string arg = args + " "; // important to get the last argument
   std::string token;
-  while ((pos = arg.find(' ')) != std::string::npos) {
-    token = arg.substr(0, pos);
-
+  while (NextToken(args, pos, token)) {
     if (currentArg < parms.size()) {
       if (count >= cap) return -1;
       switch (parms[currentArg].type) {
@@ -91,9 +111,12 @@ int Parameters::BuildPlan(const std::string& args, ParamOp* ops, int cap) {
     } else {
       INTERNAL::LogImpl().emit(E_DEBUG, "Too many arguments for this object.");
     }
-    arg.erase(0, pos + 1);
     currentArg++;
   }
+
+  // Whitespace-only arguments are the empty-args case above, not a new
+  // parameter string.
+  if (currentArg == 0) return 0;
 
   current = args;
   return count;
@@ -105,13 +128,15 @@ void Parameters::Set(const std::string& args) {
 
   current = args;
   INTERNAL::LogImpl().emit(E_DEBUG, "patcher: parsing arguments: " + args);
-  size_t pos = 0;
+  std::size_t pos = 0;
   unsigned int currentArg = 0;
-  std::string arg = args + " "; // important to get the last argument
   std::string token;
-  while ((pos = arg.find(" ")) != std::string::npos) {
-    token = arg.substr(0, pos);
-    INTERNAL::LogImpl().emit(E_DEBUG, "patcher: found argument: " + args);
+  // Whitespace-only arguments carry no token: the object keeps the
+  // no-argument shape onClear just restored, exactly as for "" — only the
+  // verbatim string is remembered, for GetParams / DumpJSON.
+  if (!NextToken(args, pos, token)) return;
+  do {
+    INTERNAL::LogImpl().emit(E_DEBUG, "patcher: found argument: " + token);
 
     if (currentArg < parms.size()) {
       switch (parms[currentArg].type) {
@@ -167,9 +192,8 @@ void Parameters::Set(const std::string& args) {
       }
       INTERNAL::LogImpl().emit(E_DEBUG, "Too many arguments for this object.");
     }
-    arg.erase(0, pos + 1);
     currentArg++;
-  }
+  } while (NextToken(args, pos, token));
 
   if (onParse != nullptr) {
     onParse();
