@@ -1454,6 +1454,12 @@ TEST_SUITE("capilowcov") {
     CHECK(yse_phandle_is_dsp_input(sub, 1) == 1);
     CHECK(yse_phandle_is_dsp_input(sub, 0) == 0);
     CHECK(yse_phandle_is_dsp_input(sub, 2) == 0); // past the boundary
+    // The outlet side resolves the same way (#942): pin 0 the message outlet,
+    // pin 2 the signal one, pin 1 claimed by nothing.
+    CHECK(yse_phandle_output_data_type(sub, 0) == YSE_OUT_ANY);
+    CHECK(yse_phandle_output_data_type(sub, 2) == YSE_OUT_BUFFER);
+    CHECK(yse_phandle_output_data_type(sub, 1) == YSE_OUT_INVALID);
+    CHECK(yse_phandle_output_data_type(sub, 3) == YSE_OUT_INVALID);
 
     // Taking the signal boundary back out shrinks the range to what is left.
     yse_patcher_set_container(p, sIn, nullptr);
@@ -1461,6 +1467,7 @@ TEST_SUITE("capilowcov") {
     CHECK(yse_patcher_subpatcher_inlets(p, sub) == 1);
     CHECK(yse_patcher_subpatcher_outlets(p, sub) == 1);
     CHECK(yse_phandle_is_dsp_input(sub, 1) == 0);
+    CHECK(yse_phandle_output_data_type(sub, 2) == YSE_OUT_INVALID);
 
     yse_patcher_destroy(p);
   }

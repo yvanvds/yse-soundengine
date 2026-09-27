@@ -574,6 +574,14 @@ YSE::PATCHER::inlet* patcherImplementation::ResolveInlet(pObject* obj, int pin) 
   return boundary == nullptr ? nullptr : boundary->GetInlet(0);
 }
 
+YSE::OUT_TYPE patcherImplementation::ResolveOutputType(pObject* obj, int pin) {
+  if (obj == nullptr) return YSE::OUT_TYPE::INVALID;
+  if (!IsSubpatcher(obj)) return obj->GetOutputType(static_cast<unsigned int>(pin));
+  std::scoped_lock lk(mtx);
+  pObject* boundary = BoundaryChild(obj, BoundarySide::OUTLETS, pin);
+  return boundary == nullptr ? YSE::OUT_TYPE::INVALID : boundary->GetOutputType(0);
+}
+
 void patcherImplementation::ConnectUnlocked(YSE::pHandle* from, int outlet, YSE::pHandle* to,
                                             int inlet) {
   // Resolve subpatcher façades to the boundary objects that carry the pins

@@ -652,6 +652,46 @@ TEST_SUITE("patcher") {
     CHECK(exactlyEqual(io[0], dry));
   }
 
+  TEST_CASE("subpatcher signal: a subpatcher's pin types resolve through the boundary (#942)") {
+    // An editor decides whether a cord is a signal cord from IsDSPInput on the
+    // inlet end and OutputDataType on the outlet end. Both have to answer for
+    // what sits behind a subpatcher's pin, not for the pinless façade.
+    YSE::patcher p;
+    p.create(1);
+    YSE::pHandle* sub = p.CreateObject(YSE::OBJ::PATCHER, "");
+    YSE::pHandle* cIn = p.CreateObject(YSE::OBJ::G_INLET, "0");
+    YSE::pHandle* sIn = p.CreateObject(YSE::OBJ::D_INLET, "1");
+    YSE::pHandle* cOut = p.CreateObject(YSE::OBJ::G_OUTLET, "0");
+    YSE::pHandle* sOut = p.CreateObject(YSE::OBJ::D_OUTLET, "2");
+    REQUIRE(sub != nullptr);
+    for (YSE::pHandle* h : {cIn, sIn, cOut, sOut}) {
+      REQUIRE(h != nullptr);
+      p.SetContainer(h, sub);
+    }
+
+    CHECK(sub->IsDSPInput(1));
+    CHECK_FALSE(sub->IsDSPInput(0));
+    CHECK(sub->OutputDataType(0) == YSE::OUT_TYPE::ANY);
+    CHECK(sub->OutputDataType(2) == YSE::OUT_TYPE::BUFFER);
+    // Pin 1 lies inside the range but no boundary object claims it, and pin 3
+    // is past it: neither names an outlet.
+    CHECK(sub->OutputDataType(1) == YSE::OUT_TYPE::INVALID);
+    CHECK(sub->OutputDataType(3) == YSE::OUT_TYPE::INVALID);
+
+    // Renumbering applies at once (#941), and the type follows the object.
+    sOut->SetParams("1");
+    CHECK(sub->OutputDataType(1) == YSE::OUT_TYPE::BUFFER);
+    CHECK(sub->OutputDataType(2) == YSE::OUT_TYPE::INVALID);
+
+    // Taking the boundary object out of the subpatcher takes its pin with it.
+    p.SetContainer(sOut, nullptr);
+    CHECK(sub->OutputDataType(1) == YSE::OUT_TYPE::INVALID);
+
+    // An ordinary object still answers for its own outlets.
+    CHECK(sOut->OutputDataType(0) == YSE::OUT_TYPE::BUFFER);
+    CHECK(sOut->OutputDataType(1) == YSE::OUT_TYPE::INVALID);
+  }
+
   TEST_CASE("subpatcher signal: connecting to a pin the boundary does not have is refused (#764)") {
     // The refusal has to be silent-and-safe rather than a crash or a wrong
     // edge: a wrong edge is the failure mode that only shows up later, as audio

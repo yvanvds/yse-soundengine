@@ -174,6 +174,14 @@ namespace YSE {
       // shaped around. Only the lookup is locked.
       PATCHER::inlet* ResolveInlet(pObject* obj, int pin);
 
+      // The outlet-side twin, for `pHandle::OutputDataType` (issue #942): the
+      // type `obj`'s outlet `pin` produces, resolved through a subpatcher's
+      // boundary the way `Connect` resolves a cord leaving it — the type of
+      // the `.outlet` / `~outlet` claiming that index. INVALID when no
+      // boundary object claims it. It returns a value rather than a pointer,
+      // so unlike ResolveInlet the whole read stays under mtx.
+      YSE::OUT_TYPE ResolveOutputType(pObject* obj, int pin);
+
       std::string DumpJSON();
       void ParseJSON(const std::string& content);
 

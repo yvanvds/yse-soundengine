@@ -135,19 +135,21 @@ A ``patcher`` object has no pins of its own, so ``pHandle::GetInputs()`` and
    inlets, and inlets 0 and 1 refuse a connection. For a handle that is not a
    subpatcher, the answer is 0.
 
-Other per-pin queries on a subpatcher's handle behave differently depending
-on the side:
+The per-pin type queries on a subpatcher's handle resolve through the
+boundary, on both sides:
 
-- **Inlets resolve through the boundary.** ``pHandle::IsDSPInput(n)`` answers
-  for the boundary object behind inlet n (true for a ``~inlet``), and
-  ``SetBang``, ``SetIntData``, ``SetFloatData`` and ``SetListData`` deliver to
-  it. A host can push a value into a subpatcher's inlet without knowing what
-  is inside. For a pin no boundary object claims, ``IsDSPInput`` returns false
-  and the setters do nothing.
-- **Outlets do not.** ``pHandle::OutputDataType(n)`` returns
-  ``OUT_TYPE::INVALID`` for every pin of a subpatcher (issue `#942
-  <https://github.com/yvanvds/yse-soundengine/issues/942>`_). Ask the
-  boundary object itself until this is fixed.
+- ``pHandle::IsDSPInput(n)`` answers for the boundary object behind inlet n
+  (true for a ``~inlet``), and ``SetBang``, ``SetIntData``, ``SetFloatData``
+  and ``SetListData`` deliver to it. A host can push a value into a
+  subpatcher's inlet without knowing what is inside. For a pin no boundary
+  object claims, ``IsDSPInput`` returns false and the setters do nothing.
+- ``pHandle::OutputDataType(n)`` answers for the boundary object behind
+  outlet n: ``OUT_TYPE::BUFFER`` for a ``~outlet``, ``OUT_TYPE::ANY`` for a
+  ``.outlet``. For a pin no boundary object claims, it returns
+  ``OUT_TYPE::INVALID``.
+
+So an editor can tell a signal cord from a message cord at a subpatcher's
+pins the same way it does at any other object's.
 
 Worked example: a voice
 -----------------------
