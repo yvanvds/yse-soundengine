@@ -21,7 +21,8 @@ YSE::CHANNEL::managerObject::managerObject()
     mgrDelete(this),
     outputAngles(nullptr),
     outputIsLFE(nullptr),
-    outputChannels(0) {}
+    outputChannels(0),
+    channelType(CT_AUTO) {}
 
 YSE::CHANNEL::managerObject::~managerObject() noexcept {
   try {
