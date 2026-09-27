@@ -235,6 +235,9 @@ TEST_SUITE("patcher") {
     for (unsigned char pattern : kPatterns) {
       CAPTURE(static_cast<int>(pattern));
 
+#if YSE_ENABLE_MIDI_DEVICE
+      // The MIDI-in objects only exist where the engine has MIDI device I/O
+      // (not on Android or macOS); see the guard in mMidiIn.h / mMidiXIn.h.
       // Channel 0 and controller -1 mean "every channel" / "every controller":
       // a garbage filter would silently drop all input.
       OverPattern<mNoteIn> notein(pattern);
@@ -248,6 +251,7 @@ TEST_SUITE("patcher") {
       OverPattern<mXCtlIn> xctlin(pattern);
       CHECK(xctlin->ChannelFilter() == 0);
       CHECK(xctlin->ControllerFilter() == -1);
+#endif
 
       OverPattern<mMakeNote> makenote(pattern);
       CHECK(makenote->Velocity() == mMakeNote::DEFAULT_VELOCITY);
