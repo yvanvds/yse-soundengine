@@ -560,6 +560,28 @@ TEST_SUITE("capilowcov") {
     yse_patcher_destroy(src);
   }
 
+  TEST_CASE("c-api patcher: a parse_json that fails mid-load loads nothing (#938)") {
+    YsePatcher* p = yse_patcher_create();
+    REQUIRE(p != nullptr);
+    REQUIRE(yse_patcher_init(p, 2) == YSE_OK);
+    YsePHandle* existing = yse_patcher_create_object(p, kMultiply, "3");
+    REQUIRE(existing != nullptr);
+
+    // The first record creates an object; the second cannot be built. The
+    // status says nothing was loaded, and nothing was.
+    yse_clear_last_error();
+    CHECK(yse_patcher_parse_json(p, R"({"object 0":{"ID":0,"type":".mtof","parms":""},
+                                        "object 1":{"ID":1,"type":"~sine","parms":"abc"}})") ==
+          YSE_ERR_EXCEPTION);
+    CHECK_FALSE(std::string(yse_last_error()).empty());
+    CHECK(yse_patcher_objects(p) == 1u);
+    CHECK(yse_patcher_get_handle_from_id(p, 0) == existing);
+    CHECK(yse_patcher_get_handle_from_id(p, 1) == nullptr);
+    yse_clear_last_error();
+
+    yse_patcher_destroy(p);
+  }
+
   TEST_CASE("c-api patcher: init reports its outcome as a YseStatus (#910)") {
     YsePatcher* p = yse_patcher_create();
     REQUIRE(p != nullptr);

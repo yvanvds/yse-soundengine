@@ -170,6 +170,10 @@ namespace YSE {
      *  applied before any object is created and before ``.loadbang`` fires, and
      *  is refused (logged, auto-name kept) like any over-long ``name()``
      *  (issue #897).
+     *
+     *  Throws on a malformed file. A load is all-or-nothing: on a throw the
+     *  patcher is left exactly as it was, with the objects the load had created
+     *  removed and a name it applied taken back (issue #938).
      */
     void ParseJSON(const std::string& content);
 

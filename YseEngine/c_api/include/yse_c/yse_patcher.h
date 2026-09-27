@@ -171,7 +171,8 @@ YSE_C_API size_t yse_patcher_dump_json(YsePatcher* p, char* buf, size_t cap);
    YSE_ERR_INVALID_ARGUMENT on NULL content, YSE_ERR_NOT_INITIALIZED before
    yse_patcher_init, and YSE_ERR_EXCEPTION when the content is malformed
    JSON or not a patch. Every failure leaves its reason in
-   yse_last_error(). Control thread only. */
+   yse_last_error() and the patcher exactly as it was: nothing of the file
+   is loaded (issue #938). Control thread only. */
 YSE_C_API YseStatus yse_patcher_parse_json(YsePatcher* p, const char* content);
 
 /* ─── enumeration ─────────────────────────────────────────────────── */

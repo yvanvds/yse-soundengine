@@ -454,14 +454,12 @@ arguments) when:
 Through the C API these come back as ``YSE_ERR_EXCEPTION`` with the message
 in ``yse_last_error()``. No exception crosses the C boundary.
 
-.. warning::
-
-   A throw after the first object has been created currently leaves the
-   objects created so far in the patcher, without cords, and not yet
-   published: they appear at the next edit, and no ``.loadbang`` fires. Until
-   `#938 <https://github.com/yvanvds/yse-soundengine/issues/938>`_ is fixed,
-   ``Clear()`` the patcher after a failed load if you want it back to a known
-   state.
+A load is all-or-nothing. When ``ParseJSON`` throws, the patcher is left
+exactly as it was before the call: every object the load had already created
+is removed again, the objects that were there before are untouched and keep
+their IDs, a ``"name"`` the file applied is taken back, and no ``.loadbang``
+fires. The audio thread never sees any of it. You do not need to ``Clear()``
+after a failed load.
 
 These are **not** errors. The loader logs them and carries on:
 

@@ -381,6 +381,18 @@ namespace YSE {
       // counterpart.
       void LoadbangObjects(const std::vector<pObject*>& loaded);
 
+      // Undo a ParseJSON that threw part-way through its build (issue #938):
+      // remove every object in `created` from the patcher again, unpublished,
+      // so the patcher is left exactly as it was before the load. Caller holds
+      // mtx and has not published any of them.
+      void DiscardLoadedUnlocked(const std::vector<pHandle*>& created);
+
+      // ParseJSON's build: create, nest and wire every record of `j` under
+      // mtx, then publish once. Appends each object it created to `loaded`
+      // for the loadbang pass. On a throw it has already rolled the objects
+      // back (DiscardLoadedUnlocked) and left `loaded` empty.
+      void BuildParsedGraph(nlohmann::json& j, std::vector<pObject*>& loaded);
+
       // Pass one of teardown (issue #758): tell every object in this patcher
       // that it is about to go away, while the patch is still whole. Called by
       // Clear() before it takes mtx and starts unwiring. See the definition for
