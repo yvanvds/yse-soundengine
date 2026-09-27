@@ -35,6 +35,7 @@
 #include <doctest/doctest.h>
 #include <cstddef>
 #include <cstdint>
+#include <mutex>
 #include <string>
 #include <vector>
 
@@ -63,9 +64,11 @@ namespace {
   // installed through the public API — test_patcher_print's capture, for the
   // same reason. Everything the engine logs while this is alive arrives
   // here, so the accessors search rather than compare.
+  //
+  // Locked (#948): the engine serialises AddMessage() calls against each
+  // other, not against this test reading the lines, and pool threads in the
+  // shared process may log while the capture is installed.
   struct LogCapture : YSE::logHandler {
-    std::vector<std::string> lines;
-
     LogCapture() {
       lines.reserve(4096);
       // Whatever is still queued from an earlier test belongs to that test.
@@ -81,6 +84,7 @@ namespace {
     LogCapture& operator=(LogCapture&&) = delete;
 
     void AddMessage(const std::string& message) override {
+      const std::lock_guard<std::mutex> lock(mutex);
       lines.push_back(message);
     }
 
@@ -92,6 +96,7 @@ namespace {
     }
 
     bool Saw(const std::string& needle) const {
+      const std::lock_guard<std::mutex> lock(mutex);
       for (const std::string& line : lines) {
         if (line.find(needle) != std::string::npos) return true;
       }
@@ -105,6 +110,7 @@ namespace {
     std::vector<std::string> Body(const std::string& label) const {
       std::vector<std::string> body;
       const std::string mark = label + ": ";
+      const std::lock_guard<std::mutex> lock(mutex);
       for (const std::string& line : lines) {
         const std::size_t at = line.find(mark);
         if (at == std::string::npos) continue;
@@ -123,8 +129,13 @@ namespace {
     }
 
     void Clear() {
+      const std::lock_guard<std::mutex> lock(mutex);
       lines.clear();
     }
+
+  private:
+    mutable std::mutex mutex;
+    std::vector<std::string> lines;
   };
 
   // A .dict and a .dict.print on one name, sharing one patcherImplementation

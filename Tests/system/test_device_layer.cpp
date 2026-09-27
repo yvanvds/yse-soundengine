@@ -61,6 +61,7 @@
 #include <chrono>
 #include <cmath>
 #include <cstring>
+#include <mutex>
 #include <new>
 #include <stdexcept>
 #include <string>
@@ -194,16 +195,29 @@ namespace {
   // state change, so the line is part of the contract, not decoration — a
   // silently ignored openDevice() call is what made issue #661's null
   // dereference look like "nothing happened" to begin with.
+  //
+  // Locked (#948): the engine serialises AddMessage() calls against each
+  // other, not against this test reading the vector, and engine threads may
+  // log while the sink is installed.
   class CapturingLog : public YSE::logHandler {
   public:
     void AddMessage(const std::string& message) override {
+      const std::lock_guard<std::mutex> lock(mutex);
       messages.push_back(message);
     }
     bool contains(const std::string& fragment) const {
-      for (const std::string& m : messages)
-        if (m.find(fragment) != std::string::npos) return true;
-      return false;
+      return count(fragment) > 0;
     }
+    int count(const std::string& fragment) const {
+      const std::lock_guard<std::mutex> lock(mutex);
+      int found = 0;
+      for (const std::string& m : messages)
+        if (m.find(fragment) != std::string::npos) found++;
+      return found;
+    }
+
+  private:
+    mutable std::mutex mutex;
     std::vector<std::string> messages;
   };
 
@@ -625,10 +639,7 @@ TEST_SUITE("devicelayer") {
     }
     YSE::System().autoReconnect(false, 0);
 
-    int attempts = 0;
-    for (const std::string& m : captured.messages) {
-      if (m.find("no audio device to resume") != std::string::npos) attempts++;
-    }
+    const int attempts = captured.count("no audio device to resume");
     INFO("reconnection attempts in 750 ms at a 300 ms interval: " << attempts);
     CHECK(attempts >= 1);
     CHECK(attempts <= 4);

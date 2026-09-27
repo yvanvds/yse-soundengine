@@ -15,6 +15,7 @@
 
 #include <doctest/doctest.h>
 #include <chrono>
+#include <mutex>
 #include <string>
 #include <thread>
 #include <vector>
@@ -39,17 +40,27 @@ namespace {
   // rather than an inference. A counting sink rather than a throwing one, so it
   // is safe in the shared test process; cases match on a substring so an
   // unrelated line cannot fail them.
+  //
+  // Locked (#948): the engine serialises AddMessage() calls against each
+  // other, not against this test reading the vector. Slow-pool file loads log
+  // from a pool thread while the handler is installed, so the reader needs
+  // the same lock as the writer.
   class RecordingHandler : public YSE::logHandler {
   public:
     void AddMessage(const std::string& message) override {
+      const std::lock_guard<std::mutex> lock(mutex);
       messages.push_back(message);
     }
     bool sawSubstring(const std::string& needle) const {
+      const std::lock_guard<std::mutex> lock(mutex);
       for (const std::string& m : messages) {
         if (m.find(needle) != std::string::npos) return true;
       }
       return false;
     }
+
+  private:
+    mutable std::mutex mutex;
     std::vector<std::string> messages;
   };
 
