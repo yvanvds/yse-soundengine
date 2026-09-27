@@ -14,6 +14,7 @@
 // retired object. No audio device required.
 
 #include <doctest/doctest.h>
+#include <mutex>
 #include <string>
 #include <vector>
 #include "patcher/patcherImplementation.h"
@@ -183,17 +184,26 @@ TEST_SUITE("patcher") {
     // assertion rather than an inference. A counting sink rather than the
     // throwing one test_log_nothrow needs, so it is safe in the shared process;
     // cases match on a substring so an unrelated line cannot fail them.
+    //
+    // Locked (#948): the engine serialises AddMessage() calls against each
+    // other, not against this test reading the vector, and pool threads in
+    // the shared process may log while the handler is installed.
     class RecordingHandler : public YSE::logHandler {
     public:
       void AddMessage(const std::string& message) override {
+        const std::lock_guard<std::mutex> lock(mutex);
         messages.push_back(message);
       }
       bool sawSubstring(const std::string& needle) const {
+        const std::lock_guard<std::mutex> lock(mutex);
         for (const std::string& m : messages) {
           if (m.find(needle) != std::string::npos) return true;
         }
         return false;
       }
+
+    private:
+      mutable std::mutex mutex;
       std::vector<std::string> messages;
     };
 

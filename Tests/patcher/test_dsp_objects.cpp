@@ -3,6 +3,8 @@
 
 #include <doctest/doctest.h>
 #include <cmath>
+#include <cstring>
+#include <new>
 #include <string>
 #include "patcher/patcher.hpp"
 #include "patcher/pHandle.hpp"
@@ -109,6 +111,28 @@ TEST_SUITE("patcher") {
     CHECK(h->GetInputs() == 2);
     CHECK(h->GetOutputs() == 1);
     CHECK(h->OutputDataType(0) == YSE::OUT_TYPE::BUFFER);
+  }
+
+  TEST_CASE("pLine: a fresh object is silent whatever its memory held (issue #951)") {
+    // `target` and `time` are std::atomic<float>, whose default constructor
+    // leaves the value indeterminate before C++20. The constructor did not set
+    // them, so a new ~line ramped toward whatever the heap held and rendered it
+    // at full scale until its first message. Building the object over memory
+    // filled with a non-zero pattern makes that deterministic instead of
+    // depending on what the allocator hands back.
+    alignas(YSE::PATCHER::pLine) unsigned char storage[sizeof(YSE::PATCHER::pLine)];
+    std::memset(storage, 0x6E, sizeof(storage)); // each float reads as ~1.8e28
+    auto* line = new (storage) YSE::PATCHER::pLine();
+
+    BufferSink sink;
+    line->ConnectOutlet(sink.GetInlet(0), 0);
+    sink.ConnectInlet(line->GetOutlet(0), 0);
+
+    line->Calculate(YSE::T_DSP);
+    REQUIRE(sink.received != nullptr);
+    CHECK(maxAbs(*sink.received) == 0.0f);
+
+    line->~pLine();
   }
 
   TEST_CASE("pLine: with time=0 reaches target immediately") {

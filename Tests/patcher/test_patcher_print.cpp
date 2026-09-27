@@ -41,6 +41,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <vector>
 
@@ -64,9 +65,11 @@ namespace {
   // alive arrives here, the object under test's lines among them, so the
   // accessors search rather than compare — the surrounding debug chatter from
   // `Parameters::Set` is part of an honest reading of this channel.
+  //
+  // Locked (#948): the engine serialises AddMessage() calls against each
+  // other, not against this test reading the lines, and pool threads in the
+  // shared process may log while the capture is installed.
   struct LogCapture : YSE::logHandler {
-    std::vector<std::string> lines;
-
     LogCapture() {
       lines.reserve(4096);
       // Whatever is still queued from an earlier test belongs to that test.
@@ -82,6 +85,7 @@ namespace {
     LogCapture& operator=(LogCapture&&) = delete;
 
     void AddMessage(const std::string& message) override {
+      const std::lock_guard<std::mutex> lock(mutex);
       lines.push_back(message);
     }
 
@@ -93,13 +97,11 @@ namespace {
     }
 
     bool Saw(const std::string& needle) const {
-      for (const std::string& line : lines) {
-        if (line.find(needle) != std::string::npos) return true;
-      }
-      return false;
+      return Count(needle) > 0;
     }
 
     std::size_t Count(const std::string& needle) const {
+      const std::lock_guard<std::mutex> lock(mutex);
       std::size_t found = 0;
       for (const std::string& line : lines) {
         if (line.find(needle) != std::string::npos) found++;
@@ -107,9 +109,20 @@ namespace {
       return found;
     }
 
+    // A copy taken under the lock, for cases that walk every line.
+    std::vector<std::string> Lines() const {
+      const std::lock_guard<std::mutex> lock(mutex);
+      return lines;
+    }
+
     void Clear() {
+      const std::lock_guard<std::mutex> lock(mutex);
       lines.clear();
     }
+
+  private:
+    mutable std::mutex mutex;
+    std::vector<std::string> lines;
   };
 
   // A standalone `.print`, driven through its inlet the way a cord drives it.
@@ -297,7 +310,7 @@ TEST_SUITE("patcher") {
     CHECK(log.Saw("dbg: zzz"));
     CHECK(log.Saw("...")); // the cut is marked rather than silent
 
-    for (const std::string& line : log.lines) {
+    for (const std::string& line : log.Lines()) {
       // The record's bound really is a bound. The log line carries the engine's
       // own "(App Message)" tag in front of it, so it is longer than the record
       // by that tag and no more.
