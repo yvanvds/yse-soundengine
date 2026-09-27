@@ -239,6 +239,18 @@ namespace YSE {
       int BuildParamPlan(const pObject& staged, ParamOp* ops, int cap) {
         return parms.BuildPlanFrom(staged.parms, ops, cap);
       }
+      // True when no parameter of this object is ever read on the audio
+      // thread, so a live scalar re-parse is applied at once on the control
+      // thread instead of being queued for the next rendered block (issue
+      // #941). The subpatcher boundary objects answer true: their index is
+      // read only by the control thread's boundary resolution, under the
+      // patcher's mtx, and deferring it left Connect and SubpatcherInlets on
+      // the old number until a block ran — or forever, on a patcher that is
+      // not rendering. An object that answers true must register only atomic
+      // scalars, because the write happens while the object is published.
+      virtual bool ParamsAreControlSide() const {
+        return false;
+      }
       // Take over the persistent identity of the object this one replaces:
       // the storage ID (DumpJSON references) and the GUI properties. Pin
       // layout, params, and DSP state are deliberately not copied — the

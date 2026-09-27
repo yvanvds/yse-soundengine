@@ -375,6 +375,12 @@ namespace YSE {
       // Plain/atomic stores only — no allocation, no locks.
       void ApplyPendingParams(const GraphState* g);
 
+      // The stores of one scalar plan. Called by ApplyPendingParams on the
+      // audio thread, and by SetObjectParams on the control thread for an
+      // object whose parameters are control-side (issue #941). No allocation,
+      // no locks.
+      static void ApplyParamOps(const ParamOp* ops, int count);
+
       // Structural re-parse: build a replacement object with the new params
       // off the live path, transfer identity (storage ID, GUI properties, the
       // pHandle), rewire surviving pin indices, publish, and retire the old

@@ -186,7 +186,10 @@ Some rules to keep in mind:
   per block. It holds 64 updates. If more arrive before the next block, for
   example because the patcher is not attached to anything yet, the extra ones
   are dropped with a log line while ``GetParams()`` already reports them.
-  Changing a value on every GUI frame is well within this limit.
+  Changing a value on every GUI frame is well within this limit. The
+  subpatcher boundary objects (``.inlet``, ``.outlet``, ``~inlet``,
+  ``~outlet``) skip the queue: their index changes before the call returns
+  (see :doc:`subpatchers`).
 
 ``SetParams`` changes an object's *creation arguments*. To change a value
 the object also accepts on an inlet, such as the frequency of ``~sine``,

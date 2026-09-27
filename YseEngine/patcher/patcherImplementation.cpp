@@ -855,6 +855,13 @@ void patcherImplementation::SetObjectParams(YSE::pHandle* handle, const std::str
     msg.target = object;
     const int count = object->BuildParamPlan(*staged, msg.ops, (int)kParamOpsCap);
     if (count == 0) return; // no parameters: only the stored string changes
+    if (count > 0 && object->ParamsAreControlSide()) {
+      // Nothing on the audio thread reads these parameters, so there is no
+      // block boundary to wait for: apply now, under mtx, which is where
+      // every reader of them runs (issue #941). The stores are atomic.
+      ApplyParamOps(msg.ops, count);
+      return;
+    }
     if (count > 0) {
       msg.count = count;
       if (!paramQueue_.try_push(msg)) {
@@ -890,24 +897,28 @@ void patcherImplementation::ApplyPendingParams(const GraphState* g) {
       }
     }
     if (!present) continue;
-    for (int i = 0; i < msg.count; i++) {
-      const ParamOp& op = msg.ops[i];
-      switch (op.type) {
-      case PARM_TYPE::FLOAT:
-        *((float*)op.dest) = op.f;
-        break;
-      case PARM_TYPE::ATOMIC_FLOAT:
-        ((std::atomic<float>*)op.dest)->store(op.f, std::memory_order_relaxed);
-        break;
-      case PARM_TYPE::INT:
-        *((int*)op.dest) = op.i;
-        break;
-      case PARM_TYPE::ATOMIC_INT:
-        ((std::atomic<int>*)op.dest)->store(op.i, std::memory_order_relaxed);
-        break;
-      default:
-        break; // STRING/LIST never ride the scalar queue
-      }
+    ApplyParamOps(msg.ops, msg.count);
+  }
+}
+
+void patcherImplementation::ApplyParamOps(const ParamOp* ops, int count) {
+  for (int i = 0; i < count; i++) {
+    const ParamOp& op = ops[i];
+    switch (op.type) {
+    case PARM_TYPE::FLOAT:
+      *((float*)op.dest) = op.f;
+      break;
+    case PARM_TYPE::ATOMIC_FLOAT:
+      ((std::atomic<float>*)op.dest)->store(op.f, std::memory_order_relaxed);
+      break;
+    case PARM_TYPE::INT:
+      *((int*)op.dest) = op.i;
+      break;
+    case PARM_TYPE::ATOMIC_INT:
+      ((std::atomic<int>*)op.dest)->store(op.i, std::memory_order_relaxed);
+      break;
+    default:
+      break; // STRING/LIST never ride the scalar plan
     }
   }
 }
