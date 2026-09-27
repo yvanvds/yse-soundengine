@@ -528,6 +528,38 @@ TEST_SUITE("patcher") {
     CHECK(rig.log[0] == "o0:240 1 2 3 4 5 6 7 8 9 10 247");
   }
 
+  TEST_CASE("xmidiin: a DX7-sized bulk dump arrives whole, ending in its 247 (#950)") {
+    // 4104 bytes in one RtMidi callback. The transport used to keep only the
+    // first ~504 of them, so the framed lists stopped short with no 247.
+    std::vector<unsigned char> raw;
+    raw.reserve(4104);
+    raw.push_back(0xF0);
+    raw.push_back(0x43);
+    while (raw.size() < 4103)
+      raw.push_back(static_cast<unsigned char>(raw.size() & 0x7F));
+    raw.push_back(0xF7);
+
+    Rig rig(YSE::OBJ::M_XMIDIIN, kPortArg);
+    InHub().Deliver(kTestPort, raw.data(), raw.size());
+    for (int i = 0; i < 32; i++)
+      rig.Block();
+
+    // Consecutive 256-byte lists, then the remainder: 16 full ones and 8 bytes.
+    std::string joined;
+    for (const auto& entry : rig.log) {
+      REQUIRE(entry.rfind("o0:", 0) == 0);
+      if (!joined.empty()) joined += ' ';
+      joined += entry.substr(3);
+    }
+    std::string expected;
+    for (unsigned char b : raw) {
+      if (!expected.empty()) expected += ' ';
+      expected += std::to_string(b);
+    }
+    CHECK(rig.log.size() == 17);
+    CHECK(joined == expected);
+  }
+
   TEST_CASE("xmidiin: a clock inside a dump comes out on its own and disturbs nothing (#533)") {
     // A real-time byte may legally appear between any two bytes of any other
     // message. The dump must survive it whole.

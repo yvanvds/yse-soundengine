@@ -40,6 +40,16 @@
     byte stream a `.sysexin` (issue #531) wants to spool out one byte at a
     time. A subscriber that needs whole messages must reassemble.
 
+    RtMidi hands the callback a dump *whole*, however long it took on the
+    wire, so every chunk of it is pushed at once. That is what sizes the queue
+    (issue #950): it holds `kMaxMessageBytes` — twice a DX7 32-voice bank —
+    and a message is queued **whole or not at all**. One that does not fit in
+    the space left is dropped and counted as one message, never cut, because
+    a dump missing its tail and its 247 reaches a patch looking like a
+    complete message that happens to be wrong. The drain is bounded
+    separately (`kDrainPerBlock`), so a long dump is spread over a few blocks
+    rather than landing in one.
+
   ==============================================================================
 */
 
@@ -55,7 +65,6 @@
 #include <memory>
 #include <mutex>
 
-#include "../utils/lfQueue.hpp"
 #include "device.hpp"
 
 namespace YSE {
@@ -103,11 +112,23 @@ namespace YSE {
           on a port takes one slot. */
       static constexpr unsigned int kMaxSubscriptionsPerPort = 8;
 
-      /** Events one subscription may hold before the next one is dropped. An
-          audio block is a few milliseconds; 63 messages inside one is far past
-          anything a controller produces, so a full queue means the audio thread
-          has stalled rather than that MIDI came in fast. */
-      static constexpr std::size_t kQueueCapacity = 63;
+      /** Events one subscription may hold before a message is dropped. Sized
+          for a SysEx dump rather than for controller traffic (issue #950):
+          RtMidi delivers a dump in one callback, so the whole of it has to fit
+          at once. A power of two, so the ring index is a mask. */
+      static constexpr std::size_t kQueueCapacity = 1024;
+
+      /** The longest message a subscriber can receive: 8192 bytes, twice a
+          DX7 32-voice bulk dump (4104). A longer one is dropped whole and
+          reported, never delivered truncated. */
+      static constexpr std::size_t kMaxMessageBytes = kQueueCapacity * inEvent::kMaxBytes;
+
+      /** Events one subscriber drains per audio block. The bound on what the
+          audio callback spends here, independent of the queue's size: 64
+          events is 512 bytes, so a DX7 bank reaches the patch over nine
+          blocks instead of as 4104 sends in one. A controller does not produce
+          64 messages in a block, so ordinary traffic is never held back. */
+      static constexpr std::size_t kDrainPerBlock = 64;
 
       inHub() = default;
       ~inHub();
@@ -137,17 +158,20 @@ namespace YSE {
        *         every subscription on `port`, splitting it into `inEvent`
        *         chunks if it does not fit one.
        *
-       *  Wait-free: a bounded walk of the port's slots and one `try_push` each.
-       *  A push that fails drops the chunk and is reported once per overflow
-       *  episode — see `Dropped`. */
+       *  Wait-free: a bounded walk of the port's slots and a bounded copy
+       *  each. A message goes into a queue whole or not at all: one that does
+       *  not fit the space left, or is longer than `kMaxMessageBytes`, is
+       *  dropped, counted and reported once per overflow episode — see
+       *  `Dropped`. */
       void Deliver(unsigned int port, const unsigned char* bytes, std::size_t len);
 
       /** @brief Control thread. Close every open port and forget every
        *         subscription. Called from the destructor; safe to call twice. */
       void Close();
 
-      /** @brief Chunks this subscription has lost to a full queue, ever. 0 for
-       *         an invalid handle. Diagnostic / test surface. */
+      /** @brief Messages this subscription has lost to a full queue or to
+       *         `kMaxMessageBytes`, ever. 0 for an invalid handle. Diagnostic /
+       *         test surface. */
       std::uint64_t Dropped(Handle handle) const;
 
       /** @brief Whether the hub holds an open device for `port`. False in a
@@ -156,6 +180,53 @@ namespace YSE {
       bool PortIsOpen(unsigned int port) const;
 
     private:
+      // Single-producer / single-consumer ring of `kQueueCapacity` events.
+      // Purpose-built rather than `lfQueue` because the producer must ask how
+      // much room is left *before* pushing, so that a message is queued whole
+      // or not at all (issue #950); `lfQueue` can only say whether one more
+      // element fits. The storage is allocated once, on the control thread,
+      // when the hub is built; nothing here allocates afterwards. The indices
+      // count up forever and are masked on use, so `write - read` is the fill
+      // level with no wasted slot.
+      class eventRing {
+      public:
+        eventRing() : slots(std::make_unique<inEvent[]>(kQueueCapacity)) {}
+
+        // Producer. Room left, never over-reported: the consumer can only
+        // make it larger between this call and the pushes that follow.
+        std::size_t Free() const {
+          const std::size_t w = write.load(std::memory_order_acquire);
+          const std::size_t r = read.load(std::memory_order_acquire);
+          return kQueueCapacity - (w - r);
+        }
+
+        // Producer. The caller has checked `Free()`.
+        void Push(const inEvent& event) {
+          const std::size_t w = write.load(std::memory_order_acquire);
+          slots[w & kMask] = event;
+          write.store(w + 1, std::memory_order_release);
+        }
+
+        // Consumer. False when empty.
+        bool TryPop(inEvent& event) {
+          const std::size_t r = read.load(std::memory_order_acquire);
+          if (r == write.load(std::memory_order_acquire)) return false;
+          event = slots[r & kMask];
+          read.store(r + 1, std::memory_order_release);
+          return true;
+        }
+
+      private:
+        static_assert((kQueueCapacity & (kQueueCapacity - 1)) == 0,
+                      "kQueueCapacity must be a power of two");
+        static constexpr std::size_t kMask = kQueueCapacity - 1;
+
+        std::unique_ptr<inEvent[]> slots;
+        // Own cache lines: the producer hammers one and the consumer the other.
+        alignas(64) std::atomic<std::size_t> write{0};
+        alignas(64) std::atomic<std::size_t> read{0};
+      };
+
       // One object's queue. Never destroyed and never moved between ports —
       // see the header for why that is what makes the SPSC contract hold.
       struct subscription {
@@ -169,7 +240,7 @@ namespace YSE {
         // when a push succeeds again, so a stall reports once rather than once
         // per lost message.
         std::atomic<bool> overflowReported{false};
-        lfQueue<inEvent> queue{kQueueCapacity};
+        eventRing queue;
       };
 
       // What `midiIn::setRawCallback` carries as its user pointer: the hub and

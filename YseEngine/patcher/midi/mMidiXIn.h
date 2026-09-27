@@ -218,12 +218,17 @@ namespace YSE {
      *    - **A data byte with no status** in front of it and no running status
      *      to inherit is dropped; there is no message it could belong to.
      *
-     *  ### The one bound
+     *  ### The bounds
      *
-     *  A dump is arbitrarily long and this object's buffer is not: a message
-     *  past `MAX_BYTES` is emitted in consecutive lists of that size, which is
-     *  the treatment `.midiparse` gives the same case and what keeps the
-     *  object's memory fixed. Nothing is dropped.
+     *  A dump can be long and this object's buffer is not: a message past
+     *  `MAX_BYTES` is emitted in consecutive lists of that size, which is the
+     *  treatment `.midiparse` gives the same case and what keeps the object's
+     *  memory fixed. Nothing is dropped here.
+     *
+     *  The transport has the other bound (issue #950): `MIDI::inHub` delivers a
+     *  message of up to `inHub::kMaxMessageBytes` (8192) whole, and drops a
+     *  longer one — or one that finds the queue too full — entirely rather than
+     *  truncated, so a dump this object frames always ends in its own 247.
      *
      *  ### Real-time behaviour
      *
