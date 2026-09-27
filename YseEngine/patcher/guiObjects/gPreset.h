@@ -1,7 +1,10 @@
 #pragma once
+#include "../../utils/mpmcQueue.hpp"
 #include "../pObject.h"
+#include "../time/timerBridge.h"
 #include <atomic>
 #include <cstddef>
+#include <cstdint>
 #include <string>
 #include <vector>
 
@@ -33,16 +36,14 @@ namespace YSE {
      *  to the patch, not to one level of it.
      *
      *  The corollaries are all deliberate. ``.preset`` itself is not settable,
-     *  so no preset ever captures a preset — Max's doesn't either. The
-     *  controls that predate the protocol (``.slider``, ``.i``, ``.f``,
-     *  ``.dial``, ``.b``, ``.t``, ...) do not hold the round trip — their
-     *  inlet 0 takes a number, not the display string — so they are not
-     *  captured; the protocol block in pObject.h says opting one in "is a
-     *  per-object migration and belongs with the object that needs it", and
-     *  this object is now the one that needs it (issue #846). And because
-     *  participation is checked *before* the value is read, a store never
-     *  polls a consume-on-read object (``.b``) at all, so capturing a patch
-     *  cannot eat a press.
+     *  so no preset ever captures a preset — Max's doesn't either. The scalar
+     *  controls (``.slider``, ``.i``, ``.f``, ``.dial``, ``.incdec``, ``.t``)
+     *  hold the round trip since their issue #846 migration — this object was
+     *  the one that needed it — and are captured like any other settable
+     *  control. ``.b`` stays out: its value is a consume-on-read press, an
+     *  event no recall could meaningfully restore. And because participation
+     *  is checked *before* the value is read, a store never polls ``.b`` at
+     *  all, so capturing a patch cannot eat a press.
      *
      *  An object whose bulk read is empty at store time is left out of the
      *  slot: an empty string is not a message an inlet can take back, so
@@ -93,24 +94,52 @@ namespace YSE {
      *  write a ``.xyslider``'s state into whatever inherited its number.
      *  A stale entry is skipped silently; the rest of the slot still lands.
      *
-     *  ### Threads — control thread only, and the drop rule
+     *  ### Threads — control-side work, and the hand-off (issue #952)
      *
      *  Store walks the patcher's object set and builds strings; recall runs
      *  whole subgraphs behind other objects' inlets. None of that can happen
-     *  on the audio callback, so **a message that physically arrives there is
-     *  dropped whole** — before any work, at the cost of one thread-local
-     *  load. Physically: the tag is dispatch semantics, not thread identity
-     *  (issue #690) — a deferred ``.delay`` drain carries T_GUI on the audio
-     *  callback — so the handlers ask
-     *  ``patcherImplementation::CallingThread``, as ``.metro``, ``.s`` and
-     *  the whole time family do. A standalone object has no patcher to ask
-     *  and trusts the tag, the conservative reading for an object whose work
-     *  must never run on the callback. Max's ``preset`` is clicked with a
-     *  mouse; its headless port keeps the same thread. What still works from
-     *  anywhere: a ``.metro`` or MIDI-driven recall, because those dispatch
-     *  from control-side threads — only a trigger fired *inside the render
-     *  traversal* (a cord from a deferred drain, ``.delay``/``.pipe``
-     *  deliveries) is refused.
+     *  on the audio callback — and a great deal of what drives a preset lands
+     *  there: the MIDI input objects drain ``MIDI::inHub`` inside the render
+     *  pass, so ``.pgmin`` → ``.preset`` (Max's "program change recalls a
+     *  preset") arrives on the callback; so does a host ``PassData`` into a
+     *  ``.r`` feeding the preset (the #225 value queue drains at the top of
+     *  ``Calculate``), and every ``.delay``/``.pipe`` delivery. Until #952
+     *  all of those were dropped, silently.
+     *
+     *  **A message that physically arrives on the callback is handed off**,
+     *  not run and not dropped. Physically: the tag is dispatch semantics, not
+     *  thread identity (issue #690), so the handlers ask
+     *  ``patcherImplementation::CallingThread``, as ``.metro``, ``.s`` and the
+     *  whole time family do; a standalone object has no patcher to ask and
+     *  trusts the tag. The handler parses the message — in place, allocation
+     *  free, as it always did — into an operation and a slot number, pushes
+     *  that onto a bounded lock-free queue, and wakes this object's
+     *  ``timerBridge`` slot with a wait-free request. The timer thread — the
+     *  thread a ``.metro``-driven recall has always run on — drains the queue
+     *  and performs each operation exactly as a control-thread message would,
+     *  in arrival order, with T_GUI. The callback pays a queue push and, for
+     *  the first message of a burst, one atomic exchange plus the bridge's
+     *  wait-free request: no allocation, no lock, no wait. The operation lands
+     *  a timer tick later (about a millisecond plus a background-pool hop),
+     *  not inside the block that carried it.
+     *
+     *  "Bang" and bare "clear" are resolved against the active slot when they
+     *  *run*, not when they arrive, so ``store 3`` followed by a bang in the
+     *  same block still recalls slot 3. A full queue drops the newest request
+     *  and counts it (``DeferredDropped``) — a count rather than a log line,
+     *  because the dropping thread is the callback. So does a preset whose
+     *  bridge slot was refused at construction (a process holding
+     *  ``timerBridge::CAPACITY`` timer owners at once).
+     *
+     *  The wake-up is one-shot in effect: the timer drains, requests its own
+     *  stop, and only then gives up ``armed`` — with an acquire-release
+     *  exchange, so a message pushed by a producer that saw ``armed`` still
+     *  set is visible to the second drain that follows. A start is requested
+     *  only by the producer that flips ``armed`` from clear to set, and a stop
+     *  only by the callback while it is still set, so the bridge never sees a
+     *  start and a stop race each other. ``Teardown`` stops the timer with the
+     *  blocking handshake, so no recall is still running into the patch when
+     *  the patcher starts deleting handles; the destructor gives the slot back.
      *
      *  The slot table itself is guarded by the family's non-blocking
      *  exclusive flag (``.funbuff``'s, ``.function``'s): a save may be
@@ -167,6 +196,8 @@ namespace YSE {
     _NO_MESSAGES
     _NO_CALCULATE
 
+    ~gPreset() override;
+
     _BANG_IN(BangIn)
     _INT_IN(IntIn)
     _FLOAT_IN(FloatIn)
@@ -204,6 +235,23 @@ namespace YSE {
      *         or out-of-range slot, and 0 when the guard was held elsewhere —
      *         diagnostics and tests, control thread. */
     std::size_t SlotEntryCount(int slot) const;
+
+    /** @brief Most operations that can wait for the timer thread at once —
+     *         a burst of program changes inside one block, with room to
+     *         spare. Fixed, so the queue is one allocation with the object. */
+    static constexpr std::size_t DEFERRED_CAPACITY = 64;
+
+    /** @brief Audio-callback messages refused so far: a full hand-off queue,
+     *         or no timer slot to wake. A count rather than a log line, because
+     *         the refusing thread is the callback (issue #952). */
+    std::uint64_t DeferredDropped() const {
+      return deferredDropped.load(std::memory_order_relaxed);
+    }
+
+    // Stop the hand-off timer with the blocking handshake, so no deferred
+    // store or recall is still running into the patch once the patcher starts
+    // unwiring and deleting handles (issue #952). Control thread, T_GUI.
+    void Teardown(YSE::THREAD thread) override;
 
     // The slots, unconditionally — Max's preset is a UI object whose contents
     // save with the patch. Control thread; the guard is still taken because a
@@ -259,6 +307,35 @@ namespace YSE {
     // an object whose work must never run on the callback.
     bool OnAudioThread(YSE::THREAD thread) const;
 
+    // What one inlet message asks for, parsed. RECALL_ACTIVE (the bang) and
+    // CLEAR_ACTIVE (bare `clear`) carry no slot: the active slot is read when
+    // the operation runs, so a hand-off keeps the order it arrived in.
+    enum class Op : std::uint8_t { RECALL, RECALL_ACTIVE, STORE, CLEAR, CLEAR_ACTIVE, CLEAR_ALL };
+
+    // One handed-off operation. Trivially copyable, so it rides the lock-free
+    // queue by value.
+    struct Request {
+      Op op = Op::RECALL;
+      int slot = 0;
+    };
+
+    // Every handler's last step: run the operation now, or — physically on
+    // the audio callback — hand it to the timer thread (issue #952).
+    void Submit(Op op, int slot, YSE::THREAD thread);
+
+    // Run one operation. Control-side threads only.
+    void Execute(Op op, int slot, YSE::THREAD thread);
+
+    // The callback half of the hand-off: queue, and wake the timer unless it
+    // is already woken. Lock-free and allocation-free.
+    void Defer(Op op, int slot);
+
+    // The timer-thread half: drain, stop, give up `armed`, drain again. See
+    // the class comment for why that order is the one that loses nothing.
+    static void DeferTrampoline(void* ctx);
+    void DrainDeferred();
+    void RunDeferred();
+
     // Capture every participating object into `slot`, make it active, and
     // announce on outlet 1. Control thread; refused whole for a slot out of
     // range or without a patcher to walk.
@@ -276,7 +353,8 @@ namespace YSE {
     void ClearAll();
 
     // The command half of the list inlet. False when `word` is none of them,
-    // leaving the caller to read the message as a number.
+    // leaving the caller to read the message as a number. Parses only —
+    // allocation-free, so it is safe on the callback — and submits.
     bool HandleCommand(const char* word, std::size_t length, const std::string& message,
                        std::size_t argOffset, YSE::THREAD thread);
 
@@ -291,9 +369,9 @@ namespace YSE {
     std::vector<std::string> creationArgs;
 
     // The bank: `capacity` slots, each a captured patch. Sized once by
-    // ShapeStore(); entries are allocated at store time, which is always the
-    // control thread — the drop rule above is what makes that a fact rather
-    // than a hope.
+    // ShapeStore(); entries are allocated at store time, which is always a
+    // control-side thread — the hand-off above is what makes that a fact
+    // rather than a hope.
     std::vector<std::vector<Entry>> slots;
 
     // Capture/recall staging, reused across operations so a busy patch does
@@ -314,6 +392,29 @@ namespace YSE {
     // recall reached from inside a recall's own fan-out is dropped rather
     // than run over the scratch buffer the outer one is still using.
     std::atomic<bool> sending{false};
+
+    // ---- The audio-callback hand-off (issue #952) ----
+
+    // Operations that arrived on the callback, waiting for the timer thread.
+    // Producers: whichever thread renders the patch. Consumer: the timer
+    // callback. MPMC because nothing promises only one thread renders.
+    YSE::mpmcQueue<Request> deferred{DEFERRED_CAPACITY};
+
+    // This object's timerBridge slot, claimed in the constructor and given
+    // back in the destructor. 0 when the bridge was full; every hand-off is
+    // then counted as dropped.
+    timerBridge::Handle timerSlot = 0;
+
+    // Set by the producer that requests the wake-up, cleared by the callback
+    // after it has requested the stop. Serialises the bridge's start and stop
+    // requests — see the class comment.
+    std::atomic<bool> armed{false};
+
+    // Set by Teardown: a callback that still fires afterwards stops itself
+    // without touching the patch.
+    std::atomic<bool> closed{false};
+
+    std::atomic<std::uint64_t> deferredDropped{0};
   };
 
 } // namespace PATCHER

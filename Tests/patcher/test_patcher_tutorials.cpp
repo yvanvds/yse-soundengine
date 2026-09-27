@@ -20,10 +20,12 @@
 
 #include <doctest/doctest.h>
 
+#include <chrono>
 #include <cmath>
 #include <fstream>
 #include <iterator>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include "dsp/buffer.hpp"
@@ -543,14 +545,25 @@ TEST_SUITE("patcher") {
     CHECK(GuiFloat(copy.GetHandleFromID(synth.level->GetID())) == doctest::Approx(0.3f));
     CHECK(copy.GetHandleFromID(synth.presets->GetID())->GetGuiValue() == "0");
 
-    // The one route that does not work: a host message through PassData is
-    // delivered on the audio thread, where .preset drops it (gui.rst).
+    // A host message through PassData is delivered on the audio thread, where
+    // .preset hands it to the timer thread: the recall lands a tick after the
+    // block that carried it (issue #952, gui.rst).
+    synth.presets->SetIntData(0, 0);
+    // tutorial:presets-passdata:begin
     YSE::pHandle* recall = patch.CreateObject(".r", "recall");
     patch.Connect(recall, 0, synth.presets, 0);
-    synth.presets->SetIntData(0, 0);
-    CHECK(patch.PassData(1, "recall"));
+    patch.PassData(1, "recall"); // recalls slot 1 shortly after the next block
+    // tutorial:presets-passdata:end
     render.Render(1);
-    CHECK(synth.presets->GetGuiValue() == "0"); // the PassData recall was dropped
+    // Polled with a five-second bound for a broken build; it lands in about
+    // a millisecond.
+    bool landed = false;
+    for (int i = 0; i < 5000 && !landed; i++) {
+      landed =
+          synth.presets->GetGuiValue() == "1" && std::fabs(GuiFloat(synth.note) - 55.f) < 0.01f;
+      if (!landed) std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+    CHECK(landed);
   }
 
 } // TEST_SUITE
