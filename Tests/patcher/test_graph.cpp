@@ -148,6 +148,68 @@ TEST_SUITE("patcher") {
     CHECK(sine->GetConnections(0) == 1u);
   }
 
+  // Issue #934: Connect / Disconnect must refuse a handle the patcher does not
+  // own. A cross-patcher edge would put another patcher's object into this
+  // patcher's GraphState, rendered and reclaimed on schedules neither side
+  // coordinates.
+  TEST_CASE("patcher: Connect refuses a handle from another patcher (#934)") {
+    YSE::patcher p;
+    YSE::patcher q;
+    p.create(2);
+    q.create(2);
+    YSE::pHandle* a = p.CreateObject(YSE::OBJ::D_SINE);
+    YSE::pHandle* b = q.CreateObject(YSE::OBJ::D_ADD);
+    YSE::pHandle* c = p.CreateObject(YSE::OBJ::D_ADD);
+    REQUIRE(a != nullptr);
+    REQUIRE(b != nullptr);
+    REQUIRE(c != nullptr);
+
+    p.Connect(a, 0, b, 0); // target is q's
+    CHECK(a->GetConnections(0) == 0u);
+    q.Connect(a, 0, b, 0); // source is p's
+    CHECK(a->GetConnections(0) == 0u);
+    q.Connect(a, 0, c, 0); // both are p's, called on q
+    CHECK(a->GetConnections(0) == 0u);
+
+    // The guard does not get in the way of an ordinary edge.
+    p.Connect(a, 0, c, 0);
+    CHECK(a->GetConnections(0) == 1u);
+  }
+
+  TEST_CASE("patcher: Disconnect refuses handles from another patcher (#934)") {
+    YSE::patcher p;
+    YSE::patcher q;
+    p.create(2);
+    q.create(2);
+    YSE::pHandle* a = p.CreateObject(YSE::OBJ::D_SINE);
+    YSE::pHandle* c = p.CreateObject(YSE::OBJ::D_ADD);
+    REQUIRE(a != nullptr);
+    REQUIRE(c != nullptr);
+
+    p.Connect(a, 0, c, 0);
+    REQUIRE(a->GetConnections(0) == 1u);
+    q.Disconnect(a, 0, c, 0); // p's edge, cut through q: refused
+    CHECK(a->GetConnections(0) == 1u);
+    p.Disconnect(a, 0, c, 0);
+    CHECK(a->GetConnections(0) == 0u);
+  }
+
+  TEST_CASE("patcher: Connect / Disconnect with a null handle are safe no-ops (#934)") {
+    YSE::patcher p;
+    p.create(2);
+    YSE::pHandle* sine = p.CreateObject(YSE::OBJ::D_SINE);
+    YSE::pHandle* typo = p.CreateObject("~sien"); // unknown type -> nullptr
+    REQUIRE(sine != nullptr);
+    REQUIRE(typo == nullptr);
+
+    p.Connect(sine, 0, typo, 0);
+    p.Connect(typo, 0, sine, 0);
+    p.Disconnect(sine, 0, typo, 0);
+    p.Disconnect(typo, 0, sine, 0);
+    CHECK(sine->GetConnections(0) == 0u);
+    CHECK(p.Objects() == 1u);
+  }
+
   TEST_CASE("patcher: connection target reports correct object ID and inlet index") {
     YSE::patcher p;
     p.create(2);

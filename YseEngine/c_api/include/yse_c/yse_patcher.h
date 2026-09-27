@@ -107,6 +107,9 @@ YSE_C_API YsePHandle* yse_patcher_create_object(YsePatcher* p, const char* type,
 YSE_C_API void yse_patcher_delete_object(YsePatcher* p, YsePHandle* obj);
 YSE_C_API void yse_patcher_clear(YsePatcher* p);
 
+/** Draw / remove a cord. Both handles must be objects of `p`: a NULL handle,
+   or one created by another patcher, is ignored (the engine logs the
+   refusal) and the graph is left unchanged. */
 YSE_C_API void yse_patcher_connect(YsePatcher* p, YsePHandle* from, int outlet, YsePHandle* to,
                                    int inlet);
 YSE_C_API void yse_patcher_disconnect(YsePatcher* p, YsePHandle* from, int outlet, YsePHandle* to,

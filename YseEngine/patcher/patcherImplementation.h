@@ -112,6 +112,8 @@ namespace YSE {
       // path and publish it with the usual GraphState swap. Control thread.
       void SetObjectParams(YSE::pHandle* handle, const std::string& args);
 
+      // Both refuse, with a log and without publishing, a null handle or one
+      // whose object another patcher owns (issue #934).
       void Connect(pHandle* from, int outlet, pHandle* to, int inlet);
       void Disconnect(pHandle* from, int outlet, pHandle* to, int inlet);
 
@@ -407,6 +409,11 @@ namespace YSE {
       // publish (this is why no per-op re-entrancy flag is needed — issue #228).
       pHandle* CreateObjectUnlocked(const std::string& type, const std::string& args);
       void ConnectUnlocked(pHandle* from, int outlet, pHandle* to, int inlet);
+
+      // Connect / Disconnect guard (issue #934), caller holds mtx: false, with
+      // a log naming `what`, when a handle is null or its object belongs to
+      // another patcher.
+      bool AcceptsHandlesUnlocked(pHandle* from, pHandle* to, const char* what) const;
 
       // ---- Subpatcher boundary resolution (issues #545, #764), caller holds mtx ----
       //

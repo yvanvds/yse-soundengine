@@ -352,6 +352,35 @@ TEST_SUITE("capilowcov") {
     yse_patcher_destroy(p);
   }
 
+  TEST_CASE("c-api patcher: connect / disconnect refuse another patcher's handles (#934)") {
+    YsePatcher* p = yse_patcher_create();
+    YsePatcher* q = yse_patcher_create();
+    REQUIRE(p != nullptr);
+    REQUIRE(q != nullptr);
+    yse_patcher_init(p, 2);
+    yse_patcher_init(q, 2);
+
+    YsePHandle* sine = yse_patcher_create_object(p, kSine, nullptr);
+    YsePHandle* mul = yse_patcher_create_object(p, kMultiply, "2");
+    YsePHandle* foreign = yse_patcher_create_object(q, kMultiply, "2");
+    REQUIRE(sine != nullptr);
+    REQUIRE(mul != nullptr);
+    REQUIRE(foreign != nullptr);
+
+    yse_patcher_connect(p, sine, 0, foreign, 0);
+    CHECK(yse_phandle_get_connections(sine, 0) == 0u);
+    yse_patcher_connect(q, sine, 0, mul, 0);
+    CHECK(yse_phandle_get_connections(sine, 0) == 0u);
+
+    yse_patcher_connect(p, sine, 0, mul, 0);
+    REQUIRE(yse_phandle_get_connections(sine, 0) == 1u);
+    yse_patcher_disconnect(q, sine, 0, mul, 0);
+    CHECK(yse_phandle_get_connections(sine, 0) == 1u);
+
+    yse_patcher_destroy(q);
+    yse_patcher_destroy(p);
+  }
+
   TEST_CASE("c-api phandle: object-ID queries answer NONE, not 0, when there is no object") {
     // Issue #732. Object IDs are per-patcher and start at 0 since #730, so the
     // first object in every patch owns ID 0 — the value the blanket

@@ -100,7 +100,12 @@ namespace YSE {
     /** @brief Remove every object from the patcher. */
     void Clear();
 
-    /** @brief Connect ``from``'s outlet to ``to``'s inlet. */
+    /** @brief Connect ``from``'s outlet to ``to``'s inlet.
+     *
+     *  Both handles must be objects of this patcher. A ``nullptr`` handle or
+     *  one from another patcher is refused: an error is logged and the graph
+     *  is left unchanged. The same holds for ``Disconnect``.
+     */
     void Connect(YSE::pHandle* from, int outlet, YSE::pHandle* to, int inlet);
 
     /** @brief Remove the connection from ``from``'s outlet to ``to``'s inlet. */

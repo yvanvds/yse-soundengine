@@ -33,10 +33,8 @@ use ``DeleteObject`` (see below).
 
 ``CreateObject`` returns ``nullptr`` when the type name is unknown. Check
 the result, or test the name first with the static
-``patcher::IsValidObject``. The patcher does not validate handles you pass to
-it later (issue `#934
-<https://github.com/yvanvds/yse-soundengine/issues/934>`_), so a ``nullptr``
-passed on to ``Connect`` crashes a C++ host.
+``patcher::IsValidObject``. ``Connect`` and ``Disconnect`` refuse a
+``nullptr`` handle: they log an error and leave the graph unchanged.
 
 Arguments
 ~~~~~~~~~
@@ -101,9 +99,8 @@ the inlet cannot handle is drawn, but nothing arrives along it (see
 prevent such cords.
 
 ``Disconnect`` for a cord that does not exist does nothing. Both handles must
-be objects of the patcher you call the method on. Connecting objects of two
-different patchers is not refused yet, but it is not supported (`#934
-<https://github.com/yvanvds/yse-soundengine/issues/934>`_).
+be objects of the patcher you call the method on. A call with a handle from
+another patcher is refused: it logs an error, and no cord is drawn or cut.
 
 A subpatcher's pins are numbered by the boundary objects inside it. When you
 pass a subpatcher to ``Connect``, the cord is drawn to that boundary object
@@ -375,10 +372,10 @@ returns 0, ``NULL`` or the "no such" value from the table above:
    yse_patcher_delete_object(p, amp);  /* removes its cords too */
    yse_patcher_destroy(p);
 
-``yse_patcher_create_object`` accepts ``NULL`` for the arguments. Unlike the
+``yse_patcher_create_object`` accepts ``NULL`` for the arguments. Like the
 C++ calls, ``yse_patcher_connect`` and ``yse_patcher_disconnect`` ignore a
-``NULL`` handle, and no exception crosses the C boundary: a call that fails
-in the engine leaves its reason in ``yse_last_error()``. :doc:`c_api` covers embedding a patcher
+``NULL`` handle or one from another patcher. No exception crosses the C
+boundary: a call that throws in the engine leaves its reason in ``yse_last_error()``. :doc:`c_api` covers embedding a patcher
 through the C API in full.
 
 Where to go next

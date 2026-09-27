@@ -615,8 +615,37 @@ void patcherImplementation::ConnectUnlocked(YSE::pHandle* from, int outlet, YSE:
   }
 }
 
+bool patcherImplementation::AcceptsHandlesUnlocked(YSE::pHandle* from, YSE::pHandle* to,
+                                                   const char* what) const {
+  // A null handle is what CreateObject returns for an unknown type, and would
+  // be dereferenced below. A handle whose object another patcher owns would
+  // record an edge into an object whose lifetime and render schedule this
+  // patcher does not control: its GraphState would then dispatch into the
+  // other patcher's object, which that patcher may free on its own epoch
+  // (issue #934). Every object a patcher creates has that patcher as its
+  // parent (CreateObjectUnlocked, SetObjectParams), so the parent is the
+  // ownership test. A parentless object is no patcher's: nothing a host can
+  // reach through the public API makes one, and the unit-test rigs use it to
+  // hang a test-owned sink off an outlet.
+  const auto foreign = [this](const YSE::pHandle* h) {
+    const pObject* owner = h->object->Parent();
+    return owner != nullptr && owner != this;
+  };
+  if (from == nullptr || to == nullptr) {
+    INTERNAL::LogImpl().emit(E_ERROR, std::string("Patcher: ") + what + " refused: null handle");
+    return false;
+  }
+  if (foreign(from) || foreign(to)) {
+    INTERNAL::LogImpl().emit(E_ERROR, std::string("Patcher: ") + what +
+                                          " refused: the object belongs to another patcher");
+    return false;
+  }
+  return true;
+}
+
 void patcherImplementation::Connect(YSE::pHandle* from, int outlet, YSE::pHandle* to, int inlet) {
   std::scoped_lock lk(mtx);
+  if (!AcceptsHandlesUnlocked(from, to, "Connect")) return;
   ConnectUnlocked(from, outlet, to, inlet);
   RebuildAndPublish();
 }
@@ -624,6 +653,7 @@ void patcherImplementation::Connect(YSE::pHandle* from, int outlet, YSE::pHandle
 void patcherImplementation::Disconnect(YSE::pHandle* from, int outlet, YSE::pHandle* to,
                                        int inlet) {
   std::scoped_lock lk(mtx);
+  if (!AcceptsHandlesUnlocked(from, to, "Disconnect")) return;
   // Mirror ConnectUnlocked's guard: GetOutlet/GetInlet return null for an
   // out-of-range pin. Passing a null outlet into inlet::Disconnect segfaults
   // (a disconnected inlet has dspConnection == nullptr, so `dspConnection ==
