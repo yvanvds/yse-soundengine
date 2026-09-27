@@ -841,16 +841,22 @@ void patcherImplementation::SetObjectParams(YSE::pHandle* handle, const std::str
   pObject* object = handle->object;
   if (object == nullptr) return;
 
-  if (!object->ParamsNeedRebuild()) {
-    // Scalar-only params: pre-parse into a POD plan on this thread (parse
-    // errors throw here, never on the audio thread) and hand it to the audio
-    // thread for an allocation-free apply at the top of the next block. The
-    // stored param string is updated eagerly, so GetParams/DumpJSON reflect
-    // the new args immediately.
+  std::unique_ptr<pObject> staged;
+  if (!object->ParamsNeedRebuild()) staged.reset(Register().Get(object->Type()));
+  if (staged != nullptr) {
+    // Scalar-only params: parse `args` into a fresh object of the same type,
+    // exactly as a rebuild or a reload would (parse errors throw here, never
+    // on the audio thread, and leave the live object alone), then plan every
+    // parameter from it — the ones `args` left out included, which take their
+    // defaults as they would on a rebuild (issue #935). The POD plan is
+    // applied allocation-free by the audio thread at the top of the next
+    // block. The stored param string is updated eagerly, so GetParams/DumpJSON
+    // reflect the new args immediately and reload to the same live state.
+    staged->SetParams(args);
     ParamMsg msg{};
     msg.target = object;
-    const int count = object->BuildParamPlan(args, msg.ops, (int)kParamOpsCap);
-    if (count == 0) return; // nothing to apply (empty args or no scalar writes)
+    const int count = object->BuildParamPlan(*staged, msg.ops, (int)kParamOpsCap);
+    if (count == 0) return; // no parameters: only the stored string changes
     if (count > 0) {
       msg.count = count;
       if (!paramQueue_.try_push(msg)) {

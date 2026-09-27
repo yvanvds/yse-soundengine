@@ -168,14 +168,13 @@ properties and the subpatcher it is in, and ``GetParams()`` and
 
 Some rules to keep in mind:
 
-- **Pass the complete argument list every time.** The two kinds of object
-  currently disagree about arguments you leave out: an object that is
-  rebuilt resets them to their defaults, but an object updated in place keeps
-  their current values while ``GetParams()`` reports only the shorter
-  string. The live object then no longer matches the saved patch. This is
-  tracked in `#935 <https://github.com/yvanvds/yse-soundengine/issues/935>`_.
-  For the same reason, an empty string does nothing to an object that is
-  updated in place, but resets an object that is rebuilt.
+- **Arguments you leave out take their defaults.** Both kinds of object end
+  up exactly as ``CreateObject`` would build them from the new string, so
+  ``clip->SetParams("5")`` on a ``.clip 0 10`` sets the lower limit to 5 and
+  resets the upper one to its default of 1. An empty string resets every
+  argument. Because the object always matches its argument string, what
+  ``DumpJSON`` saves reloads to the object that is playing. To change one
+  argument and keep the others, pass them all again.
 - **An argument that does not parse** throws on the calling thread, like
   ``CreateObject``, and leaves the object unchanged. The C API catches the
   exception and leaves the reason in ``yse_last_error()``.

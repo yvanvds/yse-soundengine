@@ -90,13 +90,18 @@ TEST_SUITE("patcher") {
     p.Calculate(YSE::T_DSP);
   }
 
-  TEST_CASE("setparams: empty args are a no-op on the scalar path") {
+  TEST_CASE("setparams: empty args reset a scalar object to its defaults, like a rebuild (#935)") {
+    // "" used to be a no-op here while it rebuilt a structural object with
+    // its defaults. One rule now: the object becomes what CreateObject(type,
+    // "") would build.
     patcherImplementation p(1, nullptr);
+    YSE::pHandle* bare = p.CreateObject(YSE::OBJ::G_FLOAT, "");
     YSE::pHandle* f = p.CreateObject(YSE::OBJ::G_FLOAT, "3");
+    REQUIRE(std::stof(f->GetGuiValue()) == doctest::Approx(3.f));
     f->SetParams("");
+    CHECK(f->GetParams().empty());
     p.Calculate(YSE::T_DSP);
-    CHECK(f->GetParams() == "3");
-    CHECK(std::stof(f->GetGuiValue()) == doctest::Approx(3.f));
+    CHECK(f->GetGuiValue() == bare->GetGuiValue());
   }
 
   // ---- Structural path: replacement object + swap ----
@@ -351,7 +356,7 @@ TEST_SUITE("patcher") {
   // already were for an object that registers *some* parameters and is handed
   // more than it can take. The argument string is still stored verbatim, so
   // GetParams()/DumpJSON round-trip a patch file unchanged rather than
-  // silently rewriting it. This is what the parented path (BuildPlan) has
+  // silently rewriting it. This is what the parented path (BuildPlanFrom) has
   // always done; the two now agree.
 
   TEST_CASE("setparams: a parameter set with nothing registered ignores arguments (#627)") {
@@ -371,8 +376,10 @@ TEST_SUITE("patcher") {
 
     // A plan built for the same object is the parented equivalent: no scalar
     // writes, nothing applied, the string still stored.
+    YSE::PATCHER::Parameters staged;
+    staged.Set("8 9");
     YSE::PATCHER::ParamOp ops[4];
-    CHECK(parms.BuildPlan("8 9", ops, 4) == 0);
+    CHECK(parms.BuildPlanFrom(staged, ops, 4) == 0);
     CHECK(parms.Get() == "8 9");
   }
 
@@ -502,7 +509,7 @@ TEST_SUITE("patcher") {
   TEST_CASE("setparams: a live re-parse splits on runs of whitespace on both paths (#936)") {
     patcherImplementation p(1, nullptr);
 
-    // Scalar plan (BuildPlan).
+    // Scalar plan (BuildPlanFrom).
     YSE::pHandle* clip = p.CreateObject(YSE::OBJ::G_CLIP, "0 1");
     REQUIRE(clip != nullptr);
     CHECK_NOTHROW(clip->SetParams("  -3\t\t3 "));
@@ -511,11 +518,12 @@ TEST_SUITE("patcher") {
     CHECK(ClipThrough(p, clip, 9.f) == doctest::Approx(3.f));
     CHECK(ClipThrough(p, clip, -9.f) == doctest::Approx(-3.f));
 
-    // Whitespace only is the scalar path's empty-args no-op.
+    // Whitespace only parses like "": the defaults (-1 / 1), as a rebuild or
+    // a reload of the stored string would give (#935).
     clip->SetParams("   ");
     p.Calculate(YSE::T_DSP);
-    CHECK(clip->GetParams() == "  -3\t\t3 ");
-    CHECK(ClipThrough(p, clip, 9.f) == doctest::Approx(3.f));
+    CHECK(clip->GetParams() == "   ");
+    CHECK(ClipThrough(p, clip, 9.f) == doctest::Approx(1.f));
 
     // Structural rebuild (Set on the replacement).
     YSE::pHandle* gate = p.CreateObject(YSE::OBJ::G_GATE, "2");
@@ -540,6 +548,84 @@ TEST_SUITE("patcher") {
     CHECK(clip->GetParams() == "0  10\t");
     CHECK(ClipThrough(loaded, clip, 20.f) == doctest::Approx(10.f));
     CHECK(loaded.DumpJSON() == saved);
+  }
+
+  // ---- Arguments a live SetParams leaves out (issue #935) ----
+  //
+  // The scalar path wrote only the parameters the new string named and kept
+  // the rest, while GetParams / DumpJSON recorded only the shorter string, so
+  // the saved patch reloaded to a different object than the live one. The
+  // structural path rebuilds, so omitted arguments took their defaults there.
+  // One rule now, the rebuild's: a live SetParams(args) leaves the object
+  // CreateObject(type, args) would build, and DumpJSON reloads to it.
+
+  TEST_CASE("setparams: an omitted scalar argument takes its default, and the dump reloads to the "
+            "live object (#935)") {
+    patcherImplementation p(1, nullptr);
+    YSE::pHandle* clip = p.CreateObject(YSE::OBJ::G_CLIP, "-5 10");
+    REQUIRE(clip != nullptr);
+    REQUIRE(ClipThrough(p, clip, 20.f) == doctest::Approx(10.f));
+
+    clip->SetParams("-3"); // low -3; high left out, so its default 1
+    CHECK(clip->GetParams() == "-3");
+    p.Calculate(YSE::T_DSP);
+    CHECK(ClipThrough(p, clip, 20.f) == doctest::Approx(1.f)); // was 10: high kept
+    CHECK(ClipThrough(p, clip, -20.f) == doctest::Approx(-3.f));
+
+    // Round trip: the saved patch builds the object that is playing.
+    const std::string saved = p.DumpJSON();
+    patcherImplementation loaded(1, nullptr);
+    loaded.ParseJSON(saved);
+    REQUIRE(loaded.Objects() == 1u);
+    YSE::pHandle* reloaded = loaded.GetHandleFromList(0);
+    CHECK(reloaded->GetParams() == "-3");
+    CHECK(ClipThrough(loaded, reloaded, 20.f) == doctest::Approx(1.f));
+    CHECK(ClipThrough(loaded, reloaded, -20.f) == doctest::Approx(-3.f));
+    CHECK(loaded.DumpJSON() == saved);
+  }
+
+  TEST_CASE("setparams: empty args reset both kinds of object and round-trip (#935)") {
+    patcherImplementation p(1, nullptr);
+    YSE::pHandle* clip = p.CreateObject(YSE::OBJ::G_CLIP, "-5 10"); // scalar
+    YSE::pHandle* gate = p.CreateObject(YSE::OBJ::G_GATE, "3"); // structural
+    REQUIRE(clip != nullptr);
+    REQUIRE(gate != nullptr);
+
+    clip->SetParams("");
+    gate->SetParams("");
+    p.Calculate(YSE::T_DSP);
+    CHECK(clip->GetParams().empty());
+    CHECK(gate->GetParams().empty());
+    CHECK(ClipThrough(p, clip, 20.f) == doctest::Approx(1.f)); // defaults -1 / 1
+    CHECK(ClipThrough(p, clip, -20.f) == doctest::Approx(-1.f));
+    CHECK(gate->GetOutputs() == 2);
+
+    patcherImplementation loaded(1, nullptr);
+    loaded.ParseJSON(p.DumpJSON());
+    REQUIRE(loaded.Objects() == 2u);
+    for (unsigned int i = 0; i < loaded.Objects(); i++) {
+      YSE::pHandle* h = loaded.GetHandleFromList(i);
+      CAPTURE(h->Type());
+      CHECK(h->GetParams().empty());
+      if (std::string(h->Type()) == YSE::OBJ::G_GATE) {
+        CHECK(h->GetOutputs() == 2);
+      } else {
+        CHECK(ClipThrough(loaded, h, 20.f) == doctest::Approx(1.f));
+      }
+    }
+  }
+
+  TEST_CASE("setparams: a bad argument leaves the scalar object and its string alone (#935)") {
+    // The new args are parsed into a staged object first; a throw there must
+    // not have queued a plan or touched the stored string.
+    patcherImplementation p(1, nullptr);
+    YSE::pHandle* clip = p.CreateObject(YSE::OBJ::G_CLIP, "-5 10");
+    REQUIRE(clip != nullptr);
+    CHECK_THROWS(clip->SetParams("2 nope"));
+    p.Calculate(YSE::T_DSP);
+    CHECK(clip->GetParams() == "-5 10");
+    CHECK(ClipThrough(p, clip, 20.f) == doctest::Approx(10.f));
+    CHECK(ClipThrough(p, clip, -20.f) == doctest::Approx(-5.f));
   }
 
 } // TEST_SUITE("patcher")

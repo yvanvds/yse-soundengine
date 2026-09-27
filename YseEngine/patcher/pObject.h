@@ -170,8 +170,10 @@ namespace YSE {
       bool ParamsNeedRebuild() const {
         return parms.NeedsRebuild();
       }
-      int BuildParamPlan(const std::string& args, ParamOp* ops, int cap) {
-        return parms.BuildPlan(args, ops, cap);
+      // `staged` is a fresh object of the same type that has already run
+      // SetParams(args); see Parameters::BuildPlanFrom (issue #935).
+      int BuildParamPlan(const pObject& staged, ParamOp* ops, int cap) {
+        return parms.BuildPlanFrom(staged.parms, ops, cap);
       }
       // Take over the persistent identity of the object this one replaces:
       // the storage ID (DumpJSON references) and the GUI properties. Pin

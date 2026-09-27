@@ -76,49 +76,44 @@ bool Parameters::NeedsRebuild() const {
   return false;
 }
 
-int Parameters::BuildPlan(const std::string& args, ParamOp* ops, int cap) {
-  if (args.size() == 0) return 0;
+int Parameters::BuildPlanFrom(const Parameters& staged, ParamOp* ops, int cap) {
+  // `staged` belongs to a fresh object of the same type, so its parameters
+  // were registered in the same order; anything else is not a plan this
+  // object can take.
+  if (staged.parms.size() != parms.size()) return -1;
+  if (parms.size() > static_cast<std::size_t>(cap)) return -1;
 
   int count = 0;
-  std::size_t pos = 0;
-  unsigned int currentArg = 0;
-  std::string token;
-  while (NextToken(args, pos, token)) {
-    if (currentArg < parms.size()) {
-      if (count >= cap) return -1;
-      switch (parms[currentArg].type) {
-      case FLOAT:
-      case ATOMIC_FLOAT: {
-        ops[count].type = parms[currentArg].type;
-        ops[count].dest = parms[currentArg].value;
-        ops[count].f = std::stof(token);
-        count++;
-        break;
-      }
-      case INT:
-      case ATOMIC_INT: {
-        ops[count].type = parms[currentArg].type;
-        ops[count].dest = parms[currentArg].value;
-        ops[count].i = std::stoi(token);
-        count++;
-        break;
-      }
-      default:
-        // STRING/LIST (or unknown) cannot be patched in place — signal the
-        // caller to take the structural-rebuild path instead.
-        return -1;
-      }
-    } else {
-      INTERNAL::LogImpl().emit(E_DEBUG, "Too many arguments for this object.");
+  for (std::size_t i = 0; i < parms.size(); i++) {
+    const parameter& from = staged.parms[i];
+    if (from.type != parms[i].type) return -1;
+    ParamOp& op = ops[count];
+    op.type = parms[i].type;
+    op.dest = parms[i].value;
+    op.i = 0;
+    op.f = 0.f;
+    switch (from.type) {
+    case FLOAT:
+      op.f = *static_cast<const float*>(from.value);
+      break;
+    case ATOMIC_FLOAT:
+      op.f = static_cast<const std::atomic<float>*>(from.value)->load();
+      break;
+    case INT:
+      op.i = *static_cast<const int*>(from.value);
+      break;
+    case ATOMIC_INT:
+      op.i = static_cast<const std::atomic<int>*>(from.value)->load();
+      break;
+    default:
+      // STRING/LIST (or unknown) cannot be patched in place — signal the
+      // caller to take the structural-rebuild path instead.
+      return -1;
     }
-    currentArg++;
+    count++;
   }
 
-  // Whitespace-only arguments are the empty-args case above, not a new
-  // parameter string.
-  if (currentArg == 0) return 0;
-
-  current = args;
+  current = staged.current;
   return count;
 }
 
