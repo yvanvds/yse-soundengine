@@ -93,12 +93,14 @@
 #include <exception>
 #include <string>
 #include <utility>
+#include <vector>
 
 // Forward declarations for the cross-TU synth-handle accessor below. Kept
 // minimal so this header stays free of engine includes; the definitions live
 // in yse_synth.cpp (YseSynthImpl) and the engine synth headers.
 struct YseSynth;
 struct YseDspBuffer;
+struct YseDspMultiBuffer;
 struct YseMidiIn;
 struct YsePatcher;
 namespace YSE {
@@ -188,6 +190,11 @@ namespace yse_c {
   // Any TU that needs the engine object must go through here, never through a
   // reinterpret_cast of the handle.
   YSE::DSP::buffer* buffer_from_handle(YseDspBuffer* h);
+
+  // Return the engine MULTICHANNELBUFFER (std::vector<DSP::buffer>) backing a
+  // YseDspMultiBuffer handle, or nullptr for a NULL handle. Defined in
+  // yse_dsp.cpp; yse_sound.cpp hands it to sound::create (issue #909).
+  std::vector<YSE::DSP::buffer>* multi_buffer_from_handle(YseDspMultiBuffer* h);
 
   // Return the engine input port backing a YseMidiIn handle, or nullptr for a
   // NULL handle. Defined in yse_midi.cpp, and only on builds with MIDI device

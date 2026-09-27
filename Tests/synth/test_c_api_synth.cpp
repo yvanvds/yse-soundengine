@@ -16,6 +16,7 @@
 #include <string>
 
 #include "support/timer_pacing.hpp"
+#include "yse_c/yse_music.h"
 #include "yse_c/yse_synth.h"
 #include "yse_c/yse_sound.h"
 #include "yse_c/yse_system.h"
@@ -114,6 +115,28 @@ namespace {
       g_bOff.fetch_add(1, std::memory_order_relaxed);
     } else {
       g_bBad.fetch_add(1, std::memory_order_relaxed);
+    }
+  }
+
+  // ---- note-event recorder (issue #909) ---------------------------------------
+  // Records the note number and velocity of the last note-on / note-off the
+  // synth dispatched, untouched, so a note driven by a YseNote can be checked
+  // for what actually reached the voice allocator.
+  std::atomic<int> g_recOn{0}, g_recOff{0};
+  std::atomic<float> g_recOnNote{0.f}, g_recOnVel{0.f};
+  std::atomic<float> g_recOffNote{0.f}, g_recOffVel{0.f};
+
+  void YSE_C_CALLBACK recordNoteCb(int note_on, float* note_number, float* velocity) {
+    const float n = note_number ? *note_number : -1.f;
+    const float v = velocity ? *velocity : -1.f;
+    if (note_on) {
+      g_recOnNote.store(n, std::memory_order_relaxed);
+      g_recOnVel.store(v, std::memory_order_relaxed);
+      g_recOn.fetch_add(1, std::memory_order_relaxed);
+    } else {
+      g_recOffNote.store(n, std::memory_order_relaxed);
+      g_recOffVel.store(v, std::memory_order_relaxed);
+      g_recOff.fetch_add(1, std::memory_order_relaxed);
     }
   }
 
@@ -342,6 +365,66 @@ TEST_SUITE("synthcapi") {
     yse_sound_destroy(sndB);
     yse_synth_destroy(synA);
     yse_synth_destroy(synB);
+    drainFor(sys, 300);
+    yse_system_close(sys);
+  }
+
+  // ─── note on / off driven by a YseNote (issue #909) ───────────────────────
+
+  TEST_CASE("c-api synth: note_on_note / note_off_note play a YseNote") {
+    // NULL synth or NULL note is a no-op, with or without an engine.
+    YseNote* probe = yse_note_create(60.0f, 1.0f, 1.0f, 1);
+    REQUIRE(probe != nullptr);
+    yse_synth_note_on_note(nullptr, probe);
+    yse_synth_note_off_note(nullptr, probe);
+
+    YseSystem* sys = yse_system_get();
+    REQUIRE(sys != nullptr);
+    yse_system_close(sys);
+    if (yse_system_init_offline(sys) != YSE_OK) {
+      yse_note_destroy(probe);
+      return;
+    }
+    g_recOn.store(0, std::memory_order_relaxed);
+    g_recOff.store(0, std::memory_order_relaxed);
+
+    YseSynth* syn = yse_synth_create();
+    REQUIRE(syn != nullptr);
+    REQUIRE(yse_synth_add_voices_sine(syn, 4, 0, 0, 127, 0.001f, 0.001f, 1.0f, 0.02f) == YSE_OK);
+    YseSound* snd = yse_sound_create();
+    REQUIRE(snd != nullptr);
+    REQUIRE(yse_synth_attach_to_sound(syn, snd, nullptr, 1.0f) == YSE_OK);
+    yse_sound_play(snd);
+    REQUIRE(drainUntilVoices(sys, syn, 4));
+    yse_synth_set_note_callback(syn, &recordNoteCb);
+
+    yse_synth_note_on_note(syn, nullptr); // NULL note: nothing dispatched
+    render(sys, 3);
+    CHECK(g_recOn.load(std::memory_order_relaxed) == 0);
+
+    // A fractional pitch plays the nearest key; the note's volume is the
+    // velocity.
+    YseNote* n = yse_note_create(61.6f, 0.55f, 1.0f, 2);
+    REQUIRE(n != nullptr);
+    yse_synth_note_on_note(syn, n);
+    render(sys, 3);
+    CHECK(g_recOn.load(std::memory_order_relaxed) == 1);
+    CHECK(g_recOnNote.load(std::memory_order_relaxed) == doctest::Approx(62.0f));
+    CHECK(g_recOnVel.load(std::memory_order_relaxed) == doctest::Approx(0.55f));
+
+    // The same note releases the key it started.
+    yse_synth_note_off_note(syn, n);
+    render(sys, 3);
+    CHECK(g_recOff.load(std::memory_order_relaxed) == 1);
+    CHECK(g_recOffNote.load(std::memory_order_relaxed) == doctest::Approx(62.0f));
+
+    yse_synth_set_note_callback(syn, nullptr);
+    yse_synth_all_notes_off(syn, 0);
+    render(sys, 4);
+    yse_note_destroy(n);
+    yse_note_destroy(probe);
+    yse_sound_destroy(snd);
+    yse_synth_destroy(syn);
     drainFor(sys, 300);
     yse_system_close(sys);
   }

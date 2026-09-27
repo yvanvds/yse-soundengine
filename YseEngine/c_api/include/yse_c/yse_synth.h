@@ -73,9 +73,11 @@ extern "C" {
    destroyed (see yse_synth_attach_to_sound). */
 typedef struct YseSynth YseSynth;
 
-/* Forward declarations — see yse_sound.h / yse_channel.h for ownership. */
+/* Forward declarations — see yse_sound.h / yse_channel.h / yse_music.h for
+   ownership. */
 typedef struct YseSound YseSound;
 typedef struct YseChannel YseChannel;
+typedef struct YseNote YseNote;
 
 /* Audio-thread note-rewrite hook, mirroring YSE::synth::onNoteEvent
    (docs/design/synth_core.md §7). Invoked by the engine on the AUDIO THREAD
@@ -249,6 +251,14 @@ YSE_C_API int yse_synth_get_num_voices(YseSynth* h);
 /* Start / release a note. velocity is normalised to [0, 1]. */
 YSE_C_API void yse_synth_note_on(YseSynth* h, int channel, int note_number, float velocity);
 YSE_C_API void yse_synth_note_off(YseSynth* h, int channel, int note_number, float velocity);
+
+/* Start / release a note described by a YseNote (see yse_music.h), mirroring
+   synth::noteOn/noteOff(const MUSIC::note&) (issue #909): the note's channel
+   is the channel, its pitch rounded to the nearest integer is the note number,
+   and its volume is the velocity. The note is read, not retained. A NULL
+   synth or note is a no-op. */
+YSE_C_API void yse_synth_note_on_note(YseSynth* h, const YseNote* note);
+YSE_C_API void yse_synth_note_off_note(YseSynth* h, const YseNote* note);
 
 /* Release every held note on `channel` (0 = all channels). A bulk note-off:
    voices enter their normal release, they are not cut. */

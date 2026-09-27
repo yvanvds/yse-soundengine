@@ -1,5 +1,6 @@
 #include "yse_c/yse_dsp_modules.h"
 #include "yse_c_internal.hpp"
+#include "yse_reverb_internal.hpp"
 
 #include "../dsp/dspObject.hpp"
 #include "../dsp/lfo.hpp"
@@ -20,6 +21,7 @@
 #include "../dsp/modules/parametricEQ.hpp"
 #include "../dsp/modules/compressor.hpp"
 #include "../dsp/modules/morphingReverb.hpp"
+#include "../dsp/modules/underWater.hpp"
 #include "../dsp/patcherInsert.hpp"
 #include "../patcher/patcher.hpp"
 #include "../reverb/reverbPresets.hpp"
@@ -47,38 +49,8 @@ namespace {
     }
   }
 
-  // Field-by-field conversions between the C mirror struct and the engine's
-  // REVERB::presetValues. The ABI struct layout is never assumed to match the
-  // engine one, so every field is copied explicitly.
-  inline YSE::REVERB::presetValues to_cpp_preset(const YseReverbPresetValues& v) {
-    YSE::REVERB::presetValues p;
-    p.roomsize = v.roomsize;
-    p.damp = v.damp;
-    p.dry = v.dry;
-    p.wet = v.wet;
-    p.modFrequency = v.mod_frequency;
-    p.modWidth = v.mod_width;
-    for (int i = 0; i < 4; ++i) {
-      p.earlyTime[i] = v.early_time[i];
-      p.earlyGain[i] = v.early_gain[i];
-    }
-    return p;
-  }
-
-  inline YseReverbPresetValues to_c_preset(const YSE::REVERB::presetValues& p) {
-    YseReverbPresetValues v;
-    v.roomsize = p.roomsize;
-    v.damp = p.damp;
-    v.dry = p.dry;
-    v.wet = p.wet;
-    v.mod_frequency = p.modFrequency;
-    v.mod_width = p.modWidth;
-    for (int i = 0; i < 4; ++i) {
-      v.early_time[i] = p.earlyTime[i];
-      v.early_gain[i] = p.earlyGain[i];
-    }
-    return v;
-  }
+  using yse_c::to_c_preset;
+  using yse_c::to_cpp_preset;
 } // namespace
 
 extern "C" {
@@ -158,6 +130,9 @@ YSE_C_API YseDspObject* yse_dsp_compressor_create(void) {
 YSE_C_API YseDspObject* yse_dsp_morphing_reverb_create(void) {
   return mk<YSE::DSP::MODULES::morphingReverb>();
 }
+YSE_C_API YseDspObject* yse_dsp_underwater_create(void) {
+  return mk<YSE::DSP::MODULES::underWater>();
+}
 
 // Patcher-as-insert (#167 module, #370 C API). Unlike the no-arg module
 // creators, patcherInsert wraps a borrowed YSE::patcher, so a NULL patcher is
@@ -220,6 +195,10 @@ YSE_C_API void yse_dsp_object_link(YseDspObject* head, YseDspObject* next) {
     return;
   }
   to_cpp(head)->link(*to_cpp(next));
+}
+
+YSE_C_API YseDspObject* yse_dsp_object_get_next(YseDspObject* obj) {
+  return obj ? reinterpret_cast<YseDspObject*>(to_cpp(obj)->link()) : nullptr;
 }
 
 // ─── filter modules ──────────────────────────────────────────────────
@@ -618,6 +597,17 @@ YSE_C_API void yse_dsp_morphing_reverb_set_morph(YseDspObject* o, float value) {
 YSE_C_API float yse_dsp_morphing_reverb_get_morph(YseDspObject* o) {
   auto* r = as<YSE::DSP::MODULES::morphingReverb>(o);
   return r ? r->morph() : 0.0f;
+}
+
+// ─── underwater (#327 module, #909 C API) ────────────────────────────────
+
+YSE_C_API void yse_dsp_underwater_set_depth(YseDspObject* o, float depth) {
+  auto* u = as<YSE::DSP::MODULES::underWater>(o);
+  if (u) u->depth(depth);
+}
+YSE_C_API float yse_dsp_underwater_get_depth(YseDspObject* o) {
+  auto* u = as<YSE::DSP::MODULES::underWater>(o);
+  return u ? u->depth() : 0.0f;
 }
 
 } // extern "C"

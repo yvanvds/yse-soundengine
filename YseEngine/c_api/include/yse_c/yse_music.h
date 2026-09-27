@@ -67,6 +67,8 @@ YSE_C_API void yse_pnote_set_length(YsePNote* n, float length);
 YSE_C_API float yse_pnote_get_pitch(YsePNote* n);
 YSE_C_API float yse_pnote_get_volume(YsePNote* n);
 YSE_C_API float yse_pnote_get_length(YsePNote* n);
+YSE_C_API void yse_pnote_set_channel(YsePNote* n, int channel);
+YSE_C_API int yse_pnote_get_channel(YsePNote* n);
 
 /* ─── scale — set of allowed pitches ──────────────────────────────── */
 

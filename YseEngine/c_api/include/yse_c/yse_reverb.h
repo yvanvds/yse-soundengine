@@ -64,6 +64,41 @@ YSE_C_API float yse_reverb_get_reflection_gain(YseReverb* rev, int reflection);
 
 YSE_C_API void yse_reverb_set_preset(YseReverb* rev, YseReverbPreset preset);
 
+/* ─── preset table + interpolation (issue #909) ───────────────────────────
+   Mirrors YSE::REVERB::getPresetValues / morph (reverb/reverbPresets.hpp). No
+   handle and no engine session needed: these read the shared preset table and
+   blend parameter sets, e.g. to author custom endpoints for the morphing
+   reverb (yse_dsp_modules.h) or to drive a zone with
+   yse_reverb_set_room_size() et al. */
+
+/* Plain-old-data mirror of YSE::REVERB::presetValues — one complete reverb
+   parameter set: the payload of a named preset and the custom endpoint type
+   of the morphing reverb. Fields are copied one by one across the ABI; the
+   layout is not assumed to match the engine struct. */
+typedef struct YseReverbPresetValues {
+  float roomsize; /* simulated room size, [0, 1] */
+  float damp; /* high-frequency damping, [0, 1] */
+  float dry; /* unprocessed level, [0, 1] */
+  float wet; /* reverberated level, [0, 1] */
+  float mod_frequency; /* tail modulation rate, Hz (0 = off) */
+  float mod_width; /* tail modulation depth (0 = off) */
+  float early_time[4]; /* early reflection delays, samples, [0, 2999] */
+  float early_gain[4]; /* early reflection gains, [0, 1] */
+} YseReverbPresetValues;
+
+/* Write the parameter set of a named preset into *out — the exact values
+   yse_reverb_set_preset() applies. A preset outside the enum yields the
+   YSE_REVERB_OFF values. NULL out is a no-op. */
+YSE_C_API void yse_reverb_preset_get_values(YseReverbPreset preset, YseReverbPresetValues* out);
+
+/* Linear blend of two parameter sets into *out: every field is
+   a + (b - a) * t with t clamped to [0, 1], so t = 0 gives a and t = 1 gives
+   b. `out` may alias `a` or `b`. NULL out is a no-op; a NULL a or b
+   zero-fills *out. */
+YSE_C_API void yse_reverb_preset_morph(const YseReverbPresetValues* a,
+                                       const YseReverbPresetValues* b, float t,
+                                       YseReverbPresetValues* out);
+
 #ifdef __cplusplus
 }
 #endif

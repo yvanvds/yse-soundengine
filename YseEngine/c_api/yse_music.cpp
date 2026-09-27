@@ -117,6 +117,12 @@ YSE_C_API float yse_pnote_get_volume(YsePNote* n) {
 YSE_C_API float yse_pnote_get_length(YsePNote* n) {
   return n ? to_cpp(n)->getLength() : 0.0f;
 }
+YSE_C_API void yse_pnote_set_channel(YsePNote* n, int v) {
+  if (n) to_cpp(n)->setChannel(v);
+}
+YSE_C_API int yse_pnote_get_channel(YsePNote* n) {
+  return n ? to_cpp(n)->getChannel() : 0;
+}
 
 // ─── scale ─────────────────────────────────────────────────────────
 

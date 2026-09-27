@@ -82,15 +82,18 @@ TEST_SUITE("capilowcov") {
     CHECK(yse_pnote_get_pitch(n) == doctest::Approx(62.0f));
     CHECK(yse_pnote_get_volume(n) == doctest::Approx(0.7f));
     CHECK(yse_pnote_get_length(n) == doctest::Approx(0.3f));
+    CHECK(yse_pnote_get_channel(n) == 2); // the create() channel (#909)
 
     yse_pnote_set_position(n, 2.25f);
     yse_pnote_set_pitch(n, 65.0f);
     yse_pnote_set_volume(n, 0.4f);
     yse_pnote_set_length(n, 0.6f);
+    yse_pnote_set_channel(n, 7);
     CHECK(yse_pnote_get_position(n) == doctest::Approx(2.25f));
     CHECK(yse_pnote_get_pitch(n) == doctest::Approx(65.0f));
     CHECK(yse_pnote_get_volume(n) == doctest::Approx(0.4f));
     CHECK(yse_pnote_get_length(n) == doctest::Approx(0.6f));
+    CHECK(yse_pnote_get_channel(n) == 7);
 
     yse_pnote_destroy(n);
   }
@@ -104,6 +107,8 @@ TEST_SUITE("capilowcov") {
     CHECK(yse_pnote_get_pitch(nullptr) == doctest::Approx(0.0f));
     CHECK(yse_pnote_get_volume(nullptr) == doctest::Approx(0.0f));
     CHECK(yse_pnote_get_length(nullptr) == doctest::Approx(0.0f));
+    yse_pnote_set_channel(nullptr, 3);
+    CHECK(yse_pnote_get_channel(nullptr) == 0);
     yse_pnote_destroy(nullptr);
   }
 

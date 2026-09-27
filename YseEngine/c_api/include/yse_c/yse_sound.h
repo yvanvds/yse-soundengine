@@ -1,7 +1,8 @@
 /*
   yse_sound.h — playable audio source.
   C ABI mirror of YseEngine/sound/soundInterface.hpp (YSE::sound).
-  A sound loads from a file, a YseDspBuffer, or a YsePatcher. The
+  A sound loads from a file, a YseDspBuffer, a YseDspMultiBuffer, or a
+  YsePatcher. The
   dspSourceObject overload (a user-written DSP source) is not wrapped: its
   callback runs on the audio thread and needs a design of its own.
 
@@ -31,6 +32,7 @@ typedef struct YseSound YseSound;
    yse_patcher.h for ownership semantics. */
 typedef struct YseChannel YseChannel;
 typedef struct YseDspBuffer YseDspBuffer;
+typedef struct YseDspMultiBuffer YseDspMultiBuffer;
 typedef struct YseDspObject YseDspObject;
 typedef struct YsePatcher YsePatcher;
 
@@ -52,6 +54,15 @@ YSE_C_API YseStatus yse_sound_load_file(YseSound* s, const char* filename, YseCh
    is live. Same lifetime contract as the C++ overload. */
 YSE_C_API YseStatus yse_sound_load_buffer(YseSound* s, YseDspBuffer* buf, YseChannel* ch, int loop,
                                           float volume);
+
+/* Initialize a sound from an in-memory multichannel buffer (the
+   sound::create(MULTICHANNELBUFFER&) overload, issue #909): channel i of `mb`
+   feeds the sound's channel i, so a two-channel buffer plays as a stereo
+   source. Build `mb` with yse_dsp_multi_buffer_create() (see yse_dsp.h). The
+   engine reads `mb` for as long as the sound plays, so it must outlive the
+   sound — the same lifetime contract as yse_sound_load_buffer(). */
+YSE_C_API YseStatus yse_sound_load_multi_buffer(YseSound* s, YseDspMultiBuffer* mb, YseChannel* ch,
+                                                int loop, float volume);
 
 /* Initialize a sound from a patcher graph. The patcher must outlive the
    sound. */

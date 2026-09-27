@@ -16,6 +16,7 @@
 
 #include "yse_common.h"
 #include "yse_enums.h"
+#include "yse_reverb.h" /* YseReverbPresetValues */
 
 #ifdef __cplusplus
 extern "C" {
@@ -54,6 +55,7 @@ YSE_C_API YseDspObject* yse_dsp_plate_reverb_create(void); /* #162 */
 YSE_C_API YseDspObject* yse_dsp_eq_create(void); /* #163 */
 YSE_C_API YseDspObject* yse_dsp_compressor_create(void); /* #163 */
 YSE_C_API YseDspObject* yse_dsp_morphing_reverb_create(void); /* #326 module, #369 C API */
+YSE_C_API YseDspObject* yse_dsp_underwater_create(void); /* #327 module, #909 C API */
 
 /* Patcher-as-insert (#167 module, #370 C API). Wraps a YsePatcher graph as a
    chainable insert effect (YSE::DSP::patcherInsert): a hand-patched network
@@ -96,6 +98,12 @@ YSE_C_API float yse_dsp_object_get_lfo_frequency(YseDspObject* obj);
    thread from ever observing a half-rewired chain; effect DSP state survives
    because the objects themselves are untouched. */
 YSE_C_API void yse_dsp_object_link(YseDspObject* head, YseDspObject* next);
+
+/* The object linked after `obj` (the dspObject::link() getter, issue #909), or
+   NULL at the end of a chain / on a NULL handle — so a host can walk a chain it
+   built. The result is the very handle the host linked in: borrowed here, and
+   still owned (and destroyed) through whichever handle created it. */
+YSE_C_API YseDspObject* yse_dsp_object_get_next(YseDspObject* obj);
 
 /* ─── filter modules ─────────────────────────────────────────────────── */
 
@@ -232,20 +240,9 @@ YSE_C_API float yse_dsp_compressor_get_gain_reduction_db(YseDspObject* obj);
  * applied — for send/return use give both slots custom values with dry = 0,
  * wet = 1. */
 
-/* Plain-old-data mirror of YSE::REVERB::presetValues (reverb/reverbPresets.hpp)
- * — one complete reverb parameter set: the payload of a named preset and the
- * custom endpoint type of the morphing reverb. Fields are copied one by one
- * across the ABI; the layout is not assumed to match the engine struct. */
-typedef struct YseReverbPresetValues {
-  float roomsize; /* simulated room size, [0, 1] */
-  float damp; /* high-frequency damping, [0, 1] */
-  float dry; /* unprocessed level, [0, 1] */
-  float wet; /* reverberated level, [0, 1] */
-  float mod_frequency; /* tail modulation rate, Hz (0 = off) */
-  float mod_width; /* tail modulation depth (0 = off) */
-  float early_time[4]; /* early reflection delays, samples, [0, 2999] */
-  float early_gain[4]; /* early reflection gains, [0, 1] */
-} YseReverbPresetValues;
+/* The endpoint values use YseReverbPresetValues, defined in yse_reverb.h
+ * (included above) next to yse_reverb_preset_get_values() /
+ * yse_reverb_preset_morph(). */
 
 /* Set an endpoint from a named preset. */
 YSE_C_API void yse_dsp_morphing_reverb_set_preset_a(YseDspObject* obj, YseReverbPreset preset);
@@ -262,6 +259,18 @@ YSE_C_API void yse_dsp_morphing_reverb_get_preset_b(YseDspObject* obj, YseReverb
 /* The morph control input: 0 = pure A, 1 = pure B, clamped to [0, 1]. */
 YSE_C_API void yse_dsp_morphing_reverb_set_morph(YseDspObject* obj, float value);
 YSE_C_API float yse_dsp_morphing_reverb_get_morph(YseDspObject* obj);
+
+/* ─── underwater (#327 module, #909 C API) ────────────────────────────────
+ * The engine's underwater treatment as an ordinary chainable insert: mixes
+ * every channel toward a position-neutral, low-passed average as `depth`
+ * (distance below the water surface, world units) grows. depth <= 1 is
+ * transparent, 1..5 crossfades, >= 5 is fully neutral; negative values clamp to
+ * 0. Writes are allocation-free and wait-free, callable from any control
+ * thread. The wet/dry balance is inherent in depth, so the inherited
+ * yse_dsp_object_set_impact() is NOT applied. Independent of the engine's own
+ * instance driven by yse_system_set_underwater_depth(). */
+YSE_C_API void yse_dsp_underwater_set_depth(YseDspObject* obj, float depth);
+YSE_C_API float yse_dsp_underwater_get_depth(YseDspObject* obj);
 
 #ifdef __cplusplus
 }

@@ -95,6 +95,14 @@ YSE_C_API void yse_sfz_destroy(YseSfzInstrument* h);
    header, wrong length, checksum mismatch) with yse_last_error() set. */
 YSE_C_API YseDx7Bank* yse_dx7_import_sysex(const char* path);
 
+/* Parse a DX7 SysEx image already in memory (dx7SysEx::parse, issue #909) —
+   for hosts that ship banks as bundled assets rather than files (Android APKs,
+   resource packs). Accepts the same formats as yse_dx7_import_sysex(); `data`
+   is read during the call only, not retained. Returns NULL on failure (NULL
+   data, zero length, bad header, wrong length, checksum mismatch) with
+   yse_last_error() set. */
+YSE_C_API YseDx7Bank* yse_dx7_import_sysex_memory(const unsigned char* data, size_t length);
+
 /* Number of patches in the bank. 0 on a NULL or already-destroyed handle. */
 YSE_C_API int yse_dx7_get_patch_count(YseDx7Bank* h);
 
@@ -103,6 +111,11 @@ YSE_C_API int yse_dx7_get_patch_count(YseDx7Bank* h);
    been written (excluding the NUL), or 0 for an out-of-range index or a NULL /
    destroyed handle. `buf` may be NULL to query the length. */
 YSE_C_API size_t yse_dx7_get_patch_name(YseDx7Bank* h, int index, char* buf, size_t cap);
+
+/* Index of the first patch whose (space-trimmed) name equals `name` exactly
+   (dx7Bank::indexOf, issue #909), for yse_synth_fm_set_patch(). Returns -1 when
+   no patch matches, and for a NULL name or a NULL / destroyed handle. */
+YSE_C_API int yse_dx7_find_patch(YseDx7Bank* h, const char* name);
 
 /* Release a bank handle. A double free or a NULL handle is a logged no-op,
    not a crash. */

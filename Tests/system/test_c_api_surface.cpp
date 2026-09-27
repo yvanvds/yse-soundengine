@@ -799,6 +799,44 @@ TEST_SUITE("capisurface") {
     yse_buffer_io_destroy(io);
   }
 
+  TEST_CASE("c-api buffer io: lookup and removal by buffer address (#909)") {
+    char data[16] = {0};
+    char other[16] = {0};
+
+    // store_copy=0: the registration holds the host's own address.
+    YseBufferIO* io = yse_buffer_io_create(0);
+    REQUIRE(io != nullptr);
+    CHECK(yse_buffer_io_exists(io, data) == 0);
+    REQUIRE(yse_buffer_io_add(io, "capi-addr", data, static_cast<int>(sizeof(data))) == 1);
+    CHECK(yse_buffer_io_exists(io, data) == 1);
+    CHECK(yse_buffer_io_exists(io, other) == 0); // a different address never matches
+    CHECK(yse_buffer_io_remove(io, other) == 0);
+
+    // Removing by address drops the registration: its name is free again.
+    CHECK(yse_buffer_io_remove(io, data) == 1);
+    CHECK(yse_buffer_io_exists(io, data) == 0);
+    CHECK(yse_buffer_io_name_exists(io, "capi-addr") == 0);
+    CHECK(yse_buffer_io_remove(io, data) == 0); // already gone
+
+    // NULL arguments answer 0.
+    CHECK(yse_buffer_io_exists(nullptr, data) == 0);
+    CHECK(yse_buffer_io_remove(nullptr, data) == 0);
+    CHECK(yse_buffer_io_exists(io, nullptr) == 0);
+    CHECK(yse_buffer_io_remove(io, nullptr) == 0);
+    yse_buffer_io_destroy(io);
+
+    // store_copy=1: the layer registers its own copy, so the host's address is
+    // documented never to match — removal has to go by name.
+    io = yse_buffer_io_create(1);
+    REQUIRE(io != nullptr);
+    REQUIRE(yse_buffer_io_add(io, "capi-addr-copy", data, static_cast<int>(sizeof(data))) == 1);
+    CHECK(yse_buffer_io_exists(io, data) == 0);
+    CHECK(yse_buffer_io_remove(io, data) == 0);
+    CHECK(yse_buffer_io_name_exists(io, "capi-addr-copy") == 1);
+    CHECK(yse_buffer_io_remove_by_name(io, "capi-addr-copy") == 1);
+    yse_buffer_io_destroy(io);
+  }
+
   TEST_CASE("c-api buffer io: invalid arguments and NULL handles return zero") {
     char data[4] = {0};
 

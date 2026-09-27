@@ -84,6 +84,33 @@ YSE_C_API void yse_dsp_buffer_fill(YseDspBuffer* buf, float value);
 YSE_C_API void yse_dsp_buffer_add_scalar(YseDspBuffer* buf, float value);
 YSE_C_API void yse_dsp_buffer_mul_scalar(YseDspBuffer* buf, float value);
 
+/* Sample-wise buffer math (operator+= / -= / *= / /= on a buffer, issue #909):
+   buf[i] op= other[i] over the first min(length(buf), length(other)) samples;
+   samples past the shorter length are left untouched. Division by a zero
+   sample yields 0, not inf. `buf` and `other` may be the same handle. A NULL
+   `buf` or `other` is a no-op. */
+YSE_C_API void yse_dsp_buffer_add_buffer(YseDspBuffer* buf, YseDspBuffer* other);
+YSE_C_API void yse_dsp_buffer_sub_buffer(YseDspBuffer* buf, YseDspBuffer* other);
+YSE_C_API void yse_dsp_buffer_mul_buffer(YseDspBuffer* buf, YseDspBuffer* other);
+YSE_C_API void yse_dsp_buffer_div_buffer(YseDspBuffer* buf, YseDspBuffer* other);
+
+/* Copy `count` samples from src[src_pos...] into dst[dst_pos...]
+   (buffer::copyFrom, issue #909). Both ranges must lie inside their buffer's
+   length: a range that runs past the end copies nothing and returns
+   YSE_ERR_INVALID_ARGUMENT (the engine call would silently skip it). src and
+   dst may be the same handle only for ranges that do not overlap. Returns
+   YSE_ERR_INVALID_HANDLE for a NULL handle. */
+YSE_C_API YseStatus yse_dsp_buffer_copy_from(YseDspBuffer* dst, YseDspBuffer* src,
+                                             unsigned int src_pos, unsigned int dst_pos,
+                                             unsigned int count);
+
+/* Exchange the samples of two buffers of the same length (buffer::swap, issue
+   #909). Each buffer keeps its own storage, sample-rate adjustment and
+   subclass; only the sample values move. Returns YSE_ERR_INVALID_ARGUMENT
+   (nothing swapped) when the lengths differ and YSE_ERR_INVALID_HANDLE for a
+   NULL handle. Swapping a handle with itself is a successful no-op. */
+YSE_C_API YseStatus yse_dsp_buffer_swap(YseDspBuffer* a, YseDspBuffer* b);
+
 /* drawableBuffer-only. */
 YSE_C_API YseStatus yse_dsp_buffer_draw_line(YseDspBuffer* buf, unsigned int start,
                                              unsigned int stop, float start_value,
@@ -117,6 +144,32 @@ YSE_C_API float yse_dsp_buffer_get_file_sample_rate(YseDspBuffer* buf);
 YSE_C_API YseStatus yse_dsp_wavetable_create_saw(YseDspBuffer* buf, int harmonics, int length);
 YSE_C_API YseStatus yse_dsp_wavetable_create_square(YseDspBuffer* buf, int harmonics, int length);
 YSE_C_API YseStatus yse_dsp_wavetable_create_triangle(YseDspBuffer* buf, int harmonics, int length);
+
+/* ─── multichannel source buffer (issue #909) ─────────────────────────────
+   The C mirror of MULTICHANNELBUFFER: one sample buffer per channel, used to
+   play a stereo / surround source held in memory through
+   yse_sound_load_multi_buffer() (see yse_sound.h).
+
+   The engine keeps a pointer to this storage for as long as a sound plays it,
+   which is why it is its own owned handle rather than an argument list: the
+   host decides when it is safe to free it. */
+
+/* Owned — release with yse_dsp_multi_buffer_destroy, and only once every sound
+   loaded from it has been destroyed. */
+typedef struct YseDspMultiBuffer YseDspMultiBuffer;
+
+/* Build a multichannel buffer holding a COPY of `count` channel buffers, in
+   order (channels[0] is the first output channel). The source handles are not
+   retained: change or destroy them afterwards without affecting this one.
+   Channels may differ in length; a sound plays the length of the shortest.
+   Returns NULL with yse_last_error() set when `channels` is NULL, `count` is 0,
+   or any entry is NULL. */
+YSE_C_API YseDspMultiBuffer* yse_dsp_multi_buffer_create(YseDspBuffer* const* channels,
+                                                         unsigned int count);
+YSE_C_API void yse_dsp_multi_buffer_destroy(YseDspMultiBuffer* mb);
+
+/* Number of channels; 0 on NULL. */
+YSE_C_API unsigned int yse_dsp_multi_buffer_get_channel_count(YseDspMultiBuffer* mb);
 
 #ifdef __cplusplus
 }
