@@ -149,8 +149,8 @@ Where to go next
 
 Working with patches:
 
-- :doc:`messages`: message types, hot and cold inlets, and the order in
-  which messages travel.
+- :doc:`messages`: message types, hot and cold inlets, the order in which
+  messages travel, logical events, and selector matching.
 - :doc:`building`: creating, connecting and editing objects while the
   graph plays, and object IDs.
 - :doc:`subpatchers`: grouping part of a graph behind its own inlets and
