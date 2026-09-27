@@ -231,7 +231,8 @@ TEST_SUITE("patcher") {
     CHECK(std::string(h->Type()) == ".m");
     CHECK(h->GetInputs() == 1);
     CHECK(h->GetOutputs() == 1);
-    CHECK(h->OutputDataType(0) == YSE::OUT_TYPE::LIST);
+    // ANY since #933: the text leaves as the bang, int, float or list it spells.
+    CHECK(h->OutputDataType(0) == YSE::OUT_TYPE::ANY);
   }
 
   TEST_CASE("gMessage: bang dispatches the stored message via SendMessage") {
@@ -265,6 +266,231 @@ TEST_SUITE("patcher") {
     YSE::PATCHER::gMessage msg;
     msg.GetInlet(0)->SetMessage("from inlet", YSE::T_GUI);
     CHECK(msg.GetGuiValue() == "from inlet");
+  }
+
+  // ─── a message box's text, typed at the receiving inlet (#933) ───────────────
+
+  // A hot inlet with every typed handler and no command channel, counting its
+  // calculates so a fire on an ignored message is visible.
+  struct TypedProbe : YSE::PATCHER::pObject {
+    struct Seen {
+      bool gotBang = false;
+      bool gotInt = false;
+      bool gotFloat = false;
+      bool gotList = false;
+      int intValue = 0;
+      float floatValue = 0.f;
+      std::string listValue;
+      void reset() {
+        *this = Seen();
+      }
+    } seen;
+    int calculated = 0;
+    // Only the float handler, as `.mtof`-like objects that take no words.
+    explicit TypedProbe(bool floatOnly = false) : pObject(false) {
+      inputs.emplace_back(this, true, 0);
+      inputs.back().RegisterFloat([this](float v, int, YSE::THREAD) {
+        seen.gotFloat = true;
+        seen.floatValue = v;
+      });
+      if (floatOnly) return;
+      inputs.back().RegisterBang([this](int, YSE::THREAD) { seen.gotBang = true; });
+      inputs.back().RegisterInt([this](int v, int, YSE::THREAD) {
+        seen.gotInt = true;
+        seen.intValue = v;
+      });
+      inputs.back().RegisterList([this](const std::string& v, int, YSE::THREAD) {
+        seen.gotList = true;
+        seen.listValue = v;
+      });
+    }
+    const char* Type() const override {
+      return "typed_probe";
+    }
+    void Calculate(YSE::THREAD) override {
+      calculated++;
+    }
+    void SetMessage(const std::string&, float) override {}
+  };
+
+  // A command-channel object with a list handler and nothing else — the shape
+  // of `.midiout`, whose list handler must never see a word command.
+  struct CommandProbe : YSE::PATCHER::pObject {
+    std::string command;
+    std::string list;
+    CommandProbe() : pObject(false) {
+      inputs.emplace_back(this, true, 0);
+      inputs.back().RegisterList([this](const std::string& v, int, YSE::THREAD) { list = v; });
+    }
+    const char* Type() const override {
+      return "command_probe";
+    }
+    void Calculate(YSE::THREAD) override {}
+    void SetMessage(const std::string& message, float) override {
+      command = message;
+    }
+    bool HandlesMessages() const override {
+      return true;
+    }
+  };
+
+  TEST_CASE("message text: an inlet reads it as the typed message it spells (#933)") {
+    TypedProbe probe;
+    auto send = [&probe](const std::string& text) {
+      probe.seen.reset();
+      probe.calculated = 0;
+      probe.GetInlet(0)->SetMessage(text, YSE::T_GUI);
+    };
+
+    send("60");
+    CHECK(probe.seen.gotInt);
+    CHECK(probe.seen.intValue == 60);
+    CHECK_FALSE(probe.seen.gotFloat);
+    CHECK(probe.calculated == 1);
+
+    send("0.5");
+    CHECK(probe.seen.gotFloat);
+    CHECK(probe.seen.floatValue == doctest::Approx(0.5f));
+    CHECK_FALSE(probe.seen.gotInt);
+
+    send("bang");
+    CHECK(probe.seen.gotBang);
+    CHECK_FALSE(probe.seen.gotList);
+
+    send("1 2 3");
+    CHECK(probe.seen.gotList);
+    CHECK(probe.seen.listValue == "1 2 3");
+
+    // A word with no command channel to take it: the list, as Max's anything
+    // reaches a list-reading object.
+    send("note 60 100");
+    CHECK(probe.seen.gotList);
+    CHECK(probe.seen.listValue == "note 60 100");
+    CHECK(probe.calculated == 1);
+
+    // Nothing to deliver: nothing handled, and no calculate on the stale value.
+    send("");
+    CHECK_FALSE(probe.seen.gotBang);
+    CHECK_FALSE(probe.seen.gotList);
+    CHECK(probe.calculated == 0);
+  }
+
+  TEST_CASE("message text: an ignored message does not fire a hot inlet (#933)") {
+    // The float-only hot inlet of the issue's `.mtof`: a word reaches no
+    // handler, so the object must not calculate with what it already held.
+    TypedProbe probe(true);
+    probe.GetInlet(0)->SetMessage("hello", YSE::T_GUI);
+    probe.GetInlet(0)->SetMessage("60", YSE::T_GUI); // an int, and no int handler
+    probe.GetInlet(0)->SetMessage("bang", YSE::T_GUI);
+    CHECK_FALSE(probe.seen.gotFloat);
+    CHECK(probe.calculated == 0);
+
+    probe.GetInlet(0)->SetMessage("60.", YSE::T_GUI);
+    CHECK(probe.seen.floatValue == doctest::Approx(60.f));
+    CHECK(probe.calculated == 1);
+  }
+
+  TEST_CASE("message text: a word command takes the command channel first (#933)") {
+    CommandProbe probe;
+    probe.GetInlet(0)->SetMessage("allnotesoff", YSE::T_GUI);
+    CHECK(probe.command == "allnotesoff");
+    CHECK(probe.list.empty());
+
+    // A number-led list is a list, even to an object with a command channel.
+    probe.command.clear();
+    probe.GetInlet(0)->SetMessage("144 60 100", YSE::T_GUI);
+    CHECK(probe.list == "144 60 100");
+    CHECK(probe.command.empty());
+
+    // A typed message the inlet has no handler for still reaches the command
+    // channel, so an object that relied on it keeps what it took before.
+    probe.GetInlet(0)->SetMessage("60", YSE::T_GUI);
+    CHECK(probe.command == "60");
+  }
+
+  TEST_CASE("message box: its text reaches ordinary objects in a real patch (#933)") {
+    YSE::patcher p;
+    p.create(2);
+
+    SUBCASE(".m 60 into .mtof sends middle C's frequency") {
+      YSE::pHandle* msg = p.CreateObject(YSE::OBJ::G_MESSAGE, "60");
+      YSE::pHandle* mtof = p.CreateObject(YSE::OBJ::MIDITOFREQUENCY);
+      YSE::pHandle* out = p.CreateObject(YSE::OBJ::G_FLOAT);
+      REQUIRE(msg != nullptr);
+      REQUIRE(mtof != nullptr);
+      REQUIRE(out != nullptr);
+      p.Connect(msg, 0, mtof, 0);
+      p.Connect(mtof, 0, out, 0);
+
+      msg->SetBang(0);
+      CHECK(std::stof(out->GetGuiValue()) == doctest::Approx(261.6256f).epsilon(0.001));
+    }
+
+    SUBCASE(".m 60 into .i stores and sends 60") {
+      YSE::pHandle* msg = p.CreateObject(YSE::OBJ::G_MESSAGE, "60");
+      YSE::pHandle* box = p.CreateObject(YSE::OBJ::G_INT);
+      YSE::pHandle* out = p.CreateObject(YSE::OBJ::G_INT);
+      p.Connect(msg, 0, box, 0);
+      p.Connect(box, 0, out, 0);
+
+      msg->SetBang(0);
+      CHECK(box->GetGuiValue() == "60");
+      CHECK(out->GetGuiValue() == "60");
+    }
+
+    SUBCASE(".m 2.5 into .+ 1 adds") {
+      YSE::pHandle* msg = p.CreateObject(YSE::OBJ::G_MESSAGE, "2.5");
+      YSE::pHandle* add = p.CreateObject(YSE::OBJ::G_ADD, "1");
+      YSE::pHandle* out = p.CreateObject(YSE::OBJ::G_FLOAT);
+      p.Connect(msg, 0, add, 0);
+      p.Connect(add, 0, out, 0);
+
+      msg->SetBang(0);
+      CHECK(std::stof(out->GetGuiValue()) == doctest::Approx(3.5f));
+    }
+
+    SUBCASE(".m note 60 into .route note sends 60") {
+      YSE::pHandle* msg = p.CreateObject(YSE::OBJ::G_MESSAGE);
+      YSE::pHandle* route = p.CreateObject(YSE::OBJ::G_ROUTE, "note");
+      YSE::pHandle* out = p.CreateObject(YSE::OBJ::G_INT);
+      p.Connect(msg, 0, route, 0);
+      p.Connect(route, 0, out, 0);
+
+      msg->SetListData(0, "note 60");
+      msg->SetBang(0);
+      CHECK(out->GetGuiValue() == "60");
+    }
+
+    SUBCASE(".m bang into .i re-sends what .i holds") {
+      YSE::pHandle* msg = p.CreateObject(YSE::OBJ::G_MESSAGE, "bang");
+      YSE::pHandle* box = p.CreateObject(YSE::OBJ::G_INT, "7");
+      YSE::pHandle* out = p.CreateObject(YSE::OBJ::G_INT);
+      p.Connect(msg, 0, box, 0);
+      p.Connect(box, 0, out, 0);
+
+      msg->SetBang(0);
+      CHECK(out->GetGuiValue() == "7");
+    }
+
+    SUBCASE("a word into .mtof does not fire it with the stale note") {
+      YSE::pHandle* msg = p.CreateObject(YSE::OBJ::G_MESSAGE, "hello");
+      YSE::pHandle* mtof = p.CreateObject(YSE::OBJ::MIDITOFREQUENCY);
+      YSE::pHandle* out = p.CreateObject(YSE::OBJ::G_FLOAT, "-1");
+      p.Connect(msg, 0, mtof, 0);
+      p.Connect(mtof, 0, out, 0);
+
+      msg->SetBang(0);
+      CHECK(std::stof(out->GetGuiValue()) == doctest::Approx(-1.f));
+    }
+
+    SUBCASE(".m 60 into .l still stores the text") {
+      YSE::pHandle* msg = p.CreateObject(YSE::OBJ::G_MESSAGE, "60");
+      YSE::pHandle* list = p.CreateObject(YSE::OBJ::G_LIST);
+      p.Connect(msg, 0, list, 0);
+
+      msg->SetBang(0);
+      CHECK(list->GetGuiValue() == "60");
+    }
   }
 
   // ─── gSlider ──────────────────────────────────────────────────────────────────

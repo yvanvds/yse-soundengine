@@ -321,17 +321,33 @@ What .route sends after removing the matched item depends on what is left:
 The message box
 ---------------
 
-``.m`` does not send its text as a ``LIST``. When banged, it sends its
-text down a separate *message* path (``outlet::SendMessage``). That path
-reaches only objects that implement a message method: ``.m``, ``.l``,
-``.print``, ``.loadmess``, ``~line``, ``.midiinfo`` and ``.midiout``.
-For any other object the text is ignored, but if the cord goes to that
-object's hot inlet, the object still computes and sends its current result.
-So a ``.m 60`` wired into ``.mtof`` does not deliver 60. ``.mtof`` sends the
-frequency of whatever note it last held. To send a fixed value, bang a
-``.trigger`` with a constant argument (``.trigger 60``), or send the value
-from the host. This behaviour is tracked in
-`#933 <https://github.com/yvanvds/yse-soundengine/issues/933>`_.
+When banged, ``.m`` sends its text as the message it spells, as a Max
+message box does. Each receiving inlet reads the text by the same rules as
+the list objects above:
+
+- one number is an **int** or a **float**, by its spelling (``60``, ``0.5``);
+- the single word ``bang`` is a **bang**;
+- text that starts with a number is a **list** (``1 2 3``);
+- text that starts with any other word (``stop``, ``note 60 100``) is a
+  *command*. The objects that take commands get it as one: ``~line``
+  (``stop``), ``.midiout`` (``allnotesoff`` and the other control words),
+  ``.midiinfo``, ``.loadmess`` (``set ...``), ``.print``, ``.m`` and ``.l``.
+  Every other object gets it as a list, which is how ``.route`` and ``.sel``
+  see it.
+
+So a ``.m 60`` wired into ``.mtof`` sends the frequency of note 60, and a
+``.m note 60`` into ``.route note`` sends the int 60. A message that the
+inlet has no handler for is dropped like any other, and the object does not
+compute. The one exception is an object that takes commands: a message its
+inlet has no handler for reaches it as a command instead. That is how a
+number still reaches ``.m`` and ``.l``, which have no number handler:
+``.m 60`` into a ``.m`` stores ``60``.
+
+.. versionchanged:: 3.0
+   ``.m`` used to hand its text only to the seven objects above, and a
+   cord from it to any other object's hot inlet made that object compute with
+   the value it already held: ``.m 60`` into ``.mtof`` sent 8.18 Hz (issue
+   `#933 <https://github.com/yvanvds/yse-soundengine/issues/933>`_).
 
 Where to go next
 ----------------
