@@ -6,8 +6,13 @@
 #include "../patcherImplementation.h"
 #include "midiPortOpener.h"
 #include "pMidiByteList.h"
+#include "../../midi/midiOutSender.h"
+#include "../../midi/midiSynthRouting.hpp"
 
 #include <cstddef>
+
+static_assert(YSE::MIDI::kRawEventMax >= static_cast<std::size_t>(YSE::PATCHER::MIDI_BYTE_LIST_MAX),
+              "every byte list .midiout can read must fit the sender's immediate lane whole");
 
 using namespace YSE::PATCHER;
 #define className mMidiOut
@@ -27,7 +32,7 @@ CONSTRUCT() {
 
   ADD_DESCRIPTION(
       "MIDI device output — the end of every chain that sends. A message arrives at the inlet as a "
-      "list of bytes and goes straight out of the selected hardware port, whole and in order. Both "
+      "list of bytes and goes out of the selected hardware port, whole and in order. Both "
       "of the patcher's spellings of a byte list are read (issue #748): the numeric one, '144 60 "
       "100', which is what '.midiformat', '.sxformat' and '.seq' send and what a list is "
       "everywhere "
@@ -49,7 +54,10 @@ CONSTRUCT() {
       "port allocates, talks to the platform's MIDI service and can block for as long as the "
       "driver takes, none of which may happen there. The port is usually open by the next message; "
       "everything sent in between is dropped, which is what already happened to every message when "
-      "the open failed.");
+      "the open failed. The send itself does not happen on that thread either (issue #949): the "
+      "bytes are queued for a dedicated MIDI sender thread, which makes the driver call — usually "
+      "within a millisecond. Messages from one sender keep their order; if the queue is ever full "
+      "the message is dropped and counted rather than sent late.");
   ADD_CATEGORY(pCategory::MIDI);
   INLET_DOC(0, "midi",
             "One MIDI message to send, as a list of bytes: numeric ('144 60 100', the shape "
@@ -81,7 +89,9 @@ bool mMidiOut::EnsurePort() {
 
   if (MidiPortOpener().Consume(open)) {
     // The acquire inside Consume pairs with the job's release store, so the
-    // port `midiOut::create` wrote on the pool is visible from here on.
+    // port `midiOut::create` wrote on the pool is visible from here on. Cached
+    // before the latch is released, so a thread that sees `ready` sees it too.
+    sendPort.store(out.rawPort(), std::memory_order_release);
     ready.store(true, std::memory_order_release);
     return true;
   }
@@ -91,6 +101,34 @@ bool mMidiOut::EnsurePort() {
   // what makes asking on every message affordable here.
   MidiPortOpener().Request(open, &out, static_cast<unsigned int>(port.load()));
   return false;
+}
+
+void mMidiOut::Send(const unsigned char* data, std::size_t length) {
+  if (length == 0) return;
+  // The open settled without a device — a port index this machine does not
+  // have. Nothing to send to, exactly as before.
+  RtMidiOut* device = sendPort.load(std::memory_order_acquire);
+  if (device == nullptr) return;
+
+  // Issue #949: never RtMidi here. This runs on whichever thread dispatched
+  // the message — routinely the audio callback — and a send is a driver call
+  // that can block (and, for SysEx on some backends, allocate). One lock-free
+  // push onto the sender thread's immediate lane instead; a full lane drops
+  // the message, counted rather than logged for the same reason.
+  if (!MIDI::OutSender().tryEnqueueNow(device, data, length)) {
+    dropped.fetch_add(1, std::memory_order_relaxed);
+  }
+}
+
+void mMidiOut::SendControl(unsigned char channel, unsigned char controller, unsigned char value) {
+  const unsigned char message[3] = {static_cast<unsigned char>(MIDI::MSG_CONTROL_CHANGE + channel),
+                                    controller, value};
+  Send(message, 3);
+}
+
+void mMidiOut::UsePortForTest(RtMidiOut* device) {
+  sendPort.store(device, std::memory_order_release);
+  ready.store(true, std::memory_order_release);
 }
 
 LIST_IN(SetListValue) {
@@ -110,11 +148,14 @@ LIST_IN(SetListValue) {
 
   switch (ReadMidiByteList(value, bytes, MIDI_BYTE_LIST_MAX, count)) {
   case midiByteList::numeric:
-    out.Raw(bytes, static_cast<std::size_t>(count));
+    Send(bytes, static_cast<std::size_t>(count));
     break;
   case midiByteList::characters:
-    // The binary spelling: the characters are already the bytes.
-    out.Raw(value);
+    // The binary spelling: the characters are already the bytes. Held to the
+    // numeric spelling's limit — longer is dropped whole, never sent in part.
+    if (value.size() <= MIDI::kRawEventMax) {
+      Send(reinterpret_cast<const unsigned char*>(value.data()), value.size());
+    }
     break;
   case midiByteList::refused:
     break;
@@ -130,22 +171,26 @@ MESSAGES() {
     return;
   }
 
+  // The same bytes YSE::midiOut's control calls put on the wire, but queued
+  // through Send rather than sent from here (issue #949).
   if (message == "allnotesoff") {
-    out.AllNotesOff();
+    for (unsigned char channel = 0; channel < 16; channel++)
+      SendControl(channel, MIDI::CC_ALL_NOTES_OFF, 0);
   } else if (message == "reset") {
-    out.Reset();
+    for (unsigned char channel = 0; channel < 16; channel++)
+      SendControl(channel, MIDI::CC_RESET_ALL_CONTROLLERS, 0);
   } else if (message == "omni on") {
-    out.Omni(true);
+    SendControl(0, MIDI::CC_OMNI_MODE_ON, 0);
   } else if (message == "omni off") {
-    out.Omni(false);
+    SendControl(0, MIDI::CC_OMNI_MODE_OFF, 0);
   } else if (message == "poly on") {
-    out.Poly(true);
+    SendControl(0, MIDI::CC_POLY_MODE_ON, 0);
   } else if (message == "poly off") {
-    out.Poly(false);
+    SendControl(0, MIDI::CC_MONO_MODE_ON, 0);
   } else if (message == "local control on") {
-    out.LocalControl(true);
+    SendControl(0, MIDI::CC_LOCAL_CONTROL, 127);
   } else if (message == "local control off") {
-    out.LocalControl(false);
+    SendControl(0, MIDI::CC_LOCAL_CONTROL, 0);
   }
 }
 #endif

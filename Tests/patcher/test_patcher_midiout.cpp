@@ -61,8 +61,13 @@
 #include "sinks.hpp"
 
 #if YSE_ENABLE_MIDI_DEVICE
+#include <mutex>
+#include <thread>
+
 #include "midi/device.hpp"
 #include "midi/midiDeviceManager.h"
+#include "midi/midiOutSender.h"
+#include "support/timer_pacing.hpp"
 #include "patcher/inlet.h"
 #include "patcher/midi/mMidiOut.h"
 #include "patcher/midi/midiPortOpener.h"
@@ -432,6 +437,9 @@ TEST_SUITE("patcher") {
     // threw always left behind.
     if (YSE::MIDI::DeviceManager().getNumMidiOutDevices() > 0) {
       CHECK(object.PortOpen());
+      // And the thread that will make its sends is up (#949): the open job
+      // starts it, since a handler may not spawn a thread.
+      CHECK(YSE::MIDI::OutSender().isRunning());
     } else {
       CHECK_FALSE(object.PortOpen());
     }
@@ -488,6 +496,219 @@ TEST_SUITE("patcher") {
     CHECK(object.OpenInFlight());
 
     MidiPortOpener().WaitIdle();
+  }
+
+  // ─── the send happens on the sender thread (#949) ─────────────────────────
+  //
+  // #759 moved the open off the dispatching thread and left the send there:
+  // every note a patch played out of `.midiout` was an RtMidi `sendMessage` —
+  // a driver call that can block — made from the audio callback. The handler
+  // now queues the bytes on MIDI::outSender's immediate lane and the sender
+  // thread sends them. These tests drive the real object, down a real cord
+  // where it matters, with the sender's raw hook standing in for the device —
+  // so the port handed over by `UsePortForTest` is never dereferenced, and no
+  // hardware is needed.
+
+  namespace {
+
+    // Something for the object to hold as its port. Only its address is used:
+    // with the raw hook installed the sender never reaches through it.
+    alignas(16) unsigned char fakePortStorage[16];
+    RtMidiOut* const kFakePort = reinterpret_cast<RtMidiOut*>(fakePortStorage);
+
+    // Records every raw send, and whether it was made on a thread other than
+    // the one that sent the message into the patcher.
+    struct RawRecorder {
+      struct Sent {
+        std::vector<int> bytes;
+        RtMidiOut* port = nullptr;
+        bool offDispatchingThread = false;
+      };
+
+      std::thread::id dispatching = std::this_thread::get_id();
+      std::mutex m;
+      std::vector<Sent> sent;
+
+      static void hook(const YSE::MIDI::rawEvent& e, void* user) {
+        auto* self = static_cast<RawRecorder*>(user);
+        Sent s;
+        s.bytes.assign(e.bytes, e.bytes + e.len);
+        s.port = e.port;
+        s.offDispatchingThread = std::this_thread::get_id() != self->dispatching;
+        std::scoped_lock lk(self->m);
+        self->sent.push_back(std::move(s));
+      }
+
+      std::size_t count() {
+        std::scoped_lock lk(m);
+        return sent.size();
+      }
+      Sent at(std::size_t i) {
+        std::scoped_lock lk(m);
+        return sent.at(i);
+      }
+      bool await(std::size_t n) {
+        return TestHelpers::pacedUntil(5000, [&] { return count() >= n; });
+      }
+    };
+
+    // Point the process-wide sender at a recorder for one test, and put it
+    // back the way it was. stop() flushes into the hook, so the hook comes
+    // off only after the queue is empty — nothing ever reaches `kFakePort`.
+    struct SenderUnderTest {
+      RawRecorder recorder;
+      bool wasRunning = YSE::MIDI::OutSender().isRunning();
+
+      SenderUnderTest() {
+        YSE::MIDI::OutSender().setRawSendHookForTest(&RawRecorder::hook, &recorder);
+        YSE::MIDI::OutSender().start();
+      }
+      ~SenderUnderTest() {
+        YSE::MIDI::OutSender().stop();
+        YSE::MIDI::OutSender().setRawSendHookForTest(nullptr, nullptr);
+        if (wasRunning) YSE::MIDI::OutSender().start();
+      }
+      SenderUnderTest(const SenderUnderTest&) = delete;
+      SenderUnderTest& operator=(const SenderUnderTest&) = delete;
+      SenderUnderTest(SenderUnderTest&&) = delete;
+      SenderUnderTest& operator=(SenderUnderTest&&) = delete;
+    };
+
+  } // namespace
+
+  TEST_CASE("midiout: a note down a real cord is sent on the sender thread, not the dispatching "
+            "one (#949)") {
+    using YSE::PATCHER::mMidiOut;
+    using YSE::PATCHER::patcherImplementation;
+
+    SenderUnderTest sender;
+
+    patcherImplementation patch{1, nullptr};
+    YSE::pHandle* format = patch.CreateObject(YSE::OBJ::M_FORMAT, "");
+    REQUIRE(format != nullptr);
+
+    mMidiOut object;
+    object.UsePortForTest(kFakePort);
+    auto handle = std::make_unique<YSE::pHandle>(&object);
+    patch.Connect(format, 0, handle.get(), 0);
+
+    format->SetIntData(6, 1); // channel 1
+    format->SetListData(0, "60 100");
+
+    REQUIRE(sender.recorder.await(1));
+    const RawRecorder::Sent note = sender.recorder.at(0);
+    // The load-bearing assertion: the RtMidi call was not made by the thread
+    // that delivered the message — which in a running patch is the audio
+    // callback.
+    CHECK(note.offDispatchingThread);
+    CHECK(note.port == kFakePort);
+    REQUIRE(note.bytes.size() == 3u);
+    CHECK(note.bytes[0] == 0x90);
+    CHECK(note.bytes[1] == 60);
+    CHECK(note.bytes[2] == 100);
+    CHECK(object.Dropped() == 0);
+    CHECK(object.Deferred() == 0);
+
+    patch.DeleteObject(format);
+  }
+
+  TEST_CASE("midiout: a queued system-exclusive dump still goes out entire (#949)") {
+    // The hand-off must not reintroduce the three-byte cut #748 removed.
+    using YSE::PATCHER::mMidiOut;
+
+    SenderUnderTest sender;
+    mMidiOut object;
+    object.UsePortForTest(kFakePort);
+
+    std::string dump = "240 67";
+    for (int i = 0; i < MIDI_BYTE_LIST_MAX - 3; i++)
+      dump += " 16";
+    dump += " 247";
+    object.GetInlet(0)->SetList(dump, YSE::T_DSP);
+    // And the binary spelling, as the older senders build it.
+    object.GetInlet(0)->SetList(Binary(0xC0, 5, 0).substr(0, 2), YSE::T_DSP);
+
+    REQUIRE(sender.recorder.await(2));
+    const RawRecorder::Sent sx = sender.recorder.at(0);
+    CHECK(sx.offDispatchingThread);
+    REQUIRE(sx.bytes.size() == static_cast<std::size_t>(MIDI_BYTE_LIST_MAX));
+    CHECK(sx.bytes.front() == 240);
+    CHECK(sx.bytes.back() == 247);
+
+    const RawRecorder::Sent program = sender.recorder.at(1);
+    REQUIRE(program.bytes.size() == 2u);
+    CHECK(program.bytes[0] == 0xC0);
+    CHECK(program.bytes[1] == 5);
+  }
+
+  TEST_CASE("midiout: control messages are queued in order, one per channel (#949)") {
+    using YSE::PATCHER::mMidiOut;
+
+    SenderUnderTest sender;
+    mMidiOut object;
+    object.UsePortForTest(kFakePort);
+
+    object.SetMessage("allnotesoff", 0.f);
+    object.SetMessage("local control off", 0.f);
+
+    REQUIRE(sender.recorder.await(17));
+    for (int channel = 0; channel < 16; channel++) {
+      CAPTURE(channel);
+      const RawRecorder::Sent cc = sender.recorder.at(static_cast<std::size_t>(channel));
+      CHECK(cc.offDispatchingThread);
+      REQUIRE(cc.bytes.size() == 3u);
+      CHECK(cc.bytes[0] == 0xB0 + channel);
+      CHECK(cc.bytes[1] == 123); // all notes off
+      CHECK(cc.bytes[2] == 0);
+    }
+    const RawRecorder::Sent local = sender.recorder.at(16);
+    REQUIRE(local.bytes.size() == 3u);
+    CHECK(local.bytes[0] == 0xB0);
+    CHECK(local.bytes[1] == 122);
+    CHECK(local.bytes[2] == 0);
+  }
+
+  TEST_CASE("midiout: a full sender queue drops and counts, and never sends late or in part "
+            "(#949)") {
+    using YSE::PATCHER::mMidiOut;
+
+    SenderUnderTest sender;
+    // Stopped, so nothing drains the lane while it is filled. stop() flushes
+    // into the hook, so the recorder starts from whatever was already queued.
+    YSE::MIDI::OutSender().stop();
+    const std::size_t before = sender.recorder.count();
+
+    mMidiOut object;
+    object.UsePortForTest(kFakePort);
+
+    constexpr int kSent = 2000; // well past the lane's fixed capacity
+    for (int i = 0; i < kSent; i++)
+      object.GetInlet(0)->SetList("144 60 100", YSE::T_DSP);
+
+    CHECK(object.Dropped() > 0);
+    CHECK(object.Deferred() == 0);
+
+    // Everything that was not dropped is delivered, whole.
+    YSE::MIDI::OutSender().stop();
+    const std::size_t delivered = sender.recorder.count() - before;
+    CHECK(delivered + object.Dropped() == static_cast<std::size_t>(kSent));
+    CHECK(sender.recorder.at(before).bytes.size() == 3u);
+  }
+
+  TEST_CASE("midiout: an open that found no device sends nothing and counts nothing (#949)") {
+    // The failed-open case keeps the behaviour it had: no port, no send — and
+    // not a drop either, since there was never anywhere to send to.
+    using YSE::PATCHER::mMidiOut;
+
+    SenderUnderTest sender;
+    mMidiOut object;
+    object.UsePortForTest(nullptr);
+    object.GetInlet(0)->SetList("144 60 100", YSE::T_DSP);
+    object.SetMessage("allnotesoff", 0.f);
+
+    YSE::MIDI::OutSender().stop();
+    CHECK(sender.recorder.count() == 0);
+    CHECK(object.Dropped() == 0);
   }
 
   // ─── the opener the deferral runs on ──────────────────────────────────────

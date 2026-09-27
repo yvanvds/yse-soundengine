@@ -467,11 +467,11 @@ is anything else that arrives before the port is open, usually just the
 next few milliseconds. If the very first message matters, send something
 harmless first, such as a controller the device ignores.
 
-.. note::
-
-   The send itself still happens on the thread that delivered the message,
-   which inside a patch is usually the audio thread. Tracked in
-   `#949 <https://github.com/yvanvds/yse-soundengine/issues/949>`_.
+The send is not made on the thread that delivered the message either
+(issue #949). ``.midiout`` puts the bytes on a queue, and a dedicated MIDI
+sender thread passes them to the device, usually within a millisecond.
+Messages sent from one thread keep their order. If the queue is ever full,
+the message is dropped and counted, not sent late.
 
 Extended precision
 ~~~~~~~~~~~~~~~~~~

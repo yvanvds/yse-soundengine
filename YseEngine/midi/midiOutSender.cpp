@@ -113,15 +113,35 @@ void YSE::MIDI::outSender::stop() {
   // The worker is joined (or was never started), so this thread is now the
   // queue's only consumer. Flush what is still pending immediately — a stopping
   // clip's releaseAll note-offs must reach the hardware even at shutdown.
+  drainImmediate();
   outEvent e;
   while (queue.try_pop(e))
     send(e);
+}
+
+bool YSE::MIDI::outSender::tryEnqueueNow(RtMidiOut* port, const unsigned char* data,
+                                         std::size_t length) {
+  if (port == nullptr || data == nullptr || length == 0 || length > kRawEventMax) return false;
+  rawEvent e;
+  e.port = port;
+  e.len = static_cast<std::uint16_t>(length);
+  std::copy(data, data + length, e.bytes);
+  return immediate.try_push(e);
+}
+
+void YSE::MIDI::outSender::drainImmediate() {
+  rawEvent e;
+  while (immediate.try_pop(e))
+    sendRaw(e);
 }
 
 void YSE::MIDI::outSender::run() {
   // System::init raises the Windows timer resolution to 1 ms (timeBeginPeriod)
   // for the whole process, so the sleeps below wake with ~1 ms granularity.
   while (running.load(std::memory_order_acquire)) {
+    // The immediate lane first: it has no deadline, and every sleep below is
+    // capped at 1 ms, so a patcher message waits at most about that long.
+    drainImmediate();
     outEvent* next = queue.peek();
     if (next == nullptr) {
       std::this_thread::sleep_for(std::chrono::milliseconds(1));
@@ -143,6 +163,19 @@ void YSE::MIDI::outSender::run() {
 void YSE::MIDI::outSender::send(const outEvent& e) {
   if (SendHook h = hook.load(std::memory_order_acquire)) {
     h(e, hookUser.load(std::memory_order_acquire));
+    return;
+  }
+  if (e.port == nullptr || e.len == 0) return;
+  try {
+    e.port->sendMessage(e.bytes, e.len);
+  } catch (RtMidiError& error) {
+    GenerateMidiError(error);
+  }
+}
+
+void YSE::MIDI::outSender::sendRaw(const rawEvent& e) {
+  if (RawSendHook h = rawHook.load(std::memory_order_acquire)) {
+    h(e, rawHookUser.load(std::memory_order_acquire));
     return;
   }
   if (e.port == nullptr || e.len == 0) return;

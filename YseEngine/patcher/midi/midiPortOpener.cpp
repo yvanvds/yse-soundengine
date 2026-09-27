@@ -4,6 +4,7 @@
 #include "midiPortOpener.h"
 #include "../../internal/global.h"
 #include "../../midi/device.hpp"
+#include "../../midi/midiOutSender.h"
 
 #include <thread>
 
@@ -156,7 +157,14 @@ void midiPortOpener::RunSlot(Entry& e) {
 
   // Background pool, which is the entire point of this class: an allocation, a
   // driver call that may block, a map insert and MIDI::deviceManager's mutex.
-  if (e.target != nullptr) e.target->create(e.port);
+  if (e.target != nullptr) {
+    e.target->create(e.port);
+    // `.midiout` never sends on the thread that dispatched its message: it
+    // queues on MIDI::outSender's immediate lane (issue #949). A port that
+    // opened needs that worker running, and starting it spawns a thread — so
+    // here, on the pool, never in the handler. Idempotent once running.
+    if (e.target->rawPort() != nullptr) MIDI::OutSender().start();
+  }
   opened_.fetch_add(1, std::memory_order_relaxed);
 
   // Cannot fail: OPENING is the one state Release waits out rather than
