@@ -530,6 +530,36 @@ TEST_SUITE("capilowcov") {
     yse_patcher_destroy(src);
   }
 
+  TEST_CASE("c-api patcher: parse_json adds to the patch; clear first replaces it (#939)") {
+    YsePatcher* src = yse_patcher_create();
+    REQUIRE(src != nullptr);
+    REQUIRE(yse_patcher_init(src, 2) == YSE_OK);
+    REQUIRE(yse_patcher_create_object(src, kSine, nullptr) != nullptr);
+    REQUIRE(yse_patcher_create_object(src, kMultiply, "2") != nullptr);
+    const std::string json =
+        readString([src](char* b, size_t c) { return yse_patcher_dump_json(src, b, c); });
+    REQUIRE(!json.empty());
+
+    YsePatcher* dst = yse_patcher_create();
+    REQUIRE(dst != nullptr);
+    REQUIRE(yse_patcher_init(dst, 2) == YSE_OK);
+    YsePHandle* existing = yse_patcher_create_object(dst, kMultiply, "3");
+    REQUIRE(existing != nullptr);
+
+    // Additive: the object already there is kept, the file's two join it.
+    CHECK(yse_patcher_parse_json(dst, json.c_str()) == YSE_OK);
+    CHECK(yse_patcher_objects(dst) == 3u);
+    CHECK(yse_patcher_get_handle_from_id(dst, 0) == existing);
+
+    // Replace is clear + parse.
+    yse_patcher_clear(dst);
+    CHECK(yse_patcher_parse_json(dst, json.c_str()) == YSE_OK);
+    CHECK(yse_patcher_objects(dst) == 2u);
+
+    yse_patcher_destroy(dst);
+    yse_patcher_destroy(src);
+  }
+
   TEST_CASE("c-api patcher: init reports its outcome as a YseStatus (#910)") {
     YsePatcher* p = yse_patcher_create();
     REQUIRE(p != nullptr);

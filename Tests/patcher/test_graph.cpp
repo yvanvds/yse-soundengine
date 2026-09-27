@@ -287,6 +287,48 @@ TEST_SUITE("patcher") {
     CHECK(target.Objects() == 2u);
   }
 
+  TEST_CASE("patcher: ParseJSON adds to the graph; Clear first replaces it (#939)") {
+    // The contract is additive: a load keeps what the patcher already holds and
+    // creates the file's objects next to it, on the next free storage IDs.
+    // Replacing is Clear() + ParseJSON. The header used to say "replace".
+    YSE::patcher source;
+    source.create(2);
+    YSE::pHandle* sine = source.CreateObject(YSE::OBJ::D_SINE, "440");
+    YSE::pHandle* mul = source.CreateObject(YSE::OBJ::G_MULTIPLY, "2");
+    REQUIRE(sine != nullptr);
+    REQUIRE(mul != nullptr);
+    const std::string dump = source.DumpJSON();
+
+    YSE::patcher target;
+    target.create(2);
+    YSE::pHandle* existing = target.CreateObject(YSE::OBJ::D_ADD);
+    REQUIRE(existing != nullptr);
+    REQUIRE(existing->GetID() == 0u);
+
+    target.ParseJSON(dump);
+    REQUIRE(target.Objects() == 3u);
+    // The object that was already there survives, untouched, on its own ID.
+    CHECK(target.GetHandleFromID(0) == existing);
+    CHECK(std::string(existing->Type()) == std::string("~+"));
+    // The loaded ones follow it; the file's IDs 0 and 1 are not kept.
+    YSE::pHandle* loadedSine = target.GetHandleFromID(1);
+    YSE::pHandle* loadedMul = target.GetHandleFromID(2);
+    REQUIRE(loadedSine != nullptr);
+    REQUIRE(loadedMul != nullptr);
+    CHECK(std::string(loadedSine->Type()) == std::string("~sine"));
+    CHECK(std::string(loadedMul->Type()) == std::string(".*"));
+
+    // Loading the same file again adds a second copy.
+    target.ParseJSON(dump);
+    CHECK(target.Objects() == 5u);
+
+    // Clear() then ParseJSON is the replace: exactly the file, numbered from 0.
+    target.Clear();
+    target.ParseJSON(dump);
+    CHECK(target.Objects() == 2u);
+    CHECK(target.DumpJSON() == dump);
+  }
+
   // ─── Storage IDs (issue #730) ────────────────────────────────────────────────
 
   TEST_CASE("patcher: storage IDs are numbered per patcher, from 0 (#730)") {

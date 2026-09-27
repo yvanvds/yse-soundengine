@@ -380,9 +380,7 @@ Loading adds to the patcher
 ``ParseJSON`` does not clear the patcher first. The loaded objects are added
 next to whatever is already there, and get the smallest IDs the existing objects
 do not hold (see :doc:`building`), so the IDs in the file are not kept. To replace a patch, call
-``Clear()`` (``yse_patcher_clear``) before loading. The header comment on
-``ParseJSON`` says "replace". That is tracked in `#939
-<https://github.com/yvanvds/yse-soundengine/issues/939>`_.
+``Clear()`` (``yse_patcher_clear``) before loading.
 
 The saved ``"name"`` is applied only while the patcher still has its
 automatic name. A name the host set before loading wins over the file. A

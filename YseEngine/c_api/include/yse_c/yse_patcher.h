@@ -163,7 +163,10 @@ YSE_C_API int yse_patcher_subpatcher_outlets(YsePatcher* p, YsePHandle* containe
 
 YSE_C_API size_t yse_patcher_dump_json(YsePatcher* p, char* buf, size_t cap);
 
-/** Load a patch previously produced by yse_patcher_dump_json. YSE_OK on
+/** Load a patch previously produced by yse_patcher_dump_json. Loading adds
+   to the patcher: objects already in it are kept, and the loaded ones are
+   created next to them. Call yse_patcher_clear first to replace the patch
+   (issue #939). YSE_OK on
    success; YSE_ERR_INVALID_HANDLE on a NULL patcher,
    YSE_ERR_INVALID_ARGUMENT on NULL content, YSE_ERR_NOT_INITIALIZED before
    yse_patcher_init, and YSE_ERR_EXCEPTION when the content is malformed

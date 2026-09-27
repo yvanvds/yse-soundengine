@@ -158,7 +158,12 @@ namespace YSE {
      */
     std::string DumpJSON();
 
-    /** @brief Replace the current graph with the contents of a JSON dump.
+    /** @brief Add the contents of a JSON dump to the current graph.
+     *
+     *  Loading is additive: nothing already in the patcher is removed. The
+     *  loaded objects are created next to the existing ones and get the
+     *  smallest storage IDs those do not hold, so the IDs in the file are not
+     *  kept. To replace the patch, call ``Clear()`` first (issue #939).
      *
      *  A top-level ``"name"`` key is applied only if this patcher still has its
      *  auto-generated name, so a name the host set before loading wins. It is
