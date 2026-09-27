@@ -159,9 +159,13 @@ namespace YSE {
      *  inlet verbatim, because a text cell can hold the word ``set``. With one
      *  cell the two forms are the same write anyway.
      *
-     *  False for the scalar controls that predate the protocol: their inlet 0
-     *  takes an int or a float, not the display string ``GetGuiValue``
-     *  produces.
+     *  True for every GUI control that holds state, including the scalar
+     *  controls ``.slider``, ``.i``, ``.f``, ``.dial``, ``.incdec`` and ``.t``
+     *  (issue #846). False for ``.b``, whose value is a consume-on-read press
+     *  report that a restore could only replay; for ``.preset``, whose value
+     *  is its read-only active slot; for the message boxes ``.m`` and ``.l``;
+     *  and for the non-GUI objects that report a read-only value
+     *  (``.counter``, ``.accum``, ...).
      */
     bool GuiValueIsSettable();
 
