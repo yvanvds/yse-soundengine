@@ -214,11 +214,13 @@ Keep in mind that:
   that carries sound stops that sound at the next block, as it does in Max.
   To remove a voice without a click, ramp it to zero first, for example with
   ``~line`` driving a ``~*``.
-- **Make edits and queries from one thread.** Edits from several threads are
-  serialized, but ``Objects``, ``GetHandleFromList`` and ``GetHandleFromID``
-  do not take the patcher's lock yet (`#937
-  <https://github.com/yvanvds/yse-soundengine/issues/937>`_). Never edit a
-  patch from the audio callback.
+- **Edits and queries can come from several threads.** They are serialized
+  on the patcher's lock, ``Objects``, ``GetHandleFromList`` and
+  ``GetHandleFromID`` included. Each call is answered on its own, though: a
+  walk over the object list can see an edit made between two of its calls,
+  and a handle it returned is freed if another thread deletes that object.
+  If you edit from one thread and read from another, coordinate object
+  lifetime yourself. Never edit or query a patch from the audio callback.
 
 Object IDs
 ----------
@@ -283,6 +285,13 @@ is not creation order or ID order, and it changes as objects come and go.
 Sort by ``GetID()`` if the order matters. Index a list you build yourself,
 because each ``GetHandleFromList`` call walks the patcher's object list
 from the start.
+
+.. versionchanged:: 3.0
+   ``Objects``, ``GetHandleFromList`` and ``GetHandleFromID`` take the
+   patcher's lock (`#937
+   <https://github.com/yvanvds/yse-soundengine/issues/937>`_). Before, they
+   read the object list without it, and a call that ran while another thread
+   created or deleted an object could crash.
 
 Cords are recorded on the outlet side only. To find the cords arriving at an
 object, walk every object's outlets as above. A cord drawn to a subpatcher

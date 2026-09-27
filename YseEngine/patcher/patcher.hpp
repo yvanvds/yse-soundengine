@@ -184,6 +184,11 @@ namespace YSE {
 
     /** @brief Number of objects in the patcher.
      *  @note Most useful after ``ParseJSON`` to walk the loaded graph.
+     *
+     *  This and the two lookups below take the patcher's lock like every edit,
+     *  so they are safe against an edit on another thread (issue #937). Each
+     *  call is answered on its own: an edit between two calls can change the
+     *  count and the positions. Never call them from the audio callback.
      */
     unsigned int Objects();
 

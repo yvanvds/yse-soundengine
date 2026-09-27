@@ -302,4 +302,84 @@ TEST_SUITE("patcher") {
     CHECK(p.PendingRetired() <= 4);
   }
 
+  // Issue #937: the three enumeration calls walked `objects` without mtx, so a
+  // host reading the patch on one thread (an editor redrawing it) while another
+  // thread edited it iterated a std::map that was being inserted into and erased
+  // from. The reader never dereferences what it gets back: a handle it is
+  // handed can be deleted by the editor a moment later, which is the host's
+  // lifetime contract and not this issue. What must hold is that the lookup
+  // itself never walks a tree another thread is rebalancing — TSan reports that
+  // as a data race on the map nodes, ASan as a use-after-free of an erased one.
+  TEST_CASE("concurrency: enumerating objects while another thread edits") {
+    LogSilencer silence;
+
+    patcherImplementation p(1, nullptr);
+    const std::string savedGraph = makeSavedGraph();
+
+    std::atomic<bool> stop{false};
+    std::atomic<std::uint64_t> reads{0};
+
+    std::thread reader([&] {
+      std::uint64_t found = 0;
+      while (!stop.load(std::memory_order_relaxed)) {
+        const unsigned int count = p.Objects();
+        for (unsigned int i = 0; i <= count; i++) {
+          if (p.GetHandleFromList(i) != nullptr) found++;
+        }
+        for (unsigned int id = 0; id < 8; id++) {
+          if (p.GetHandleFromID(id) != nullptr) found++;
+        }
+        reads.fetch_add(1, std::memory_order_relaxed);
+      }
+      (void)found;
+    });
+
+    // Churn the object set through every path that inserts into or erases from
+    // it: single create/delete, Clear, and a ParseJSON build.
+    std::thread editor([&] {
+      std::vector<YSE::pHandle*> live;
+      for (int i = 0; i < 1500; ++i) {
+        switch (i % 5) {
+        case 0:
+        case 1:
+          live.push_back(p.CreateObject(YSE::OBJ::G_GATE, "2"));
+          break;
+        case 2:
+          if (!live.empty()) {
+            p.DeleteObject(live.back());
+            live.pop_back();
+          }
+          break;
+        case 3:
+          if (i % 50 == 3) {
+            p.Clear();
+            live.clear();
+            p.ParseJSON(savedGraph);
+          }
+          break;
+        default:
+          live.push_back(p.CreateObject(YSE::OBJ::G_RECEIVE, "a"));
+          break;
+        }
+      }
+    });
+
+    editor.join();
+    stop.store(true, std::memory_order_relaxed);
+    reader.join();
+
+    CHECK(reads.load() > 0);
+
+    // The enumeration still answers correctly once the churn is over: every
+    // listed object is found again by its own ID, and nothing past the end is.
+    const unsigned int count = p.Objects();
+    CHECK(count > 0u);
+    for (unsigned int i = 0; i < count; i++) {
+      YSE::pHandle* h = p.GetHandleFromList(i);
+      REQUIRE(h != nullptr);
+      CHECK(p.GetHandleFromID(h->GetID()) == h);
+    }
+    CHECK(p.GetHandleFromList(count) == nullptr);
+  }
+
 } // TEST_SUITE("patcher")

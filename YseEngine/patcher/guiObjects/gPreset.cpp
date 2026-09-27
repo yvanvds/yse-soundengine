@@ -478,8 +478,8 @@ void gPreset::DumpState(nlohmann::json::value_type& json) {
 
   // Control thread — patcherImplementation::DumpJSON holds mtx — but the
   // guard is still taken, because a timer-thread recall may land mid-save.
-  // The patcher accessors used below take no lock of their own, so calling
-  // them from under mtx is fine.
+  // mtx is already held here and is not recursive, so the patcher is read
+  // through its *Unlocked accessors: the plain ones take mtx (issue #937).
   storeGuard guard(busy);
   if (!guard.Held()) return;
 
@@ -499,7 +499,7 @@ void gPreset::DumpState(nlohmann::json::value_type& json) {
   // live set to rank against; nothing more to write.
   if (!anySlot || p == nullptr) return;
 
-  const unsigned int count = p->Objects();
+  const unsigned int count = p->ObjectsUnlocked();
   for (int i = 0; i < capacity; i++) {
     const std::vector<Entry>& stored = slots[(std::size_t)i];
     if (stored.empty()) continue;
@@ -511,7 +511,7 @@ void gPreset::DumpState(nlohmann::json::value_type& json) {
       // object of another type — could never be pushed again; it is dropped
       // from the file rather than written as a number that would land on the
       // wrong object after the load's renumbering.
-      YSE::pHandle* handle = p->GetHandleFromID(entry.id);
+      YSE::pHandle* handle = p->GetHandleFromIDUnlocked(entry.id);
       if (handle == nullptr) continue;
       if (entry.type != handle->Type()) continue;
 
@@ -522,7 +522,7 @@ void gPreset::DumpState(nlohmann::json::value_type& json) {
       // deletes still recalls correctly after a save and a load.
       unsigned int rank = 0;
       for (unsigned int o = 0; o < count; o++) {
-        YSE::pHandle* other = p->GetHandleFromList(o);
+        YSE::pHandle* other = p->GetHandleFromListUnlocked(o);
         if (other != nullptr && other->GetID() < entry.id) rank++;
       }
 

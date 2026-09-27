@@ -177,9 +177,15 @@ namespace YSE {
       std::string DumpJSON();
       void ParseJSON(const std::string& content);
 
+      // Take mtx (issue #937), so control-thread only and never from under mtx.
       unsigned int Objects();
       YSE::pHandle* GetHandleFromList(unsigned int obj);
       YSE::pHandle* GetHandleFromID(unsigned int objID);
+      // The same reads for a caller that already holds mtx — an object's
+      // DumpState, which DumpJSON runs under the lock.
+      unsigned int ObjectsUnlocked() const;
+      YSE::pHandle* GetHandleFromListUnlocked(unsigned int obj) const;
+      YSE::pHandle* GetHandleFromIDUnlocked(unsigned int objID) const;
 
       // Number of retired GraphStates + objects still awaiting background
       // reclamation (issue #227). Diagnostics / tests only: takes reclaimMtx_,

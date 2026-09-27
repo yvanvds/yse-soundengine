@@ -1481,7 +1481,19 @@ void patcherImplementation::BuildParsedGraph(json& j, std::vector<pObject*>& loa
   RebuildAndPublish();
 }
 
+// The three enumeration calls take mtx like every edit does (issue #937): an
+// edit on another control thread inserts into and erases from `objects`, and
+// walking the map meanwhile can step onto a freed tree node. mtx is
+// control-thread only (issue #226) and none of these is reached from the audio
+// thread (`.preset`, the one engine caller, refuses to run there). Code that
+// already holds mtx — an object's DumpState under DumpJSON — uses the
+// *Unlocked forms instead, since mtx is not recursive.
 unsigned int patcherImplementation::Objects() {
+  std::scoped_lock lk(mtx);
+  return ObjectsUnlocked();
+}
+
+unsigned int patcherImplementation::ObjectsUnlocked() const {
   return static_cast<unsigned int>(objects.size());
 }
 
@@ -1506,17 +1518,27 @@ std::size_t patcherImplementation::FreeIdCount() {
 }
 
 YSE::pHandle* patcherImplementation::GetHandleFromList(unsigned int obj) {
+  std::scoped_lock lk(mtx);
+  return GetHandleFromListUnlocked(obj);
+}
+
+YSE::pHandle* patcherImplementation::GetHandleFromListUnlocked(unsigned int obj) const {
   // TODO: not really brilliant, this code
   unsigned int pos = 0;
-  for (auto& x : objects) {
+  for (const auto& x : objects) {
     if (pos == obj) return x.first;
     pos++;
   }
-  return 0;
+  return nullptr;
 }
 
 YSE::pHandle* patcherImplementation::GetHandleFromID(unsigned int objID) {
-  for (auto& x : objects) {
+  std::scoped_lock lk(mtx);
+  return GetHandleFromIDUnlocked(objID);
+}
+
+YSE::pHandle* patcherImplementation::GetHandleFromIDUnlocked(unsigned int objID) const {
+  for (const auto& x : objects) {
     if (x.second->GetID() == objID) return x.first;
   }
   return nullptr;
