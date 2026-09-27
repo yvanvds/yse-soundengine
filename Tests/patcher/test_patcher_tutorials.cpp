@@ -60,14 +60,12 @@ namespace {
     patch.Connect(run, 0, metro, 0);
     patch.Connect(rate, 0, metro, 1);
 
-    // The step number. .counter adds its step before it sends, so it counts
-    // 1, 2, 3 ...; one less, folded into 0-7, is the step.
-    YSE::pHandle* counter = patch.CreateObject(".counter");
-    YSE::pHandle* minus = patch.CreateObject(".-", "1");
+    // The step number. .counter adds its step before it sends, so starting it
+    // at -1 makes it count 0, 1, 2 ...; folded into 0-7, that is the step.
+    YSE::pHandle* counter = patch.CreateObject(".counter", "-1");
     YSE::pHandle* wrap = patch.CreateObject(".%", "8");
     patch.Connect(metro, 0, counter, 0);
-    patch.Connect(counter, 0, minus, 0);
-    patch.Connect(minus, 0, wrap, 0);
+    patch.Connect(counter, 0, wrap, 0);
 
     // The pattern: a step number goes in, the note stored for it comes out.
     YSE::pHandle* pattern = patch.CreateObject(".coll", "pattern");

@@ -21,11 +21,9 @@ The patch
       |        |
     .metro 125           a bang every 125 ms
       |
-    .counter             1, 2, 3 ...
+    .counter -1          0, 1, 2 ...
       |
-    .- 1                 0, 1, 2 ...
-      |
-    .% 8                 0 ... 7, 0 ... 7
+    .% 8                0 ... 7, 0 ... 7
       |
     .coll pattern  <---  .r edit
       |
@@ -60,22 +58,16 @@ accurate to.
 The step number
 ~~~~~~~~~~~~~~~
 
-``.counter`` adds its step (1) to its value and sends the result, so its
-first bang sends 1. ``.- 1`` turns that into 0, 1, 2 …, and ``.% 8`` folds it
-into the range 0-7, so the pattern repeats every eight steps. To change the
-pattern length, change the ``8``.
+``.counter`` adds its step (1) to its value and sends the result. Its
+argument is the value it starts at, so ``.counter -1`` sends 0 on its first
+bang, then 1, 2 …. ``.% 8`` folds that into the range 0-7, so the pattern
+repeats every eight steps. To change the pattern length, change the ``8``.
+A number in the counter's right inlet changes the step: send it ``2`` and
+the sequencer plays every other step.
 
-A ``reset`` message puts the counter back at its start value (0), so the next
-bang plays step 0 again. The test on this page uses it to replay the first
-step.
-
-.. note::
-
-   ``.counter``'s start-value argument does not take effect until the first
-   ``reset``, and its right inlet sets the count rather than the step. Both
-   are tracked in `#956
-   <https://github.com/yvanvds/yse-soundengine/issues/956>`_. The patch above
-   does not depend on either.
+A ``reset`` message puts the counter back at its start value (-1), so the
+next bang plays step 0 again. The test on this page uses it to replay the
+first step.
 
 The pattern
 ~~~~~~~~~~~
