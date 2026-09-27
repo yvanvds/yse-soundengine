@@ -41,11 +41,9 @@ The pages below are generated from the source code by Doxygen + Breathe.
    dsp_modules
    effects
 
-.. toctree::
-   :maxdepth: 1
-   :caption: Patcher
-
-   patcher
+The patcher has its own section. Its C++ reference is
+:doc:`/patcher/api`, and every object type is listed in
+:doc:`/patcher/objects/index`.
 
 .. toctree::
    :maxdepth: 1

@@ -1,0 +1,7 @@
+Writing a patcher object
+========================
+
+.. note::
+
+   This page is not written yet. It is tracked in
+   `#882 <https://github.com/yvanvds/yse-soundengine/issues/882>`_.
