@@ -544,19 +544,25 @@ YSE_C_API void yse_patcher_set_container(YsePatcher* p, YsePHandle* obj, YsePHan
                     [&] { to_cpp(p)->SetContainer(to_cpp(obj), to_cpp(container)); });
 }
 
+// These three, and the object-list queries further down, take the patcher's
+// std::mutex, whose lock() may throw std::system_error — so they run behind
+// the barrier too, not only the calls that allocate (issue #953).
 YSE_C_API YsePHandle* yse_patcher_get_container(YsePatcher* p, YsePHandle* obj) {
   if (!p || !obj) return nullptr;
-  return to_c(to_cpp(p)->GetContainer(to_cpp(obj)));
+  return yse_c::guard("yse_patcher_get_container", static_cast<YsePHandle*>(nullptr),
+                      [&] { return to_c(to_cpp(p)->GetContainer(to_cpp(obj))); });
 }
 
 YSE_C_API int yse_patcher_subpatcher_inlets(YsePatcher* p, YsePHandle* container) {
   if (!p || !container) return 0;
-  return to_cpp(p)->SubpatcherInlets(to_cpp(container));
+  return yse_c::guard("yse_patcher_subpatcher_inlets", 0,
+                      [&] { return to_cpp(p)->SubpatcherInlets(to_cpp(container)); });
 }
 
 YSE_C_API int yse_patcher_subpatcher_outlets(YsePatcher* p, YsePHandle* container) {
   if (!p || !container) return 0;
-  return to_cpp(p)->SubpatcherOutlets(to_cpp(container));
+  return yse_c::guard("yse_patcher_subpatcher_outlets", 0,
+                      [&] { return to_cpp(p)->SubpatcherOutlets(to_cpp(container)); });
 }
 
 YSE_C_API size_t yse_patcher_dump_json(YsePatcher* p, char* buf, size_t cap) {
@@ -592,13 +598,18 @@ YSE_C_API YseStatus yse_patcher_parse_json(YsePatcher* p, const char* content) {
 }
 
 YSE_C_API unsigned int yse_patcher_objects(YsePatcher* p) {
-  return p ? to_cpp(p)->Objects() : 0;
+  if (!p) return 0;
+  return yse_c::guard("yse_patcher_objects", 0u, [&] { return to_cpp(p)->Objects(); });
 }
 YSE_C_API YsePHandle* yse_patcher_get_handle_from_list(YsePatcher* p, unsigned int idx) {
-  return p ? to_c(to_cpp(p)->GetHandleFromList(idx)) : nullptr;
+  if (!p) return nullptr;
+  return yse_c::guard("yse_patcher_get_handle_from_list", static_cast<YsePHandle*>(nullptr),
+                      [&] { return to_c(to_cpp(p)->GetHandleFromList(idx)); });
 }
 YSE_C_API YsePHandle* yse_patcher_get_handle_from_id(YsePatcher* p, unsigned int id) {
-  return p ? to_c(to_cpp(p)->GetHandleFromID(id)) : nullptr;
+  if (!p) return nullptr;
+  return yse_c::guard("yse_patcher_get_handle_from_id", static_cast<YsePHandle*>(nullptr),
+                      [&] { return to_c(to_cpp(p)->GetHandleFromID(id)); });
 }
 
 YSE_C_API int yse_patcher_pass_bang(YsePatcher* p, const char* to) {
@@ -699,14 +710,21 @@ YSE_C_API void yse_phandle_set_gui_property(YsePHandle* h, const char* key, cons
   });
 }
 
+// All four setters run the target's handler — and whatever it sends on to —
+// synchronously on this thread, and that cascade may allocate or reach a C++
+// oscHandler that throws, so every one of them is behind the barrier, not only
+// the list setter (issue #953).
 YSE_C_API void yse_phandle_set_bang(YsePHandle* h, unsigned int inlet) {
-  if (h) to_cpp(h)->SetBang(inlet);
+  if (!h) return;
+  yse_c::guard_void("yse_phandle_set_bang", [&] { to_cpp(h)->SetBang(inlet); });
 }
 YSE_C_API void yse_phandle_set_int(YsePHandle* h, unsigned int inlet, int v) {
-  if (h) to_cpp(h)->SetIntData(inlet, v);
+  if (!h) return;
+  yse_c::guard_void("yse_phandle_set_int", [&] { to_cpp(h)->SetIntData(inlet, v); });
 }
 YSE_C_API void yse_phandle_set_float(YsePHandle* h, unsigned int inlet, float v) {
-  if (h) to_cpp(h)->SetFloatData(inlet, v);
+  if (!h) return;
+  yse_c::guard_void("yse_phandle_set_float", [&] { to_cpp(h)->SetFloatData(inlet, v); });
 }
 YSE_C_API void yse_phandle_set_list(YsePHandle* h, unsigned int inlet, const char* v) {
   if (!h || !v) return;
@@ -726,11 +744,19 @@ YSE_C_API int yse_phandle_get_inputs(YsePHandle* h) {
 YSE_C_API int yse_phandle_get_outputs(YsePHandle* h) {
   return h ? to_cpp(h)->GetOutputs() : 0;
 }
+// On a subpatcher these two resolve the pin through its boundary objects under
+// the owning patcher's std::mutex (issue #545 / #942), so they share the
+// barrier of the mtx-taking patcher queries above (issue #953). The remaining
+// accessors read fixed-size fields or vector sizes and cannot throw.
 YSE_C_API int yse_phandle_is_dsp_input(YsePHandle* h, unsigned int inlet) {
-  return h && to_cpp(h)->IsDSPInput(inlet) ? 1 : 0;
+  if (!h) return 0;
+  return yse_c::guard("yse_phandle_is_dsp_input", 0,
+                      [&] { return to_cpp(h)->IsDSPInput(inlet) ? 1 : 0; });
 }
 YSE_C_API YseOutType yse_phandle_output_data_type(YsePHandle* h, unsigned int pin) {
-  return h ? static_cast<YseOutType>(to_cpp(h)->OutputDataType(pin)) : YSE_OUT_INVALID;
+  if (!h) return YSE_OUT_INVALID;
+  return yse_c::guard("yse_phandle_output_data_type", YSE_OUT_INVALID,
+                      [&] { return static_cast<YseOutType>(to_cpp(h)->OutputDataType(pin)); });
 }
 // Object IDs are per-patcher and start at 0 (issue #730), so 0 is the first
 // object in every patch and cannot also mean "no object" — these two answer
