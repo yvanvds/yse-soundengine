@@ -19,6 +19,12 @@ CONSTRUCT_DSP() {
 
   ADD_OUT_BUFFER;
 
+  // std::atomic's default constructor leaves the value indeterminate before
+  // C++20, so both have to be set here: a fresh ~line used to ramp toward
+  // whatever the heap held, and render that at full scale until its first
+  // message arrived (issue #951). 0 is what PARAM_DOC documents.
+  target = 0.f;
+  time = 0.f;
   ADD_PARAM(target);
   ADD_PARAM(time);
 
