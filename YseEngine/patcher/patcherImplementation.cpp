@@ -15,6 +15,7 @@
 #include "../utils/json.hpp"
 #include <algorithm>
 #include <atomic>
+#include <chrono>
 #include <cstddef>
 #include <cstring>
 #include <memory>
@@ -1219,9 +1220,25 @@ using json = nlohmann::json;
 std::string patcherImplementation::DumpJSON() {
   json j;
 
-  // Read a consistent object set under mtx. mtx is control-thread only (issue
-  // #226), so serialising here never blocks the audio callback.
-  {
+  // A stateful object's DumpState waits a short, bounded time for a message
+  // that holds its store (pObject.h's saveGuard) and reports false if the
+  // message is still there — a DumpState that gave up at the first miss is how
+  // a save used to leave an object's contents out of the file without a word
+  // (issue #940). The whole dump is then taken again with mtx released in
+  // between: the holder may be a control-side thread waiting on mtx (a
+  // `.preset` recall looking an object up), and it can only finish once this
+  // lets go. Nothing here makes the audio thread wait; only this thread does.
+  // Out of passes, the file is still written but the loss is logged as an
+  // error, naming the object, rather than being silent.
+  constexpr int kDumpPasses = 50;
+  std::vector<std::string> incomplete;
+  for (int pass = 0; pass < kDumpPasses; pass++) {
+    if (pass > 0) std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    j = json();
+    incomplete.clear();
+
+    // Read a consistent object set under mtx. mtx is control-thread only (issue
+    // #226), so serialising here never blocks the audio callback.
     std::scoped_lock lk(mtx);
     // `objects` is keyed by pHandle*, so walking it hands the serialiser its
     // objects in heap-address order — which is a property of the allocator, not
@@ -1247,7 +1264,10 @@ std::string patcherImplementation::DumpJSON() {
 
     int counter = 0;
     for (pObject* object : ordered) {
-      object->DumpJson(j["object " + std::to_string(counter)]);
+      if (!object->DumpJson(j["object " + std::to_string(counter)])) {
+        incomplete.push_back(std::string(object->Type()) + " (ID " +
+                             std::to_string(object->GetID()) + ")");
+      }
       counter++;
     }
 
@@ -1259,6 +1279,14 @@ std::string patcherImplementation::DumpJSON() {
     // could land it in some unrelated patcher's scope. Leaving it out also keeps
     // an unnamed patch's dump exactly what it was before this key existed.
     if (patcherName != autoName_) j["name"] = patcherName;
+
+    if (incomplete.empty()) break;
+  }
+
+  for (const std::string& object : incomplete) {
+    INTERNAL::LogImpl().emit(E_ERROR, "Patcher: DumpJSON could not read the state of " + object +
+                                          "; a message held it for the whole save, so its "
+                                          "contents are missing from the saved patch");
   }
 
   std::string result = j.dump(2, ' ', true);

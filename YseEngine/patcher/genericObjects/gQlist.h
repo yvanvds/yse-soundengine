@@ -420,7 +420,7 @@ namespace YSE {
     // patcherImplementation::DumpJSON holds mtx — but the guard is still taken,
     // because a message may be arriving from a rendering graph while the patch
     // is being saved.
-    void DumpState(nlohmann::json::value_type& json) override;
+    bool DumpState(nlohmann::json::value_type& json) override;
 
     // The other half: called from ParseJSON on the control thread, on a freshly
     // built object the audio thread cannot see yet.

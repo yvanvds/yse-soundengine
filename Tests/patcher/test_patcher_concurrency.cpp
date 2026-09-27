@@ -382,4 +382,42 @@ TEST_SUITE("patcher") {
     CHECK(p.GetHandleFromList(count) == nullptr);
   }
 
+  // Issue #940: DumpState took each stateful object's store guard as a
+  // try-lock and returned without writing when it lost, so a save that reached
+  // a `.coll` while a message was inside it left the object's "state" key out
+  // of the file — silently. A second thread keeps a message in the store almost
+  // all the time; every one of the saves must still carry the contents.
+  TEST_CASE("concurrency: saving a patch while a message is using a stateful object") {
+    LogSilencer silence;
+
+    patcherImplementation p(1, nullptr);
+    YSE::pHandle* coll = p.CreateObject(YSE::OBJ::G_COLL, "");
+    REQUIRE(coll != nullptr);
+    coll->SetListData(0, "1 60 100");
+
+    std::atomic<bool> stop{false};
+    std::atomic<std::uint64_t> writes{0};
+
+    // Rewrites the same entry over and over, so the contents stay one known
+    // entry while the store guard is held for most of the thread's time.
+    std::thread writer([&] {
+      while (!stop.load(std::memory_order_relaxed)) {
+        coll->SetListData(0, "1 60 100");
+        writes.fetch_add(1, std::memory_order_relaxed);
+      }
+    });
+
+    int missing = 0;
+    for (int i = 0; i < 400; i++) {
+      const std::string dump = p.DumpJSON();
+      if (dump.find("\"state\"") == std::string::npos) missing++;
+    }
+
+    stop.store(true, std::memory_order_relaxed);
+    writer.join();
+
+    CHECK(writes.load() > 0);
+    CHECK(missing == 0);
+  }
+
 } // TEST_SUITE("patcher")

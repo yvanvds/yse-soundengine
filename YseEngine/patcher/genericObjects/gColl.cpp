@@ -1700,19 +1700,20 @@ LIST_IN(ListIn) {
 
 // ─── persistence ──────────────────────────────────────────────────────────────
 
-void gColl::DumpState(nlohmann::json::value_type& json) {
+bool gColl::DumpState(nlohmann::json::value_type& json) {
   // Control thread — patcherImplementation::DumpJSON holds mtx — but the guard
   // is still taken, because a message may be arriving from a rendering graph
-  // while the patch is being saved.
+  // while the patch is being saved. Through saveGuard, which waits that message
+  // out rather than skipping the contents (issue #940).
   //
   // Every .coll bound to a shared store writes the contents, not one nominated
   // owner: they are all reading one table, so the copies are identical, and a
   // single writer would mean the collection silently stopped being saved the
   // day that one object was deleted from the patch. Restoring is where the
   // duplication is resolved — see RestoreState.
-  storeGuard guard(store->busy);
-  if (!guard.Held()) return;
-  if (store->count == 0) return;
+  const saveGuard guard(store->busy);
+  if (!guard.Held()) return false;
+  if (store->count == 0) return true;
 
   for (std::size_t i = 0; i < store->count; i++) {
     nlohmann::json entry;
@@ -1724,6 +1725,7 @@ void gColl::DumpState(nlohmann::json::value_type& json) {
     if (!store->entries[i].alias.empty()) entry["alias"] = store->entries[i].alias;
     json["entries"].push_back(entry);
   }
+  return true;
 }
 
 void gColl::RestoreState(const nlohmann::json::value_type& json) {

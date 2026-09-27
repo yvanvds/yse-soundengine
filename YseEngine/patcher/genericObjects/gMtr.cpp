@@ -1227,18 +1227,19 @@ LIST_IN(ListIn) {
 
 // ─── persistence ──────────────────────────────────────────────────────────────
 
-void gMtr::DumpState(nlohmann::json::value_type& json) {
+bool gMtr::DumpState(nlohmann::json::value_type& json) {
   // Max 8's embed is what decides whether there is anything to write at all.
   // With it off nothing is written and the serialised object is byte for byte
   // what it was — Max 5's "the object's contents cannot be embedded in a
   // patcher file", which is the same object before the flag existed.
-  if (!embed) return;
+  if (!embed) return true;
 
   // Control thread (patcherImplementation::DumpJSON holds mtx), but the guard is
   // still taken, because a message may be arriving from a rendering graph while
-  // the patch is being saved.
-  storeGuard guard(busy);
-  if (!guard.Held()) return;
+  // the patch is being saved. Through saveGuard, which waits that message out
+  // rather than skipping the tapes and the flag (issue #940).
+  const saveGuard guard(busy);
+  if (!guard.Held()) return false;
 
   // Written even with empty tapes, so a reloaded object still knows to embed
   // itself the next time the patch is saved.
@@ -1258,6 +1259,7 @@ void gMtr::DumpState(nlohmann::json::value_type& json) {
     }
     json["tracks"].push_back(events);
   }
+  return true;
 }
 
 void gMtr::RestoreState(const nlohmann::json::value_type& json) {

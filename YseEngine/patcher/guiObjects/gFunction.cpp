@@ -773,17 +773,18 @@ GUI_VALUE_AT() {
 
 // ─── persistence ──────────────────────────────────────────────────────────────
 
-void gFunction::DumpState(nlohmann::json::value_type& json) {
+bool gFunction::DumpState(nlohmann::json::value_type& json) {
   // Control thread — patcherImplementation::DumpJSON holds mtx — but the guard
   // is still taken, because a message may be arriving from a rendering graph
-  // while the patch is being saved.
-  storeGuard guard(busy);
-  if (!guard.Held()) return;
+  // while the patch is being saved. Through saveGuard, which waits that message
+  // out rather than skipping the points (issue #940).
+  const saveGuard guard(busy);
+  if (!guard.Held()) return false;
 
   // Unconditional, .coll's always-rule: Max's function is a UI object whose
   // points save with the patch. An empty function writes nothing, so its
   // serialised form is byte for byte what it would be without the hook.
-  if (count == 0) return;
+  if (count == 0) return true;
 
   for (std::size_t i = 0; i < count; i++) {
     nlohmann::json point;
@@ -792,6 +793,7 @@ void gFunction::DumpState(nlohmann::json::value_type& json) {
     point["curve"] = points[i].curve;
     json["points"].push_back(point);
   }
+  return true;
 }
 
 void gFunction::RestoreState(const nlohmann::json::value_type& json) {

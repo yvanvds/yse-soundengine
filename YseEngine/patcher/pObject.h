@@ -1,5 +1,8 @@
 #pragma once
+#include <atomic>
+#include <chrono>
 #include <cstdint>
+#include <thread>
 #include <vector>
 #include <string>
 #include <map>
@@ -36,6 +39,55 @@ namespace YSE {
 
     typedef std::function<void(int, int)> intCallbackFunc;
     typedef std::function<void(int, float)> floatCallbackFunc;
+
+    /**
+     *  @brief The store guard a DumpState takes: the objects' try-lock, but
+     *  retried for a bounded time instead of given up on at the first miss.
+     *
+     *  Every stateful object guards its store with an ``exchange(true)`` flag
+     *  that a message on the audio thread, a timer thread or the control
+     *  thread takes without waiting and drops its work when it loses. A save
+     *  cannot drop its work — that is a file with the object's contents
+     *  missing (issue #940) — so this side yields and retries while the
+     *  holder, a short message handler, finishes. Only the saver waits: the
+     *  holders' guards are untouched, so the audio thread still never waits on
+     *  anything here.
+     *
+     *  Bounded, because DumpJSON calls this under the patcher's mtx and a
+     *  holder may be on the far side of that lock (a `.preset` recall looking
+     *  an object up). ``Held()`` false after the budget is not "empty": the
+     *  caller reports it, and DumpJSON releases mtx and retries the dump.
+     *  Control thread only.
+     */
+    class saveGuard {
+    public:
+      explicit saveGuard(std::atomic<bool>& flag) : flag_(flag), held_(Acquire(flag)) {}
+      ~saveGuard() {
+        if (held_) flag_.store(false, std::memory_order_release);
+      }
+      saveGuard(const saveGuard&) = delete;
+      saveGuard& operator=(const saveGuard&) = delete;
+      saveGuard(saveGuard&&) = delete;
+      saveGuard& operator=(saveGuard&&) = delete;
+
+      bool Held() const {
+        return held_;
+      }
+
+    private:
+      static bool Acquire(std::atomic<bool>& flag) {
+        if (!flag.exchange(true, std::memory_order_acquire)) return true;
+        const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(2);
+        do {
+          std::this_thread::yield();
+          if (!flag.exchange(true, std::memory_order_acquire)) return true;
+        } while (std::chrono::steady_clock::now() < deadline);
+        return false;
+      }
+
+      std::atomic<bool>& flag_;
+      bool held_;
+    };
 
     class API pObject {
     public:
@@ -524,7 +576,9 @@ namespace YSE {
       inline std::uint64_t InstanceTag() const {
         return instanceTag_;
       }
-      void DumpJson(nlohmann::json::value_type& json);
+      // False when DumpState could not read the object's state (issue #940);
+      // the record is then incomplete and DumpJSON must not keep it.
+      bool DumpJson(nlohmann::json::value_type& json);
 
       // Persistent state an object has beyond its creation parameters (issue
       // #494). Default: none — nothing is written and the serialised object is
@@ -540,7 +594,17 @@ namespace YSE {
       // Both are control thread only. DumpState runs inside
       // patcherImplementation::DumpJSON under its mtx; RestoreState runs inside
       // ParseJSON, on a freshly built object the audio thread cannot see yet.
-      virtual void DumpState(nlohmann::json::value_type&) {}
+      //
+      // DumpState returns false when it could not read the state at all — its
+      // store guard stayed held by a message for the whole of saveGuard's
+      // budget — and true otherwise, including when there was nothing to
+      // write. False never means "nothing to save": DumpJSON retries the whole
+      // dump with mtx released, and logs an error if it still cannot complete,
+      // rather than writing a file with the object's contents silently missing
+      // (issue #940).
+      virtual bool DumpState(nlohmann::json::value_type&) {
+        return true;
+      }
       virtual void RestoreState(const nlohmann::json::value_type&) {}
 
       virtual void SetParent(pObject* parent);

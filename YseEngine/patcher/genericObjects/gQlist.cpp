@@ -901,18 +901,20 @@ LIST_IN(ListIn) {
 
 // ─── persistence ──────────────────────────────────────────────────────────────
 
-void gQlist::DumpState(nlohmann::json::value_type& json) {
+bool gQlist::DumpState(nlohmann::json::value_type& json) {
   // Max: "the qlist object saves its cue-list with the patcher" — the plainest
   // save flag in the family, so the contents ride a DumpJSON the way `.coll`'s
   // do. Control thread (patcherImplementation::DumpJSON holds mtx), but the
   // guard is still taken, because a message may be arriving from a rendering
-  // graph while the patch is being saved.
-  storeGuard guard(busy);
-  if (!guard.Held()) return;
-  if (count == 0) return;
+  // graph while the patch is being saved. Through saveGuard, which waits that
+  // message out rather than skipping the contents (issue #940).
+  const saveGuard guard(busy);
+  if (!guard.Held()) return false;
+  if (count == 0) return true;
 
   for (std::size_t i = 0; i < count; i++)
     json["cues"].push_back(entries[i]);
+  return true;
 }
 
 void gQlist::RestoreState(const nlohmann::json::value_type& json) {

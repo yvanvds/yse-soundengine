@@ -669,18 +669,19 @@ LIST_IN(ListIn) {
 
 // ─── persistence ──────────────────────────────────────────────────────────────
 
-void gFunbuff::DumpState(nlohmann::json::value_type& json) {
+bool gFunbuff::DumpState(nlohmann::json::value_type& json) {
   // Control thread — patcherImplementation::DumpJSON holds mtx — but the guard
   // is still taken, because a message may be arriving from a rendering graph
-  // while the patch is being saved.
-  storeGuard guard(busy);
-  if (!guard.Held()) return;
+  // while the patch is being saved. Through saveGuard, which waits that message
+  // out rather than skipping the contents and the flag (issue #940).
+  const saveGuard guard(busy);
+  if (!guard.Held()) return false;
 
   // Max's embed is what decides whether there is anything to write at all. With
   // it off nothing is written and the serialised object is byte for byte what it
   // would have been without the state hook, which is the contract that hook was
   // added under.
-  if (!embed) return;
+  if (!embed) return true;
 
   // Written even when the store is empty, so a reloaded object still knows to
   // embed itself the next time the patch is saved.
@@ -691,6 +692,7 @@ void gFunbuff::DumpState(nlohmann::json::value_type& json) {
     pair["y"] = pairs[i].y;
     json["pairs"].push_back(pair);
   }
+  return true;
 }
 
 void gFunbuff::RestoreState(const nlohmann::json::value_type& json) {

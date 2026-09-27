@@ -230,7 +230,7 @@ namespace YSE {
     // The contents, unconditionally — Max's function is a UI object whose
     // points are saved with the patch. Control thread; the guard is still
     // taken because a message may arrive from a rendering graph mid-save.
-    void DumpState(nlohmann::json::value_type& json) override;
+    bool DumpState(nlohmann::json::value_type& json) override;
 
     // The other half: ParseJSON, on a freshly built object the audio thread
     // cannot see yet. Refills through the same sorted, clamped store the

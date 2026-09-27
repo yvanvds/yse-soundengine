@@ -473,15 +473,21 @@ GUI_VALUE() {
 
 // ─── persistence ──────────────────────────────────────────────────────────────
 
-void gPreset::DumpState(nlohmann::json::value_type& json) {
+bool gPreset::DumpState(nlohmann::json::value_type& json) {
   auto* p = static_cast<patcherImplementation*>(parent);
 
   // Control thread — patcherImplementation::DumpJSON holds mtx — but the
   // guard is still taken, because a timer-thread recall may land mid-save.
   // mtx is already held here and is not recursive, so the patcher is read
   // through its *Unlocked accessors: the plain ones take mtx (issue #937).
-  storeGuard guard(busy);
-  if (!guard.Held()) return;
+  //
+  // Only `busy` is waited for, through saveGuard's bounded wait, rather than
+  // skipped at the first miss and the slots lost (issue #940). Every `busy`
+  // section is a few copies that never takes mtx; `sending`, which a recall
+  // holds across its GetHandleFromID lookups, is never touched here, so a
+  // timer-thread recall blocked on this save's mtx cannot hold up the save.
+  const saveGuard guard(busy);
+  if (!guard.Held()) return false;
 
   // Unconditional, `.coll`'s always-rule — but an untouched object writes
   // nothing, so its serialised form is byte for byte what it would be
@@ -491,13 +497,13 @@ void gPreset::DumpState(nlohmann::json::value_type& json) {
   for (int i = 0; i < capacity && !anySlot; i++) {
     if (!slots[(std::size_t)i].empty()) anySlot = true;
   }
-  if (act < 0 && !anySlot) return;
+  if (act < 0 && !anySlot) return true;
 
   if (act >= 0) json["active"] = act;
 
   // A standalone object is never serialised through a patcher and has no
   // live set to rank against; nothing more to write.
-  if (!anySlot || p == nullptr) return;
+  if (!anySlot || p == nullptr) return true;
 
   const unsigned int count = p->ObjectsUnlocked();
   for (int i = 0; i < capacity; i++) {
@@ -536,6 +542,7 @@ void gPreset::DumpState(nlohmann::json::value_type& json) {
     // A slot whose every entry went stale writes nothing.
     if (slotJson.find("objects") != slotJson.end()) json["slots"].push_back(slotJson);
   }
+  return true;
 }
 
 void gPreset::RestoreState(const nlohmann::json::value_type& json) {
