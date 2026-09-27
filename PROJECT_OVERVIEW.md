@@ -52,7 +52,7 @@ sonar-project.properties         # SonarCloud analysis configuration
 .github/workflows/format.yml         # clang-format --dry-run --Werror over YseEngine/ + Tests/ on push/PR
 .github/workflows/release.yml        # Tag-driven release: Windows/Linux x64 + Android multi-ABI archives
 .github/workflows/benchmark.yml      # google-benchmark runs; writes the bench-history orphan branch
-.github/workflows/documentation.yml  # Doxygen + Sphinx → GitHub Pages on push to master
+.github/workflows/documentation.yml  # Doxygen + Sphinx (warnings = errors) on dev PRs/pushes; Pages deploy on push to master
 ```
 
 The old .NET/Xamarin wrappers, the WPF demo, the UWP build, and the JUCE backend have all been removed.
@@ -160,7 +160,7 @@ Four GitHub Actions workflows under `.github/workflows/`:
 | `build.yml` | push (master/dev), PR | Linux Debug + `YSE_ENABLE_COVERAGE=ON` build, ctest, gcovr SonarQube report, SonarCloud scan (`yvanvds_yse-soundengine`); plus the `build-sanitizers` legs — ASan over the patcher suite, TSan over the whole ctest set bar a documented exclude list (#824), widened on a push to `dev` to the `tests-tsan-full` sweep |
 | `release.yml` | tag `v*`, manual | Builds Linux x64, Windows x64, and Android multi-ABI release archives → `dist/` → uploaded as GH release assets |
 | `benchmark.yml` | push (master/dev), PR to master | Runs google-benchmark; results pushed to the `bench-history` orphan branch; PR comments on regressions |
-| `documentation.yml` | push to master | Doxygen + Sphinx HTML → GitHub Pages |
+| `documentation.yml` | push to dev/master, PR to dev (docs/engine paths) | Doxygen 1.17.0 (pinned) + Sphinx `-W`; GitHub Pages deploy on master only |
 
 Headless audio coverage on GHA is **not** feasible — `snd-aloop`, `PulseAudio null sink`, and JACK-dummy all fail for kernel-module / capability reasons on the Azure-hosted runner kernel. The Linux Docker image at `tools/ci-linux/Dockerfile.audio` reproduces the headless JACK-dummy environment locally (requires `--cap-add IPC_LOCK --ulimit memlock=-1 --shm-size=512m`).
 
@@ -619,13 +619,13 @@ The render-scheduler foundation (issue [#857](https://github.com/yvanvds/yse-sou
 
 ## Documentation (`documentation/`)
 
-**Tooling:** Doxygen 1.9+ → XML → Sphinx + Breathe + sphinx-book-theme → HTML.
-**Output:** [github.io/yse-soundengine/](https://yvanvds.github.io/yse-soundengine/) (deployed by `documentation.yml` on push to master).
+**Tooling:** Doxygen (CI pins 1.17.0; `WARN_AS_ERROR = FAIL_ON_WARNINGS`) → XML → Sphinx + Breathe + sphinx-book-theme → HTML.
+**Output:** [github.io/yse-soundengine/](https://yvanvds.github.io/yse-soundengine/) (deployed by `documentation.yml` on push to master; the same job builds with warnings-as-errors on dev PRs and pushes, #868).
 
 ```
 documentation/
   Doxyfile                         # Doxygen config (XML output → source/_doxygen/xml/)
-  requirements.txt                 # Sphinx + Breathe + sphinx-book-theme
+  requirements.txt                 # Sphinx + Breathe + sphinx-book-theme (upper-bounded; breathe exact-pinned)
   Makefile / make.bat              # `make html`, `make sphinx`, `make doxygen`, `make serve`
   source/
     conf.py                        # Reads VERSION from YseEngine/system.hpp (PR #89)
