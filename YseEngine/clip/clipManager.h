@@ -26,7 +26,7 @@ namespace YSE {
     // managers use (#249 / #190): the control thread emplaces a transport into
     // the canonical list under `implementationsMutex` and hands it to the audio
     // thread through a lock-free inbox; the audio thread owns the `inUse`
-    // working list, advances each transport every callback, and — once the
+    // working list, advances each transport every block, and — once the
     // interface is destroyed — retires it for the slow-pool delete job. The
     // audio thread never allocates, locks, or frees.
     class managerObject {
@@ -39,7 +39,8 @@ namespace YSE {
       /** Create a transport bound to a public `clip` interface. Control thread. */
       transport* addImplementation(clip* head);
 
-      /** Audio-thread tick, driven every callback after the clocks advance:
+      /** Audio-thread tick, driven every rendered block right after the clocks
+          advance (deviceManager::advanceDomainClocks, issue #944):
           drains newly-created transports, advances each live transport (which
           reads its clock's fresh beat window), and retires orphaned ones. */
       void update();

@@ -20,7 +20,7 @@ running while the engine is paused, and which thread its output runs on.
    * - Resolution
      - one block (128 samples, about 2.9 ms at 44.1 kHz)
      - about 1 ms, plus operating-system wake-up jitter
-     - one block, but see :ref:`time-clock-resolution`
+     - one block (see :ref:`time-clock-resolution`)
    * - Runs while nothing renders
      - no, pending messages wait
      - yes
@@ -287,18 +287,24 @@ destroys a clock. All other objects only use a clock that already exists.
 How accurate a beat is
 ~~~~~~~~~~~~~~~~~~~~~~
 
-The engine advances every domain clock once per **device callback**, by the
-length of that callback. The patcher checks beat deadlines once per 128-sample
-block. When the device callback is 128 samples or shorter, the two agree, and
-a beat wait is accurate to one block.
+The engine advances every domain clock once per 128-sample **block**, just
+before it renders that block, by the length of one block. The patcher checks
+beat deadlines at the start of the same block, so a beat wait is accurate to
+one block. This holds for any device buffer size: when the device asks for
+512 samples per callback, the engine renders four blocks and the clock moves
+between each of them. Offline rendering (``renderOffline``) behaves the same.
 
-When the device asks for more samples per callback, for example 512, the
-clock moves forward by the whole callback before the first of its blocks
-renders. Beat deadlines inside that callback all come due in its first
-block. A beat wait is then accurate to one device buffer instead of one block,
-and can fire up to one buffer early. Offline rendering (``renderOffline``)
-advances the clocks every block and is not affected. This is tracked as
-`#944 <https://github.com/yvanvds/yse-soundengine/issues/944>`_.
+Clip transports advance with the clocks, one block at a time, so a clip and a
+patch on the same clock fire in the same block.
+
+While no sound is playing, nothing renders. The clocks then keep moving once
+per device callback, by the length of that callback.
+
+.. versionchanged:: 3.0
+   Clocks used to advance once per device callback, so with a device buffer
+   larger than 128 samples every beat deadline in a callback came due in its
+   first block, up to one buffer early (issue `#944
+   <https://github.com/yvanvds/yse-soundengine/issues/944>`_).
 
 The objects
 -----------

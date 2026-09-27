@@ -44,20 +44,18 @@ bool YSE::DEVICE::deviceManager::doOnCallback(int numSamples) {
   // between two buffer updates and should have the least latency possible
   INTERNAL::DeviceTime().update();
   PLAYER::Manager().update((Flt)numSamples / (Flt)SAMPLERATE);
-  // Advance every domain clock by this block's duration (issue #249). Domain
-  // clocks derive from the single sample clock, so they tick here — every audio
-  // callback, regardless of whether any sound is playing — and are advanced
-  // before the empty()-sounds early-out below.
-  CLOCK::Manager().update((Flt)numSamples / (Flt)SAMPLERATE);
-  // Clip transports (issue #250) are advanced right after the clocks, every
-  // audio callback, so each transport reads its bound clock's freshly-updated
-  // beat window and fires the note events that fall inside this block.
-  CLIP::Manager().update();
   // MIDI file playback is advanced every block too (issue #155) so events reach
   // the connected synths block-accurately, before the synths render this block.
   MIDI::Manager().updatePlayback(numSamples);
 
-  if (SOUND::Manager().empty()) return false;
+  if (SOUND::Manager().empty()) {
+    // Nothing renders this callback, so renderOneBlock() will not tick the
+    // domain clocks. They derive from the sample clock and must keep moving
+    // whether or not a sound is playing (issue #249), so advance them here by
+    // the whole callback.
+    advanceDomainClocks(numSamples);
+    return false;
+  }
 
   /* adjust channels if needed
   this actually realocates a lot of memory but it is only done when changing to an
@@ -72,7 +70,23 @@ bool YSE::DEVICE::deviceManager::doOnCallback(int numSamples) {
   return true;
 }
 
+void YSE::DEVICE::deviceManager::advanceDomainClocks(int numSamples) {
+  // Domain clocks (issue #249) first, then the clip transports (issue #250),
+  // so each transport reads its bound clock's freshly-updated beat window and
+  // fires the note events that fall inside it.
+  CLOCK::Manager().update((Flt)numSamples / (Flt)SAMPLERATE);
+  CLIP::Manager().update();
+}
+
 void YSE::DEVICE::deviceManager::renderOneBlock() {
+  // Domain clocks advance per rendered block, not per device callback
+  // (issue #944). A callback larger than one block renders several blocks back
+  // to back; ticking the clocks once per callback put every beat deadline in
+  // that callback into its first block, up to one device buffer early. Ticking
+  // here keeps a patcher's beat waits (which it checks at the top of each
+  // block) and the clip transports accurate to one block at any buffer size,
+  // exactly as renderOffline() always was.
+  advanceDomainClocks(STANDARD_BUFFERSIZE);
   CHANNEL::Manager().render(*master);
 }
 

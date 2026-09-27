@@ -265,9 +265,10 @@ namespace YSE {
       // the same granularity as the internal synth sink, and it preserves the
       // note-off-before-note-on ordering evaluateWindow guarantees (per-event
       // sub-block stamps could reorder same-pitch off/on pairs in the sender
-      // and hang notes). Paced forward one block per callback, resynced to
-      // `now` when the callback fell behind, so a burst of catch-up callbacks
-      // does not bunch messages on the wire.
+      // and hang notes). Paced forward one block per rendered block (#944),
+      // resynced to `now` when the audio thread fell behind, so the blocks of
+      // one large callback, or a burst of catch-up callbacks, do not bunch
+      // messages on the wire.
       std::int64_t nextDueNs = 0;
 #endif
     };

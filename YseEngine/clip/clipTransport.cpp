@@ -232,7 +232,7 @@ void YSE::CLIP::transport::advance() {
   sink.midi.ports = &midiPorts;
   sink.midi.sender = &MIDI::OutSender();
   // Absolute send deadline shared by every event this block fires: paced one
-  // block per callback, resynced to `now` when the callback fell behind. Only
+  // block per rendered block, resynced to `now` when the audio thread fell behind. Only
   // stamped when a port is connected — no clock read on the pure-synth path.
   bool anyMidi = false;
   for (auto& slot : midiPorts) {
