@@ -1,4 +1,5 @@
-/*
+/**
+  @file
   yse_channel.h — mixer-tree channels.
   C ABI mirror of YseEngine/channel/channelInterface.hpp (YSE::channel + pre-built
   free-function accessors ChannelMaster, ChannelFX, ChannelMusic, ChannelAmbient,
@@ -18,17 +19,17 @@
 extern "C" {
 #endif
 
-/* Owned via yse_channel_create / _create_with_sends / _create_return —
+/** Owned via yse_channel_create / _create_with_sends / _create_return —
    release with yse_channel_destroy. Borrowed via the yse_channel_master /
    _fx / _music / _ambient / _voice / _gui pre-built accessors — never
    destroy those. */
 typedef struct YseChannel YseChannel;
 
-/* Forward declaration — see yse_dsp_modules.h for ownership (a channel
+/** Forward declaration — see yse_dsp_modules.h for ownership (a channel
    insert effect is owned by the caller, never by the channel). */
 typedef struct YseDspObject YseDspObject;
 
-/* Pre-built channels — borrowed pointers, never destroy. */
+/** Pre-built channels — borrowed pointers, never destroy. */
 YSE_C_API YseChannel* yse_channel_master(void);
 YSE_C_API YseChannel* yse_channel_fx(void);
 YSE_C_API YseChannel* yse_channel_music(void);
@@ -36,7 +37,7 @@ YSE_C_API YseChannel* yse_channel_ambient(void);
 YSE_C_API YseChannel* yse_channel_voice(void);
 YSE_C_API YseChannel* yse_channel_gui(void);
 
-/* User-created channels. yse_channel_create allocates a channel with the
+/** User-created channels. yse_channel_create allocates a channel with the
    default 4 aux-send slots; yse_channel_create_with_sends chooses the slot
    count (sized once off the audio thread and never resized — raise it for a
    channel that fans out to many return buses). Both return NULL and set
@@ -46,7 +47,7 @@ YSE_C_API YseChannel* yse_channel_create_with_sends(const char* name, YseChannel
                                                     int send_slots);
 YSE_C_API void yse_channel_destroy(YseChannel* ch);
 
-/* ─── send/return buses (issue #165; design docs/design/send_return_buses.md) ──
+/** ─── send/return buses (issue #165; design docs/design/send_return_buses.md) ──
  *
  * A return bus is an ordinary channel (it keeps set_dsp inserts, attach_reverb,
  * set_volume, and metering) excluded from the normal mix tree; other channels
@@ -60,10 +61,10 @@ YSE_C_API void yse_channel_destroy(YseChannel* ch);
  * with yse_channel_destroy like any channel. */
 YSE_C_API YseChannel* yse_channel_create_return(const char* name, int send_slots);
 
-/* 1 if the channel is a send/return bus, else 0 (also 0 on NULL). */
+/** 1 if the channel is a send/return bus, else 0 (also 0 on NULL). */
 YSE_C_API int yse_channel_is_return(YseChannel* ch);
 
-/* Wire send slot `slot` (in [0, send_slots)) of `ch` to `return_bus` at
+/** Wire send slot `slot` (in [0, send_slots)) of `ch` to `return_bus` at
  * `level`. Post-fader by default; pass pre_fader != 0 for a cue-style send
  * independent of the channel fader. Illegal wirings (target not a return, a
  * self-send, a return→return edge that would close a cycle, an out-of-range
@@ -72,19 +73,19 @@ YSE_C_API int yse_channel_is_return(YseChannel* ch);
 YSE_C_API void yse_channel_send(YseChannel* ch, int slot, YseChannel* return_bus, float level,
                                 int pre_fader);
 
-/* Set a send slot's level, ramped and click-free. Safe to call every control
+/** Set a send slot's level, ramped and click-free. Safe to call every control
  * tick — send levels are designed as modulation targets, so continuous writes
  * fuse into the per-block ramp without zippering. Null-safe no-op. */
 YSE_C_API void yse_channel_set_send_level(YseChannel* ch, int slot, float level);
 
-/* Detach send slot `slot`, fully disconnecting it from its return. Null-safe
+/** Detach send slot `slot`, fully disconnecting it from its return. Null-safe
  * no-op. */
 YSE_C_API void yse_channel_clear_send(YseChannel* ch, int slot);
 
-/* Current target level of send slot `slot`, or 0 if unset/invalid/NULL. */
+/** Current target level of send slot `slot`, or 0 if unset/invalid/NULL. */
 YSE_C_API float yse_channel_get_send_level(YseChannel* ch, int slot);
 
-/* ─── channel insert DSP (issue #159) ─────────────────────────────────────
+/** ─── channel insert DSP (issue #159) ─────────────────────────────────────
  *
  * Attach a pre-fader insert effect chain to this channel — the DAW "insert"
  * slot, mirroring yse_sound_set_dsp at the channel level. The effect processes
@@ -94,7 +95,7 @@ YSE_C_API float yse_channel_get_send_level(YseChannel* ch, int slot);
  * first. Null-safe no-op. */
 YSE_C_API void yse_channel_set_dsp(YseChannel* ch, YseDspObject* dsp);
 
-/* The currently attached insert effect chain head, or NULL if none/NULL. */
+/** The currently attached insert effect chain head, or NULL if none/NULL. */
 YSE_C_API YseDspObject* yse_channel_get_dsp(YseChannel* ch);
 
 YSE_C_API void yse_channel_set_volume(YseChannel* ch, float value);
@@ -105,13 +106,13 @@ YSE_C_API void yse_channel_set_virtual(YseChannel* ch, int value);
 YSE_C_API int yse_channel_get_virtual(YseChannel* ch);
 YSE_C_API int yse_channel_is_valid(YseChannel* ch);
 
-/* Copy the channel's log name (the `name` passed at create — not the bus name
+/** Copy the channel's log name (the `name` passed at create — not the bus name
    set by yse_channel_set_name) into buf, snprintf-style: writes at most cap-1
    bytes plus a NUL, returns the full length. Pass buf=NULL/cap=0 to size the
    buffer first. Returns 0 (and clears buf) on a NULL handle. */
 YSE_C_API size_t yse_channel_get_name(YseChannel* ch, char* buf, size_t cap);
 
-/* Assign a bus-addressable name to the channel (mirrors YSE::channel::name,
+/** Assign a bus-addressable name to the channel (mirrors YSE::channel::name,
    issue #905). Once named "foo", the channel subscribes to the global named
    bus address channel.foo.volume (float, also accepts int), so a host can set
    its volume with yse_bus_publish_float("channel.foo.volume", v). Independent
@@ -122,7 +123,7 @@ YSE_C_API size_t yse_channel_get_name(YseChannel* ch, char* buf, size_t cap);
    is between init and close. */
 YSE_C_API void yse_channel_set_name(YseChannel* ch, const char* name);
 
-/* Output peak metering — see channelInterface.hpp for semantics.
+/** Output peak metering — see channelInterface.hpp for semantics.
  *
  * "Pre" reads the peak measured at the end of dsp() (after inserts and reverb,
  * before the channel volume is applied); "Post" reads the peak measured

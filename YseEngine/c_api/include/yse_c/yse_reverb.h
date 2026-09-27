@@ -1,4 +1,5 @@
-/*
+/**
+  @file
   yse_reverb.h — positioned reverb zones + global reverb.
   C ABI mirror of YseEngine/reverb/reverbInterface.hpp.
 
@@ -24,18 +25,18 @@
 extern "C" {
 #endif
 
-/* Owned via yse_reverb_create — release with yse_reverb_destroy.
+/** Owned via yse_reverb_create — release with yse_reverb_destroy.
    Borrowed via yse_system_get_global_reverb — never destroy that. */
 typedef struct YseReverb YseReverb;
 
-/* Owned reverb zone — yse_reverb_create() runs both the C++ constructor
+/** Owned reverb zone — yse_reverb_create() runs both the C++ constructor
    and reverb::create() so the handle is ready to configure immediately. */
 YSE_C_API YseReverb* yse_reverb_create(void);
 YSE_C_API void yse_reverb_destroy(YseReverb* rev);
 
 YSE_C_API int yse_reverb_is_valid(YseReverb* rev);
 
-/* Position + audible footprint. */
+/** Position + audible footprint. */
 YSE_C_API void yse_reverb_set_position(YseReverb* rev, const yse_pos_t* p);
 YSE_C_API yse_pos_t yse_reverb_get_position(YseReverb* rev);
 YSE_C_API void yse_reverb_set_size(YseReverb* rev, float v);
@@ -45,7 +46,7 @@ YSE_C_API float yse_reverb_get_roll_off(YseReverb* rev);
 YSE_C_API void yse_reverb_set_active(YseReverb* rev, int on);
 YSE_C_API int yse_reverb_get_active(YseReverb* rev);
 
-/* Tail shape. */
+/** Tail shape. */
 YSE_C_API void yse_reverb_set_room_size(YseReverb* rev, float v);
 YSE_C_API float yse_reverb_get_room_size(YseReverb* rev);
 YSE_C_API void yse_reverb_set_damping(YseReverb* rev, float v);
@@ -57,7 +58,7 @@ YSE_C_API void yse_reverb_set_modulation(YseReverb* rev, float frequency, float 
 YSE_C_API float yse_reverb_get_modulation_frequency(YseReverb* rev);
 YSE_C_API float yse_reverb_get_modulation_width(YseReverb* rev);
 
-/* Early reflections (4 slots, index 0..3). */
+/** Early reflections (4 slots, index 0..3). */
 YSE_C_API void yse_reverb_set_reflection(YseReverb* rev, int reflection, int time, float gain);
 YSE_C_API int yse_reverb_get_reflection_time(YseReverb* rev, int reflection);
 YSE_C_API float yse_reverb_get_reflection_gain(YseReverb* rev, int reflection);
@@ -71,27 +72,27 @@ YSE_C_API void yse_reverb_set_preset(YseReverb* rev, YseReverbPreset preset);
    reverb (yse_dsp_modules.h) or to drive a zone with
    yse_reverb_set_room_size() et al. */
 
-/* Plain-old-data mirror of YSE::REVERB::presetValues — one complete reverb
+/** Plain-old-data mirror of YSE::REVERB::presetValues — one complete reverb
    parameter set: the payload of a named preset and the custom endpoint type
    of the morphing reverb. Fields are copied one by one across the ABI; the
    layout is not assumed to match the engine struct. */
 typedef struct YseReverbPresetValues {
-  float roomsize; /* simulated room size, [0, 1] */
-  float damp; /* high-frequency damping, [0, 1] */
-  float dry; /* unprocessed level, [0, 1] */
-  float wet; /* reverberated level, [0, 1] */
-  float mod_frequency; /* tail modulation rate, Hz (0 = off) */
-  float mod_width; /* tail modulation depth (0 = off) */
-  float early_time[4]; /* early reflection delays, samples, [0, 2999] */
-  float early_gain[4]; /* early reflection gains, [0, 1] */
+  float roomsize; /**< simulated room size, [0, 1] */
+  float damp; /**< high-frequency damping, [0, 1] */
+  float dry; /**< unprocessed level, [0, 1] */
+  float wet; /**< reverberated level, [0, 1] */
+  float mod_frequency; /**< tail modulation rate, Hz (0 = off) */
+  float mod_width; /**< tail modulation depth (0 = off) */
+  float early_time[4]; /**< early reflection delays, samples, [0, 2999] */
+  float early_gain[4]; /**< early reflection gains, [0, 1] */
 } YseReverbPresetValues;
 
-/* Write the parameter set of a named preset into *out — the exact values
+/** Write the parameter set of a named preset into *out — the exact values
    yse_reverb_set_preset() applies. A preset outside the enum yields the
    YSE_REVERB_OFF values. NULL out is a no-op. */
 YSE_C_API void yse_reverb_preset_get_values(YseReverbPreset preset, YseReverbPresetValues* out);
 
-/* Linear blend of two parameter sets into *out: every field is
+/** Linear blend of two parameter sets into *out: every field is
    a + (b - a) * t with t clamped to [0, 1], so t = 0 gives a and t = 1 gives
    b. `out` may alias `a` or `b`. NULL out is a no-op; a NULL a or b
    zero-fills *out. */

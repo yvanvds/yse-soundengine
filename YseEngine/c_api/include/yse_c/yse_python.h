@@ -1,4 +1,5 @@
-/*
+/**
+  @file
   yse_python.h — C ABI scripting surface (issue #125, epic #119).
 
   Lets a host (Phi via dart-yse, Python ctypes, …) submit scripts to the
@@ -19,12 +20,12 @@
 extern "C" {
 #endif
 
-/* Compile-time feature query. Returns 1 if the library was built with
+/** Compile-time feature query. Returns 1 if the library was built with
    YSE_ENABLE_PYTHON=ON, else 0. Safe to call regardless of build
    configuration or engine state. */
 YSE_C_API int yse_python_enabled(void);
 
-/* Submit a UTF-8 script for asynchronous evaluation on the script thread.
+/** Submit a UTF-8 script for asynchronous evaluation on the script thread.
    Returns immediately. The engine takes a copy; the caller may free `src`
    on return. A NULL `src` is a no-op.
 
@@ -33,12 +34,12 @@ YSE_C_API int yse_python_enabled(void);
    "YSE compiled without YSE_ENABLE_PYTHON". */
 YSE_C_API void yse_python_run_script(const char* src);
 
-/* Callback that receives formatted tracebacks from uncaught Python exceptions
+/** Callback that receives formatted tracebacks from uncaught Python exceptions
    and syntax errors. `traceback_utf8` is owned by the engine and valid only
    for the duration of the call — copy it if you need to retain it. */
 typedef void(YSE_C_CALLBACK* YseScriptErrorCallback)(const char* traceback_utf8, void* userdata);
 
-/* Register the error callback. Pass NULL to clear. Thread-safe via atomic
+/** Register the error callback. Pass NULL to clear. Thread-safe via atomic
    swap (the project's callback-bridge convention): installing or replacing
    the callback while the engine is dispatching a traceback is safe, and the
    previous callback never receives a later traceback.

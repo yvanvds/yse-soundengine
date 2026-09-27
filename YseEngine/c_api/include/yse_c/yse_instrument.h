@@ -1,4 +1,5 @@
-/*
+/**
+  @file
   yse_instrument.h — loadable instrument assets for the synth voice pool.
   C ABI mirror of the SFZ sampler instrument (YseEngine/synth/samplerVoice.hpp,
   YSE::SYNTH::samplerInstrument / samplerConfig, issue #174) and the DX7 SysEx
@@ -35,14 +36,14 @@
 extern "C" {
 #endif
 
-/* Owned — release with yse_sfz_destroy. A reference-counted SFZ instrument
+/** Owned — release with yse_sfz_destroy. A reference-counted SFZ instrument
    (region table + resident PCM). Share it across any number of synth voice
    groups via yse_synth_add_voices_sampler; each group retains its own share,
    so destroying this handle afterwards does not free the PCM until the last
    group is gone. Safe to destroy across yse_system_close(). */
 typedef struct YseSfzInstrument YseSfzInstrument;
 
-/* Owned — release with yse_dx7_destroy. A parsed DX7 SysEx bank (a list of FM
+/** Owned — release with yse_dx7_destroy. A parsed DX7 SysEx bank (a list of FM
    patches, 1 or 32). Select a patch into a synth's FM voice group with
    yse_synth_fm_set_patch; the patch is copied into the synth, so the bank may
    be destroyed afterwards. Safe to destroy across yse_system_close(). */
@@ -50,13 +51,13 @@ typedef struct YseDx7Bank YseDx7Bank;
 
 /* ─── SFZ sampler instrument ─────────────────────────────────────────────── */
 
-/* Load and preload an .sfz file into a shareable instrument. Parses the file
+/** Load and preload an .sfz file into a shareable instrument. Parses the file
    and decodes every unique sample into RAM on the calling thread (off the
    audio thread). Returns NULL on failure (unreadable / empty file, no playable
    region) with yse_last_error() set. */
 YSE_C_API YseSfzInstrument* yse_sfz_load(const char* path);
 
-/* One-region convenience creator — the samplerConfig facade (spec §11) as a
+/** One-region convenience creator — the samplerConfig facade (spec §11) as a
    flat, ffigen-friendly param struct. Builds a single-region instrument around
    one sample file without an .sfz text file, decoding the sample on the calling
    thread. `name` may be NULL (identification only). `file` is the absolute
@@ -65,37 +66,37 @@ YSE_C_API YseSfzInstrument* yse_sfz_load(const char* path);
    envelope times in seconds; `max_length` caps a non-looping one-shot in
    seconds. Mirrors YSE::SYNTH::samplerConfig. */
 typedef struct YseSamplerConfig {
-  const char* name; /* Instrument label (may be NULL). */
-  const char* file; /* Absolute path to the sample file (sample=). */
-  int root; /* Root note (key that plays untransposed). */
-  int low; /* Lowest playable key. */
-  int high; /* Highest playable key. */
-  float attack; /* Amplitude-envelope attack, seconds. */
-  float release; /* Amplitude-envelope release, seconds. */
-  float max_length; /* One-shot length cap, seconds (non-looping regions). */
+  const char* name; /**< Instrument label (may be NULL). */
+  const char* file; /**< Absolute path to the sample file (sample=). */
+  int root; /**< Root note (key that plays untransposed). */
+  int low; /**< Lowest playable key. */
+  int high; /**< Highest playable key. */
+  float attack; /**< Amplitude-envelope attack, seconds. */
+  float release; /**< Amplitude-envelope release, seconds. */
+  float max_length; /**< One-shot length cap, seconds (non-looping regions). */
 } YseSamplerConfig;
 
-/* Build a one-region instrument from a YseSamplerConfig. Returns NULL on
+/** Build a one-region instrument from a YseSamplerConfig. Returns NULL on
    failure (NULL cfg, missing / unreadable sample) with yse_last_error() set. */
 YSE_C_API YseSfzInstrument* yse_sfz_load_config(const YseSamplerConfig* cfg);
 
-/* Whether the instrument is playable (valid region table + at least one
+/** Whether the instrument is playable (valid region table + at least one
    resident sample). 0 on a NULL or already-destroyed handle. */
 YSE_C_API int yse_sfz_is_valid(YseSfzInstrument* h);
 
-/* Release an instrument handle. A double free or a NULL handle is a logged
+/** Release an instrument handle. A double free or a NULL handle is a logged
    no-op, not a crash. */
 YSE_C_API void yse_sfz_destroy(YseSfzInstrument* h);
 
 /* ─── DX7 SysEx bank ─────────────────────────────────────────────────────── */
 
-/* Load and parse a DX7 .syx file into a bank. A 32-voice packed bulk dump
+/** Load and parse a DX7 .syx file into a bank. A 32-voice packed bulk dump
    yields 32 patches; a single-voice dump yields 1. Reads the file on the
    calling thread. Returns NULL on failure (file not found / unreadable, bad
    header, wrong length, checksum mismatch) with yse_last_error() set. */
 YSE_C_API YseDx7Bank* yse_dx7_import_sysex(const char* path);
 
-/* Parse a DX7 SysEx image already in memory (dx7SysEx::parse, issue #909) —
+/** Parse a DX7 SysEx image already in memory (dx7SysEx::parse, issue #909) —
    for hosts that ship banks as bundled assets rather than files (Android APKs,
    resource packs). Accepts the same formats as yse_dx7_import_sysex(); `data`
    is read during the call only, not retained. Returns NULL on failure (NULL
@@ -103,21 +104,21 @@ YSE_C_API YseDx7Bank* yse_dx7_import_sysex(const char* path);
    yse_last_error() set. */
 YSE_C_API YseDx7Bank* yse_dx7_import_sysex_memory(const unsigned char* data, size_t length);
 
-/* Number of patches in the bank. 0 on a NULL or already-destroyed handle. */
+/** Number of patches in the bank. 0 on a NULL or already-destroyed handle. */
 YSE_C_API int yse_dx7_get_patch_count(YseDx7Bank* h);
 
-/* Write the (space-trimmed) name of patch `index` into `buf` as a
+/** Write the (space-trimmed) name of patch `index` into `buf` as a
    NUL-terminated string, snprintf-style; returns the length that would have
    been written (excluding the NUL), or 0 for an out-of-range index or a NULL /
    destroyed handle. `buf` may be NULL to query the length. */
 YSE_C_API size_t yse_dx7_get_patch_name(YseDx7Bank* h, int index, char* buf, size_t cap);
 
-/* Index of the first patch whose (space-trimmed) name equals `name` exactly
+/** Index of the first patch whose (space-trimmed) name equals `name` exactly
    (dx7Bank::indexOf, issue #909), for yse_synth_fm_set_patch(). Returns -1 when
    no patch matches, and for a NULL name or a NULL / destroyed handle. */
 YSE_C_API int yse_dx7_find_patch(YseDx7Bank* h, const char* name);
 
-/* Release a bank handle. A double free or a NULL handle is a logged no-op,
+/** Release a bank handle. A double free or a NULL handle is a logged no-op,
    not a crash. */
 YSE_C_API void yse_dx7_destroy(YseDx7Bank* h);
 

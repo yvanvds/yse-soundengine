@@ -1,4 +1,5 @@
-/*
+/**
+  @file
   yse_synth.h — polyphonic synthesiser voice pool rendered behind one sound.
   C ABI mirror of YseEngine/synth/synthInterface.hpp (YSE::synth) and
   §12 ("Public API surface") of docs/design/synth_core.md.
@@ -67,19 +68,19 @@
 extern "C" {
 #endif
 
-/* Owned — release with yse_synth_destroy. The handle also owns the built-in
+/** Owned — release with yse_synth_destroy. The handle also owns the built-in
    voice prototypes created by yse_synth_add_voices_*, freeing them on
    destroy; keep the synth alive until after any sound rendering it is
    destroyed (see yse_synth_attach_to_sound). */
 typedef struct YseSynth YseSynth;
 
-/* Forward declarations — see yse_sound.h / yse_channel.h / yse_music.h for
+/** Forward declarations — see yse_sound.h / yse_channel.h / yse_music.h for
    ownership. */
 typedef struct YseSound YseSound;
 typedef struct YseChannel YseChannel;
 typedef struct YseNote YseNote;
 
-/* Audio-thread note-rewrite hook, mirroring YSE::synth::onNoteEvent
+/** Audio-thread note-rewrite hook, mirroring YSE::synth::onNoteEvent
    (docs/design/synth_core.md §7). Invoked by the engine on the AUDIO THREAD
    for every note-on / note-off, before keyboard bookkeeping and voice
    allocation. It may rewrite *note_number and *velocity in place — the
@@ -95,16 +96,16 @@ typedef void(YSE_C_CALLBACK* YseSynthNoteCallback)(int note_on, float* note_numb
 
 /* ─── lifecycle ───────────────────────────────────────────────────────── */
 
-/* Create and register a synth. Ready to receive add-voices and note events
+/** Create and register a synth. Ready to receive add-voices and note events
    immediately (runs the C++ constructor and YSE::synth::create()). Returns
    NULL on allocation failure with yse_last_error() set. */
 YSE_C_API YseSynth* yse_synth_create(void);
 YSE_C_API void yse_synth_destroy(YseSynth* h);
 
-/* Whether the synth has a live implementation (registered with the engine). */
+/** Whether the synth has a live implementation (registered with the engine). */
 YSE_C_API int yse_synth_is_valid(YseSynth* h);
 
-/* Assign a bus-addressable name to the synth (mirrors YSE::synth::name, issue
+/** Assign a bus-addressable name to the synth (mirrors YSE::synth::name, issue
    #388). Once named "foo", the engine subscribes it to the global named bus
    addresses synth.foo.note / .off / .cc / .bend / .aftertouch / .alloff, so
    note and controller events published by name reach the synth engine-side
@@ -122,7 +123,7 @@ YSE_C_API void yse_synth_set_name(YseSynth* h, const char* name);
 
 /* ─── voice groups (built-in voices only) ─────────────────────────────── */
 
-/* Add a group of `num_voices` built-in sine voices (sine oscillator shaped
+/** Add a group of `num_voices` built-in sine voices (sine oscillator shaped
    by an ADSR envelope) responding to note numbers in
    [lowest_note, highest_note] on `channel` (0 = omni). May be called several
    times to build layered or split keyboards. attack / decay / release are in
@@ -146,7 +147,7 @@ YSE_C_API YseStatus yse_synth_add_voices_sine(YseSynth* h, int num_voices, int c
    synth is played; adding voices after the pool is built is rejected. Return
    YseStatus; on failure yse_last_error() is set and no group is added. */
 
-/* Add a group of SFZ sampler voices rendering `instrument` (loaded via
+/** Add a group of SFZ sampler voices rendering `instrument` (loaded via
    yse_sfz_load / yse_sfz_load_config). The instrument's region table and PCM
    are shared with the voice group, which retains its own reference — so the
    YseSfzInstrument handle may be destroyed right after this returns.
@@ -155,21 +156,21 @@ YSE_C_API YseStatus yse_synth_add_voices_sampler(YseSynth* h, YseSfzInstrument* 
                                                  int num_voices, int channel, int lowest_note,
                                                  int highest_note);
 
-/* Add a group of virtual-analog + wavetable voices with a fresh default patch.
+/** Add a group of virtual-analog + wavetable voices with a fresh default patch.
    This establishes the synth's VA patch; the yse_synth_va_set_* setters below
    steer it. Call once per synth (a second call replaces which patch the setters
    target — layering multiple VA groups is out of scope for the C API). */
 YSE_C_API YseStatus yse_synth_add_voices_va(YseSynth* h, int num_voices, int channel,
                                             int lowest_note, int highest_note);
 
-/* Add a group of DX7-class 6-operator FM voices with the built-in sine test
+/** Add a group of DX7-class 6-operator FM voices with the built-in sine test
    patch. This establishes the synth's FM patch; select a DX7 voice into it with
    yse_synth_fm_set_patch, or dial the headline params with yse_synth_fm_set_*.
    Call once per synth (see add_voices_va's note). */
 YSE_C_API YseStatus yse_synth_add_voices_fm(YseSynth* h, int num_voices, int channel,
                                             int lowest_note, int highest_note);
 
-/* ─── VA patch parameters (issue #178) ─────────────────────────────────────
+/** ─── VA patch parameters (issue #178) ─────────────────────────────────────
    Steer the synth's VA patch (established by yse_synth_add_voices_va). Every
    value is a glitch-free atomic read on the audio thread, so these are safe to
    call while voices play. All are null-safe no-ops on a NULL handle or a synth
@@ -201,7 +202,7 @@ YSE_C_API void yse_synth_va_set_lfo_to_cutoff(YseSynth* h, float octaves);
 YSE_C_API void yse_synth_va_set_lfo_to_wavetable(YseSynth* h, float amount);
 YSE_C_API void yse_synth_va_set_gain(YseSynth* h, float gain);
 
-/* Install a single-cycle waveform into the VA wavetable morph bank at `slot`
+/** Install a single-cycle waveform into the VA wavetable morph bank at `slot`
    (used by YSE_VA_WAVETABLE mode). `cycle` points to `length` normalised
    samples (one period). SETUP-THREAD only — this reshapes table storage; call
    before the synth is played, not while voices render. Null-safe no-op on a
@@ -215,44 +216,45 @@ YSE_C_API void yse_synth_va_load_wavetable(YseSynth* h, int slot, const float* c
    down), so these are not glitch-free mid-note. All are null-safe no-ops on a
    NULL handle or a synth with no FM group. */
 
-/* Copy patch `index` from a DX7 bank (imported via yse_dx7_import_sysex) into
+/** Copy patch `index` from a DX7 bank (imported via yse_dx7_import_sysex) into
    the synth's FM patch — the way to reach the full 155-parameter DX7 voice from
    C. The patch is copied, so `bank` may be destroyed afterwards.
    YSE_ERR_INVALID_ARGUMENT for a NULL / destroyed bank or an out-of-range
    index; YSE_ERR_INVALID_HANDLE for a NULL synth or one with no FM group. */
 YSE_C_API YseStatus yse_synth_fm_set_patch(YseSynth* h, YseDx7Bank* bank, int index);
 
-/* Headline global params (DX7 ranges; clamped defensively engine-side). */
-YSE_C_API void yse_synth_fm_set_algorithm(YseSynth* h, int algorithm); /* 0..31 */
-YSE_C_API void yse_synth_fm_set_feedback(YseSynth* h, int feedback); /* 0..7  */
-YSE_C_API void yse_synth_fm_set_transpose(YseSynth* h, int transpose); /* 0..48, 24 = none */
-YSE_C_API void yse_synth_fm_set_lfo_speed(YseSynth* h, int speed); /* 0..99 */
-YSE_C_API void yse_synth_fm_set_lfo_delay(YseSynth* h, int delay); /* 0..99 */
-YSE_C_API void yse_synth_fm_set_lfo_waveform(YseSynth* h, int waveform); /* 0..5  */
-YSE_C_API void yse_synth_fm_set_lfo_pitch_mod_depth(YseSynth* h, int depth); /* 0..99 */
-YSE_C_API void yse_synth_fm_set_lfo_amp_mod_depth(YseSynth* h, int depth); /* 0..99 */
-YSE_C_API void yse_synth_fm_set_pitch_mod_sens(YseSynth* h, int sensitivity); /* 0..7 */
+/** Headline global params (DX7 ranges; clamped defensively engine-side). */
+YSE_C_API void yse_synth_fm_set_algorithm(YseSynth* h, int algorithm); /**< 0..31 */
+YSE_C_API void yse_synth_fm_set_feedback(YseSynth* h, int feedback); /**< 0..7  */
+YSE_C_API void yse_synth_fm_set_transpose(YseSynth* h, int transpose); /**< 0..48, 24 = none */
+YSE_C_API void yse_synth_fm_set_lfo_speed(YseSynth* h, int speed); /**< 0..99 */
+YSE_C_API void yse_synth_fm_set_lfo_delay(YseSynth* h, int delay); /**< 0..99 */
+YSE_C_API void yse_synth_fm_set_lfo_waveform(YseSynth* h, int waveform); /**< 0..5  */
+YSE_C_API void yse_synth_fm_set_lfo_pitch_mod_depth(YseSynth* h, int depth); /**< 0..99 */
+YSE_C_API void yse_synth_fm_set_lfo_amp_mod_depth(YseSynth* h, int depth); /**< 0..99 */
+YSE_C_API void yse_synth_fm_set_pitch_mod_sens(YseSynth* h, int sensitivity); /**< 0..7 */
 
-/* Headline per-operator params. `op` is the operator index 0..5 (OP1..OP6);
+/** Headline per-operator params. `op` is the operator index 0..5 (OP1..OP6);
    out-of-range is ignored. */
-YSE_C_API void yse_synth_fm_set_op_output_level(YseSynth* h, int op, int level); /* 0..99 */
-YSE_C_API void yse_synth_fm_set_op_freq_coarse(YseSynth* h, int op, int coarse); /* 0..31 */
-YSE_C_API void yse_synth_fm_set_op_freq_fine(YseSynth* h, int op, int fine); /* 0..99 */
-YSE_C_API void yse_synth_fm_set_op_detune(YseSynth* h, int op, int detune); /* 0..14, 7 = centre */
-YSE_C_API void yse_synth_fm_set_op_osc_mode(YseSynth* h, int op, int mode); /* 0 ratio, 1 fixed */
-YSE_C_API void yse_synth_fm_set_op_enabled(YseSynth* h, int op, int enabled); /* 0/1 */
+YSE_C_API void yse_synth_fm_set_op_output_level(YseSynth* h, int op, int level); /**< 0..99 */
+YSE_C_API void yse_synth_fm_set_op_freq_coarse(YseSynth* h, int op, int coarse); /**< 0..31 */
+YSE_C_API void yse_synth_fm_set_op_freq_fine(YseSynth* h, int op, int fine); /**< 0..99 */
+YSE_C_API void yse_synth_fm_set_op_detune(YseSynth* h, int op,
+                                          int detune); /**< 0..14, 7 = centre */
+YSE_C_API void yse_synth_fm_set_op_osc_mode(YseSynth* h, int op, int mode); /**< 0 ratio, 1 fixed */
+YSE_C_API void yse_synth_fm_set_op_enabled(YseSynth* h, int op, int enabled); /**< 0/1 */
 
-/* Total number of allocated (cloned) voices across every group. Zero until
+/** Total number of allocated (cloned) voices across every group. Zero until
    the setup pool finishes cloning; poll it to know the synth is playable. */
 YSE_C_API int yse_synth_get_num_voices(YseSynth* h);
 
 /* ─── notes and control ───────────────────────────────────────────────── */
 
-/* Start / release a note. velocity is normalised to [0, 1]. */
+/** Start / release a note. velocity is normalised to [0, 1]. */
 YSE_C_API void yse_synth_note_on(YseSynth* h, int channel, int note_number, float velocity);
 YSE_C_API void yse_synth_note_off(YseSynth* h, int channel, int note_number, float velocity);
 
-/* Start / release a note described by a YseNote (see yse_music.h), mirroring
+/** Start / release a note described by a YseNote (see yse_music.h), mirroring
    synth::noteOn/noteOff(const MUSIC::note&) (issue #909): the note's channel
    is the channel, its pitch rounded to the nearest integer is the note number,
    and its volume is the velocity. The note is read, not retained. A NULL
@@ -260,28 +262,28 @@ YSE_C_API void yse_synth_note_off(YseSynth* h, int channel, int note_number, flo
 YSE_C_API void yse_synth_note_on_note(YseSynth* h, const YseNote* note);
 YSE_C_API void yse_synth_note_off_note(YseSynth* h, const YseNote* note);
 
-/* Release every held note on `channel` (0 = all channels). A bulk note-off:
+/** Release every held note on `channel` (0 = all channels). A bulk note-off:
    voices enter their normal release, they are not cut. */
 YSE_C_API void yse_synth_all_notes_off(YseSynth* h, int channel);
 
-/* Bend every voice on `channel`. value is normalised to [-1, 1] (0 = centre). */
+/** Bend every voice on `channel`. value is normalised to [-1, 1] (0 = centre). */
 YSE_C_API void yse_synth_pitch_wheel(YseSynth* h, int channel, float value);
 
-/* Send a control-change. value is normalised to [0, 1]. CC 64 / 66 / 67 act
+/** Send a control-change. value is normalised to [0, 1]. CC 64 / 66 / 67 act
    as the sustain / sostenuto / soft pedals; other CC numbers are stored as
    the channel's last controller value. */
 YSE_C_API void yse_synth_controller(YseSynth* h, int channel, int number, float value);
 
-/* Apply aftertouch pressure, normalised to [0, 1]. note_number == -1 is
+/** Apply aftertouch pressure, normalised to [0, 1]. note_number == -1 is
    channel-wide; otherwise only the voice(s) sounding that note receive it. */
 YSE_C_API void yse_synth_aftertouch(YseSynth* h, int channel, int note_number, float value);
 
-/* Pedals (down is a boolean: non-zero = down). */
+/** Pedals (down is a boolean: non-zero = down). */
 YSE_C_API void yse_synth_sustain(YseSynth* h, int channel, int down);
 YSE_C_API void yse_synth_sostenuto(YseSynth* h, int channel, int down);
 YSE_C_API void yse_synth_soft_pedal(YseSynth* h, int channel, int down);
 
-/* Install (or clear, with NULL) the audio-thread note-rewrite hook. The
+/** Install (or clear, with NULL) the audio-thread note-rewrite hook. The
    engine stores the hook atomically; passing NULL disables the hook.
    The callback is always invoked through its own YseSynthNoteCallback
    signature (note_on is a full int, 0 or 1) via an internal trampoline.
@@ -293,7 +295,7 @@ YSE_C_API void yse_synth_set_note_callback(YseSynth* h, YseSynthNoteCallback cb)
 
 /* ─── attachment ──────────────────────────────────────────────────────── */
 
-/* Render this synth behind `sound`, which supplies the single 3D position,
+/** Render this synth behind `sound`, which supplies the single 3D position,
    channel routing and master play/stop intent (mirrors the C++
    YSE::sound::create(synth&, channel*, volume)). Build the synth's voices
    with yse_synth_add_voices_* before calling this. `channel` may be NULL for
@@ -305,7 +307,7 @@ YSE_C_API void yse_synth_set_note_callback(YseSynth* h, YseSynthNoteCallback cb)
 YSE_C_API YseStatus yse_synth_attach_to_sound(YseSynth* h, YseSound* sound, YseChannel* channel,
                                               float volume);
 
-/* ─── per-note 3D positioning (issue #171) ────────────────────────────────
+/** ─── per-note 3D positioning (issue #171) ────────────────────────────────
 
    Configuration for yse_synth_set_position_handler. One flat, ffigen-friendly
    struct covering every built-in handler; only the fields belonging to the
@@ -314,25 +316,25 @@ YSE_C_API YseStatus yse_synth_attach_to_sound(YseSynth* h, YseSound* sound, YseC
    randomSpreadHandler / orbitHandler. All positions are in the same coordinate
    frame as a sound position. */
 typedef struct YseSynthPositionParams {
-  /* YSE_POSITION_HANDLER_STATIC — the single fixed position. */
+  /** YSE_POSITION_HANDLER_STATIC — the single fixed position. */
   float static_x;
   float static_y;
   float static_z;
 
-  /* YSE_POSITION_HANDLER_RANDOM_SPREAD */
-  float spread_radius; /* radius of the scatter sphere around the centre */
-  unsigned int spread_seed; /* base RNG seed (a given seed reproduces the scatter) */
+  /** YSE_POSITION_HANDLER_RANDOM_SPREAD */
+  float spread_radius; /**< radius of the scatter sphere around the centre */
+  unsigned int spread_seed; /**< base RNG seed (a given seed reproduces the scatter) */
 
-  /* YSE_POSITION_HANDLER_ORBIT */
-  float orbit_radius; /* base orbit radius */
-  float orbit_velocity_radius; /* extra radius added at full velocity */
-  float orbit_aftertouch_widen; /* fraction of extra radius at full aftertouch */
-  float orbit_rate; /* orbit angular speed, radians per second */
-  float orbit_height; /* vertical offset of the orbit plane */
-  float orbit_release_slow; /* rate multiplier once the note is released */
+  /** YSE_POSITION_HANDLER_ORBIT */
+  float orbit_radius; /**< base orbit radius */
+  float orbit_velocity_radius; /**< extra radius added at full velocity */
+  float orbit_aftertouch_widen; /**< fraction of extra radius at full aftertouch */
+  float orbit_rate; /**< orbit angular speed, radians per second */
+  float orbit_height; /**< vertical offset of the orbit plane */
+  float orbit_release_slow; /**< rate multiplier once the note is released */
 } YseSynthPositionParams;
 
-/* Attach one of the built-in per-note position handlers, giving every voice its
+/** Attach one of the built-in per-note position handlers, giving every voice its
    own 3D position and movement (mirrors YSE::synth::positionHandler with a
    shipped handler prototype). `kind` selects the handler; `params` configures
    it (NULL = engine defaults for that kind). The handle keeps the prototype
@@ -351,7 +353,7 @@ typedef struct YseSynthPositionParams {
 YSE_C_API YseStatus yse_synth_set_position_handler(YseSynth* h, YseSynthPositionHandler kind,
                                                    const YseSynthPositionParams* params);
 
-/* Update a shared handler parameter at runtime (message-based, RT-safe). All of
+/** Update a shared handler parameter at runtime (message-based, RT-safe). All of
    the synth's live handlers read the block next audio block, so this steers the
    swarm / spread centre from the control thread. `index` is a
    YseSynthHandlerParam (0..2 = centre X / Y / Z); out-of-range indices are
@@ -359,14 +361,14 @@ YSE_C_API YseStatus yse_synth_set_position_handler(YseSynth* h, YseSynthPosition
    control tick. */
 YSE_C_API void yse_synth_handler_param(YseSynth* h, int index, float value);
 
-/* Imperatively place the voice(s) sounding `note_number` on `channel` at
+/** Imperatively place the voice(s) sounding `note_number` on `channel` at
    (x, y, z) — app-driven trajectories (mirrors YSE::synth::notePosition). A
    bounded, allocation-free message. When a handler is attached it re-steers the
    voice next block, so this is primarily for the no-handler case. */
 YSE_C_API void yse_synth_note_position(YseSynth* h, int channel, int note_number, float x, float y,
                                        float z);
 
-/* Best-effort snapshot of the current position of a voice sounding
+/** Best-effort snapshot of the current position of a voice sounding
    (channel, note_number); writes the origin (0, 0, 0) if none is sounding
    (mirrors YSE::synth::getVoicePosition, intended for tests / metering). Any of
    the out pointers may be NULL. This is a single snapshot, not a per-note
