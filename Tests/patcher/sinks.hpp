@@ -13,6 +13,9 @@
 
 #include "patcher/pObject.h"
 #include "dsp/buffer.hpp"
+#include <chrono>
+#include <condition_variable>
+#include <mutex>
 #include <string>
 #include <vector>
 
@@ -243,6 +246,51 @@ namespace TestHelpers {
       count++;
       if (log) log->push_back(tag);
     }
+  };
+
+  // Parks the thread that delivers into it, until the test lets it go — the
+  // way to hold a control-thread send open at a known point while the test
+  // thread edits the patch under it (issue #961). Only the first delivery
+  // parks; later ones pass straight through. Every kind of message counts.
+  struct GateSink : YSE::PATCHER::pObject {
+    GateSink() : pObject(false) {
+      inputs.emplace_back(this, true, 0);
+      inputs.back().RegisterBang([this](int, YSE::THREAD) { Hold(); });
+      inputs.back().RegisterInt([this](int, int, YSE::THREAD) { Hold(); });
+      inputs.back().RegisterFloat([this](float, int, YSE::THREAD) { Hold(); });
+      inputs.back().RegisterList([this](const std::string&, int, YSE::THREAD) { Hold(); });
+    }
+    const char* Type() const override {
+      return "gate_sink";
+    }
+    void Calculate(YSE::THREAD) override {}
+    void SetMessage(const std::string&, float) override {}
+
+    // True once a delivery is parked here, false after five seconds without.
+    bool WaitEntered() {
+      std::unique_lock<std::mutex> lock(mtx_);
+      return cv_.wait_for(lock, std::chrono::seconds(5), [this] { return entered_; });
+    }
+    void Release() {
+      {
+        const std::lock_guard<std::mutex> lock(mtx_);
+        released_ = true;
+      }
+      cv_.notify_all();
+    }
+
+  private:
+    void Hold() {
+      std::unique_lock<std::mutex> lock(mtx_);
+      if (entered_) return;
+      entered_ = true;
+      cv_.notify_all();
+      cv_.wait(lock, [this] { return released_; });
+    }
+    std::mutex mtx_;
+    std::condition_variable cv_;
+    bool entered_ = false;
+    bool released_ = false;
   };
 
 } // namespace TestHelpers

@@ -211,21 +211,23 @@ namespace YSE {
    *  patch would have to run its own state machine to tell the two apart —
    *  which is the state machine that lives here.
    *
-   *  ### No maximum length, because nothing is stored
+   *  ### The maximum length is the transport's
    *
-   *  A dump is arbitrarily long — a DX7 bank is four thousand bytes — and this
-   *  object never holds one. Bytes are forwarded as they arrive, so the only
-   *  state is a single flag saying whether a message is open. There is
-   *  therefore no buffer to overflow and no length to document: the object
-   *  cannot truncate a dump, because it never has one in its hands. A patch
-   *  that wants the message whole collects it downstream, where allocating is
-   *  allowed, and watches for the 247 that ends it.
+   *  A dump can be long — a DX7 bank is four thousand bytes — and this object
+   *  never holds one. Bytes are forwarded as they arrive, so the only state is
+   *  a single flag saying whether a message is open, and the object itself
+   *  cannot truncate a dump. A patch that wants the message whole collects it
+   *  downstream, where allocating is allowed, and watches for the 247 that
+   *  ends it.
    *
-   *  The one bound in the path is the transport's, and it is not this
-   *  object's: `MIDI::inHub` holds a bounded queue per subscriber and drops
-   *  and counts when the audio thread has stalled, saying so through the log.
-   *  A dump arriving at the MIDI wire's 3125 bytes a second against a drain of
-   *  a queue's worth per block is not close to that ceiling.
+   *  The bound in the path is `MIDI::inHub`'s (issue #950). RtMidi hands over
+   *  a dump in one piece, so the hub's per-subscriber queue has to take all of
+   *  it at once: it holds `inHub::kMaxMessageBytes` (8192 bytes, twice a DX7
+   *  bank). A longer message, or one arriving while the queue is too full to
+   *  take it, is dropped **whole**, counted and logged — never delivered
+   *  truncated, so a 240 that reaches the outlet is always followed by the
+   *  rest of its message. The drain spreads a long dump over a few blocks
+   *  (`inHub::kDrainPerBlock` events, 512 bytes, per block).
    *
    *  ### The rules it applies
    *

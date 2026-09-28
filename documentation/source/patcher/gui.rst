@@ -478,32 +478,38 @@ Threads
 ~~~~~~~
 
 Storing walks the whole patch and recalling runs whole subgraphs, so
-``.preset`` does its work on the control thread only. **A message that
-arrives on the audio thread is dropped**, silently and before any work.
+``.preset`` never does that work on the audio thread. Every way of driving it
+works, but not every way runs at the same moment:
 
-This matters for how the host drives it:
+- **Runs immediately:** a ``SetListData`` / ``SetIntData`` / ``SetBang`` call
+  on the ``.preset`` handle from the host thread, a ``.loadbang`` (see
+  below), and a millisecond ``.metro``. These deliver on control-side
+  threads, and the recall has happened when the call returns.
+- **Runs a moment later:** anything that reaches the ``.preset`` while the
+  patch renders, on the audio thread. That is ``PassData`` / ``PassBang``
+  into a ``.r`` that feeds the ``.preset`` (host messages sent that way are
+  delivered at the start of the next block, see :doc:`host_io`), **MIDI
+  input** (the input objects deliver their events while the patch renders,
+  see :doc:`midi`), and anything fired inside the render pass, such as a
+  ``.delay`` or ``.pipe`` output. The ``.preset`` does not run these on the
+  audio thread: it queues them and runs them on the timer thread about a
+  millisecond later, in the order they arrived. Queuing is lock-free and
+  allocation-free, so it costs the audio thread nothing noticeable.
 
-- **Works:** a ``SetListData`` / ``SetIntData`` / ``SetBang`` call on the
-  ``.preset`` handle from the host thread, a ``.loadbang`` (see below), and a
-  millisecond ``.metro``. These deliver on control-side threads.
-- **Dropped:** ``PassData`` / ``PassBang`` into a ``.r`` that feeds the
-  ``.preset``. Host messages sent that way are queued and delivered while the
-  patch renders, on the audio thread (see :doc:`host_io`). The same goes for
-  anything fired inside the render pass, such as a ``.delay`` or ``.pipe``
-  output, and for **MIDI input**: the input objects deliver their events
-  while the patch renders (see :doc:`midi`), so a ``.pgmin`` wired into a
-  ``.preset`` does not recall anything.
+So a ``.pgmin`` wired into a ``.preset`` recalls a preset on a program change,
+as in Max. Keep in mind that the recall lands after the block that carried the
+program change, not inside it. A bang or a bare ``clear`` reads the active
+slot when it runs, so a ``store 3`` followed by a bang in the same block
+recalls slot 3.
 
-When the host needs to reach a ``.preset`` it does not hold a handle to, look
-the handle up with ``GetHandleFromList`` and check ``Type()``, rather than
-routing through a named receiver. To recall presets from MIDI program
-changes, receive the program change in the host and call the handle.
+At most 64 of these queued messages can wait at once. Past that, further ones
+are dropped and counted rather than logged, because the audio thread must not
+log.
 
-.. note::
-
-   The object's own reference text says a MIDI-driven recall works. It does
-   not: the message is dropped, and nothing is logged. Tracked in
-   `#952 <https://github.com/yvanvds/yse-soundengine/issues/952>`_.
+Editing the patch while a store or recall runs on another thread is safe. An
+object deleted halfway through a recall stays allocated until the recall is
+done (see :doc:`realtime`). Whether it still receives its value depends on
+which comes first; a recall never touches freed memory either way.
 
 .. _gui-saved:
 
@@ -526,7 +532,8 @@ Two controls do save their contents:
   inlet recalls the saved active slot when the patch loads; put a ``.m 0``
   in between to always come up in slot 0. You can also send the recall from
   the host after ``ParseJSON`` returns. ``.loadbang`` fires on the thread
-  that ran ``ParseJSON``, so the recall is not dropped.
+  that ran ``ParseJSON``, so the patch is in the slot when ``ParseJSON``
+  returns.
 - ``.function`` saves its breakpoints.
 
 In the file, a ``.preset`` entry names its object by its position among the

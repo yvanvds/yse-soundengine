@@ -202,12 +202,83 @@ TEST_SUITE("patcher") {
     counter.ConnectOutlet(sink.GetInlet(0), 0);
     sink.ConnectInlet(counter.GetOutlet(0), 0);
 
-    counter.GetInlet(0)->SetInt(5, YSE::T_GUI); // startValue=5, currentValue=5, sends 5
-    counter.GetInlet(0)->SetBang(YSE::T_GUI); // currentValue=6, sends 6
-    CHECK(sink.received == 6);
-    counter.GetInlet(0)->SetList("reset", YSE::T_GUI); // currentValue back to 5, no send
-    counter.GetInlet(0)->SetBang(YSE::T_GUI); // currentValue=6, sends 6
-    CHECK(sink.received == 6);
+    counter.SetParams("3");
+    counter.GetInlet(0)->SetBang(YSE::T_GUI); // 3 + 1
+    CHECK(sink.received == 4);
+    counter.GetInlet(0)->SetBang(YSE::T_GUI);
+    CHECK(sink.received == 5);
+    counter.GetInlet(0)->SetList("reset", YSE::T_GUI); // back to 3, no send
+    CHECK(sink.received == 5);
+    counter.GetInlet(0)->SetBang(YSE::T_GUI);
+    CHECK(sink.received == 4);
+  }
+
+  TEST_CASE("gCounter: startValue argument seeds the count before any reset (#956)") {
+    YSE::PATCHER::gCounter counter;
+    IntSink sink;
+    counter.ConnectOutlet(sink.GetInlet(0), 0);
+    sink.ConnectInlet(counter.GetOutlet(0), 0);
+
+    counter.SetParams("-1");
+    CHECK(counter.GetGuiValue() == "-1");
+    counter.GetInlet(0)->SetBang(YSE::T_GUI);
+    CHECK(sink.received == 0);
+    counter.GetInlet(0)->SetBang(YSE::T_GUI);
+    CHECK(sink.received == 1);
+
+    // A re-parse loads the new start value into the count.
+    counter.SetParams("10");
+    counter.GetInlet(0)->SetBang(YSE::T_GUI);
+    CHECK(sink.received == 11);
+  }
+
+  TEST_CASE("gCounter: inlet 1 sets the step and leaves the count alone (#956)") {
+    YSE::PATCHER::gCounter counter;
+    IntSink sink;
+    counter.ConnectOutlet(sink.GetInlet(0), 0);
+    sink.ConnectInlet(counter.GetOutlet(0), 0);
+
+    sink.received = -99;
+    counter.GetInlet(1)->SetInt(5, YSE::T_GUI);
+    CHECK(sink.received == -99); // cold: nothing sent
+    CHECK(counter.GetGuiValue() == "0"); // count untouched
+    counter.GetInlet(0)->SetBang(YSE::T_GUI);
+    CHECK(sink.received == 5);
+    counter.GetInlet(0)->SetBang(YSE::T_GUI);
+    CHECK(sink.received == 10);
+  }
+
+  TEST_CASE("gCounter: an int on inlet 0 does not move the reset target (#956)") {
+    YSE::PATCHER::gCounter counter;
+    IntSink sink;
+    counter.ConnectOutlet(sink.GetInlet(0), 0);
+    sink.ConnectInlet(counter.GetOutlet(0), 0);
+
+    counter.SetParams("2");
+    counter.GetInlet(0)->SetInt(40, YSE::T_GUI);
+    CHECK(sink.received == 40);
+    counter.GetInlet(0)->SetList("reset", YSE::T_GUI); // back to the argument, 2
+    counter.GetInlet(0)->SetBang(YSE::T_GUI);
+    CHECK(sink.received == 3);
+  }
+
+  TEST_CASE("gCounter: in a patch, '.counter -1' counts from 0 and inlet 1 is the step (#956)") {
+    // The issue's reproduction, through the patcher's own creation path.
+    YSE::patcher p;
+    p.create(1);
+    YSE::pHandle* c = p.CreateObject(".counter", "-1");
+    REQUIRE(c != nullptr);
+    IntSink sink;
+    YSE::pHandle sinkHandle(&sink);
+    p.Connect(c, 0, &sinkHandle, 0);
+
+    c->SetBang(0);
+    CHECK(sink.received == 0);
+    c->SetIntData(1, 5);
+    c->SetBang(0);
+    CHECK(sink.received == 5);
+
+    p.Disconnect(c, 0, &sinkHandle, 0);
   }
 
   // ─── gRandom ──────────────────────────────────────────────────────────────────

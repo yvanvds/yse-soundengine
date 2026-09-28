@@ -108,7 +108,7 @@ YSE::MIDI::inHub::Handle YSE::MIDI::inHub::Subscribe(unsigned int port) {
     // have been mid-push when the last owner let go.
     sub.inUse.store(true, std::memory_order_relaxed);
     inEvent discard;
-    while (sub.queue.try_pop(discard)) {}
+    while (sub.queue.TryPop(discard)) {}
     sub.dropped.store(0, std::memory_order_relaxed);
     sub.overflowReported.store(false, std::memory_order_relaxed);
     sub.live.store(true, std::memory_order_release);
@@ -149,30 +149,58 @@ bool YSE::MIDI::inHub::TryPop(Handle handle, inEvent& event) {
   if (!SplitHandle(handle, port, index)) return false;
   // No lock and no ownership check: the handle names a queue that exists for
   // the life of the hub, and only its owner ever pops from it.
-  return subscriptions[port][index].queue.try_pop(event);
+  return subscriptions[port][index].queue.TryPop(event);
 }
 
 void YSE::MIDI::inHub::Deliver(unsigned int port, const unsigned char* bytes, std::size_t len) {
   if (port >= kMaxPorts || bytes == nullptr || len == 0) return;
 
+  const std::size_t chunks = (len + inEvent::kMaxBytes - 1) / inEvent::kMaxBytes;
+
+  if (chunks > kQueueCapacity) {
+    // Could never fit, however promptly the patch drains — a limit, not a
+    // stall, so it gets its own report rather than the overflow one below.
+    // Every listener loses it, and each counts the loss.
+    bool anyone = false;
+    for (unsigned int i = 0; i < kMaxSubscriptionsPerPort; i++) {
+      subscription& sub = subscriptions[port][i];
+      if (!sub.live.load(std::memory_order_acquire)) continue;
+      sub.dropped.fetch_add(1, std::memory_order_relaxed);
+      anyone = true;
+    }
+    if (anyone) {
+      // RtMidi's thread, not the audio callback, so a log line is allowed; one
+      // per oversized message, which is one per dump a device sends.
+      INTERNAL::LogImpl().emit(E_MIDI_WARNING,
+                               "MIDI: dropped a " + std::to_string(len) +
+                                   "-byte message on input port " + std::to_string(port) +
+                                   "; the patcher's input limit is " +
+                                   std::to_string(kMaxMessageBytes) + " bytes per message");
+    }
+    return;
+  }
+
   for (unsigned int i = 0; i < kMaxSubscriptionsPerPort; i++) {
     subscription& sub = subscriptions[port][i];
     if (!sub.live.load(std::memory_order_acquire)) continue;
 
-    bool lost = false;
-    for (std::size_t offset = 0; offset < len; offset += inEvent::kMaxBytes) {
-      inEvent e;
-      const std::size_t chunk =
-          (len - offset) < inEvent::kMaxBytes ? (len - offset) : inEvent::kMaxBytes;
-      for (std::size_t b = 0; b < chunk; b++) {
-        e.bytes[b] = bytes[offset + b];
-      }
-      e.len = static_cast<unsigned char>(chunk);
-      // try_push, never push: the allocating form would malloc on the RtMidi
-      // input thread and grow a queue whose whole point is that it is bounded.
-      if (!sub.queue.try_push(e)) {
-        sub.dropped.fetch_add(1, std::memory_order_relaxed);
-        lost = true;
+    // Whole or not at all (issue #950). A dump cut where the queue ran out
+    // would reach `.sysexin` / `.xmidiin` with no 247 and look like a message
+    // the device sent; losing it entirely is what the overflow report can
+    // describe honestly.
+    const bool lost = sub.queue.Free() < chunks;
+    if (lost) {
+      sub.dropped.fetch_add(1, std::memory_order_relaxed);
+    } else {
+      for (std::size_t offset = 0; offset < len; offset += inEvent::kMaxBytes) {
+        inEvent e;
+        const std::size_t chunk =
+            (len - offset) < inEvent::kMaxBytes ? (len - offset) : inEvent::kMaxBytes;
+        for (std::size_t b = 0; b < chunk; b++) {
+          e.bytes[b] = bytes[offset + b];
+        }
+        e.len = static_cast<unsigned char>(chunk);
+        sub.queue.Push(e);
       }
     }
 

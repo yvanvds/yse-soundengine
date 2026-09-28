@@ -534,6 +534,79 @@ TEST_SUITE("patcher") {
     }
   }
 
+  // A dump of `size` bytes as a device sends it: 240, a Yamaha header, data
+  // bytes, 247. At 4104 it is exactly a DX7 32-voice bulk dump's length.
+  static std::vector<unsigned char> Dump(std::size_t size) {
+    std::vector<unsigned char> raw;
+    raw.reserve(size);
+    raw.push_back(240);
+    raw.push_back(67);
+    while (raw.size() < size - 1)
+      raw.push_back(static_cast<unsigned char>(raw.size() & 0x7F));
+    raw.push_back(247);
+    return raw;
+  }
+
+  // Enough blocks for the largest dump the transport accepts to drain at
+  // `kDrainPerBlock` events a block, with room to spare.
+  static void DrainAll(SysExRig & rig) {
+    const std::size_t blocks =
+        YSE::MIDI::inHub::kQueueCapacity / YSE::MIDI::inHub::kDrainPerBlock + 4;
+    for (std::size_t i = 0; i < blocks; i++)
+      rig.Block();
+  }
+
+  TEST_CASE("sysexin: a DX7-sized bulk dump arrives whole, 240 to 247 (#950)") {
+    // RtMidi hands over a dump in one callback, so the hub has to queue all of
+    // it at once. The queue used to hold 63 eight-byte events: a dump past
+    // ~504 bytes lost its tail and its 247 before the patch ever saw it.
+    const std::vector<unsigned char> raw = Dump(4104);
+
+    SysExRig rig;
+    YSE::MIDI::InHub().Deliver(kTestPort, raw.data(), raw.size());
+
+    // Spread over several blocks rather than 4104 sends inside one callback.
+    rig.Block();
+    CHECK_FALSE(rig.log.empty());
+    CHECK(rig.log.size() <= YSE::MIDI::inHub::kDrainPerBlock * YSE::MIDI::inEvent::kMaxBytes);
+
+    DrainAll(rig);
+    REQUIRE(rig.log.size() == raw.size());
+    for (std::size_t i = 0; i < raw.size(); i++) {
+      CAPTURE(i);
+      CHECK(rig.log[i] == "b:" + std::to_string(raw[i]));
+    }
+    CHECK_FALSE(rig.object == nullptr);
+  }
+
+  TEST_CASE("sysexin: a dump at the transport's limit arrives whole (#950)") {
+    const std::vector<unsigned char> raw = Dump(YSE::MIDI::inHub::kMaxMessageBytes);
+
+    SysExRig rig;
+    YSE::MIDI::InHub().Deliver(kTestPort, raw.data(), raw.size());
+    DrainAll(rig);
+
+    REQUIRE(rig.log.size() == raw.size());
+    CHECK(rig.log.front() == "b:240");
+    CHECK(rig.log.back() == "b:247");
+  }
+
+  TEST_CASE("sysexin: a dump past the limit is dropped whole, never truncated (#950)") {
+    // What must not happen is the old failure: a 240, a few hundred bytes and
+    // no 247, indistinguishable downstream from a short message the device
+    // really sent.
+    const std::vector<unsigned char> raw = Dump(YSE::MIDI::inHub::kMaxMessageBytes + 1);
+
+    SysExRig rig;
+    YSE::MIDI::InHub().Deliver(kTestPort, raw.data(), raw.size());
+    DrainAll(rig);
+    CHECK(rig.log.empty());
+
+    // The port is not wedged: the next dump that fits arrives as usual.
+    rig.WireAndBlock({240, 65, 247});
+    CHECK(rig.Bytes() == "240 65 247");
+  }
+
   TEST_CASE("sysexin: notes, controllers and clock never reach the outlet (#531)") {
     // The whole difference between this object and `.midiin`.
     SysExRig rig;

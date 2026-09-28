@@ -167,13 +167,15 @@ audio thread. The two never touch directly. An engine-wide hub
 2. When a message arrives, RtMidi's thread copies it into the queue of every
    object listening to that port. The copy is wait-free and allocates
    nothing. A message longer than 8 bytes (a SysEx dump) is split into
-   8-byte chunks, in order.
-3. At the start of every block the patcher renders, each input object empties
-   its queue and sends what it found out of its outlets. What that triggers is
-   rendered in the same block.
+   8-byte chunks, in order, and queued whole or not at all.
+3. At the start of every block the patcher renders, each input object takes
+   up to 64 events (512 bytes) off its queue and sends what it found out of
+   its outlets. What that triggers is rendered in the same block.
 
 So a MIDI message reaches the patch at the start of the next block after it
-arrived. Latency is at most one block, plus whatever the driver adds.
+arrived. Latency is at most one block, plus whatever the driver adds. A long
+SysEx dump is the exception: it is spread over several blocks, 512 bytes at a
+time, so a DX7 bank (4104 bytes) takes nine.
 
 The input objects have no inlets. The patcher finds them anyway: they ask to
 be polled once per block. This means that **input only arrives while the
@@ -196,25 +198,26 @@ Limits
    * - Input objects listening to one port
      - 8
    * - Events one object can hold between two blocks
-     - 63 (each up to 8 bytes)
+     - 1024 (each up to 8 bytes)
+   * - Longest message an object can receive
+     - 8192 bytes
+   * - Events one object handles per block
+     - 64 (512 bytes)
 
 These are fixed so that RtMidi's thread can walk the table without a lock.
 
 - An object whose ``port`` is 8 or higher, or the ninth object on one port,
   gets no subscription. The refusal is logged. The object is still valid, but
   it never receives anything.
-- When an object's queue is full, the new events are **dropped**. Each drop is
-  counted, and a warning is logged once per episode, not once per message. A
-  full queue normally means the audio thread has stalled or the patcher is not
-  rendering, since a controller does not send 63 messages in a few
-  milliseconds.
-
-.. warning::
-
-   A SysEx dump arrives as one message and is split into 8-byte chunks all
-   at once. A dump longer than about 500 bytes does not fit into an empty
-   queue, so its tail is dropped. Tracked in
-   `#950 <https://github.com/yvanvds/yse-soundengine/issues/950>`_.
+- RtMidi hands over a SysEx dump as one message, so the queue has to take all
+  of it at once. It is sized for 8192 bytes, twice a DX7 32-voice bank. A
+  longer message is **dropped whole** and logged.
+- When a message does not fit in the space left in an object's queue, it is
+  **dropped whole** too. A dump is never cut short, so a 240 that reaches a
+  patch is always followed by the rest of its message and its 247. Each drop
+  is counted, and a warning is logged once per episode, not once per message.
+  A full queue normally means the audio thread has stalled or the patcher is
+  not rendering.
 
 Ports that do not open
 ~~~~~~~~~~~~~~~~~~~~~~
@@ -467,11 +470,11 @@ is anything else that arrives before the port is open, usually just the
 next few milliseconds. If the very first message matters, send something
 harmless first, such as a controller the device ignores.
 
-.. note::
-
-   The send itself still happens on the thread that delivered the message,
-   which inside a patch is usually the audio thread. Tracked in
-   `#949 <https://github.com/yvanvds/yse-soundengine/issues/949>`_.
+The send is not made on the thread that delivered the message either
+(issue #949). ``.midiout`` puts the bytes on a queue, and a dedicated MIDI
+sender thread passes them to the device, usually within a millisecond.
+Messages sent from one thread keep their order. If the queue is ever full,
+the message is dropped and counted, not sent late.
 
 Extended precision
 ~~~~~~~~~~~~~~~~~~
@@ -524,8 +527,8 @@ with ``.sxformat``, and the answer arrives here without notes or clocks mixed
 in. A real-time byte in the middle of a dump is dropped (``.rtin`` gets it).
 Any other status byte ends the dump, because hardware that is interrupted
 simply stops sending. The object stores nothing, so collect the dump
-downstream and watch for the 247. See the warning under *Limits* above for
-long dumps.
+downstream and watch for the 247. A dump of up to 8192 bytes arrives whole;
+see *Limits* above for longer ones.
 
 ``.sxformat`` builds a SysEx message from a template in its arguments, one
 token per byte:

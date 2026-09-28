@@ -91,6 +91,15 @@ job frees them once the audio thread has **started two more blocks**. By then
 no block can still hold a pointer into them. The only thing the audio thread
 does for this is add one to its block counter.
 
+A removed object can also still be in use on another *control* thread. A
+``.preset`` recall, for example, finds each object under the patcher's lock
+and then sends it a value with the lock released, because that send may need
+the lock again. Such a thread marks itself as using objects before it looks
+any up, and while any thread holds that mark the job leaves removed objects
+alone (it still frees old snapshots). Setting the mark is one atomic add, so
+it never waits and never involves the audio thread. The object is freed by
+the first pass after the mark is dropped.
+
 When nothing renders (the engine is paused, or the patcher is not attached to
 anything), the block count stands still and nothing retired is freed. The
 memory is kept until rendering resumes and the next edit runs a new pass, or
@@ -249,7 +258,8 @@ What the engine's objects do instead:
 - **Hand slow work to another thread.** File objects post a request that the
   background pool carries out, and pick up the result at step 6
   (see :doc:`files`). A MIDI output object opens its port on a background
-  thread (see :doc:`midi`).
+  thread, and queues each message for a MIDI sender thread to send
+  (see :doc:`midi`).
 - **Guard, don't wait.** When two threads could reach the same state, the
   object uses a test-and-set flag. The thread that loses drops its message
   and counts it.
@@ -258,12 +268,6 @@ What the engine's objects do instead:
   :doc:`host_io`).
 
 :doc:`extending` shows how a new object meets these rules.
-
-.. note::
-
-   One known exception remains: ``.midiout`` sends to the MIDI device on the
-   thread that delivered the message, which is usually the audio thread.
-   Tracked in `#949 <https://github.com/yvanvds/yse-soundengine/issues/949>`_.
 
 Refusals
 --------
@@ -289,7 +293,8 @@ which thread refuses.
      - a counter the object keeps, no log line
      - a list over 256 atoms at an inlet (``.zl``), a full deferred-message
        table, a full file-request table, a note ``.makenote`` cannot track,
-       a message that loses a test-and-set guard
+       a message that loses a test-and-set guard, a ``.midiout`` message
+       that finds the MIDI sender's queue full
    * - ``.print``
      - a count, logged at the next update
      - lines that do not fit the shared print queue

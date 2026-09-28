@@ -20,10 +20,12 @@
 
 #include <doctest/doctest.h>
 
+#include <chrono>
 #include <cmath>
 #include <fstream>
 #include <iterator>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include "dsp/buffer.hpp"
@@ -58,14 +60,12 @@ namespace {
     patch.Connect(run, 0, metro, 0);
     patch.Connect(rate, 0, metro, 1);
 
-    // The step number. .counter adds its step before it sends, so it counts
-    // 1, 2, 3 ...; one less, folded into 0-7, is the step.
-    YSE::pHandle* counter = patch.CreateObject(".counter");
-    YSE::pHandle* minus = patch.CreateObject(".-", "1");
+    // The step number. .counter adds its step before it sends, so starting it
+    // at -1 makes it count 0, 1, 2 ...; folded into 0-7, that is the step.
+    YSE::pHandle* counter = patch.CreateObject(".counter", "-1");
     YSE::pHandle* wrap = patch.CreateObject(".%", "8");
     patch.Connect(metro, 0, counter, 0);
-    patch.Connect(counter, 0, minus, 0);
-    patch.Connect(minus, 0, wrap, 0);
+    patch.Connect(counter, 0, wrap, 0);
 
     // The pattern: a step number goes in, the note stored for it comes out.
     YSE::pHandle* pattern = patch.CreateObject(".coll", "pattern");
@@ -251,17 +251,12 @@ namespace {
     return static_cast<float>(std::sqrt(sum / static_cast<double>(samples.size())));
   }
 
-  // The frequency of a waveform that crosses its mean twice per period, which
-  // a sine and a sawtooth both do. Measured against the mean rather than 0
-  // because ~saw runs from 0 to 1, not from -1 to 1.
+  // The frequency of a waveform that crosses zero twice per period, which a
+  // sine and a sawtooth both do.
   float Frequency(const std::vector<float>& samples) {
-    double mean = 0.0;
-    for (float s : samples)
-      mean += s;
-    const auto centre = static_cast<float>(mean / static_cast<double>(samples.size()));
     int crossings = 0;
     for (size_t i = 1; i < samples.size(); i++) {
-      if ((samples[i - 1] < centre) != (samples[i] < centre)) crossings++;
+      if ((samples[i - 1] < 0.f) != (samples[i] < 0.f)) crossings++;
     }
     const float seconds = static_cast<float>(samples.size()) / static_cast<float>(YSE::SAMPLERATE);
     return static_cast<float>(crossings) / 2.f / seconds;
@@ -543,14 +538,25 @@ TEST_SUITE("patcher") {
     CHECK(GuiFloat(copy.GetHandleFromID(synth.level->GetID())) == doctest::Approx(0.3f));
     CHECK(copy.GetHandleFromID(synth.presets->GetID())->GetGuiValue() == "0");
 
-    // The one route that does not work: a host message through PassData is
-    // delivered on the audio thread, where .preset drops it (gui.rst).
+    // A host message through PassData is delivered on the audio thread, where
+    // .preset hands it to the timer thread: the recall lands a tick after the
+    // block that carried it (issue #952, gui.rst).
+    synth.presets->SetIntData(0, 0);
+    // tutorial:presets-passdata:begin
     YSE::pHandle* recall = patch.CreateObject(".r", "recall");
     patch.Connect(recall, 0, synth.presets, 0);
-    synth.presets->SetIntData(0, 0);
-    CHECK(patch.PassData(1, "recall"));
+    patch.PassData(1, "recall"); // recalls slot 1 shortly after the next block
+    // tutorial:presets-passdata:end
     render.Render(1);
-    CHECK(synth.presets->GetGuiValue() == "0"); // the PassData recall was dropped
+    // Polled with a five-second bound for a broken build; it lands in about
+    // a millisecond.
+    bool landed = false;
+    for (int i = 0; i < 5000 && !landed; i++) {
+      landed =
+          synth.presets->GetGuiValue() == "1" && std::fabs(GuiFloat(synth.note) - 55.f) < 0.01f;
+      if (!landed) std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+    CHECK(landed);
   }
 
 } // TEST_SUITE

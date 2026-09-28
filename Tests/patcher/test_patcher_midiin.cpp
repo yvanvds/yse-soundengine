@@ -43,9 +43,12 @@
 // that a real device cannot inject stray traffic into the assertions.
 
 #include <doctest/doctest.h>
+#include <atomic>
 #include <cstddef>
+#include <cstdint>
 #include <memory>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include "headers/defines.hpp"
@@ -365,6 +368,133 @@ TEST_SUITE("patcher") {
     // Exactly the queue's worth survived — nothing beyond it, and nothing lost
     // from within it.
     CHECK(sub.Drain() == static_cast<int>(inHub::kQueueCapacity));
+  }
+
+  TEST_CASE("midi inHub: a message at the size limit fits an empty queue whole (#950)") {
+    // RtMidi delivers a dump in one callback, so every chunk of it is pushed at
+    // once. The queue is sized so that kMaxMessageBytes fits.
+    Sub sub(kTestPort);
+    REQUIRE(sub.handle != inHub::kNoHandle);
+
+    std::vector<unsigned char> dump(inHub::kMaxMessageBytes, 0x11);
+    dump.front() = 0xF0;
+    dump.back() = 0xF7;
+    InHub().Deliver(kTestPort, dump.data(), dump.size());
+
+    std::vector<inEvent> got;
+    got.reserve(inHub::kQueueCapacity);
+    CHECK(sub.Drain(&got) == static_cast<int>(inHub::kQueueCapacity));
+    CHECK(InHub().Dropped(sub.handle) == 0);
+
+    std::vector<unsigned char> rebuilt;
+    for (const inEvent& e : got) {
+      for (std::size_t i = 0; i < e.len; i++)
+        rebuilt.push_back(e.bytes[i]);
+    }
+    CHECK(rebuilt == dump);
+  }
+
+  TEST_CASE("midi inHub: a message past the size limit is dropped whole and counted once"
+            " (#950)") {
+    Sub sub(kTestPort);
+    REQUIRE(sub.handle != inHub::kNoHandle);
+
+    std::vector<unsigned char> dump(inHub::kMaxMessageBytes + 1, 0x11);
+    dump.front() = 0xF0;
+    dump.back() = 0xF7;
+    InHub().Deliver(kTestPort, dump.data(), dump.size());
+
+    // Nothing of it — not its first chunks with the 247 missing.
+    CHECK(sub.Drain() == 0);
+    CHECK(InHub().Dropped(sub.handle) == 1);
+  }
+
+  TEST_CASE("midi inHub: a message that does not fit the space left is dropped whole, not cut"
+            " (#950)") {
+    // The queue is almost full — the patch stalled with notes waiting — and a
+    // dump arrives. Queuing its head would hand `.sysexin` a 240 with no 247.
+    Sub sub(kTestPort);
+    REQUIRE(sub.handle != inHub::kNoHandle);
+
+    const std::size_t room = 4;
+    for (std::size_t i = 0; i < inHub::kQueueCapacity - room; i++) {
+      Deliver(kTestPort, {0x90, 60, 100});
+    }
+    std::vector<unsigned char> dump(100, 0x11); // 13 chunks, more than `room`
+    dump.front() = 0xF0;
+    dump.back() = 0xF7;
+    InHub().Deliver(kTestPort, dump.data(), dump.size());
+    CHECK(InHub().Dropped(sub.handle) == 1);
+
+    // Only the notes are waiting; no chunk of the dump got in.
+    std::vector<inEvent> got;
+    got.reserve(inHub::kQueueCapacity);
+    REQUIRE(sub.Drain(&got) == static_cast<int>(inHub::kQueueCapacity - room));
+    for (const inEvent& e : got) {
+      CHECK(e.bytes[0] == 0x90);
+    }
+
+    // And with the queue drained the next dump of that size gets through.
+    InHub().Deliver(kTestPort, dump.data(), dump.size());
+    CHECK(sub.Drain() == 13);
+    CHECK(InHub().Dropped(sub.handle) == 1);
+  }
+
+  TEST_CASE("midi inHub: dumps pushed from another thread arrive whole or not at all (#950)") {
+    // The real threading: RtMidi's thread pushes whole dumps while the audio
+    // thread drains. Every message that comes out must be complete and
+    // uncorrupted, and every one that does not must have been counted. Run
+    // under TSan this is also the check on the ring's memory ordering.
+    Sub sub(kTestPort);
+    REQUIRE(sub.handle != inHub::kNoHandle);
+
+    constexpr int kMessages = 200;
+    constexpr std::size_t kLength = 600; // 75 chunks: a handful fill the queue
+    std::atomic<bool> done{false};
+
+    std::thread producer([&] {
+      std::vector<unsigned char> dump(kLength);
+      for (int m = 0; m < kMessages; m++) {
+        const auto tag = static_cast<unsigned char>(m & 0x7F);
+        dump.assign(kLength, tag);
+        dump.front() = 0xF0;
+        dump.back() = 0xF7;
+        InHub().Deliver(kTestPort, dump.data(), dump.size());
+      }
+      done.store(true, std::memory_order_release);
+    });
+
+    int complete = 0;
+    bool intact = true;
+    std::vector<unsigned char> current;
+    current.reserve(kLength);
+    inEvent e;
+    for (;;) {
+      const bool finished = done.load(std::memory_order_acquire);
+      bool any = false;
+      while (InHub().TryPop(sub.handle, e)) {
+        any = true;
+        for (std::size_t i = 0; i < e.len; i++)
+          current.push_back(e.bytes[i]);
+        if (current.back() != 0xF7) continue;
+        // One message ended: whole, framed, and one tag throughout.
+        bool ok = current.size() == kLength && current.front() == 0xF0;
+        for (std::size_t i = 1; ok && i + 1 < current.size(); i++)
+          ok = current[i] == current[1];
+        if (!ok) intact = false;
+        complete++;
+        current.clear();
+      }
+      if (finished && !any) break;
+      if (!any) std::this_thread::yield();
+    }
+    producer.join();
+
+    CHECK(intact);
+    CHECK(current.empty()); // no message was left half-delivered
+    CHECK(complete > 0);
+    CHECK(static_cast<std::uint64_t>(complete) + InHub().Dropped(sub.handle) ==
+          static_cast<std::uint64_t>(kMessages));
   }
 
   TEST_CASE("midi inHub: a fresh subscription does not inherit the last owner's queue (#529)") {

@@ -61,11 +61,13 @@ namespace YSE {
      *  between two blocks therefore reaches the patch in the block after it,
      *  and whatever it triggers is rendered by that same block.
      *
-     *  What the drain costs is bounded on purpose: at most one queue's worth of
-     *  events per block, so a flood on the wire cannot make the audio callback
-     *  run long. A queue that overflows drops the excess and says so through
-     *  the log once per episode rather than silently, since silent loss on a
-     *  MIDI input is indistinguishable from a broken cable.
+     *  What the drain costs is bounded on purpose: at most
+     *  `inHub::kDrainPerBlock` events per block, so a flood on the wire — or a
+     *  SysEx dump, which the queue is sized to hold whole (issue #950) —
+     *  cannot make the audio callback run long. A queue that overflows drops
+     *  the message that did not fit, whole, and says so through the log once
+     *  per episode rather than silently, since silent loss on a MIDI input is
+     *  indistinguishable from a broken cable.
      *
      *  ### The port
      *

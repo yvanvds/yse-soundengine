@@ -135,12 +135,13 @@ void mMidiInBase::Calculate(YSE::THREAD thread) {
   const YSE::MIDI::inHub::Handle held = subscription.load(std::memory_order_acquire);
   if (held == YSE::MIDI::inHub::kNoHandle) return;
 
-  // Bounded on purpose: at most one queue's worth per block, so a flood on the
-  // wire — a controller sweeping every CC, a dump — cannot make the audio
-  // callback run long. Anything past the bound stays queued for the next block
-  // rather than being dropped; the hub's own overflow report covers the case
-  // where the producer is genuinely outrunning this drain.
-  std::size_t budget = YSE::MIDI::inHub::kQueueCapacity + 1;
+  // Bounded on purpose, and not by the queue's size: the queue is sized to hold
+  // a whole SysEx dump (issue #950), and draining one in a single block would
+  // be thousands of sends inside one callback. Anything past the bound stays
+  // queued for the next block rather than being dropped; the hub's own
+  // overflow report covers the case where the producer is genuinely outrunning
+  // this drain.
+  std::size_t budget = YSE::MIDI::inHub::kDrainPerBlock;
   YSE::MIDI::inEvent event;
   while (budget > 0 && YSE::MIDI::InHub().TryPop(held, event)) {
     budget--;
@@ -179,14 +180,18 @@ mMidiIn::mMidiIn() : mMidiInBase() {
   ADD_DESCRIPTION(
       "Raw MIDI input — Max's 'midiin' (issue #529). Every byte received on the port leaves the "
       "outlet as an int, in the order it arrived and with nothing interpreted: a note-on is three "
-      "ints, a SysEx dump is however many the device sent. This is the one member of the input "
+      "ints, a SysEx dump is however many the device sent, up to the input transport's limit of "
+      "8192 bytes per message (twice a DX7 32-voice bank) — a longer message, or one arriving "
+      "while the patch is not draining, is dropped whole and logged, never passed on truncated. "
+      "This is the one member of the input "
       "family that does not decode, and it is the one to reach for when a patch needs the whole "
       "protocol rather than the common cases — SysEx, song position, manufacturer-specific "
       "traffic, "
       "or anything a '.notein' / '.ctlin' pair would filter out. It is also the object that feeds "
       "a "
       "'.seq' recording, whose stored format is the raw byte stream. Bytes are drained from a "
-      "bounded lock-free queue once per audio block: MIDI arrives on the device backend's own "
+      "bounded lock-free queue once per audio block, at most 512 bytes per block, so a long dump "
+      "is spread over a few blocks: MIDI arrives on the device backend's own "
       "thread and this object hands it to the patch on the audio thread without allocating, "
       "locking "
       "or blocking on either side. Status bytes are reported as they are on the wire, 0-255, so a "

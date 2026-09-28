@@ -29,12 +29,18 @@
 #include <cstdlib>
 #include <cstring>
 #include <mutex>
+#include <stdexcept>
 #include <string>
 #include <thread>
 #include <utility>
 #include <vector>
 
 #include "support/capilowcov_offline.hpp"
+
+// Engine-side only for #953's test: a C++ oscHandler that throws, installed on
+// the engine patcher behind a C handle. No C host can write one.
+#include "c_api/yse_c_internal.hpp"
+#include "patcher/patcher.hpp"
 
 #include "yse_c/yse_common.h"
 #include "yse_c/yse_enums.h"
@@ -960,6 +966,64 @@ TEST_SUITE("capilowcov") {
     yse_phandle_set_params(h, "9");
     CHECK(std::strlen(yse_last_error()) == 0u);
     CHECK(readString([h](char* b, size_t c) { return yse_phandle_get_params(h, b, c); }) == "9");
+
+    yse_patcher_destroy(p);
+  }
+
+  TEST_CASE("c-api phandle: a throw in a set_bang / int / float cascade is reported, not "
+            "thrown across the ABI (#953)") {
+    if (!capilowcov::ensureOffline()) return; // engine unavailable → skip
+
+    // The setters run the handler cascade on this thread: a .s whose name no
+    // .r answers hands the value to the patcher's oscHandler. A C++ handler
+    // may throw — it is ordinary C++ API — and before #953 only the list
+    // setter stopped that at the ABI; the other three let it escape the
+    // extern "C" function and terminate the host.
+    struct ThrowingHandler final : YSE::oscHandler {
+      void Send(const std::string&) override {
+        throw std::runtime_error("handler refused bang");
+      }
+      void Send(const std::string&, int) override {
+        throw std::runtime_error("handler refused int");
+      }
+      void Send(const std::string&, float) override {
+        throw std::runtime_error("handler refused float");
+      }
+      void Send(const std::string&, const std::string&) override {
+        throw std::runtime_error("handler refused list");
+      }
+    };
+    ThrowingHandler handler; // outlives p: destroy detaches it first
+
+    YsePatcher* p = yse_patcher_create();
+    REQUIRE(p != nullptr);
+    REQUIRE(yse_patcher_init(p, 2) == YSE_OK);
+    YsePHandle* send = yse_patcher_create_object(p, ".s", "nowhere");
+    REQUIRE(send != nullptr);
+    yse_c::patcher_from_handle(p)->SetOscHandler(&handler);
+
+    yse_clear_last_error();
+    yse_phandle_set_bang(send, 0);
+    CHECK(std::string(yse_last_error()) == "handler refused bang");
+
+    yse_clear_last_error();
+    yse_phandle_set_int(send, 0, 3);
+    CHECK(std::string(yse_last_error()) == "handler refused int");
+
+    yse_clear_last_error();
+    yse_phandle_set_float(send, 0, 1.5f);
+    CHECK(std::string(yse_last_error()) == "handler refused float");
+
+    yse_clear_last_error();
+    yse_phandle_set_list(send, 0, "a b");
+    CHECK(std::string(yse_last_error()) == "handler refused list");
+
+    // The patcher is still usable: once a .r answers the name, the value stays
+    // inside and never reaches the throwing handler.
+    REQUIRE(yse_patcher_create_object(p, kReceive, "nowhere") != nullptr);
+    yse_clear_last_error();
+    yse_phandle_set_float(send, 0, 2.5f);
+    CHECK(std::strlen(yse_last_error()) == 0u);
 
     yse_patcher_destroy(p);
   }

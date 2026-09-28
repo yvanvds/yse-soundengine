@@ -22,12 +22,21 @@
 // it lands have no device to go to and are dropped, which is exactly what
 // already happened to every message when the open failed. See midiPortOpener.h
 // for why the job cannot live in this object.
+//
+// ### The send is off the dispatching thread too (issue #949)
+//
+// #759 left the send itself in the handler: `RtMidiOut::sendMessage` is a
+// driver call on every backend and can block (and, for SysEx, allocate). The
+// handler now pushes the bytes onto `MIDI::outSender`'s immediate lane — one
+// lock-free push of a fixed-size slot — and the sender thread performs the
+// RtMidi call. A full lane drops the message and counts it in `Dropped`.
 #if YSE_ENABLE_MIDI_DEVICE
 #include "../pObject.h"
 #include "../../midi/device.hpp"
 #include "midiPortOpener.h"
 
 #include <atomic>
+#include <cstddef>
 #include <cstdint>
 
 namespace YSE {
@@ -70,7 +79,25 @@ namespace YSE {
       return deferred.load(std::memory_order_relaxed);
     }
 
+    /** @brief Messages dropped because the MIDI sender's queue was full
+     *         (issue #949). Monotonic, readable from any thread; counted
+     *         rather than logged for the same reason as ``Deferred``. */
+    std::uint64_t Dropped() const {
+      return dropped.load(std::memory_order_relaxed);
+    }
+
+    /** @brief Test seam: behave as if the deferred open had landed on
+     *         @p device. Nothing dereferences it while a raw send hook is
+     *         installed on ``MIDI::OutSender()``. */
+    void UsePortForTest(RtMidiOut* device);
+
   private:
+    // Hand @p length bytes to MIDI::outSender's immediate lane (issue #949).
+    // Lock-free and allocation-free on any thread; the RtMidi call happens on
+    // the sender thread.
+    void Send(const unsigned char* data, std::size_t length);
+    void SendControl(unsigned char channel, unsigned char controller, unsigned char value);
+
     // True once this object owns an opened (or definitively failed) port.
     // Otherwise ask the opener for one and say no — the caller has nothing to
     // send on. Wait-free either way, whichever thread this turns out to be.
@@ -95,7 +122,13 @@ namespace YSE {
     // acquire load is what publishes the port the pool opened.
     std::atomic<bool> ready{false};
 
+    // The port the open produced, cached when the latch is set so a send needs
+    // no access to `out` at all. Device-manager-owned, open until process exit
+    // — which is what makes it safe to queue for the sender thread.
+    std::atomic<RtMidiOut*> sendPort{nullptr};
+
     std::atomic<std::uint64_t> deferred{0};
+    std::atomic<std::uint64_t> dropped{0};
   };
 }
 }

@@ -18,13 +18,14 @@
 //     announcement on outlet 0 fires only after the patch is in the preset.
 //     Entries are guarded against storage-ID reuse across a delete.
 //
-//   - **it is control-thread work, and it persists.** A message that
-//     physically arrives on the audio callback (a deferred `.delay` drain) is
-//     dropped whole before any work — the refusal costs no allocation — and
-//     the slots ride DumpJSON / ParseJSON through DumpState / RestoreState,
-//     spelled as live-object ranks so a patch whose IDs went sparse through
-//     deletes still recalls correctly after a save and a load, which a raw ID
-//     would not survive.
+//   - **it is control-side work, and it persists.** A message that
+//     physically arrives on the audio callback (a deferred `.delay` drain, a
+//     `.pgmin` program change, a host PassData into a `.r`) is parsed in
+//     place and handed to the timer thread, which runs it a tick later
+//     (issue #952) — the hand-off costs no allocation — and the slots ride DumpJSON / ParseJSON
+//     through DumpState / RestoreState, spelled as live-object ranks so a patch whose IDs went
+//     sparse through deletes still recalls correctly after a save and a load, which a raw ID would
+//     not survive.
 //
 // End-to-end cases build a real patcher through the public API — real
 // CreateObject, real Connect, driven through pHandle the way a host drives a
@@ -34,10 +35,16 @@
 // No audio device required.
 
 #include <doctest/doctest.h>
+#include <chrono>
 #include <memory>
 #include <string>
+#include <thread>
 #include <vector>
 
+#include "headers/defines.hpp"
+#if YSE_ENABLE_MIDI_DEVICE
+#include "midi/midiInHub.h"
+#endif
 #include "patcher/guiObjects/gPreset.h"
 #include "patcher/inlet.h"
 #include "patcher/pEnums.h"
@@ -48,12 +55,30 @@
 #include "patcher/patcherImplementation.h"
 #include "patcher/sinks.hpp"
 #include "support/alloc_probe.hpp"
+#include "support/timer_pacing.hpp"
 #include "utils/json.hpp"
 
 using TestHelpers::OrderSink;
 using YSE::PATCHER::gPreset;
 using YSE::PATCHER::patcherImplementation;
 using YSE::PATCHER::Register;
+
+namespace {
+
+  // Poll `done` until it holds or five seconds pass. A message that arrives
+  // on the audio callback is handed to the timer thread (issue #952) and
+  // lands about a millisecond plus a pool hop later; the deadline is only a
+  // bound for a broken build, never the expected wait.
+  template <typename F> bool WaitFor(F done) {
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+    while (!done()) {
+      if (std::chrono::steady_clock::now() > deadline) return false;
+      std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+    return true;
+  }
+
+} // namespace
 
 TEST_SUITE("patcher") {
 
@@ -272,7 +297,7 @@ TEST_SUITE("patcher") {
     p.create(2);
 
     YSE::pHandle* preset = p.CreateObject(YSE::OBJ::G_PRESET);
-    YSE::pHandle* slider = p.CreateObject(YSE::OBJ::G_SLIDER);
+    YSE::pHandle* slider = p.CreateObject(YSE::OBJ::G_SLIDER, "");
     YSE::pHandle* intBox = p.CreateObject(YSE::OBJ::G_INT);
     YSE::pHandle* floatBox = p.CreateObject(YSE::OBJ::G_FLOAT);
     YSE::pHandle* dial = p.CreateObject(YSE::OBJ::G_DIAL, "20 20000 4");
@@ -500,7 +525,7 @@ TEST_SUITE("patcher") {
 
     YSE::pHandle* preset = p.CreateObject(YSE::OBJ::G_PRESET, "8");
     YSE::pHandle* pad = p.CreateObject(YSE::OBJ::G_XYSLIDER, "0 127 0 127");
-    YSE::pHandle* recalled = p.CreateObject(YSE::OBJ::G_INT);
+    YSE::pHandle* recalled = p.CreateObject(YSE::OBJ::G_INT, "");
     YSE::pHandle* stored = p.CreateObject(YSE::OBJ::G_INT);
     REQUIRE(preset != nullptr);
     REQUIRE(pad != nullptr);
@@ -739,13 +764,12 @@ TEST_SUITE("patcher") {
 
   // ─── the thread contract ────────────────────────────────────────────────────
 
-  TEST_CASE("preset: a message on the audio callback is dropped whole (#564)") {
+  TEST_CASE("preset: a message on the audio callback is handed off and lands (#952)") {
     // `.delay`'s deferred bang drains at the top of Calculate — T_GUI tag,
-    // physically the audio callback (issue #690). The preset must refuse it:
-    // store walks the patch under its mutex and recall runs whole subgraphs,
-    // none of which may run there. The same bang from the control thread
-    // works, which is the pair that proves the guard asks the thread, not
-    // the message.
+    // physically the audio callback (issue #690). Store walks the patch under
+    // its mutex and recall runs whole subgraphs, none of which may run there
+    // — so the preset hands the bang to the timer thread, which recalls it a
+    // tick later. Until #952 this bang was dropped whole, silently.
     patcherImplementation p(1, nullptr);
     YSE::pHandle* preset = p.CreateObject(YSE::OBJ::G_PRESET, "");
     YSE::pHandle* pad = p.CreateObject(YSE::OBJ::G_XYSLIDER, "0 127 0 127");
@@ -759,25 +783,225 @@ TEST_SUITE("patcher") {
     const std::string stored = pad->GetGuiValue();
     preset->SetListData(0, "store 0");
     pad->SetListData(0, "9 9");
-    const std::string moved = pad->GetGuiValue();
+    REQUIRE(pad->GetGuiValue() != stored);
 
     // The deferred route: armed on the control thread, delivered inside
-    // Calculate. The bang reaches the preset and is dropped whole.
+    // Calculate. The bang reaches the preset on the callback.
     delay->SetBang(0);
     p.Calculate(YSE::T_DSP);
     p.Calculate(YSE::T_DSP);
-    CHECK(pad->GetGuiValue() == moved);
-
-    // The control-thread route: the same bang restores the slot.
-    preset->SetBang(0);
-    CHECK(pad->GetGuiValue() == stored);
+    CHECK(WaitFor([&] { return pad->GetGuiValue() == stored; }));
   }
 
-  TEST_CASE("preset: a standalone object trusts the tag and drops T_DSP (#564)") {
+  TEST_CASE("preset: a MIDI program change recalls a preset (#952)") {
+#if YSE_ENABLE_MIDI_DEVICE
+    // Max's classic "program change recalls a preset": `.pgmin` drains the
+    // MIDI input hub inside the render pass, so its program number reaches
+    // the preset on the audio callback. Driven end to end — the hub's own
+    // Deliver (the RtMidi callback's entry point), a real Calculate block, a
+    // real cord.
+    patcherImplementation p(1, nullptr);
+    YSE::pHandle* preset = p.CreateObject(YSE::OBJ::G_PRESET, "8");
+    YSE::pHandle* pgmin = p.CreateObject(YSE::OBJ::M_PGMIN, "7");
+    YSE::pHandle* slider = p.CreateObject(YSE::OBJ::G_SLIDER, "");
+    YSE::pHandle* recalled = p.CreateObject(YSE::OBJ::G_INT, "");
+    REQUIRE(preset != nullptr);
+    REQUIRE(pgmin != nullptr);
+    REQUIRE(slider != nullptr);
+    REQUIRE(recalled != nullptr);
+    p.Connect(pgmin, 0, preset, 0);
+    p.Connect(preset, 0, recalled, 0);
+
+    slider->SetFloatData(0, 0.25f);
+    const std::string stored = slider->GetGuiValue();
+    preset->SetListData(0, "store 3");
+    slider->SetFloatData(0, 0.75f);
+    REQUIRE(slider->GetGuiValue() != stored);
+
+    // Wire program 2 on port 7: `.pgmin` reports it as 3, the numbering the
+    // hardware displays.
+    const unsigned char programChange[] = {0xC0, 2};
+    YSE::MIDI::InHub().Deliver(7, programChange, sizeof(programChange));
+    p.Calculate(YSE::T_DSP);
+
+    CHECK(WaitFor([&] { return slider->GetGuiValue() == stored; }));
+    // And the announcement came after the values, off the callback.
+    CHECK(WaitFor([&] { return recalled->GetGuiValue() == "3"; }));
+#else
+    MESSAGE("MIDI device layer disabled; .pgmin does not exist in this build");
+#endif
+  }
+
+  TEST_CASE("preset: host PassData into a .r feeding the preset recalls it (#952)") {
+    // The other audio-callback route the issue names: PassData enqueues on the
+    // #225 value queue, which drains at the top of Calculate, so the `.r` fans
+    // its value into the preset on the callback.
+    patcherImplementation p(1, nullptr);
+    YSE::pHandle* preset = p.CreateObject(YSE::OBJ::G_PRESET, "8");
+    YSE::pHandle* receive = p.CreateObject(YSE::OBJ::G_RECEIVE, "presets");
+    YSE::pHandle* pad = p.CreateObject(YSE::OBJ::G_XYSLIDER, "0 127 0 127");
+    REQUIRE(preset != nullptr);
+    REQUIRE(receive != nullptr);
+    REQUIRE(pad != nullptr);
+    p.Connect(receive, 0, preset, 0);
+
+    pad->SetListData(0, "12 34");
+    const std::string first = pad->GetGuiValue();
+    preset->SetListData(0, "store 3");
+    pad->SetListData(0, "56 78");
+    const std::string second = pad->GetGuiValue();
+    preset->SetListData(0, "store 4");
+
+    // An int recalls.
+    REQUIRE(p.PassData(3, "presets", YSE::T_GUI));
+    p.Calculate(YSE::T_DSP);
+    CHECK(WaitFor([&] { return pad->GetGuiValue() == first; }));
+
+    // And the command spelling survives the hand-off, parsed on the callback.
+    REQUIRE(p.PassData(std::string("recall 4"), "presets", YSE::T_GUI));
+    p.Calculate(YSE::T_DSP);
+    CHECK(WaitFor([&] { return pad->GetGuiValue() == second; }));
+  }
+
+  TEST_CASE("preset: handed-off operations run in arrival order (#952)") {
+    // A store and a bang in one block: the bang reads the active slot when it
+    // runs, so it recalls the slot the store just made active rather than
+    // whatever was active when the block started. Driven through `.r` so both
+    // messages physically arrive on the callback in one drain.
+    patcherImplementation p(1, nullptr);
+    YSE::pHandle* preset = p.CreateObject(YSE::OBJ::G_PRESET, "8");
+    YSE::pHandle* receive = p.CreateObject(YSE::OBJ::G_RECEIVE, "presets");
+    YSE::pHandle* pad = p.CreateObject(YSE::OBJ::G_XYSLIDER, "0 127 0 127");
+    REQUIRE(preset != nullptr);
+    REQUIRE(receive != nullptr);
+    REQUIRE(pad != nullptr);
+    p.Connect(receive, 0, preset, 0);
+
+    pad->SetListData(0, "1 1");
+    preset->SetListData(0, "store 0"); // slot 0 active
+    pad->SetListData(0, "20 30");
+    const std::string captured = pad->GetGuiValue();
+
+    YSE::pHandle* recalled = p.CreateObject(YSE::OBJ::G_INT, "");
+    REQUIRE(recalled != nullptr);
+    p.Connect(preset, 0, recalled, 0);
+
+    REQUIRE(p.PassData(std::string("store 5"), "presets", YSE::T_GUI));
+    REQUIRE(p.PassBang("presets", YSE::T_GUI));
+    p.Calculate(YSE::T_DSP);
+
+    // Read at arrival, the bang would have recalled slot 0 and moved the pad
+    // back to "1 1". Read when it runs, it recalls slot 5 — the capture.
+    CHECK(WaitFor([&] { return recalled->GetGuiValue() == "5"; }));
+    CHECK(preset->GetGuiValue() == "5");
+    CHECK(pad->GetGuiValue() == captured);
+  }
+
+  TEST_CASE("preset: deleting a preset with a hand-off pending is safe (#952)") {
+    // Teardown stops the timer with the blocking handshake and a queued
+    // operation is discarded, not run into a patch being taken apart. The
+    // observable here is that nothing detonates (the sanitizer build is the
+    // real judge) and the patch is still usable afterwards.
+    patcherImplementation p(1, nullptr);
+    YSE::pHandle* preset = p.CreateObject(YSE::OBJ::G_PRESET, "8");
+    YSE::pHandle* receive = p.CreateObject(YSE::OBJ::G_RECEIVE, "presets");
+    YSE::pHandle* pad = p.CreateObject(YSE::OBJ::G_XYSLIDER, "0 127 0 127");
+    REQUIRE(preset != nullptr);
+    REQUIRE(receive != nullptr);
+    REQUIRE(pad != nullptr);
+    p.Connect(receive, 0, preset, 0);
+
+    pad->SetListData(0, "1 2");
+    preset->SetListData(0, "store 0");
+    for (int i = 0; i < 8; i++) {
+      REQUIRE(p.PassData(0, "presets", YSE::T_GUI));
+      p.Calculate(YSE::T_DSP);
+    }
+    p.DeleteObject(preset);
+    // Whatever was still queued at the delete never runs: the pad keeps what
+    // it is given afterwards, however long the timer is left to fire.
+    pad->SetListData(0, "3 4");
+    const std::string after = pad->GetGuiValue();
+    p.Calculate(YSE::T_DSP);
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    CHECK(pad->GetGuiValue() == after);
+  }
+
+  TEST_CASE("preset: a target deleted mid-recall stays allocated until the recall is done (#961)") {
+    // The issue's interleaving, held open deterministically. The recall runs
+    // on its own thread and parks inside the push into `pad` — the pad's
+    // outlet feeds a GateSink, so the recall is stopped *between* the lookup
+    // and the end of the use. The test thread then deletes the pad and runs
+    // the audio epoch far past the reclaimer's +2 grace. Before #961 the pad
+    // was freed right there, with the recall still inside its handler: the
+    // recall resumed into freed memory (a crash natively, a
+    // heap-use-after-free under ASan). Now the recall holds an objectPin from
+    // before its first lookup, so the pad is parked until the recall returns.
+    //
+    // A freed object hands its graph ids back to the free-list (issue #364),
+    // so FreeIdCount() is the observable: 0 while the pad is still parked,
+    // non-zero once it has really been freed. `keep` / `other` stay live, so
+    // the id space is never compacted away under the check, and they give the
+    // pump an edit to make.
+    TestHelpers::GateSink gate; // before the patcher: outlives it
+    YSE::pHandle gateHandle(&gate);
+    patcherImplementation p(1, nullptr);
+    YSE::pHandle* preset = p.CreateObject(YSE::OBJ::G_PRESET, "4");
+    YSE::pHandle* pad = p.CreateObject(YSE::OBJ::G_SLIDER, "");
+    REQUIRE(preset != nullptr);
+    REQUIRE(pad != nullptr);
+    pad->SetFloatData(0, 0.5f);
+    preset->SetListData(0, "store 0"); // the slot holds the pad alone
+    REQUIRE(preset->GetGuiValue() == "0");
+    p.Connect(pad, 0, &gateHandle, 0);
+
+    YSE::pHandle* keep = p.CreateObject(YSE::OBJ::G_SLIDER, "");
+    YSE::pHandle* other = p.CreateObject(YSE::OBJ::G_SLIDER, "");
+    REQUIRE(keep != nullptr);
+    REQUIRE(other != nullptr);
+    REQUIRE(p.FreeIdCount() == 0);
+
+    // One edit plus three blocks per round: the edit re-arms the reclaimer
+    // and retires a graph, the blocks carry the epoch past the +2 grace.
+    bool wired = false;
+    const auto churn = [&] {
+      if (wired) {
+        p.Disconnect(keep, 0, other, 0);
+      } else {
+        p.Connect(keep, 0, other, 0);
+      }
+      wired = !wired;
+      p.Calculate(YSE::T_DSP);
+      p.Calculate(YSE::T_DSP);
+      p.Calculate(YSE::T_DSP);
+    };
+
+    std::thread recaller([&] { preset->SetIntData(0, 0); });
+    REQUIRE(gate.WaitEntered());
+
+    p.DeleteObject(pad);
+    // Everything retired except the pad drains — graphs are not held back by
+    // a pin — so what is left is exactly the one object, still allocated.
+    CHECK(TestHelpers::pacedPump(2000, [&] { return p.PendingRetired() <= 1; }, churn));
+    CHECK(p.PendingRetired() == 1);
+    CHECK(p.FreeIdCount() == 0);
+
+    // The recall finishes inside the pad's handler and announces the slot.
+    gate.Release();
+    recaller.join();
+    CHECK(preset->GetGuiValue() == "0");
+
+    // The pin is gone: the next passes free the pad and its ids come back.
+    CHECK(TestHelpers::pacedPump(
+        2000, [&] { return p.FreeIdCount() > 0 && p.PendingRetired() <= 1; }, churn));
+    CHECK(p.FreeIdCount() > 0);
+  }
+
+  TEST_CASE("preset: a standalone object trusts the tag and hands T_DSP off (#564, #952)") {
     // A standalone object has no patcher to ask, so the tag is the only
     // answer — and the conservative one, since this object's work must never
-    // run on the callback. T_GUI deliveries are harmless no-ops standalone
-    // (there is no patch to capture), so the observable here is simply that
+    // run on the callback. There is no patch to capture standalone, so the
+    // handed-off store and recalls do nothing: the observable here is that
     // nothing detonates and nothing becomes active.
     gPreset preset;
     std::string storeMsg = "store 0";
@@ -785,14 +1009,16 @@ TEST_SUITE("patcher") {
     preset.GetInlet(0)->SetInt(0, YSE::T_DSP);
     preset.GetInlet(0)->SetFloat(0.f, YSE::T_DSP);
     preset.GetInlet(0)->SetBang(YSE::T_DSP);
+    CHECK(preset.DeferredDropped() == 0u);
     CHECK(preset.ActiveSlot() == -1);
   }
 
-  TEST_CASE("preset: the refusal path allocates nothing (#564)") {
-    // The drop rule is what makes "entries are allocated at store time"
-    // RT-safe: a message that arrives on the audio callback must be refused
-    // before any work, at the cost of one thread-local load. Probed on the
-    // standalone tag route, where the whole dispatch runs on this thread.
+  TEST_CASE("preset: the audio-callback hand-off allocates nothing (#564, #952)") {
+    // The hand-off is what makes "entries are allocated at store time"
+    // RT-safe: a message that arrives on the audio callback is parsed in
+    // place and queued for the timer thread — no allocation, no lock. Probed
+    // on the standalone tag route, where the whole dispatch runs on this
+    // thread; the timer thread's own work is not on this thread's count.
     gPreset preset;
     std::string storeMsg = "store 0";
     std::string clearMsg = "clearall";

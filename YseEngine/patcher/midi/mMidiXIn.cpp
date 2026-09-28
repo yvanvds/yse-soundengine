@@ -347,14 +347,17 @@ mXMidiIn::mXMidiIn() : mMidiInBase() {
       "its own and disturbs nothing, since it may legally appear between any two bytes of any "
       "other message; a new status byte abandons an unfinished message rather than waiting for "
       "data that is not coming. A message longer than 256 bytes leaves in consecutive lists of "
-      "that size, which is what keeps the object's memory fixed — nothing is dropped. Events cross "
-      "from the device backend's thread on a bounded lock-free queue and are drained once per "
-      "audio block, so nothing allocates, locks or blocks on either side.");
+      "that size, which is what keeps the object's memory fixed — nothing is dropped. The limit is "
+      "the input transport's: a message of up to 8192 bytes (twice a DX7 32-voice bank) reaches "
+      "the object whole; a longer one, or one arriving while the patch is not draining, is "
+      "dropped entirely and logged, never passed on truncated. Events cross from the device "
+      "backend's thread on a bounded lock-free queue and are drained once per audio block, at "
+      "most 512 bytes per block, so nothing allocates, locks or blocks on either side.");
   OUTLET_DOC(0, "midi",
              "One complete MIDI message per list, as byte values in decimal: status byte first, "
              "then its data bytes. Real-time messages arrive as one-byte lists. A system-exclusive "
-             "dump arrives whole however many transport packets carried it, or in consecutive "
-             "256-byte lists when it is longer than that.",
+             "dump of up to 8192 bytes arrives whole however many transport packets carried it, or "
+             "in consecutive 256-byte lists when it is longer than 256 bytes.",
              "0-255 per byte");
 }
 

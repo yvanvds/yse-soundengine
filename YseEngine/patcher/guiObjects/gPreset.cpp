@@ -24,7 +24,8 @@ namespace {
 
   // The bounds of the token starting at or after `from`, or false when there is
   // none. Walked in place — the family's token walk, kept allocation-free so
-  // the refusal path (a message dropped on the audio callback) costs nothing.
+  // the audio-callback parse (a message handed off to the timer thread,
+  // issue #952) costs nothing.
   bool NextToken(const char* text, std::size_t length, std::size_t from, std::size_t& begin,
                  std::size_t& end) {
     begin = from;
@@ -74,10 +75,12 @@ namespace {
       "untouched. Recalling an empty or out-of-range slot does nothing and announces nothing. A "
       "slot entry is pushed only while its storage ID still names a live object of the captured "
       "type - IDs are reused after a delete - and a stale entry is skipped silently. Everything "
-      "here is control-thread work: store walks the patch and recall runs whole subgraphs, so a "
-      "message that physically arrives on the audio callback (a deferred .delay drain, a cord "
-      "inside the render traversal) is dropped whole before any work. A .metro or MIDI-driven "
-      "recall works - those dispatch from control-side threads. Not here: interpolated recall "
+      "here is control-side work: store walks the patch and recall runs whole subgraphs, so a "
+      "message that physically arrives on the audio callback - a .pgmin or other MIDI input "
+      "object, a host PassData into a .r, a .delay or .pipe delivery - is parsed there without "
+      "allocating, queued, and run on the timer thread about a millisecond later, in arrival "
+      "order (issue #952); a bang or bare 'clear' reads the active slot when it runs, not when "
+      "it arrives. Not here: interpolated recall "
       "(Max's preset is instant; interpolation is pattrstorage's, on the excluded pattr system) "
       "and every mouse and drawing concern.";
 
@@ -119,6 +122,14 @@ CONSTRUCT() {
 
   ShapeStore();
 
+  // The timer slot a callback-side message is handed off through (issue
+  // #952), for the rest of this object's life. Claimed here, on the control
+  // thread, so no handler ever has to; given back in the destructor. A
+  // refusal — the process holding timerBridge::CAPACITY owners at once —
+  // leaves control-thread messages untouched and counts every callback-side
+  // one as dropped.
+  timerSlot = TimerBridge().Claim(&gPreset::DeferTrampoline, this);
+
   ADD_DESCRIPTION(
       "Snapshot and recall of the patch's control values - Max's preset, 'store and recall the "
       "values of the control objects in a patcher'. A bank of numbered slots: 'store <n>' "
@@ -144,10 +155,13 @@ CONSTRUCT() {
       "the live objects), which is exactly the fresh numbering ParseJSON hands out, so a patch "
       "whose IDs went sparse through deletes still recalls correctly after a save and a load. "
       "Loading does not recall: a patch that wants to come up in slot 0 wires .loadbang into "
-      "the inlet. Everything the object does is control-thread work - store walks the patch, "
+      "the inlet. Everything the object does is control-side work - store walks the patch, "
       "recall runs whole subgraphs - so a message that physically arrives on the audio callback "
-      "is dropped whole before any work, at the cost of one thread-local load; Calculate() "
-      "itself does nothing at all. The GUI value is the active slot number, -1 when none - what "
+      "(a .pgmin program change, a host PassData into a .r, a .delay delivery) is handed off: "
+      "parsed in place, pushed onto a bounded lock-free queue and run on the timer thread a "
+      "tick later, in arrival order, with no allocation, lock or wait on the callback (issue "
+      "#952); Calculate() itself does nothing at all. The GUI value is the active slot number, -1 "
+      "when none - what "
       "a host highlights in a row of preset dots - and is read-only. Not ported: interpolated "
       "recall (Max's preset is instant; interpolation belongs to pattrstorage, on the excluded "
       "pattr system - morphing between targets is already a patch, .xyslider into .nodes), the "
@@ -241,9 +255,152 @@ bool gPreset::OnAudioThread(YSE::THREAD thread) const {
   // `.when`, which answers false because a standalone object is never
   // rendered, this object's work must never run on the callback, so the
   // conservative reading is the honest one — and it is what lets a test rig
-  // exercise the drop path at all.
+  // exercise the hand-off path at all.
   if (parent == nullptr) return thread == YSE::T_DSP;
   return static_cast<patcherImplementation*>(parent)->CallingThread(thread) == YSE::T_DSP;
+}
+
+// ─── the audio-callback hand-off (issue #952) ─────────────────────────────────
+
+namespace {
+  // The preset whose deferred drain this thread is inside, or null. Teardown
+  // reached from inside that drain (a recall whose fan-out deletes the preset)
+  // must not take the bridge's blocking stop: the reconciler may hold the slot
+  // while waiting for this very callback to return — gMetro's #721 trap.
+  thread_local const void* tDrainingPreset = nullptr;
+
+  struct drainFrame {
+    const void* previous;
+    explicit drainFrame(const void* self) : previous(tDrainingPreset) {
+      tDrainingPreset = self;
+    }
+    ~drainFrame() {
+      tDrainingPreset = previous;
+    }
+    drainFrame(const drainFrame&) = delete;
+    drainFrame& operator=(const drainFrame&) = delete;
+    drainFrame(drainFrame&&) = delete;
+    drainFrame& operator=(drainFrame&&) = delete;
+  };
+} // namespace
+
+void gPreset::Submit(Op op, int slot, YSE::THREAD thread) {
+  if (OnAudioThread(thread)) {
+    Defer(op, slot);
+    return;
+  }
+  Execute(op, slot, thread);
+}
+
+void gPreset::Execute(Op op, int slot, YSE::THREAD thread) {
+  switch (op) {
+  case Op::RECALL:
+    Recall(slot, thread);
+    break;
+  case Op::RECALL_ACTIVE:
+    // The resync. Recall's range check answers the no-active case (-1) with
+    // silence.
+    Recall(active.load(std::memory_order_relaxed), thread);
+    break;
+  case Op::STORE:
+    Store(slot, thread);
+    break;
+  case Op::CLEAR:
+    ClearSlot(slot);
+    break;
+  case Op::CLEAR_ACTIVE:
+    ClearSlot(active.load(std::memory_order_relaxed));
+    break;
+  case Op::CLEAR_ALL:
+    ClearAll();
+    break;
+  }
+}
+
+void gPreset::Defer(Op op, int slot) {
+  // Audio callback: a queue push, and for the first message of a burst an
+  // exchange plus the bridge's wait-free request. Nothing here allocates,
+  // locks or waits, and nothing is logged — the count is the report.
+  if (timerSlot == 0 || closed.load(std::memory_order_relaxed)) {
+    deferredDropped.fetch_add(1, std::memory_order_relaxed);
+    return;
+  }
+  Request request;
+  request.op = op;
+  request.slot = slot;
+  if (!deferred.try_push(request)) {
+    deferredDropped.fetch_add(1, std::memory_order_relaxed);
+    return;
+  }
+  // Only the producer that flips `armed` from clear to set asks for the
+  // wake-up, so a start request is never issued while the callback may still
+  // be issuing its stop. acq_rel: the release publishes the push above to the
+  // callback's own exchange; the acquire orders this start after the stop the
+  // callback requested before it cleared the flag.
+  if (!armed.exchange(true, std::memory_order_acq_rel)) {
+    TimerBridge().RequestStart(timerSlot, 1);
+  }
+}
+
+void gPreset::DeferTrampoline(void* ctx) {
+  static_cast<gPreset*>(ctx)->DrainDeferred();
+}
+
+void gPreset::RunDeferred() {
+  Request request;
+  while (deferred.try_pop(request)) {
+    // A closed preset's queue is emptied without running anything: the patch
+    // it would reach into is being taken apart.
+    if (closed.load(std::memory_order_acquire)) continue;
+    // T_GUI: the timer thread, exactly the tag a `.metro`-driven recall has
+    // always carried.
+    Execute(request.op, request.slot, YSE::T_GUI);
+  }
+}
+
+void gPreset::DrainDeferred() {
+  // Timer thread. A tick that finds `armed` clear is a leftover of a stop the
+  // bridge has not reconciled yet: nothing is ours to drain or to stop, and
+  // requesting a stop here could race a producer's start.
+  if (!armed.load(std::memory_order_acquire)) return;
+
+  const drainFrame frame(this);
+  RunDeferred();
+
+  // Stop first, then give `armed` up, then look once more. The stop is
+  // requested while `armed` is still set, so no producer can be requesting a
+  // start at the same moment. The exchange then reads the last producer's
+  // write to `armed` — acquire, so every push made by a producer that saw
+  // the flag still set (and therefore did not wake anyone) is visible to the
+  // drain below. A push after the exchange finds the flag clear and wakes
+  // the timer itself, ordered after this stop.
+  TimerBridge().RequestStop(timerSlot);
+  armed.exchange(false, std::memory_order_acq_rel);
+  RunDeferred();
+}
+
+void gPreset::Teardown(YSE::THREAD thread) {
+  (void)thread;
+  closed.store(true, std::memory_order_release);
+  if (timerSlot == 0) return;
+  // From inside this preset's own drain the drain is the thing to wait for;
+  // `closed` already makes the rest of it a no-op.
+  if (tDrainingPreset == this) return;
+  // The blocking stop: once it returns, no drain is still running into the
+  // patch, which is what lets the patcher delete handles after this pass. A
+  // producer racing it can wake the timer once more; that drain sees `closed`
+  // and runs nothing.
+  TimerBridge().ApplyStop(timerSlot);
+}
+
+gPreset::~gPreset() {
+  if (timerSlot != 0) {
+    // Stops the timer and waits out a drain in flight — timerBridge::Release
+    // keeps ClearTimer's handshake for exactly this caller. A destructor
+    // never runs on the audio callback, so it may block.
+    TimerBridge().Release(timerSlot);
+    timerSlot = 0;
+  }
 }
 
 // ─── store and recall ─────────────────────────────────────────────────────────
@@ -264,29 +421,34 @@ void gPreset::Store(int slot, YSE::THREAD thread) {
   // the GetGuiValue answers allocate and none of this touches the slots.
   // Participation is checked *before* the value is read, so a consume-on-read
   // object (`.b`) is never polled and capturing a patch cannot eat a press.
+  //
+  // The objects are read with mtx released — a GetGuiValue may be anything an
+  // object likes — so another control thread may delete one mid-walk. The pin,
+  // taken before the snapshot, keeps every object in it allocated until the
+  // walk is done (issue #961); a handle would not be, so none is used.
   scratch.clear();
-  const unsigned int count = p->Objects();
-  for (unsigned int i = 0; i < count; i++) {
-    YSE::pHandle* handle = p->GetHandleFromList(i);
-    if (handle == nullptr) continue;
-    if (!handle->GuiValueIsSettable()) continue;
-    std::string value = handle->GetGuiValue();
+  const patcherImplementation::objectPin pin(*p);
+  p->CollectObjects(walk);
+  for (pObject* object : walk) {
+    if (!object->GuiValueIsSettable()) continue;
+    std::string value = object->GetGuiValue();
     // An empty string is not a message an inlet can take back, so the object
     // is left out of the slot and a recall leaves it untouched.
     if (value.empty()) continue;
     Entry entry;
-    entry.id = handle->GetID();
-    entry.type = handle->Type();
+    entry.id = object->GetID();
+    entry.type = object->Type();
     entry.value = std::move(value);
     scratch.push_back(std::move(entry));
   }
+  walk.clear();
 
   {
     storeGuard guard(busy);
     if (!guard.Held()) return;
     // Swap rather than copy: the old contents land in the staging buffer and
-    // are released by the next operation — on the control thread, which the
-    // drop rule above guarantees this is.
+    // are released by the next operation — on a control-side thread, which
+    // the audio-callback hand-off (Submit) guarantees this is.
     slots[(std::size_t)slot].swap(scratch);
   }
 
@@ -319,18 +481,26 @@ void gPreset::Recall(int slot, YSE::THREAD thread) {
 
   active.store(slot, std::memory_order_relaxed);
 
+  // Each object is looked up under mtx and pushed with mtx released — the push
+  // runs a whole subgraph that may take mtx again — so another control thread
+  // may delete it in between. The pin, taken before any lookup, keeps every
+  // object found live allocated until the recall is done (issue #961). The
+  // object is used rather than its handle: DeleteObject frees a handle at once.
+  const patcherImplementation::objectPin pin(*p);
   for (const Entry& entry : scratch) {
-    YSE::pHandle* handle = p->GetHandleFromID(entry.id);
-    if (handle == nullptr) continue;
+    pObject* object = p->GetObjectFromID(entry.id);
+    if (object == nullptr) continue;
     // Storage IDs are reused after a delete (issue #733): without this check
     // a recall could write one control's state into whatever object inherited
     // its number. A stale entry is skipped; the rest of the slot still lands.
-    if (entry.type != handle->Type()) continue;
-    if (!handle->GuiValueIsSettable()) continue;
-    // The ordinary control-thread message path — the same call a host makes,
-    // so every clamp, side effect and outlet send the object's own inlet
-    // handler performs still happens. Never a poke into its fields.
-    handle->SetListData(0, entry.value);
+    if (entry.type != object->Type()) continue;
+    if (!object->GuiValueIsSettable()) continue;
+    // The ordinary control-thread message path — what pHandle::SetListData,
+    // the call a host makes, does — so every clamp, side effect and outlet
+    // send the object's own inlet handler performs still happens. Never a
+    // poke into its fields.
+    PATCHER::inlet* in = p->ResolveInlet(object, 0);
+    if (in != nullptr) in->SetList(entry.value, YSE::T_GUI);
   }
 
   // Announced after the pushes, so whatever this triggers sees the patch
@@ -371,7 +541,7 @@ bool gPreset::HandleCommand(const char* word, std::size_t length, const std::str
     // NaN fails the compare, so it never reaches ExprToInt; a negative slot
     // is refused by the range check either way.
     if (!(slot >= 0.f)) return true;
-    Store(ExprToInt(slot), thread);
+    Submit(Op::STORE, ExprToInt(slot), thread);
     return true;
   }
 
@@ -380,12 +550,12 @@ bool gPreset::HandleCommand(const char* word, std::size_t length, const std::str
     float slot = 0.f;
     if (!NextNumber(text, total, cursor, slot)) return true;
     if (!(slot >= 0.f)) return true;
-    Recall(ExprToInt(slot), thread);
+    Submit(Op::RECALL, ExprToInt(slot), thread);
     return true;
   }
 
   if (TokenIs(word, length, "clearall", 8)) {
-    ClearAll();
+    Submit(Op::CLEAR_ALL, 0, thread);
     return true;
   }
 
@@ -394,10 +564,10 @@ bool gPreset::HandleCommand(const char* word, std::size_t length, const std::str
     float slot = 0.f;
     if (NextNumber(text, total, cursor, slot)) {
       if (!(slot >= 0.f)) return true;
-      ClearSlot(ExprToInt(slot));
+      Submit(Op::CLEAR, ExprToInt(slot), thread);
     } else {
       // Bare `clear` empties the active slot — the parallel of the bang.
-      ClearSlot(active.load(std::memory_order_relaxed));
+      Submit(Op::CLEAR_ACTIVE, 0, thread);
     }
     return true;
   }
@@ -406,38 +576,35 @@ bool gPreset::HandleCommand(const char* word, std::size_t length, const std::str
 }
 
 // ─── inlets ───────────────────────────────────────────────────────────────────
+//
+// Every handler parses in place and ends in Submit, which runs the operation
+// on a control-side thread or hands it to the timer thread from the audio
+// callback (issue #952). The parse allocates nothing, so it is the same code
+// on both routes.
 
 BANG_IN(BangIn) {
   if (inlet != 0) return;
-  // Everything this object does is control-thread work — see the class
-  // comment. Decided first, at the cost of one thread-local load, so the
-  // refusal path does nothing at all.
-  if (OnAudioThread(thread)) return;
-  // The resync: recall the active slot again. Recall's range check answers
-  // the no-active case (-1) with silence.
-  Recall(active.load(std::memory_order_relaxed), thread);
+  // The resync: recall the active slot again.
+  Submit(Op::RECALL_ACTIVE, 0, thread);
 }
 
 INT_IN(IntIn) {
   if (inlet != 0) return;
-  if (OnAudioThread(thread)) return;
   // Max: "recalls the preset whose number is received".
-  Recall(value, thread);
+  Submit(Op::RECALL, value, thread);
 }
 
 FLOAT_IN(FloatIn) {
   if (inlet != 0) return;
-  if (OnAudioThread(thread)) return;
   // Truncated the way every numeric control truncates. A NaN names no slot.
   if (std::isnan(value)) return;
-  Recall(ExprToInt(value), thread);
+  Submit(Op::RECALL, ExprToInt(value), thread);
 }
 
 LIST_IN(ListIn) {
   // Registered on inlet 0 only, but routed anyway: a later inlet must never
   // start driving the bank because someone added a handler above.
   if (inlet != 0) return;
-  if (OnAudioThread(thread)) return;
 
   const char* text = value.c_str();
   const std::size_t length = value.size();
@@ -455,7 +622,7 @@ LIST_IN(ListIn) {
   float slot = 0.f;
   if (!ReadNumericToken(text + begin, end - begin, slot)) return;
   if (!(slot >= 0.f)) return;
-  Recall(ExprToInt(slot), thread);
+  Submit(Op::RECALL, ExprToInt(slot), thread);
 }
 
 // ─── the GUI value ────────────────────────────────────────────────────────────
@@ -484,7 +651,7 @@ bool gPreset::DumpState(nlohmann::json::value_type& json) {
   // Only `busy` is waited for, through saveGuard's bounded wait, rather than
   // skipped at the first miss and the slots lost (issue #940). Every `busy`
   // section is a few copies that never takes mtx; `sending`, which a recall
-  // holds across its GetHandleFromID lookups, is never touched here, so a
+  // holds across its GetObjectFromID lookups, is never touched here, so a
   // timer-thread recall blocked on this save's mtx cannot hold up the save.
   const saveGuard guard(busy);
   if (!guard.Held()) return false;

@@ -17,6 +17,14 @@
     producer; the sender thread is the sole consumer. That satisfies the SPSC
     requirement of lfQueue with any number of concurrent clips.
 
+    Immediate lane (issue #949): the patcher's `.midiout` sends a message the
+    moment its inlet receives one, on whichever thread dispatched it —
+    routinely the audio callback, but not only. Those messages have no
+    deadline and may be any length up to a system-exclusive dump, and there is
+    more than one possible producer thread, so they travel on a second,
+    multi-producer queue of full-length messages that the same worker drains
+    first on every pass. Sends from one producer keep their order.
+
   ==============================================================================
 */
 
@@ -28,10 +36,12 @@
 
 #include <atomic>
 #include <chrono>
+#include <cstddef>
 #include <cstdint>
 #include <thread>
 
 #include "../utils/lfQueue.hpp"
+#include "../utils/mpmcQueue.hpp"
 
 /// @cond INTERNAL
 class RtMidiOut;
@@ -59,6 +69,21 @@ namespace YSE {
       RtMidiOut* port = nullptr;
       unsigned char bytes[3] = {0, 0, 0};
       unsigned char len = 0;
+    };
+
+    /** @brief Longest message the immediate lane carries — the patcher's
+     *         byte-list limit, so anything `.midiout` can read fits whole. */
+    constexpr std::size_t kRawEventMax = 256;
+
+    /** @brief One outbound MIDI message of any length up to ``kRawEventMax``,
+     *         sent as soon as the sender reaches it (issue #949).
+     *
+     *  ``port`` carries the same lifetime guarantee as ``outEvent::port``: a
+     *  device-manager-owned port, open until process exit. */
+    struct rawEvent {
+      RtMidiOut* port = nullptr;
+      std::uint16_t len = 0;
+      unsigned char bytes[kRawEventMax] = {};
     };
 
     // ---- message encoders (pure functions; RT-safe) --------------------------
@@ -115,25 +140,53 @@ namespace YSE {
         return queue.try_push(e);
       }
 
+      /** Any thread, including the audio callback (issue #949). Queue
+          @p length bytes for @p port to be sent as soon as the worker reaches
+          them. Lock-free, never allocates. Returns false — nothing queued — for
+          a null port, an empty message, one longer than ``kRawEventMax``, or a
+          full queue; the caller has already refused the first three. */
+      bool tryEnqueueNow(RtMidiOut* port, const unsigned char* data, std::size_t length);
+
+      /** Test seam for the immediate lane, like ``setSendHookForTest``. */
+      using RawSendHook = void (*)(const rawEvent&, void* user);
+
       void setSendHookForTest(SendHook h, void* user) {
         hookUser.store(user, std::memory_order_release);
         hook.store(h, std::memory_order_release);
       }
 
+      void setRawSendHookForTest(RawSendHook h, void* user) {
+        rawHookUser.store(user, std::memory_order_release);
+        rawHook.store(h, std::memory_order_release);
+      }
+
     private:
       void run();
       void send(const outEvent& e);
+      void sendRaw(const rawEvent& e);
+      // Pop and send everything on the immediate lane. Sole consumer: the
+      // worker, or stop() once the worker is joined.
+      void drainImmediate();
 
       // Bounded: the audio thread only ever try_pushes. 1024 in-flight messages
       // is far beyond a block's worth of clip events; overflow drops.
       static constexpr std::size_t kQueueCapacity = 1024;
       lfQueue<outEvent> queue{kQueueCapacity};
 
+      // The immediate lane: multi-producer because a patcher handler runs on
+      // whichever thread dispatched it. Drained on every worker pass (at most
+      // ~1 ms apart), so 512 messages is several hundred per millisecond of
+      // headroom; overflow drops and the producer counts it.
+      static constexpr std::size_t kImmediateCapacity = 512;
+      mpmcQueue<rawEvent> immediate{kImmediateCapacity};
+
       std::thread worker;
       std::atomic<bool> running{false};
 
       std::atomic<SendHook> hook{nullptr};
       std::atomic<void*> hookUser{nullptr};
+      std::atomic<RawSendHook> rawHook{nullptr};
+      std::atomic<void*> rawHookUser{nullptr};
     };
 
     /** @brief The engine-wide sender instance. Lazily started by the first

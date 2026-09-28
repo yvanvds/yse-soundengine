@@ -72,24 +72,29 @@ slot and ``clearall`` empties them all. ``presets->GetGuiValue()`` returns the
 active slot number, or ``-1`` when no slot is active, which is what an editor
 highlights in a row of preset buttons.
 
-Call ``.preset`` from the host thread
--------------------------------------
+Recalling from inside the patch
+-------------------------------
 
-Storing walks the whole patch and recalling runs through it, so ``.preset``
-only works on the control thread. **A message that reaches it on the audio
-thread is dropped**, without a log line. In practice:
+Calling the ``.preset`` handle from the host thread, as above, recalls at
+once: the controls hold the slot's values when the call returns. A
+``.loadmess`` or ``.loadbang`` does the same (see below).
 
-- **Works:** ``SetListData`` / ``SetIntData`` / ``SetBang`` on the
-  ``.preset`` handle from the host thread, as above, and a ``.loadmess`` or
-  ``.loadbang`` (see below).
-- **Does not work:** ``PassData`` / ``PassBang`` into a ``.r`` that feeds the
-  ``.preset``. Those values are delivered on the audio thread. The same goes
-  for MIDI input, so a ``.pgmin`` wired to a ``.preset`` recalls nothing:
-  receive the program change in the host and call the handle instead.
+A recall can also come from inside the patch, for example through a named
+receiver:
 
-The test for this page checks that a ``PassData`` recall is indeed dropped.
-:doc:`/patcher/gui` explains the reason and lists which routes deliver on
-which thread.
+.. literalinclude:: ../../../Tests/patcher/test_patcher_tutorials.cpp
+   :language: cpp
+   :start-after: tutorial:presets-passdata:begin
+   :end-before: tutorial:presets-passdata:end
+   :dedent: 4
+
+``PassData`` delivers its value while the patch renders, on the audio thread,
+and so do MIDI input objects: a ``.pgmin`` wired into the ``.preset`` recalls
+a slot on every program change. Storing and recalling are too much work for
+the audio thread, so ``.preset`` queues these messages and runs them on the
+timer thread about a millisecond later, in the order they arrived. The test
+for this page waits for the ``PassData`` recall to land. :doc:`/patcher/gui`
+lists which routes run at once and which a moment later.
 
 Coming up in a preset on load
 -----------------------------
@@ -111,7 +116,8 @@ loaded, which recalls slot 0:
 
 After ``ParseJSON`` returns, the loaded patch plays slot 0, even though slot
 1 was active when it was saved. A load signal is sent on the thread that runs
-``ParseJSON``, so the recall is not dropped. To come up in whatever slot was
+``ParseJSON``, so the patch is already in slot 0 when ``ParseJSON`` returns.
+To come up in whatever slot was
 active instead, use a ``.loadbang``: a bang recalls the active slot, and the
 active slot is saved too.
 

@@ -17,6 +17,10 @@ CONSTRUCT() {
 
   ADD_PARAM(startValue);
   ADD_PARAM(step);
+  // Load the count from startValue once the arguments are parsed, so
+  // `.counter -1` sends 0 on its first bang rather than only after a reset
+  // (#956).
+  REG_PARM_PARSE;
 
   ADD_DESCRIPTION("Step counter. Bang increments the current value by 'step' and emits it. Send "
                   "'reset' as a list to return to startValue.");
@@ -32,8 +36,18 @@ CONSTRUCT() {
 }
 
 INT_IN(SetIntValue) {
-  startValue = currentValue = value;
-  if (inlet == 0) outputs[0].SendInt(currentValue, thread);
+  // Inlet 1 is the step; inlet 0 sets the count and sends it. startValue is
+  // left alone, so 'reset' still returns to the creation argument (#956).
+  if (inlet == 1) {
+    step = value;
+    return;
+  }
+  currentValue = value;
+  outputs[0].SendInt(currentValue, thread);
+}
+
+PARM_PARSE() {
+  currentValue.store(startValue);
 }
 
 LIST_IN(SetListValue) {
