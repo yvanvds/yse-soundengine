@@ -1,10 +1,12 @@
 What is libYSE?
 ================
 
-libYSE is a cross-platform C++ sound engine for games and interactive
-applications. It plays audio files and procedural sources at any position in
-a 3D scene, mixes them through a hierarchical channel tree, and applies
-positioned reverb zones that the listener moves through naturally.
+libYSE is a cross-platform C++ sound engine for live, experimental electronic
+music: patchers, live coding, instruments and MIDI in one signal graph, with
+spatial and physical controllers such as positions, swarms and physics moving
+the sounds. It plays audio files and procedural sources at any position in a
+3D scene, mixes them through a hierarchical channel tree, and applies
+positioned reverb zones that the listener moves through.
 
 What libYSE is
 --------------
@@ -61,5 +63,7 @@ Where next
 - :doc:`mental_model` — the five concepts you need to know.
 - :doc:`threading` — which thread does what, and where you may call the
   engine from.
+- :doc:`sessions_and_devices` — starting the engine, sample rate, audio
+  and MIDI devices.
 - :doc:`install` — wire libYSE into your CMake project.
 - :doc:`hello_sound` — get a sound playing in 15 lines.

@@ -1,8 +1,8 @@
 Hello, sound
 ============
 
-The smallest libYSE program — init the engine, play an audio file, hold it
-open until the user presses Enter, shut down.
+The smallest libYSE program: start the engine, play an audio file for ten
+seconds while calling ``update()``, shut down.
 
 .. code-block:: cpp
 
@@ -11,7 +11,7 @@ open until the user presses Enter, shut down.
 
    int main() {
        if (!YSE::System().init()) {
-           std::cerr << "Could not open the audio device.\n";
+           std::cerr << "Could not start the audio engine.\n";
            return 1;
        }
 
@@ -25,8 +25,11 @@ open until the user presses Enter, shut down.
 
        s.play();
 
-       std::cout << "Press Enter to stop.\n";
-       std::cin.get();
+       // Keep the engine running for about ten seconds.
+       for (int i = 0; i < 1000; ++i) {
+           YSE::System().update();
+           YSE::System().sleep(10);
+       }
 
        YSE::System().close();
        return 0;
@@ -35,20 +38,26 @@ open until the user presses Enter, shut down.
 What just happened
 ------------------
 
-- ``YSE::System().init()`` opens the default audio device and starts the
-  DSP threads. Wrap it in an error check; if no device is available, the
-  return value is ``false``.
-- ``YSE::sound s; s.create("drone.ogg");`` allocates a sound object and
-  loads an audio file. The file path is relative to the working directory.
-- ``s.isValid()`` is the safety check after ``create``. False means the
-  file could not be found at the given path — log and exit. (Decoding
-  happens asynchronously on a background worker; ``isReady()`` reports when
-  the sound is fully loaded, but ``play()`` is safe to call even while
-  loading — it queues the start.)
+- ``YSE::System().init()`` starts the engine and opens the default audio
+  device. It returns ``false`` if the audio backend cannot start. A missing
+  or busy device is only logged, so ``init()`` can succeed without sound;
+  :doc:`sessions_and_devices` shows how to check that audio is flowing.
+- ``YSE::sound s; s.create("drone.ogg");`` sets up a sound and loads an
+  audio file. The file path is relative to the working directory.
+- ``s.isValid()`` is the check after ``create``. It is ``false`` when the
+  sound has no engine object behind it: ``create`` failed (for example, the
+  file was not found) or was never called. Every other call on such a sound
+  does nothing, so this is the one place to notice the failure. (Decoding
+  happens on a background thread; ``isReady()`` reports when the sound is
+  fully loaded, but ``play()`` is safe to call while it loads. The start is
+  queued.)
 - ``s.play()`` starts playback. The call returns immediately; the sound
   plays on the audio thread.
-- ``std::cin.get()`` is there to keep the program alive long enough to
-  hear the sound. A game would loop on its frame timer instead.
+- The loop calls ``YSE::System().update()`` every 10 ms. The engine needs
+  it: ``update()`` hands new sounds and the changes you made to the audio
+  thread, so without it ``play()`` would never take effect.
+  :doc:`threading` lists everything it drives. A real application calls it
+  once per frame from its main loop.
 - ``YSE::System().close()`` stops the engine and releases the audio device.
 
 What's not here
