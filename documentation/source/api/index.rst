@@ -53,6 +53,11 @@ The patcher has its own section. Its C++ reference is
    types
    utils
 
+Language bindings use the flat C API. Its page opens with a
+:ref:`guide <c-api-guide>` to the rules every C function follows: handles
+and ownership, error codes and the last error, strings, and which thread each
+callback runs on.
+
 .. toctree::
    :maxdepth: 1
    :caption: Language bindings

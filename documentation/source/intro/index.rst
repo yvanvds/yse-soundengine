@@ -51,6 +51,7 @@ CMake option (on by default on Windows/Linux, off on Android).
 A flat ``extern "C"`` ABI (``yse_c/yse_*.h``) is folded into the same shared
 library so language bindings (Dart FFI, Python ctypes, …) can call the engine
 without C++ ABI compatibility — enabled by default via ``YSE_BUILD_C_API=ON``.
+:doc:`/api/c_api` starts with the rules a binding must follow.
 
 Licence
 -------
