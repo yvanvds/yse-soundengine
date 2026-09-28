@@ -96,7 +96,10 @@ Clip transport
 --------------
 
 Beat-timed note clips dispatched from the audio thread against a domain
-clock, targeting internal synths or an external MIDI-out port.
+clock, targeting internal synths or an external MIDI-out port. The clocks
+themselves are created and steered with the ``yse_system_*_clock`` functions
+in ``yse_system.h`` above. :doc:`/tutorials/15_clocks_and_clips` walks through
+both, with a C example.
 
 .. doxygenfile:: c_api/include/yse_c/yse_clip.h
    :project: libYSE

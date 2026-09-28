@@ -46,3 +46,9 @@ Reverb
 
 .. doxygenfile:: reverb/reverbInterface.hpp
    :project: libYSE
+
+The parameter sets behind each ``REVERB_PRESET`` (see :doc:`types`), shared
+with the morphing reverb in :doc:`effects`:
+
+.. doxygenfile:: reverb/reverbPresets.hpp
+   :project: libYSE

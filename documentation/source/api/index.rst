@@ -26,6 +26,7 @@ The pages below are generated from the source code by Doxygen + Breathe.
 
    music
    player
+   clips
 
 .. toctree::
    :maxdepth: 1
@@ -49,6 +50,7 @@ The patcher has its own section. Its C++ reference is
    :maxdepth: 1
    :caption: Utilities
 
+   types
    utils
 
 .. toctree::

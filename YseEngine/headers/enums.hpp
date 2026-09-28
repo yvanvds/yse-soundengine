@@ -11,24 +11,34 @@
 #ifndef ENUMS_HPP_INCLUDED
 #define ENUMS_HPP_INCLUDED
 
+/** @file
+ *  @brief Public enumerations of the ``YSE`` namespace.
+ *
+ *  Only the enums a host passes to or receives from the public API are
+ *  documented here. The object-lifecycle states and the log message codes
+ *  in this header are engine internals.
+ */
+
 #include <string>
 
 namespace YSE {
 
-  // basic output configurations
+  /** @brief Speaker layout of the output. Passed to ``System().openDevice``
+   *         and ``System().setChannelConfiguration``. */
   enum CHANNEL_TYPE {
-    CT_AUTO, // will pick stereo when possible
-    CT_MONO,
-    CT_STEREO,
-    CT_QUAD,
-    CT_51,
-    CT_51SIDE,
-    CT_61,
-    CT_71,
-    CT_CUSTOM, // custom type, you need to set speaker positions yourself if you choose this
-    CT_COUNT_, // sentinel: number of layouts, not a valid value; keep last (C API drift guard)
+    CT_AUTO, ///< Stereo when the device allows it.
+    CT_MONO, ///< One speaker.
+    CT_STEREO, ///< Left and right.
+    CT_QUAD, ///< Four speakers.
+    CT_51, ///< 5.1 surround.
+    CT_51SIDE, ///< 5.1 surround with side instead of rear speakers.
+    CT_61, ///< 6.1 surround.
+    CT_71, ///< 7.1 surround.
+    CT_CUSTOM, ///< Custom layout: set the speaker positions yourself.
+    CT_COUNT_, ///< Sentinel: the number of layouts, not a valid value.
   };
 
+  /** @brief Named reverb presets, applied with ``reverb::setPreset``. */
   enum REVERB_PRESET {
     REVERB_OFF,
     REVERB_GENERIC,
@@ -53,9 +63,12 @@ namespace YSE {
     // REVERB_PARKINGLOT				,
     REVERB_SEWERPIPE,
     REVERB_UNDERWATER,
-    REVERB_COUNT_, // sentinel: number of presets, not a valid value; keep last (C API drift guard)
+    REVERB_COUNT_, ///< Sentinel: the number of presets, not a valid value.
   };
 
+  /** @brief Playback state and intent. A ``DSP::dspSourceObject`` receives it
+   *         in ``process`` to drive its envelopes: the ``SS_WANTSTO…`` values
+   *         ask for a transition, the others describe the current state. */
   enum SOUND_STATUS {
     SS_STOPPED,
     SS_PAUSED,
@@ -67,6 +80,7 @@ namespace YSE {
     SS_WANTSTORESTART,
   };
 
+  /// @cond INTERNAL
   // for internal use by sound and soundimplementation
   enum SOUND_INTENT {
     SI_NONE,
@@ -110,32 +124,39 @@ namespace YSE {
     CIS_RELEASE, // flagged for release from inUse list
     CIS_DELETE, // flagged for deletion from implementations list
   };
+  /// @endcond
 
+  /** @brief Data type a patcher outlet sends (see
+   *         ``pHandle::OutputDataType``). */
   enum OUT_TYPE {
-    INVALID,
-    BANG,
-    FLOAT,
-    INT,
-    BUFFER,
-    LIST,
-    ANY,
-    OUT_TYPE_COUNT_, // sentinel: number of types, not a valid value; keep last (C API drift guard)
+    INVALID, ///< No such outlet.
+    BANG, ///< A bang.
+    FLOAT, ///< A float.
+    INT, ///< An integer.
+    BUFFER, ///< An audio signal.
+    LIST, ///< A list message.
+    ANY, ///< Any message type.
+    OUT_TYPE_COUNT_, ///< Sentinel: the number of types, not a valid value.
   };
 
+  /** @brief The thread a patcher object is called on: the audio thread
+   *         (``T_DSP``) or a control thread (``T_GUI``). */
   enum THREAD {
-    T_DSP,
-    T_GUI,
+    T_DSP, ///< The audio thread.
+    T_GUI, ///< A control thread.
   };
 
-  // used by utils/error.hpp
+  /** @brief Log verbosity, set with ``Log().setLevel``. Each level includes
+   *         the ones before it. */
   enum ERROR_LEVEL {
-    EL_NONE,
-    EL_ERROR,
-    EL_WARNING,
-    EL_DEBUG,
-    EL_COUNT_, // sentinel: number of levels, not a valid value; keep last (C API drift guard)
+    EL_NONE, ///< Log nothing.
+    EL_ERROR, ///< Errors only.
+    EL_WARNING, ///< Errors and warnings.
+    EL_DEBUG, ///< Everything, including debug messages.
+    EL_COUNT_, ///< Sentinel: the number of levels, not a valid value.
   };
 
+  /// @cond INTERNAL
   // used by utils/error.hpp
   enum ERROR_CODE {
     E_ERROR_MESSAGES, // possible errors:
@@ -174,26 +195,30 @@ namespace YSE {
     E_SOUND_WRONG, // Object error with sound: + message
     E_MIDI_DEBUG_WARNING, // Non-Critical MIDI error which might be useful for debugging
   };
+  /// @endcond
 
-  // use these when creating custom file callback functions
+  /** @brief Seek origin for custom file I/O callbacks (see ``io.hpp``). */
   enum FILEPOINT {
-    FP_CURRENT,
-    FP_START,
-    FP_END,
+    FP_CURRENT, ///< From the current position.
+    FP_START, ///< From the start of the file.
+    FP_END, ///< From the end of the file.
   };
 
-  // used by biquad filter
+  /** @brief Filter response of ``DSP::biQuad``. */
   enum BQ_TYPE {
-    BQ_LOWPASS,
-    BQ_HIGHPASS,
-    BQ_BANDPASS,
-    BQ_NOTCH,
-    BQ_PEAK,
-    BQ_LOWSHELF,
-    BQ_HIGHSHELF,
+    BQ_LOWPASS, ///< Low-pass.
+    BQ_HIGHPASS, ///< High-pass.
+    BQ_BANDPASS, ///< Band-pass.
+    BQ_NOTCH, ///< Notch (band-reject).
+    BQ_PEAK, ///< Peaking EQ.
+    BQ_LOWSHELF, ///< Low shelf.
+    BQ_HIGHSHELF, ///< High shelf.
   };
 
   namespace MIDI { // don't let these clutter up the interface
+    /** @brief MIDI note numbers by name, for ``midiOut``. ``C4`` is note 60;
+     *         ``S`` means sharp and ``F`` flat, so ``CS4`` and ``DF4`` are both
+     *         61. The octave below ``C0`` is spelled with ``M1`` (minus one). */
     enum M_PITCH {
       CM1, // 0   -- C minus 1
       CSM1, // 1  -- S means sharp, F means flat
@@ -377,9 +402,11 @@ namespace YSE {
       GF9 = 126,
       G9, // 127
     };
-  }
+  } // namespace MIDI
 
   namespace MIDI {
+    /** @brief MIDI channel for ``midiOut``. ``CH_01`` is channel 1 (wire value
+     *         0). */
     enum M_CHANNEL {
       CH_01,
       CH_02,
@@ -398,7 +425,7 @@ namespace YSE {
       CH_15,
       CH_16,
     };
-  }
+  } // namespace MIDI
 } // namespace YSE
 
 #endif // ENUMS_HPP_INCLUDED

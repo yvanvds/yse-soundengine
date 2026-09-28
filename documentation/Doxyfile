@@ -46,10 +46,14 @@ ENABLE_PREPROCESSING   = YES
 MACRO_EXPANSION        = YES
 EXPAND_ONLY_PREDEF     = NO
 SKIP_FUNCTION_MACROS   = NO
+# PLATFORM picks the portable <cstdint> spelling for the types.hpp aliases:
+# the MSVC-style `signed __int8` it expands to under _WIN32 is not valid C++
+# for Sphinx's parser.
 PREDEFINED             = YSE_API= \
                          YSE_BUILD_DLL= \
                          YSE_C_CALLBACK= \
-                         _WIN32
+                         _WIN32 \
+                         "PLATFORM(windows,unix)=unix"
 
 # Only documented symbols are exposed. Undocumented entities disappear from
 # the rendered docs — this turns the build into a punch-list for missing

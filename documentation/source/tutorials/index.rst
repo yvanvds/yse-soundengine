@@ -122,6 +122,17 @@ mixing, and per-note 3D. These correspond to ``Demo18``–``Demo21``.
    09_mixing_inserts_sends
    10_per_note_3d
 
+Phase 7 — Musical time
+----------------------
+
+Named beat clocks and clips that loop notes against them. This tutorial has
+no demo program.
+
+.. toctree::
+   :maxdepth: 1
+
+   15_clocks_and_clips
+
 How to follow along
 -------------------
 
