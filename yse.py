@@ -497,12 +497,17 @@ def cmd_build(args):
 def cmd_test(args):
     sanitizer = getattr(args, "sanitizer", None)
     if sanitizer:
-        # ASan/TSan gate for the #229 patcher concurrency stress test.
+        # Sanitizer gates. The two presets scope differently (CMakePresets.json):
+        #   - tests-asan (Linux) is the #229 patcher concurrency gate: its test
+        #     preset filters to the patcher suite + send/return stress tests.
+        #   - tests-tsan (Linux) is the engine-wide race gate since #824: the
+        #     whole ctest set bar a short exclude list (the monolithic
+        #     yse_unit_tests and the content-pack suite).
         #
         # TSan stays Linux-only: MSYS2 Clang64 ships no ThreadSanitizer runtime
         # at all. ASan does ship, and issue #671 made the test binary linkable
         # under it, so Windows gets its own preset — it runs the whole ctest set
-        # rather than the Linux gate's patcher filter, and adds
+        # rather than the Linux ASan gate's patcher filter, and adds
         # -fsized-deallocation so new-delete-type-mismatch is observable there
         # (issue #662). Windows ASan has no leak detector either way.
         if IS_WINDOWS and sanitizer == "tsan":
@@ -1517,11 +1522,13 @@ def build_parser():
     )
     p.add_argument(
         "--sanitizer", choices=["asan", "tsan"],
-        help="Build the test binary under Address- or ThreadSanitizer. On Linux "
-             "this is the #229 patcher concurrency gate (tests-asan / tests-tsan "
-             "presets, filtered to the patcher + send/return tests); on Windows "
-             "asan uses the tests-asan-windows preset and runs the whole suite. "
-             "tsan is Linux/clang only.",
+        help="Build the test binary under Address- or ThreadSanitizer. asan: on "
+             "Linux the tests-asan preset, filtered to the patcher + send/return "
+             "tests (the #229 patcher concurrency gate); on Windows the "
+             "tests-asan-windows preset, which runs the whole suite. tsan: the "
+             "tests-tsan preset, which runs the whole ctest set minus "
+             "yse_unit_tests and yse_tests_contentpack (the engine-wide race "
+             "gate, #824); Linux/clang only.",
     )
     p.set_defaults(func=cmd_test)
 
