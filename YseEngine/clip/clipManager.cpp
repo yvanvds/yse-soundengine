@@ -7,6 +7,8 @@
   ==============================================================================
 */
 
+#include <iterator>
+
 #include "../internalHeaders.h"
 
 YSE::CLIP::managerObject& YSE::CLIP::Manager() {
@@ -92,8 +94,24 @@ void YSE::CLIP::managerObject::clear() {
     }
     inUse.clear();
     std::scoped_lock lk(implementationsMutex);
-    implementations.clear();
+    // Only orphans (interface already destroyed) are freed. A transport whose
+    // YSE::clip is still alive must outlive the session: the clip's pimpl points
+    // at it, and its destructor or any later call would otherwise touch freed
+    // memory (issue #974). The survivor is handed back to the (now idle) inbox
+    // so the next session's audio thread picks it up — it keeps working after a
+    // re-init, and once its interface goes it is retired and reaped through the
+    // normal update() / slow-pool path. The transport's clock share (#707) keeps
+    // the clock it points at alive past CLOCK::Manager().clear(); that clock no
+    // longer advances, so the transport idles until rebound.
+    implementations.remove_if([](const transport& t) { return !t.hasInterface(); });
+    for (auto& t : implementations)
+      toLoadInbox.push(&t);
   } catch (...) {
     INTERNAL::LogImpl().emit(E_ERROR, "CLIP::Manager clear swallowed exception");
   }
+}
+
+std::size_t YSE::CLIP::managerObject::implementationCountForTest() {
+  std::scoped_lock lk(implementationsMutex);
+  return static_cast<std::size_t>(std::distance(implementations.begin(), implementations.end()));
 }

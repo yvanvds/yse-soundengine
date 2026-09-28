@@ -10,6 +10,7 @@
 #ifndef YSE_CLIP_CLIPMANAGER_H
 #define YSE_CLIP_CLIPMANAGER_H
 
+#include <cstddef>
 #include <forward_list>
 #include <mutex>
 
@@ -46,9 +47,15 @@ namespace YSE {
       void update();
 
       /** Session teardown from INTERNAL::global::close(): join any in-flight
-          delete job and clear every transport. Called after the audio device is
-          closed and both thread pools are joined. */
+          delete job and free every orphaned transport. A transport whose clip
+          interface is still alive is kept and re-queued for the next session,
+          so a YSE::clip may safely outlive System().close() (issue #974).
+          Called after the audio device is closed and both thread pools are
+          joined. */
       void clear();
+
+      /** Test seam: number of transports the manager currently owns. */
+      std::size_t implementationCountForTest();
 
     private:
       // Canonical owner of every transport. Mutated only by the control thread

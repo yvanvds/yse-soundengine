@@ -51,6 +51,7 @@
 #include "internal/underWaterEffect.h"
 #include "dsp/ADSRenvelope.hpp"
 #include "headers/constants.hpp"
+#include "yse_c/yse_clip.h"
 #include "yse_c/yse_common.h"
 #include "yse_c/yse_system.h"
 
@@ -616,6 +617,54 @@ TEST_SUITE("lifecycle") {
 
     for (const SubHandle h : live)
       YSE::INTERNAL::Bus().unsubscribe(h);
+    YSE::System().close();
+  }
+
+  // Regression test for issue #974: a clip that outlives System().close().
+  // global::close() ran CLIP::Manager().clear(), which freed every clip
+  // transport — including those whose YSE::clip (or YseClip*) was still alive —
+  // so the handle's destructor and any later call wrote into freed memory. A
+  // heap-use-after-free that AddressSanitizer reports deterministically on the
+  // deletes below; the real gate is the asan run of this suite, as for #298 and
+  // #815. The deterministic count check lives in the clip suite.
+  TEST_CASE("lifecycle: a clip outliving System().close() stays safe to use and destroy "
+            "(issue #974)") {
+    YSE::System().close(); // normalize to a closed engine
+
+    if (!YSE::System().initOffline()) return; // no offline device on this host
+    REQUIRE(YSE::System().createClock("lifecycle.clip", 120.f));
+
+    auto* c = new YSE::clip;
+    REQUIRE(c->create("lifecycle.clip"));
+    YseClip* capi = yse_clip_create();
+    REQUIRE(capi != nullptr);
+    CHECK(yse_clip_bind(capi, "lifecycle.clip") == YSE_OK);
+    c->play();
+    yse_clip_play(capi);
+    YSE::System().renderOffline(4);
+
+    YSE::System().close();
+
+    // With no session up: calls reach live transports, not freed ones.
+    c->setEvents({});
+    c->stop();
+    CHECK_FALSE(c->isPlaying());
+    yse_clip_stop(capi);
+    yse_clip_destroy(capi); // use-after-free before the fix
+
+    // Next session: the surviving clip rebinds and plays, then is destroyed
+    // while the engine is up and reaped normally.
+    REQUIRE(YSE::System().initOffline());
+    REQUIRE(YSE::System().createClock("lifecycle.clip", 120.f));
+    CHECK(c->create("lifecycle.clip"));
+    c->play();
+    YSE::System().renderOffline(4);
+    CHECK(c->isPlaying());
+    YSE::System().close();
+
+    delete c; // use-after-free before the fix
+    REQUIRE(YSE::System().initOffline());
+    YSE::System().renderOffline(4);
     YSE::System().close();
   }
 

@@ -224,15 +224,19 @@ A clip and its clock can be destroyed in either order.
   engine a block to send them (a few milliseconds) before you destroy a
   clip that is playing. Or release the notes on the synth with
   ``allNotesOff()``.
-- Destroy your clips before ``System().close()``. Closing the session removes
-  every clock and clip from the engine, and the next session starts with
-  none.
+- A clip may outlive ``System().close()``. Closing the session removes every
+  clock, so the clip stops firing, but it stays safe to call and to destroy.
+  It keeps its events, loop length and connections. In the next session,
+  create the clock again and call ``create(name)`` on the clip to bind it.
 
 .. versionchanged:: 3.0
    Clips and patcher objects now share the lifetime of the clock they are
    bound to, so ``destroyClock`` can no longer free a clock that is still in
    use (issue `#707
-   <https://github.com/yvanvds/yse-soundengine/issues/707>`_).
+   <https://github.com/yvanvds/yse-soundengine/issues/707>`_). A clip that
+   is still alive at ``System().close()`` is no longer freed under its handle
+   (issue `#974
+   <https://github.com/yvanvds/yse-soundengine/issues/974>`_).
 
 Limits
 ------

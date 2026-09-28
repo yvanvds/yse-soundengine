@@ -403,6 +403,87 @@ TEST_SUITE("clip") {
     clocks.update(0.01f);
   }
 
+  TEST_CASE("clip: a clip outliving the session teardown keeps its transport (#974)") {
+    // Issue #974: CLIP::Manager().clear() — run by System().close() — freed
+    // every transport, including those whose YSE::clip was still alive. The
+    // clip's pimpl then dangled: its destructor, and any call, wrote into freed
+    // memory. clear() now frees only orphans and re-queues the survivors for
+    // the next session. The counts below fail deterministically without the
+    // fix (the survivor is gone after clear()); the memory claim itself is
+    // gated by the asan run of this suite and of the lifecycle case.
+    auto& mgr = YSE::CLIP::Manager();
+    auto& clocks = YSE::CLOCK::Manager();
+    mgr.clear(); // start from no orphans left behind by earlier cases
+    const std::size_t base = mgr.implementationCountForTest();
+
+    REQUIRE(clocks.createClock("clip.teardown", 60.f));
+    auto* c = new YSE::clip; // heap: freed storage is poisoned under asan
+    REQUIRE(c->create("clip.teardown"));
+    c->setEvents({ev(1.0, 1.0, 1, 60)});
+    c->play();
+    for (int i = 0; i < 4; ++i) {
+      clocks.update(0.25f);
+      mgr.update();
+    }
+    CHECK(mgr.implementationCountForTest() == base + 1);
+
+    // Session teardown, in global::close() order: clips, then clocks.
+    mgr.clear();
+    clocks.clear();
+    CHECK(mgr.implementationCountForTest() == base + 1); // survivor kept
+
+    // The clip stays callable with no session, and in the next one.
+    c->loopLength(4.0);
+    c->setEvents({ev(0.5, 1.0, 1, 62)});
+    CHECK(c->isPlaying());
+    CHECK_FALSE(c->create("clip.teardown")); // its clock went with the session
+    REQUIRE(clocks.createClock("clip.teardown", 60.f));
+    CHECK(c->create("clip.teardown"));
+    for (int i = 0; i < 4; ++i) {
+      clocks.update(0.25f);
+      mgr.update(); // picks the re-queued transport up and advances it
+    }
+    c->stop();
+    clocks.update(0.25f);
+    mgr.update();
+    CHECK_FALSE(c->isPlaying());
+
+    // Destroying it retires the transport through the normal reap path.
+    delete c;
+    for (int i = 0; i < 3 && mgr.implementationCountForTest() != base; ++i) {
+      REQUIRE(DrainSlowPool());
+      mgr.update();
+    }
+    REQUIRE(DrainSlowPool());
+    CHECK(mgr.implementationCountForTest() == base);
+
+    clocks.destroyClock("clip.teardown");
+    clocks.update(0.01f);
+  }
+
+  TEST_CASE("clip: destroying a clip after the session teardown is safe (#974)") {
+    // The issue's exact repro at manager level: the clip is destroyed while no
+    // session is up. Its transport is left for the next session's reap (or the
+    // manager's own destruction at exit); the destructor must only touch live
+    // memory.
+    auto& mgr = YSE::CLIP::Manager();
+    auto& clocks = YSE::CLOCK::Manager();
+    REQUIRE(clocks.createClock("clip.teardown.late", 120.f));
+    auto* c = new YSE::clip;
+    REQUIRE(c->create("clip.teardown.late"));
+    mgr.clear();
+    clocks.clear();
+    delete c; // use-after-free before the fix
+
+    // Next "session": the orphan is reaped normally.
+    mgr.update();
+    REQUIRE(DrainSlowPool());
+    mgr.update();
+    REQUIRE(DrainSlowPool());
+    mgr.clear();
+    CHECK(true);
+  }
+
 #if YSE_ENABLE_MIDI_DEVICE
 
   // ─── external MIDI-out sink (issue #350) ──────────────────────────────────
