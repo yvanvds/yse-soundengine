@@ -77,7 +77,7 @@ namespace {
   // stop a collected single value from reaching the `.i` a patch wired it to —
   // so a sink that only recorded text would be blind to the more interesting way
   // of getting this wrong.
-  struct Recorder : YSE::PATCHER::pObject {
+  struct Recorder : TestHelpers::SinkBase {
     struct Event {
       char kind = 'i'; // 'b' bang, 'i' int, 'f' float, 'l' list
       int intValue = 0;
@@ -87,7 +87,7 @@ namespace {
 
     std::vector<Event> events;
 
-    Recorder() : pObject(false) {
+    Recorder() : SinkBase(false) {
       // Reserved up front so the allocation probe measures the *object* rather
       // than this sink's own vector growing under it.
       events.reserve(1024);
@@ -444,11 +444,11 @@ TEST_SUITE("patcher") {
   // ─── .thresh: the gap ───────────────────────────────────────────────────────
 
   TEST_CASE("thresh: values arriving together come out as one list after the gap (#509)") {
+    Recorder out;
     patcherImplementation p(1, nullptr);
     YSE::pHandle* thresh = p.CreateObject(YSE::OBJ::G_THRESH, "100");
     REQUIRE(thresh != nullptr);
 
-    Recorder out;
     YSE::pHandle outHandle(&out);
     p.Connect(thresh, 0, &outHandle, 0);
 
@@ -482,11 +482,11 @@ TEST_SUITE("patcher") {
     // an implementation that armed a fixed window from the first value would
     // fail — the list must *not* be out one threshold after the first value when
     // a second arrived in between.
+    Recorder out;
     patcherImplementation p(1, nullptr);
     YSE::pHandle* thresh = p.CreateObject(YSE::OBJ::G_THRESH, "100");
     REQUIRE(thresh != nullptr);
 
-    Recorder out;
     YSE::pHandle outHandle(&out);
     p.Connect(thresh, 0, &outHandle, 0);
 
@@ -514,11 +514,11 @@ TEST_SUITE("patcher") {
   }
 
   TEST_CASE("thresh: a collected group of one number comes out as that number (#509)") {
+    Recorder out;
     patcherImplementation p(1, nullptr);
     YSE::pHandle* thresh = p.CreateObject(YSE::OBJ::G_THRESH, "100");
     REQUIRE(thresh != nullptr);
 
-    Recorder out;
     YSE::pHandle outHandle(&out);
     p.Connect(thresh, 0, &outHandle, 0);
 
@@ -539,11 +539,11 @@ TEST_SUITE("patcher") {
     // Max: "the entire list is appended to the list stored in thresh." A list is
     // one value here and travels whole, so all of it joins the group rather than
     // only its leading token.
+    Recorder out;
     patcherImplementation p(1, nullptr);
     YSE::pHandle* thresh = p.CreateObject(YSE::OBJ::G_THRESH, "100");
     REQUIRE(thresh != nullptr);
 
-    Recorder out;
     YSE::pHandle outHandle(&out);
     p.Connect(thresh, 0, &outHandle, 0);
 
@@ -560,11 +560,11 @@ TEST_SUITE("patcher") {
     // patcher renders. That is the only meaning "100 ms from now" can have on a
     // clock that is not running, and it is what stops a paused engine from
     // flushing every open group the moment it resumes.
+    Recorder out;
     patcherImplementation p(1, nullptr);
     YSE::pHandle* thresh = p.CreateObject(YSE::OBJ::G_THRESH, "100");
     REQUIRE(thresh != nullptr);
 
-    Recorder out;
     YSE::pHandle outHandle(&out);
     p.Connect(thresh, 0, &outHandle, 0);
 
@@ -587,11 +587,11 @@ TEST_SUITE("patcher") {
   TEST_CASE("thresh: .quickthresh closes its window on time and starts a new one (#509)") {
     // Fudge 0 disables the extension, which leaves the base window on its own —
     // the thing this case is about.
+    Recorder out;
     patcherImplementation p(1, nullptr);
     YSE::pHandle* quick = p.CreateObject(YSE::OBJ::G_QUICKTHRESH, "60 0 0");
     REQUIRE(quick != nullptr);
 
-    Recorder out;
     YSE::pHandle outHandle(&out);
     p.Connect(quick, 0, &outHandle, 0);
 
@@ -621,11 +621,11 @@ TEST_SUITE("patcher") {
     // Max: "bang will reset quickthresh and output the notes in its buffer."
     // The pending deadline must go with it — a group sent twice would be worse
     // than one sent late.
+    Recorder out;
     patcherImplementation p(1, nullptr);
     YSE::pHandle* quick = p.CreateObject(YSE::OBJ::G_QUICKTHRESH, "100000 0 0");
     REQUIRE(quick != nullptr);
 
-    Recorder out;
     YSE::pHandle outHandle(&out);
     p.Connect(quick, 0, &outHandle, 0);
 
@@ -654,11 +654,11 @@ TEST_SUITE("patcher") {
     // base thresh time, the threshold is extended." And exactly once — "an
     // additional time frame added to the first argument" — which is the bound
     // that keeps a group to threshold + extension however long the stream runs.
+    Recorder out;
     patcherImplementation p(1, nullptr);
     YSE::pHandle* quick = p.CreateObject(YSE::OBJ::G_QUICKTHRESH, "60 30 60");
     REQUIRE(quick != nullptr);
 
-    Recorder out;
     YSE::pHandle outHandle(&out);
     p.Connect(quick, 0, &outHandle, 0);
 
@@ -698,14 +698,14 @@ TEST_SUITE("patcher") {
     // which. A steady stream with no gap in it never closes a `.thresh` group
     // and closes a `.quickthresh` one right on schedule, which is the whole
     // reason a patch would reach for one rather than the other.
+    Recorder gapped;
+    Recorder windowed;
     patcherImplementation p(1, nullptr);
     YSE::pHandle* thresh = p.CreateObject(YSE::OBJ::G_THRESH, "60");
     YSE::pHandle* quick = p.CreateObject(YSE::OBJ::G_QUICKTHRESH, "60 0 0");
     REQUIRE(thresh != nullptr);
     REQUIRE(quick != nullptr);
 
-    Recorder gapped;
-    Recorder windowed;
     YSE::pHandle gappedHandle(&gapped);
     YSE::pHandle windowedHandle(&windowed);
     p.Connect(thresh, 0, &gappedHandle, 0);
@@ -746,6 +746,8 @@ TEST_SUITE("patcher") {
     // collectors on the audio thread, and the group's deadline is armed there
     // too. Nothing else in this file exercises that, and the arming path is
     // precisely the code that must not allocate or lock.
+    Recorder gapped;
+    Recorder windowed;
     patcherImplementation p(1, nullptr);
     YSE::pHandle* pipe = p.CreateObject(YSE::OBJ::G_PIPE, "");
     YSE::pHandle* thresh = p.CreateObject(YSE::OBJ::G_THRESH, "100");
@@ -754,8 +756,6 @@ TEST_SUITE("patcher") {
     REQUIRE(thresh != nullptr);
     REQUIRE(quick != nullptr);
 
-    Recorder gapped;
-    Recorder windowed;
     YSE::pHandle gappedHandle(&gapped);
     YSE::pHandle windowedHandle(&windowed);
     p.Connect(pipe, 0, thresh, 0);
@@ -854,6 +854,8 @@ TEST_SUITE("patcher") {
     if (!TestHelpers::probeCountsAllocations()) return;
     REQUIRE(TestHelpers::probeSeesStringAllocations());
 
+    Recorder gapped;
+    Recorder windowed;
     patcherImplementation p(1, nullptr);
     // Long enough that nothing flushes inside the probe — an emit runs the
     // recorder, which allocates.
@@ -862,8 +864,6 @@ TEST_SUITE("patcher") {
     REQUIRE(thresh != nullptr);
     REQUIRE(quick != nullptr);
 
-    Recorder gapped;
-    Recorder windowed;
     YSE::pHandle gappedHandle(&gapped);
     YSE::pHandle windowedHandle(&windowed);
     p.Connect(thresh, 0, &gappedHandle, 0);

@@ -70,12 +70,12 @@ namespace {
   // Records the logical event id in force wherever a message reaches it, for
   // every message kind. The clock is what #471 added below the object, so it
   // gets asserted on its own terms rather than only through .next's outlets.
-  struct EventProbe : YSE::PATCHER::pObject {
+  struct EventProbe : TestHelpers::SinkBase {
     std::vector<std::uint64_t>* log = nullptr;
     std::uint64_t last = 0;
     int count = 0;
 
-    EventProbe() : pObject(false) {
+    EventProbe() : SinkBase(false) {
       inputs.emplace_back(this, true, 0);
       inputs.back().RegisterBang([this](int, YSE::THREAD) { Record(); });
       inputs.back().RegisterInt([this](int, int, YSE::THREAD) { Record(); });
@@ -173,7 +173,7 @@ namespace {
   // from *inside* the send, so the re-entrant message is genuinely nested in
   // the same dispatch. Bounded by its own depth limit so a broken object fails
   // by assertion rather than by exhausting the stack.
-  struct FeedbackSink : YSE::PATCHER::pObject {
+  struct FeedbackSink : TestHelpers::SinkBase {
     gNext* target = nullptr;
     std::vector<char>* log = nullptr;
     char tag = '?';
@@ -181,7 +181,7 @@ namespace {
     int depth = 0;
     static constexpr int DEPTH_LIMIT = 8;
 
-    FeedbackSink() : pObject(false) {
+    FeedbackSink() : SinkBase(false) {
       inputs.emplace_back(this, true, 0);
       inputs.back().RegisterBang([this](int, YSE::THREAD) {
         hits++;
@@ -589,11 +589,11 @@ TEST_SUITE("patcher") {
     // send, HasSeenMessage() would still be false here on the first message.
     gNext op;
 
-    struct Observer : YSE::PATCHER::pObject {
+    struct Observer : TestHelpers::SinkBase {
       gNext* watched = nullptr;
       bool seenDuringSend = false;
       bool separatedDuringSend = false;
-      Observer() : pObject(false) {
+      Observer() : SinkBase(false) {
         inputs.emplace_back(this, true, 0);
         inputs.back().RegisterBang([this](int, YSE::THREAD) {
           if (watched != nullptr) {
@@ -708,6 +708,8 @@ TEST_SUITE("patcher") {
     // Registry, wiring API and object together: `.trigger b b b` into `.next`,
     // driven through the handle API the way a host drives it. One bang out of
     // the separated outlet per host call, three messages delivered per call.
+    TestHelpers::BangSink first;
+    TestHelpers::BangSink rest;
     YSE::patcher p;
     p.create(2);
     YSE::pHandle* trig = p.CreateObject(YSE::OBJ::G_TRIGGER, "b b b");
@@ -715,8 +717,6 @@ TEST_SUITE("patcher") {
     REQUIRE(trig != nullptr);
     REQUIRE(nxt != nullptr);
 
-    TestHelpers::BangSink first;
-    TestHelpers::BangSink rest;
     YSE::pHandle firstHandle(&first);
     YSE::pHandle restHandle(&rest);
 

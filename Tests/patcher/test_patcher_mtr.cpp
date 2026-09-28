@@ -78,11 +78,11 @@ namespace {
   // Records every value it receives, in order and with its kind. Both matter:
   // a tape is a *sequence*, and an event recorded as the int 60 has to come
   // back as an int rather than as a one-element list.
-  struct Recorder : YSE::PATCHER::pObject {
+  struct Recorder : TestHelpers::SinkBase {
     // "i60", "f60.50", "s1 0 0", "!" for a bang — one string per send.
     std::vector<std::string> seen;
 
-    Recorder() : pObject(false) {
+    Recorder() : SinkBase(false) {
       inputs.emplace_back(this, true, 0);
       inputs.back().RegisterBang([this](int, YSE::THREAD) { seen.emplace_back("!"); });
       inputs.back().RegisterInt(
@@ -806,6 +806,7 @@ TEST_SUITE("patcher") {
     // off the same clock playback will later wait on. The first gap is measured
     // from the `record` message itself, which is what gives `delay` something
     // to overwrite.
+    Recorder report;
     patcherImplementation p(1, nullptr);
     YSE::pHandle* mtr = p.CreateObject(YSE::OBJ::G_MTR, "");
     REQUIRE(mtr != nullptr);
@@ -820,7 +821,6 @@ TEST_SUITE("patcher") {
     mtr->SetIntData(1, 61);
     mtr->SetListData(0, "stop");
 
-    Recorder report;
     YSE::pHandle reportHandle(&report);
     p.Connect(mtr, 0, &reportHandle, 0);
 
@@ -838,11 +838,11 @@ TEST_SUITE("patcher") {
     // Max: "plays back all messages recorded earlier, sending them out the
     // corresponding outlets in the same rhythm and at the same speed they were
     // recorded."
+    Recorder data;
     patcherImplementation p(1, nullptr);
     YSE::pHandle* mtr = p.CreateObject(YSE::OBJ::G_MTR, "");
     REQUIRE(mtr != nullptr);
 
-    Recorder data;
     YSE::pHandle dataHandle(&data);
     p.Connect(mtr, 1, &dataHandle, 0);
 
@@ -885,11 +885,11 @@ TEST_SUITE("patcher") {
     // Max: "100 is the original timescale, whereas 200 would be twice as fast."
     // The sign of this is a coin flip if you do not read the reference, and the
     // test is what pins it. Sent after the play, because a play resets it.
+    Recorder data;
     patcherImplementation p(1, nullptr);
     YSE::pHandle* mtr = p.CreateObject(YSE::OBJ::G_MTR, "");
     REQUIRE(mtr != nullptr);
 
-    Recorder data;
     YSE::pHandle dataHandle(&data);
     p.Connect(mtr, 1, &dataHandle, 0);
 
@@ -921,11 +921,11 @@ TEST_SUITE("patcher") {
     // Max: "causes mtr to wait that amount of time after a play message is
     // received before playing back." It is added to the first event's own delta
     // rather than replacing it.
+    Recorder data;
     patcherImplementation p(1, nullptr);
     YSE::pHandle* mtr = p.CreateObject(YSE::OBJ::G_MTR, "");
     REQUIRE(mtr != nullptr);
 
-    Recorder data;
     YSE::pHandle dataHandle(&data);
     p.Connect(mtr, 1, &dataHandle, 0);
 
@@ -948,11 +948,11 @@ TEST_SUITE("patcher") {
   }
 
   TEST_CASE("mtr: 'stop' cancels the pending step (#501)") {
+    Recorder data;
     patcherImplementation p(1, nullptr);
     YSE::pHandle* mtr = p.CreateObject(YSE::OBJ::G_MTR, "");
     REQUIRE(mtr != nullptr);
 
-    Recorder data;
     YSE::pHandle dataHandle(&data);
     p.Connect(mtr, 1, &dataHandle, 0);
 
@@ -975,11 +975,11 @@ TEST_SUITE("patcher") {
   TEST_CASE("mtr: a muted track keeps its clock and only skips the send (#501)") {
     // Max: "still continuing to 'play'". A mute that stopped the clock would
     // leave the tape wherever it was silenced.
+    Recorder data;
     patcherImplementation p(1, nullptr);
     YSE::pHandle* mtr = p.CreateObject(YSE::OBJ::G_MTR, "");
     REQUIRE(mtr != nullptr);
 
-    Recorder data;
     YSE::pHandle dataHandle(&data);
     p.Connect(mtr, 1, &dataHandle, 0);
 
@@ -1008,12 +1008,12 @@ TEST_SUITE("patcher") {
   TEST_CASE("mtr: two tracks play independently (#501)") {
     // The whole point of the object, and the reason each track carries its own
     // clock rather than the object carrying one.
+    Recorder one;
+    Recorder two;
     patcherImplementation p(1, nullptr);
     YSE::pHandle* mtr = p.CreateObject(YSE::OBJ::G_MTR, "2");
     REQUIRE(mtr != nullptr);
 
-    Recorder one;
-    Recorder two;
     YSE::pHandle oneHandle(&one);
     YSE::pHandle twoHandle(&two);
     p.Connect(mtr, 1, &oneHandle, 0);
@@ -1054,11 +1054,11 @@ TEST_SUITE("patcher") {
   TEST_CASE("mtr: 'play <n>' repeats the tape n times (#501)") {
     // Max's `play 3 200` in a track inlet — the repeat count half of it, which
     // is what makes a recorded gesture loop.
+    Recorder data;
     patcherImplementation p(1, nullptr);
     YSE::pHandle* mtr = p.CreateObject(YSE::OBJ::G_MTR, "");
     REQUIRE(mtr != nullptr);
 
-    Recorder data;
     YSE::pHandle dataHandle(&data);
     p.Connect(mtr, 1, &dataHandle, 0);
 
@@ -1079,11 +1079,11 @@ TEST_SUITE("patcher") {
   TEST_CASE("mtr: 'play' rewinds rather than resuming (#501)") {
     // Max: "plays back all messages recorded earlier" — the whole tape. A play
     // that resumed would quietly turn stop-then-play into a continue.
+    Recorder data;
     patcherImplementation p(1, nullptr);
     YSE::pHandle* mtr = p.CreateObject(YSE::OBJ::G_MTR, "");
     REQUIRE(mtr != nullptr);
 
-    Recorder data;
     YSE::pHandle dataHandle(&data);
     p.Connect(mtr, 1, &dataHandle, 0);
 

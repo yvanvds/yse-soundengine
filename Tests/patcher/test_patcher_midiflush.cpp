@@ -55,10 +55,10 @@ namespace {
   // in — an int logged as an int and a list as its text. Order and shape are
   // both claims here ("the stream leaves in the spelling it arrived in"), so a
   // sink that normalised either could not test them.
-  struct Tap : YSE::PATCHER::pObject {
+  struct Tap : TestHelpers::SinkBase {
     std::vector<std::string>* log = nullptr;
 
-    Tap() : pObject(false) {
+    Tap() : SinkBase(false) {
       inputs.emplace_back(this, true, 0);
       inputs.back().RegisterInt([this](int v, int, YSE::THREAD) {
         if (log) log->push_back("i" + std::to_string(v));

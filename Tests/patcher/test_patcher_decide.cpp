@@ -98,14 +98,14 @@ namespace {
   // *be* the race rather than observe it: four threads writing one `int
   // received` is undefined behaviour, and ThreadSanitizer would rightly report
   // the sink instead of the object under test.
-  struct TallyDecideSink : YSE::PATCHER::pObject {
+  struct TallyDecideSink : TestHelpers::SinkBase {
     std::atomic<int>& ones;
     std::atomic<int>& total;
     std::atomic<int>& strays;
 
     TallyDecideSink(std::atomic<int>& onesCount, std::atomic<int>& totalCount,
                     std::atomic<int>& strayCount)
-      : pObject(false), ones(onesCount), total(totalCount), strays(strayCount) {
+      : SinkBase(false), ones(onesCount), total(totalCount), strays(strayCount) {
       inputs.emplace_back(this, true, 0);
       inputs.back().RegisterInt([this](int v, int, YSE::THREAD) {
         total.fetch_add(1);

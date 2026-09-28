@@ -54,10 +54,10 @@ namespace {
 
   // Records every int it receives, in order. OrderSink keeps only the last one,
   // and the index sequence is half of what this object means.
-  struct IntLog : YSE::PATCHER::pObject {
+  struct IntLog : TestHelpers::SinkBase {
     std::vector<int>* log = nullptr;
 
-    IntLog() : pObject(false) {
+    IntLog() : SinkBase(false) {
       inputs.emplace_back(this, true, 0);
       inputs.back().RegisterInt([this](int v, int, YSE::THREAD) {
         if (log) log->push_back(v);
@@ -72,10 +72,10 @@ namespace {
 
   // Records the logical event id in force wherever a message reaches it, for
   // every message kind — the clock #471 put under the dispatch layer.
-  struct EventProbe : YSE::PATCHER::pObject {
+  struct EventProbe : TestHelpers::SinkBase {
     std::vector<std::uint64_t>* log = nullptr;
 
-    EventProbe() : pObject(false) {
+    EventProbe() : SinkBase(false) {
       inputs.emplace_back(this, true, 0);
       inputs.back().RegisterBang([this](int, YSE::THREAD) { Record(); });
       inputs.back().RegisterInt([this](int, int, YSE::THREAD) { Record(); });
@@ -156,13 +156,13 @@ namespace {
   // explicit that this is the only way the message can arrive: "Since uzi sends
   // its output as fast as possible, this message must be triggered in some way
   // by the output of uzi itself."
-  struct PauseAfter : YSE::PATCHER::pObject {
+  struct PauseAfter : TestHelpers::SinkBase {
     gUzi* target = nullptr;
     int after = 0;
     int seen = 0;
     bool runningDuringSend = false;
 
-    PauseAfter() : pObject(false) {
+    PauseAfter() : SinkBase(false) {
       inputs.emplace_back(this, true, 0);
       inputs.back().RegisterBang([this](int, YSE::THREAD) {
         seen++;
@@ -182,14 +182,14 @@ namespace {
   // the send, so the re-entrant start is genuinely nested in the same dispatch.
   // Carries its own depth limit so a missing guard fails by assertion rather
   // than by blowing the stack.
-  struct FeedbackSink : YSE::PATCHER::pObject {
+  struct FeedbackSink : TestHelpers::SinkBase {
     YSE::PATCHER::pObject* target = nullptr;
     int hits = 0;
     int depth = 0;
     int maxDepth = 0;
     static constexpr int DEPTH_LIMIT = 6;
 
-    FeedbackSink() : pObject(false) {
+    FeedbackSink() : SinkBase(false) {
       inputs.emplace_back(this, true, 0);
       inputs.back().RegisterBang([this](int, YSE::THREAD) {
         hits++;
@@ -210,12 +210,12 @@ namespace {
 
   // Raises the count from the *cold* inlet on every bang — a start guard cannot
   // see this one, because setting the count is not a start.
-  struct RaiseCount : YSE::PATCHER::pObject {
+  struct RaiseCount : TestHelpers::SinkBase {
     gUzi* target = nullptr;
     int next = 0;
     int hits = 0;
 
-    RaiseCount() : pObject(false) {
+    RaiseCount() : SinkBase(false) {
       inputs.emplace_back(this, true, 0);
       inputs.back().RegisterBang([this](int, YSE::THREAD) {
         hits++;
@@ -579,10 +579,10 @@ TEST_SUITE("patcher") {
   }
 
   TEST_CASE("uzi: break pauses exactly as pause does (#473)") {
-    struct BreakAfter : YSE::PATCHER::pObject {
+    struct BreakAfter : TestHelpers::SinkBase {
       gUzi* target = nullptr;
       int seen = 0;
-      BreakAfter() : pObject(false) {
+      BreakAfter() : SinkBase(false) {
         inputs.emplace_back(this, true, 0);
         inputs.back().RegisterBang([this](int, YSE::THREAD) {
           seen++;
@@ -656,10 +656,10 @@ TEST_SUITE("patcher") {
   TEST_CASE("uzi: pause never leaves an index without its bang (#473)") {
     // The flag is read at the top of the loop, so an iteration is atomic even
     // when the pause arrives from the *index* outlet, half way through one.
-    struct PauseOnIndex : YSE::PATCHER::pObject {
+    struct PauseOnIndex : TestHelpers::SinkBase {
       gUzi* target = nullptr;
       int at = 0;
-      PauseOnIndex() : pObject(false) {
+      PauseOnIndex() : SinkBase(false) {
         inputs.emplace_back(this, true, 0);
         inputs.back().RegisterInt([this](int v, int, YSE::THREAD) {
           if (v == at && target != nullptr) target->GetInlet(0)->SetList("pause", YSE::T_GUI);
@@ -776,9 +776,9 @@ TEST_SUITE("patcher") {
   }
 
   TEST_CASE("uzi: an offset written during a run applies to the next one (#473)") {
-    struct OffsetOnBang : YSE::PATCHER::pObject {
+    struct OffsetOnBang : TestHelpers::SinkBase {
       gUzi* target = nullptr;
-      OffsetOnBang() : pObject(false) {
+      OffsetOnBang() : SinkBase(false) {
         inputs.emplace_back(this, true, 0);
         inputs.back().RegisterBang([this](int, YSE::THREAD) {
           if (target != nullptr) target->GetInlet(0)->SetList("offset 2", YSE::T_GUI);
@@ -807,9 +807,9 @@ TEST_SUITE("patcher") {
   }
 
   TEST_CASE("uzi: a resume arriving from inside the burst is refused (#473)") {
-    struct ResumeOnBang : YSE::PATCHER::pObject {
+    struct ResumeOnBang : TestHelpers::SinkBase {
       gUzi* target = nullptr;
-      ResumeOnBang() : pObject(false) {
+      ResumeOnBang() : SinkBase(false) {
         inputs.emplace_back(this, true, 0);
         inputs.back().RegisterBang([this](int, YSE::THREAD) {
           if (target != nullptr) target->GetInlet(0)->SetList("resume", YSE::T_GUI);
@@ -1097,14 +1097,14 @@ TEST_SUITE("patcher") {
   TEST_CASE("uzi: a loop in a real patcher (#473)") {
     // Registry, wiring API and object together, driven through the handle API
     // the way a host drives it.
+    TestHelpers::BangSink bangs;
+    TestHelpers::BangSink done;
+    TestHelpers::IntSink last;
     YSE::patcher p;
     p.create(2);
     YSE::pHandle* uzi = p.CreateObject(YSE::OBJ::G_UZI, "6 0");
     REQUIRE(uzi != nullptr);
 
-    TestHelpers::BangSink bangs;
-    TestHelpers::BangSink done;
-    TestHelpers::IntSink last;
     YSE::pHandle bangHandle(&bangs);
     YSE::pHandle doneHandle(&done);
     YSE::pHandle indexHandle(&last);
@@ -1131,6 +1131,8 @@ TEST_SUITE("patcher") {
   }
 
   TEST_CASE("uzi: driving .next from a real patcher gives one bang per burst (#473)") {
+    TestHelpers::BangSink first;
+    TestHelpers::BangSink rest;
     YSE::patcher p;
     p.create(2);
     YSE::pHandle* uzi = p.CreateObject(YSE::OBJ::G_UZI, "4");
@@ -1138,8 +1140,6 @@ TEST_SUITE("patcher") {
     REQUIRE(uzi != nullptr);
     REQUIRE(nxt != nullptr);
 
-    TestHelpers::BangSink first;
-    TestHelpers::BangSink rest;
     YSE::pHandle firstHandle(&first);
     YSE::pHandle restHandle(&rest);
 

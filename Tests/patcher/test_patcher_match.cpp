@@ -65,10 +65,10 @@ namespace {
   // *how many* sequences were reported and *what was in them* — the wildcard
   // positions carry the values that filled them, so the payload is half the
   // object and a hit counter alone would miss it.
-  struct SeqSink : YSE::PATCHER::pObject {
+  struct SeqSink : TestHelpers::SinkBase {
     std::vector<std::string> lists;
 
-    SeqSink() : pObject(false) {
+    SeqSink() : SinkBase(false) {
       inputs.emplace_back(this, true, 0);
       inputs.back().RegisterList(
           [this](const std::string& v, int, YSE::THREAD) { lists.push_back(v); });
@@ -139,13 +139,13 @@ namespace {
   // A sink that inspects the object from *inside* the send, so "the window is
   // emptied before the outlet fires" is asserted at the only moment it can be
   // observed rather than inferred from the state left behind afterwards.
-  struct InspectingSink : YSE::PATCHER::pObject {
+  struct InspectingSink : TestHelpers::SinkBase {
     const gMatch* target = nullptr;
     int heldDuringSend = -1;
     int progressDuringSend = -1;
     int hits = 0;
 
-    InspectingSink() : pObject(false) {
+    InspectingSink() : SinkBase(false) {
       inputs.emplace_back(this, true, 0);
       inputs.back().RegisterList([this](const std::string&, int, YSE::THREAD) {
         hits++;
@@ -754,6 +754,7 @@ TEST_SUITE("patcher") {
   // ─── params / persistence ───────────────────────────────────────────────────
 
   TEST_CASE("match: survives a DumpJSON / ParseJSON round trip (#472)") {
+    TestHelpers::ListSink sink;
     YSE::patcher src;
     src.create(2);
     REQUIRE(src.CreateObject(YSE::OBJ::G_MATCH, "1 nn 3") != nullptr);
@@ -773,7 +774,6 @@ TEST_SUITE("patcher") {
 
     // The pattern came back, wildcard and all — a round trip that only kept
     // the port count would pass everything above this line.
-    TestHelpers::ListSink sink;
     YSE::pHandle sinkHandle(&sink);
     loaded.Connect(copy, 0, &sinkHandle, 0);
     copy->SetIntData(0, 1);
@@ -820,12 +820,12 @@ TEST_SUITE("patcher") {
   TEST_CASE("match: recognises a motif in a real patcher (#472)") {
     // Registry, wiring API and object together, driven through the handle API
     // the way a host drives it.
+    TestHelpers::ListSink sink;
     YSE::patcher p;
     p.create(2);
     YSE::pHandle* m = p.CreateObject(YSE::OBJ::G_MATCH, "60 62 nn 60");
     REQUIRE(m != nullptr);
 
-    TestHelpers::ListSink sink;
     YSE::pHandle sinkHandle(&sink);
     p.Connect(m, 0, &sinkHandle, 0);
 
@@ -843,6 +843,7 @@ TEST_SUITE("patcher") {
     // rebuild route of #234 rather than patching the live object. The handle
     // follows the replacement, so the patch cords drawn afterwards land on the
     // object that is actually in the graph.
+    TestHelpers::ListSink sink;
     YSE::patcher p;
     p.create(2);
     YSE::pHandle* m = p.CreateObject(YSE::OBJ::G_MATCH, "1 2");
@@ -850,7 +851,6 @@ TEST_SUITE("patcher") {
     m->SetParams("3 4");
     CHECK(m->GetParams() == std::string("3 4"));
 
-    TestHelpers::ListSink sink;
     YSE::pHandle sinkHandle(&sink);
     p.Connect(m, 0, &sinkHandle, 0);
 

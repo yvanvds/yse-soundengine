@@ -39,13 +39,14 @@
 #include "patcher/pObjectList.hpp"
 #include "patcher/pRegistry.h"
 #include "patcher/math/gMean.h"
+#include "patcher/sinks.hpp"
 
 namespace {
 
   // A sink that records *when* it was hit as well as what it received, so the
   // right-to-left outlet order can be asserted rather than assumed. One type
   // serves both outlets: the mean arrives as a float, the count as an int.
-  struct OrderSink : YSE::PATCHER::pObject {
+  struct OrderSink : TestHelpers::SinkBase {
     std::vector<char>* log = nullptr;
     char tag = '?';
     float lastFloat = 0.f;
@@ -53,7 +54,7 @@ namespace {
     int floatCount = 0;
     int intCount = 0;
 
-    OrderSink() : pObject(false) {
+    OrderSink() : SinkBase(false) {
       inputs.emplace_back(this, true, 0);
       inputs.back().RegisterFloat([this](float v, int, YSE::THREAD) {
         lastFloat = v;

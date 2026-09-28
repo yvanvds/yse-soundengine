@@ -523,11 +523,11 @@ TEST_SUITE("patcher") {
     // callbacks, so SetParams on a running patcher must defer to the audio
     // thread rather than replace the object (issue #234) — which is also what
     // makes the held keys survive it.
+    MultiSink sink;
     patcherImplementation p(1, nullptr);
     YSE::pHandle* board = p.CreateObject(YSE::OBJ::G_KSLIDER, "64");
     REQUIRE(board != nullptr);
 
-    MultiSink sink;
     YSE::pHandle sinkHandle(&sink);
     p.Connect(board, 1, &sinkHandle, 0);
 

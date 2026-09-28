@@ -387,11 +387,11 @@ TEST_SUITE("patcher") {
     // thread rather than replace the object (issue #234). The retire count is
     // the observable difference; the identity and the new mapping are the
     // consequences a patch cares about.
+    MultiSink sink;
     patcherImplementation p(1, nullptr);
     YSE::pHandle* dial = p.CreateObject(YSE::OBJ::G_DIAL, "0 100");
     REQUIRE(dial != nullptr);
 
-    MultiSink sink;
     YSE::pHandle sinkHandle(&sink);
     p.Connect(dial, 0, &sinkHandle, 0);
 

@@ -107,12 +107,12 @@ TEST_SUITE("patcher") {
   // ---- Structural path: replacement object + swap ----
 
   TEST_CASE("setparams: gGate pin growth keeps identity and surviving connections") {
+    MultiSink sinkA, sinkB;
     patcherImplementation p(1, nullptr);
     YSE::pHandle* gate = p.CreateObject(YSE::OBJ::G_GATE, "2");
     REQUIRE(gate != nullptr);
     REQUIRE(gate->GetOutputs() == 2);
 
-    MultiSink sinkA, sinkB;
     YSE::pHandle hA(&sinkA), hB(&sinkB);
     p.Connect(gate, 0, &hA, 0);
     p.Connect(gate, 1, &hB, 0);
@@ -143,11 +143,11 @@ TEST_SUITE("patcher") {
   }
 
   TEST_CASE("setparams: gGate pin shrink drops the removed outlets' edges") {
+    MultiSink sinkKept, sinkDropped;
     patcherImplementation p(1, nullptr);
     YSE::pHandle* gate = p.CreateObject(YSE::OBJ::G_GATE, "4");
     REQUIRE(gate->GetOutputs() == 4);
 
-    MultiSink sinkKept, sinkDropped;
     YSE::pHandle hKept(&sinkKept), hDropped(&sinkDropped);
     p.Connect(gate, 0, &hKept, 0);
     p.Connect(gate, 3, &hDropped, 0);
@@ -169,11 +169,11 @@ TEST_SUITE("patcher") {
   // outputs[] past the end (a heap-buffer-overflow under ASan); it now answers.
   TEST_CASE("setparams: an outlet number cached across a gGate shrink is answered, not read "
             "(issue #737)") {
+    MultiSink sinkKept, sinkDropped;
     patcherImplementation p(1, nullptr);
     YSE::pHandle* gate = p.CreateObject(YSE::OBJ::G_GATE, "4");
     REQUIRE(gate->GetOutputs() == 4);
 
-    MultiSink sinkKept, sinkDropped;
     YSE::pHandle hKept(&sinkKept), hDropped(&sinkDropped);
     p.Connect(gate, 0, &hKept, 0);
     p.Connect(gate, 3, &hDropped, 0);
@@ -218,9 +218,9 @@ TEST_SUITE("patcher") {
   }
 
   TEST_CASE("setparams: gReceive dataName re-parse redirects value delivery") {
+    MultiSink sink;
     patcherImplementation p(1, nullptr);
     YSE::pHandle* recv = p.CreateObject(YSE::OBJ::G_RECEIVE, "alpha");
-    MultiSink sink;
     YSE::pHandle hSink(&sink);
     p.Connect(recv, 0, &hSink, 0);
 
@@ -440,11 +440,11 @@ TEST_SUITE("patcher") {
     // Ignored means ignored: the object still behaves like the bare one. .mean
     // averages from scratch, and a live re-parse on the parented object is the
     // no-op the scalar path already made it.
+    MultiSink sink;
     patcherImplementation p(1, nullptr);
     YSE::pHandle* mean = p.CreateObject(YSE::OBJ::G_MEAN, "5");
     REQUIRE(mean != nullptr);
 
-    MultiSink sink;
     YSE::pHandle hSink(&sink);
     p.Connect(mean, 0, &hSink, 0);
 

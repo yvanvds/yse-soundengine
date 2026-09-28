@@ -41,6 +41,7 @@
 #include "patcher/pObjectList.hpp"
 #include "patcher/pRegistry.h"
 #include "patcher/math/gExtremum.h"
+#include "patcher/sinks.hpp"
 
 namespace {
 
@@ -58,11 +59,11 @@ namespace {
 
   // Counts what came out as well as recording it, so "this message is silent"
   // can be asserted rather than assumed.
-  struct Sink : YSE::PATCHER::pObject {
+  struct Sink : TestHelpers::SinkBase {
     float last = 0.f;
     int hits = 0;
 
-    Sink() : pObject(false) {
+    Sink() : SinkBase(false) {
       inputs.emplace_back(this, true, 0);
       inputs.back().RegisterFloat([this](float v, int, YSE::THREAD) {
         last = v;

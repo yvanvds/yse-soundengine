@@ -272,7 +272,7 @@ TEST_SUITE("patcher") {
 
   // A hot inlet with every typed handler and no command channel, counting its
   // calculates so a fire on an ignored message is visible.
-  struct TypedProbe : YSE::PATCHER::pObject {
+  struct TypedProbe : TestHelpers::SinkBase {
     struct Seen {
       bool gotBang = false;
       bool gotInt = false;
@@ -287,7 +287,7 @@ TEST_SUITE("patcher") {
     } seen;
     int calculated = 0;
     // Only the float handler, as `.mtof`-like objects that take no words.
-    explicit TypedProbe(bool floatOnly = false) : pObject(false) {
+    explicit TypedProbe(bool floatOnly = false) : SinkBase(false) {
       inputs.emplace_back(this, true, 0);
       inputs.back().RegisterFloat([this](float v, int, YSE::THREAD) {
         seen.gotFloat = true;
@@ -315,10 +315,10 @@ TEST_SUITE("patcher") {
 
   // A command-channel object with a list handler and nothing else — the shape
   // of `.midiout`, whose list handler must never see a word command.
-  struct CommandProbe : YSE::PATCHER::pObject {
+  struct CommandProbe : TestHelpers::SinkBase {
     std::string command;
     std::string list;
-    CommandProbe() : pObject(false) {
+    CommandProbe() : SinkBase(false) {
       inputs.emplace_back(this, true, 0);
       inputs.back().RegisterList([this](const std::string& v, int, YSE::THREAD) { list = v; });
     }

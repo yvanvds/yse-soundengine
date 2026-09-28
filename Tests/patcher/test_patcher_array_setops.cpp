@@ -521,6 +521,7 @@ TEST_SUITE("patcher") {
     BangSink empty;
     YSE::pHandle outHandle(&out);
     YSE::pHandle emptyHandle(&empty);
+    MultiSink out2;
     YSE::PATCHER::patcherImplementation p(2, nullptr);
     p.SetName("aso792n_before");
 
@@ -553,7 +554,6 @@ TEST_SUITE("patcher") {
     // And the right side alone re-anchors too: a union whose left keeper
     // still binds (recreated under the new prefix) must stop seeing the old
     // right contents.
-    MultiSink out2;
     YSE::pHandle out2Handle(&out2);
     gArray newLeft;
     newLeft.SetParent(&p);

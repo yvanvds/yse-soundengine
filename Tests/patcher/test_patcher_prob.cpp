@@ -175,9 +175,9 @@ namespace {
   };
 
   // Collects every list a dump produces, in order.
-  struct DumpCollector : YSE::PATCHER::pObject {
+  struct DumpCollector : TestHelpers::SinkBase {
     std::vector<std::string> lines;
-    DumpCollector() : pObject(false) {
+    DumpCollector() : SinkBase(false) {
       inputs.emplace_back(this, true, 0);
       inputs.back().RegisterList(
           [this](const std::string& v, int, YSE::THREAD) { lines.push_back(v); });
@@ -191,12 +191,12 @@ namespace {
 
   // Thread-safe tally for the concurrency case. A plain IntSink would *be* the
   // race rather than observe it.
-  struct ProbTallySink : YSE::PATCHER::pObject {
+  struct ProbTallySink : TestHelpers::SinkBase {
     std::atomic<int>& total;
     std::atomic<int>& strays;
 
     ProbTallySink(std::atomic<int>& totalCount, std::atomic<int>& strayCount)
-      : pObject(false), total(totalCount), strays(strayCount) {
+      : SinkBase(false), total(totalCount), strays(strayCount) {
       inputs.emplace_back(this, true, 0);
       inputs.back().RegisterInt([this](int v, int, YSE::THREAD) {
         total.fetch_add(1);

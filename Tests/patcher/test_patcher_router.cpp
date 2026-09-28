@@ -58,10 +58,10 @@ namespace {
   // emits one list per matrix cell, so "what did the whole dump say, and how
   // many lines was it" is the assertion — a sink that kept only the last value
   // could not tell a complete dump from a truncated or a nested one.
-  struct DumpSink : YSE::PATCHER::pObject {
+  struct DumpSink : TestHelpers::SinkBase {
     std::vector<std::string> lines;
 
-    DumpSink() : pObject(false) {
+    DumpSink() : SinkBase(false) {
       inputs.emplace_back(this, true, 0);
       inputs.back().RegisterBang([this](int, YSE::THREAD) { lines.push_back("<bang>"); });
       inputs.back().RegisterInt([this](int, int, YSE::THREAD) { lines.push_back("<int>"); });
@@ -89,7 +89,7 @@ namespace {
   // bounded number of times. A router whose outlet is wired to its own control
   // inlet is the re-entrancy case, and it needs a receiver that stops feeding
   // rather than a bare patch cord, which would not terminate.
-  struct ControlFeedbackSink : YSE::PATCHER::pObject {
+  struct ControlFeedbackSink : TestHelpers::SinkBase {
     gRouter* target = nullptr;
     std::string message;
     int budget = 0;
@@ -98,7 +98,7 @@ namespace {
     char tag = '?';
     int count = 0;
 
-    ControlFeedbackSink() : pObject(false) {
+    ControlFeedbackSink() : SinkBase(false) {
       inputs.emplace_back(this, true, 0);
       inputs.back().RegisterBang([this](int, YSE::THREAD t) { Hit(t); });
       inputs.back().RegisterInt([this](int, int, YSE::THREAD t) { Hit(t); });
@@ -751,6 +751,7 @@ TEST_SUITE("patcher") {
   }
 
   TEST_CASE("router: survives a DumpJSON / ParseJSON round trip (#482)") {
+    ListSink sink;
     YSE::patcher src;
     src.create(2);
     YSE::pHandle* h = src.CreateObject(YSE::OBJ::G_ROUTER);
@@ -774,7 +775,6 @@ TEST_SUITE("patcher") {
     CHECK(copy->GetOutputs() == 5);
 
     // And the reloaded object is a working crossbar, not merely the right shape.
-    ListSink sink;
     YSE::pHandle sinkHandle(&sink);
     loaded.Connect(copy, 2, &sinkHandle, 0);
     copy->SetListData(0, "connect 1 2");
@@ -802,6 +802,8 @@ TEST_SUITE("patcher") {
     // destinations, and the destination changed by a message rather than by
     // re-patching. Each path adds a different constant, so a sink's value is
     // only right if the value went out the outlet it was routed to.
+    FloatSink one;
+    FloatSink two;
     YSE::patcher p;
     p.create(2);
     YSE::pHandle* router = p.CreateObject(YSE::OBJ::G_ROUTER, "2 2");
@@ -811,8 +813,6 @@ TEST_SUITE("patcher") {
     REQUIRE(addHundred != nullptr);
     REQUIRE(addThousand != nullptr);
 
-    FloatSink one;
-    FloatSink two;
     YSE::pHandle oneHandle(&one);
     YSE::pHandle twoHandle(&two);
 

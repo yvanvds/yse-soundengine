@@ -58,7 +58,7 @@ namespace {
   //
   // Events are a fixed-size struct in a reserved vector rather than strings, so
   // the allocation probe measures the object under test and not this sink.
-  struct Notes : YSE::PATCHER::pObject {
+  struct Notes : TestHelpers::SinkBase {
     struct Event {
       char kind = 'p'; // 'p' pitch outlet, 'v' velocity outlet
       int value = 0;
@@ -66,7 +66,7 @@ namespace {
 
     std::vector<Event> events;
 
-    Notes() : pObject(false) {
+    Notes() : SinkBase(false) {
       events.reserve(4096);
 
       inputs.emplace_back(this, true, 0);
@@ -112,11 +112,11 @@ namespace {
 
   // Counts note events arriving as `.midiparse` spells them, for the end-to-end
   // chain where the question is how many times a patch downstream would fire.
-  struct NoteCounter : YSE::PATCHER::pObject {
+  struct NoteCounter : TestHelpers::SinkBase {
     int seen = 0;
     std::vector<std::string> lists;
 
-    NoteCounter() : pObject(false) {
+    NoteCounter() : SinkBase(false) {
       inputs.emplace_back(this, true, 0);
       inputs.back().RegisterInt([this](int, int, YSE::THREAD) { seen++; });
       inputs.back().RegisterList([this](const std::string& v, int, YSE::THREAD) {
@@ -396,11 +396,11 @@ TEST_SUITE("patcher") {
     // note-on and the note-off that follows it — are decoded by a real
     // `.midiparse` and go straight downstream, and the patch fires *twice* for
     // one key press. That is the bug.
+    NoteCounter counter;
     patcherImplementation p(1, nullptr);
     YSE::pHandle* parse = p.CreateObject(YSE::OBJ::M_PARSE, "");
     REQUIRE(parse != nullptr);
 
-    NoteCounter counter;
     YSE::pHandle counterHandle(&counter);
     p.Connect(parse, 0, &counterHandle, 0); // the note outlet
 
@@ -419,6 +419,7 @@ TEST_SUITE("patcher") {
     // decoding real MIDI bytes into a real `.stripnote` through real cords. One
     // key press, one trigger — which is the whole point of the object and the
     // one thing the control case above shows does not happen without it.
+    Notes out;
     patcherImplementation p(1, nullptr);
     YSE::pHandle* parse = p.CreateObject(YSE::OBJ::M_PARSE, "");
     YSE::pHandle* strip = p.CreateObject(YSE::OBJ::M_STRIPNOTE, "");
@@ -429,7 +430,6 @@ TEST_SUITE("patcher") {
     // inlet distributes across its own two inlets.
     p.Connect(parse, 0, strip, 0);
 
-    Notes out;
     YSE::pHandle outHandle(&out);
     p.Connect(strip, 0, &outHandle, 0);
     p.Connect(strip, 1, &outHandle, 1);

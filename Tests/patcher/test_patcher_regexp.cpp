@@ -28,6 +28,7 @@
 #include "patcher/pRegistry.h"
 #include "patcher/genericObjects/gRegexp.h"
 #include "patcher/genericObjects/gRegexEngine.h"
+#include "patcher/sinks.hpp"
 
 using YSE::PATCHER::gRegexp;
 using YSE::PATCHER::kRegexpMaxSubject;
@@ -40,10 +41,10 @@ namespace {
   // MultiSink keeps only the last message; .regexp sends once per match, so
   // the interesting assertion is usually "what did this outlet send, in
   // order".
-  struct ListLog : YSE::PATCHER::pObject {
+  struct ListLog : TestHelpers::SinkBase {
     std::vector<std::string> values;
 
-    ListLog() : pObject(false) {
+    ListLog() : SinkBase(false) {
       inputs.emplace_back(this, true, 0);
       inputs.back().RegisterList(
           [this](const std::string& v, int, YSE::THREAD) { values.push_back(v); });

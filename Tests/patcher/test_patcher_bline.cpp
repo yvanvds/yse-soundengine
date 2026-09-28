@@ -62,7 +62,7 @@ namespace {
   // Records every message this object receives, in order and *with its type* —
   // the type being half of what a line-family object promises, since a ramp
   // that always emitted floats would not reach the `.i` a patch wired it to.
-  struct BlineRecorder : YSE::PATCHER::pObject {
+  struct BlineRecorder : TestHelpers::SinkBase {
     struct Event {
       char kind = 'i'; // 'b' bang, 'i' int, 'f' float, 'l' list
       int intValue = 0;
@@ -72,7 +72,7 @@ namespace {
 
     std::vector<Event> events;
 
-    BlineRecorder() : pObject(false) {
+    BlineRecorder() : SinkBase(false) {
       // Reserved up front so the allocation probe measures the *object* rather
       // than this sink's own vector growing under it.
       events.reserve(1024);
@@ -487,9 +487,9 @@ TEST_SUITE("patcher") {
     // so a patcher rendering for as long as it likes changes nothing until a
     // bang arrives. A regression that gave this object a clock would pass every
     // other assertion in this file.
-    patcherImplementation p(1, nullptr);
     BlineRecorder out;
     BlineRecorder done;
+    patcherImplementation p(1, nullptr);
     YSE::pHandle outHandle(&out);
     YSE::pHandle doneHandle(&done);
     YSE::pHandle* bline = p.CreateObject(YSE::OBJ::G_BLINE, "0");
@@ -629,6 +629,8 @@ TEST_SUITE("patcher") {
     // the patcher's own dispatch, which is precisely the code that must not
     // allocate or lock, and the arrival bang goes on through a `.delay` so the
     // "ramp, then do the next thing" idiom runs end to end.
+    BlineRecorder out;
+    BlineRecorder chained;
     patcherImplementation p(1, nullptr);
     YSE::pHandle* pipe = p.CreateObject(YSE::OBJ::G_PIPE, "5");
     YSE::pHandle* uzi = p.CreateObject(YSE::OBJ::G_UZI, "1");
@@ -639,8 +641,6 @@ TEST_SUITE("patcher") {
     REQUIRE(bline != nullptr);
     REQUIRE(after != nullptr);
 
-    BlineRecorder out;
-    BlineRecorder chained;
     YSE::pHandle outHandle(&out);
     YSE::pHandle chainedHandle(&chained);
     p.Connect(pipe, 0, uzi, 0);
@@ -683,12 +683,12 @@ TEST_SUITE("patcher") {
     if (!TestHelpers::probeCountsAllocations()) return;
     REQUIRE(TestHelpers::probeSeesStringAllocations());
 
+    BlineRecorder out;
+    BlineRecorder done;
     patcherImplementation p(1, nullptr);
     YSE::pHandle* bline = p.CreateObject(YSE::OBJ::G_BLINE, "0");
     REQUIRE(bline != nullptr);
 
-    BlineRecorder out;
-    BlineRecorder done;
     YSE::pHandle outHandle(&out);
     YSE::pHandle doneHandle(&done);
     p.Connect(bline, 0, &outHandle, 0);

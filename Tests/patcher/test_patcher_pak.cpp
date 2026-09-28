@@ -67,7 +67,7 @@ namespace {
   // Sends whatever it receives straight back into a `.pak` inlet, from *inside*
   // the send — the accidental cycle the issue warns about, with a depth ceiling
   // so a broken guard fails by assertion instead of by exhausting the stack.
-  struct FeedbackSink : YSE::PATCHER::pObject {
+  struct FeedbackSink : TestHelpers::SinkBase {
     gPak* target = nullptr;
     int intoInlet = 1;
     int hits = 0;
@@ -75,7 +75,7 @@ namespace {
     int maxDepth = 0;
     static constexpr int DEPTH_LIMIT = 8;
 
-    FeedbackSink() : pObject(false) {
+    FeedbackSink() : SinkBase(false) {
       inputs.emplace_back(this, true, 0);
       inputs.back().RegisterList([this](const std::string& value, int, YSE::THREAD) {
         hits++;

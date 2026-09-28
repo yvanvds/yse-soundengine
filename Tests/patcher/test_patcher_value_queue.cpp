@@ -41,8 +41,8 @@ namespace {
 TEST_SUITE("patcher") {
 
   TEST_CASE("value queue: PassData defers delivery until the next Calculate") {
-    patcherImplementation p(1, nullptr);
     MultiSink sink;
+    patcherImplementation p(1, nullptr);
     YSE::pHandle sinkHandle(&sink);
     wireReceiver(p, "target", sink, sinkHandle);
 
@@ -59,8 +59,8 @@ TEST_SUITE("patcher") {
   }
 
   TEST_CASE("value queue: bang, float and list all deliver on drain") {
-    patcherImplementation p(1, nullptr);
     MultiSink sink;
+    patcherImplementation p(1, nullptr);
     YSE::pHandle sinkHandle(&sink);
     wireReceiver(p, "ch", sink, sinkHandle);
 
@@ -80,8 +80,8 @@ TEST_SUITE("patcher") {
   }
 
   TEST_CASE("value queue: several messages queued between blocks all arrive in one drain") {
-    patcherImplementation p(1, nullptr);
     MultiSink sink;
+    patcherImplementation p(1, nullptr);
     YSE::pHandle sinkHandle(&sink);
     wireReceiver(p, "acc", sink, sinkHandle);
 
@@ -97,8 +97,8 @@ TEST_SUITE("patcher") {
   }
 
   TEST_CASE("value queue: PassData to an unknown target returns false and delivers nothing") {
-    patcherImplementation p(1, nullptr);
     MultiSink sink;
+    patcherImplementation p(1, nullptr);
     YSE::pHandle sinkHandle(&sink);
     wireReceiver(p, "target", sink, sinkHandle);
 
@@ -125,8 +125,8 @@ TEST_SUITE("patcher") {
   }
 
   TEST_CASE("value queue: overfilling the queue drops with no crash and keeps delivering") {
-    patcherImplementation p(1, nullptr);
     MultiSink sink;
+    patcherImplementation p(1, nullptr);
     YSE::pHandle sinkHandle(&sink);
     wireReceiver(p, "spam", sink, sinkHandle);
 
@@ -228,8 +228,8 @@ TEST_SUITE("patcher") {
   } // namespace
 
   TEST_CASE("deferred send: a .s reached from a delayed bang delivers in the same block") {
-    patcherImplementation p(1, nullptr);
     MultiSink sink;
+    patcherImplementation p(1, nullptr);
     YSE::pHandle sinkHandle(&sink);
     wireReceiver(p, "target", sink, sinkHandle);
     wireDeferredSend(p, "target");
@@ -284,8 +284,8 @@ TEST_SUITE("patcher") {
     // queued rather than delivered inline, exactly as the cases at the top of
     // this file pin down. The `.s` in the chain re-enters PassBang from inside
     // the drain — genuinely on the audio thread — and lands in that same block.
-    patcherImplementation p(1, nullptr);
     MultiSink sink;
+    patcherImplementation p(1, nullptr);
     YSE::pHandle sinkHandle(&sink);
     wireReceiver(p, "target", sink, sinkHandle);
 

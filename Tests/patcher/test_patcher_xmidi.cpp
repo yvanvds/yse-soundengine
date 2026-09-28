@@ -125,11 +125,11 @@ namespace {
   // into a log shared by all the taps of one rig — which is what makes "channel
   // first, then release, then velocity, then pitch" an assertion rather than an
   // inference.
-  struct Tap : YSE::PATCHER::pObject {
+  struct Tap : TestHelpers::SinkBase {
     std::vector<std::string>* log = nullptr;
     std::string tag;
 
-    Tap() : pObject(false) {
+    Tap() : SinkBase(false) {
       inputs.emplace_back(this, true, 0);
       inputs.back().RegisterInt([this](int v, int, YSE::THREAD) {
         if (log) log->push_back(tag + ":" + std::to_string(v));
@@ -148,10 +148,11 @@ namespace {
   // A registry-built extended-precision input object in a real patcher, with
   // one Tap on each outlet writing into one shared log.
   struct Rig {
-    patcherImplementation patch{1, nullptr};
+    // The taps and their log outlive the patcher (sinks.hpp, #967).
     std::vector<std::string> log;
     std::vector<std::unique_ptr<Tap>> taps;
     std::vector<std::unique_ptr<YSE::pHandle>> tapHandles;
+    patcherImplementation patch{1, nullptr};
     YSE::pHandle* object = nullptr;
 
     // `roundTrip` builds the object in a scratch patcher, dumps that to JSON
@@ -225,10 +226,10 @@ namespace {
 
   // Keeps every list it was sent rather than only the last, which `.xctlout`
   // needs: one value on its inlet is two MIDI messages.
-  struct ListLog : YSE::PATCHER::pObject {
+  struct ListLog : TestHelpers::SinkBase {
     std::vector<std::string> received;
 
-    ListLog() : pObject(false) {
+    ListLog() : SinkBase(false) {
       inputs.emplace_back(this, true, 0);
       inputs.back().RegisterList(
           [this](const std::string& v, int, YSE::THREAD) { received.push_back(v); });

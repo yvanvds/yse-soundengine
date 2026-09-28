@@ -511,11 +511,11 @@ TEST_SUITE("patcher") {
     // callbacks, so SetParams on a running patcher must defer to the audio
     // thread rather than replace the object (issue #234) — which is also what
     // makes the values survive the resize.
+    MultiSink sink;
     patcherImplementation p(1, nullptr);
     YSE::pHandle* bank = p.CreateObject(YSE::OBJ::G_MULTISLIDER, "4 0 127");
     REQUIRE(bank != nullptr);
 
-    MultiSink sink;
     YSE::pHandle sinkHandle(&sink);
     p.Connect(bank, 0, &sinkHandle, 0);
 

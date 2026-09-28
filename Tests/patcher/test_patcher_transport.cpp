@@ -49,6 +49,7 @@
 #include "patcher/time/gTransport.h"
 #include "patcher/time/messageScheduler.h"
 #include "support/alloc_probe.hpp"
+#include "patcher/sinks.hpp"
 
 namespace {
 
@@ -72,10 +73,10 @@ namespace {
   // Records every float it is sent, in order. Both of `.transport`'s outlets
   // are floats, so wiring them to one recorder is what makes the right-to-left
   // send order observable.
-  struct FloatRecorder : YSE::PATCHER::pObject {
+  struct FloatRecorder : TestHelpers::SinkBase {
     std::vector<float> seen;
 
-    FloatRecorder() : pObject(false) {
+    FloatRecorder() : SinkBase(false) {
       // Reserved up front so the allocation-probe case measures the *object's*
       // handlers rather than this vector growing under them.
       seen.reserve(64);
@@ -92,8 +93,8 @@ namespace {
   // A `.transport` living in a real patcher, with one recorder taking both
   // outlets so the pair's order can be read off `seen`.
   struct TransportRig {
-    patcherImplementation patcher{1, nullptr};
     FloatRecorder out;
+    patcherImplementation patcher{1, nullptr};
     YSE::pHandle outHandle{&out};
     YSE::pHandle* transport = nullptr;
 

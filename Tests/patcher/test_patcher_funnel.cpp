@@ -61,9 +61,9 @@ namespace {
   // Records every list the object sends, in order, so a test can assert both
   // "what came out" and "how many times" — the object merges a stream, so the
   // count is as much of the contract as the content.
-  struct LogSink : YSE::PATCHER::pObject {
+  struct LogSink : TestHelpers::SinkBase {
     std::vector<std::string> lists;
-    LogSink() : pObject(false) {
+    LogSink() : SinkBase(false) {
       inputs.emplace_back(this, true, 0);
       inputs.back().RegisterList(
           [this](const std::string& v, int, YSE::THREAD) { lists.push_back(v); });
@@ -475,6 +475,7 @@ TEST_SUITE("patcher") {
   }
 
   TEST_CASE("funnel: survives a DumpJSON / ParseJSON round trip (#480)") {
+    ListSink sink;
     YSE::patcher src;
     src.create(2);
     YSE::pHandle* h = src.CreateObject(YSE::OBJ::G_FUNNEL);
@@ -499,7 +500,6 @@ TEST_SUITE("patcher") {
 
     // And so does the offset, which the parameter string alone does not prove:
     // inlet 3 has to stamp 13.
-    ListSink sink;
     YSE::pHandle sinkHandle(&sink);
     loaded.Connect(copy, 0, &sinkHandle, 0);
     copy->SetIntData(3, 60);
@@ -577,6 +577,10 @@ TEST_SUITE("patcher") {
     // object that reads the tag back, so the pair is asserted rather than
     // described — a value only reaches the right sink if the tag survived the
     // merge intact.
+    MultiSink one;
+    MultiSink two;
+    MultiSink three;
+    MultiSink rejected;
     YSE::patcher p;
     p.create(2);
     YSE::pHandle* funnel = p.CreateObject(YSE::OBJ::G_FUNNEL, "3");
@@ -590,10 +594,6 @@ TEST_SUITE("patcher") {
     // whichever kind that payload is — an int when it is a single number, a
     // list when there are several.  That the tag survived the merge is now read
     // off *which* outlet fired rather than off the text.
-    MultiSink one;
-    MultiSink two;
-    MultiSink three;
-    MultiSink rejected;
     YSE::pHandle oneHandle(&one);
     YSE::pHandle twoHandle(&two);
     YSE::pHandle threeHandle(&three);
@@ -631,6 +631,9 @@ TEST_SUITE("patcher") {
     // rather than described in a comment: what enters inlet i leaves outlet i,
     // and it holds at a non-zero offset only because this object *adds* where
     // .spray subtracts.
+    FloatSink one;
+    FloatSink two;
+    FloatSink three;
     YSE::patcher p;
     p.create(2);
     YSE::pHandle* funnel = p.CreateObject(YSE::OBJ::G_FUNNEL, "3 7");
@@ -638,9 +641,6 @@ TEST_SUITE("patcher") {
     REQUIRE(funnel != nullptr);
     REQUIRE(spray != nullptr);
 
-    FloatSink one;
-    FloatSink two;
-    FloatSink three;
     YSE::pHandle oneHandle(&one);
     YSE::pHandle twoHandle(&two);
     YSE::pHandle threeHandle(&three);

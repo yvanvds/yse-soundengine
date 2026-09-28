@@ -100,7 +100,7 @@ namespace {
   // of times. A .spray wired straight back into its own inlet would not
   // terminate, which is exactly why the re-entrancy case needs a receiver that
   // stops feeding rather than a bare patch cord.
-  struct FeedbackSink : YSE::PATCHER::pObject {
+  struct FeedbackSink : TestHelpers::SinkBase {
     gSpray* target = nullptr;
     std::string fireList;
     int budget = 0;
@@ -110,7 +110,7 @@ namespace {
     int lastInt = 0;
     int count = 0;
 
-    FeedbackSink() : pObject(false) {
+    FeedbackSink() : SinkBase(false) {
       inputs.emplace_back(this, true, 0);
       inputs.back().RegisterInt([this](int v, int, YSE::THREAD thread) {
         lastInt = v;
@@ -617,6 +617,7 @@ TEST_SUITE("patcher") {
   }
 
   TEST_CASE("spray: survives a DumpJSON / ParseJSON round trip (#479)") {
+    ListSink sink;
     YSE::patcher src;
     src.create(2);
     YSE::pHandle* h = src.CreateObject(YSE::OBJ::G_SPRAY);
@@ -640,7 +641,6 @@ TEST_SUITE("patcher") {
 
     // And so do the offset and the list-mode flag, which the parameter string
     // alone does not prove: index 1 has to reach outlet 0, carrying a list.
-    ListSink sink;
     YSE::pHandle sinkHandle(&sink);
     loaded.Connect(copy, 0, &sinkHandle, 0);
     copy->SetListData(0, "1 60 100");
@@ -667,6 +667,9 @@ TEST_SUITE("patcher") {
     // destinations, and the destination named by the message rather than by the
     // patching. Each path adds a different constant so a sink's value is only
     // right if the value went out the outlet it was addressed to.
+    FloatSink one;
+    FloatSink two;
+    FloatSink three;
     YSE::patcher p;
     p.create(2);
     YSE::pHandle* spray = p.CreateObject(YSE::OBJ::G_SPRAY, "3");
@@ -678,9 +681,6 @@ TEST_SUITE("patcher") {
     REQUIRE(addHundred != nullptr);
     REQUIRE(addThousand != nullptr);
 
-    FloatSink one;
-    FloatSink two;
-    FloatSink three;
     YSE::pHandle oneHandle(&one);
     YSE::pHandle twoHandle(&two);
     YSE::pHandle threeHandle(&three);

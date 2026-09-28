@@ -76,10 +76,10 @@ namespace {
   // outside the patch. Declared before the patcher in every case, so the
   // patcher dies first and the teardown pass still has somewhere to send
   // (sinks.hpp's rule).
-  struct Tap : YSE::PATCHER::pObject {
+  struct Tap : TestHelpers::SinkBase {
     std::vector<std::string> log;
 
-    Tap() : pObject(false) {
+    Tap() : SinkBase(false) {
       log.reserve(64);
       inputs.emplace_back(this, true, 0);
       inputs.back().RegisterBang([this](int, YSE::THREAD) { log.push_back("bang"); });
@@ -119,10 +119,10 @@ namespace {
   // std::string per message, which is the *rig* allocating on the path being
   // measured, and the object under test would be convicted of its observer's
   // behaviour.
-  struct CountTap : YSE::PATCHER::pObject {
+  struct CountTap : TestHelpers::SinkBase {
     int hits = 0;
 
-    CountTap() : pObject(false) {
+    CountTap() : SinkBase(false) {
       inputs.emplace_back(this, true, 0);
       inputs.back().RegisterBang([this](int, YSE::THREAD) { hits++; });
       inputs.back().RegisterInt([this](int, int, YSE::THREAD) { hits++; });

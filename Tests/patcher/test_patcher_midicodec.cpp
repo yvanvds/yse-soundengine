@@ -52,11 +52,11 @@ namespace {
   // into a log shared by all the taps of one rig. Order matters as much as
   // content here — "the channel is out before the note" is the claim — so a
   // sink that only kept the last value per outlet could not test it.
-  struct Tap : YSE::PATCHER::pObject {
+  struct Tap : TestHelpers::SinkBase {
     std::vector<std::string>* log = nullptr;
     std::string tag;
 
-    Tap() : pObject(false) {
+    Tap() : SinkBase(false) {
       inputs.emplace_back(this, true, 0);
       inputs.back().RegisterInt([this](int v, int, YSE::THREAD) {
         if (log) log->push_back(tag + ":" + std::to_string(v));

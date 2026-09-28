@@ -70,12 +70,12 @@ namespace {
   // as a sequence rather than assumed, and so a case can act from *inside*
   // the matched send (`onAny`), which is where the no-guard-across-the-send
   // proof has to stand.
-  struct SeqSink : YSE::PATCHER::pObject {
+  struct SeqSink : TestHelpers::SinkBase {
     std::vector<std::string>* log = nullptr;
     std::string prefix;
     std::function<void()> onAny;
 
-    SeqSink() : pObject(false) {
+    SeqSink() : SinkBase(false) {
       inputs.emplace_back(this, true, 0);
       inputs.back().RegisterInt([this](int v, int, YSE::THREAD) {
         if (log != nullptr) log->push_back(prefix + "i:" + std::to_string(v));

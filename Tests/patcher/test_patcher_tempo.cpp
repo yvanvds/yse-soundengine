@@ -79,10 +79,10 @@ namespace {
   // Records every number this object ever sent, in order. That sequence is the
   // entire observable surface of a `.tempo`: one outlet, one kind of message,
   // and the *values* matter as much as the count of them.
-  struct Recorder : YSE::PATCHER::pObject {
+  struct Recorder : TestHelpers::SinkBase {
     std::vector<int> values;
 
-    Recorder() : pObject(false) {
+    Recorder() : SinkBase(false) {
       // Reserved up front so the allocation probe below measures the *object*
       // rather than this sink's own vector growing under it.
       values.reserve(1024);
@@ -126,8 +126,8 @@ namespace {
   // is built: this object writes its own tempo onto the clock when it starts,
   // which is half of what these cases are here to pin.
   struct ClockRig {
-    patcherImplementation patcher{1, nullptr};
     Recorder out;
+    patcherImplementation patcher{1, nullptr};
     YSE::pHandle outHandle{&out};
     YSE::pHandle* obj = nullptr;
 
@@ -660,8 +660,8 @@ TEST_SUITE("clock") {
     // beat of the bar". One `.tempo` and one `.sel` is a downbeat.
     MakeStoppedClock("tc.sel");
 
-    patcherImplementation patcher(1, nullptr);
     TestHelpers::BangSink downbeat;
+    patcherImplementation patcher(1, nullptr);
     YSE::pHandle sinkHandle(&downbeat);
 
     YSE::pHandle* tempo = patcher.CreateObject(YSE::OBJ::G_TEMPO, "tc.sel 120 1 4");
@@ -699,6 +699,7 @@ TEST_SUITE("clock") {
     auto& mgr = YSE::CLOCK::Manager();
     MakeStoppedClock("tc.save");
 
+    Recorder out;
     YSE::patcher src;
     src.create(2);
     YSE::pHandle* obj = src.CreateObject(YSE::OBJ::G_TEMPO, "tc.save 90 2 8");
@@ -720,7 +721,6 @@ TEST_SUITE("clock") {
     REQUIRE(back != nullptr);
     CHECK(back->GetParams() == "tc.save 90 2 8");
 
-    Recorder out;
     YSE::pHandle outHandle(&out);
     restored.Connect(back, 0, &outHandle, 0);
 

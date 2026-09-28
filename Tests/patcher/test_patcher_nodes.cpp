@@ -619,11 +619,11 @@ TEST_SUITE("patcher") {
     // registers no clear/parse callbacks, so SetParams on a running patcher must
     // defer to the audio thread rather than replace the object (issue #234) —
     // which is also what makes the placed nodes survive the resize.
+    MultiSink weights;
     patcherImplementation p(1, nullptr);
     YSE::pHandle* field = p.CreateObject(YSE::OBJ::G_NODES, "3");
     REQUIRE(field != nullptr);
 
-    MultiSink weights;
     YSE::pHandle sinkHandle(&weights);
     p.Connect(field, 0, &sinkHandle, 0);
 

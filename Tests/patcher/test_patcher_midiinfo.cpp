@@ -84,11 +84,11 @@ namespace {
   // Records every send tagged with the outlet that delivered it, into a log
   // shared by all the taps of one rig — which is what makes "count first, then
   // index, then name" an assertion rather than an inference.
-  struct Tap : YSE::PATCHER::pObject {
+  struct Tap : TestHelpers::SinkBase {
     std::vector<std::string>* log = nullptr;
     std::string tag;
 
-    Tap() : pObject(false) {
+    Tap() : SinkBase(false) {
       inputs.emplace_back(this, true, 0);
       inputs.back().RegisterInt([this](int v, int, YSE::THREAD) {
         if (log) log->push_back(tag + ":" + std::to_string(v));
@@ -107,10 +107,11 @@ namespace {
   // A registry-built `.midiinfo` in a real patcher, with one Tap on each outlet
   // writing into one shared log.
   struct Rig {
-    patcherImplementation patch{1, nullptr};
+    // The taps and their log outlive the patcher (sinks.hpp, #967).
     std::vector<std::string> log;
     std::vector<std::unique_ptr<Tap>> taps;
     std::vector<std::unique_ptr<YSE::pHandle>> tapHandles;
+    patcherImplementation patch{1, nullptr};
     YSE::pHandle* object = nullptr;
 
     // `roundTrip` builds the object in a scratch patcher, dumps that to JSON
@@ -617,11 +618,11 @@ TEST_SUITE("patcher") {
     // without bound. A patch can wire this by accident — the count outlet into
     // a counter and back — so the object has to survive it rather than the
     // patch having to avoid it.
-    struct Rebang : YSE::PATCHER::pObject {
+    struct Rebang : TestHelpers::SinkBase {
       YSE::PATCHER::pObject* target = nullptr;
       int hits = 0;
 
-      Rebang() : pObject(false) {
+      Rebang() : SinkBase(false) {
         inputs.emplace_back(this, true, 0);
         inputs.back().RegisterInt([this](int, int, YSE::THREAD thread) {
           hits++;

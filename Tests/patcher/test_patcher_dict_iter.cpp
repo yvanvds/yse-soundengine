@@ -62,12 +62,12 @@ namespace {
   // one. `prefix` tells two rigs apart in one log, and `onList` lets a case
   // act from *inside* the walk — the mid-walk mutation and the loop-back
   // trigger are both things the pairs' own subgraph does.
-  struct SeqSink : YSE::PATCHER::pObject {
+  struct SeqSink : TestHelpers::SinkBase {
     std::vector<std::string>* log = nullptr;
     std::string prefix;
     std::function<void(const std::string&)> onList;
 
-    SeqSink() : pObject(false) {
+    SeqSink() : SinkBase(false) {
       inputs.emplace_back(this, true, 0);
       inputs.back().RegisterList([this](const std::string& v, int, YSE::THREAD) {
         if (log != nullptr) log->push_back(prefix + v);

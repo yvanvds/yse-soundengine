@@ -69,10 +69,10 @@ namespace {
 
   // Records the order in which outlets fired, so the right-to-left convention
   // can be asserted rather than assumed.
-  struct OrderSink : YSE::PATCHER::pObject {
+  struct OrderSink : TestHelpers::SinkBase {
     std::vector<std::string>* log = nullptr;
     std::string label;
-    OrderSink() : pObject(false) {
+    OrderSink() : SinkBase(false) {
       inputs.emplace_back(this, true, 0);
       inputs.back().RegisterFloat([this](float, int, YSE::THREAD) {
         if (log != nullptr) log->push_back(label);

@@ -74,12 +74,12 @@ namespace {
   // one that sent the previous document again. `onList` lets a case act from
   // *inside* the send: the loop-back trigger is a thing the document's own
   // subgraph does.
-  struct DocSink : YSE::PATCHER::pObject {
+  struct DocSink : TestHelpers::SinkBase {
     std::string received;
     int count = 0;
     std::function<void()> onList;
 
-    DocSink() : pObject(false) {
+    DocSink() : SinkBase(false) {
       received.reserve(512);
       inputs.emplace_back(this, true, 0);
       inputs.back().RegisterList([this](const std::string& v, int, YSE::THREAD) {

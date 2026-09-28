@@ -62,6 +62,7 @@ TEST_SUITE("patcher") {
     // them through PassData), so the synchronous bus cycle runs between the two:
     // p's send reaches q's receive, whose send reaches p's receive, and so on.
     // Before #943 a single patcher closed the same loop on its own echo.
+    MultiSink sink;
     YSE::patcher p;
     p.name("loop.feedback").create(2);
     YSE::patcher q;
@@ -78,7 +79,6 @@ TEST_SUITE("patcher") {
 
     // Wire each receive's output back into its send's inlet, closing the loop,
     // and q's also into a sink so we can confirm the value actually circulated.
-    MultiSink sink;
     YSE::pHandle sinkHandle(&sink);
     p.Connect(recv, 0, send, 0);
     q.Connect(peerRecv, 0, peerSend, 0);

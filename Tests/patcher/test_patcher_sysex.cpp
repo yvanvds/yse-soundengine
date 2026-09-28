@@ -46,6 +46,7 @@
 #include "patcher/pObjectList.hpp"
 #include "patcher/pRegistry.h"
 #include "patcher/patcher.hpp"
+#include "patcher/sinks.hpp"
 
 #if YSE_ENABLE_MIDI_DEVICE
 #include "midi/midiInHub.h"
@@ -60,11 +61,11 @@ namespace {
   // Records every message that arrived, tagged with the outlet it came out of.
   // Order matters as much as content — a dump is a sequence — so a sink that
   // only kept the last value could not test it.
-  struct Tap : YSE::PATCHER::pObject {
+  struct Tap : TestHelpers::SinkBase {
     std::vector<std::string>* log = nullptr;
     std::string tag;
 
-    Tap() : pObject(false) {
+    Tap() : SinkBase(false) {
       inputs.emplace_back(this, true, 0);
       inputs.back().RegisterInt([this](int v, int, YSE::THREAD) {
         if (log) log->push_back(tag + ":" + std::to_string(v));
@@ -457,9 +458,9 @@ TEST_SUITE("patcher") {
   // A registry-built `.sysexin` in a real patcher with a Tap on its outlet, fed
   // through the real hub and drained by real blocks.
   struct SysExRig {
+    Tap tap;
     YSE::PATCHER::patcherImplementation patch{1, nullptr};
     std::vector<std::string> log;
-    Tap tap;
     std::unique_ptr<YSE::pHandle> tapHandle;
     YSE::pHandle* object = nullptr;
 

@@ -377,6 +377,7 @@ TEST_SUITE("patcher") {
     // outlet, since the object pointer is not reachable from a pHandle.
     MultiSink sink;
     YSE::pHandle sinkHandle(&sink);
+    MultiSink missSink;
     YSE::PATCHER::patcherImplementation p(2, nullptr);
     p.SetName("dict550i_before");
 
@@ -388,7 +389,6 @@ TEST_SUITE("patcher") {
     CHECK(sink.gotInt);
     CHECK(sink.intValue == 1);
 
-    MultiSink missSink;
     YSE::pHandle missHandle(&missSink);
     p.Connect(h, 2, &missHandle, 0);
 

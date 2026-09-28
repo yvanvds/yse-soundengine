@@ -64,6 +64,7 @@
 #include "patcher/pRegistry.h"
 #include "patcher/patcher.hpp"
 #include "patcher/patcherImplementation.h"
+#include "patcher/sinks.hpp"
 
 using YSE::MIDI::inEvent;
 using YSE::MIDI::inHub;
@@ -81,11 +82,11 @@ namespace {
   // a log shared by all the taps of one rig. That is what makes "channel first,
   // then velocity, then pitch" an assertion rather than an inference — a sink
   // that only kept the last value per outlet could not tell the order.
-  struct Tap : YSE::PATCHER::pObject {
+  struct Tap : TestHelpers::SinkBase {
     std::vector<std::string>* log = nullptr;
     std::string tag;
 
-    Tap() : pObject(false) {
+    Tap() : SinkBase(false) {
       inputs.emplace_back(this, true, 0);
       inputs.back().RegisterInt([this](int v, int, YSE::THREAD) {
         if (log) log->push_back(tag + ":" + std::to_string(v));
@@ -104,10 +105,11 @@ namespace {
   // `taps` is a deque-like vector of unique_ptr rather than a vector of Tap so
   // that growing it cannot move a Tap an inlet already points at.
   struct Rig {
-    patcherImplementation patch{1, nullptr};
+    // The taps and their log outlive the patcher (sinks.hpp, #967).
     std::vector<std::string> log;
     std::vector<std::unique_ptr<Tap>> taps;
     std::vector<std::unique_ptr<YSE::pHandle>> tapHandles;
+    patcherImplementation patch{1, nullptr};
     YSE::pHandle* object = nullptr;
 
     Rig(const char* type, const std::string& args) {

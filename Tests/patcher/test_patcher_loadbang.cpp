@@ -43,6 +43,7 @@
 #include "patcher/pRegistry.h"
 #include "patcher/patcher.hpp"
 #include "support/alloc_probe.hpp"
+#include "patcher/sinks.hpp"
 
 using YSE::PATCHER::gLoadbang;
 using YSE::PATCHER::gLoadmess;
@@ -54,10 +55,10 @@ namespace {
   // `.loadmess` promises: a stored `60` that came back as the list "60" would
   // be a different message to every object downstream of it, and a rig that
   // normalised the two could not tell them apart.
-  struct Tap : YSE::PATCHER::pObject {
+  struct Tap : TestHelpers::SinkBase {
     std::vector<std::string> log;
 
-    Tap() : pObject(false) {
+    Tap() : SinkBase(false) {
       log.reserve(32);
       inputs.emplace_back(this, true, 0);
       inputs.back().RegisterBang([this](int, YSE::THREAD) { log.push_back("bang"); });
@@ -90,13 +91,13 @@ namespace {
   // convicted of its observer's behaviour. Downstream delivery has to stay in
   // the probed region (a send that reached nothing would measure nothing), so
   // what changes is the sink, not the wiring.
-  struct CountTap : YSE::PATCHER::pObject {
+  struct CountTap : TestHelpers::SinkBase {
     int bangs = 0;
     int ints = 0;
     int floats = 0;
     int lists = 0;
 
-    CountTap() : pObject(false) {
+    CountTap() : SinkBase(false) {
       inputs.emplace_back(this, true, 0);
       inputs.back().RegisterBang([this](int, YSE::THREAD) { bangs++; });
       inputs.back().RegisterInt([this](int, int, YSE::THREAD) { ints++; });

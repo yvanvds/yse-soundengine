@@ -298,6 +298,7 @@ TEST_SUITE("patcher") {
     // round trip has to preserve is the object's identity and its shape. It is
     // Type() that DumpJSON writes and ParseJSON looks up, so a pair sharing one
     // body is exactly where a save could bring back the wrong half.
+    MultiSink sink;
     YSE::patcher src;
     src.create(2);
     REQUIRE(src.CreateObject(YSE::OBJ::G_TOLOWER) != nullptr);
@@ -330,7 +331,6 @@ TEST_SUITE("patcher") {
 
     // And the reloaded object still folds, which is the half a shape-only
     // assertion would miss if ParseJSON had built the other direction.
-    MultiSink sink;
     YSE::pHandle sinkHandle(&sink);
     for (int i = 0; i < 2; i++) {
       YSE::pHandle* copy = loaded.GetHandleFromList(i);

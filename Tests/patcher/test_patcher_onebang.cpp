@@ -198,7 +198,7 @@ namespace {
   // A sink that feeds what it receives straight back into the gate's trigger
   // inlet, from *inside* the send. The depth guard is what makes a broken
   // object fail by assertion instead of by exhausting the stack.
-  struct FeedbackSink : YSE::PATCHER::pObject {
+  struct FeedbackSink : TestHelpers::SinkBase {
     gOneBang* target = nullptr;
     std::vector<char>* log = nullptr;
     int hits = 0;
@@ -206,7 +206,7 @@ namespace {
     int maxDepth = 0;
     static constexpr int DEPTH_LIMIT = 8;
 
-    FeedbackSink() : pObject(false) {
+    FeedbackSink() : SinkBase(false) {
       inputs.emplace_back(this, true, 0);
       inputs.back().RegisterBang([this](int, YSE::THREAD) {
         hits++;

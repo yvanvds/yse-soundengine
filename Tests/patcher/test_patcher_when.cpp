@@ -46,6 +46,7 @@
 #include "patcher/time/gWhen.h"
 #include "patcher/time/messageScheduler.h"
 #include "support/alloc_probe.hpp"
+#include "patcher/sinks.hpp"
 
 namespace {
 
@@ -68,10 +69,10 @@ namespace {
   // Records every float it is sent, in order. Both of `.when`'s outlets are
   // floats, so wiring them to one recorder is what makes the right-to-left send
   // order observable.
-  struct FloatRecorder : YSE::PATCHER::pObject {
+  struct FloatRecorder : TestHelpers::SinkBase {
     std::vector<float> seen;
 
-    FloatRecorder() : pObject(false) {
+    FloatRecorder() : SinkBase(false) {
       // Reserved up front so the allocation-probe case measures the *object's*
       // handlers rather than this vector growing under them.
       seen.reserve(64);
@@ -88,8 +89,8 @@ namespace {
   // A `.when` living in a real patcher, with one recorder taking both outlets
   // so the pair's order can be read off `seen`.
   struct WhenRig {
-    patcherImplementation patcher{1, nullptr};
     FloatRecorder out;
+    patcherImplementation patcher{1, nullptr};
     YSE::pHandle outHandle{&out};
     YSE::pHandle* when = nullptr;
 
@@ -314,9 +315,9 @@ TEST_SUITE("clock") {
     // bridge slot — and both objects are reading the engine's clock rather than
     // a copy of it.
     MakeClock("wh.share", kTempo);
+    FloatRecorder second; // outlives the rig's patcher (sinks.hpp, #967)
     WhenRig rig("wh.share");
 
-    FloatRecorder second;
     YSE::pHandle secondHandle{&second};
     YSE::pHandle* other = rig.patcher.CreateObject(YSE::OBJ::G_WHEN, "wh.share");
     REQUIRE(other != nullptr);
@@ -439,6 +440,7 @@ TEST_SUITE("clock") {
     // string comparison and fail here.
     MakeClock("wh.save", kTempo);
 
+    FloatRecorder out;
     YSE::patcher src;
     src.create(2);
     YSE::pHandle* obj = src.CreateObject(YSE::OBJ::G_WHEN, "wh.save");
@@ -454,7 +456,6 @@ TEST_SUITE("clock") {
     CHECK(restored.Clocks()->BoundCount() == 1);
     CHECK(std::string(restored.Clocks()->NameOf(1)) == "wh.save");
 
-    FloatRecorder out;
     YSE::pHandle outHandle{&out};
     YSE::pHandle* back = restored.GetHandleFromList(0);
     REQUIRE(back != nullptr);

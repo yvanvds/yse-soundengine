@@ -85,11 +85,11 @@ namespace {
   // feed one of these, so the *relative order* of a byte and the end bang is
   // visible — which is the only way to test Max's "immediately before the final
   // event" at all.
-  struct Recorder : YSE::PATCHER::pObject {
+  struct Recorder : TestHelpers::SinkBase {
     // "i144" for an int, "!" for a bang — one string per send.
     std::vector<std::string> seen;
 
-    Recorder() : pObject(false) {
+    Recorder() : SinkBase(false) {
       inputs.emplace_back(this, true, 0);
       inputs.back().RegisterBang([this](int, YSE::THREAD) { seen.emplace_back("!"); });
       inputs.back().RegisterInt(
@@ -336,11 +336,11 @@ namespace {
   // std::string and pushes it onto a vector for every value it sees, which is
   // fine everywhere except inside the allocation probe at the end of this file —
   // there the sink's own bookkeeping would be indistinguishable from the parse's.
-  struct Counter : YSE::PATCHER::pObject {
+  struct Counter : TestHelpers::SinkBase {
     int bangs = 0;
     int ints = 0;
 
-    Counter() : pObject(false) {
+    Counter() : SinkBase(false) {
       inputs.emplace_back(this, true, 0);
       inputs.back().RegisterBang([this](int, YSE::THREAD) { bangs++; });
       inputs.back().RegisterInt([this](int, int, YSE::THREAD) { ints++; });
@@ -844,6 +844,7 @@ TEST_SUITE("patcher") {
     // its cue list with the patcher and mtr has Max 8's embed. seq has neither,
     // because its contents live in a *file* reached by read / write — text's
     // answer, for text's reason, and since #692 those two really do reach one.
+    Recorder out;
     YSE::patcher src;
     src.create(2);
     YSE::pHandle* obj = src.CreateObject(YSE::OBJ::G_SEQ);
@@ -861,7 +862,6 @@ TEST_SUITE("patcher") {
     YSE::pHandle* copy = loaded.GetHandleFromList(0);
     REQUIRE(copy != nullptr);
 
-    Recorder out;
     YSE::pHandle outHandle(&out);
     loaded.Connect(copy, 0, &outHandle, 0);
 
@@ -880,11 +880,11 @@ TEST_SUITE("patcher") {
     // back at the wrong speed here. The first gap is measured from the `record`
     // message itself, which is what gives Max's `delay` something to overwrite —
     // hence the wait before the *first* byte.
+    Recorder data;
     patcherImplementation p(1, nullptr);
     YSE::pHandle* seq = p.CreateObject(YSE::OBJ::G_SEQ, "");
     REQUIRE(seq != nullptr);
 
-    Recorder data;
     YSE::pHandle dataHandle(&data);
     p.Connect(seq, 0, &dataHandle, 0);
 
@@ -929,11 +929,11 @@ TEST_SUITE("patcher") {
     // recorded at the same instant as its predecessor — would spread a note-on
     // across three blocks, which is not that note-on. A run of zero-delta
     // events has to finish inside the dispatch that reached it.
+    Recorder data;
     patcherImplementation p(1, nullptr);
     YSE::pHandle* seq = p.CreateObject(YSE::OBJ::G_SEQ, "");
     REQUIRE(seq != nullptr);
 
-    Recorder data;
     YSE::pHandle dataHandle(&data);
     p.Connect(seq, 0, &dataHandle, 0);
     p.Connect(seq, 1, &dataHandle, 0);
@@ -971,11 +971,11 @@ TEST_SUITE("patcher") {
     // Max: "start 2048 plays it back at twice the original speed", so the
     // multiplier divides. The sign of this is a coin flip if you do not read
     // the reference, and only a test pins it.
+    Recorder data;
     patcherImplementation p(1, nullptr);
     YSE::pHandle* seq = p.CreateObject(YSE::OBJ::G_SEQ, "");
     REQUIRE(seq != nullptr);
 
-    Recorder data;
     YSE::pHandle dataHandle(&data);
     p.Connect(seq, 0, &dataHandle, 0);
 
@@ -1001,11 +1001,11 @@ TEST_SUITE("patcher") {
   }
 
   TEST_CASE("seq: 'stop' cancels the pending step (#502)") {
+    Recorder data;
     patcherImplementation p(1, nullptr);
     YSE::pHandle* seq = p.CreateObject(YSE::OBJ::G_SEQ, "");
     REQUIRE(seq != nullptr);
 
-    Recorder data;
     YSE::pHandle dataHandle(&data);
     p.Connect(seq, 0, &dataHandle, 0);
 
@@ -1035,11 +1035,11 @@ TEST_SUITE("patcher") {
     // to play the sequence at its original recorded tempo, seq must receive 48
     // tick messages per second." A patcher still rendering underneath must not
     // move the sequence at all.
+    Recorder data;
     patcherImplementation p(1, nullptr);
     YSE::pHandle* seq = p.CreateObject(YSE::OBJ::G_SEQ, "");
     REQUIRE(seq != nullptr);
 
-    Recorder data;
     YSE::pHandle dataHandle(&data);
     p.Connect(seq, 0, &dataHandle, 0);
 

@@ -59,11 +59,11 @@ namespace {
   // Records every reference it receives — a count as well as the last text,
   // so a failed parse (which must send nothing) is tellable from one that
   // announced again.
-  struct RefSink : YSE::PATCHER::pObject {
+  struct RefSink : TestHelpers::SinkBase {
     std::string received;
     int count = 0;
 
-    RefSink() : pObject(false) {
+    RefSink() : SinkBase(false) {
       received.reserve(512);
       inputs.emplace_back(this, true, 0);
       inputs.back().RegisterList([this](const std::string& v, int, YSE::THREAD) {

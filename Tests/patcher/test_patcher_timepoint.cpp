@@ -78,10 +78,10 @@ namespace {
 
   // Counts the bangs it receives. That is the entire observable surface of this
   // object: one outlet, one kind of message.
-  struct Counter : YSE::PATCHER::pObject {
+  struct Counter : TestHelpers::SinkBase {
     int bangs = 0;
 
-    Counter() : pObject(false) {
+    Counter() : SinkBase(false) {
       inputs.emplace_back(this, true, 0);
       inputs.back().RegisterBang([this](int, YSE::THREAD) { bangs++; });
     }
@@ -118,8 +118,8 @@ namespace {
   // A `.timepoint` in a real patcher, optionally with a `.transport` driving the
   // clock it watches, and a counter on its outlet.
   struct ClockRig {
-    patcherImplementation patcher{1, nullptr};
     Counter out;
+    patcherImplementation patcher{1, nullptr};
     YSE::pHandle outHandle{&out};
     YSE::pHandle* transport = nullptr;
     YSE::pHandle* point = nullptr;
@@ -566,6 +566,7 @@ TEST_SUITE("clock") {
     auto& mgr = YSE::CLOCK::Manager();
     REQUIRE(mgr.createClock("tp.save", 0.f));
 
+    Counter out;
     YSE::patcher src;
     src.create(2);
     YSE::pHandle* obj = src.CreateObject(YSE::OBJ::G_TIMEPOINT, "tp.save 3 1");
@@ -587,7 +588,6 @@ TEST_SUITE("clock") {
     REQUIRE(back != nullptr);
     CHECK(back->GetParams() == "tp.save 3 1");
 
-    Counter out;
     YSE::pHandle outHandle(&out);
     restored.Connect(back, 0, &outHandle, 0);
 

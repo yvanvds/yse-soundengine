@@ -102,10 +102,10 @@ namespace {
 
   // Keeps every list it was sent rather than only the last, which this family
   // needs: one value on `.mpeconfig`'s inlet is three MIDI messages.
-  struct ListLog : YSE::PATCHER::pObject {
+  struct ListLog : TestHelpers::SinkBase {
     std::vector<std::string> received;
 
-    ListLog() : pObject(false) {
+    ListLog() : SinkBase(false) {
       inputs.emplace_back(this, true, 0);
       inputs.back().RegisterList(
           [this](const std::string& v, int, YSE::THREAD) { received.push_back(v); });
@@ -142,11 +142,11 @@ namespace {
   // into one shared log — which is what makes "role first, then channel, then
   // the value" an assertion rather than an inference. Ints and lists both, so
   // one tap serves every outlet of `.mpeparse`.
-  struct Tap : YSE::PATCHER::pObject {
+  struct Tap : TestHelpers::SinkBase {
     std::vector<std::string>* log = nullptr;
     std::string tag;
 
-    Tap() : pObject(false) {
+    Tap() : SinkBase(false) {
       inputs.emplace_back(this, true, 0);
       inputs.back().RegisterInt([this](int v, int, YSE::THREAD) {
         if (log) log->push_back(tag + ":" + std::to_string(v));
@@ -165,10 +165,11 @@ namespace {
   // A registry-built `.mpeparse` in a real patcher, with one Tap on each outlet
   // writing into one shared log.
   struct ParseRig {
-    YSE::patcher patch;
+    // The taps and their log outlive the patcher (sinks.hpp, #967).
     std::vector<std::string> log;
     std::vector<std::unique_ptr<Tap>> taps;
     std::vector<std::unique_ptr<YSE::pHandle>> tapHandles;
+    YSE::patcher patch;
     YSE::pHandle* object = nullptr;
 
     // `roundTrip` builds the object in a scratch patcher, dumps that to JSON and
@@ -754,12 +755,12 @@ TEST_SUITE("patcher") {
     // the wire format rather than of a shared assumption.
     ParseRig in("0 15");
 
+    ListLog log;
     YSE::patcher patch;
     patch.create(2);
     YSE::pHandle* cfg = patch.CreateObject(YSE::OBJ::M_MPECONFIG, "0");
     REQUIRE(cfg != nullptr);
 
-    ListLog log;
     YSE::pHandle logHandle(&log);
     patch.Connect(cfg, 0, &logHandle, 0);
 
@@ -798,12 +799,12 @@ TEST_SUITE("patcher") {
     // the note it started from.
     ParseRig in("0 15");
 
+    ListLog log;
     YSE::patcher patch;
     patch.create(2);
     YSE::pHandle* fmt = patch.CreateObject(YSE::OBJ::M_MPEFORMAT, "");
     REQUIRE(fmt != nullptr);
 
-    ListLog log;
     YSE::pHandle logHandle(&log);
     patch.Connect(fmt, 0, &logHandle, 0);
 

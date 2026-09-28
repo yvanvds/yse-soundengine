@@ -582,6 +582,7 @@ TEST_SUITE("patcher") {
     // through real objects: the rightmost outlet stores into a cold inlet and
     // the leftmost one triggers the read. Under any other order the reader
     // fires against the *previous* set.
+    IntSink sink;
     YSE::patcher p;
     p.create(2);
     YSE::pHandle* buddy = p.CreateObject(YSE::OBJ::G_BUDDY, "2");
@@ -591,7 +592,6 @@ TEST_SUITE("patcher") {
     REQUIRE(toBang != nullptr);
     REQUIRE(store != nullptr);
 
-    IntSink sink;
     YSE::pHandle sinkHandle(&sink);
 
     // Right outlet -> the silent inlet of .i; left outlet -> a bang -> its hot
@@ -845,6 +845,8 @@ TEST_SUITE("patcher") {
     // See Also, so the distinction is pinned against the real object rather
     // than described in a comment. One input: .bondo releases its whole set,
     // .buddy releases nothing.
+    IntSink fromBondo;
+    IntSink fromBuddy;
     YSE::patcher p;
     p.create(2);
     YSE::pHandle* bondo = p.CreateObject(YSE::OBJ::G_BONDO, "2");
@@ -852,8 +854,6 @@ TEST_SUITE("patcher") {
     REQUIRE(bondo != nullptr);
     REQUIRE(buddy != nullptr);
 
-    IntSink fromBondo;
-    IntSink fromBuddy;
     YSE::pHandle bondoSink(&fromBondo);
     YSE::pHandle buddySink(&fromBuddy);
     p.Connect(bondo, 0, &bondoSink, 0);

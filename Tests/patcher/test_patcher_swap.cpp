@@ -531,6 +531,7 @@ TEST_SUITE("patcher") {
   TEST_CASE("swap: survives a DumpJSON / ParseJSON round trip (#476)") {
     // The float spelling has to survive too, or a reloaded patch quietly starts
     // emitting ints where it emitted floats.
+    MultiSink sink;
     YSE::patcher src;
     src.create(2);
     YSE::pHandle* h = src.CreateObject(YSE::OBJ::G_SWAP);
@@ -549,7 +550,6 @@ TEST_SUITE("patcher") {
     CHECK(std::string(copy->Type()) == std::string(".swap"));
     CHECK(copy->GetParams() == std::string("5."));
 
-    MultiSink sink;
     YSE::pHandle sinkHandle(&sink);
     loaded.Connect(copy, 0, &sinkHandle, 0);
     copy->SetBang(0);
@@ -605,6 +605,7 @@ TEST_SUITE("patcher") {
     // the arithmetic and outlet 0 into its hot one. `.-` computes left - right,
     // so feeding it 10 through .swap against a stored 3 must give 3 - 10 = -7,
     // where the same wiring without .swap gives 10 - 3 = 7.
+    FloatSink sink;
     YSE::patcher p;
     p.create(2);
     YSE::pHandle* swap = p.CreateObject(YSE::OBJ::G_SWAP);
@@ -612,7 +613,6 @@ TEST_SUITE("patcher") {
     REQUIRE(swap != nullptr);
     REQUIRE(minus != nullptr);
 
-    FloatSink sink;
     YSE::pHandle sinkHandle(&sink);
 
     p.Connect(swap, 1, minus, 1); // right outlet -> cold inlet, served first
@@ -635,6 +635,7 @@ TEST_SUITE("patcher") {
     // The same patch with the two cords crossed — outlet 0 into the cold inlet
     // and outlet 1 into the hot one — is exactly the stale-operand bug, and it
     // has to be visible, or the test above would pass under any outlet order.
+    FloatSink sink;
     YSE::patcher p;
     p.create(2);
     YSE::pHandle* swap = p.CreateObject(YSE::OBJ::G_SWAP);
@@ -642,7 +643,6 @@ TEST_SUITE("patcher") {
     REQUIRE(swap != nullptr);
     REQUIRE(minus != nullptr);
 
-    FloatSink sink;
     YSE::pHandle sinkHandle(&sink);
 
     p.Connect(swap, 0, minus, 1); // served *second*, after the subtract fired
@@ -659,6 +659,7 @@ TEST_SUITE("patcher") {
   TEST_CASE("swap: a list drives the same patch in one message (#476)") {
     // The list method end to end: `10 3` sets both slots and releases, so the
     // downstream .- sees the same 3 - 10 the two separate messages produced.
+    FloatSink sink;
     YSE::patcher p;
     p.create(2);
     YSE::pHandle* swap = p.CreateObject(YSE::OBJ::G_SWAP);
@@ -666,7 +667,6 @@ TEST_SUITE("patcher") {
     REQUIRE(swap != nullptr);
     REQUIRE(minus != nullptr);
 
-    FloatSink sink;
     YSE::pHandle sinkHandle(&sink);
     p.Connect(swap, 1, minus, 1);
     p.Connect(swap, 0, minus, 0);
@@ -680,13 +680,13 @@ TEST_SUITE("patcher") {
   TEST_CASE("swap: the kind survives the trip through a patcher (#476)") {
     // The .fswap decision where a patch can see it: an int stays routable as an
     // int and a float arrives as a float, through the public surface.
+    MultiSink outlet0; // carries the right slot
+    MultiSink outlet1; // carries the left slot
     YSE::patcher p;
     p.create(2);
     YSE::pHandle* swap = p.CreateObject(YSE::OBJ::G_SWAP);
     REQUIRE(swap != nullptr);
 
-    MultiSink outlet0; // carries the right slot
-    MultiSink outlet1; // carries the left slot
     YSE::pHandle handle0(&outlet0);
     YSE::pHandle handle1(&outlet1);
     p.Connect(swap, 0, &handle0, 0);

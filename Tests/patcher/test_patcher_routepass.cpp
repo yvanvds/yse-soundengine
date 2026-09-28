@@ -468,6 +468,7 @@ TEST_SUITE("patcher") {
   }
 
   TEST_CASE("routepass: survives a DumpJSON / ParseJSON round trip (#483)") {
+    ListSink sink;
     YSE::patcher src;
     src.create(2);
     YSE::pHandle* h = src.CreateObject(YSE::OBJ::G_ROUTEPASS);
@@ -491,7 +492,6 @@ TEST_SUITE("patcher") {
     CHECK(copy->GetOutputs() == 4);
 
     // And the reloaded object still routes, and still keeps the tag.
-    ListSink sink;
     YSE::pHandle sinkHandle(&sink);
     loaded.Connect(copy, 1, &sinkHandle, 0);
     copy->SetListData(0, "ctl 7 64");
@@ -506,6 +506,9 @@ TEST_SUITE("patcher") {
     // split by its tag, and each branch still carries the tag — so the branch
     // can be tested again further down without the patch having to re-attach a
     // word it would then know in two places.
+    ListSink notes;
+    ListSink controls;
+    ListSink rest;
     YSE::patcher p;
     p.create(2);
     YSE::pHandle* split = p.CreateObject(YSE::OBJ::G_ROUTEPASS, "note ctl");
@@ -513,9 +516,6 @@ TEST_SUITE("patcher") {
     REQUIRE(split != nullptr);
     REQUIRE(again != nullptr);
 
-    ListSink notes;
-    ListSink controls;
-    ListSink rest;
     YSE::pHandle notesHandle(&notes);
     YSE::pHandle controlsHandle(&controls);
     YSE::pHandle restHandle(&rest);
@@ -547,6 +547,7 @@ TEST_SUITE("patcher") {
     // consequence: Max's `route 5` consumes the 5 and bangs, so a `.+ 100`
     // downstream would emit its stored left value. Here the 5 arrives, and the
     // sum says so.
+    FloatSink sum;
     YSE::patcher p;
     p.create(2);
     YSE::pHandle* route = p.CreateObject(YSE::OBJ::G_ROUTEPASS, "5");
@@ -554,7 +555,6 @@ TEST_SUITE("patcher") {
     REQUIRE(route != nullptr);
     REQUIRE(add != nullptr);
 
-    FloatSink sum;
     YSE::pHandle sumHandle(&sum);
     p.Connect(route, 0, add, 0);
     p.Connect(add, 0, &sumHandle, 0);
