@@ -220,10 +220,10 @@ A clip and its clock can be destroyed in either order.
   firing. It does not crash and does not read freed memory.
 - Creating a new clock with the same name does **not** reconnect old clips.
   Call ``create(name)`` on each clip again to bind it to the new clock.
-- Destroying a clip does not send note-offs. Call ``stop()`` and give the
-  engine a block to send them (a few milliseconds) before you destroy a
-  clip that is playing. Or release the notes on the synth with
-  ``allNotesOff()``.
+- Destroying a clip releases the notes it is sounding, as ``stop()`` does.
+  The note-offs go out in the next block, to its synths and MIDI ports. You
+  may destroy a connected synth right after the clip: the release does not
+  need the synth object any more.
 - A clip may outlive ``System().close()``. Closing the session removes every
   clock, so the clip stops firing, but it stays safe to call and to destroy.
   It keeps its events, loop length and connections. In the next session,
@@ -236,7 +236,9 @@ A clip and its clock can be destroyed in either order.
    <https://github.com/yvanvds/yse-soundengine/issues/707>`_). A clip that
    is still alive at ``System().close()`` is no longer freed under its handle
    (issue `#974
-   <https://github.com/yvanvds/yse-soundengine/issues/974>`_).
+   <https://github.com/yvanvds/yse-soundengine/issues/974>`_). Destroying a
+   clip releases its sounding notes; before, they kept sounding (issue `#975
+   <https://github.com/yvanvds/yse-soundengine/issues/975>`_).
 
 Limits
 ------
@@ -294,9 +296,8 @@ same fields as ``YSE::clipEvent``, in the same order:
    yse_system_set_tempo(sys, "main", 90.f, 4.f);
    double beat = yse_system_beat_position(sys, "main");
 
-   /* teardown: the clip first, then the sound, then the synth */
-   yse_clip_stop(clip);
-   yse_system_sleep(sys, 20);
+   /* teardown: the clip first (it releases its notes), then the sound,
+      then the synth */
    yse_clip_destroy(clip);
    yse_sound_destroy(sound);
    yse_synth_destroy(synth);
@@ -323,8 +324,8 @@ What you learned
 - Loops line up with the clock's beats, not with the moment you press play.
 - ``setEvents`` swaps the list while the clip plays, and sounding notes still
   end on time.
-- A clip and its clock can be destroyed in either order, but a clip only
-  sends note-offs when you ``stop()`` it.
+- A clip and its clock can be destroyed in either order. Stopping or
+  destroying a clip releases the notes it is sounding.
 
 Next
 ----

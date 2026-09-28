@@ -12,7 +12,9 @@
 #include "../clock/clockManager.h"
 #include "../clock/domainClock.h"
 #include "../implementations/logImplementation.h"
+#include "../synth/synthImplementation.h"
 #include "../synth/synthInterface.hpp"
+#include "../synth/synthMessage.h"
 
 namespace {
 
@@ -82,10 +84,58 @@ namespace {
   };
 #endif
 
-  // The transport's real output sink: internal synth inboxes + external
-  // MIDI-out queue, both fed from the same evaluateWindow firing.
-  struct clipSink {
-    synthFanout synths;
+  // retire()'s synth half (issue #975): the same note-offs, pushed straight
+  // onto the synth implementations snapshotted in removeInterface(), because
+  // the synth interfaces may already be gone. sendMessage is the same bounded
+  // lock-free push the interface's noteOff() makes. Only releaseAll() runs
+  // through this sink, so the note-on / pitch-wheel halves never fire.
+  struct synthImplFanout {
+    std::array<std::atomic<YSE::SYNTH::implementationObject*>, 8>* synths;
+
+    void noteOn(int, int, float) {}
+    void noteOff(int channel, int pitch, float velocity) {
+      YSE::SYNTH::messageObject m;
+      m.ID = YSE::SYNTH::NOTE_OFF;
+      m.noteOff.channel = channel;
+      m.noteOff.note = pitch;
+      m.noteOff.velocity = velocity;
+      for (auto& slot : *synths) {
+        YSE::SYNTH::implementationObject* s = slot.load(std::memory_order_acquire);
+        if (s != nullptr) s->sendMessage(m);
+      }
+    }
+    void pitchWheel(int, float) {}
+  };
+
+#if YSE_ENABLE_MIDI_DEVICE
+  // Point the MIDI half of a sink at the transport's ports and stamp the
+  // block's send deadline: paced one block per rendered block, resynced to
+  // `now` when the audio thread fell behind. Only stamped when a port is
+  // connected — no clock read on the pure-synth path. Returns whether any port
+  // is connected.
+  bool primeMidi(midiOutFanout& midi, std::array<std::atomic<RtMidiOut*>, 4>& ports,
+                 std::int64_t nextDueNs) {
+    midi.ports = &ports;
+    midi.sender = &YSE::MIDI::OutSender();
+    bool anyMidi = false;
+    for (auto& slot : ports) {
+      if (slot.load(std::memory_order_relaxed) != nullptr) {
+        anyMidi = true;
+        break;
+      }
+    }
+    if (anyMidi) {
+      const std::int64_t now = YSE::MIDI::nowNs();
+      midi.dueNs = nextDueNs > now ? nextDueNs : now;
+    }
+    return anyMidi;
+  }
+#endif
+
+  // The transport's real output sink: internal synths + external MIDI-out
+  // queue, both fed from the same evaluateWindow firing.
+  template <class Synths> struct clipSink {
+    Synths synths;
     midiOutFanout midi;
 
     void noteOn(int channel, int pitch, float velocity) {
@@ -109,6 +159,8 @@ YSE::CLIP::transport::transport(clip* head)
   // std::atomic has no zero-initializing default constructor (pre-C++20), so the
   // synth table must be explicitly cleared before the audio thread reads it.
   for (auto& slot : synths)
+    slot.store(nullptr, std::memory_order_relaxed);
+  for (auto& slot : retireSynths)
     slot.store(nullptr, std::memory_order_relaxed);
 #if YSE_ENABLE_MIDI_DEVICE
   for (auto& slot : midiPorts)
@@ -225,26 +277,36 @@ void YSE::CLIP::transport::disconnectMidiOut(RtMidiOut* port) {
 
 #endif // YSE_ENABLE_MIDI_DEVICE
 
+void YSE::CLIP::transport::removeInterface() {
+  // The synth interfaces are alive here (the documented contract: a synth
+  // outlives its connection to a clip), so reading their implementation
+  // pointers is safe. Relaxed stores: the head store below is the release that
+  // publishes them.
+  for (std::size_t i = 0; i < kMaxSynths; ++i) {
+    SYNTH::interfaceObject* s = synths[i].load(std::memory_order_acquire);
+    retireSynths[i].store(s != nullptr ? s->pimpl : nullptr, std::memory_order_relaxed);
+  }
+  head.store(nullptr, std::memory_order_release);
+}
+
+void YSE::CLIP::transport::retire() {
+  clipSink<synthImplFanout> sink{};
+  sink.synths.synths = &retireSynths;
+#if YSE_ENABLE_MIDI_DEVICE
+  // MIDI-out ports are device-manager owned and live until process exit.
+  primeMidi(sink.midi, midiPorts, nextDueNs);
+#endif
+  releaseAll(sink);
+  started = false;
+  intent.store(SS_STOPPED, std::memory_order_release);
+}
+
 void YSE::CLIP::transport::advance() {
-  clipSink sink{};
+  clipSink<synthFanout> sink{};
   sink.synths.synths = &synths;
 #if YSE_ENABLE_MIDI_DEVICE
-  sink.midi.ports = &midiPorts;
-  sink.midi.sender = &MIDI::OutSender();
-  // Absolute send deadline shared by every event this block fires: paced one
-  // block per rendered block, resynced to `now` when the audio thread fell behind. Only
-  // stamped when a port is connected — no clock read on the pure-synth path.
-  bool anyMidi = false;
-  for (auto& slot : midiPorts) {
-    if (slot.load(std::memory_order_relaxed) != nullptr) {
-      anyMidi = true;
-      break;
-    }
-  }
-  if (anyMidi) {
-    const std::int64_t now = MIDI::nowNs();
-    sink.midi.dueNs = nextDueNs > now ? nextDueNs : now;
-  }
+  // Absolute send deadline shared by every event this block fires.
+  const bool anyMidi = primeMidi(sink.midi, midiPorts, nextDueNs);
 #endif
 
   switch (intent.load(std::memory_order_acquire)) {

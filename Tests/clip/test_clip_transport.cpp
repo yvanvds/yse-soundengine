@@ -484,6 +484,50 @@ TEST_SUITE("clip") {
     CHECK(true);
   }
 
+  TEST_CASE("clip: a clip destroyed just before its synth releases without touching it (#975)") {
+    // Destroying a clip now releases its sounding notes on the next block
+    // (issue #975). The documented teardown order is clip first, then synth —
+    // with nothing in between — so by the time that block runs the synth
+    // interface may already be freed. The release must go to the synth's
+    // implementation (which outlives the interface until the synth manager
+    // reaps it) and never through the interface. Heap-allocated so asan
+    // poisons the freed interface: routing the release through it is a
+    // use-after-free there.
+    auto& mgr = YSE::CLIP::Manager();
+    auto& clocks = YSE::CLOCK::Manager();
+    mgr.clear();
+    const std::size_t base = mgr.implementationCountForTest();
+    REQUIRE(clocks.createClock("clip.retire.synth", 60.f)); // 1 beat / second
+
+    auto* s = new YSE::synth;
+    s->create();
+    int dummyHead = 0;
+    YSE::CLIP::transport* t = mgr.addImplementation(reinterpret_cast<YSE::clip*>(&dummyHead));
+    REQUIRE(t->bind("clip.retire.synth"));
+    t->connect(s);
+    t->setEvents({ev(0.5, 100.0, 1, 64)}); // long note: still sounding at destroy
+    t->play();
+    for (int i = 0; i < 4; ++i) { // -> beat 1: the note-on went to the synth
+      clocks.update(0.25f);
+      mgr.update();
+    }
+
+    t->removeInterface(); // ~clip ...
+    delete s; // ... then ~synth, before the engine runs another block
+    clocks.update(0.25f);
+    mgr.update(); // retire: the note-off goes to the synth's implementation
+
+    for (int i = 0; i < 3 && mgr.implementationCountForTest() != base; ++i) {
+      REQUIRE(DrainSlowPool());
+      mgr.update();
+    }
+    REQUIRE(DrainSlowPool());
+    CHECK(mgr.implementationCountForTest() == base);
+
+    clocks.destroyClock("clip.retire.synth");
+    clocks.update(0.01f);
+  }
+
 #if YSE_ENABLE_MIDI_DEVICE
 
   // ─── external MIDI-out sink (issue #350) ──────────────────────────────────
@@ -700,6 +744,73 @@ TEST_SUITE("clip") {
     sender.stop();
     REQUIRE(ReapClock("clip.midiout.doomed"));
     DropFillerClocks();
+  }
+
+  TEST_CASE("clip: destroying a playing clip releases its sounding notes (#975)") {
+    // Issue #975: ~clip only orphans the transport, and the manager used to
+    // retire an orphan without advancing it, so releaseAll never ran and a
+    // note-on on the wire was never followed by its note-off. The same held for
+    // stop() immediately followed by destruction, since stop() is only an
+    // intent the next block acts on. Both run here through the real manager:
+    // the transport is registered with a stand-in head (stored and compared,
+    // never dereferenced) and orphaned exactly as ~clip does it.
+    auto& mgr = YSE::CLIP::Manager();
+    auto& clocks = YSE::CLOCK::Manager();
+    mgr.clear(); // start from no orphans left behind by earlier cases
+    const std::size_t base = mgr.implementationCountForTest();
+    REQUIRE(clocks.createClock("clip.retire", 60.f)); // 1 beat / second
+
+    auto& sender = YSE::MIDI::OutSender();
+    int dummyPort = 0;
+    auto* fakePort = reinterpret_cast<RtMidiOut*>(&dummyPort);
+    int dummyHead = 0;
+    auto* fakeHead = reinterpret_cast<YSE::clip*>(&dummyHead);
+
+    for (const bool stopFirst : {false, true}) {
+      CAPTURE(stopFirst);
+      MidiHookRecorder rec;
+      sender.setSendHookForTest(&MidiHookRecorder::hook, &rec);
+
+      YSE::CLIP::transport* t = mgr.addImplementation(fakeHead);
+      REQUIRE(t->bind("clip.retire"));
+      t->connectMidiOut(fakePort); // (re)starts the sender thread
+      // No loop, so the start is placed ahead of wherever the clock is now.
+      // Long note: still sounding at destroy.
+      const double start = clocks.beatPosition("clip.retire") + 0.5;
+      t->setEvents({ev(start, 100.0, 1, 64)});
+      t->play();
+      for (int i = 0; i < 4; ++i) { // -> start + 0.5: note-on fired, off far ahead
+        clocks.update(0.25f);
+        mgr.update();
+      }
+      REQUIRE(rec.await(1));
+      CHECK(rec.at(0).event.bytes[0] == 0x90);
+
+      // stop() then destroy before the next block: isPlaying() already reads
+      // false, so the host has no way to know the stop was never processed.
+      if (stopFirst) t->stop();
+      t->removeInterface(); // what ~clip does
+
+      clocks.update(0.25f);
+      mgr.update(); // retires the orphan — and must release its note first
+      sender.stop(); // joins and flushes: everything handed over is recorded
+      REQUIRE(rec.count() == 2);
+      CHECK(rec.at(1).event.bytes[0] == 0x80);
+      CHECK(rec.at(1).event.bytes[1] == 64);
+      CHECK(rec.at(1).event.port == fakePort);
+      sender.setSendHookForTest(nullptr, nullptr);
+
+      // The orphan is still reaped through the normal slow-pool path.
+      for (int i = 0; i < 3 && mgr.implementationCountForTest() != base; ++i) {
+        REQUIRE(DrainSlowPool());
+        mgr.update();
+      }
+      REQUIRE(DrainSlowPool());
+      CHECK(mgr.implementationCountForTest() == base);
+    }
+
+    clocks.destroyClock("clip.retire");
+    clocks.update(0.01f);
   }
 
 #endif // YSE_ENABLE_MIDI_DEVICE

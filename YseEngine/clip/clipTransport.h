@@ -94,11 +94,21 @@ namespace YSE {
           events (and note-offs) that fall inside it. */
       void advance();
 
+      /** Last block of an orphaned transport (interface destroyed, issue #975):
+          release every note still sounding, as a processed stop() does.
+          Called by the manager on the audio thread just before it retires the
+          transport. Synth note-offs go to the implementations snapshotted in
+          removeInterface(), never through the synth interfaces: the caller may
+          destroy a synth right after the clip, before this block runs. */
+      void retire();
+
       // ---- lifecycle (mirrors MIDI::fileImpl) ------------------------------
 
-      void removeInterface() {
-        head.store(nullptr);
-      }
+      /** Orphan the transport (control thread, from ~clip). Snapshots the
+          connected synths' implementations for retire() first; the head store
+          that follows publishes the snapshot to the audio thread, which only
+          reads it after seeing the null head. */
+      void removeInterface();
       bool hasInterface() const {
         return head.load() != nullptr;
       }
@@ -253,6 +263,15 @@ namespace YSE {
       // connect/disconnect never lock and advance() never allocates).
       static constexpr std::size_t kMaxSynths = 8;
       std::array<std::atomic<SYNTH::interfaceObject*>, kMaxSynths> synths;
+
+      // The connected synths' implementations, captured by removeInterface()
+      // while the synth interfaces are still alive, for retire()'s note-offs
+      // (issue #975). A synth's implementation outlives its interface: the
+      // synth manager retires it no earlier than the callback in which it
+      // first sees the interface gone, and frees it on the slow pool later
+      // still. The clip was destroyed first, so this transport's retire()
+      // runs in that callback at the latest, while the implementation lives.
+      std::array<std::atomic<SYNTH::implementationObject*>, kMaxSynths> retireSynths;
 
 #if YSE_ENABLE_MIDI_DEVICE
       // Connected external MIDI-out ports (issue #350). Device-manager-owned

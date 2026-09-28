@@ -67,13 +67,16 @@ void YSE::CLIP::managerObject::update() {
 
   ///////////////////////////////////////////
   // advance each transport; retire orphans (interface destroyed) from the
-  // working list. A retired transport is flagged OBJECT_DELETE and left in
-  // `implementations` for the slow-pool deleteJob to reap.
+  // working list. An orphan first releases the notes it is still sounding
+  // (issue #975) — the same RT-safe sink pushes a stop() makes — then is
+  // flagged OBJECT_DELETE and left in `implementations` for the slow-pool
+  // deleteJob to reap.
   ///////////////////////////////////////////
   auto previous = inUse.before_begin();
   for (auto i = inUse.begin(); i != inUse.end();) {
     if (!(*i)->hasInterface()) {
       transport* ptr = *i;
+      ptr->retire();
       i = inUse.erase_after(previous);
       ptr->setStatus(OBJECT_DELETE);
       runDelete = true;
