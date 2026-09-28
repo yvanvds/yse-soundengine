@@ -647,6 +647,11 @@ namespace YSE {
       const std::vector<ParamDoc>& GetParamDocs() const {
         return parms.GetDocs();
       }
+      // How many parameters the constructor registered with ADD_PARAM. The
+      // doc-coverage test holds it equal to GetParamDocs().size() (#954).
+      std::size_t GetParamCount() const {
+        return parms.Count();
+      }
 
     protected:
       std::vector<inlet> inputs;

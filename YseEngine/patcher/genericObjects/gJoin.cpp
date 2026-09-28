@@ -148,6 +148,18 @@ CONSTRUCT() {
       "recursing on the audio thread.");
 
   ADD_CATEGORY(pCategory::LIST);
+
+  PARAM_DOC("inlets triggers", "2",
+            "Max's argument list, in Max's order. The first argument is the number of inlets, "
+            "clamped to 1-256 with the clamp logged; with no arguments the object is Max's "
+            "default of two inlets, each starting out holding 0. Every argument after it is Max's "
+            "@triggers attribute, carried here as a positional creation argument because the "
+            "patcher has no attributes: each one names an inlet, counted from 0, that releases the "
+            "list when written, and -1 (or any negative number) makes every inlet hot. With no "
+            "trigger the leftmost inlet is the hot one. An argument that is not a whole number is "
+            "logged and ignored — a bad inlet count leaves the default of 2 in place — and a "
+            "trigger naming an inlet the object does not have is logged and ignored.",
+            "inlets 1-256, then any number of triggers -1 or 0 to inlets-1");
 }
 
 // ─── the creation arguments ─────────────────────────────────────────────────
