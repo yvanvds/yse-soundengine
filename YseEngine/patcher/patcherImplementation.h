@@ -91,9 +91,19 @@ namespace YSE {
       // See the definition for the host/graph channel-count contract.
       void ProcessAsInsert(MULTICHANNELBUFFER& io);
 
-      // The GraphState pinned for the block currently being rendered, or null
-      // between blocks. Read by inlets/outlets to resolve topology without a
-      // lock (issue #226).
+      // The GraphState pinned for the block currently being rendered — but only
+      // when asked from the thread rendering it; null between blocks and null
+      // on every other thread. Read by inlets/outlets to resolve topology
+      // without a lock (issue #226).
+      //
+      // Per thread, not per patcher (issue #962): the pin only protects the
+      // renderer's own reads, because the reclaimer's +2 grace counts that
+      // thread's blocks. A control-thread send that ran while a block was in
+      // flight used to get the same pointer, walk it after the block ended, and
+      // race the reclaimer's delete. Every thread but the renderer now gets
+      // null and takes the live-wiring path the call sites document. Defined in
+      // patcherImplementation.cpp, next to the thread_local frame marker it
+      // consults (one TLS load on the audio path).
       //
       // This is the real accessor; pObject::CurrentBlockGraph() (non-virtual) is
       // the forwarder that every *contained* object goes through -- it hops to
@@ -106,9 +116,7 @@ namespace YSE {
       // theirs stay -1) and the `graphId >= 0` guard at both call sites already
       // sends them down the live-wiring path. See issue #573.
       // NOLINTNEXTLINE(bugprone-derived-method-shadowing-base-method)
-      const GraphState* CurrentBlockGraph() const {
-        return currentBlockGraph_.load(std::memory_order_acquire);
-      }
+      const GraphState* CurrentBlockGraph() const;
 
       void SetMessage(const std::string&, float) override {}
 
@@ -658,7 +666,9 @@ namespace YSE {
       // the control thread writes it, under mtx.
       std::atomic<const GraphState*> active_{nullptr};
       // Snapshot pinned for the duration of the block being rendered. Written
-      // by the audio thread at the start/end of Calculate.
+      // by the audio thread at the start/end of Calculate, and read only from
+      // inside that frame (CurrentBlockGraph and the T_DSP dispatch in
+      // PassBang/PassData both check the thread first — issue #962).
       std::atomic<const GraphState*> currentBlockGraph_{nullptr};
       // Monotonic count of rendered blocks; the reclaimer reads it (acquire) to
       // tell when the audio thread has advanced past a retired snapshot.

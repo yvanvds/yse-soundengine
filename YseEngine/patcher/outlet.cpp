@@ -68,11 +68,13 @@ outlet::~outlet() {
   UnwireFromPeers();
 }
 
-// Resolve this outlet's fan-out. When the owning patcher is mid-block it hands
-// back a pinned, immutable GraphState and we read the snapshot's adjacency (the
-// audio-thread path — never touches the live ``connections`` vector). Outside a
-// block, or for a standalone object with no patcher, ``graph`` is null and we
-// fall back to the live wiring (control-thread / unit-test path). See #226.
+// Resolve this outlet's fan-out. On the thread rendering the owning patcher's
+// block it hands back a pinned, immutable GraphState and we read the snapshot's
+// adjacency (the audio-thread path — never touches the live ``connections``
+// vector). Outside a block, on any other thread even while a block is in flight
+// (issue #962: the pin only covers the renderer), or for a standalone object
+// with no patcher, ``graph`` is null and we fall back to the live wiring
+// (control-thread / unit-test path). See #226.
 const std::vector<YSE::PATCHER::inlet*>& outlet::resolveTargets() const {
   const GraphState* graph = owner ? owner->CurrentBlockGraph() : nullptr;
   if (graph != nullptr && graphId >= 0 &&

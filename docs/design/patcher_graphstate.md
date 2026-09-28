@@ -154,6 +154,13 @@ the top of the block, and read only by the same audio thread during that
 block. It never changes mid-block, so every send within the block sees
 one coherent snapshot.
 
+> **As built:** `currentBlockGraph_` is an atomic, and
+> `CurrentBlockGraph()` returns it only to the thread inside that
+> patcher's `Calculate` (the #690 `tRenderingPatcher` frame marker);
+> every other thread gets null and resolves through the live wiring.
+> Issue #962: a control-thread send made mid-block used to read the pinned
+> snapshot too, and the reclaimer's two-block grace does not cover it.
+
 Each outlet resolves its targets from the pinned graph:
 
 ```cpp

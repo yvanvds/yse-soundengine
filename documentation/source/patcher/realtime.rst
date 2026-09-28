@@ -91,6 +91,12 @@ job frees them once the audio thread has **started two more blocks**. By then
 no block can still hold a pointer into them. The only thing the audio thread
 does for this is add one to its block counter.
 
+That count only says something about the thread rendering the block, so a
+snapshot is only ever read by that thread. A send made on a control thread
+while a block is rendering (a host ``SetFloatData``, a ``.preset`` recall, a
+``.metro`` tick) follows the cords as they are now, not the block's snapshot,
+exactly as it does between blocks.
+
 A removed object can also still be in use on another *control* thread. A
 ``.preset`` recall, for example, finds each object under the patcher's lock
 and then sends it a value with the lock released, because that send may need

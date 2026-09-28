@@ -420,4 +420,63 @@ TEST_SUITE("patcher") {
     CHECK(missing == 0);
   }
 
+  // Issue #962: a control-thread send made while a block was rendering read
+  // the renderer's pinned snapshot (the pin was one per-patcher atomic, visible
+  // to every thread), and could still be walking its fan-out when the
+  // reclaimer freed it — the grace period counts the renderer's blocks, not
+  // the sender's. TSan reports the reclaimer's `delete` racing the sender's
+  // read in `outlet::resolveTargets` / `inlet::WaitingForDSP`. Here one thread
+  // renders, one sends into a wired slider pair, and the test thread retires a
+  // snapshot per edit on an unrelated pair, so graphs are freed all the time.
+  // The edits never touch the pair being sent through: this is about the
+  // snapshot's lifetime, not about the live wiring changing under a send
+  // (that is #963).
+  TEST_CASE("concurrency: control-thread sends during a render never read a retired snapshot") {
+    LogSilencer silence;
+
+    patcherImplementation p(1, nullptr);
+    YSE::pHandle* from = p.CreateObject(YSE::OBJ::G_SLIDER, "");
+    YSE::pHandle* to = p.CreateObject(YSE::OBJ::G_SLIDER, "");
+    YSE::pHandle* keep = p.CreateObject(YSE::OBJ::G_SLIDER, "");
+    YSE::pHandle* other = p.CreateObject(YSE::OBJ::G_SLIDER, "");
+    REQUIRE(from != nullptr);
+    REQUIRE(to != nullptr);
+    REQUIRE(keep != nullptr);
+    REQUIRE(other != nullptr);
+    p.Connect(from, 0, to, 0);
+
+    std::atomic<bool> stop{false};
+    std::atomic<std::uint64_t> blocks{0};
+    std::atomic<std::uint64_t> sends{0};
+
+    std::thread render([&] {
+      while (!stop.load(std::memory_order_relaxed)) {
+        p.Calculate(YSE::T_DSP);
+        blocks.fetch_add(1, std::memory_order_relaxed);
+      }
+    });
+    std::thread sender([&] {
+      int i = 0;
+      while (!stop.load(std::memory_order_relaxed)) {
+        from->SetFloatData(0, static_cast<float>(i++ % 100) * 0.01f);
+        sends.fetch_add(1, std::memory_order_relaxed);
+      }
+    });
+
+    for (int i = 0; i < 2000; i++) {
+      p.Connect(keep, 0, other, 0);
+      p.Disconnect(keep, 0, other, 0);
+    }
+
+    stop.store(true, std::memory_order_relaxed);
+    sender.join();
+    render.join();
+
+    CHECK(blocks.load() > 0);
+    CHECK(sends.load() > 0);
+    // The pair still carries a value once the storm is over.
+    from->SetFloatData(0, 0.5f);
+    CHECK(to->GetGuiValue() == from->GetGuiValue());
+  }
+
 } // TEST_SUITE("patcher")

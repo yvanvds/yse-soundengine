@@ -152,6 +152,29 @@ YSE::THREAD patcherImplementation::CallingThread(YSE::THREAD tag) const {
   return tRenderingPatcher == this ? YSE::T_DSP : YSE::T_GUI;
 }
 
+// Only the thread inside this patcher's Calculate gets the pinned snapshot
+// (issue #962). currentBlockGraph_ is non-null for the whole block whichever
+// thread asks, but the reclaimer's two-block grace only covers the renderer:
+// a control-thread send that loaded it mid-block could still be walking it
+// when the reclaimer freed it. The frame marker is set after the pin and
+// cleared after the unpin, so inside the frame the load sees this block's
+// snapshot (or null past the unpin, which is the live-wiring answer anyway).
+const YSE::PATCHER::GraphState* patcherImplementation::CurrentBlockGraph() const {
+  if (tRenderingPatcher != this) return nullptr;
+  return currentBlockGraph_.load(std::memory_order_acquire);
+}
+
+// pObject's forwarder lives here rather than in pObject.cpp so the call above
+// inlines into it: every inlet/outlet topology query on the audio path goes
+// through this one hop, as it did before #962. ``parent`` is the owning
+// patcherImplementation by construction (set via SetParent when the object is
+// added); null for a standalone object or the patcher itself, in which case
+// there is no snapshot to consult.
+const YSE::PATCHER::GraphState* pObject::CurrentBlockGraph() const {
+  if (parent == nullptr) return nullptr;
+  return static_cast<patcherImplementation*>(parent)->CurrentBlockGraph();
+}
+
 patcherImplementation::patcherImplementation(int mainOutputs, YSE::patcher* head)
   : pObject(false),
     controlledBySound(false),

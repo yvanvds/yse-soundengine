@@ -266,8 +266,10 @@ void inlet::SetMessage(const std::string& message, YSE::THREAD thread, float val
 
 bool inlet::WaitingForDSP() const {
   // Whether this inlet has an active buffer input comes from the pinned
-  // snapshot when the patcher is mid-block (audio-thread path), else from the
-  // live ``dspConnection`` (control-thread / standalone path). See #226.
+  // snapshot on the thread rendering the patcher's block (audio-thread path),
+  // else — including a control thread sending while a block is in flight,
+  // issue #962 — from the live ``dspConnection`` (control-thread / standalone
+  // path). See #226.
   const GraphState* graph = obj ? obj->CurrentBlockGraph() : nullptr;
   bool hasDsp;
   if (graph != nullptr && graphId >= 0 &&
