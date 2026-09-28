@@ -59,5 +59,7 @@ Where next
 ----------
 
 - :doc:`mental_model` — the five concepts you need to know.
+- :doc:`threading` — which thread does what, and where you may call the
+  engine from.
 - :doc:`install` — wire libYSE into your CMake project.
 - :doc:`hello_sound` — get a sound playing in 15 lines.

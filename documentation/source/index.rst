@@ -17,6 +17,7 @@ The :doc:`api/index` is the full reference.
 
    intro/index
    intro/mental_model
+   intro/threading
    intro/install
    intro/hello_sound
 

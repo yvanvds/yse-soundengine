@@ -34,9 +34,11 @@ namespace YSE {
    *
    *  Channels work like the channel groups on a mixing console: every sound is
    *  attached to a channel, and channels can themselves be attached to a parent
-   *  channel, forming a tree rooted at ``MainMix``. Each channel is rendered on
-   *  its own DSP thread, so spreading sounds across multiple channels can help
-   *  scale across cores.
+   *  channel, forming a tree rooted at ``MainMix``. A channel is a mixing
+   *  group, not a thread: the whole tree is rendered as one task graph shared
+   *  by the audio thread and the render workers, and a busy channel's sounds
+   *  are split into several tasks automatically, so adding channels does not
+   *  add parallelism (see ``system::renderThreads``).
    *
    *  Several pre-built channels are created for you and exposed through free
    *  functions:
