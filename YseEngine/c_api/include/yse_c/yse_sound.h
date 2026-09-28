@@ -27,15 +27,33 @@
 extern "C" {
 #endif
 
+#ifndef YSE_C_HANDLE_YseSound
+#define YSE_C_HANDLE_YseSound
 /** Owned — release with yse_sound_destroy. */
 typedef struct YseSound YseSound;
+#endif
+#ifndef YSE_C_HANDLE_YseChannel
+#define YSE_C_HANDLE_YseChannel
 /** Forward declarations — see yse_channel.h / yse_dsp.h / yse_dsp_modules.h /
    yse_patcher.h for ownership semantics. */
 typedef struct YseChannel YseChannel;
+#endif
+#ifndef YSE_C_HANDLE_YseDspBuffer
+#define YSE_C_HANDLE_YseDspBuffer
 typedef struct YseDspBuffer YseDspBuffer;
+#endif
+#ifndef YSE_C_HANDLE_YseDspMultiBuffer
+#define YSE_C_HANDLE_YseDspMultiBuffer
 typedef struct YseDspMultiBuffer YseDspMultiBuffer;
+#endif
+#ifndef YSE_C_HANDLE_YseDspObject
+#define YSE_C_HANDLE_YseDspObject
 typedef struct YseDspObject YseDspObject;
+#endif
+#ifndef YSE_C_HANDLE_YsePatcher
+#define YSE_C_HANDLE_YsePatcher
 typedef struct YsePatcher YsePatcher;
+#endif
 
 YSE_C_API YseSound* yse_sound_create(void);
 YSE_C_API void yse_sound_destroy(YseSound* s);

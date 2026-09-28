@@ -13,9 +13,12 @@
 extern "C" {
 #endif
 
+#ifndef YSE_C_HANDLE_YseListener
+#define YSE_C_HANDLE_YseListener
 /** Borrowed singleton — owned by the engine, never destroy.
    Obtain via yse_listener_get(). */
 typedef struct YseListener YseListener;
+#endif
 
 /** Borrowed singleton pointer — never destroy. */
 YSE_C_API YseListener* yse_listener_get(void);

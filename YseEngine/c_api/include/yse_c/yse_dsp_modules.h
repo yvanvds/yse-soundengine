@@ -23,12 +23,18 @@
 extern "C" {
 #endif
 
+#ifndef YSE_C_HANDLE_YseDspObject
+#define YSE_C_HANDLE_YseDspObject
 /** Owned — release with yse_dsp_object_destroy. Covers every effect
    subclass via the shared handle type. */
 typedef struct YseDspObject YseDspObject;
+#endif
 
+#ifndef YSE_C_HANDLE_YsePatcher
+#define YSE_C_HANDLE_YsePatcher
 /** Forward declaration — see yse_patcher.h for ownership. */
 typedef struct YsePatcher YsePatcher;
+#endif
 
 /* ─── constructors ────────────────────────────────────────────────────── */
 

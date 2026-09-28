@@ -14,15 +14,30 @@
 extern "C" {
 #endif
 
+#ifndef YSE_C_HANDLE_YseSystem
+#define YSE_C_HANDLE_YseSystem
 /** Borrowed singleton — owned by the engine, never destroy.
    Obtain via yse_system_get(). */
 typedef struct YseSystem YseSystem;
+#endif
+#ifndef YSE_C_HANDLE_YseChannel
+#define YSE_C_HANDLE_YseChannel
 /** Forward declarations — see yse_channel.h / yse_reverb.h / yse_device.h
    for ownership semantics. */
 typedef struct YseChannel YseChannel;
+#endif
+#ifndef YSE_C_HANDLE_YseReverb
+#define YSE_C_HANDLE_YseReverb
 typedef struct YseReverb YseReverb;
+#endif
+#ifndef YSE_C_HANDLE_YseDevice
+#define YSE_C_HANDLE_YseDevice
 typedef struct YseDevice YseDevice;
+#endif
+#ifndef YSE_C_HANDLE_YseDeviceSetup
+#define YSE_C_HANDLE_YseDeviceSetup
 typedef struct YseDeviceSetup YseDeviceSetup;
+#endif
 
 /** Borrowed singleton pointer — never destroy. */
 YSE_C_API YseSystem* yse_system_get(void);

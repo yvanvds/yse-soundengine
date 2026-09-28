@@ -13,8 +13,10 @@ Single entry point:
    #include "yse_c/yse_all.h"
 
 This umbrella header pulls in every subsystem header below. The headers
-repeat forward declarations of the handle types, so compile C code against
-them as C11 or later (or as C++).
+compile as C99 or later, and as C++. Several of them forward-declare the same
+handle type; each of those typedefs sits behind a ``YSE_C_HANDLE_<Type>``
+guard, so a strict C99 compiler never sees one twice. The test build compiles
+every header, and ``yse_all.h``, as ``-std=c99 -pedantic-errors``.
 
 The first half of this page is a guide: the rules every function follows, in
 one place, so a binding can be written against them. The second half is the

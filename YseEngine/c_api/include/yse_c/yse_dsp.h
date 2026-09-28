@@ -42,6 +42,8 @@
 extern "C" {
 #endif
 
+#ifndef YSE_C_HANDLE_YseDspBuffer
+#define YSE_C_HANDLE_YseDspBuffer
 /** Owned — release with yse_dsp_buffer_destroy, whichever of the four
    constructors produced it. The handle remembers which one did: internally it
    owns the engine object through a polymorphic wrapper, so destroy runs the
@@ -49,6 +51,7 @@ extern "C" {
    type check is exposed and none is possible on the engine chain itself, which
    stays non-polymorphic (issue #662). */
 typedef struct YseDspBuffer YseDspBuffer;
+#endif
 
 /** Constructors — one per subclass. The returned handle owns its native
    storage; pair with yse_dsp_buffer_destroy. */
@@ -155,9 +158,12 @@ YSE_C_API YseStatus yse_dsp_wavetable_create_triangle(YseDspBuffer* buf, int har
    which is why it is its own owned handle rather than an argument list: the
    host decides when it is safe to free it. */
 
+#ifndef YSE_C_HANDLE_YseDspMultiBuffer
+#define YSE_C_HANDLE_YseDspMultiBuffer
 /** Owned — release with yse_dsp_multi_buffer_destroy, and only once every sound
    loaded from it has been destroyed. */
 typedef struct YseDspMultiBuffer YseDspMultiBuffer;
+#endif
 
 /** Build a multichannel buffer holding a COPY of `count` channel buffers, in
    order (channels[0] is the first output channel). The source handles are not

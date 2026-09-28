@@ -32,11 +32,17 @@
 extern "C" {
 #endif
 
+#ifndef YSE_C_HANDLE_YseDevice
+#define YSE_C_HANDLE_YseDevice
 /** Borrowed — read-only descriptor enumerated from the engine via
    yse_system_get_device(). Never destroy. */
 typedef struct YseDevice YseDevice;
+#endif
+#ifndef YSE_C_HANDLE_YseDeviceSetup
+#define YSE_C_HANDLE_YseDeviceSetup
 /** Owned — release with yse_device_setup_destroy. */
 typedef struct YseDeviceSetup YseDeviceSetup;
+#endif
 
 /** Device descriptor — read-only. */
 YSE_C_API size_t yse_device_get_name(YseDevice* dev, char* buf, size_t cap);

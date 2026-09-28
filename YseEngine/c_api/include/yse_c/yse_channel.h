@@ -19,15 +19,21 @@
 extern "C" {
 #endif
 
+#ifndef YSE_C_HANDLE_YseChannel
+#define YSE_C_HANDLE_YseChannel
 /** Owned via yse_channel_create / _create_with_sends / _create_return —
    release with yse_channel_destroy. Borrowed via the yse_channel_master /
    _fx / _music / _ambient / _voice / _gui pre-built accessors — never
    destroy those. */
 typedef struct YseChannel YseChannel;
+#endif
 
+#ifndef YSE_C_HANDLE_YseDspObject
+#define YSE_C_HANDLE_YseDspObject
 /** Forward declaration — see yse_dsp_modules.h for ownership (a channel
    insert effect is owned by the caller, never by the channel). */
 typedef struct YseDspObject YseDspObject;
+#endif
 
 /** Pre-built channels — borrowed pointers, never destroy. */
 YSE_C_API YseChannel* yse_channel_master(void);

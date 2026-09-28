@@ -23,21 +23,39 @@
 extern "C" {
 #endif
 
+#ifndef YSE_C_HANDLE_YseNote
+#define YSE_C_HANDLE_YseNote
 /** Owned — release with yse_note_destroy. */
 typedef struct YseNote YseNote;
+#endif
+#ifndef YSE_C_HANDLE_YsePNote
+#define YSE_C_HANDLE_YsePNote
 /** Owned — release with yse_pnote_destroy. */
 typedef struct YsePNote YsePNote;
+#endif
+#ifndef YSE_C_HANDLE_YseScale
+#define YSE_C_HANDLE_YseScale
 /** Owned — release with yse_scale_destroy. */
 typedef struct YseScale YseScale;
+#endif
+#ifndef YSE_C_HANDLE_YseMotif
+#define YSE_C_HANDLE_YseMotif
 /** Owned — release with yse_motif_destroy. */
 typedef struct YseMotif YseMotif;
+#endif
+#ifndef YSE_C_HANDLE_YsePlayer
+#define YSE_C_HANDLE_YsePlayer
 /** Owned — release with yse_player_destroy. */
 typedef struct YsePlayer YsePlayer;
+#endif
 
+#ifndef YSE_C_HANDLE_YseSynth
+#define YSE_C_HANDLE_YseSynth
 /** Forward declaration — the synth a player drives. Owned by the caller and
    created via yse_synth_create (see yse_synth.h); it must outlive the player.
    The player feeds every note it generates into this synth's lock-free inbox. */
 typedef struct YseSynth YseSynth;
+#endif
 
 /* ─── note ────────────────────────────────────────────────────────── */
 
