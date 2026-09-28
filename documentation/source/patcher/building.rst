@@ -218,8 +218,10 @@ Keep in mind that:
   To remove a voice without a click, ramp it to zero first, for example with
   ``~line`` driving a ``~*``.
 - **Edits and queries can come from several threads.** They are serialized
-  on the patcher's lock, ``Objects``, ``GetHandleFromList`` and
-  ``GetHandleFromID`` included. Each call is answered on its own, though: a
+  on the patcher's lock, ``Objects``, ``GetHandleFromList``,
+  ``GetHandleFromID`` and the cord queries ``GetConnections``,
+  ``GetConnectionTarget`` and ``GetConnectionTargetInlet`` included. Each
+  call is answered on its own, though: a
   walk over the object list can see an edit made between two of its calls,
   and a handle it returned is freed if another thread deletes that object.
   If you edit from one thread and read from another, coordinate object
@@ -294,7 +296,11 @@ from the start.
    patcher's lock (`#937
    <https://github.com/yvanvds/yse-soundengine/issues/937>`_). Before, they
    read the object list without it, and a call that ran while another thread
-   created or deleted an object could crash.
+   created or deleted an object could crash. ``GetConnections``,
+   ``GetConnectionTarget`` and ``GetConnectionTargetInlet`` take it too
+   (`#966 <https://github.com/yvanvds/yse-soundengine/issues/966>`_): they
+   read an outlet's cords, which a connect, disconnect or delete on another
+   thread rewrites.
 
 Cords are recorded on the outlet side only. To find the cords arriving at an
 object, walk every object's outlets as above. A cord drawn to a subpatcher

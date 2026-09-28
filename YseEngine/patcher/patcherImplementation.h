@@ -181,6 +181,25 @@ namespace YSE {
       // so unlike ResolveInlet the whole read stays under mtx.
       YSE::OUT_TYPE ResolveOutputType(pObject* obj, int pin);
 
+      // `pHandle::GetConnections` / `GetConnectionTarget` /
+      // `GetConnectionTargetInlet` for an object this patcher owns (issue
+      // #966). They read the outlet's live wiring, which Connect, Disconnect,
+      // DeleteObject and a structural SetParams rewrite under mtx, so they
+      // read it under mtx too — the #937 answer for the object-set enumeration.
+      // Not the published snapshot a send walks (#963): a send needs the pin
+      // because it cannot hold mtx across a fan-out that may take it again,
+      // while a query calls nothing that takes mtx, so it can simply hold the
+      // lock and answer from the wiring every edit writes — no ownership check,
+      // no fallback. Each returns a value, never a pointer into the wiring, so
+      // nothing outlives the lock. Control-thread only and never from under
+      // mtx (it is not recursive). `handle` must be one this patcher owns;
+      // its object is read under the lock, since a structural SetParams
+      // swaps it.
+      unsigned int OutletConnections(YSE::pHandle* handle, unsigned int outlet);
+      unsigned int OutletTarget(YSE::pHandle* handle, unsigned int outlet, unsigned int connection);
+      unsigned int OutletTargetInlet(YSE::pHandle* handle, unsigned int outlet,
+                                     unsigned int connection);
+
       std::string DumpJSON();
       void ParseJSON(const std::string& content);
 

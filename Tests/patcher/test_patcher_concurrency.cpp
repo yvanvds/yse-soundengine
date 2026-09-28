@@ -598,4 +598,76 @@ TEST_SUITE("patcher") {
     CHECK(kept->GetGuiValue() == churned[0]->GetGuiValue());
   }
 
+  // Issue #966: the host wiring queries — GetConnections, GetConnectionTarget,
+  // GetConnectionTargetInlet — read the outlet's live `connections` with no
+  // lock, while DeleteObject's UnwireFromPeers swaps the vector out and frees
+  // it and Connect's push_back reallocates it under mtx. An editor redrawing
+  // cords on one thread while another edits the patch is exactly that: TSan
+  // reports the edit's write racing the read in `outlet::GetConnections` /
+  // `GetTarget`, ASan a read of the freed buffer. The target's own ID is read
+  // through the inlet the vector names, so a stale entry is a use-after-free
+  // too. Here a reader walks every cord out of `from` while the test thread
+  // deletes, re-creates and re-wires six of its targets.
+  TEST_CASE("concurrency: reading an object's cords races no structural edit on another thread") {
+    LogSilencer silence;
+
+    patcherImplementation p(1, nullptr);
+    YSE::pHandle* from = p.CreateObject(YSE::OBJ::G_SLIDER, "");
+    YSE::pHandle* fixed = p.CreateObject(YSE::OBJ::G_SLIDER, "");
+    REQUIRE(from != nullptr);
+    REQUIRE(fixed != nullptr);
+    p.Connect(from, 0, fixed, 0);
+
+    constexpr int kChurned = 6;
+    std::vector<YSE::pHandle*> churned;
+    churned.reserve(kChurned);
+    auto wireNew = [&] {
+      YSE::pHandle* h = p.CreateObject(YSE::OBJ::G_SLIDER, "");
+      p.Connect(from, 0, h, 0);
+      return h;
+    };
+    for (int i = 0; i < kChurned; i++)
+      churned.push_back(wireNew());
+
+    std::atomic<bool> stop{false};
+    std::atomic<std::uint64_t> reads{0};
+    std::atomic<std::uint64_t> badInlet{0};
+    std::thread reader([&] {
+      while (!stop.load(std::memory_order_relaxed)) {
+        const unsigned int count = from->GetConnections(0);
+        // One past the count as well: an edge that vanished between the two
+        // calls has to answer the sentinels, not index past the vector.
+        for (unsigned int i = 0; i <= count; i++) {
+          const unsigned int target = from->GetConnectionTarget(0, i);
+          const unsigned int inlet = from->GetConnectionTargetInlet(0, i);
+          if (target != YSE::PATCHER::pObject::kNoObjectID && inlet != 0 &&
+              inlet != YSE::PATCHER::pObject::kNoInletIndex) {
+            badInlet.fetch_add(1, std::memory_order_relaxed);
+          }
+        }
+        reads.fetch_add(1, std::memory_order_relaxed);
+      }
+    });
+
+    for (int round = 0; round < 300; round++) {
+      for (int i = 0; i < kChurned; i++) {
+        p.DeleteObject(churned[i]);
+        churned[i] = wireNew();
+      }
+    }
+
+    stop.store(true, std::memory_order_relaxed);
+    reader.join();
+
+    CHECK(reads.load() > 0);
+    // Every cord out of `from` lands on inlet 0.
+    CHECK(badInlet.load() == 0);
+    // Once the storm is over the queries name exactly the cords that exist.
+    REQUIRE(from->GetConnections(0) == static_cast<unsigned int>(kChurned + 1));
+    CHECK(from->GetConnectionTarget(0, 0) == fixed->GetID());
+    for (unsigned int i = 0; i < static_cast<unsigned int>(kChurned + 1); i++)
+      CHECK(from->GetConnectionTargetInlet(0, i) == 0u);
+    CHECK(from->GetConnectionTarget(0, kChurned + 1) == YSE::PATCHER::pObject::kNoObjectID);
+  }
+
 } // TEST_SUITE("patcher")

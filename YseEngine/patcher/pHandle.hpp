@@ -102,6 +102,11 @@ namespace YSE {
      *  object's outlet count, so an outlet number cached across a re-parse may
      *  no longer name anything (issue #737). Compare against ``GetOutputs()``
      *  to tell an absent outlet from an unconnected one.
+     *
+     *  This and the two queries below take the patcher's lock (issue #966),
+     *  so they are safe while another control thread edits the patch, but
+     *  each answers on its own: a connection counted here can be gone by the
+     *  next call, which then answers ``UINT_MAX``. Control threads only.
      */
     unsigned int GetConnections(unsigned int outlet);
 

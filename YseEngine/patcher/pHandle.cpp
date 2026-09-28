@@ -139,16 +139,32 @@ unsigned int YSE::pHandle::GetID() {
   return object->GetID();
 }
 
+// The three wiring queries read an outlet's live `connections`, which another
+// control thread's Connect / Disconnect / DeleteObject rewrites under the
+// patcher mutex, so an owned object answers under it (issue #966) — the
+// patcher re-reads `object` under the lock as well. A standalone object
+// (unit-test rig) has no patcher and no other writer.
 unsigned int YSE::pHandle::GetConnections(unsigned int outlet) {
-  return object->GetConnections(outlet);
+  if (object == nullptr) return 0;
+  PATCHER::pObject* parent = object->Parent();
+  if (parent == nullptr) return object->GetConnections(outlet);
+  return static_cast<PATCHER::patcherImplementation*>(parent)->OutletConnections(this, outlet);
 }
 
 unsigned int YSE::pHandle::GetConnectionTarget(unsigned int outlet, unsigned int connection) {
-  return object->GetConnectionTarget(outlet, connection);
+  if (object == nullptr) return PATCHER::pObject::kNoObjectID;
+  PATCHER::pObject* parent = object->Parent();
+  if (parent == nullptr) return object->GetConnectionTarget(outlet, connection);
+  return static_cast<PATCHER::patcherImplementation*>(parent)->OutletTarget(this, outlet,
+                                                                            connection);
 }
 
 unsigned int YSE::pHandle::GetConnectionTargetInlet(unsigned int outlet, unsigned int connection) {
-  return object->GetConnectionTargetInlet(outlet, connection);
+  if (object == nullptr) return PATCHER::pObject::kNoInletIndex;
+  PATCHER::pObject* parent = object->Parent();
+  if (parent == nullptr) return object->GetConnectionTargetInlet(outlet, connection);
+  return static_cast<PATCHER::patcherImplementation*>(parent)->OutletTargetInlet(this, outlet,
+                                                                                 connection);
 }
 
 std::string YSE::pHandle::GetGuiValue() {

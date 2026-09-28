@@ -662,6 +662,26 @@ YSE::OUT_TYPE patcherImplementation::ResolveOutputType(pObject* obj, int pin) {
   return boundary == nullptr ? YSE::OUT_TYPE::INVALID : boundary->GetOutputType(0);
 }
 
+// Under mtx, like every write to the wiring they read (issue #966). The
+// handle's object is read under it too: a structural SetParams swaps it for a
+// replacement (ReplaceObjectUnlocked) and hands the old one to the reclaimer.
+unsigned int patcherImplementation::OutletConnections(YSE::pHandle* handle, unsigned int outlet) {
+  std::scoped_lock lk(mtx);
+  return handle->object->GetConnections(outlet);
+}
+
+unsigned int patcherImplementation::OutletTarget(YSE::pHandle* handle, unsigned int outlet,
+                                                 unsigned int connection) {
+  std::scoped_lock lk(mtx);
+  return handle->object->GetConnectionTarget(outlet, connection);
+}
+
+unsigned int patcherImplementation::OutletTargetInlet(YSE::pHandle* handle, unsigned int outlet,
+                                                      unsigned int connection) {
+  std::scoped_lock lk(mtx);
+  return handle->object->GetConnectionTargetInlet(outlet, connection);
+}
+
 void patcherImplementation::ConnectUnlocked(YSE::pHandle* from, int outlet, YSE::pHandle* to,
                                             int inlet) {
   // Resolve subpatcher façades to the boundary objects that carry the pins

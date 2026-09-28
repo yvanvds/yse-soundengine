@@ -358,6 +358,64 @@ TEST_SUITE("capilowcov") {
     yse_patcher_destroy(p);
   }
 
+  // Issue #966 at the C boundary: a binding's editor thread reading the cords
+  // while another thread edits the patch. The three queries read the outlet's
+  // live wiring, which delete / create / connect rewrite on the editing thread;
+  // they now read it under the patcher mutex, so TSan and ASan stay quiet and
+  // the answers are always either a real edge or the documented sentinels.
+  TEST_CASE("c-api patcher: connection queries race no edit on another thread (#966)") {
+    YsePatcher* p = yse_patcher_create();
+    REQUIRE(p != nullptr);
+    yse_patcher_init(p, 2);
+
+    YsePHandle* from = yse_patcher_create_object(p, kInt, nullptr);
+    REQUIRE(from != nullptr);
+    constexpr int kChurned = 4;
+    std::vector<YsePHandle*> churned;
+    churned.reserve(kChurned);
+    auto wireNew = [&] {
+      YsePHandle* h = yse_patcher_create_object(p, kInt, nullptr);
+      yse_patcher_connect(p, from, 0, h, 0);
+      return h;
+    };
+    for (int i = 0; i < kChurned; i++)
+      churned.push_back(wireNew());
+
+    std::atomic<bool> stop{false};
+    std::atomic<unsigned int> reads{0};
+    std::atomic<unsigned int> wrong{0};
+    std::thread reader([&] {
+      while (!stop.load(std::memory_order_relaxed)) {
+        const unsigned int count = yse_phandle_get_connections(from, 0);
+        if (count > static_cast<unsigned int>(kChurned)) wrong.fetch_add(1);
+        for (unsigned int i = 0; i <= count; i++) {
+          const unsigned int inlet = yse_phandle_get_connection_target_inlet(from, 0, i);
+          if (inlet != 0u && inlet != YSE_PATCHER_INLET_NONE) wrong.fetch_add(1);
+          (void)yse_phandle_get_connection_target(from, 0, i);
+        }
+        reads.fetch_add(1, std::memory_order_relaxed);
+      }
+    });
+
+    for (int round = 0; round < 150; round++) {
+      for (int i = 0; i < kChurned; i++) {
+        yse_patcher_delete_object(p, churned[i]);
+        churned[i] = wireNew();
+      }
+    }
+
+    stop.store(true, std::memory_order_relaxed);
+    reader.join();
+
+    CHECK(reads.load() > 0u);
+    CHECK(wrong.load() == 0u);
+    REQUIRE(yse_phandle_get_connections(from, 0) == static_cast<unsigned int>(kChurned));
+    for (unsigned int i = 0; i < static_cast<unsigned int>(kChurned); i++)
+      CHECK(yse_phandle_get_connection_target(from, 0, i) == yse_phandle_get_id(churned[i]));
+
+    yse_patcher_destroy(p);
+  }
+
   TEST_CASE("c-api patcher: connect / disconnect refuse another patcher's handles (#934)") {
     YsePatcher* p = yse_patcher_create();
     YsePatcher* q = yse_patcher_create();

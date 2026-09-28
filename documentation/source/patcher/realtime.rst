@@ -329,8 +329,11 @@ What the host may do from where
 - **GUI reads are control-thread reads.** Polling a GUI value takes no lock
   and never makes the audio thread wait, but some reads clear what they
   report. See :doc:`gui`.
-- **Queries see a moment, not a transaction.** ``Objects`` and
-  ``GetHandleFromList`` answer each call on its own. Coordinate object
+- **Queries see a moment, not a transaction.** ``Objects``,
+  ``GetHandleFromList`` and the cord queries (``GetConnections``,
+  ``GetConnectionTarget``, ``GetConnectionTargetInlet``) take the patcher's
+  lock and answer each call on its own: a cord counted by one call can be
+  gone by the next, which then answers the "no such" value. Coordinate object
   lifetime yourself if one thread edits while another walks the graph (see
   :doc:`building`).
 
