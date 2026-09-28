@@ -46,11 +46,11 @@
 #include "patcher/pObjectList.hpp"
 #include "patcher/pRegistry.h"
 #include "patcher/patcher.hpp"
+#include "patcher/sinks.hpp"
 
 #if YSE_ENABLE_MIDI_DEVICE
 #include "midi/midiInHub.h"
 #include "patcher/patcherImplementation.h"
-#include "patcher/sinks.hpp"
 #endif
 
 using YSE::PATCHER::mSxFormat;
