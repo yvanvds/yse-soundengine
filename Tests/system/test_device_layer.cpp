@@ -545,11 +545,23 @@ TEST_SUITE("devicelayer") {
     // And it says so: the backend reports whether a stream is running
     // afterwards, which is what system::openDevice() gates the mixer layout on
     // (issue #665).
-    CHECK(YSE::DEVICE::Manager().openDevice(setup) == false);
+    CapturingLog log;
+    bool opened = true;
+    {
+      ScopedSink sink(&log);
+      opened = YSE::DEVICE::Manager().openDevice(setup);
+    }
+    CHECK(opened == false);
 
     CHECK(YSE::System().getActiveSampleRate() == 0.0);
     CHECK(YSE::System().getActiveBufferSize() == 0);
     CHECK(YSE::System().getActiveOutputLatency() == 0);
+
+    // The refusal is logged rather than silent (issue #972): a host that tried
+    // to promote an offline session in a process that never ran init() gets
+    // told why nothing opened. Only this suite's own process is guaranteed to
+    // have PortAudio down — in a shared one the ID check refuses first.
+    if (ownProcess()) CHECK(log.contains("the audio backend is not running"));
   }
 
   // Two refusals stacked on top of each other, one per layer.

@@ -240,9 +240,9 @@ TEST_SUITE("offlinesession") {
     }
 
     // Bring the session up at the device's own rate. SAMPLERATE is locked for
-    // the session at the end of initShared(), and openDevice() asserts a locked
-    // rate matches the device it opens — an offline session that defaulted to a
-    // different rate would trip that assert rather than test this.
+    // the session at the end of initShared(), and a device may refuse a locked
+    // rate other than its own (the mismatch case has its own test below, issue
+    // #972) — that would test the refusal rather than the promotion.
     const double deviceRate = out.getAvailableSampleRate(0);
     const unsigned int previousRequest = YSE::System().requestSampleRate();
     YSE::System().requestSampleRate(static_cast<unsigned int>(deviceRate));
@@ -301,8 +301,7 @@ TEST_SUITE("offlinesession") {
       return;
     }
 
-    // Run the session at the device's own rate, so the device can open at it
-    // (openDevice() asserts a locked rate matches the device it opens).
+    // Run the session at the device's own rate, so the device can open at it.
     const unsigned int deviceRate = static_cast<unsigned int>(out.getAvailableSampleRate(0));
     const unsigned int otherRate = deviceRate == 44100u ? 48000u : 44100u;
     const unsigned int previousRequest = YSE::System().requestSampleRate();
@@ -348,6 +347,59 @@ TEST_SUITE("offlinesession") {
     CHECK(
         log.contains("Requested device sample rate " + std::to_string(otherRate) + " Hz ignored"));
     CHECK(active == static_cast<double>(deviceRate));
+  }
+
+  // Issue #972. An offline session runs at the requested rate or 48 kHz, and
+  // is promoted onto a device whose default may be anything. openDevice() used
+  // to assert the locked session rate equalled the device's default rate, so
+  // the common case — an offline session left at 48 kHz promoted onto a
+  // 44.1 kHz device — aborted a debug build. Now the stream is asked for the
+  // session rate: it either opens at that rate, or the device refuses it and
+  // the call returns false with a log line naming both rates. Either way the
+  // session rate does not move.
+  TEST_CASE("offlinesession: openDevice() on an offline session at a rate other than the device "
+            "default (issue #972)") {
+    if (!deviceReachable()) return;
+
+    YSE::System().close();
+
+    const YSE::device out = playableDevice();
+    if (out.getNumOutputChannelNames() == 0 || out.getNumAvailableSampleRates() == 0) {
+      MESSAGE("skipped: no enumerated device with output channels and an advertised rate.");
+      return;
+    }
+
+    const unsigned int deviceRate = static_cast<unsigned int>(out.getAvailableSampleRate(0));
+    const unsigned int sessionRate = deviceRate == 44100u ? 48000u : 44100u;
+    const unsigned int previousRequest = YSE::System().requestSampleRate();
+    YSE::System().requestSampleRate(sessionRate);
+    REQUIRE(YSE::System().initOffline());
+    REQUIRE(YSE::System().getSampleRate() == static_cast<double>(sessionRate));
+
+    CapturingLog log;
+    bool opened = false;
+    {
+      ScopedSink sink(&log);
+      YSE::deviceSetup setup;
+      setup.setOutput(out).setBufferSize(0);
+      opened = YSE::System().openDevice(setup, YSE::CT_AUTO);
+    }
+
+    const double active = YSE::System().getActiveSampleRate();
+    const double session = YSE::System().getSampleRate();
+    if (opened) YSE::System().closeCurrentDevice();
+    YSE::System().close();
+    YSE::System().requestSampleRate(previousRequest);
+
+    CHECK(session == static_cast<double>(sessionRate));
+    if (opened) {
+      // The host resampled: the stream runs at the session rate.
+      CHECK(active == static_cast<double>(sessionRate));
+    } else {
+      CHECK(active == 0.0);
+      CHECK(log.contains("refused the session sample rate of " + std::to_string(sessionRate) +
+                         " Hz (its default is " + std::to_string(deviceRate) + " Hz)"));
+    }
   }
 
 } // TEST_SUITE("offlinesession")

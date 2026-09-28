@@ -365,7 +365,18 @@ Bool YSE::DEVICE::managerObject::openDevice(const YSE::deviceSetup& object) {
 
   // Nothing to open on the offline engine either — init(false) skips
   // Pa_Initialize on purpose, so there is no stream and no layout to follow.
-  if (!initDone) return false;
+  // The backend is deliberately not brought up on demand here (issue #972):
+  // the device list a caller picks from is only enumerated by init(), so a
+  // process that has only run offline sessions has no device to name anyway,
+  // and initOffline() stays free of Pa_Initialize, which hangs bare headless
+  // runners. Say so rather than failing silently.
+  if (!initDone) {
+    INTERNAL::LogImpl().emit(E_WARNING,
+                             "Cannot open a device: the audio backend is not running. An "
+                             "initOffline() session can only open a device in a "
+                             "process where an earlier init() started it.");
+    return false;
+  }
 
   // Pa_GetDeviceInfo() returns NULL for any index outside
   // [0, Pa_GetDeviceCount()) — paNoDevice (-1) included, and equally an ID from
@@ -405,10 +416,15 @@ Bool YSE::DEVICE::managerObject::openDevice(const YSE::deviceSetup& object) {
   // opens at the session rate; with no session rate locked, the request takes
   // precedence over the device default, and a device that refuses it falls
   // back to its default rate, as in addCallback().
+  //
+  // The locked session rate need not be the device's default rate (issue
+  // #972): an initOffline() session runs at the requested rate or 48 kHz, and
+  // a device session at whatever the first device agreed to. The stream is
+  // asked for the session rate; a device that refuses it is reported below
+  // and nothing opens. This used to be a debug assert that the two matched.
   const UInt deviceDefault = (UInt)info->defaultSampleRate;
   const UInt requested = object.sampleRate > 0.0 ? (UInt)std::lround(object.sampleRate) : 0u;
   if (INTERNAL::Global().isSampleRateLocked()) {
-    assert(deviceDefault == SAMPLERATE);
     if (requested != 0 && requested != SAMPLERATE) {
       INTERNAL::LogImpl().emit(
           E_WARNING, "Requested device sample rate " + std::to_string(requested) +
@@ -433,6 +449,15 @@ Bool YSE::DEVICE::managerObject::openDevice(const YSE::deviceSetup& object) {
     SAMPLERATE = deviceDefault;
     err = Pa_OpenStream(&stream, NULL, &params, SAMPLERATE, framesPerBuffer, paNoFlag, paCallback,
                         this);
+  }
+
+  if (err != paNoError && INTERNAL::Global().isSampleRateLocked() && SAMPLERATE != deviceDefault) {
+    INTERNAL::LogImpl().emit(E_WARNING, "The audio device refused the session sample rate of " +
+                                            std::to_string(SAMPLERATE) + " Hz (its default is " +
+                                            std::to_string(deviceDefault) +
+                                            " Hz). Call System().requestSampleRate() before "
+                                            "init() or initOffline() to run the session at a "
+                                            "rate the device accepts.");
   }
 
   if (err != paNoError) {

@@ -138,7 +138,13 @@ YSE_C_API YseDevice* yse_system_get_device(YseSystem* sys, unsigned int idx);
    whose id is -1 or no longer resolves, a stream open error, or an offline
    session with no audio backend — returns YSE_ERR_AUDIO_DEVICE and sets
    yse_last_error(); the running stream and the speaker layout are left
-   untouched (issue #900). */
+   untouched (issue #900).
+
+   On desktop, yse_system_init_offline() does not start the audio backend and
+   open_device does not start it on demand: an offline session can only open a
+   device in a process where an earlier yse_system_init() started it. The
+   stream opens at the locked session rate; a device that refuses that rate is
+   a logged YSE_ERR_AUDIO_DEVICE (issue #972). */
 YSE_C_API YseStatus yse_system_open_device(YseSystem* sys, const YseDeviceSetup* setup,
                                            YseChannelType layout);
 YSE_C_API void yse_system_close_current_device(YseSystem* sys);
