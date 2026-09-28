@@ -91,24 +91,11 @@ namespace YSE {
       // See the definition for the host/graph channel-count contract.
       void ProcessAsInsert(MULTICHANNELBUFFER& io);
 
-      // The GraphState pinned for the block currently being rendered, or null
-      // between blocks. Read by inlets/outlets to resolve topology without a
-      // lock (issue #226).
-      //
-      // This is the real accessor; pObject::CurrentBlockGraph() (non-virtual) is
-      // the forwarder that every *contained* object goes through -- it hops to
-      // its owning patcher and lands back here. The shadowing is therefore the
-      // intended direction of the relation, not accidental hiding. Reaching a
-      // patcherImplementation through a pObject* yields the base version, which
-      // returns null because a patcher has no parent; that is harmless, because
-      // the patcher's own inlets/outlets are never assigned a GraphState id
-      // (ids come from AssignObjectIds on objects *added* to the patcher, so
-      // theirs stay -1) and the `graphId >= 0` guard at both call sites already
-      // sends them down the live-wiring path. See issue #573.
-      // NOLINTNEXTLINE(bugprone-derived-method-shadowing-base-method)
-      const GraphState* CurrentBlockGraph() const {
-        return currentBlockGraph_.load(std::memory_order_acquire);
-      }
+      // Inlets and outlets resolve topology through a graphReadScope
+      // (graphState.h): the block's pinned snapshot on the thread rendering
+      // it (issues #226, #962), the pinned published snapshot on any other
+      // thread (issue #963). It reads the members below directly.
+      friend class graphReadScope;
 
       void SetMessage(const std::string&, float) override {}
 
@@ -194,6 +181,36 @@ namespace YSE {
       // so unlike ResolveInlet the whole read stays under mtx.
       YSE::OUT_TYPE ResolveOutputType(pObject* obj, int pin);
 
+      // `pHandle::GetConnections` / `GetConnectionTarget` /
+      // `GetConnectionTargetInlet` for an object this patcher owns (issue
+      // #966). They read the outlet's live wiring, which Connect, Disconnect,
+      // DeleteObject and a structural SetParams rewrite under mtx, so they
+      // read it under mtx too — the #937 answer for the object-set enumeration.
+      // Not the published snapshot a send walks (#963): a send needs the pin
+      // because it cannot hold mtx across a fan-out that may take it again,
+      // while a query calls nothing that takes mtx, so it can simply hold the
+      // lock and answer from the wiring every edit writes — no ownership check,
+      // no fallback. Each returns a value, never a pointer into the wiring, so
+      // nothing outlives the lock. Control-thread only and never from under
+      // mtx (it is not recursive). `handle` must be one this patcher owns;
+      // its object is read under the lock, since a structural SetParams
+      // swaps it.
+      unsigned int OutletConnections(YSE::pHandle* handle, unsigned int outlet);
+      unsigned int OutletTarget(YSE::pHandle* handle, unsigned int outlet, unsigned int connection);
+      unsigned int OutletTargetInlet(YSE::pHandle* handle, unsigned int outlet,
+                                     unsigned int connection);
+
+      // `pHandle::GetGuiProperty` / `SetGuiProperty` / `GetParams` for an
+      // object this patcher owns (issue #968). GUI properties and the
+      // parameter string are plain strings that SetGuiProperty, a scalar
+      // SetParams and a structural SetParams's CopyStorageIdentity touch under
+      // mtx, so these read and write them under mtx, with the handle's object
+      // read under it as well. Same contract as the cord queries above.
+      std::string ObjectGuiProperty(YSE::pHandle* handle, const std::string& key);
+      void SetObjectGuiProperty(YSE::pHandle* handle, const std::string& key,
+                                const std::string& value);
+      std::string ObjectParams(YSE::pHandle* handle);
+
       std::string DumpJSON();
       void ParseJSON(const std::string& content);
 
@@ -216,24 +233,32 @@ namespace YSE {
       // mtx cannot be held across the use: the use is an ordinary send that
       // may reach PassData and take mtx again. So the caller holds an
       // objectPin across lookup *and* use, taking it before the lookup. While
-      // any pin is held the reclaimer leaves retired objects parked (retired
-      // graphs are still freed), so an object found live under mtx stays
-      // allocated until the pin is dropped; the pass that runs after the last
-      // pin goes frees them as usual.
+      // any pin is held the reclaimer frees nothing retired, so an object
+      // found live under mtx stays allocated until the pin is dropped; the
+      // pass that runs after the last pin goes frees it as usual.
+      //
+      // The same counter is the control-side pin every control-thread send
+      // holds (graphReadScope, issue #963), which is why graphs are held back
+      // too: such a send walks a published snapshot, and the objects it
+      // names, for as long as its fan-out runs. The lock-free pHandle getters
+      // hold one too, taken before they load the handle's object, so an
+      // object a structural SetParams has just swapped out stays allocated
+      // under them (issue #968).
       //
       // Lock-free — one atomic add, one atomic sub — and it never waits. The
-      // audio thread never pins and is never made to wait by a pin. Handles
-      // are not covered: DeleteObject frees a pHandle at once, so a pinned
-      // caller keeps the pObject*, never the pHandle*.
+      // audio thread never pins while rendering its own patcher and is never
+      // made to wait by a pin. Handles are not covered: DeleteObject frees a
+      // pHandle at once, so a pinned caller keeps the pObject*, never the
+      // pHandle*.
       class objectPin {
       public:
         explicit objectPin(patcherImplementation& owner) : owner_(owner) {
-          owner_.objectPins_.fetch_add(1, std::memory_order_acq_rel);
+          owner_.objectPins_.fetch_add(1, std::memory_order_seq_cst);
         }
         ~objectPin() {
-          // Release: every use made under the pin happens-before the
-          // reclaimer's acquire load that lets the object go.
-          owner_.objectPins_.fetch_sub(1, std::memory_order_release);
+          // Every use made under the pin happens-before the reclaimer's load
+          // that lets the object go.
+          owner_.objectPins_.fetch_sub(1, std::memory_order_seq_cst);
         }
         objectPin(const objectPin&) = delete;
         objectPin& operator=(const objectPin&) = delete;
@@ -350,8 +375,7 @@ namespace YSE {
       // Non-const to keep it out of pObject::FileIO()'s signature, exactly as
       // Scheduler() sits beside pObject::Scheduler(): the two are a forwarder
       // and its destination, not an override, and letting them collide would
-      // put this in the same shadowing bucket CurrentBlockGraph had to be
-      // NOLINTed out of (issue #573).
+      // put this in clang-tidy's derived-method-shadowing bucket (issue #573).
       fileScheduler* FileIO() {
         return fileIO_.load(std::memory_order_acquire);
       }
@@ -654,11 +678,14 @@ namespace YSE {
       // when none is. Control / timer threads only, never the audio callback.
       template <typename F> bool SendToHandler(F&& send);
 
-      // Published topology snapshot the audio thread reads (issue #226). Only
-      // the control thread writes it, under mtx.
+      // Published topology snapshot the audio thread reads (issue #226), and
+      // control-thread sends read under a pin (issue #963). Only the control
+      // thread writes it, under mtx.
       std::atomic<const GraphState*> active_{nullptr};
       // Snapshot pinned for the duration of the block being rendered. Written
-      // by the audio thread at the start/end of Calculate.
+      // by the audio thread at the start/end of Calculate, and read only from
+      // inside that frame (graphReadScope and the T_DSP dispatch in
+      // PassBang/PassData both check the thread first — issue #962).
       std::atomic<const GraphState*> currentBlockGraph_{nullptr};
       // Monotonic count of rendered blocks; the reclaimer reads it (acquire) to
       // tell when the audio thread has advanced past a retired snapshot.
@@ -710,8 +737,9 @@ namespace YSE {
       // Set once at teardown to stop scheduling and re-arming reclaim passes so
       // the destructor's joins terminate. Read on the background pool.
       std::atomic<bool> shuttingDown_{false};
-      // Held objectPins (issue #961). Non-zero keeps ReclaimElapsed from
-      // freeing retired objects; read on the background pool.
+      // Held objectPins (issue #961) and control-thread graphReadScopes (issue
+      // #963). Non-zero keeps ReclaimElapsed from freeing anything retired;
+      // read on the background pool.
       std::atomic<unsigned int> objectPins_{0};
       // Per-patcher dense id counters for inlets / outlets. An id is fixed for a
       // live object's lifetime (the audio thread reads it unsynchronised to

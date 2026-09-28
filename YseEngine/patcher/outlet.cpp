@@ -68,16 +68,26 @@ outlet::~outlet() {
   UnwireFromPeers();
 }
 
-// Resolve this outlet's fan-out. When the owning patcher is mid-block it hands
-// back a pinned, immutable GraphState and we read the snapshot's adjacency (the
-// audio-thread path — never touches the live ``connections`` vector). Outside a
-// block, or for a standalone object with no patcher, ``graph`` is null and we
-// fall back to the live wiring (control-thread / unit-test path). See #226.
-const std::vector<YSE::PATCHER::inlet*>& outlet::resolveTargets() const {
-  const GraphState* graph = owner ? owner->CurrentBlockGraph() : nullptr;
-  if (graph != nullptr && graphId >= 0 &&
-      static_cast<size_t>(graphId) < graph->outletTargets.size()) {
-    return graph->outletTargets[graphId];
+bool outlet::OwnedBy(const GraphState* graph) const {
+  return graph != nullptr && graphId >= 0 &&
+         static_cast<size_t>(graphId) < graph->outletTargets.size() &&
+         graph->outletOwner[graphId] == this;
+}
+
+// Resolve this outlet's fan-out through the caller's graphReadScope: the
+// block's pinned GraphState on the thread rendering it, the pinned published
+// one on any other thread (issues #226, #962, #963). Either way an immutable
+// snapshot, never the live ``connections`` vector that a structural edit on
+// another control thread rewrites under mtx. See graphReadScope for the two
+// fallbacks an outlet the snapshot does not own takes; the live wiring is only
+// read where nothing else writes it — a standalone object, a rig never added
+// to its patcher, or an object deleted (and unwired) since.
+const std::vector<YSE::PATCHER::inlet*>& outlet::resolveTargets(const graphReadScope& scope) const {
+  const GraphState* graph = scope.Graph();
+  if (OwnedBy(graph)) return graph->outletTargets[graphId];
+  if (graph != nullptr && graphId >= 0) {
+    const GraphState* latest = scope.Latest();
+    if (latest != graph && OwnedBy(latest)) return latest->outletTargets[graphId];
   }
   return connections;
 }
@@ -85,7 +95,8 @@ const std::vector<YSE::PATCHER::inlet*>& outlet::resolveTargets() const {
 void outlet::SendBang(YSE::THREAD thread) {
   SendDepthGuard guard;
   if (!guard.allowed) return;
-  const auto& targets = resolveTargets();
+  const graphReadScope scope(owner);
+  const auto& targets = resolveTargets(scope);
   for (unsigned int i = 0; i < targets.size(); i++) {
     targets[i]->SetBang(thread);
   }
@@ -94,7 +105,8 @@ void outlet::SendBang(YSE::THREAD thread) {
 void outlet::SendFloat(float value, YSE::THREAD thread) {
   SendDepthGuard guard;
   if (!guard.allowed) return;
-  const auto& targets = resolveTargets();
+  const graphReadScope scope(owner);
+  const auto& targets = resolveTargets(scope);
   for (unsigned int i = 0; i < targets.size(); i++) {
     targets[i]->SetFloat(value, thread);
   }
@@ -103,7 +115,8 @@ void outlet::SendFloat(float value, YSE::THREAD thread) {
 void outlet::SendInt(int value, YSE::THREAD thread) {
   SendDepthGuard guard;
   if (!guard.allowed) return;
-  const auto& targets = resolveTargets();
+  const graphReadScope scope(owner);
+  const auto& targets = resolveTargets(scope);
   for (unsigned int i = 0; i < targets.size(); i++) {
     targets[i]->SetInt(value, thread);
   }
@@ -112,7 +125,8 @@ void outlet::SendInt(int value, YSE::THREAD thread) {
 void outlet::SendList(const std::string& value, YSE::THREAD thread) {
   SendDepthGuard guard;
   if (!guard.allowed) return;
-  const auto& targets = resolveTargets();
+  const graphReadScope scope(owner);
+  const auto& targets = resolveTargets(scope);
   for (unsigned int i = 0; i < targets.size(); i++) {
     targets[i]->SetList(value, thread);
   }
@@ -121,7 +135,8 @@ void outlet::SendList(const std::string& value, YSE::THREAD thread) {
 void outlet::SendMessage(const std::string& value, YSE::THREAD thread) {
   SendDepthGuard guard;
   if (!guard.allowed) return;
-  const auto& targets = resolveTargets();
+  const graphReadScope scope(owner);
+  const auto& targets = resolveTargets(scope);
   for (unsigned int i = 0; i < targets.size(); i++) {
     targets[i]->SetMessage(value, thread);
   }
@@ -130,7 +145,8 @@ void outlet::SendMessage(const std::string& value, YSE::THREAD thread) {
 void outlet::SendBuffer(YSE::DSP::buffer* value, YSE::THREAD thread) {
   SendDepthGuard guard;
   if (!guard.allowed) return;
-  const auto& targets = resolveTargets();
+  const graphReadScope scope(owner);
+  const auto& targets = resolveTargets(scope);
   for (unsigned int i = 0; i < targets.size(); i++) {
     targets[i]->SetBuffer(value, thread);
   }

@@ -303,7 +303,9 @@ this:
      - Your own threads, never the audio callback. Edits from several
        threads are serialised by the patcher, but coordinate object lifetime
        yourself: a handle one thread holds is freed when another deletes the
-       object.
+       object. A handle does survive ``yse_phandle_set_params``, even one
+       that rebuilds the object, and its ``yse_phandle_*`` calls are safe
+       while another thread makes it.
    * - ``yse_patcher_init``, ``yse_patcher_set_name``,
        ``yse_patcher_parse_json``, and the metadata calls
      - One control thread, as their documentation says.

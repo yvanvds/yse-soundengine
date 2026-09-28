@@ -74,6 +74,9 @@ namespace {
   constexpr const char* kMatrixCtrl = ".matrixctrl";
   constexpr const char* kSigInlet = "~inlet";
   constexpr const char* kSigOutlet = "~outlet";
+  // A structural re-parse target (issue #968): its argument is its outlet
+  // count, so a set_params rebuilds it rather than patching it in place.
+  constexpr const char* kGate = ".gate";
 
   // Read a snprintf-convention getter into a std::string, using the two-call
   // size-then-fill pattern a binding would use.
@@ -354,6 +357,116 @@ TEST_SUITE("capilowcov") {
 
     yse_patcher_disconnect(p, sine, 0, mul, 0);
     CHECK(yse_phandle_get_connections(sine, 0) == 0u);
+
+    yse_patcher_destroy(p);
+  }
+
+  // Issue #966 at the C boundary: a binding's editor thread reading the cords
+  // while another thread edits the patch. The three queries read the outlet's
+  // live wiring, which delete / create / connect rewrite on the editing thread;
+  // they now read it under the patcher mutex, so TSan and ASan stay quiet and
+  // the answers are always either a real edge or the documented sentinels.
+  TEST_CASE("c-api patcher: connection queries race no edit on another thread (#966)") {
+    YsePatcher* p = yse_patcher_create();
+    REQUIRE(p != nullptr);
+    yse_patcher_init(p, 2);
+
+    YsePHandle* from = yse_patcher_create_object(p, kInt, nullptr);
+    REQUIRE(from != nullptr);
+    constexpr int kChurned = 4;
+    std::vector<YsePHandle*> churned;
+    churned.reserve(kChurned);
+    auto wireNew = [&] {
+      YsePHandle* h = yse_patcher_create_object(p, kInt, nullptr);
+      yse_patcher_connect(p, from, 0, h, 0);
+      return h;
+    };
+    for (int i = 0; i < kChurned; i++)
+      churned.push_back(wireNew());
+
+    std::atomic<bool> stop{false};
+    std::atomic<unsigned int> reads{0};
+    std::atomic<unsigned int> wrong{0};
+    std::thread reader([&] {
+      while (!stop.load(std::memory_order_relaxed)) {
+        const unsigned int count = yse_phandle_get_connections(from, 0);
+        if (count > static_cast<unsigned int>(kChurned)) wrong.fetch_add(1);
+        for (unsigned int i = 0; i <= count; i++) {
+          const unsigned int inlet = yse_phandle_get_connection_target_inlet(from, 0, i);
+          if (inlet != 0u && inlet != YSE_PATCHER_INLET_NONE) wrong.fetch_add(1);
+          (void)yse_phandle_get_connection_target(from, 0, i);
+        }
+        reads.fetch_add(1, std::memory_order_relaxed);
+      }
+    });
+
+    for (int round = 0; round < 150; round++) {
+      for (int i = 0; i < kChurned; i++) {
+        yse_patcher_delete_object(p, churned[i]);
+        churned[i] = wireNew();
+      }
+    }
+
+    stop.store(true, std::memory_order_relaxed);
+    reader.join();
+
+    CHECK(reads.load() > 0u);
+    CHECK(wrong.load() == 0u);
+    REQUIRE(yse_phandle_get_connections(from, 0) == static_cast<unsigned int>(kChurned));
+    for (unsigned int i = 0; i < static_cast<unsigned int>(kChurned); i++)
+      CHECK(yse_phandle_get_connection_target(from, 0, i) == yse_phandle_get_id(churned[i]));
+
+    yse_patcher_destroy(p);
+  }
+
+  // Issue #968 at the C boundary: a binding's GUI thread polling a handle while
+  // another thread re-parses the same object into a different shape. Every
+  // yse_phandle_* getter read the handle's object pointer unlocked, and the
+  // structural yse_phandle_set_params writes it (TSan: data race on
+  // `pHandle::object`). The getters now pin the patcher and load the pointer
+  // atomically, or read it under the patcher mutex.
+  TEST_CASE("c-api patcher: handle getters race no structural set_params (#968)") {
+    YsePatcher* p = yse_patcher_create();
+    REQUIRE(p != nullptr);
+    yse_patcher_init(p, 2);
+
+    YsePHandle* gate = yse_patcher_create_object(p, kGate, "2");
+    YsePHandle* sink = yse_patcher_create_object(p, kInt, nullptr);
+    REQUIRE(gate != nullptr);
+    REQUIRE(sink != nullptr);
+    yse_patcher_connect(p, gate, 0, sink, 0);
+
+    std::atomic<bool> stop{false};
+    std::atomic<unsigned int> reads{0};
+    std::atomic<unsigned int> wrong{0};
+    std::thread reader([&] {
+      char buf[64];
+      while (!stop.load(std::memory_order_relaxed)) {
+        const int outs = yse_phandle_get_outputs(gate);
+        if (outs != 2 && outs != 5) wrong.fetch_add(1);
+        if (yse_phandle_get_inputs(gate) != 2) wrong.fetch_add(1);
+        (void)yse_phandle_get_type(gate, buf, sizeof(buf));
+        if (std::string(buf) != kGate) wrong.fetch_add(1);
+        (void)yse_phandle_get_name(gate, buf, sizeof(buf));
+        (void)yse_phandle_get_params(gate, buf, sizeof(buf));
+        (void)yse_phandle_get_gui_property(gate, "x", buf, sizeof(buf));
+        (void)yse_phandle_get_gui_value(gate, buf, sizeof(buf));
+        (void)yse_phandle_get_id(gate);
+        (void)yse_phandle_output_data_type(gate, 0);
+        if (yse_phandle_get_connections(gate, 0) != 1u) wrong.fetch_add(1);
+        reads.fetch_add(1, std::memory_order_relaxed);
+      }
+    });
+
+    for (int round = 0; round < 200; round++)
+      yse_phandle_set_params(gate, round % 2 == 0 ? "5" : "2");
+
+    stop.store(true, std::memory_order_relaxed);
+    reader.join();
+
+    CHECK(reads.load() > 0u);
+    CHECK(wrong.load() == 0u);
+    CHECK(yse_phandle_get_outputs(gate) == 2);
 
     yse_patcher_destroy(p);
   }

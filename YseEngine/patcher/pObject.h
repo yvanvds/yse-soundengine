@@ -94,16 +94,14 @@ namespace YSE {
       pObject(bool isDSPObject, pObject* parent = nullptr);
       virtual ~pObject() {}
 
-      // The GraphState the owning patcher has pinned for the current audio
-      // block, or null when the patcher is between blocks or this object has no
-      // patcher (standalone / unit-test use). Outlets and inlets consult it to
-      // resolve topology on the audio thread without a lock (issue #226).
-      const GraphState* CurrentBlockGraph() const;
+      // Outlets and inlets resolve topology through a graphReadScope
+      // (graphState.h, issues #226, #963), which hops to the owning patcher
+      // through Parent().
 
       // The owning patcher's deferred-message scheduler (issue #628), or null
       // for a standalone object / the patcher itself. RT-safe on any thread —
-      // one pointer hop, like CurrentBlockGraph() — so a message handler may
-      // call it mid-dispatch to arm a deferral.
+      // one pointer hop to the owning patcher — so a message handler may call
+      // it mid-dispatch to arm a deferral.
       messageScheduler* Scheduler() const;
 
       // The owning patcher's domain-clock bridge (issue #688), or null for a

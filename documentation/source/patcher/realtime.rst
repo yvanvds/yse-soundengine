@@ -91,14 +91,25 @@ job frees them once the audio thread has **started two more blocks**. By then
 no block can still hold a pointer into them. The only thing the audio thread
 does for this is add one to its block counter.
 
-A removed object can also still be in use on another *control* thread. A
-``.preset`` recall, for example, finds each object under the patcher's lock
-and then sends it a value with the lock released, because that send may need
-the lock again. Such a thread marks itself as using objects before it looks
-any up, and while any thread holds that mark the job leaves removed objects
-alone (it still frees old snapshots). Setting the mark is one atomic add, so
-it never waits and never involves the audio thread. The object is freed by
-the first pass after the mark is dropped.
+That count only says something about the thread rendering the block, so a
+block's snapshot is only ever read by that thread. A send made on a control
+thread (a host ``SetFloatData``, a ``.preset`` recall, a ``.metro`` tick),
+whether a block is rendering or not, reads the *latest published* snapshot
+instead: the cords as the last finished edit left them.
+
+A control thread never reads the cords themselves, because another control
+thread may be editing them: a ``DeleteObject`` or ``Disconnect`` rewrites them
+under the patcher's lock, and a send cannot take that lock (it may need it
+again further down). So a send marks itself as in use before it loads the
+snapshot and drops the mark when its whole fan-out has returned. While any
+thread holds that mark the job frees nothing, neither old snapshots nor
+removed objects, so everything the send can reach stays allocated. An object
+deleted while a send is under way can therefore still receive that send, just
+as it can from a block that started before the delete. A ``.preset`` recall
+sets the same mark before it looks objects up under the lock, so an object it
+found cannot be freed before it is done with it. Setting the mark is one
+atomic add, so it never waits and never involves the audio thread. What was
+retired is freed by the first pass after the last mark is dropped.
 
 When nothing renders (the engine is paused, or the patcher is not attached to
 anything), the block count stands still and nothing retired is freed. The
@@ -318,8 +329,18 @@ What the host may do from where
 - **GUI reads are control-thread reads.** Polling a GUI value takes no lock
   and never makes the audio thread wait, but some reads clear what they
   report. See :doc:`gui`.
-- **Queries see a moment, not a transaction.** ``Objects`` and
-  ``GetHandleFromList`` answer each call on its own. Coordinate object
+- **A handle's calls are safe during an edit.** A ``SetParams`` that changes
+  an object's inlets or outlets builds a new object and swaps it in behind
+  the same handle. Every ``pHandle`` call made from another thread meanwhile
+  answers for the old object or the new one, never for freed memory: the
+  lock-free calls (``Type``, ``GetName``, ``GetID``, ``GetInputs``,
+  ``GetOutputs`` and the GUI value reads) set the same in-use mark as a send,
+  and ``GetParams`` and the GUI property calls take the patcher's lock.
+- **Queries see a moment, not a transaction.** ``Objects``,
+  ``GetHandleFromList`` and the cord queries (``GetConnections``,
+  ``GetConnectionTarget``, ``GetConnectionTargetInlet``) take the patcher's
+  lock and answer each call on its own: a cord counted by one call can be
+  gone by the next, which then answers the "no such" value. Coordinate object
   lifetime yourself if one thread edits while another walks the graph (see
   :doc:`building`).
 

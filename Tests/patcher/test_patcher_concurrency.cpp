@@ -420,4 +420,330 @@ TEST_SUITE("patcher") {
     CHECK(missing == 0);
   }
 
+  // Issue #962: a control-thread send made while a block was rendering read
+  // the renderer's pinned snapshot (the pin was one per-patcher atomic, visible
+  // to every thread), and could still be walking its fan-out when the
+  // reclaimer freed it — the grace period counts the renderer's blocks, not
+  // the sender's. TSan reports the reclaimer's `delete` racing the sender's
+  // read in `outlet::resolveTargets` / `inlet::WaitingForDSP`. Here one thread
+  // renders, one sends into a wired slider pair, and the test thread retires a
+  // snapshot per edit on an unrelated pair, so graphs are freed all the time.
+  // The edits never touch the pair being sent through: this is about the
+  // snapshot's lifetime, not about the live wiring changing under a send
+  // (that is #963).
+  TEST_CASE("concurrency: control-thread sends during a render never read a retired snapshot") {
+    LogSilencer silence;
+
+    patcherImplementation p(1, nullptr);
+    YSE::pHandle* from = p.CreateObject(YSE::OBJ::G_SLIDER, "");
+    YSE::pHandle* to = p.CreateObject(YSE::OBJ::G_SLIDER, "");
+    YSE::pHandle* keep = p.CreateObject(YSE::OBJ::G_SLIDER, "");
+    YSE::pHandle* other = p.CreateObject(YSE::OBJ::G_SLIDER, "");
+    REQUIRE(from != nullptr);
+    REQUIRE(to != nullptr);
+    REQUIRE(keep != nullptr);
+    REQUIRE(other != nullptr);
+    p.Connect(from, 0, to, 0);
+
+    std::atomic<bool> stop{false};
+    std::atomic<std::uint64_t> blocks{0};
+    std::atomic<std::uint64_t> sends{0};
+
+    std::thread render([&] {
+      while (!stop.load(std::memory_order_relaxed)) {
+        p.Calculate(YSE::T_DSP);
+        blocks.fetch_add(1, std::memory_order_relaxed);
+      }
+    });
+    std::thread sender([&] {
+      int i = 0;
+      while (!stop.load(std::memory_order_relaxed)) {
+        from->SetFloatData(0, static_cast<float>(i++ % 100) * 0.01f);
+        sends.fetch_add(1, std::memory_order_relaxed);
+      }
+    });
+
+    for (int i = 0; i < 2000; i++) {
+      p.Connect(keep, 0, other, 0);
+      p.Disconnect(keep, 0, other, 0);
+    }
+
+    stop.store(true, std::memory_order_relaxed);
+    sender.join();
+    render.join();
+
+    CHECK(blocks.load() > 0);
+    CHECK(sends.load() > 0);
+    // The pair still carries a value once the storm is over.
+    from->SetFloatData(0, 0.5f);
+    CHECK(to->GetGuiValue() == from->GetGuiValue());
+  }
+
+  // Issue #963: a control-thread send walked the live wiring (`outlet::
+  // connections`, `inlet::dspConnection`) while a structural edit on another
+  // control thread rewrote it under mtx — DeleteObject's UnwireFromPeers swaps
+  // the vectors out and frees them, Connect's push_back reallocates them. The
+  // send takes no lock, so TSan reports the edit's write racing the send's read
+  // in `outlet::SendFloat` / `inlet::WaitingForDSP`, and a send that loaded
+  // the old buffer can index freed memory. No render thread: both sides are
+  // control threads, so this is about the wiring, not a snapshot's lifetime
+  // (#962). Here one thread fans a value out of `from` into six churned sliders
+  // and a fixed one, while the test thread deletes, re-creates and re-wires
+  // the six.
+  TEST_CASE("concurrency: a control-thread send races no structural edit on another thread") {
+    LogSilencer silence;
+
+    patcherImplementation p(1, nullptr);
+    YSE::pHandle* from = p.CreateObject(YSE::OBJ::G_SLIDER, "");
+    YSE::pHandle* fixed = p.CreateObject(YSE::OBJ::G_SLIDER, "");
+    REQUIRE(from != nullptr);
+    REQUIRE(fixed != nullptr);
+    p.Connect(from, 0, fixed, 0);
+
+    constexpr int kChurned = 6;
+    std::vector<YSE::pHandle*> churned;
+    churned.reserve(kChurned);
+    auto wireNew = [&] {
+      YSE::pHandle* h = p.CreateObject(YSE::OBJ::G_SLIDER, "");
+      p.Connect(from, 0, h, 0);
+      p.Connect(h, 0, fixed, 0);
+      return h;
+    };
+    for (int i = 0; i < kChurned; i++)
+      churned.push_back(wireNew());
+
+    std::atomic<bool> stop{false};
+    std::atomic<std::uint64_t> sends{0};
+    std::thread sender([&] {
+      int i = 0;
+      while (!stop.load(std::memory_order_relaxed)) {
+        from->SetFloatData(0, static_cast<float>(i++ % 100) * 0.01f);
+        sends.fetch_add(1, std::memory_order_relaxed);
+      }
+    });
+
+    for (int round = 0; round < 300; round++) {
+      for (int i = 0; i < kChurned; i++) {
+        p.DeleteObject(churned[i]);
+        churned[i] = wireNew();
+      }
+    }
+
+    stop.store(true, std::memory_order_relaxed);
+    sender.join();
+
+    CHECK(sends.load() > 0);
+    // Every cord still carries the value once the storm is over.
+    from->SetFloatData(0, 0.5f);
+    CHECK(fixed->GetGuiValue() == from->GetGuiValue());
+    for (YSE::pHandle* h : churned)
+      CHECK(h->GetGuiValue() == from->GetGuiValue());
+  }
+
+  // Issue #963, the reported shape: a `.preset` recall on one thread pushes
+  // into sliders the test thread keeps deleting and re-creating. The recall's
+  // objectPin (#961) keeps the objects allocated; what raced was the wiring
+  // each recalled slider sends through, which DeleteObject unwires under mtx
+  // while the slider's outlet is being walked.
+  TEST_CASE("concurrency: a .preset recall races no delete of the sliders it recalls") {
+    LogSilencer silence;
+
+    patcherImplementation p(1, nullptr);
+    YSE::pHandle* preset = p.CreateObject(YSE::OBJ::G_PRESET, "4");
+    YSE::pHandle* kept = p.CreateObject(YSE::OBJ::G_SLIDER, "");
+    REQUIRE(preset != nullptr);
+    REQUIRE(kept != nullptr);
+
+    constexpr int kChurned = 6;
+    std::vector<YSE::pHandle*> churned;
+    churned.reserve(kChurned);
+    auto wireNew = [&] {
+      YSE::pHandle* h = p.CreateObject(YSE::OBJ::G_SLIDER, "");
+      p.Connect(h, 0, kept, 0);
+      return h;
+    };
+    for (int i = 0; i < kChurned; i++) {
+      churned.push_back(wireNew());
+      churned.back()->SetFloatData(0, 0.25f);
+    }
+    preset->SetListData(0, "store 0");
+
+    std::atomic<bool> stop{false};
+    std::atomic<std::uint64_t> recalls{0};
+    std::thread recaller([&] {
+      int i = 0;
+      while (!stop.load(std::memory_order_relaxed)) {
+        if (++i % 8 == 0) {
+          preset->SetListData(0, "store 1");
+        } else {
+          preset->SetIntData(0, 0);
+        }
+        recalls.fetch_add(1, std::memory_order_relaxed);
+      }
+    });
+
+    for (int round = 0; round < 300; round++) {
+      for (int i = 0; i < kChurned; i++) {
+        p.DeleteObject(churned[i]);
+        churned[i] = wireNew();
+      }
+    }
+
+    stop.store(true, std::memory_order_relaxed);
+    recaller.join();
+
+    CHECK(recalls.load() > 0);
+    // The patch is still whole: a slider pushes into the kept one.
+    churned[0]->SetFloatData(0, 0.75f);
+    CHECK(kept->GetGuiValue() == churned[0]->GetGuiValue());
+  }
+
+  // Issue #966: the host wiring queries — GetConnections, GetConnectionTarget,
+  // GetConnectionTargetInlet — read the outlet's live `connections` with no
+  // lock, while DeleteObject's UnwireFromPeers swaps the vector out and frees
+  // it and Connect's push_back reallocates it under mtx. An editor redrawing
+  // cords on one thread while another edits the patch is exactly that: TSan
+  // reports the edit's write racing the read in `outlet::GetConnections` /
+  // `GetTarget`, ASan a read of the freed buffer. The target's own ID is read
+  // through the inlet the vector names, so a stale entry is a use-after-free
+  // too. Here a reader walks every cord out of `from` while the test thread
+  // deletes, re-creates and re-wires six of its targets.
+  TEST_CASE("concurrency: reading an object's cords races no structural edit on another thread") {
+    LogSilencer silence;
+
+    patcherImplementation p(1, nullptr);
+    YSE::pHandle* from = p.CreateObject(YSE::OBJ::G_SLIDER, "");
+    YSE::pHandle* fixed = p.CreateObject(YSE::OBJ::G_SLIDER, "");
+    REQUIRE(from != nullptr);
+    REQUIRE(fixed != nullptr);
+    p.Connect(from, 0, fixed, 0);
+
+    constexpr int kChurned = 6;
+    std::vector<YSE::pHandle*> churned;
+    churned.reserve(kChurned);
+    auto wireNew = [&] {
+      YSE::pHandle* h = p.CreateObject(YSE::OBJ::G_SLIDER, "");
+      p.Connect(from, 0, h, 0);
+      return h;
+    };
+    for (int i = 0; i < kChurned; i++)
+      churned.push_back(wireNew());
+
+    std::atomic<bool> stop{false};
+    std::atomic<std::uint64_t> reads{0};
+    std::atomic<std::uint64_t> badInlet{0};
+    std::thread reader([&] {
+      while (!stop.load(std::memory_order_relaxed)) {
+        const unsigned int count = from->GetConnections(0);
+        // One past the count as well: an edge that vanished between the two
+        // calls has to answer the sentinels, not index past the vector.
+        for (unsigned int i = 0; i <= count; i++) {
+          const unsigned int target = from->GetConnectionTarget(0, i);
+          const unsigned int inlet = from->GetConnectionTargetInlet(0, i);
+          if (target != YSE::PATCHER::pObject::kNoObjectID && inlet != 0 &&
+              inlet != YSE::PATCHER::pObject::kNoInletIndex) {
+            badInlet.fetch_add(1, std::memory_order_relaxed);
+          }
+        }
+        reads.fetch_add(1, std::memory_order_relaxed);
+      }
+    });
+
+    for (int round = 0; round < 300; round++) {
+      for (int i = 0; i < kChurned; i++) {
+        p.DeleteObject(churned[i]);
+        churned[i] = wireNew();
+      }
+    }
+
+    stop.store(true, std::memory_order_relaxed);
+    reader.join();
+
+    CHECK(reads.load() > 0);
+    // Every cord out of `from` lands on inlet 0.
+    CHECK(badInlet.load() == 0);
+    // Once the storm is over the queries name exactly the cords that exist.
+    REQUIRE(from->GetConnections(0) == static_cast<unsigned int>(kChurned + 1));
+    CHECK(from->GetConnectionTarget(0, 0) == fixed->GetID());
+    for (unsigned int i = 0; i < static_cast<unsigned int>(kChurned + 1); i++)
+      CHECK(from->GetConnectionTargetInlet(0, i) == 0u);
+    CHECK(from->GetConnectionTarget(0, kChurned + 1) == YSE::PATCHER::pObject::kNoObjectID);
+  }
+
+  // Issue #968: every pHandle getter read the handle's object pointer with no
+  // lock and no pin, while a SetParams that changes the object's pin count
+  // (a `.gate`'s outlet count here) builds a replacement on another thread,
+  // writes it into the handle under mtx and retires the old object. TSan
+  // reports the write racing the getter's read of `pHandle::object`; with a
+  // render thread advancing the block counter the reclaimer frees the old
+  // object, and ASan reports a getter that loaded it reading freed memory.
+  // The reader touches every getter the host has; the test thread alternates
+  // the gate between 2 and 5 outlets.
+  TEST_CASE("concurrency: pHandle getters race no structural SetParams on another thread") {
+    LogSilencer silence;
+
+    patcherImplementation p(1, nullptr);
+    YSE::pHandle* gate = p.CreateObject(YSE::OBJ::G_GATE, "2");
+    YSE::pHandle* sink = p.CreateObject(YSE::OBJ::G_SLIDER, "");
+    REQUIRE(gate != nullptr);
+    REQUIRE(sink != nullptr);
+    p.Connect(gate, 0, sink, 0);
+    gate->SetGuiProperty("x", "10");
+    const unsigned int gateID = gate->GetID();
+
+    std::atomic<bool> stop{false};
+    std::atomic<std::uint64_t> blocks{0};
+    std::thread render([&] {
+      while (!stop.load(std::memory_order_relaxed)) {
+        p.Calculate(YSE::T_DSP);
+        blocks.fetch_add(1, std::memory_order_relaxed);
+      }
+    });
+
+    std::atomic<std::uint64_t> reads{0};
+    std::atomic<std::uint64_t> wrong{0};
+    std::thread reader([&] {
+      while (!stop.load(std::memory_order_relaxed)) {
+        const int outs = gate->GetOutputs();
+        if (outs != 2 && outs != 5) wrong.fetch_add(1, std::memory_order_relaxed);
+        if (gate->GetInputs() != 2) wrong.fetch_add(1, std::memory_order_relaxed);
+        if (gate->GetName() != YSE::OBJ::G_GATE) wrong.fetch_add(1, std::memory_order_relaxed);
+        if (std::string(gate->Type()) != YSE::OBJ::G_GATE)
+          wrong.fetch_add(1, std::memory_order_relaxed);
+        if (gate->GetID() != gateID) wrong.fetch_add(1, std::memory_order_relaxed);
+        const std::string params = gate->GetParams();
+        if (params != "2" && params != "5") wrong.fetch_add(1, std::memory_order_relaxed);
+        if (gate->GetGuiProperty("x") != "10") wrong.fetch_add(1, std::memory_order_relaxed);
+        gate->SetGuiProperty("x", "10");
+        (void)gate->GetGuiValue();
+        (void)gate->GetGuiValueCount();
+        (void)gate->GetGuiValueAt(0);
+        (void)gate->GuiValueIsSettable();
+        (void)gate->IsDSPInput(0);
+        (void)gate->OutputDataType(0);
+        // Outlet 0 survives every re-parse and is rewired onto the
+        // replacement, so its one cord is always there.
+        if (gate->GetConnections(0) != 1u) wrong.fetch_add(1, std::memory_order_relaxed);
+        gate->SetIntData(0, 1);
+        reads.fetch_add(1, std::memory_order_relaxed);
+      }
+    });
+
+    for (int round = 0; round < 400; round++)
+      gate->SetParams(round % 2 == 0 ? "5" : "2");
+
+    stop.store(true, std::memory_order_relaxed);
+    reader.join();
+    render.join();
+
+    CHECK(reads.load() > 0);
+    CHECK(blocks.load() > 0);
+    CHECK(wrong.load() == 0);
+    // The last re-parse asked for 2 outlets.
+    CHECK(gate->GetOutputs() == 2);
+    CHECK(gate->GetParams() == "2");
+    CHECK(gate->GetGuiProperty("x") == "10");
+    CHECK(gate->GetConnectionTarget(0, 0) == sink->GetID());
+  }
+
 } // TEST_SUITE("patcher")

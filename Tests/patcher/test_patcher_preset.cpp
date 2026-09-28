@@ -980,10 +980,15 @@ TEST_SUITE("patcher") {
     REQUIRE(gate.WaitEntered());
 
     p.DeleteObject(pad);
-    // Everything retired except the pad drains — graphs are not held back by
-    // a pin — so what is left is exactly the one object, still allocated.
-    CHECK(TestHelpers::pacedPump(2000, [&] { return p.PendingRetired() <= 1; }, churn));
-    CHECK(p.PendingRetired() == 1);
+    // The recall is parked inside a send, and a control-thread send's pin
+    // holds retired graphs back too (issue #963), so nothing drains while it
+    // waits: run the epoch far past the grace for a fixed number of rounds and
+    // check the pad is still allocated.
+    for (int i = 0; i < 50; i++) {
+      churn();
+      std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+    CHECK(p.PendingRetired() >= 1);
     CHECK(p.FreeIdCount() == 0);
 
     // The recall finishes inside the pad's handler and announces the slot.

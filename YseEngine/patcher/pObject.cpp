@@ -9,15 +9,7 @@
 
 using namespace YSE::PATCHER;
 
-// ``parent`` is the owning patcherImplementation by construction (set via
-// SetParent when the object is added). null for a standalone object or the
-// patcher itself, in which case there is no snapshot to consult.
-const YSE::PATCHER::GraphState* pObject::CurrentBlockGraph() const {
-  if (parent == nullptr) return nullptr;
-  return static_cast<patcherImplementation*>(parent)->CurrentBlockGraph();
-}
-
-// Same hop as CurrentBlockGraph: the owning patcher's scheduler, or null when
+// The owning patcher's scheduler, or null when
 // there is no patcher to defer into (standalone / unit-test use, issue #628).
 YSE::PATCHER::messageScheduler* pObject::Scheduler() const {
   if (parent == nullptr) return nullptr;

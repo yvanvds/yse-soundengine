@@ -67,6 +67,14 @@ namespace {
   // that renders a child channel) tracks its own frame independently.
   thread_local const YSE::PATCHER::patcherImplementation* tRenderingPatcher = nullptr;
 
+  // The control-side send frame (issue #963): the patcher whose published
+  // snapshot this thread has pinned for the send in progress, and that
+  // snapshot. Set by the outermost graphReadScope and restored when it closes,
+  // so the whole fan-out below it reads one snapshot under one pin. Same
+  // RT-safety terms as tRenderingPatcher.
+  thread_local const YSE::PATCHER::patcherImplementation* tControlPatcher = nullptr;
+  thread_local const YSE::PATCHER::GraphState* tControlGraph = nullptr;
+
   // RAII frame marker for Calculate.
   struct renderFrameGuard {
     const YSE::PATCHER::patcherImplementation* previous;
@@ -150,6 +158,65 @@ namespace {
 YSE::THREAD patcherImplementation::CallingThread(YSE::THREAD tag) const {
   if (tag == YSE::T_DSP) return YSE::T_DSP;
   return tRenderingPatcher == this ? YSE::T_DSP : YSE::T_GUI;
+}
+
+// See graphReadScope in graphState.h for the contract. ``Parent()`` is the
+// owning patcherImplementation by construction (set via SetParent when the
+// object is added); null for a standalone object or the patcher itself, which
+// have no snapshot to consult.
+graphReadScope::graphReadScope(const pObject* object) {
+  if (object == nullptr) return;
+  auto* p = static_cast<patcherImplementation*>(object->Parent());
+  if (p == nullptr) return;
+
+  // The renderer (issue #962): only the thread inside this patcher's Calculate
+  // gets the block's pin, because the reclaimer's two-block grace counts that
+  // thread's blocks and nobody else's. The frame marker is set after the pin
+  // and cleared after the unpin, so inside the frame this load sees this
+  // block's snapshot. This is the whole of the audio path: one TLS load, one
+  // atomic load.
+  if (tRenderingPatcher == p) {
+    graph_ = p->currentBlockGraph_.load(std::memory_order_acquire);
+    return;
+  }
+
+  // Already inside a send on this thread for this patcher: same pin, same
+  // snapshot for the whole fan-out.
+  control_ = p;
+  if (tControlPatcher == p) {
+    graph_ = tControlGraph;
+    return;
+  }
+
+  // Outermost control-side read (issue #963): pin, then load the published
+  // snapshot. All seq_cst, against the seq_cst publish in RebuildAndPublish
+  // and the seq_cst pin load in ReclaimElapsed. A retired graph G is freed
+  // only by a pass whose pin load L read 0. The publish that retired G
+  // happens-before L (it precedes the retire-list push, which precedes the
+  // pass, both under reclaimMtx_). If L read 0 it precedes this increment in
+  // the single seq_cst order, so it precedes the load below, which therefore
+  // sees the publish that retired G or a later one — never G. A graph loaded
+  // here is retired later still, by a pass that sees the pin until Release.
+  p->objectPins_.fetch_add(1, std::memory_order_seq_cst);
+  graph_ = p->active_.load(std::memory_order_seq_cst);
+  savedPatcher_ = tControlPatcher;
+  savedGraph_ = tControlGraph;
+  tControlPatcher = p;
+  tControlGraph = graph_;
+  pinned_ = p;
+}
+
+// A load under a pin this thread already holds: the ordering argument in the
+// constructor applies unchanged, the increment having come before this load.
+const YSE::PATCHER::GraphState* graphReadScope::Latest() const {
+  if (control_ == nullptr) return nullptr;
+  return control_->active_.load(std::memory_order_seq_cst);
+}
+
+void graphReadScope::Release() {
+  tControlPatcher = savedPatcher_;
+  tControlGraph = savedGraph_;
+  pinned_->objectPins_.fetch_sub(1, std::memory_order_seq_cst);
 }
 
 patcherImplementation::patcherImplementation(int mainOutputs, YSE::patcher* head)
@@ -368,8 +435,9 @@ void patcherImplementation::Calculate(YSE::THREAD thread) {
     }
   }
 
-  // Unpin: between blocks the topology helpers fall back to the live wiring
-  // (control-thread / standalone path) instead of a possibly-retired snapshot.
+  // Unpin: nothing on this thread may read this block's snapshot once the
+  // frame closes; later sends from here are control-side and pin the published
+  // one instead (issue #963).
   currentBlockGraph_.store(nullptr, std::memory_order_release);
 }
 
@@ -530,31 +598,31 @@ void patcherImplementation::SetObjectContainer(YSE::pHandle* obj, YSE::pHandle* 
     return;
   }
   if (container == nullptr) {
-    obj->object->SetContainer(nullptr);
+    obj->ObjectUnderLock()->SetContainer(nullptr);
     return;
   }
   if (objects.find(container) == objects.end()) {
     INTERNAL::LogImpl().emit(E_ERROR, "Patcher: SetContainer target is not in this patcher");
     return;
   }
-  if (!IsSubpatcher(container->object)) {
+  if (!IsSubpatcher(container->ObjectUnderLock())) {
     INTERNAL::LogImpl().emit(E_ERROR, "Patcher: SetContainer target is not a 'patcher' object");
     return;
   }
   // A subpatcher may not end up inside itself or inside one of its own
   // descendants. Without this check the containment graph could hold a cycle,
   // and DeleteObject's subtree walk over it would never terminate.
-  if (ContainmentWouldCycle(obj->object, container->object)) {
+  if (ContainmentWouldCycle(obj->ObjectUnderLock(), container->ObjectUnderLock())) {
     INTERNAL::LogImpl().emit(E_ERROR, "Patcher: SetContainer would put a subpatcher inside itself");
     return;
   }
-  obj->object->SetContainer(container->object);
+  obj->ObjectUnderLock()->SetContainer(container->ObjectUnderLock());
 }
 
 YSE::pHandle* patcherImplementation::GetObjectContainer(YSE::pHandle* obj) {
   if (obj == nullptr) return nullptr;
   std::scoped_lock lk(mtx);
-  pObject* owner = obj->object->Container();
+  pObject* owner = obj->ObjectUnderLock()->Container();
   if (owner == nullptr) return nullptr;
   for (const auto& any : objects) {
     if (any.second == owner) return any.first;
@@ -565,15 +633,15 @@ YSE::pHandle* patcherImplementation::GetObjectContainer(YSE::pHandle* obj) {
 int patcherImplementation::SubpatcherInlets(YSE::pHandle* container) {
   if (container == nullptr) return 0;
   std::scoped_lock lk(mtx);
-  if (!IsSubpatcher(container->object)) return 0;
-  return BoundaryPinCount(container->object, BoundarySide::INLETS);
+  if (!IsSubpatcher(container->ObjectUnderLock())) return 0;
+  return BoundaryPinCount(container->ObjectUnderLock(), BoundarySide::INLETS);
 }
 
 int patcherImplementation::SubpatcherOutlets(YSE::pHandle* container) {
   if (container == nullptr) return 0;
   std::scoped_lock lk(mtx);
-  if (!IsSubpatcher(container->object)) return 0;
-  return BoundaryPinCount(container->object, BoundarySide::OUTLETS);
+  if (!IsSubpatcher(container->ObjectUnderLock())) return 0;
+  return BoundaryPinCount(container->ObjectUnderLock(), BoundarySide::OUTLETS);
 }
 
 YSE::PATCHER::inlet* patcherImplementation::ResolveInlet(pObject* obj, int pin) {
@@ -594,6 +662,45 @@ YSE::OUT_TYPE patcherImplementation::ResolveOutputType(pObject* obj, int pin) {
   return boundary == nullptr ? YSE::OUT_TYPE::INVALID : boundary->GetOutputType(0);
 }
 
+// Under mtx, like every write to the wiring they read (issue #966). The
+// handle's object is read under it too: a structural SetParams swaps it for a
+// replacement (ReplaceObjectUnlocked) and hands the old one to the reclaimer.
+unsigned int patcherImplementation::OutletConnections(YSE::pHandle* handle, unsigned int outlet) {
+  std::scoped_lock lk(mtx);
+  return handle->ObjectUnderLock()->GetConnections(outlet);
+}
+
+unsigned int patcherImplementation::OutletTarget(YSE::pHandle* handle, unsigned int outlet,
+                                                 unsigned int connection) {
+  std::scoped_lock lk(mtx);
+  return handle->ObjectUnderLock()->GetConnectionTarget(outlet, connection);
+}
+
+unsigned int patcherImplementation::OutletTargetInlet(YSE::pHandle* handle, unsigned int outlet,
+                                                      unsigned int connection) {
+  std::scoped_lock lk(mtx);
+  return handle->ObjectUnderLock()->GetConnectionTargetInlet(outlet, connection);
+}
+
+// Under mtx, like every write to what they read (issue #968): a host
+// SetGuiProperty, a scalar SetParams rewriting the parameter string, and the
+// GUI-property copy a structural SetParams makes onto the replacement.
+std::string patcherImplementation::ObjectGuiProperty(YSE::pHandle* handle, const std::string& key) {
+  std::scoped_lock lk(mtx);
+  return handle->ObjectUnderLock()->GetGuiProperty(key);
+}
+
+void patcherImplementation::SetObjectGuiProperty(YSE::pHandle* handle, const std::string& key,
+                                                 const std::string& value) {
+  std::scoped_lock lk(mtx);
+  handle->ObjectUnderLock()->SetGuiProperty(key, value);
+}
+
+std::string patcherImplementation::ObjectParams(YSE::pHandle* handle) {
+  std::scoped_lock lk(mtx);
+  return handle->ObjectUnderLock()->GetParams();
+}
+
 void patcherImplementation::ConnectUnlocked(YSE::pHandle* from, int outlet, YSE::pHandle* to,
                                             int inlet) {
   // Resolve subpatcher façades to the boundary objects that carry the pins
@@ -602,8 +709,8 @@ void patcherImplementation::ConnectUnlocked(YSE::pHandle* from, int outlet, YSE:
   // untouched, which is why this is also correct on the ParseJSON path: a dump
   // records edges against the resolved boundary objects, so a reload resolves
   // nothing and rebuilds exactly the edge that was saved.
-  pObject* source = from->object;
-  pObject* target = to->object;
+  pObject* source = from->ObjectUnderLock();
+  pObject* target = to->ObjectUnderLock();
   int sourcePin = outlet;
   int targetPin = inlet;
   if (!ResolveOutletPin(source, sourcePin) || !ResolveInletPin(target, targetPin)) {
@@ -646,7 +753,7 @@ bool patcherImplementation::AcceptsHandlesUnlocked(YSE::pHandle* from, YSE::pHan
   // reach through the public API makes one, and the unit-test rigs use it to
   // hang a test-owned sink off an outlet.
   const auto foreign = [this](const YSE::pHandle* h) {
-    const pObject* owner = h->object->Parent();
+    const pObject* owner = h->ObjectUnderLock()->Parent();
     return owner != nullptr && owner != this;
   };
   if (from == nullptr || to == nullptr) {
@@ -681,8 +788,8 @@ void patcherImplementation::Disconnect(YSE::pHandle* from, int outlet, YSE::pHan
   // too: the edge that exists is the resolved one, so a Disconnect written
   // against the subpatcher's pin numbers has to be translated the same way to
   // find it.
-  pObject* source = from->object;
-  pObject* target = to->object;
+  pObject* source = from->ObjectUnderLock();
+  pObject* target = to->ObjectUnderLock();
   int sourcePin = outlet;
   int targetPin = inlet;
   if (!ResolveOutletPin(source, sourcePin) || !ResolveInletPin(target, targetPin)) {
@@ -787,10 +894,17 @@ void patcherImplementation::DeleteObject(YSE::pHandle* handle) {
   // case of a non-container object it is a one-element list and the code below
   // is exactly what it was.
   std::vector<YSE::pHandle*> doomedHandles;
+  std::vector<pObject*> stopping;
   {
     std::scoped_lock lk(mtx);
     if (objects.find(handle) == objects.end()) return;
     CollectSubtree(handle, doomedHandles);
+    // The objects are read here, under the lock a structural SetParams swaps
+    // them under, not from the handles in the pass below (issue #968) — the
+    // snapshot TeardownObjects takes, with the same trade-off.
+    stopping.reserve(doomedHandles.size());
+    for (YSE::pHandle* h : doomedHandles)
+      stopping.push_back(h->ObjectUnderLock());
   }
 
   // Teardown pass, before the lock and before anything is unwired (issue #758),
@@ -798,8 +912,8 @@ void patcherImplementation::DeleteObject(YSE::pHandle* handle) {
   // undefined order within it, and for the same reason: every cord in the patch
   // is still there for all of it, so an object releasing what it left sounding
   // reaches the device whichever order the pass happens to visit in.
-  for (YSE::pHandle* h : doomedHandles) {
-    h->object->Teardown(YSE::T_GUI);
+  for (pObject* obj : stopping) {
+    obj->Teardown(YSE::T_GUI);
   }
 
   std::scoped_lock lk(mtx);
@@ -856,7 +970,7 @@ void patcherImplementation::DeleteObject(YSE::pHandle* handle) {
 
 void patcherImplementation::SetObjectParams(YSE::pHandle* handle, const std::string& args) {
   std::scoped_lock lk(mtx);
-  pObject* object = handle->object;
+  pObject* object = handle->ObjectUnderLock();
   if (object == nullptr) return;
 
   std::unique_ptr<pObject> staged;
@@ -944,7 +1058,7 @@ void patcherImplementation::ApplyParamOps(const ParamOp* ops, int count) {
 }
 
 void patcherImplementation::ReplaceObjectUnlocked(YSE::pHandle* handle, const std::string& args) {
-  pObject* old = handle->object;
+  pObject* old = handle->ObjectUnderLock();
   std::unique_ptr<pObject> staged(Register().Get(old->Type()));
   if (staged == nullptr) {
     // Not registry-built (the DAC) — but the DAC registers no params, so a
@@ -1003,7 +1117,10 @@ void patcherImplementation::ReplaceObjectUnlocked(YSE::pHandle* handle, const st
   // could still reference it — exactly like DeleteObject.
   old->UnwireFromPeers();
   objects[handle] = fresh;
-  handle->object = fresh;
+  // seq_cst, before the retirement below: a pHandle getter pins and then
+  // loads without mtx, and this ordering is what makes the pin cover the old
+  // object whenever the getter can still load it (issue #968, pHandle.cpp).
+  handle->object.store(fresh, std::memory_order_seq_cst);
   // Anything that named the old object as its container now names the
   // replacement (issue #545). `CopyStorageIdentity` already moved the object's
   // own containment across; this is the other direction, and it is what stops a
@@ -1429,10 +1546,10 @@ void patcherImplementation::BuildParsedGraph(json& j, std::vector<pObject*>& loa
       // handle can be null if called without gui context
       if (handle != nullptr) {
         created.push_back(handle);
-        loaded.push_back(handle->object);
+        loaded.push_back(handle->ObjectUnderLock());
         auto gui = obj["gui"];
         for (auto prop = gui.begin(); prop != gui.end(); ++prop) {
-          handle->SetGuiProperty(prop.key(), prop.value().get<std::string>());
+          handle->ObjectUnderLock()->SetGuiProperty(prop.key(), prop.value().get<std::string>());
         }
 
         // State the object holds beyond its creation parameters — a `.coll`'s
@@ -1441,7 +1558,7 @@ void patcherImplementation::BuildParsedGraph(json& j, std::vector<pObject*>& loa
         // json would insert a null here for all of them.
         const auto state = obj.find("state");
         if (state != obj.end()) {
-          handle->object->RestoreState(*state);
+          handle->ObjectUnderLock()->RestoreState(*state);
         }
       }
 
@@ -1469,16 +1586,17 @@ void patcherImplementation::BuildParsedGraph(json& j, std::vector<pObject*>& loa
       auto owner = OldIDs.find(stored->get<int>());
       if (self == OldIDs.end() || owner == OldIDs.end()) continue;
       if (self->second == nullptr || owner->second == nullptr) continue;
-      if (!IsSubpatcher(owner->second->object)) {
+      if (!IsSubpatcher(owner->second->ObjectUnderLock())) {
         INTERNAL::LogImpl().emit(E_ERROR, "Patcher: stored container is not a 'patcher' object");
         continue;
       }
-      if (ContainmentWouldCycle(self->second->object, owner->second->object)) {
+      if (ContainmentWouldCycle(self->second->ObjectUnderLock(),
+                                owner->second->ObjectUnderLock())) {
         INTERNAL::LogImpl().emit(E_ERROR, "Patcher: stored containment is cyclic; object loaded at "
                                           "the top level");
         continue;
       }
-      self->second->object->SetContainer(owner->second->object);
+      self->second->ObjectUnderLock()->SetContainer(owner->second->ObjectUnderLock());
     }
 
     // restore connections
@@ -1935,6 +2053,8 @@ YSE::PATCHER::GraphState* patcherImplementation::BuildGraph() {
   GraphState* g = new GraphState();
   g->outletTargets.resize(nextOutletId_);
   g->inletHasDsp.assign(nextInletId_, 0);
+  g->outletOwner.assign(nextOutletId_, nullptr);
+  g->inletOwner.assign(nextInletId_, nullptr);
 
   for (const auto& any : objects) {
     pObject* object = any.second;
@@ -1950,7 +2070,10 @@ YSE::PATCHER::GraphState* patcherImplementation::BuildGraph() {
       PATCHER::outlet* out = object->GetOutlet(i);
       if (out == nullptr) continue;
       int id = out->GraphId();
-      if (id >= 0 && id < nextOutletId_) g->outletTargets[id] = out->Targets();
+      if (id >= 0 && id < nextOutletId_) {
+        g->outletTargets[id] = out->Targets();
+        g->outletOwner[id] = out;
+      }
     }
     for (int i = 0; i < object->NumInputs(); i++) {
       PATCHER::inlet* in = object->GetInlet(i);
@@ -1958,6 +2081,7 @@ YSE::PATCHER::GraphState* patcherImplementation::BuildGraph() {
       int id = in->GraphId();
       if (id >= 0 && id < nextInletId_) {
         g->inletHasDsp[id] = in->HasActiveDSPConnection() ? 1 : 0;
+        g->inletOwner[id] = in;
       }
     }
   }
@@ -1967,9 +2091,11 @@ YSE::PATCHER::GraphState* patcherImplementation::BuildGraph() {
 void patcherImplementation::RebuildAndPublish() {
   GraphState* next = BuildGraph();
   // Only the control thread writes active_ (under mtx), so a relaxed load of
-  // the prior pointer is fine; the audio thread reads it with acquire.
+  // the prior pointer is fine; the audio thread reads it with acquire. The
+  // store is seq_cst for the control-side pin (issue #963): see
+  // graphReadScope's constructor for the ordering argument it completes.
   const GraphState* old = active_.load(std::memory_order_relaxed);
-  active_.store(next, std::memory_order_release);
+  active_.store(next, std::memory_order_seq_cst);
   if (old != nullptr) {
     std::scoped_lock lk(reclaimMtx_);
     retiredGraphs_.emplace_back(old, audioBlock_.load(std::memory_order_acquire));
@@ -1995,21 +2121,25 @@ bool patcherImplementation::ReclaimElapsed(std::uint64_t now) {
   // finished its render before block C+2's counter bump, which this pass's
   // acquire load of audioBlock_ synchronizes-with. Free graphs before the
   // objects they point into.
+  //
+  // A control-side pin (issue #961's objectPin, #963's graphReadScope) holds
+  // everything back. An objectPin holder may be using an object it found live
+  // under mtx and that has been retired since: the pin was taken before that
+  // lookup, the lookup came before the retirement (both under mtx), and the
+  // retirement before this pass (reclaimMtx_). A control-thread send may be
+  // walking a snapshot retired since it was loaded, and the objects it names:
+  // see graphReadScope's constructor for why this load sees that pin. Either
+  // way the load sees the pin — or a later count, which is 0 only once every
+  // such pin has been released.
+  const bool pinned = objectPins_.load(std::memory_order_seq_cst) != 0;
   for (std::size_t i = 0; i < retiredGraphs_.size();) {
-    if (now >= retiredGraphs_[i].second + 2) {
+    if (!pinned && now >= retiredGraphs_[i].second + 2) {
       delete retiredGraphs_[i].first;
       retiredGraphs_.erase(retiredGraphs_.begin() + i);
     } else {
       ++i;
     }
   }
-  // A control thread holding an objectPin (issue #961) may be using an object
-  // it found live under mtx and that has been retired since; nothing retired
-  // is freed until the last pin is dropped. The pin was taken before that
-  // lookup, the lookup came before the retirement (both under mtx), and the
-  // retirement before this pass (reclaimMtx_), so this load sees the pin — or
-  // a later count, which is 0 only once every such pin has been released.
-  const bool pinned = objectPins_.load(std::memory_order_acquire) != 0;
   for (std::size_t i = 0; i < retiredObjects_.size();) {
     if (!pinned && now >= retiredObjects_[i].epoch + 2) {
       // No live or retired snapshot can still index this object's ids now, so

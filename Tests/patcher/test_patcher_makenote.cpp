@@ -454,12 +454,12 @@ TEST_SUITE("patcher") {
     // **The object.** An implementation that emitted the pair and scheduled
     // nothing would pass every standalone case above and strand every note it
     // ever played, so this is the case that has to fail on it.
+    Notes out;
+    YSE::pHandle outHandle(&out);
     patcherImplementation p(1, nullptr);
     YSE::pHandle* mk = p.CreateObject(YSE::OBJ::M_MAKENOTE, "100 100");
     REQUIRE(mk != nullptr);
 
-    Notes out;
-    YSE::pHandle outHandle(&out);
     p.Connect(mk, 0, &outHandle, 0);
     p.Connect(mk, 1, &outHandle, 1);
 
@@ -488,12 +488,12 @@ TEST_SUITE("patcher") {
     // Max's default duration, and the scheduler's one-block floor read as
     // semantics rather than as rounding: it is what keeps a `.makenote` wired
     // back into its own inlet a fast trill instead of a stack overflow.
+    Notes out;
+    YSE::pHandle outHandle(&out);
     patcherImplementation p(1, nullptr);
     YSE::pHandle* mk = p.CreateObject(YSE::OBJ::M_MAKENOTE, "100");
     REQUIRE(mk != nullptr);
 
-    Notes out;
-    YSE::pHandle outHandle(&out);
     p.Connect(mk, 0, &outHandle, 0);
     p.Connect(mk, 1, &outHandle, 1);
 
@@ -513,12 +513,12 @@ TEST_SUITE("patcher") {
     // underneath a sounding note does not retime it — the naive implementation
     // recomputes every deadline when the duration changes, and nothing about it
     // looks wrong until a held chord all releases together.
+    Notes out;
+    YSE::pHandle outHandle(&out);
     patcherImplementation p(1, nullptr);
     YSE::pHandle* mk = p.CreateObject(YSE::OBJ::M_MAKENOTE, "100 100");
     REQUIRE(mk != nullptr);
 
-    Notes out;
-    YSE::pHandle outHandle(&out);
     p.Connect(mk, 0, &outHandle, 0);
     p.Connect(mk, 1, &outHandle, 1);
 
@@ -557,12 +557,12 @@ TEST_SUITE("patcher") {
     // pitches it currently holds." Immediately means inside this dispatch, not
     // on the next block — a stop that merely rescheduled everything for 0 ms
     // would pass a count assertion and fail this one.
+    Notes out;
+    YSE::pHandle outHandle(&out);
     patcherImplementation p(1, nullptr);
     YSE::pHandle* mk = p.CreateObject(YSE::OBJ::M_MAKENOTE, "100 5000");
     REQUIRE(mk != nullptr);
 
-    Notes out;
-    YSE::pHandle outHandle(&out);
     p.Connect(mk, 0, &outHandle, 0);
     p.Connect(mk, 1, &outHandle, 1);
 
@@ -587,12 +587,12 @@ TEST_SUITE("patcher") {
     // Max: "clear: erases all notes currently held by makenote, without sending
     // note-offs." Every one of them, not just the newest — and the patcher-wide
     // budget comes back with them.
+    Notes out;
+    YSE::pHandle outHandle(&out);
     patcherImplementation p(1, nullptr);
     YSE::pHandle* mk = p.CreateObject(YSE::OBJ::M_MAKENOTE, "100 100");
     REQUIRE(mk != nullptr);
 
-    Notes out;
-    YSE::pHandle outHandle(&out);
     p.Connect(mk, 0, &outHandle, 0);
     p.Connect(mk, 1, &outHandle, 1);
 
@@ -616,12 +616,12 @@ TEST_SUITE("patcher") {
     // note and merely failed to schedule its release would manufacture exactly
     // the hanging note this object exists to prevent, at precisely the moment
     // the patch is at its resource limit.
+    Notes out;
+    YSE::pHandle outHandle(&out);
     patcherImplementation p(1, nullptr);
     YSE::pHandle* mk = p.CreateObject(YSE::OBJ::M_MAKENOTE, "100 5000");
     REQUIRE(mk != nullptr);
 
-    Notes out;
-    YSE::pHandle outHandle(&out);
     p.Connect(mk, 0, &outHandle, 0);
     p.Connect(mk, 1, &outHandle, 1);
 
@@ -655,6 +655,8 @@ TEST_SUITE("patcher") {
     // published before its message can be armed — so the release cannot be
     // dropped with the note. It is sent immediately instead: a note shorter than
     // it was asked to be, rather than one that never ends.
+    Notes out;
+    YSE::pHandle outHandle(&out);
     patcherImplementation p(1, nullptr);
     YSE::pHandle* filler = p.CreateObject(YSE::OBJ::M_MAKENOTE, "100 5000");
     YSE::pHandle* filler2 = p.CreateObject(YSE::OBJ::M_MAKENOTE, "100 5000");
@@ -663,8 +665,6 @@ TEST_SUITE("patcher") {
     REQUIRE(filler2 != nullptr);
     REQUIRE(mk != nullptr);
 
-    Notes out;
-    YSE::pHandle outHandle(&out);
     p.Connect(mk, 0, &outHandle, 0);
     p.Connect(mk, 1, &outHandle, 1);
 
@@ -685,12 +685,12 @@ TEST_SUITE("patcher") {
     // The clock is the patcher's block counter, so time only advances while the
     // patcher renders. That is what makes a held note survive a paused engine
     // instead of being released in a burst afterwards.
+    Notes out;
+    YSE::pHandle outHandle(&out);
     patcherImplementation p(1, nullptr);
     YSE::pHandle* mk = p.CreateObject(YSE::OBJ::M_MAKENOTE, "100 100");
     REQUIRE(mk != nullptr);
 
-    Notes out;
-    YSE::pHandle outHandle(&out);
     p.Connect(mk, 0, &outHandle, 0);
     p.Connect(mk, 1, &outHandle, 1);
 
@@ -713,6 +713,8 @@ TEST_SUITE("patcher") {
     // the clock is *not* advanced, so the releases are still pending — and
     // `.midiflush`, which decodes the byte stream and remembers exactly what is
     // sounding, sees three hanging notes.
+    Tap tap;
+    YSE::pHandle tapHandle(&tap);
     patcherImplementation p(1, nullptr);
     YSE::pHandle* mk = p.CreateObject(YSE::OBJ::M_MAKENOTE, "100 100");
     YSE::pHandle* noteon = p.CreateObject(YSE::OBJ::M_NOTEON, "");
@@ -725,8 +727,6 @@ TEST_SUITE("patcher") {
     p.Connect(mk, 0, noteon, 0); // pitch, the hot one — fires the message
     p.Connect(noteon, 0, flush, 0);
 
-    Tap tap;
-    YSE::pHandle tapHandle(&tap);
     p.Connect(flush, 0, &tapHandle, 0);
 
     mk->SetIntData(0, 60);
@@ -745,6 +745,8 @@ TEST_SUITE("patcher") {
     // notes play, the patcher renders past their duration, and the object that
     // exists to find stranded notes finds none — which is the whole point of
     // `.makenote` and the one thing no standalone case can show.
+    Tap tap;
+    YSE::pHandle tapHandle(&tap);
     patcherImplementation p(1, nullptr);
     YSE::pHandle* mk = p.CreateObject(YSE::OBJ::M_MAKENOTE, "100 100");
     YSE::pHandle* noteon = p.CreateObject(YSE::OBJ::M_NOTEON, "");
@@ -757,8 +759,6 @@ TEST_SUITE("patcher") {
     p.Connect(mk, 0, noteon, 0);
     p.Connect(noteon, 0, flush, 0);
 
-    Tap tap;
-    YSE::pHandle tapHandle(&tap);
     p.Connect(flush, 0, &tapHandle, 0);
 
     mk->SetIntData(0, 60);
@@ -788,12 +788,12 @@ TEST_SUITE("patcher") {
     if (!TestHelpers::probeCountsAllocations()) return;
     REQUIRE(TestHelpers::probeSeesStringAllocations());
 
+    Notes out;
+    YSE::pHandle outHandle(&out);
     patcherImplementation p(1, nullptr);
     YSE::pHandle* mk = p.CreateObject(YSE::OBJ::M_MAKENOTE, "100 5000");
     REQUIRE(mk != nullptr);
 
-    Notes out;
-    YSE::pHandle outHandle(&out);
     p.Connect(mk, 0, &outHandle, 0);
     p.Connect(mk, 1, &outHandle, 1);
 

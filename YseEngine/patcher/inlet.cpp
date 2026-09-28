@@ -265,16 +265,28 @@ void inlet::SetMessage(const std::string& message, YSE::THREAD thread, float val
 }
 
 bool inlet::WaitingForDSP() const {
-  // Whether this inlet has an active buffer input comes from the pinned
-  // snapshot when the patcher is mid-block (audio-thread path), else from the
-  // live ``dspConnection`` (control-thread / standalone path). See #226.
-  const GraphState* graph = obj ? obj->CurrentBlockGraph() : nullptr;
+  // Whether this inlet has an active buffer input comes from a snapshot: the
+  // block's pinned one on the thread rendering it, the pinned published one on
+  // any other thread (issues #226, #962, #963) — never the live
+  // ``dspConnection`` a structural edit on another control thread rewrites.
+  // An inlet the snapshot does not own takes the same two fallbacks as
+  // outlet::resolveTargets (see graphReadScope).
+  const graphReadScope scope(obj);
+  const auto owned = [this](const GraphState* g) {
+    return g != nullptr && graphId >= 0 && static_cast<size_t>(graphId) < g->inletHasDsp.size() &&
+           g->inletOwner[graphId] == this;
+  };
+  const GraphState* graph = scope.Graph();
   bool hasDsp;
-  if (graph != nullptr && graphId >= 0 &&
-      static_cast<size_t>(graphId) < graph->inletHasDsp.size()) {
+  if (owned(graph)) {
     hasDsp = graph->inletHasDsp[graphId] != 0;
   } else {
-    hasDsp = (dspConnection != nullptr);
+    const GraphState* latest = (graph != nullptr && graphId >= 0) ? scope.Latest() : nullptr;
+    if (latest != graph && owned(latest)) {
+      hasDsp = latest->inletHasDsp[graphId] != 0;
+    } else {
+      hasDsp = (dspConnection != nullptr);
+    }
   }
   if (!hasDsp) return false;
   return !dspReady;
