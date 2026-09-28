@@ -26,11 +26,12 @@ session start. Pair with [PROJECT_OVERVIEW.md](PROJECT_OVERVIEW.md).
 6. **Analyze before committing.** Run `python yse.py analyze <changed-files>`
    on the files touched in a commit and address any **new** findings. The
    project's [.clang-tidy](.clang-tidy) baseline keeps the noise floor low
-   (~335 pre-existing findings across `YseEngine/` and `Tests/` — 285 of
-   them in headers, tracked as backlog in #573 — don't fix in passing).
-   The floor was ~50 until #426 fixed a `HeaderFilterRegex` that had been
-   discarding every finding from a header in a subdirectory; the jump is
-   reporting, not new debt. New findings in *modified* code should be cleared
+   (43 distinct pre-existing findings across `YseEngine/` and `Tests/`,
+   measured 2026-09-28 — 2 of them in headers, one an analyzer path ending
+   in vendored doctest — don't fix in passing). #426 widened the
+   `HeaderFilterRegex` so subdirectory headers are checked, and the ~280
+   header findings that surfaced were cleared by #573. Judge by distinct
+   file:line, not raw line count. New findings in *modified* code should be cleared
    before the commit, fixing or with a focused `// NOLINT(check-name): why`
    when the check is genuinely wrong for that line. The `fix-issues` skill
    governs how to triage findings.
@@ -72,11 +73,23 @@ python yse.py build --release    # release preset
 python yse.py build --python     # debug + embedded-Python live-coding (YSE_ENABLE_PYTHON, desktop only)
 python yse.py test               # tests-debug preset + ctest
 python yse.py test --python      # tests-debug-python preset + ctest (runs the embedded-interpreter suite)
+python yse.py test --sanitizer asan   # tests-asan (Linux) / tests-asan-windows preset + ctest
+python yse.py test --sanitizer tsan   # tests-tsan preset + ctest (Linux/clang only)
+python yse.py bench              # bench preset (Release) + run yse_benchmarks; --filter <regex>
 python yse.py run Demo00         # run a demo from build-debug/bin/
 python yse.py analyze            # clang-tidy
 python yse.py format             # clang-format -i
 python yse.py coverage           # gcovr (Linux) / llvm-cov (Windows)
 ```
+
+CTest is the test entry point. Running `yse_tests` bare refuses to start
+(#712): with no filter it would put the suites that drive
+`System::close()` / `initOffline()` back into one process, which faults
+mid-run and can leave a `yse_tests.exe` that blocks the next link. Narrow
+a direct run with `--test-suite=<name>` / `--test-case=<pattern>`
+(`YSE_TESTS_ALLOW_MONOLITHIC=1` overrides the refusal). On Windows, TSan
+runs through `tools/ci-linux/Dockerfile.sanitizers`. Benchmarks: see
+[Bench/README.md](Bench/README.md).
 
 See [README.md](README.md) and [PROJECT_OVERVIEW.md](PROJECT_OVERVIEW.md)
 for the full toolchain matrix.
