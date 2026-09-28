@@ -39,9 +39,10 @@ What just happened
 ------------------
 
 - ``YSE::System().init()`` starts the engine and opens the default audio
-  device. It returns ``false`` if the audio backend cannot start. A missing
-  or busy device is only logged, so ``init()`` can succeed without sound;
-  :doc:`sessions_and_devices` shows how to check that audio is flowing.
+  device. It returns ``false`` if no device opens: no output device, a
+  device another application holds, or an audio backend that cannot start.
+  The reason is written to the log. :doc:`sessions_and_devices` covers the
+  details.
 - ``YSE::sound s; s.create("drone.ogg");`` sets up a sound and loads an
   audio file. The file path is relative to the working directory.
 - ``s.isValid()`` is the check after ``create``. It is ``false`` when the

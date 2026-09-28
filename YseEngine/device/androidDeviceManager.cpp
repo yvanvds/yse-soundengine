@@ -67,14 +67,16 @@ void YSE::DEVICE::managerObject::resume() {
   open = true;
 }
 
-void YSE::DEVICE::managerObject::addCallback() {
+Bool YSE::DEVICE::managerObject::addCallback() {
   // Hand the application-requested rate (issue #646) to the Oboe stream
   // builder; 0 means no request and Oboe negotiates the device rate.
   if (implementation.Start(YSE::DEVICE::Manager().getMaster().GetBuffers().size(),
                            (int32_t)getRequestedSampleRate())) {
     notifyStreamStarted();
+    return true;
   }
-  // YSE::Log().sendMessage("androidDeviceManager: Callback Added");
+  // No stream is running: system::init() reports that (issue #973).
+  return false;
 }
 
 unsigned int YSE::DEVICE::managerObject::GetCallbacksSinceLastUpdate() {

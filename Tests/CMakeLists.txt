@@ -850,7 +850,9 @@ set_tests_properties(yse_tests_devicelayer PROPERTIES LABELS "system;audio-io;li
 # real default output device on it, while System().openDevice() deliberately
 # may. It therefore needs real audio hardware; on headless CI every case skips
 # with a message, because a device that is not reachable cannot be wrongly
-# opened and there is nothing to stand in for it.
+# opened and there is nothing to stand in for it. The exception is the #973
+# case, which asserts that init() fails, and tears down, when no device opens —
+# headless CI is exactly where that branch runs.
 #
 # It also drives System::init()/close() cycles, which on its own is enough to
 # keep it out of the shared yse_unit_tests process (#298 lineage).

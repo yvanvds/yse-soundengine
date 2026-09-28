@@ -61,7 +61,13 @@ namespace YSE {
      *        re-derived, so driving ``init()`` and ``update()`` from different
      *        threads silently loses the named-bus inline fast path — see the
      *        ``update()`` threading note (issue #290).
-     *  @return ``true`` on success, ``false`` if no device could be opened.
+     *  @return ``true`` when a stream on the default output device is running,
+     *          ``false`` if no device could be opened: the audio backend
+     *          failed to start, there is no default output device, or the
+     *          device refused to open or start the stream. The reason is
+     *          logged. A failed call tears down everything it set up, so the
+     *          engine is left closed; call ``init()`` again, or
+     *          ``initOffline()`` to run without a device (issue #973).
      */
     bool init();
 

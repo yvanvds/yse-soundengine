@@ -27,7 +27,13 @@ typedef struct YseDeviceSetup YseDeviceSetup;
 /** Borrowed singleton pointer — never destroy. */
 YSE_C_API YseSystem* yse_system_get(void);
 
-/** Lifecycle. */
+/** Lifecycle.
+
+   yse_system_init() returns YSE_OK only when a stream on the default output
+   device is running. With no default device, or one that refuses to open or
+   start the stream, it returns YSE_ERR_AUDIO_DEVICE and leaves the engine
+   closed; yse_system_init_offline() runs the engine without a device
+   (issue #973). */
 YSE_C_API YseStatus yse_system_init(YseSystem* sys);
 YSE_C_API YseStatus yse_system_init_offline(YseSystem* sys);
 YSE_C_API void yse_system_render_offline(YseSystem* sys, int blocks);

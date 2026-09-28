@@ -154,13 +154,18 @@ Bool YSE::DEVICE::managerObject::init(bool openDevice) {
   return true;
 }
 
-void YSE::DEVICE::managerObject::addCallback() {
+Bool YSE::DEVICE::managerObject::addCallback() {
+  // Every failure below reports false and leaves no stream open (issue #973).
+  // system::init() used to ignore this path's outcome entirely, so a host with
+  // no output device — or one held exclusively by another application — got a
+  // successful init() and silence.
+  //
   // setup with default device
   PaStreamParameters params;
   params.device = Pa_GetDefaultOutputDevice();
   if (params.device == paNoDevice) {
     INTERNAL::LogImpl().emit(E_WARNING, "No default audio output device found.");
-    return;
+    return false;
   }
   const PaDeviceInfo* info = Pa_GetDeviceInfo(params.device);
   params.channelCount = info->maxOutputChannels;
@@ -205,7 +210,7 @@ void YSE::DEVICE::managerObject::addCallback() {
 
   if (err != paNoError) {
     audioDeviceError(err);
-    return;
+    return false;
   } else
     open = true;
 
@@ -218,7 +223,11 @@ void YSE::DEVICE::managerObject::addCallback() {
   err = Pa_StartStream(stream);
   if (err != paNoError) {
     audioDeviceError(err);
-    return;
+    // Opened but never started: no callback will ever run, so do not leave
+    // the live getters reporting a rate and latency for it. close() releases
+    // the stream and zeroes them.
+    close();
+    return false;
   } else
     started = true;
 
@@ -235,6 +244,7 @@ void YSE::DEVICE::managerObject::addCallback() {
                                  " Hz" + ", suggested latency " +
                                  std::to_string((int)(params.suggestedLatency * 1000)) + " ms");
   }
+  return true;
 }
 
 void YSE::DEVICE::managerObject::close() {

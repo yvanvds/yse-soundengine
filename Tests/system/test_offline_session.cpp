@@ -39,7 +39,8 @@
 // output device) every case skips with a message. That is honest rather than
 // silent: the cases below cannot be made to measure anything without a device
 // to wrongly open, and there is nothing to substitute for it — the whole defect
-// is "a device that is reachable gets opened".
+// is "a device that is reachable gets opened". The one exception is the #973
+// case at the end, which asserts what init() reports on *either* kind of host.
 //
 // The suite drives System::close() and System::init(), so it is isolated like
 // every other lifecycle suite (Tests/CMakeLists.txt). It must in particular not
@@ -57,8 +58,11 @@
 #include "support/timer_pacing.hpp"
 
 #include "yse.hpp"
+#include "channel/channelInterface.hpp"
 #include "device/deviceInterface.hpp"
 #include "device/deviceSetup.hpp"
+#include "headers/constants.hpp"
+#include "yse_c/yse_system.h"
 
 namespace {
 
@@ -400,6 +404,66 @@ TEST_SUITE("offlinesession") {
       CHECK(log.contains("refused the session sample rate of " + std::to_string(sessionRate) +
                          " Hz (its default is " + std::to_string(deviceRate) + " Hz)"));
     }
+  }
+
+  // Issue #973. init() is documented to return false "if no device could be
+  // opened", and used to return true whenever Pa_Initialize succeeded: with no
+  // default output device, or a stream the backend refused to open or start,
+  // the session came up with no stream and the host played silence. The
+  // contract asserted here holds on any host — init() succeeds exactly when a
+  // stream is running afterwards — and the failure branch is the one headless
+  // CI and the Linux docker images take, which is where it bites.
+  //
+  // Unlike the cases above this one does not skip without a device: that is
+  // the state under test. It belongs in this process because it drives
+  // init()/close() and leaves PortAudio initialised, which this suite needs
+  // anyway (and `devicelayer` must never see).
+  TEST_CASE("offlinesession: init() succeeds exactly when a device opens, and a failed init() "
+            "leaves nothing behind (issue #973)") {
+    YSE::System().close();
+    const unsigned int previousRequest = YSE::System().requestSampleRate();
+    YSE::System().requestSampleRate(0);
+    const UInt rateBefore = YSE::SAMPLERATE;
+
+    CapturingLog log;
+    bool ok = false;
+    double active = 0.0;
+    bool channelsUp = false;
+    double sessionRate = 0.0;
+    {
+      ScopedSink sink(&log);
+      ok = YSE::System().init();
+      active = YSE::System().getActiveSampleRate();
+      channelsUp = YSE::ChannelMaster().isValid();
+      sessionRate = YSE::System().getSampleRate();
+      // No callback thread may outlive the case (see bringPortAudioUp()).
+      if (ok) YSE::System().pause();
+    }
+    YSE::System().close();
+
+    CHECK(ok == (active > 0.0));
+    if (!ok) {
+      CHECK(log.contains("no audio output device could be opened"));
+      // Torn down, not left as an active session with no stream.
+      CHECK_FALSE(channelsUp);
+      CHECK(sessionRate == 0.0);
+      CHECK(YSE::SAMPLERATE == rateBefore);
+      // And nothing blocks the explicit alternative.
+      REQUIRE(YSE::System().initOffline());
+      CHECK(YSE::ChannelMaster().isValid());
+      YSE::System().close();
+    }
+
+    // The C API reports the same outcome, as an audio-device error.
+    YseSystem* sys = yse_system_get();
+    const YseStatus status = yse_system_init(sys);
+    const double cActive = yse_system_get_active_sample_rate(sys);
+    if (status == YSE_OK) yse_system_pause(sys);
+    yse_system_close(sys);
+    CHECK((status == YSE_OK) == (cActive > 0.0));
+    if (status != YSE_OK) CHECK(status == YSE_ERR_AUDIO_DEVICE);
+
+    YSE::System().requestSampleRate(previousRequest);
   }
 
 } // TEST_SUITE("offlinesession")

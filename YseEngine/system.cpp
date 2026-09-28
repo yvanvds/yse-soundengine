@@ -69,7 +69,9 @@ Bool YSE::system::initShared(bool openDevice) {
   // device negotiation (the #637 init window) then already see the requested
   // rate. The backend stays authoritative — if a device opens below, it
   // rewrites SAMPLERATE with the negotiated rate; when no device opens
-  // (initOffline, headless CI), the requested rate IS the session rate.
+  // (initOffline), the requested rate IS the session rate. The previous value
+  // is kept so a failed init() can put it back (issue #973).
+  const UInt rateBeforeInit = SAMPLERATE;
   {
     const UInt requested = DEVICE::Manager().getRequestedSampleRate();
     if (requested != 0 && !INTERNAL::Global().isSampleRateLocked()) {
@@ -107,8 +109,21 @@ Bool YSE::system::initShared(bool openDevice) {
     // comment there and on global::isDeviceSession().
     INTERNAL::Global().sessionHasDevice = openDevice;
 
-    if (openDevice) {
-      DEVICE::Manager().addCallback();
+    // init() promises a running device, so a device that does not open fails
+    // it (issue #973). This used to be ignored: with no default output device,
+    // or one another application holds exclusively, init() returned true and
+    // the host played silence into a session that believed it had a device.
+    // Everything set up above is torn down again through close(), and
+    // SAMPLERATE goes back to what it was before this call, so a failed init()
+    // leaves the engine exactly as it found it. A host that wants the engine
+    // without a device asks for that explicitly with initOffline().
+    if (openDevice && !DEVICE::Manager().addCallback()) {
+      INTERNAL::LogImpl().emit(E_ERROR, "YSE System object failed to initialize: no audio output "
+                                        "device could be opened. Use initOffline() to run the "
+                                        "engine without one.");
+      close();
+      SAMPLERATE = rateBeforeInit;
+      return false;
     }
 
     // addCallback() is the last point at which the backend can negotiate

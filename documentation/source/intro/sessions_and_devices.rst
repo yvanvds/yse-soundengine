@@ -21,7 +21,8 @@ There are two ways to start one:
      - What you get
    * - ``System().init()``
      - Starts the audio backend and opens the platform's default output
-       device. The audio thread renders the mix.
+       device. The audio thread renders the mix. Returns ``false`` if no
+       device opens.
    * - ``System().initOffline()``
      - The same engine, channel tree and DSP graph, but no audio backend and
        no audio thread. You render blocks yourself with
@@ -33,14 +34,14 @@ music, GUI, voice), install a stereo speaker layout and set ``maxSounds`` to
 50. Calling ``init()`` again while a session is running logs a message and
 returns ``true`` without doing anything.
 
-.. note::
-
-   On desktop, ``init()`` returns ``false`` only when the audio backend itself
-   fails to start. If there is no default output device, or the device refuses
-   the stream, the reason is logged and ``init()`` still returns ``true``
-   (tracked as `#973 <https://github.com/yvanvds/yse-soundengine/issues/973>`_).
-   To confirm a device is open, check that ``System().getActiveSampleRate()``
-   is not 0. See also `Is audio flowing?`_.
+``init()`` returns ``true`` only when a stream on the default output device
+is running. It returns ``false`` when the audio backend fails to start, when
+there is no default output device, or when the device refuses to open or start
+the stream (for example because another application holds it exclusively). The
+reason is logged. A failed ``init()`` leaves no session behind: you can call
+``init()`` again, or ``initOffline()`` to run the engine without a device.
+A stream that has just started can still take a moment to deliver audio; see
+`Is audio flowing?`_.
 
 ``System().close()`` ends the session. It closes the device, stops the engine
 threads and frees the engine's side of every sound and channel. You can call

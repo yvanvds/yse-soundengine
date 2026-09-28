@@ -38,12 +38,9 @@ A first session
      YseSystem* sys = yse_system_get();           /* borrowed: never destroyed */
 
      yse_system_request_sample_rate(sys, 48000);  /* before init; 0 clears it */
-     if (yse_system_init(sys) != YSE_OK) {
+     if (yse_system_init(sys) != YSE_OK) {         /* YSE_ERR_AUDIO_DEVICE: no device opened */
        fprintf(stderr, "init: %s\n", yse_last_error());
        return 1;
-     }
-     if (yse_system_get_active_sample_rate(sys) == 0.0) {
-       fprintf(stderr, "no audio device is open\n");
      }
 
      YseSound* snd = yse_sound_create();          /* owned: a handle, not yet a sound */
@@ -65,9 +62,11 @@ A first session
      return 0;
    }
 
-``yse_system_init()`` can return ``YSE_OK`` although no audio device opened
-(`#973 <https://github.com/yvanvds/yse-soundengine/issues/973>`_), so check
-``yse_system_get_active_sample_rate()`` as above. :doc:`/intro/sessions_and_devices`
+``yse_system_init()`` returns ``YSE_OK`` only when a stream on the default
+output device is running. With no device, or one that refuses the stream, it
+returns ``YSE_ERR_AUDIO_DEVICE`` and leaves no session behind; call
+``yse_system_init_offline()`` to run the engine without a device.
+:doc:`/intro/sessions_and_devices`
 covers sessions, sample rates and devices, and :doc:`/intro/threading`
 explains what ``yse_system_update()`` does on your thread.
 

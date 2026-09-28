@@ -105,7 +105,15 @@ namespace YSE {
       virtual Bool openDevice(const YSE::deviceSetup&) {
         return false;
       };
-      virtual void addCallback() {};
+      /* Open and start a stream on the platform default output device, and
+         report whether one is running afterwards (issue #973). False means no
+         default device, or the backend refused to open or start the stream;
+         nothing is left open in that case. system::init() fails on false, the
+         way openDevice() reports its own refusals. The base implementation
+         opens nothing, so it reports false. */
+      virtual Bool addCallback() {
+        return false;
+      };
 
       /* Application-requested sample rate in Hz for the next stream open
          (issue #646). 0 = no request: the backend opens at the device default.
