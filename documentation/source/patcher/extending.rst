@@ -390,12 +390,10 @@ snapshot, so write it for a patch author, not for a reviewer.
 Every ``INLET_DOC`` and ``OUTLET_DOC`` indexes into the pins, so call them
 after the pins exist.
 
-.. note::
-
-   The tests check that every pin and every documented parameter has a label
-   and a text, but not yet that there is one ``PARAM_DOC`` for every
-   ``ADD_PARAM``. Count them yourself. Tracked in `#954
-   <https://github.com/yvanvds/yse-soundengine/issues/954>`_.
+The tests check that every pin and every documented parameter has a label
+and a text, and that the number of ``PARAM_DOC`` calls equals the number of
+``ADD_PARAM`` calls. They cannot check the order, so keep the two lists in
+step yourself.
 
 Rules for the handlers
 ----------------------
@@ -705,6 +703,10 @@ What the registry-wide tests catch
      - The description is empty, the category is unset, a pin created by the
        constructor has no ``INLET_DOC`` / ``OUTLET_DOC`` label or text, or a
        ``PARAM_DOC`` has an empty name or text.
+   * - ``test_doc_coverage.cpp``: "one PARAM_DOC per ADD_PARAM"
+     - The object registers a different number of parameters with
+       ``ADD_PARAM`` than it documents with ``PARAM_DOC``. The failure lists
+       every such object with both counts.
    * - ``test_doc_coverage.cpp``: "no registered object falls back to
        GENERIC"
      - The category is ``GENERIC``.

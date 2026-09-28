@@ -187,24 +187,23 @@ CONSTRUCT() {
 
   INLET_DOC(0, "in", kInletDoc, "any");
 
-  PARAM_DOC("groups", "2",
-            "The number of group outlets, which is Max's 'the number of outlets beyond the "
-            "rightmost outlet': the object has one more outlet than this, the last of them being "
-            "the remainder. With no argument it is Max's default of 2, so a bare .unjoin has three "
-            "outlets. At most 256 group outlets are built, a group needing at least one item and "
-            "the shared bounded list holding at most that many; an argument outside 1-256 is "
-            "clamped and the clamp is logged.",
-            "1-256");
-
-  PARAM_DOC("size", "1",
-            "How many items fill one group — Max's @outsize attribute, 'defines the number of "
-            "items to be sent out the outlets', carried here as a positional creation argument "
-            "because the patcher has no attributes. With no argument it is Max's default of 1, "
-            "which makes the object .unpack with a remainder outlet instead of a drop. A group "
-            "outlet fires only when this many items are left to fill it, so what leaves a group "
-            "outlet is always exactly this long. An argument outside 1-256 is clamped and the "
-            "clamp is logged.",
-            "1-256");
+  // One entry for the one LIST parameter, which carries both arguments (#954).
+  PARAM_DOC("groups size", "2 1",
+            "The first argument is the number of group outlets, which is Max's 'the number of "
+            "outlets beyond the rightmost outlet': the object has one more outlet than this, the "
+            "last of them being the remainder. With no argument it is Max's default of 2, so a "
+            "bare .unjoin has three outlets. At most 256 group outlets are built, a group needing "
+            "at least one item and the shared bounded list holding at most that many; an argument "
+            "outside 1-256 is clamped and the clamp is logged. The second argument is how many "
+            "items fill one group — Max's @outsize attribute, 'defines the number of items to be "
+            "sent out the outlets', carried here as a positional creation argument because the "
+            "patcher has no attributes. With no argument it is Max's default of 1, which makes the "
+            "object .unpack with a remainder outlet instead of a drop. A group outlet fires only "
+            "when this many items are left to fill it, so what leaves a group outlet is always "
+            "exactly this long. An argument outside 1-256 is clamped and the clamp is logged. "
+            "Either argument that is not a whole number is logged and leaves its default in place, "
+            "and arguments after the second are ignored.",
+            "groups 1-256, optional size 1-256");
 }
 
 // ─── the creation arguments ─────────────────────────────────────────────────

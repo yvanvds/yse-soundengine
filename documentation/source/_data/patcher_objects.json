@@ -7535,7 +7535,14 @@
         "type": "ANY"
       }
     ],
-    "params": [],
+    "params": [
+      {
+        "default": "2",
+        "doc": "Max's argument list, in Max's order. The first argument is the number of inlets, clamped to 1-256 with the clamp logged; with no arguments the object is Max's default of two inlets, each starting out holding 0. Every argument after it is Max's @triggers attribute, carried here as a positional creation argument because the patcher has no attributes: each one names an inlet, counted from 0, that releases the list when written, and -1 (or any negative number) makes every inlet hot. With no trigger the leftmost inlet is the hot one. An argument that is not a whole number is logged and ignored — a bad inlet count leaves the default of 2 in place — and a trigger naming an inlet the object does not have is logged and ignored.",
+        "name": "inlets triggers",
+        "range": "inlets 1-256, then any number of triggers -1 or 0 to inlets-1"
+      }
+    ],
     "requires_midi_device": false
   },
   ".kslider": {
@@ -10252,16 +10259,10 @@
     "outlets": [],
     "params": [
       {
-        "default": "print",
-        "doc": "Max's argument list, in Max's order. The first token is the name printed in front of every line — Max's 'the first argument sets the name that appears in the Max window when the object prints something. The default name is print'. It is what makes two of these in one patch tellable apart. A name longer than 32 characters is cut, since the whole line has to fit a fixed record and a name that ate it would leave no room for the message it is labelling.",
-        "name": "name",
-        "range": "any symbol, up to 32 characters"
-      },
-      {
-        "default": "16",
-        "doc": "The most lines this object emits between two drain ticks. This one is the YSE patcher's and not Max's: Max's print runs in Max's scheduler, while a .print wired into a per-block path here is driven by the audio callback, which at 44.1 kHz and 512-sample blocks is 86 lines a second from one object before a patch does anything unusual. The queue is shared, so without a budget the first such object fills it and every other .print in the patch goes dark; the limit is what keeps one noisy object from silencing the rest. Clamped to 1-256 — 256 being the queue's own capacity, past which asking for more cannot buy anything. A non-numeric second argument leaves the default of 16 standing rather than failing, since a creation argument arriving from a saved patch must never be able to break loading it. Refused messages are counted and the first refusal in a tick posts a notice, so a budget that bites is visible rather than silent.",
-        "name": "lines",
-        "range": "1-256"
+        "default": "print 16",
+        "doc": "Max's argument list, in Max's order. The first token is the name printed in front of every line — Max's 'the first argument sets the name that appears in the Max window when the object prints something. The default name is print'. It is what makes two of these in one patch tellable apart. A name longer than 32 characters is cut, since the whole line has to fit a fixed record and a name that ate it would leave no room for the message it is labelling. The second token is the most lines this object emits between two drain ticks, default 16. This one is the YSE patcher's and not Max's: Max's print runs in Max's scheduler, while a .print wired into a per-block path here is driven by the audio callback, which at 44.1 kHz and 512-sample blocks is 86 lines a second from one object before a patch does anything unusual. The queue is shared, so without a budget the first such object fills it and every other .print in the patch goes dark; the limit is what keeps one noisy object from silencing the rest. Clamped to 1-256 — 256 being the queue's own capacity, past which asking for more cannot buy anything. A non-numeric second argument leaves the default of 16 standing rather than failing, since a creation argument arriving from a saved patch must never be able to break loading it. Refused messages are counted and the first refusal in a tick posts a notice, so a budget that bites is visible rather than silent. Tokens after the second are ignored.",
+        "name": "name lines",
+        "range": "name: any symbol, up to 32 characters; optional lines 1-256"
       }
     ],
     "requires_midi_device": false
@@ -13356,16 +13357,10 @@
     ],
     "params": [
       {
-        "default": "2",
-        "doc": "The number of group outlets, which is Max's 'the number of outlets beyond the rightmost outlet': the object has one more outlet than this, the last of them being the remainder. With no argument it is Max's default of 2, so a bare .unjoin has three outlets. At most 256 group outlets are built, a group needing at least one item and the shared bounded list holding at most that many; an argument outside 1-256 is clamped and the clamp is logged.",
-        "name": "groups",
-        "range": "1-256"
-      },
-      {
-        "default": "1",
-        "doc": "How many items fill one group — Max's @outsize attribute, 'defines the number of items to be sent out the outlets', carried here as a positional creation argument because the patcher has no attributes. With no argument it is Max's default of 1, which makes the object .unpack with a remainder outlet instead of a drop. A group outlet fires only when this many items are left to fill it, so what leaves a group outlet is always exactly this long. An argument outside 1-256 is clamped and the clamp is logged.",
-        "name": "size",
-        "range": "1-256"
+        "default": "2 1",
+        "doc": "The first argument is the number of group outlets, which is Max's 'the number of outlets beyond the rightmost outlet': the object has one more outlet than this, the last of them being the remainder. With no argument it is Max's default of 2, so a bare .unjoin has three outlets. At most 256 group outlets are built, a group needing at least one item and the shared bounded list holding at most that many; an argument outside 1-256 is clamped and the clamp is logged. The second argument is how many items fill one group — Max's @outsize attribute, 'defines the number of items to be sent out the outlets', carried here as a positional creation argument because the patcher has no attributes. With no argument it is Max's default of 1, which makes the object .unpack with a remainder outlet instead of a drop. A group outlet fires only when this many items are left to fill it, so what leaves a group outlet is always exactly this long. An argument outside 1-256 is clamped and the clamp is logged. Either argument that is not a whole number is logged and leaves its default in place, and arguments after the second are ignored.",
+        "name": "groups size",
+        "range": "groups 1-256, optional size 1-256"
       }
     ],
     "requires_midi_device": false

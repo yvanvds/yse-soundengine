@@ -78,6 +78,31 @@ TEST_SUITE("patcher") {
     }
   }
 
+  TEST_CASE("doc coverage: one PARAM_DOC per ADD_PARAM (#954)") {
+    // The loop above checks the docs an object does declare; this one checks
+    // it declares all of them. An object that registers two parameters and
+    // documents one would otherwise pass, and its second argument would be
+    // missing from the metadata snapshot, the C API metadata and the object
+    // reference. Collected rather than stopping at the first, so one run names
+    // every offender.
+    auto names = Register().AllNames();
+    REQUIRE(names.size() > 0);
+
+    std::string mismatches;
+    for (const auto& name : names) {
+      std::unique_ptr<pObject> obj(Register().Get(name));
+      REQUIRE(obj != nullptr);
+      const std::size_t registered = obj->GetParamCount();
+      const std::size_t documented = obj->GetParamDocs().size();
+      if (registered != documented) {
+        mismatches += name + " (ADD_PARAM " + std::to_string(registered) + ", PARAM_DOC " +
+                      std::to_string(documented) + ") ";
+      }
+    }
+    INFO("objects whose PARAM_DOC count differs from their ADD_PARAM count: ", mismatches);
+    CHECK(mismatches.empty());
+  }
+
   TEST_CASE("doc coverage: no registered object falls back to GENERIC (#870)") {
     // The category is the page an object lands on in the reference and the
     // palette group an editor shows it in. GENERIC used to hold 133 objects —

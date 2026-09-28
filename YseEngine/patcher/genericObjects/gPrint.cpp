@@ -44,16 +44,16 @@ namespace {
       "but a silent drop would make a debugging instrument lie about the patch it is being used "
       "to debug.";
 
-  constexpr char kNameDoc[] =
+  // One entry for the one LIST parameter, which carries both arguments (#954).
+  constexpr char kArgsDoc[] =
       "Max's argument list, in Max's order. The first token is the name printed in front of every "
       "line — Max's 'the first argument sets the name that appears in the Max window when the "
       "object prints something. The default name is print'. It is what makes two of these in one "
       "patch tellable apart. A name longer than 32 characters is cut, since the whole line has to "
       "fit a fixed record and a name that ate it would leave no room for the message it is "
-      "labelling.";
-
-  constexpr char kLimitDoc[] =
-      "The most lines this object emits between two drain ticks. This one is the YSE patcher's "
+      "labelling. "
+      "The second token is the most lines this object emits between two drain ticks, default 16. "
+      "This one is the YSE patcher's "
       "and not Max's: Max's print runs in Max's scheduler, while a .print wired into a per-block "
       "path here is driven by the audio callback, which at 44.1 kHz and 512-sample blocks is 86 "
       "lines a second from one object before a patch does anything unusual. The queue is shared, "
@@ -63,7 +63,8 @@ namespace {
       "anything. A non-numeric second argument leaves the default of 16 standing rather than "
       "failing, since a creation argument arriving from a saved patch must never be able to break "
       "loading it. Refused messages are counted and the first refusal in a tick posts a notice, "
-      "so a budget that bites is visible rather than silent.";
+      "so a budget that bites is visible rather than silent. Tokens after the second are "
+      "ignored.";
 
 } // namespace
 
@@ -134,8 +135,8 @@ CONSTRUCT() {
   ADD_CATEGORY(pCategory::IO);
 
   INLET_DOC(0, "in", kInletDoc, "any");
-  PARAM_DOC("name", "print", kNameDoc, "any symbol, up to 32 characters");
-  PARAM_DOC("lines", "16", kLimitDoc, "1-256");
+  PARAM_DOC("name lines", "print 16", kArgsDoc,
+            "name: any symbol, up to 32 characters; optional lines 1-256");
 }
 
 // ─── creation arguments ───────────────────────────────────────────────────────
