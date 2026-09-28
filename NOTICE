@@ -3,6 +3,24 @@ Copyright (c) the YSE Sound Engine contributors.
 
 This product includes software developed by third parties, listed below.
 
+The YSE Sound Engine itself is licensed under the MIT License (LICENSE.md).
+Third-party components keep their own licenses. They are grouped by how they
+reach a shipped binary:
+
+  1. Compiled into every libyse binary
+  2. Statically linked into the Android archive (libyse.so)
+  3. Dynamically linked on desktop, and the DLLs bundled in the Windows archive
+  4. Compiled in only by the optional embedded-Python build
+  5. Build- and test-only (never part of a shipped binary)
+
+The optional content pack (samples, wavetables, FM banks) is not part of any
+binary; its provenance and licenses are in CONTENT-LICENSES.md.
+
+
+################################################################################
+1. COMPILED INTO EVERY LIBYSE BINARY
+################################################################################
+
 ================================================================================
 music-synthesizer-for-android (MSFA)
 ================================================================================
@@ -46,3 +64,295 @@ YSE::DSP::msfa namespace, Android/JNI and ARM-NEON scaffolding was removed
     YseEngine/dsp/fm/msfa/dx7note.h,      dx7note.cc
 
 A copy of the Apache License, Version 2.0 is available at the URL above.
+
+================================================================================
+cJSON
+================================================================================
+
+Vendored as YseEngine/json/cJSON.h and YseEngine/json/cJSON.cpp.
+
+    https://github.com/DaveGamble/cJSON
+
+    Copyright (c) 2009-2017 Dave Gamble and cJSON contributors
+
+    Permission is hereby granted, free of charge, to any person obtaining a copy
+    of this software and associated documentation files (the "Software"), to
+    deal in the Software without restriction, including without limitation the
+    rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
+    sell copies of the Software, and to permit persons to whom the Software is
+    furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in
+    all copies or substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+    FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
+    IN THE SOFTWARE.
+
+================================================================================
+JSON for Modern C++ (nlohmann/json) 3.0.1
+================================================================================
+
+Vendored as YseEngine/utils/json.hpp.
+
+    https://github.com/nlohmann/json
+
+    Copyright (c) 2013-2017 Niels Lohmann <http://nlohmann.me>.
+
+    Permission is hereby granted, free of charge, to any person obtaining a copy
+    of this software and associated documentation files (the "Software"), to
+    deal in the Software without restriction, including without limitation the
+    rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
+    sell copies of the Software, and to permit persons to whom the Software is
+    furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in
+    all copies or substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+    FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
+    IN THE SOFTWARE.
+
+
+################################################################################
+2. STATICALLY LINKED INTO THE ANDROID ARCHIVE
+################################################################################
+
+The Android build fetches both libraries below from source at the tags pinned
+in the top-level CMakeLists.txt and links them statically into libyse.so.
+
+================================================================================
+Oboe 1.9.3
+================================================================================
+
+    https://github.com/google/oboe
+
+    Copyright (C) The Android Open Source Project
+
+    Licensed under the Apache License, Version 2.0. The full license text is
+    shipped in the Android archive as licenses/oboe-LICENSE.txt, and is
+    available at http://www.apache.org/licenses/LICENSE-2.0
+
+================================================================================
+libsndfile 1.2.2
+================================================================================
+
+    https://github.com/libsndfile/libsndfile
+
+    Copyright (C) 1999-2018 Erik de Castro Lopo <erikd@mega-nerd.com>
+    and the libsndfile contributors (see AUTHORS in its source).
+
+    libsndfile is free software; you can redistribute it and/or modify it under
+    the terms of the GNU Lesser General Public License as published by the Free
+    Software Foundation; either version 2.1 of the License, or (at your option)
+    any later version.
+
+    libsndfile is distributed in the hope that it will be useful, but WITHOUT
+    ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+    FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License
+    for more details.
+
+The Android build configures libsndfile WAV-only (ENABLE_EXTERNAL_LIBS=OFF,
+ENABLE_MPEG=OFF), so no codec libraries are linked with it. Its source contains
+components under their own permissive notices (GSM 6.10 by Jutta Degener and
+Carsten Bormann, Sun's public-domain G.72x code, Apple's Apache-2.0 ALAC code);
+those notices travel with the source tarball described below.
+
+LGPL-2.1 obligations for the static link (Android)
+--------------------------------------------------
+
+On Android, libsndfile is linked statically into libyse.so, which makes
+libyse.so a "work that uses the Library" combined with the Library (LGPL-2.1
+section 6). To let recipients modify libsndfile and relink, every Android
+archive (libyse-vX.Y.Z-android.tar.gz) ships, next to libyse.so:
+
+  - licenses/libsndfile-COPYING.txt
+        The full text of the GNU Lesser General Public License, version 2.1,
+        copied from the libsndfile source.
+  - third_party/libsndfile-1.2.2-src.tar.gz
+        The complete corresponding source of the libsndfile version that was
+        linked (the upstream 1.2.2 tag, unmodified).
+
+The rest of libyse.so is open source under the MIT License. Its complete source
+for any release is the tagged commit vX.Y.Z of
+https://github.com/yvanvds/yse-soundengine, and the source archives attached to
+the same GitHub release. To relink with a modified libsndfile: build libsndfile
+from the shipped (or your modified) source, then build libyse for Android from
+the tagged YSE source as described in the repository README.md, with the FetchContent
+declaration for "sndfile" in CMakeLists.txt pointed at your libsndfile tree
+(for example -DFETCHCONTENT_SOURCE_DIR_SNDFILE=<path>).
+
+The `yse.py package --platform android` step adds these files and refuses to
+build an Android archive without them.
+
+
+################################################################################
+3. DYNAMICALLY LINKED ON DESKTOP (LINUX, WINDOWS)
+################################################################################
+
+On Linux and Windows, libyse links the system builds of PortAudio, libsndfile
+and RtMidi as shared libraries. The Linux archive does not include them. The
+Windows archive bundles them as DLLs in bin/, together with their transitive
+dependencies from MSYS2 Clang64 (listed after the notices below).
+
+================================================================================
+PortAudio
+================================================================================
+
+    http://www.portaudio.com/
+
+    Copyright (c) 1999-2002 Ross Bencina and Phil Burk
+
+    Permission is hereby granted, free of charge, to any person obtaining
+    a copy of this software and associated documentation files
+    (the "Software"), to deal in the Software without restriction,
+    including without limitation the rights to use, copy, modify, merge,
+    publish, distribute, sublicense, and/or sell copies of the Software,
+    and to permit persons to whom the Software is furnished to do so,
+    subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be
+    included in all copies or substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+    EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+    MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+    IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR
+    ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF
+    CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+    WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+================================================================================
+RtMidi
+================================================================================
+
+    https://github.com/thestk/rtmidi
+
+    RtMidi: realtime MIDI i/o C++ classes
+    Copyright (c) 2003-2019 Gary P. Scavone
+
+    Permission is hereby granted, free of charge, to any person
+    obtaining a copy of this software and associated documentation files
+    (the "Software"), to deal in the Software without restriction,
+    including without limitation the rights to use, copy, modify, merge,
+    publish, distribute, sublicense, and/or sell copies of the Software,
+    and to permit persons to whom the Software is furnished to do so,
+    subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be
+    included in all copies or substantial portions of the Software.
+
+    Any person wishing to distribute modifications to the Software is
+    asked to send the modifications to the original developer so that
+    they can be incorporated into the canonical version.  This is,
+    however, not a binding provision of this license.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+    EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+    MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+    IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR
+    ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF
+    CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+    WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+================================================================================
+libsndfile (shared library)
+================================================================================
+
+The same library as in section 2, under the GNU Lesser General Public License,
+version 2.1 or later. On desktop it is dynamically linked and can be replaced
+by any ABI-compatible build.
+
+================================================================================
+DLLs bundled in the Windows archive (bin/)
+================================================================================
+
+The Windows archive copies every DLL that libyse.dll needs from MSYS2 Clang64.
+Licenses below are those declared by the MSYS2 package that provides each DLL
+(`pacman -Qi`); each project's own license file ships in its MSYS2 package
+(usually under share/licenses/<package>/).
+
+    DLL                 Project (MSYS2 package)   License
+    ------------------  ------------------------  ----------------------------
+    libportaudio.dll    PortAudio                 MIT-style (above)
+    librtmidi-*.dll     RtMidi                    MIT-style (above)
+    libsndfile-1.dll    libsndfile                LGPL-2.1-or-later
+    libFLAC.dll         FLAC                      BSD-3-Clause (Xiph)
+    libogg-0.dll        libogg                    BSD-3-Clause
+    libvorbis-0.dll     libvorbis                 custom (Xiph.Org)
+    libvorbisenc-2.dll  libvorbis                 custom (Xiph.Org)
+    libopus-0.dll       Opus                      BSD-3-Clause
+    libmpg123-0.dll     mpg123                    LGPL-2.1-or-later
+    libmp3lame-0.dll    LAME                      LGPL
+    libc++.dll          LLVM libc++               Apache-2.0 WITH LLVM-exception
+    libwinpthread-1.dll mingw-w64 winpthreads     MIT AND BSD-3-Clause-Clear
+
+The exact set depends on the MSYS2 packages installed on the build machine;
+the archive's README.md lists the DLLs actually bundled.
+
+
+################################################################################
+4. OPTIONAL EMBEDDED-PYTHON BUILD (YSE_ENABLE_PYTHON=ON)
+################################################################################
+
+Not part of the release archives, which are built with YSE_ENABLE_PYTHON=OFF.
+
+================================================================================
+pybind11 2.13.6
+================================================================================
+
+    https://github.com/pybind/pybind11
+
+    Copyright (c) 2016 Wenzel Jakob <wenzel.jakob@epfl.ch>, All rights reserved.
+
+    Redistribution and use in source and binary forms, with or without
+    modification, are permitted provided that the following conditions are met:
+
+    1. Redistributions of source code must retain the above copyright notice,
+       this list of conditions and the following disclaimer.
+
+    2. Redistributions in binary form must reproduce the above copyright
+       notice, this list of conditions and the following disclaimer in the
+       documentation and/or other materials provided with the distribution.
+
+    3. Neither the name of the copyright holder nor the names of its
+       contributors may be used to endorse or promote products derived from
+       this software without specific prior written permission.
+
+    THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+    AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+    IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+    ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+    LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+    CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+    SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+    INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+    CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+    ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+    POSSIBILITY OF SUCH DAMAGE.
+
+This build also links the host's CPython shared library, which is not
+distributed with YSE.
+
+
+################################################################################
+5. BUILD- AND TEST-ONLY (NEVER IN A SHIPPED BINARY)
+################################################################################
+
+    doctest (dependencies/doctest/doctest.h)
+        https://github.com/doctest/doctest
+        Copyright (c) 2016-2023 Viktor Kirilov. MIT License.
+        Used only by the test executables under Tests/.
+
+    Google Benchmark 1.9.0 (fetched when YSE_BUILD_BENCHMARKS=ON)
+        https://github.com/google/benchmark
+        Copyright the benchmark authors (see its AUTHORS file).
+        Apache License, Version 2.0. Used only by the benchmarks under Bench/.
