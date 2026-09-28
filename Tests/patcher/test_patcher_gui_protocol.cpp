@@ -31,6 +31,7 @@
 #include "patcher/pHandle.hpp"
 #include "patcher/pObject.h"
 #include "patcher/pObjectList.hpp"
+#include "patcher/sinks.hpp"
 
 namespace {
 
@@ -39,8 +40,8 @@ namespace {
   // A three-cell float bank: the smallest honest structured control. Cells are
   // atomic because the read side is polled from the host thread while the
   // write side runs wherever the message arrived — the contract in pObject.h.
-  struct CellObject : YSE::PATCHER::pObject {
-    CellObject() : pObject(false) {
+  struct CellObject : TestHelpers::SinkBase {
+    CellObject() : SinkBase(false) {
       inputs.emplace_back(this, true, 0);
       inputs.back().RegisterList([this](const std::string& v, int, YSE::THREAD) { SetCells(v); });
       for (unsigned int i = 0; i < kCells; i++)

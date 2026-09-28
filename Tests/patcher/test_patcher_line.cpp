@@ -66,7 +66,7 @@ namespace {
   // or a float one, and a ramp that always emitted floats would not reach the
   // `.i` a patch wired it to — so a sink that only recorded numbers would be
   // blind to the more interesting way of getting this wrong.
-  struct Recorder : YSE::PATCHER::pObject {
+  struct Recorder : TestHelpers::SinkBase {
     struct Event {
       char kind = 'i'; // 'b' bang, 'i' int, 'f' float, 'l' list
       int intValue = 0;
@@ -76,7 +76,7 @@ namespace {
 
     std::vector<Event> events;
 
-    Recorder() : pObject(false) {
+    Recorder() : SinkBase(false) {
       // Reserved up front so the allocation probe measures the *object* rather
       // than this sink's own vector growing under it.
       events.reserve(1024);
@@ -171,9 +171,9 @@ namespace {
   // object that points at it, and the recorders outlive the outlets that feed
   // them.
   struct ClockedRig {
-    patcherImplementation patcher{1, nullptr};
     Recorder out;
     Recorder done;
+    patcherImplementation patcher{1, nullptr};
     gLine obj;
 
     explicit ClockedRig(const std::string& args = "") {
@@ -196,9 +196,9 @@ namespace {
   // shape in which the object's timing can be observed, since a deferred step
   // is only delivered to an object present in the block's GraphState.
   struct PatchedLine {
-    patcherImplementation p{1, nullptr};
     Recorder out;
     Recorder done;
+    patcherImplementation p{1, nullptr};
     YSE::pHandle outHandle{&out};
     YSE::pHandle doneHandle{&done};
     YSE::pHandle* line = nullptr;
@@ -761,6 +761,8 @@ TEST_SUITE("patcher") {
     // there, which is precisely the code that must not allocate or lock, and
     // nothing else in this file exercises it. The `.delay` on the far side makes
     // the whole "ramp, then do the next thing" idiom run end to end.
+    Recorder out;
+    Recorder chained;
     patcherImplementation p(1, nullptr);
     YSE::pHandle* pipe = p.CreateObject(YSE::OBJ::G_PIPE, "5");
     YSE::pHandle* line = p.CreateObject(YSE::OBJ::G_LINE, "0 10");
@@ -769,8 +771,6 @@ TEST_SUITE("patcher") {
     REQUIRE(line != nullptr);
     REQUIRE(after != nullptr);
 
-    Recorder out;
-    Recorder chained;
     YSE::pHandle outHandle(&out);
     YSE::pHandle chainedHandle(&chained);
     p.Connect(pipe, 0, line, 0);
@@ -857,14 +857,14 @@ TEST_SUITE("patcher") {
     if (!TestHelpers::probeCountsAllocations()) return;
     REQUIRE(TestHelpers::probeSeesStringAllocations());
 
+    Recorder out;
+    Recorder done;
     patcherImplementation p(1, nullptr);
     // Times long enough that nothing is emitted inside the probe — a send runs
     // the recorder, which allocates.
     YSE::pHandle* line = p.CreateObject(YSE::OBJ::G_LINE, "0 100000");
     REQUIRE(line != nullptr);
 
-    Recorder out;
-    Recorder done;
     YSE::pHandle outHandle(&out);
     YSE::pHandle doneHandle(&done);
     p.Connect(line, 0, &outHandle, 0);

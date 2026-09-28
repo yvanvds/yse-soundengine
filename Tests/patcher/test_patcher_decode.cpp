@@ -62,12 +62,12 @@ namespace {
   // sensitive — "every outlet fires" is a count, "right to left" is a sequence —
   // so one sink per outlet writing into one log is the only rig that can see
   // both.
-  struct OrderSink : YSE::PATCHER::pObject {
+  struct OrderSink : TestHelpers::SinkBase {
     std::vector<std::pair<int, int>>* log;
     int id;
 
     OrderSink(std::vector<std::pair<int, int>>* target, int outlet)
-      : pObject(false), log(target), id(outlet) {
+      : SinkBase(false), log(target), id(outlet) {
       inputs.emplace_back(this, true, 0);
       inputs.back().RegisterInt(
           [this](int v, int, YSE::THREAD) { log->emplace_back(this->id, v); });
@@ -560,6 +560,7 @@ TEST_SUITE("patcher") {
   // ─── persistence ────────────────────────────────────────────────────────────
 
   TEST_CASE("decode: survives a DumpJSON / ParseJSON round trip (#481)") {
+    IntSink last;
     YSE::patcher src;
     src.create(2);
     YSE::pHandle* h = src.CreateObject(YSE::OBJ::G_DECODE);
@@ -584,7 +585,6 @@ TEST_SUITE("patcher") {
 
     // And the restored object decodes, which the parameter string alone does not
     // prove: outlet 4 has to be reachable.
-    IntSink last;
     YSE::pHandle lastHandle(&last);
     loaded.Connect(copy, 4, &lastHandle, 0);
     copy->SetIntData(0, 4);
@@ -658,13 +658,13 @@ TEST_SUITE("patcher") {
     // The state as a patch sees it: four sinks on four cords, exactly one of
     // them reading 1 at any moment, and the one that was reading 1 dropping to 0
     // by itself.
+    IntSink a, b, c, d;
     YSE::patcher p;
     p.create(2);
     YSE::pHandle* decode = p.CreateObject(YSE::OBJ::G_DECODE, "4");
     REQUIRE(decode != nullptr);
     REQUIRE(decode->GetOutputs() == 4);
 
-    IntSink a, b, c, d;
     YSE::pHandle aH(&a), bH(&b), cH(&c), dH(&d);
     p.Connect(decode, 0, &aH, 0);
     p.Connect(decode, 1, &bH, 0);
@@ -691,6 +691,7 @@ TEST_SUITE("patcher") {
     // leaves one object's outlets. A .gate passes when its select reads 1 and
     // mutes when it reads 0, so this asserts the decoder against a consumer that
     // was written without it in mind.
+    FloatSink a, b, c;
     YSE::patcher p;
     p.create(2);
     YSE::pHandle* decode = p.CreateObject(YSE::OBJ::G_DECODE, "3");
@@ -702,7 +703,6 @@ TEST_SUITE("patcher") {
     REQUIRE(gateB != nullptr);
     REQUIRE(gateC != nullptr);
 
-    FloatSink a, b, c;
     YSE::pHandle aH(&a), bH(&b), cH(&c);
 
     p.Connect(decode, 0, gateA, 0); // decode outlet -> gate select inlet

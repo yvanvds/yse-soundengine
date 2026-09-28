@@ -53,9 +53,9 @@ namespace {
   // BangSink counts with a plain int, which is fine while the sends come from
   // the test thread.  A *running* metro bangs from the TimerThread worker, so
   // the live-period tests below need a counter that both threads may touch.
-  struct AtomicBangSink : YSE::PATCHER::pObject {
+  struct AtomicBangSink : TestHelpers::SinkBase {
     std::atomic<int> bangCount{0};
-    AtomicBangSink() : pObject(false) {
+    AtomicBangSink() : SinkBase(false) {
       inputs.emplace_back(this, true, 0);
       inputs.back().RegisterBang(
           [this](int, YSE::THREAD) { bangCount.fetch_add(1, std::memory_order_relaxed); });
@@ -75,12 +75,12 @@ namespace {
   // (issue #721).  On the millisecond engine that handler runs on the timer
   // worker, inside `gMetro::Bang`, which is the case the object has to net out
   // and publish rather than perform.
-  struct SelfStoppingSink : YSE::PATCHER::pObject {
+  struct SelfStoppingSink : TestHelpers::SinkBase {
     std::atomic<int> bangCount{0};
     YSE::pHandle* metro = nullptr;
     int stopAt = 0;
 
-    SelfStoppingSink() : pObject(false) {
+    SelfStoppingSink() : SinkBase(false) {
       inputs.emplace_back(this, true, 0);
       inputs.back().RegisterBang([this](int, YSE::THREAD) {
         const int n = bangCount.fetch_add(1, std::memory_order_relaxed) + 1;
@@ -500,13 +500,13 @@ TEST_SUITE("patcher") {
     // Driven from the control thread, so gSend's PassData fan-out is deferred to
     // the audio thread (issue #225). Use patcherImplementation directly so the
     // value queue can be drained with an explicit Calculate.
+    MultiSink sink;
     YSE::PATCHER::patcherImplementation p(2, nullptr);
     YSE::pHandle* send = p.CreateObject(YSE::OBJ::G_SEND, "channelA");
     YSE::pHandle* recv = p.CreateObject(YSE::OBJ::G_RECEIVE, "channelA");
     REQUIRE(send != nullptr);
     REQUIRE(recv != nullptr);
 
-    MultiSink sink;
     YSE::pHandle sinkHandle(&sink);
     p.Connect(recv, 0, &sinkHandle, 0);
 
@@ -530,6 +530,7 @@ TEST_SUITE("patcher") {
   }
 
   TEST_CASE("gSend -> gReceive: mismatched dataName drops messages silently") {
+    MultiSink sink;
     YSE::patcher p;
     p.create(2);
     YSE::pHandle* send = p.CreateObject(YSE::OBJ::G_SEND, "left");
@@ -537,7 +538,6 @@ TEST_SUITE("patcher") {
     REQUIRE(send != nullptr);
     REQUIRE(recv != nullptr);
 
-    MultiSink sink;
     YSE::pHandle sinkHandle(&sink);
     p.Connect(recv, 0, &sinkHandle, 0);
 
@@ -853,11 +853,11 @@ TEST_SUITE("patcher") {
     // real patcher, started, and then re-argued from the object box while it
     // runs.  `period` is a scalar param, so SetParams takes the RT-safe queued
     // route and lands on the audio thread — no inlet handler is involved at all.
+    AtomicBangSink sink;
     YSE::PATCHER::patcherImplementation p(1, nullptr);
     YSE::pHandle* metro = p.CreateObject(YSE::OBJ::G_METRO, "150");
     REQUIRE(metro != nullptr);
 
-    AtomicBangSink sink;
     YSE::pHandle hSink(&sink);
     p.Connect(metro, 0, &hSink, 0);
     p.Calculate(YSE::T_DSP);
@@ -1013,8 +1013,8 @@ TEST_SUITE("patcher") {
     // A `.delay` wired into a `.metro`'s left inlet inside a real patcher: the
     // shortest patch that puts a metro toggle on the audio callback.
     struct DeferredToggleRig {
-      YSE::PATCHER::patcherImplementation patcher{1, nullptr};
       AtomicBangSink sink;
+      YSE::PATCHER::patcherImplementation patcher{1, nullptr};
       YSE::pHandle sinkHandle{&sink};
       YSE::pHandle* delay = nullptr;
       YSE::pHandle* metro = nullptr;
@@ -1086,6 +1086,7 @@ TEST_SUITE("patcher") {
     // through the bridge did not quietly turn the retime into a no-op — the
     // request has to reach `SetPeriod` on the pool.  The lock itself is the
     // toggle case's business (where `Add` does allocate) and the sanitizers'.
+    AtomicBangSink sink;
     YSE::PATCHER::patcherImplementation p(1, nullptr);
     YSE::pHandle* delay = p.CreateObject(YSE::OBJ::G_DELAY, "0");
     YSE::pHandle* number = p.CreateObject(YSE::OBJ::G_INT, "40");
@@ -1093,7 +1094,6 @@ TEST_SUITE("patcher") {
     REQUIRE(delay != nullptr);
     REQUIRE(number != nullptr);
     REQUIRE(metro != nullptr);
-    AtomicBangSink sink;
     YSE::pHandle sinkHandle(&sink);
     p.Connect(delay, 0, number, 0);
     p.Connect(number, 0, metro, 1);
@@ -1183,11 +1183,11 @@ TEST_SUITE("patcher") {
   // 600 s on yse_unit_tests) is what ends the run instead of a hang without end.
 
   TEST_CASE("gMetro: a metro wired into its own left inlet keeps ticking (#721)") {
+    AtomicBangSink sink;
     YSE::PATCHER::patcherImplementation p(1, nullptr);
     YSE::pHandle* metro = p.CreateObject(YSE::OBJ::G_METRO, "10");
     REQUIRE(metro != nullptr);
 
-    AtomicBangSink sink;
     YSE::pHandle hSink(&sink);
     p.Connect(metro, 0, metro, 0); // the cord this issue is about
     p.Connect(metro, 0, &hSink, 0);
@@ -1232,13 +1232,13 @@ TEST_SUITE("patcher") {
     // `SendBang` frame any more, so this pins that the fix keys on *which
     // object's callback this thread is inside* rather than on the send that
     // started it.
+    AtomicBangSink sink;
     YSE::PATCHER::patcherImplementation p(1, nullptr);
     YSE::pHandle* metro = p.CreateObject(YSE::OBJ::G_METRO, "10");
     YSE::pHandle* trig = p.CreateObject(YSE::OBJ::G_TRIGGER, "b");
     REQUIRE(metro != nullptr);
     REQUIRE(trig != nullptr);
 
-    AtomicBangSink sink;
     YSE::pHandle hSink(&sink);
     p.Connect(metro, 0, trig, 0);
     p.Connect(trig, 0, metro, 0);
@@ -1266,11 +1266,11 @@ TEST_SUITE("patcher") {
     // that same reschedule puts the metro straight back on.  So the cycle's
     // verdict is recorded and issued once, after the send unwinds, which is what
     // makes it safe from a thread that may not block.
+    SelfStoppingSink sink;
     YSE::PATCHER::patcherImplementation p(1, nullptr);
     YSE::pHandle* metro = p.CreateObject(YSE::OBJ::G_METRO, "10");
     REQUIRE(metro != nullptr);
 
-    SelfStoppingSink sink;
     sink.metro = metro;
     sink.stopAt = 4; // bang 1 is the immediate one; 4 is the third timer tick
     YSE::pHandle hSink(&sink);

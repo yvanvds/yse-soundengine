@@ -31,8 +31,8 @@ namespace {
   // The smallest possible sender: one control outlet and nothing else. Used by
   // the destructor cases below, which are about the outlet/inlet edge lists
   // rather than about any object's behaviour.
-  struct OneOutlet : YSE::PATCHER::pObject {
-    OneOutlet() : pObject(false) {
+  struct OneOutlet : TestHelpers::SinkBase {
+    OneOutlet() : SinkBase(false) {
       outputs.emplace_back(this, YSE::OUT_TYPE::INT);
     }
     const char* Type() const override {

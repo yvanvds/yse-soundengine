@@ -18,6 +18,7 @@
 #include "patcher/generatorObjects/dSaw.h"
 #include "patcher/math/gMultiply.h"
 #include "dsp/buffer.hpp"
+#include "patcher/sinks.hpp"
 
 TEST_SUITE("patcher") {
 
@@ -106,9 +107,9 @@ TEST_SUITE("patcher") {
 
   TEST_CASE("gMultiply: float arithmetic produces the correct product") {
     // Local sink: captures the float forwarded by gMultiply's outlet.
-    struct FloatSink : YSE::PATCHER::pObject {
+    struct FloatSink : TestHelpers::SinkBase {
       float received = 0.f;
-      FloatSink() : pObject(false) {
+      FloatSink() : SinkBase(false) {
         inputs.emplace_back(this, true, 0);
         inputs.back().RegisterFloat([this](float v, int, YSE::THREAD) { received = v; });
       }
@@ -135,9 +136,9 @@ TEST_SUITE("patcher") {
   }
 
   TEST_CASE("pSine: produces non-silent DSP output after Calculate") {
-    struct BufferSink : YSE::PATCHER::pObject {
+    struct BufferSink : TestHelpers::SinkBase {
       YSE::DSP::buffer* received = nullptr;
-      BufferSink() : pObject(false) {
+      BufferSink() : SinkBase(false) {
         inputs.emplace_back(this, true, 0);
         inputs.back().RegisterBuffer(
             [this](YSE::DSP::buffer* b, int, YSE::THREAD) { received = b; });
@@ -162,9 +163,9 @@ TEST_SUITE("patcher") {
   }
 
   TEST_CASE("dSaw: output samples are bipolar, within [-1, 1] (#955)") {
-    struct BufferSink : YSE::PATCHER::pObject {
+    struct BufferSink : TestHelpers::SinkBase {
       YSE::DSP::buffer* received = nullptr;
-      BufferSink() : pObject(false) {
+      BufferSink() : SinkBase(false) {
         inputs.emplace_back(this, true, 0);
         inputs.back().RegisterBuffer(
             [this](YSE::DSP::buffer* b, int, YSE::THREAD) { received = b; });

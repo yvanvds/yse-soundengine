@@ -67,10 +67,10 @@ namespace {
 
   // Counts the bangs it receives. That is the entire observable surface of this
   // object: one outlet, one kind of message.
-  struct Counter : YSE::PATCHER::pObject {
+  struct Counter : TestHelpers::SinkBase {
     int bangs = 0;
 
-    Counter() : pObject(false) {
+    Counter() : SinkBase(false) {
       inputs.emplace_back(this, true, 0);
       inputs.back().RegisterBang([this](int, YSE::THREAD) { bangs++; });
     }
@@ -339,11 +339,11 @@ TEST_SUITE("patcher") {
     // The whole object in one case. The wait is asserted through
     // BlocksForMillis at the live SAMPLERATE rather than a hard-coded block
     // count, so it holds at any negotiated rate.
+    Counter out;
     patcherImplementation p(1, nullptr);
     YSE::pHandle* del = p.CreateObject(YSE::OBJ::G_DELAY, "100");
     REQUIRE(del != nullptr);
 
-    Counter out;
     YSE::pHandle outHandle(&out);
     p.Connect(del, 0, &outHandle, 0);
 
@@ -379,11 +379,11 @@ TEST_SUITE("patcher") {
     // is also what keeps a delay wired back into its own inlet a fast metronome
     // instead of a stack overflow, which .seq could give up only because its
     // walk is bounded by its own tape.
+    Counter out;
     patcherImplementation p(1, nullptr);
     YSE::pHandle* del = p.CreateObject(YSE::OBJ::G_DELAY, "0");
     REQUIRE(del != nullptr);
 
-    Counter out;
     YSE::pHandle outHandle(&out);
     p.Connect(del, 0, &outHandle, 0);
 
@@ -404,11 +404,11 @@ TEST_SUITE("patcher") {
     // bang is forgotten." Two bangs in, one bang out — and the wait is measured
     // from the newest one, so the output lands late rather than on the first
     // bang's original deadline.
+    Counter out;
     patcherImplementation p(1, nullptr);
     YSE::pHandle* del = p.CreateObject(YSE::OBJ::G_DELAY, "100");
     REQUIRE(del != nullptr);
 
-    Counter out;
     YSE::pHandle outHandle(&out);
     p.Connect(del, 0, &outHandle, 0);
 
@@ -445,11 +445,11 @@ TEST_SUITE("patcher") {
 
   TEST_CASE("delay: 'stop' cancels the bang being held (#503)") {
     // Max: "stops delay from outputting the bang it is currently delaying."
+    Counter out;
     patcherImplementation p(1, nullptr);
     YSE::pHandle* del = p.CreateObject(YSE::OBJ::G_DELAY, "100");
     REQUIRE(del != nullptr);
 
-    Counter out;
     YSE::pHandle outHandle(&out);
     p.Connect(del, 0, &outHandle, 0);
 
@@ -470,11 +470,11 @@ TEST_SUITE("patcher") {
     // next bang received -- it does not modify the time of a bang currently
     // being delayed." The naive implementation recomputes the deadline whenever
     // the time changes and fails this; nothing about it looks wrong.
+    Counter out;
     patcherImplementation p(1, nullptr);
     YSE::pHandle* del = p.CreateObject(YSE::OBJ::G_DELAY, "100");
     REQUIRE(del != nullptr);
 
-    Counter out;
     YSE::pHandle outHandle(&out);
     p.Connect(del, 0, &outHandle, 0);
 
@@ -508,11 +508,11 @@ TEST_SUITE("patcher") {
     // Max's "it then automatically sends a bang message to itself to start the
     // delay" — inside a patcher the started delay is a real wait, where the
     // standalone case above could only show that something started at all.
+    Counter out;
     patcherImplementation p(1, nullptr);
     YSE::pHandle* del = p.CreateObject(YSE::OBJ::G_DELAY, "5");
     REQUIRE(del != nullptr);
 
-    Counter out;
     YSE::pHandle outHandle(&out);
     p.Connect(del, 0, &outHandle, 0);
 
@@ -535,11 +535,11 @@ TEST_SUITE("patcher") {
     // patcher renders. That is the only meaning "100 ms from now" can have on a
     // clock that is not running, and it is what makes a deferred bang survive a
     // paused engine instead of arriving in a burst afterwards.
+    Counter out;
     patcherImplementation p(1, nullptr);
     YSE::pHandle* del = p.CreateObject(YSE::OBJ::G_DELAY, "100");
     REQUIRE(del != nullptr);
 
-    Counter out;
     YSE::pHandle outHandle(&out);
     p.Connect(del, 0, &outHandle, 0);
 

@@ -550,6 +550,7 @@ TEST_SUITE("patcher") {
     // "Announced after the pushes, so whatever it triggers sees the patch
     // already in the preset." Observed through the order log: the recalled
     // pad emits its restored position before the preset announces the slot.
+    OrderSink padSink, announceSink;
     patcherImplementation p(1, nullptr);
     YSE::pHandle* preset = p.CreateObject(YSE::OBJ::G_PRESET, "");
     YSE::pHandle* pad = p.CreateObject(YSE::OBJ::G_XYSLIDER, "0 127 0 127");
@@ -557,7 +558,6 @@ TEST_SUITE("patcher") {
     REQUIRE(pad != nullptr);
 
     std::vector<char> log;
-    OrderSink padSink, announceSink;
     padSink.log = &log;
     padSink.tag = 'v';
     announceSink.log = &log;

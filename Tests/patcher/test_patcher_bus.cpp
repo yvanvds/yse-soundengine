@@ -59,6 +59,7 @@ TEST_SUITE("patcher") {
   TEST_CASE("bus routing: gSend in A reaches gReceive in B when patchers share a name") {
     REQUIRE(TestHelpers::engineInit());
 
+    MultiSink sink;
     YSE::patcher a;
     a.name("synth").create(2);
     YSE::patcher b;
@@ -69,7 +70,6 @@ TEST_SUITE("patcher") {
     REQUIRE(send != nullptr);
     REQUIRE(recv != nullptr);
 
-    MultiSink sink;
     YSE::pHandle sinkHandle(&sink);
     b.Connect(recv, 0, &sinkHandle, 0);
 
@@ -91,6 +91,7 @@ TEST_SUITE("patcher") {
   TEST_CASE("bus routing: patchers with distinct names do not cross-talk on the same dataName") {
     REQUIRE(TestHelpers::engineInit());
 
+    MultiSink sink;
     YSE::patcher a;
     a.name("kick").create(2);
     YSE::patcher b;
@@ -101,7 +102,6 @@ TEST_SUITE("patcher") {
     REQUIRE(send != nullptr);
     REQUIRE(recv != nullptr);
 
-    MultiSink sink;
     YSE::pHandle sinkHandle(&sink);
     b.Connect(recv, 0, &sinkHandle, 0);
 
@@ -146,6 +146,7 @@ TEST_SUITE("patcher") {
   TEST_CASE("bus routing: renaming the parent patcher re-subscribes existing gReceives") {
     REQUIRE(TestHelpers::engineInit());
 
+    MultiSink sink;
     YSE::patcher a;
     a.name("rename.src").create(2);
     YSE::patcher b;
@@ -156,7 +157,6 @@ TEST_SUITE("patcher") {
     REQUIRE(send != nullptr);
     REQUIRE(recv != nullptr);
 
-    MultiSink sink;
     YSE::pHandle sinkHandle(&sink);
     b.Connect(recv, 0, &sinkHandle, 0);
 
@@ -237,12 +237,12 @@ TEST_SUITE("patcher") {
             "(#894)") {
     REQUIRE(TestHelpers::engineInit());
 
+    MultiSink sink;
     YSE::patcher b;
     b.name("synth2").create(2);
     YSE::pHandle* recv = b.CreateObject(YSE::OBJ::G_RECEIVE, "cutoff");
     REQUIRE(recv != nullptr);
 
-    MultiSink sink;
     YSE::pHandle sinkHandle(&sink);
     b.Connect(recv, 0, &sinkHandle, 0);
 
@@ -305,6 +305,8 @@ TEST_SUITE("patcher") {
   TEST_CASE("bus routing: gSend globalOnly=1 skips in-patcher PassData") {
     REQUIRE(TestHelpers::engineInit());
 
+    MultiSink localSink;
+    MultiSink peerSink;
     YSE::patcher local;
     local.name("globalOnly.local").create(2);
     // gSend with globalOnly=1; the second arg in the params string is the
@@ -314,7 +316,6 @@ TEST_SUITE("patcher") {
     REQUIRE(send != nullptr);
     REQUIRE(recv != nullptr);
 
-    MultiSink localSink;
     YSE::pHandle localSinkHandle(&localSink);
     local.Connect(recv, 0, &localSinkHandle, 0);
 
@@ -324,7 +325,6 @@ TEST_SUITE("patcher") {
     peer.name("globalOnly.local").create(2);
     YSE::pHandle* peerRecv = peer.CreateObject(YSE::OBJ::G_RECEIVE, "ping");
     REQUIRE(peerRecv != nullptr);
-    MultiSink peerSink;
     YSE::pHandle peerSinkHandle(&peerSink);
     peer.Connect(peerRecv, 0, &peerSinkHandle, 0);
 
@@ -363,13 +363,13 @@ TEST_SUITE("patcher") {
             "once (#943)") {
     REQUIRE(TestHelpers::engineInit());
 
+    TestHelpers::OrderSink sink;
     YSE::PATCHER::patcherImplementation p(1, nullptr);
     p.SetName("dup943.gui");
     YSE::pHandle* send = p.CreateObject(YSE::OBJ::G_SEND, "x");
     YSE::pHandle* recv = p.CreateObject(YSE::OBJ::G_RECEIVE, "x");
     REQUIRE(send != nullptr);
     REQUIRE(recv != nullptr);
-    TestHelpers::OrderSink sink;
     YSE::pHandle sinkHandle(&sink);
     p.Connect(recv, 0, &sinkHandle, 0);
     p.Calculate(YSE::T_DSP);
@@ -400,6 +400,7 @@ TEST_SUITE("patcher") {
             "(#943)") {
     REQUIRE(TestHelpers::engineInit());
 
+    TestHelpers::OrderSink sink;
     YSE::PATCHER::patcherImplementation p(1, nullptr);
     p.SetName("dup943.dsp");
     // `.r trig` → `.s x`: the host value is drained at the top of the block, so
@@ -411,7 +412,6 @@ TEST_SUITE("patcher") {
     REQUIRE(send != nullptr);
     REQUIRE(recv != nullptr);
     p.Connect(trig, 0, send, 0);
-    TestHelpers::OrderSink sink;
     YSE::pHandle sinkHandle(&sink);
     p.Connect(recv, 0, &sinkHandle, 0);
 
@@ -429,6 +429,8 @@ TEST_SUITE("patcher") {
             "(#943)") {
     REQUIRE(TestHelpers::engineInit());
 
+    TestHelpers::OrderSink local;
+    TestHelpers::OrderSink peer;
     YSE::PATCHER::patcherImplementation a(1, nullptr);
     a.SetName("dup943.shared");
     YSE::PATCHER::patcherImplementation b(1, nullptr);
@@ -443,10 +445,8 @@ TEST_SUITE("patcher") {
     REQUIRE(localRecv != nullptr);
     REQUIRE(peerRecv != nullptr);
     a.Connect(trig, 0, send, 0);
-    TestHelpers::OrderSink local;
     YSE::pHandle localHandle(&local);
     a.Connect(localRecv, 0, &localHandle, 0);
-    TestHelpers::OrderSink peer;
     YSE::pHandle peerHandle(&peer);
     b.Connect(peerRecv, 0, &peerHandle, 0);
     a.Calculate(YSE::T_DSP);
@@ -471,12 +471,12 @@ TEST_SUITE("patcher") {
   TEST_CASE("bus routing: a host bus publish reaches a .r that sits beside a .s once (#943)") {
     REQUIRE(TestHelpers::engineInit());
 
+    TestHelpers::OrderSink sink;
     YSE::PATCHER::patcherImplementation p(1, nullptr);
     p.SetName("dup943.host");
     REQUIRE(p.CreateObject(YSE::OBJ::G_SEND, "x") != nullptr);
     YSE::pHandle* recv = p.CreateObject(YSE::OBJ::G_RECEIVE, "x");
     REQUIRE(recv != nullptr);
-    TestHelpers::OrderSink sink;
     YSE::pHandle sinkHandle(&sink);
     p.Connect(recv, 0, &sinkHandle, 0);
 
@@ -490,13 +490,13 @@ TEST_SUITE("patcher") {
   TEST_CASE("bus routing: a .r in the same patcher as its .forward gets each value once (#943)") {
     REQUIRE(TestHelpers::engineInit());
 
+    TestHelpers::OrderSink sink;
     YSE::PATCHER::patcherImplementation p(1, nullptr);
     p.SetName("dup943.fwd");
     YSE::pHandle* fwd = p.CreateObject(YSE::OBJ::G_FORWARD, "x");
     YSE::pHandle* recv = p.CreateObject(YSE::OBJ::G_RECEIVE, "x");
     REQUIRE(fwd != nullptr);
     REQUIRE(recv != nullptr);
-    TestHelpers::OrderSink sink;
     YSE::pHandle sinkHandle(&sink);
     p.Connect(recv, 0, &sinkHandle, 0);
     p.Calculate(YSE::T_DSP);
@@ -519,6 +519,8 @@ TEST_SUITE("patcher") {
   TEST_CASE("bus routing: .forward re-aimed at run time reaches a different receiver (#485)") {
     REQUIRE(TestHelpers::engineInit());
 
+    MultiSink cutoffSink;
+    MultiSink resSink;
     YSE::patcher a;
     a.name("fwd.live").create(2);
     YSE::patcher b;
@@ -531,10 +533,8 @@ TEST_SUITE("patcher") {
     REQUIRE(cutoff != nullptr);
     REQUIRE(res != nullptr);
 
-    MultiSink cutoffSink;
     YSE::pHandle cutoffHandle(&cutoffSink);
     b.Connect(cutoff, 0, &cutoffHandle, 0);
-    MultiSink resSink;
     YSE::pHandle resHandle(&resSink);
     b.Connect(res, 0, &resHandle, 0);
 
@@ -570,6 +570,7 @@ TEST_SUITE("patcher") {
     // patcher name.
     REQUIRE(TestHelpers::engineInit());
 
+    MultiSink sink;
     YSE::patcher a;
     a.name("fwd.rename.src").create(2);
     YSE::patcher b;
@@ -580,7 +581,6 @@ TEST_SUITE("patcher") {
     REQUIRE(fwd != nullptr);
     REQUIRE(recv != nullptr);
 
-    MultiSink sink;
     YSE::pHandle sinkHandle(&sink);
     b.Connect(recv, 0, &sinkHandle, 0);
 
@@ -605,6 +605,7 @@ TEST_SUITE("patcher") {
     // which is what made the failure silent and partial.
     REQUIRE(TestHelpers::engineInit());
 
+    MultiSink sink;
     YSE::patcher a;
     a.name("table.rename.src").create(2);
     YSE::patcher b;
@@ -615,7 +616,6 @@ TEST_SUITE("patcher") {
     REQUIRE(t != nullptr);
     REQUIRE(recv != nullptr);
 
-    MultiSink sink;
     YSE::pHandle sinkHandle(&sink);
     b.Connect(recv, 0, &sinkHandle, 0);
 
@@ -640,6 +640,8 @@ TEST_SUITE("patcher") {
     // would broadcast into every same-named patcher in the process.
     REQUIRE(TestHelpers::engineInit());
 
+    MultiSink sink;
+    MultiSink targetSink;
     YSE::patcher a;
     a.name("fwd.unset").create(2);
     YSE::patcher b;
@@ -650,7 +652,6 @@ TEST_SUITE("patcher") {
     REQUIRE(fwd != nullptr);
     REQUIRE(recv != nullptr);
 
-    MultiSink sink;
     YSE::pHandle sinkHandle(&sink);
     b.Connect(recv, 0, &sinkHandle, 0);
 
@@ -665,7 +666,6 @@ TEST_SUITE("patcher") {
     fwd->SetListData(1, "target");
     YSE::pHandle* target = b.CreateObject(YSE::OBJ::G_RECEIVE, "target");
     REQUIRE(target != nullptr);
-    MultiSink targetSink;
     YSE::pHandle targetHandle(&targetSink);
     b.Connect(target, 0, &targetHandle, 0);
 
@@ -679,6 +679,8 @@ TEST_SUITE("patcher") {
     // suppressed, the bus publish is not.
     REQUIRE(TestHelpers::engineInit());
 
+    MultiSink localSink;
+    MultiSink peerSink;
     YSE::patcher local;
     local.name("fwd.globalOnly").create(2);
     YSE::pHandle* fwd = local.CreateObject(YSE::OBJ::G_FORWARD, "ping 1");
@@ -686,7 +688,6 @@ TEST_SUITE("patcher") {
     REQUIRE(fwd != nullptr);
     REQUIRE(recv != nullptr);
 
-    MultiSink localSink;
     YSE::pHandle localSinkHandle(&localSink);
     local.Connect(recv, 0, &localSinkHandle, 0);
 
@@ -694,7 +695,6 @@ TEST_SUITE("patcher") {
     peer.name("fwd.globalOnly").create(2);
     YSE::pHandle* peerRecv = peer.CreateObject(YSE::OBJ::G_RECEIVE, "ping");
     REQUIRE(peerRecv != nullptr);
-    MultiSink peerSink;
     YSE::pHandle peerSinkHandle(&peerSink);
     peer.Connect(peerRecv, 0, &peerSinkHandle, 0);
 
@@ -771,6 +771,7 @@ TEST_SUITE("patcher") {
   TEST_CASE("bus routing: a bang from a deferred .s follows the bus audio-thread contract") {
     REQUIRE(TestHelpers::engineInit());
 
+    MultiSink local;
     YSE::PATCHER::patcherImplementation p(1, nullptr);
     p.SetName("deferred.bang");
 
@@ -786,7 +787,6 @@ TEST_SUITE("patcher") {
 
     // A `.r out` in the same patcher proves the bang really was released: the
     // in-patcher half of the send is unaffected by any of this.
-    MultiSink local;
     YSE::pHandle localHandle(&local);
     YSE::pHandle* localRecv = p.CreateObject(YSE::OBJ::G_RECEIVE, "out");
     REQUIRE(localRecv != nullptr);
@@ -999,6 +999,8 @@ TEST_SUITE("patcher") {
     REQUIRE(TestHelpers::engineInit());
     using YSE::PATCHER::patcherImplementation;
 
+    MultiSink okSink;
+    MultiSink longSink;
     YSE::patcher b;
     b.name("r.bound").create(2);
 
@@ -1010,8 +1012,6 @@ TEST_SUITE("patcher") {
     REQUIRE(recvOk != nullptr);
     REQUIRE(recvLong != nullptr);
 
-    MultiSink okSink;
-    MultiSink longSink;
     YSE::pHandle okHandle(&okSink);
     YSE::pHandle longHandle(&longSink);
     b.Connect(recvOk, 0, &okHandle, 0);
@@ -1145,6 +1145,7 @@ TEST_SUITE("patcher") {
     // the auto-name and must follow the rename, like any other SetName.
     REQUIRE(TestHelpers::engineInit());
 
+    MultiSink sink;
     YSE::patcher src;
     src.name("n897.reanchor").create(2);
     const std::string dump = src.DumpJSON();
@@ -1153,7 +1154,6 @@ TEST_SUITE("patcher") {
     loaded.create(2);
     YSE::pHandle* recv = loaded.CreateObject(YSE::OBJ::G_RECEIVE, "v");
     REQUIRE(recv != nullptr);
-    MultiSink sink;
     YSE::pHandle sinkHandle(&sink);
     loaded.Connect(recv, 0, &sinkHandle, 0);
 

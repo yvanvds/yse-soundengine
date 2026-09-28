@@ -58,12 +58,12 @@ namespace {
   // keeps the last of each kind, which cannot tell a dump of three items from a
   // dump of one — and both the order and the kinds are half of what this object
   // promises.
-  struct Recorder : YSE::PATCHER::pObject {
+  struct Recorder : TestHelpers::SinkBase {
     // "i60", "f60.5", "sfoo", "!" for a bang — one string per send, so a whole
     // dump reads back as the exact sequence it was sent in.
     std::vector<std::string> seen;
 
-    Recorder() : pObject(false) {
+    Recorder() : SinkBase(false) {
       inputs.emplace_back(this, true, 0);
       inputs.back().RegisterBang([this](int, YSE::THREAD) { seen.emplace_back("!"); });
       inputs.back().RegisterInt(
@@ -469,6 +469,7 @@ TEST_SUITE("patcher") {
   // ─── what a save carries ────────────────────────────────────────────────────
 
   TEST_CASE("capture: the capacity survives a DumpJSON / ParseJSON round trip (#496)") {
+    Recorder out;
     YSE::patcher src;
     src.create(2);
     REQUIRE(src.CreateObject(YSE::OBJ::G_CAPTURE, "3") != nullptr);
@@ -484,7 +485,6 @@ TEST_SUITE("patcher") {
     REQUIRE(copy != nullptr);
     CHECK(std::string(copy->Type()) == ".capture");
 
-    Recorder out;
     YSE::pHandle outHandle(&out);
     loaded.Connect(copy, 0, &outHandle, 0);
 
@@ -504,6 +504,8 @@ TEST_SUITE("patcher") {
     // is how a capture's contents are saved, to a text file, on demand. A trace
     // is the record of a run, so a reloaded patch holding the values from the
     // session it was saved in would be answering a question nobody had asked.
+    Recorder out;
+    MultiSink meter;
     YSE::patcher src;
     src.create(2);
     YSE::pHandle* cap = src.CreateObject(YSE::OBJ::G_CAPTURE);
@@ -520,8 +522,6 @@ TEST_SUITE("patcher") {
     YSE::pHandle* copy = loaded.GetHandleFromList(0);
     REQUIRE(copy != nullptr);
 
-    Recorder out;
-    MultiSink meter;
     YSE::pHandle outHandle(&out);
     YSE::pHandle meterHandle(&meter);
     loaded.Connect(copy, 0, &outHandle, 0);

@@ -84,10 +84,10 @@ namespace {
   // what the modes that send *several* messages per stimulus (#527's `iter`
   // and `group`) need a test not to do. Borrowed from `.iter`'s tests (#521),
   // which needed it first and for the same reason.
-  struct TallySink : YSE::PATCHER::pObject {
+  struct TallySink : TestHelpers::SinkBase {
     std::vector<std::string> got; // "i:5", "f", "l:a b", "bang"
 
-    TallySink() : pObject(false) {
+    TallySink() : SinkBase(false) {
       inputs.emplace_back(this, true, 0);
       inputs.back().RegisterBang([this](int, YSE::THREAD) { got.push_back("bang"); });
       inputs.back().RegisterInt(
@@ -3266,6 +3266,7 @@ TEST_SUITE("patcher") {
   TEST_CASE("zl: a multi-number argument survives a DumpJSON / ParseJSON round trip (#524)") {
     // `swap` and `indexmap` widened the creation arguments from one number to a
     // run of them, so the save/load path has to carry the whole run.
+    MultiSink out;
     YSE::patcher src;
     src.create(2);
     REQUIRE(src.CreateObject(YSE::OBJ::G_ZL, "indexmap 3 1 2") != nullptr);
@@ -3282,7 +3283,6 @@ TEST_SUITE("patcher") {
 
     // And the reloaded object really carries the map, rather than only the text
     // that spells it.
-    MultiSink out;
     YSE::pHandle outHandle(&out);
     loaded.Connect(copy, 0, &outHandle, 0);
     copy->SetListData(0, "a b c");
@@ -3383,6 +3383,7 @@ TEST_SUITE("patcher") {
   TEST_CASE("zl: a symbolic argument survives a DumpJSON / ParseJSON round trip (#525)") {
     // `sub` and `lookup` widened the creation arguments from a run of numbers
     // to a run of anything, so the save/load path has to carry symbols too.
+    MultiSink out;
     YSE::patcher src;
     src.create(2);
     REQUIRE(src.CreateObject(YSE::OBJ::G_ZL, "lookup do re mi") != nullptr);
@@ -3399,7 +3400,6 @@ TEST_SUITE("patcher") {
 
     // And the reloaded object really carries the table, rather than only the
     // text that spells it.
-    MultiSink out;
     YSE::pHandle outHandle(&out);
     loaded.Connect(copy, 0, &outHandle, 0);
     copy->SetListData(0, "3 1");
@@ -3504,6 +3504,7 @@ TEST_SUITE("patcher") {
     // The set modes read the whole creation-argument run as the other list, so
     // the save/load path has to carry it — symbols included, a scale of note
     // names being exactly what a patch types here.
+    MultiSink out;
     YSE::patcher src;
     src.create(2);
     REQUIRE(src.CreateObject(YSE::OBJ::G_ZL, "sect do re mi") != nullptr);
@@ -3520,7 +3521,6 @@ TEST_SUITE("patcher") {
 
     // And the reloaded object really carries the list, rather than only the
     // text that spells it.
-    MultiSink out;
     YSE::pHandle outHandle(&out);
     loaded.Connect(copy, 0, &outHandle, 0);
     copy->SetListData(0, "fa mi do sol");
@@ -3682,6 +3682,7 @@ TEST_SUITE("patcher") {
     // The accumulating modes read their argument as a length, so the save/load
     // path has to carry it — a `group` that came back without its group size
     // would collect for ever and emit nothing.
+    MultiSink out;
     YSE::patcher src;
     src.create(2);
     REQUIRE(src.CreateObject(YSE::OBJ::G_ZL, "group 2") != nullptr);
@@ -3698,7 +3699,6 @@ TEST_SUITE("patcher") {
 
     // And the reloaded object really groups, rather than only remembering the
     // text that spells the argument.
-    MultiSink out;
     YSE::pHandle outHandle(&out);
     loaded.Connect(copy, 0, &outHandle, 0);
     copy->SetIntData(0, 1);
@@ -3796,6 +3796,7 @@ TEST_SUITE("patcher") {
     // The numeric modes take no argument, so the mode word is the whole of what
     // has to survive — and an object that came back without it would be inert
     // rather than wrong, which is the failure a patch notices last.
+    MultiSink out;
     YSE::patcher src;
     src.create(2);
     REQUIRE(src.CreateObject(YSE::OBJ::G_ZL, "median") != nullptr);
@@ -3811,7 +3812,6 @@ TEST_SUITE("patcher") {
     CHECK(copy->GetParams() == std::string("median"));
 
     // And it really computes, rather than only remembering the word.
-    MultiSink out;
     YSE::pHandle outHandle(&out);
     loaded.Connect(copy, 0, &outHandle, 0);
     copy->SetListData(0, "30 10 20");

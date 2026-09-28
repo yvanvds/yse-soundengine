@@ -85,10 +85,10 @@ namespace {
   // Records every number this object ever sent, in order. That sequence is the
   // whole observable surface of a `.clocker`: one outlet, one kind of message,
   // and the values are the point.
-  struct Recorder : YSE::PATCHER::pObject {
+  struct Recorder : TestHelpers::SinkBase {
     std::vector<int> values;
 
-    Recorder() : pObject(false) {
+    Recorder() : SinkBase(false) {
       // Reserved up front so the allocation probe measures the *object* rather
       // than this sink's own vector growing under it.
       values.reserve(1024);
@@ -104,12 +104,12 @@ namespace {
 
   // The same, for a *running* clocker: the sends arrive on the timerThread
   // worker while the test thread reads them.
-  struct SharedRecorder : YSE::PATCHER::pObject {
+  struct SharedRecorder : TestHelpers::SinkBase {
     mutable std::mutex mtx;
     std::vector<int> values;
     std::atomic<int> count{0};
 
-    SharedRecorder() : pObject(false) {
+    SharedRecorder() : SinkBase(false) {
       inputs.emplace_back(this, true, 0);
       inputs.back().RegisterInt([this](int v, int, YSE::THREAD) {
         {
@@ -142,12 +142,12 @@ namespace {
   // delivered the number — an object in the patch stopping the clocker. That
   // handler runs on the timer worker, inside `gClocker::Tick`, which is the
   // case the object has to route around the blocking half of `timerBridge`.
-  struct SelfStoppingSink : YSE::PATCHER::pObject {
+  struct SelfStoppingSink : TestHelpers::SinkBase {
     std::atomic<int> count{0};
     gClocker* target = nullptr;
     int stopAt = 1;
 
-    SelfStoppingSink() : pObject(false) {
+    SelfStoppingSink() : SinkBase(false) {
       inputs.emplace_back(this, true, 0);
       inputs.back().RegisterInt([this](int, int, YSE::THREAD thread) {
         const int n = count.fetch_add(1, std::memory_order_acq_rel) + 1;
@@ -873,6 +873,7 @@ TEST_SUITE("patcher") {
     // Checked by *driving* the restored object rather than by reading the JSON
     // back: a parameter that survived the file but not the rebuild would pass a
     // string comparison and fail here.
+    SharedRecorder out;
     YSE::patcher src;
     src.create(2);
     YSE::pHandle* obj = src.CreateObject(YSE::OBJ::G_CLOCKER, "40");
@@ -889,7 +890,6 @@ TEST_SUITE("patcher") {
     REQUIRE(back != nullptr);
     CHECK(back->GetParams() == "40");
 
-    SharedRecorder out;
     YSE::pHandle outHandle(&out);
     restored.Connect(back, 0, &outHandle, 0);
 
@@ -939,13 +939,13 @@ TEST_SUITE("patcher") {
     // what that reconcile left behind. That the real timer then delivers a
     // rising sequence of elapsed times is the `run` section's claim above,
     // where it is what the case is *about* rather than incidental to it.
+    SharedRecorder out;
     patcherImplementation p(1, nullptr);
     YSE::pHandle* clocker = p.CreateObject(YSE::OBJ::G_CLOCKER, "10");
     REQUIRE(clocker != nullptr);
     YSE::pHandle* del = p.CreateObject(YSE::OBJ::G_DELAY, "");
     REQUIRE(del != nullptr);
 
-    SharedRecorder out;
     YSE::pHandle outHandle(&out);
     p.Connect(del, 0, clocker, 0);
     p.Connect(clocker, 0, &outHandle, 0);
@@ -1018,10 +1018,10 @@ namespace {
 
   // Records the beats outlet. Distinct from `Recorder` above because outlet 1
   // is a float outlet and the *values* are the claim.
-  struct BeatRecorder : YSE::PATCHER::pObject {
+  struct BeatRecorder : TestHelpers::SinkBase {
     std::vector<double> values;
 
-    BeatRecorder() : pObject(false) {
+    BeatRecorder() : SinkBase(false) {
       values.reserve(1024);
       inputs.emplace_back(this, true, 0);
       inputs.back().RegisterFloat(
@@ -1040,12 +1040,12 @@ namespace {
 
   // The same, for the one case that lets the *millisecond* timer deliver: those
   // sends arrive on the timerThread worker while the test thread reads them.
-  struct SharedBeatRecorder : YSE::PATCHER::pObject {
+  struct SharedBeatRecorder : TestHelpers::SinkBase {
     mutable std::mutex mtx;
     std::vector<double> values;
     std::atomic<int> count{0};
 
-    SharedBeatRecorder() : pObject(false) {
+    SharedBeatRecorder() : SinkBase(false) {
       inputs.emplace_back(this, true, 0);
       inputs.back().RegisterFloat([this](float v, int, YSE::THREAD) {
         {
@@ -1074,9 +1074,9 @@ namespace {
   // `.transport` is built: this object never creates a clock and never writes
   // one, so the cases make their own.
   struct ClockRig {
-    patcherImplementation patcher{1, nullptr};
     Recorder ms;
     BeatRecorder beats;
+    patcherImplementation patcher{1, nullptr};
     YSE::pHandle msHandle{&ms};
     YSE::pHandle beatHandle{&beats};
     YSE::pHandle* obj = nullptr;
@@ -1282,9 +1282,9 @@ TEST_SUITE("clock") {
     // because nothing has advanced the domain.
     MakeClock("ck.both");
 
-    patcherImplementation p(1, nullptr);
     SharedRecorder ms;
     SharedBeatRecorder beats;
+    patcherImplementation p(1, nullptr);
     YSE::pHandle msHandle(&ms);
     YSE::pHandle beatHandle(&beats);
     YSE::pHandle* obj = p.CreateObject(YSE::OBJ::G_CLOCKER, "5");
@@ -1427,6 +1427,8 @@ TEST_SUITE("clock") {
     // so only a restored beat interval can report at all.
     MakeClock("ck.json");
 
+    Recorder ms;
+    BeatRecorder beats;
     YSE::patcher src;
     src.create(2);
     YSE::pHandle* obj = src.CreateObject(YSE::OBJ::G_CLOCKER, "100000 1");
@@ -1443,8 +1445,6 @@ TEST_SUITE("clock") {
     REQUIRE(back != nullptr);
     CHECK(back->GetParams() == "100000 1");
 
-    Recorder ms;
-    BeatRecorder beats;
     YSE::pHandle msHandle(&ms);
     YSE::pHandle beatHandle(&beats);
     restored.Connect(back, 0, &msHandle, 0);

@@ -54,11 +54,11 @@ namespace {
 
   // A MultiSink that can act from *inside* a send — the loop-back trigger
   // is a thing an outlet's own subgraph does.
-  struct HookSink : YSE::PATCHER::pObject {
+  struct HookSink : TestHelpers::SinkBase {
     int count = 0;
     std::function<void()> onValue;
 
-    HookSink() : pObject(false) {
+    HookSink() : SinkBase(false) {
       inputs.emplace_back(this, true, 0);
       inputs.back().RegisterInt([this](int, int, YSE::THREAD) { Hit(); });
       inputs.back().RegisterFloat([this](float, int, YSE::THREAD) { Hit(); });

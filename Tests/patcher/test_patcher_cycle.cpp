@@ -429,6 +429,8 @@ TEST_SUITE("patcher") {
     // logical event however many outlets it has, so the burst rotates and only
     // the *next* stimulus restarts. A clock-based implementation gets this
     // exactly backwards.
+    OrderSink left;
+    OrderSink right;
     YSE::patcher p;
     p.create(2);
     YSE::pHandle* trigger = p.CreateObject(YSE::OBJ::G_TRIGGER, "b b b");
@@ -438,8 +440,6 @@ TEST_SUITE("patcher") {
     REQUIRE(trigger->GetOutputs() == 3);
 
     std::vector<char> order;
-    OrderSink left;
-    OrderSink right;
     left.tag = 'a';
     right.tag = 'b';
     left.log = right.log = &order;
@@ -465,6 +465,8 @@ TEST_SUITE("patcher") {
   TEST_CASE("cycle: with event mode off a burst and the next event share one rotation (#477)") {
     // The same rig with the mode argument dropped, so the two runs differ only
     // in the mode: here the second stimulus carries on from outlet 1.
+    OrderSink left;
+    OrderSink right;
     YSE::patcher p;
     p.create(2);
     YSE::pHandle* trigger = p.CreateObject(YSE::OBJ::G_TRIGGER, "b b b");
@@ -473,8 +475,6 @@ TEST_SUITE("patcher") {
     REQUIRE(cycle != nullptr);
 
     std::vector<char> order;
-    OrderSink left;
-    OrderSink right;
     left.tag = 'a';
     right.tag = 'b';
     left.log = right.log = &order;
@@ -646,6 +646,8 @@ TEST_SUITE("patcher") {
     // The headline use, end to end through real objects: one stream in, two
     // processing paths out, alternating. Each path adds a different constant, so
     // the sink's values are only right if the messages went where they should.
+    FloatSink evens;
+    FloatSink odds;
     YSE::patcher p;
     p.create(2);
     YSE::pHandle* cycle = p.CreateObject(YSE::OBJ::G_CYCLE, "2");
@@ -655,8 +657,6 @@ TEST_SUITE("patcher") {
     REQUIRE(addTen != nullptr);
     REQUIRE(addHundred != nullptr);
 
-    FloatSink evens;
-    FloatSink odds;
     YSE::pHandle evenHandle(&evens);
     YSE::pHandle oddHandle(&odds);
 

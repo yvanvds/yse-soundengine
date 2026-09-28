@@ -46,9 +46,9 @@ using TestHelpers::ListSink;
 namespace {
 
   // Collects every list an outlet produces, in order.
-  struct LineCollector : YSE::PATCHER::pObject {
+  struct LineCollector : TestHelpers::SinkBase {
     std::vector<std::string> lines;
-    LineCollector() : pObject(false) {
+    LineCollector() : SinkBase(false) {
       inputs.emplace_back(this, true, 0);
       inputs.back().RegisterList(
           [this](const std::string& v, int, YSE::THREAD) { lines.push_back(v); });

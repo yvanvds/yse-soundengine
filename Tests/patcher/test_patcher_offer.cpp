@@ -68,10 +68,10 @@ namespace {
   //
   // The vector is reserved up front so the allocation probe measures the object
   // under test and not this sink.
-  struct Log : YSE::PATCHER::pObject {
+  struct Log : TestHelpers::SinkBase {
     std::vector<int> values;
 
-    Log() : pObject(false) {
+    Log() : SinkBase(false) {
       values.reserve(4096);
       inputs.emplace_back(this, true, 0);
       inputs.back().RegisterInt([this](int v, int, YSE::THREAD) { values.push_back(v); });

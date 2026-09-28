@@ -105,12 +105,12 @@ namespace {
   // above would be the race rather than observe it: four threads writing one
   // `int received` is undefined behaviour, and ThreadSanitizer would rightly
   // report the *sink* instead of the object under test.
-  struct TallySink : YSE::PATCHER::pObject {
+  struct TallySink : TestHelpers::SinkBase {
     std::vector<std::atomic<int>> counts; // hits per value
     std::atomic<int> total{0}; // values received
     std::atomic<int> strays{0}; // values outside [0, size)
 
-    explicit TallySink(int size) : pObject(false), counts(static_cast<size_t>(size)) {
+    explicit TallySink(int size) : SinkBase(false), counts(static_cast<size_t>(size)) {
       for (auto& c : counts)
         c.store(0);
       inputs.emplace_back(this, true, 0);
@@ -129,10 +129,10 @@ namespace {
     void SetMessage(const std::string&, float) override {}
   };
 
-  struct BangTallySink : YSE::PATCHER::pObject {
+  struct BangTallySink : TestHelpers::SinkBase {
     std::atomic<int> count{0};
 
-    BangTallySink() : pObject(false) {
+    BangTallySink() : SinkBase(false) {
       inputs.emplace_back(this, true, 0);
       inputs.back().RegisterBang([this](int, YSE::THREAD) { count.fetch_add(1); });
     }

@@ -474,6 +474,7 @@ TEST_SUITE("patcher") {
     // the leftmost one triggers the read. Under any other order the reader
     // fires against the *previous* set, which is the bug one level down from
     // the one .bondo exists to prevent.
+    IntSink sink;
     YSE::patcher p;
     p.create(2);
     YSE::pHandle* bondo = p.CreateObject(YSE::OBJ::G_BONDO, "2");
@@ -483,7 +484,6 @@ TEST_SUITE("patcher") {
     REQUIRE(toBang != nullptr);
     REQUIRE(store != nullptr);
 
-    IntSink sink;
     YSE::pHandle sinkHandle(&sink);
 
     // Right outlet -> the silent inlet of .i; left outlet -> a bang -> its hot

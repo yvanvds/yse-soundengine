@@ -74,10 +74,10 @@ namespace {
 
   // Records every list that arrives, in order, so a dump can be asserted as
   // the sequence it is rather than by its last line.
-  struct LinesSink : YSE::PATCHER::pObject {
+  struct LinesSink : TestHelpers::SinkBase {
     std::vector<std::string> lines;
 
-    LinesSink() : pObject(false) {
+    LinesSink() : SinkBase(false) {
       inputs.emplace_back(this, true, 0);
       inputs.back().RegisterList(
           [this](const std::string& v, int, YSE::THREAD) { lines.push_back(v); });
@@ -90,10 +90,10 @@ namespace {
   };
 
   // Records every float that arrives, in order — what a `.bline` ramp is.
-  struct SequenceSink : YSE::PATCHER::pObject {
+  struct SequenceSink : TestHelpers::SinkBase {
     std::vector<float> values;
 
-    SequenceSink() : pObject(false) {
+    SequenceSink() : SinkBase(false) {
       inputs.emplace_back(this, true, 0);
       inputs.back().RegisterFloat([this](float v, int, YSE::THREAD) { values.push_back(v); });
       inputs.back().RegisterInt([this](int v, int, YSE::THREAD) { values.push_back((float)v); });

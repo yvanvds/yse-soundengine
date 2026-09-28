@@ -262,6 +262,7 @@ TEST_SUITE("patcher") {
   // object exists to make impossible.
   TEST_CASE("bangbang: the right outlet's chain lands before the left one bangs, in a patcher "
             "(#467)") {
+    IntSink sink;
     YSE::patcher p;
     p.create(2);
     YSE::pHandle* fan = p.CreateObject(YSE::OBJ::G_BANGBANG, "2");
@@ -271,7 +272,6 @@ TEST_SUITE("patcher") {
     REQUIRE(source != nullptr);
     REQUIRE(store != nullptr);
 
-    IntSink sink;
     YSE::pHandle sinkHandle(&sink);
 
     p.Connect(fan, 1, source, 0); // right outlet bangs the source...

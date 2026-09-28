@@ -57,10 +57,10 @@ namespace {
   // "one message per item, in this order, of these types" is an assertion
   // rather than an inference. `OrderSink` keeps only the last of each kind,
   // which is exactly what an iterating object needs a test *not* to do.
-  struct TallySink : YSE::PATCHER::pObject {
+  struct TallySink : TestHelpers::SinkBase {
     std::vector<std::string> got; // "i:5", "f:1.5", "l:a b", "bang"
 
-    TallySink() : pObject(false) {
+    TallySink() : SinkBase(false) {
       inputs.emplace_back(this, true, 0);
       inputs.back().RegisterBang([this](int, YSE::THREAD) { got.push_back("bang"); });
       inputs.back().RegisterInt(
@@ -87,10 +87,10 @@ namespace {
   // could not. The only way to test the "each send completes in full before the
   // next item leaves" claim, which a count-only or last-value-only sink cannot
   // see.
-  struct Relay : YSE::PATCHER::pObject {
+  struct Relay : TestHelpers::SinkBase {
     std::vector<char>* log = nullptr;
 
-    Relay() : pObject(false) {
+    Relay() : SinkBase(false) {
       inputs.emplace_back(this, true, 0);
       inputs.back().RegisterInt([this](int, int, YSE::THREAD t) { Pass(t); });
       inputs.back().RegisterFloat([this](float, int, YSE::THREAD t) { Pass(t); });

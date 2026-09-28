@@ -57,11 +57,11 @@ namespace {
   // Records every int it receives, in order. MultiSink only keeps the last of
   // each kind, which cannot tell a dump of three numbers from a dump of one —
   // and the order of a dump is half of what this object promises.
-  struct Recorder : YSE::PATCHER::pObject {
+  struct Recorder : TestHelpers::SinkBase {
     std::vector<int> ints;
     int otherKinds = 0;
 
-    Recorder() : pObject(false) {
+    Recorder() : SinkBase(false) {
       inputs.emplace_back(this, true, 0);
       inputs.back().RegisterBang([this](int, YSE::THREAD) { otherKinds++; });
       inputs.back().RegisterInt([this](int v, int, YSE::THREAD) { ints.push_back(v); });
@@ -436,6 +436,7 @@ TEST_SUITE("patcher") {
     // Max: "The presence of any symbol argument causes the bag to store
     // duplicate values." The argument is read for its presence, never its
     // value.
+    MultiSink sink;
     YSE::patcher p;
     p.create(2);
     YSE::pHandle* bag = p.CreateObject(YSE::OBJ::G_BAG, "dup");
@@ -445,7 +446,6 @@ TEST_SUITE("patcher") {
     bag->SetIntData(0, 60);
     bag->SetIntData(0, 60);
 
-    MultiSink sink;
     YSE::pHandle sinkHandle(&sink);
     p.Connect(bag, 0, &sinkHandle, 0);
     bag->SetListData(0, "length");
@@ -559,6 +559,7 @@ TEST_SUITE("patcher") {
     // why .coll and not this object is what made pObject grow a state hook. A
     // reloaded patch whose bag came back holding the notes that were down when
     // it was saved would be holding notes nothing is sounding.
+    MultiSink sink;
     YSE::patcher src;
     src.create(2);
     YSE::pHandle* bag = src.CreateObject(YSE::OBJ::G_BAG);
@@ -576,7 +577,6 @@ TEST_SUITE("patcher") {
     YSE::pHandle* copy = loaded.GetHandleFromList(0);
     REQUIRE(copy != nullptr);
 
-    MultiSink sink;
     YSE::pHandle sinkHandle(&sink);
     loaded.Connect(copy, 0, &sinkHandle, 0);
     copy->SetListData(0, "length");
@@ -708,9 +708,9 @@ TEST_SUITE("patcher") {
     // is the patcher's rather than the object's: a T_GUI PassData is queued and
     // drained by a Calculate, so the explicit tick is part of what is being
     // tested (.forward's rig, #485, and .table's send test, #498).
-    YSE::PATCHER::patcherImplementation p{2, nullptr};
     Recorder received;
     Recorder outlet;
+    YSE::PATCHER::patcherImplementation p{2, nullptr};
     YSE::pHandle receivedHandle(&received);
     YSE::pHandle outletHandle(&outlet);
 
@@ -749,9 +749,9 @@ TEST_SUITE("patcher") {
     // at all — `send` "sends the result of a bang message" right then — so the
     // outlet is never re-aimed: a later bang, and `cut` and `length` always, go
     // where they always went, and the .r hears none of them.
-    YSE::PATCHER::patcherImplementation p{2, nullptr};
     Recorder received;
     Recorder outlet;
+    YSE::PATCHER::patcherImplementation p{2, nullptr};
     YSE::pHandle receivedHandle(&received);
     YSE::pHandle outletHandle(&outlet);
 
@@ -792,8 +792,8 @@ TEST_SUITE("patcher") {
   TEST_CASE("bag: send on an empty collection sends nothing (#685)") {
     // Because that is what its bang sends. A zero here would read downstream as
     // a stored number.
-    YSE::PATCHER::patcherImplementation p{2, nullptr};
     Recorder received;
+    YSE::PATCHER::patcherImplementation p{2, nullptr};
     YSE::pHandle receivedHandle(&received);
 
     YSE::pHandle* bag = p.CreateObject(YSE::OBJ::G_BAG, "");
@@ -813,8 +813,9 @@ TEST_SUITE("patcher") {
     // PassData path does not, so a 64-character name would address one receiver
     // locally and a different, shorter one on the bus. .forward's rule: refuse
     // it, silently, since this path may be the audio thread.
-    YSE::PATCHER::patcherImplementation p{2, nullptr};
     Recorder received;
+    Recorder atLimitOut;
+    YSE::PATCHER::patcherImplementation p{2, nullptr};
     YSE::pHandle receivedHandle(&received);
 
     const std::string longName(64, 'r');
@@ -835,7 +836,6 @@ TEST_SUITE("patcher") {
     // One character shorter is the longest name that is honoured, so the limit
     // is the bus's and not an off-by-one below it.
     YSE::PATCHER::patcherImplementation q{2, nullptr};
-    Recorder atLimitOut;
     YSE::pHandle atLimitHandle(&atLimitOut);
     YSE::pHandle* qBag = q.CreateObject(YSE::OBJ::G_BAG, "");
     YSE::pHandle* qReceiver = q.CreateObject(YSE::OBJ::G_RECEIVE, atLimit);
@@ -855,8 +855,8 @@ TEST_SUITE("patcher") {
     // What Max does with surplus arguments, and what a name has to be to match a
     // .r at all: Parameters::Set tokenises a creation argument the same way, so
     // no receiver can be named "held over".
-    YSE::PATCHER::patcherImplementation p{2, nullptr};
     Recorder received;
+    YSE::PATCHER::patcherImplementation p{2, nullptr};
     YSE::pHandle receivedHandle(&received);
 
     YSE::pHandle* bag = p.CreateObject(YSE::OBJ::G_BAG, "");

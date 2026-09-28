@@ -499,6 +499,7 @@ TEST_SUITE("patcher") {
   }
 
   TEST_CASE("route: survives a DumpJSON / ParseJSON round trip (#672)") {
+    MultiSink sink;
     YSE::patcher src;
     src.create(2);
     YSE::pHandle* h = src.CreateObject(YSE::OBJ::G_ROUTE, "note ctl 5");
@@ -519,7 +520,6 @@ TEST_SUITE("patcher") {
     CHECK(copy->GetOutputs() == 4);
 
     // And the reloaded object still routes, and still strips.
-    MultiSink sink;
     YSE::pHandle sinkHandle(&sink);
     loaded.Connect(copy, 1, &sinkHandle, 0);
     copy->SetListData(0, "ctl 7 64");
@@ -534,6 +534,10 @@ TEST_SUITE("patcher") {
     // split by its tag and each branch receives only what follows the tag, so
     // the branch works in bare values. Anything unmatched leaves the
     // fall-through whole, which is what lets the next .route test it.
+    MultiSink notes;
+    MultiSink controls;
+    MultiSink bends;
+    MultiSink rest;
     YSE::patcher p;
     p.create(2);
     YSE::pHandle* first = p.CreateObject(YSE::OBJ::G_ROUTE, "note ctl");
@@ -542,10 +546,6 @@ TEST_SUITE("patcher") {
     REQUIRE(second != nullptr);
     REQUIRE(first->GetOutputs() == 3);
 
-    MultiSink notes;
-    MultiSink controls;
-    MultiSink bends;
-    MultiSink rest;
     YSE::pHandle notesHandle(&notes);
     YSE::pHandle controlsHandle(&controls);
     YSE::pHandle bendsHandle(&bends);
@@ -583,6 +583,7 @@ TEST_SUITE("patcher") {
     // The consequence a patch actually feels: the note branch feeds a `.+ 100`
     // directly, with no object in between to take the word off. Before #672 the
     // list "note 60" arrived at the adder instead of the number 60.
+    FloatSink sum;
     YSE::patcher p;
     p.create(2);
     YSE::pHandle* route = p.CreateObject(YSE::OBJ::G_ROUTE, "note");
@@ -590,7 +591,6 @@ TEST_SUITE("patcher") {
     REQUIRE(route != nullptr);
     REQUIRE(add != nullptr);
 
-    FloatSink sum;
     YSE::pHandle sumHandle(&sum);
     p.Connect(route, 0, add, 0);
     p.Connect(add, 0, &sumHandle, 0);
@@ -611,6 +611,9 @@ TEST_SUITE("patcher") {
     // are typed — has ports to wire and passes what it is sent on to them
     // instead of swallowing it. Before the fix there were no outlets, so
     // Connect() had nothing to attach to and every message vanished.
+    MultiSink zeros;
+    MultiSink rest;
+    MultiSink reloaded;
     YSE::patcher p;
     p.create(2);
     YSE::pHandle* route = p.CreateObject(YSE::OBJ::G_ROUTE, "");
@@ -621,8 +624,6 @@ TEST_SUITE("patcher") {
     // Taken before the sinks are wired, so the dump holds the object alone.
     const std::string json = p.DumpJSON();
 
-    MultiSink zeros;
-    MultiSink rest;
     YSE::pHandle zerosHandle(&zeros);
     YSE::pHandle restHandle(&rest);
     p.Connect(route, 0, &zerosHandle, 0);
@@ -647,7 +648,6 @@ TEST_SUITE("patcher") {
     CHECK(std::string(copy->Type()) == std::string(".route"));
     CHECK(copy->GetOutputs() == 2);
 
-    MultiSink reloaded;
     YSE::pHandle reloadedHandle(&reloaded);
     loaded.Connect(copy, 0, &reloadedHandle, 0);
     copy->SetIntData(0, 0);

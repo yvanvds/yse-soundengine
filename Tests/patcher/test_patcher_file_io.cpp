@@ -42,6 +42,7 @@
 #include "patcher/pObjectList.hpp"
 #include "patcher/patcherImplementation.h"
 #include "support/timer_pacing.hpp"
+#include "patcher/sinks.hpp"
 
 using YSE::PATCHER::fileScheduler;
 using YSE::PATCHER::patcherImplementation;
@@ -51,8 +52,8 @@ namespace {
   // A target for a request. The scheduler only ever reads its id, never
   // dereferences it after the request is made, so this is all a target needs to
   // be for the refusal and capacity cases.
-  struct Target : YSE::PATCHER::pObject {
-    Target() : pObject(false) {}
+  struct Target : TestHelpers::SinkBase {
+    Target() : SinkBase(false) {}
     const char* Type() const override {
       return "file_io_target";
     }

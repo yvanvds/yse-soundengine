@@ -72,6 +72,7 @@
 #include "patcher/time/clockBridge.h"
 #include "patcher/time/messageScheduler.h"
 #include "support/alloc_probe.hpp"
+#include "patcher/sinks.hpp"
 
 namespace {
 
@@ -151,10 +152,10 @@ namespace {
   }
 
   // Records every value it receives, in order and with its kind.
-  struct Recorder : YSE::PATCHER::pObject {
+  struct Recorder : TestHelpers::SinkBase {
     std::vector<std::string> seen;
 
-    Recorder() : pObject(false) {
+    Recorder() : SinkBase(false) {
       inputs.emplace_back(this, true, 0);
       inputs.back().RegisterBang([this](int, YSE::THREAD) { seen.emplace_back("!"); });
       inputs.back().RegisterInt(
@@ -180,9 +181,9 @@ namespace {
   }
 
   // Counts deferred deliveries. The scheduler cases only need "did it fire".
-  struct DeferProbe : YSE::PATCHER::pObject {
+  struct DeferProbe : TestHelpers::SinkBase {
     int hits = 0;
-    DeferProbe() : pObject(false) {}
+    DeferProbe() : SinkBase(false) {}
     const char* Type() const override {
       return "clockbridge_probe";
     }
@@ -223,9 +224,9 @@ namespace {
 
   // A `.qlist` living in a real patcher, with a recorder on each outlet.
   struct QlistRig {
-    patcherImplementation patcher{1, nullptr};
     Recorder data;
     Recorder end;
+    patcherImplementation patcher{1, nullptr};
     YSE::pHandle dataHandle{&data};
     YSE::pHandle endHandle{&end};
     YSE::pHandle* qlist = nullptr;
@@ -255,9 +256,9 @@ namespace {
   // A `.seq` living in a real patcher, with a recorder on Max's byte outlet and
   // one on his end bang (issue #704).
   struct SeqRig {
-    patcherImplementation patcher{1, nullptr};
     Recorder data;
     Recorder end;
+    patcherImplementation patcher{1, nullptr};
     YSE::pHandle dataHandle{&data};
     YSE::pHandle endHandle{&end};
     YSE::pHandle* seq = nullptr;
@@ -296,8 +297,8 @@ namespace {
   // A `.delay` living in a real patcher, with a recorder on its one outlet
   // (issue #705).
   struct DelayRig {
-    patcherImplementation patcher{1, nullptr};
     Recorder out;
+    patcherImplementation patcher{1, nullptr};
     YSE::pHandle outHandle{&out};
     YSE::pHandle* del = nullptr;
 
@@ -324,8 +325,8 @@ namespace {
   // two objects is the shared base and the cases differ only in which name they
   // ask the registry for.
   struct RateLimitRig {
-    patcherImplementation patcher{1, nullptr};
     Recorder out;
+    patcherImplementation patcher{1, nullptr};
     YSE::pHandle outHandle{&out};
     YSE::pHandle* obj = nullptr;
 
@@ -360,8 +361,8 @@ namespace {
   // (issue #705). Every case here drives it on a *domain clock*, so no real
   // timerThread timer is ever started.
   struct MetroRig {
-    patcherImplementation patcher{1, nullptr};
     Recorder out;
+    patcherImplementation patcher{1, nullptr};
     YSE::pHandle outHandle{&out};
     YSE::pHandle* metro = nullptr;
 

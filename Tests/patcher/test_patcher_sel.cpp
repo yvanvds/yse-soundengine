@@ -34,6 +34,7 @@
 #include "patcher/pObjectList.hpp"
 #include "patcher/pRegistry.h"
 #include "patcher/genericObjects/gSel.h"
+#include "patcher/sinks.hpp"
 
 namespace {
 
@@ -45,7 +46,7 @@ namespace {
   // Records everything that arrives, tagged with the type it arrived as. The
   // reject outlet's whole contract is "unchanged and in its own type", so a
   // sink that only counted would not be able to see it kept.
-  struct Sink : YSE::PATCHER::pObject {
+  struct Sink : TestHelpers::SinkBase {
     enum Kind { BANG, INT, FLOAT, LIST };
 
     struct Event {
@@ -57,7 +58,7 @@ namespace {
 
     std::vector<Event> events;
 
-    Sink() : pObject(false) {
+    Sink() : SinkBase(false) {
       inputs.emplace_back(this, true, 0);
       inputs.back().RegisterBang([this](int, YSE::THREAD) { events.push_back({BANG}); });
       inputs.back().RegisterInt(

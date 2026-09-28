@@ -60,11 +60,11 @@ namespace {
   // from — so a multi-outlet sequence (address then data, entry after entry)
   // reads back as the exact list of sends. MultiSink only keeps the last of
   // each kind, which cannot tell a dump of three entries from a dump of one.
-  struct Recorder : YSE::PATCHER::pObject {
+  struct Recorder : TestHelpers::SinkBase {
     std::vector<std::string>* log = nullptr;
     std::string tag;
 
-    Recorder() : pObject(false) {
+    Recorder() : SinkBase(false) {
       inputs.emplace_back(this, true, 0);
       inputs.back().RegisterBang([this](int, YSE::THREAD) { log->push_back(tag + ":bang"); });
       inputs.back().RegisterInt(

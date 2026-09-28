@@ -131,11 +131,11 @@ namespace {
   // Records every int that arrived tagged with the outlet that delivered it,
   // into a log shared by all the taps of one rig — which is what makes "channel
   // first, then parameter, then value" an assertion rather than an inference.
-  struct Tap : YSE::PATCHER::pObject {
+  struct Tap : TestHelpers::SinkBase {
     std::vector<std::string>* log = nullptr;
     std::string tag;
 
-    Tap() : pObject(false) {
+    Tap() : SinkBase(false) {
       inputs.emplace_back(this, true, 0);
       inputs.back().RegisterInt([this](int v, int, YSE::THREAD) {
         if (log) log->push_back(tag + ":" + std::to_string(v));
@@ -151,10 +151,11 @@ namespace {
   // A registry-built parameter-number input object in a real patcher, with one
   // Tap on each outlet writing into one shared log.
   struct Rig {
-    patcherImplementation patch{1, nullptr};
+    // The taps and their log outlive the patcher (sinks.hpp, #967).
     std::vector<std::string> log;
     std::vector<std::unique_ptr<Tap>> taps;
     std::vector<std::unique_ptr<YSE::pHandle>> tapHandles;
+    patcherImplementation patch{1, nullptr};
     YSE::pHandle* object = nullptr;
 
     // `roundTrip` builds the object in a scratch patcher, dumps that to JSON and
@@ -234,10 +235,10 @@ namespace {
 
   // Keeps every list it was sent rather than only the last, which this family
   // needs: one value on a sender's inlet is four MIDI messages.
-  struct ListLog : YSE::PATCHER::pObject {
+  struct ListLog : TestHelpers::SinkBase {
     std::vector<std::string> received;
 
-    ListLog() : pObject(false) {
+    ListLog() : SinkBase(false) {
       inputs.emplace_back(this, true, 0);
       inputs.back().RegisterList(
           [this](const std::string& v, int, YSE::THREAD) { received.push_back(v); });
@@ -719,12 +720,12 @@ TEST_SUITE("patcher") {
     // of a shared assumption.
     Rig in(YSE::OBJ::M_RPNIN, kPortArg);
 
+    ListLog log;
     YSE::patcher patch;
     patch.create(2);
     YSE::pHandle* out = patch.CreateObject(YSE::OBJ::M_RPNOUT, "0");
     REQUIRE(out != nullptr);
 
-    ListLog log;
     YSE::pHandle logHandle(&log);
     patch.Connect(out, 0, &logHandle, 0);
 

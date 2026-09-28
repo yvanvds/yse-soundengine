@@ -85,11 +85,11 @@ namespace {
   // Records every value it receives, in order and with its kind. Both matter
   // here: a cue list is a *sequence*, and a cue holding "60" has to arrive as
   // an int rather than as a one-element list.
-  struct Recorder : YSE::PATCHER::pObject {
+  struct Recorder : TestHelpers::SinkBase {
     // "i60", "f60.50", "s60 100", "!" for a bang — one string per send.
     std::vector<std::string> seen;
 
-    Recorder() : pObject(false) {
+    Recorder() : SinkBase(false) {
       inputs.emplace_back(this, true, 0);
       inputs.back().RegisterBang([this](int, YSE::THREAD) { seen.emplace_back("!"); });
       inputs.back().RegisterInt(
@@ -652,12 +652,12 @@ TEST_SUITE("patcher") {
     // is real Calculate blocks. Max: "it begins sending messages from the first
     // line, until a line begins with a number, at which point qlist will use
     // that number as a delay time in milliseconds before continuing."
+    Recorder data;
+    Recorder end;
     patcherImplementation p(1, nullptr);
     YSE::pHandle* qlist = p.CreateObject(YSE::OBJ::G_QLIST, "");
     REQUIRE(qlist != nullptr);
 
-    Recorder data;
-    Recorder end;
     YSE::pHandle dataHandle(&data);
     YSE::pHandle endHandle(&end);
     p.Connect(qlist, 0, &dataHandle, 0);
@@ -695,11 +695,11 @@ TEST_SUITE("patcher") {
     // tempo of 2. plays it back twice as fast" — so the tempo divides. The sign
     // of this is a coin flip if you do not read the reference, and the test is
     // what pins it.
+    Recorder data;
     patcherImplementation p(1, nullptr);
     YSE::pHandle* qlist = p.CreateObject(YSE::OBJ::G_QLIST, "");
     REQUIRE(qlist != nullptr);
 
-    Recorder data;
     YSE::pHandle dataHandle(&data);
     p.Connect(qlist, 0, &dataHandle, 0);
 
@@ -720,11 +720,11 @@ TEST_SUITE("patcher") {
   TEST_CASE("qlist: 'stop' cancels the pending step (#500)") {
     // Max: "stop a qlist which is in the middle of playback as a result of a
     // bang message."
+    Recorder data;
     patcherImplementation p(1, nullptr);
     YSE::pHandle* qlist = p.CreateObject(YSE::OBJ::G_QLIST, "");
     REQUIRE(qlist != nullptr);
 
-    Recorder data;
     YSE::pHandle dataHandle(&data);
     p.Connect(qlist, 0, &dataHandle, 0);
 
@@ -750,11 +750,11 @@ TEST_SUITE("patcher") {
   TEST_CASE("qlist: a bang restarts from the first line rather than resuming (#500)") {
     // Max: "it begins sending messages from the first line." A bang that
     // resumed would quietly turn stop-then-bang into a continue.
+    Recorder data;
     patcherImplementation p(1, nullptr);
     YSE::pHandle* qlist = p.CreateObject(YSE::OBJ::G_QLIST, "");
     REQUIRE(qlist != nullptr);
 
-    Recorder data;
     YSE::pHandle dataHandle(&data);
     p.Connect(qlist, 0, &dataHandle, 0);
 
@@ -775,13 +775,13 @@ TEST_SUITE("patcher") {
     // audio callback, so it addresses the receiver with T_DSP semantics, and a
     // step that took the control-thread reading of its tag would take the
     // patcher's mutex there instead.
+    Recorder heard;
     patcherImplementation p(1, nullptr);
     YSE::pHandle* qlist = p.CreateObject(YSE::OBJ::G_QLIST, "");
     REQUIRE(qlist != nullptr);
     YSE::pHandle* receive = p.CreateObject(YSE::OBJ::G_RECEIVE, "cue");
     REQUIRE(receive != nullptr);
 
-    Recorder heard;
     YSE::pHandle heardHandle(&heard);
     p.Connect(receive, 0, &heardHandle, 0);
 
@@ -800,13 +800,13 @@ TEST_SUITE("patcher") {
     // `.route`'s rule on the remote side: a cue that wrote an int has to arrive
     // as one, or everything downstream that expects a number sees a
     // one-element list and quietly does nothing.
+    Recorder heard;
     patcherImplementation p(1, nullptr);
     YSE::pHandle* qlist = p.CreateObject(YSE::OBJ::G_QLIST, "");
     REQUIRE(qlist != nullptr);
     YSE::pHandle* receive = p.CreateObject(YSE::OBJ::G_RECEIVE, "gain");
     REQUIRE(receive != nullptr);
 
-    Recorder heard;
     YSE::pHandle heardHandle(&heard);
     p.Connect(receive, 0, &heardHandle, 0);
 
@@ -828,11 +828,11 @@ TEST_SUITE("patcher") {
   }
 
   TEST_CASE("qlist: 'clear' during playback ends the walk (#500)") {
+    Recorder data;
     patcherImplementation p(1, nullptr);
     YSE::pHandle* qlist = p.CreateObject(YSE::OBJ::G_QLIST, "");
     REQUIRE(qlist != nullptr);
 
-    Recorder data;
     YSE::pHandle dataHandle(&data);
     p.Connect(qlist, 0, &dataHandle, 0);
 
@@ -852,11 +852,11 @@ TEST_SUITE("patcher") {
   TEST_CASE("qlist: a cue list of zero delays advances one entry per block (#500)") {
     // The scheduler's one-block floor, and why a patch cannot write a list that
     // locks the audio thread up: a zero wait is still a wait.
+    Recorder data;
     patcherImplementation p(1, nullptr);
     YSE::pHandle* qlist = p.CreateObject(YSE::OBJ::G_QLIST, "");
     REQUIRE(qlist != nullptr);
 
-    Recorder data;
     YSE::pHandle dataHandle(&data);
     p.Connect(qlist, 0, &dataHandle, 0);
 
@@ -1089,6 +1089,7 @@ TEST_SUITE("patcher") {
     YSE::pHandle endHandle(&end);
     YSE::pHandle heardHandle(&heard);
 
+    Recorder remote;
     patcherImplementation p(1, nullptr);
     YSE::pHandle* qlist = p.CreateObject(YSE::OBJ::G_QLIST, "");
     REQUIRE(qlist != nullptr);
@@ -1098,7 +1099,6 @@ TEST_SUITE("patcher") {
 
     YSE::pHandle* receive = p.CreateObject(YSE::OBJ::G_RECEIVE, "foo");
     REQUIRE(receive != nullptr);
-    Recorder remote;
     YSE::pHandle remoteHandle(&remote);
     p.Connect(receive, 0, &remoteHandle, 0);
 

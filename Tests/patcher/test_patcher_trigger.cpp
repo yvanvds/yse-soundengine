@@ -275,6 +275,7 @@ TEST_SUITE("patcher") {
   // value — which is exactly the class of bug .trigger exists to make
   // impossible, so the check is that the reported value tracks the input.
   TEST_CASE("trigger: 'b i' bangs the value it just stored, in a patcher (#466)") {
+    IntSink sink;
     YSE::patcher p;
     p.create(2);
     YSE::pHandle* trig = p.CreateObject(YSE::OBJ::G_TRIGGER, "b i");
@@ -282,7 +283,6 @@ TEST_SUITE("patcher") {
     REQUIRE(trig != nullptr);
     REQUIRE(store != nullptr);
 
-    IntSink sink;
     YSE::pHandle sinkHandle(&sink);
 
     // Right outlet -> the silent inlet; left outlet -> the bang inlet.

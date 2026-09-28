@@ -85,7 +85,7 @@ namespace {
   // list would not reach the int inlet the unlimited message would have reached
   // — so a sink that only recorded numbers would be blind to the more
   // interesting way of getting this wrong.
-  struct Recorder : YSE::PATCHER::pObject {
+  struct Recorder : TestHelpers::SinkBase {
     struct Event {
       char kind = 'i'; // 'b' bang, 'i' int, 'f' float, 'l' list
       int intValue = 0;
@@ -95,7 +95,7 @@ namespace {
 
     std::vector<Event> events;
 
-    Recorder() : pObject(false) {
+    Recorder() : SinkBase(false) {
       // Reserved up front so the allocation probe measures the *object* rather
       // than this sink's own vector growing under it.
       events.reserve(1024);
@@ -716,11 +716,11 @@ TEST_SUITE("patcher") {
   // ─── .qlim's hold, which needs a real patcher object ────────────────────────
 
   TEST_CASE("ratelimit: .qlim holds a message and sends it when the window opens (#508)") {
+    Recorder out;
     patcherImplementation p(1, nullptr);
     YSE::pHandle* qlim = p.CreateObject(YSE::OBJ::G_QLIM, "100");
     REQUIRE(qlim != nullptr);
 
-    Recorder out;
     YSE::pHandle outHandle(&out);
     p.Connect(qlim, 0, &outHandle, 0);
 
@@ -752,11 +752,11 @@ TEST_SUITE("patcher") {
     // this is not `.pipe`, which would queue all five — and it arrives one
     // interval after the *previous output*, not one interval after the last
     // thing the flood sent.
+    Recorder out;
     patcherImplementation p(1, nullptr);
     YSE::pHandle* qlim = p.CreateObject(YSE::OBJ::G_QLIM, "100");
     REQUIRE(qlim != nullptr);
 
-    Recorder out;
     YSE::pHandle outHandle(&out);
     p.Connect(qlim, 0, &outHandle, 0);
 
@@ -782,11 +782,11 @@ TEST_SUITE("patcher") {
     // one that has to carry the type across a deferral. A .qlim that flattened
     // a held bang into an int, or a held float into text, would still look
     // rate-limited.
+    Recorder out;
     patcherImplementation p(1, nullptr);
     YSE::pHandle* qlim = p.CreateObject(YSE::OBJ::G_QLIM, "100");
     REQUIRE(qlim != nullptr);
 
-    Recorder out;
     YSE::pHandle outHandle(&out);
     p.Connect(qlim, 0, &outHandle, 0);
 
@@ -819,11 +819,11 @@ TEST_SUITE("patcher") {
     // patcher renders. That is the only meaning "100 ms from now" can have on a
     // clock that is not running, and it is what stops a paused engine from
     // releasing a burst the moment it resumes.
+    Recorder out;
     patcherImplementation p(1, nullptr);
     YSE::pHandle* qlim = p.CreateObject(YSE::OBJ::G_QLIM, "100");
     REQUIRE(qlim != nullptr);
 
-    Recorder out;
     YSE::pHandle outHandle(&out);
     p.Connect(qlim, 0, &outHandle, 0);
 
@@ -872,12 +872,12 @@ TEST_SUITE("patcher") {
     // that lands inside it is not held either, on the object whose whole
     // purpose is holding. Between the threshold and the interval the object is
     // itself again.
+    Recorder out;
     patcherImplementation p(1, nullptr);
     YSE::pHandle* qlim = p.CreateObject(YSE::OBJ::G_QLIM, "1000");
     REQUIRE(qlim != nullptr);
     qlim->SetListData(0, "threshold 200");
 
-    Recorder out;
     YSE::pHandle outHandle(&out);
     p.Connect(qlim, 0, &outHandle, 0);
 
@@ -908,12 +908,12 @@ TEST_SUITE("patcher") {
     // matters. Note the pending count: however long the queue is it costs one
     // slot of the patcher-wide scheduler, because the release re-arms itself
     // rather than arming a deadline per message.
+    Recorder out;
     patcherImplementation p(1, nullptr);
     YSE::pHandle* qlim = p.CreateObject(YSE::OBJ::G_QLIM, "100");
     REQUIRE(qlim != nullptr);
     qlim->SetListData(0, "usurp 0");
 
-    Recorder out;
     YSE::pHandle outHandle(&out);
     p.Connect(qlim, 0, &outHandle, 0);
 
@@ -950,6 +950,8 @@ TEST_SUITE("patcher") {
     // else about the queue passes for an implementation that quietly kept
     // usurping; only feeding one burst to both settings and comparing what came
     // out can tell them apart.
+    Recorder newest;
+    Recorder every;
     patcherImplementation p(1, nullptr);
     YSE::pHandle* replacing = p.CreateObject(YSE::OBJ::G_QLIM, "100");
     YSE::pHandle* queueing = p.CreateObject(YSE::OBJ::G_QLIM, "100");
@@ -957,8 +959,6 @@ TEST_SUITE("patcher") {
     REQUIRE(queueing != nullptr);
     queueing->SetListData(0, "usurp 0");
 
-    Recorder newest;
-    Recorder every;
     YSE::pHandle newestHandle(&newest);
     YSE::pHandle everyHandle(&every);
     p.Connect(replacing, 0, &newestHandle, 0);
@@ -981,12 +981,12 @@ TEST_SUITE("patcher") {
   TEST_CASE("ratelimit: a usurp 0 queue holds its messages as the kind they went in as (#728)") {
     // The queued path carries the type across a deferral just as the single
     // held slot does, and it has to keep the order while doing it.
+    Recorder out;
     patcherImplementation p(1, nullptr);
     YSE::pHandle* qlim = p.CreateObject(YSE::OBJ::G_QLIM, "100");
     REQUIRE(qlim != nullptr);
     qlim->SetListData(0, "usurp 0");
 
-    Recorder out;
     YSE::pHandle outHandle(&out);
     p.Connect(qlim, 0, &outHandle, 0);
 
@@ -1055,14 +1055,14 @@ TEST_SUITE("patcher") {
     // which. The issue's warning — "document clearly which one drops and which
     // one holds; getting that backwards is a classic Max bug" — is exactly this
     // assertion, written down.
+    Recorder thinned;
+    Recorder held;
     patcherImplementation p(1, nullptr);
     YSE::pHandle* speedlim = p.CreateObject(YSE::OBJ::G_SPEEDLIM, "100");
     YSE::pHandle* qlim = p.CreateObject(YSE::OBJ::G_QLIM, "100");
     REQUIRE(speedlim != nullptr);
     REQUIRE(qlim != nullptr);
 
-    Recorder thinned;
-    Recorder held;
     YSE::pHandle thinnedHandle(&thinned);
     YSE::pHandle heldHandle(&held);
     p.Connect(speedlim, 0, &thinnedHandle, 0);
@@ -1093,6 +1093,8 @@ TEST_SUITE("patcher") {
     // limiters on the audio thread, and .qlim's hold is armed there too. Nothing
     // else in this file exercises that, and the arming path is precisely the
     // code that must not allocate or lock.
+    Recorder thinned;
+    Recorder held;
     patcherImplementation p(1, nullptr);
     YSE::pHandle* pipe = p.CreateObject(YSE::OBJ::G_PIPE, "");
     YSE::pHandle* speedlim = p.CreateObject(YSE::OBJ::G_SPEEDLIM, "100");
@@ -1101,8 +1103,6 @@ TEST_SUITE("patcher") {
     REQUIRE(speedlim != nullptr);
     REQUIRE(qlim != nullptr);
 
-    Recorder thinned;
-    Recorder held;
     YSE::pHandle thinnedHandle(&thinned);
     YSE::pHandle heldHandle(&held);
     p.Connect(pipe, 0, speedlim, 0);
@@ -1144,14 +1144,14 @@ TEST_SUITE("patcher") {
     if (!TestHelpers::probeCountsAllocations()) return;
     REQUIRE(TestHelpers::probeSeesStringAllocations());
 
+    Recorder thinned;
+    Recorder held;
     patcherImplementation p(1, nullptr);
     YSE::pHandle* speedlim = p.CreateObject(YSE::OBJ::G_SPEEDLIM, "100000");
     YSE::pHandle* qlim = p.CreateObject(YSE::OBJ::G_QLIM, "100000");
     REQUIRE(speedlim != nullptr);
     REQUIRE(qlim != nullptr);
 
-    Recorder thinned;
-    Recorder held;
     YSE::pHandle thinnedHandle(&thinned);
     YSE::pHandle heldHandle(&held);
     p.Connect(speedlim, 0, &thinnedHandle, 0);

@@ -81,10 +81,10 @@ namespace {
   // Records every float this object receives together with the inlet it came
   // in on, in order. Both facts matter: the values are the measurement, and the
   // order is Max's right-to-left outlet rule.
-  struct Sink : YSE::PATCHER::pObject {
+  struct Sink : TestHelpers::SinkBase {
     std::vector<std::pair<int, float>> events;
 
-    Sink() : pObject(false) {
+    Sink() : SinkBase(false) {
       // Reserved up front so the allocation probe measures the *object* rather
       // than this sink's own vector growing under it.
       events.reserve(256);
@@ -138,8 +138,8 @@ namespace {
   // A `.timer` in a real patcher, optionally with a `.transport` driving the
   // clock it measures against, and a sink on both outlets.
   struct ClockRig {
-    patcherImplementation patcher{1, nullptr};
     Sink out;
+    patcherImplementation patcher{1, nullptr};
     YSE::pHandle outHandle{&out};
     YSE::pHandle* transport = nullptr;
     YSE::pHandle* timer = nullptr;
@@ -590,6 +590,7 @@ TEST_SUITE("clock") {
     auto& mgr = YSE::CLOCK::Manager();
     REQUIRE(mgr.createClock("ti.save", kTempo));
 
+    Sink out;
     YSE::patcher src;
     src.create(2);
     YSE::pHandle* obj = src.CreateObject(YSE::OBJ::G_TIMER, "ti.save");
@@ -611,7 +612,6 @@ TEST_SUITE("clock") {
     REQUIRE(back != nullptr);
     CHECK(back->GetParams() == "ti.save");
 
-    Sink out;
     YSE::pHandle outHandle(&out);
     restored.Connect(back, 0, &outHandle, 0);
     restored.Connect(back, 1, &outHandle, 1);

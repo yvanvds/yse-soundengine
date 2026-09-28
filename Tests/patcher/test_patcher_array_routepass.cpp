@@ -52,12 +52,12 @@ namespace {
   // so "exactly one outlet fires" is provable across a row of these.
   // `onList` lets a case act from *inside* the send: the loop-back trigger
   // is a thing the reference's own subgraph does.
-  struct RefSink : YSE::PATCHER::pObject {
+  struct RefSink : TestHelpers::SinkBase {
     std::string received;
     int count = 0;
     std::function<void()> onList;
 
-    RefSink() : pObject(false) {
+    RefSink() : SinkBase(false) {
       received.reserve(256);
       inputs.emplace_back(this, true, 0);
       inputs.back().RegisterList([this](const std::string& v, int, YSE::THREAD) {

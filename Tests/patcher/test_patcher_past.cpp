@@ -40,6 +40,7 @@
 #include "patcher/pObjectList.hpp"
 #include "patcher/pRegistry.h"
 #include "patcher/math/gPast.h"
+#include "patcher/sinks.hpp"
 
 namespace {
 
@@ -50,10 +51,10 @@ namespace {
 
   // Counts bangs. The object's whole output is "it happened", so counting is
   // the assertion — every test below is really about how many times.
-  struct BangSink : YSE::PATCHER::pObject {
+  struct BangSink : TestHelpers::SinkBase {
     int hits = 0;
 
-    BangSink() : pObject(false) {
+    BangSink() : SinkBase(false) {
       inputs.emplace_back(this, true, 0);
       inputs.back().RegisterBang([this](int, YSE::THREAD) { hits++; });
     }

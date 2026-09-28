@@ -88,10 +88,10 @@ namespace {
 
   // Records every list that arrives, in order, so a dump can be asserted as the
   // sequence it is rather than by its last line.
-  struct DumpSink : YSE::PATCHER::pObject {
+  struct DumpSink : TestHelpers::SinkBase {
     std::vector<std::string> lines;
 
-    DumpSink() : pObject(false) {
+    DumpSink() : SinkBase(false) {
       inputs.emplace_back(this, true, 0);
       inputs.back().RegisterBang([this](int, YSE::THREAD) { lines.push_back("<bang>"); });
       inputs.back().RegisterInt([this](int, int, YSE::THREAD) { lines.push_back("<int>"); });
@@ -119,12 +119,12 @@ namespace {
   // bounded number of times. A matrixctrl whose outlet is wired back to its own
   // inlet is the re-entrancy case, and it needs a receiver that stops asking
   // rather than a bare patch cord, which would not terminate.
-  struct FeedbackSink : YSE::PATCHER::pObject {
+  struct FeedbackSink : TestHelpers::SinkBase {
     gMatrixCtrl* target = nullptr;
     int budget = 0;
     int count = 0;
 
-    FeedbackSink() : pObject(false) {
+    FeedbackSink() : SinkBase(false) {
       inputs.emplace_back(this, true, 0);
       inputs.back().RegisterList([this](const std::string&, int, YSE::THREAD t) {
         count++;

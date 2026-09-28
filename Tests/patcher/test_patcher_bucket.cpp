@@ -119,7 +119,7 @@ namespace {
   // terminates — every input produces an output on every outlet, so the loop
   // has no exit — which is exactly why the re-entrancy case needs a receiver
   // that stops feeding rather than a bare patch cord.
-  struct FeedbackSink : YSE::PATCHER::pObject {
+  struct FeedbackSink : TestHelpers::SinkBase {
     gBucket* target = nullptr;
     int fireValue = 0;
     int budget = 0;
@@ -129,7 +129,7 @@ namespace {
     int lastInt = 0;
     int count = 0;
 
-    FeedbackSink() : pObject(false) {
+    FeedbackSink() : SinkBase(false) {
       inputs.emplace_back(this, true, 0);
       inputs.back().RegisterInt([this](int v, int, YSE::THREAD thread) {
         lastInt = v;
@@ -765,6 +765,8 @@ TEST_SUITE("patcher") {
     // before it, side by side, which is the canon / arpeggio-echo shape. Each
     // path adds a different constant so the sinks' values are only right if the
     // stages held what they should.
+    FloatSink now;
+    FloatSink before;
     YSE::patcher p;
     p.create(2);
     YSE::pHandle* bucket = p.CreateObject(YSE::OBJ::G_BUCKET, "2 1");
@@ -774,8 +776,6 @@ TEST_SUITE("patcher") {
     REQUIRE(addTen != nullptr);
     REQUIRE(addHundred != nullptr);
 
-    FloatSink now;
-    FloatSink before;
     YSE::pHandle nowHandle(&now);
     YSE::pHandle beforeHandle(&before);
 

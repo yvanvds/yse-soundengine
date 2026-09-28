@@ -60,10 +60,10 @@ namespace {
   // emits one list per connected cell, so "what did the whole dump say, and how
   // many lines was it" is the assertion — a sink that kept only the last value
   // could not tell a complete dump from a truncated or a nested one.
-  struct DumpSink : YSE::PATCHER::pObject {
+  struct DumpSink : TestHelpers::SinkBase {
     std::vector<std::string> lines;
 
-    DumpSink() : pObject(false) {
+    DumpSink() : SinkBase(false) {
       inputs.emplace_back(this, true, 0);
       inputs.back().RegisterBang([this](int, YSE::THREAD) { lines.push_back("<bang>"); });
       inputs.back().RegisterInt([this](int, int, YSE::THREAD) { lines.push_back("<int>"); });
@@ -91,7 +91,7 @@ namespace {
   // bounded number of times. A crossbar whose outlet is wired to its own
   // control inlet is the re-entrancy case, and it needs a receiver that stops
   // feeding rather than a bare patch cord, which would not terminate.
-  struct ControlFeedbackSink : YSE::PATCHER::pObject {
+  struct ControlFeedbackSink : TestHelpers::SinkBase {
     gMatrix* target = nullptr;
     std::string message;
     int budget = 0;
@@ -100,7 +100,7 @@ namespace {
     char tag = '?';
     int count = 0;
 
-    ControlFeedbackSink() : pObject(false) {
+    ControlFeedbackSink() : SinkBase(false) {
       inputs.emplace_back(this, true, 0);
       inputs.back().RegisterBang([this](int, YSE::THREAD t) { Hit(t); });
       inputs.back().RegisterInt([this](int, int, YSE::THREAD t) { Hit(t); });
@@ -845,6 +845,7 @@ TEST_SUITE("patcher") {
   }
 
   TEST_CASE("matrix: survives a DumpJSON / ParseJSON round trip (#484)") {
+    FloatSink sink;
     YSE::patcher src;
     src.create(2);
     YSE::pHandle* h = src.CreateObject(YSE::OBJ::G_MATRIX);
@@ -869,7 +870,6 @@ TEST_SUITE("patcher") {
 
     // And the reloaded object is a working weighted crossbar, not merely the
     // right shape: the default gain came back too, so a bare `connect` halves.
-    FloatSink sink;
     YSE::pHandle sinkHandle(&sink);
     loaded.Connect(copy, 2, &sinkHandle, 0);
     copy->SetListData(0, "connect 1 2");
@@ -899,13 +899,13 @@ TEST_SUITE("patcher") {
     // re-patching. This is the case a .router plus per-destination multipliers
     // could not express in one object, because the depths would live in
     // separate boxes that no single message can address.
+    FloatSink cutoff;
+    FloatSink amount;
     YSE::patcher p;
     p.create(2);
     YSE::pHandle* matrix = p.CreateObject(YSE::OBJ::G_MATRIX, "2 2");
     REQUIRE(matrix != nullptr);
 
-    FloatSink cutoff;
-    FloatSink amount;
     YSE::pHandle cutoffHandle(&cutoff);
     YSE::pHandle amountHandle(&amount);
 

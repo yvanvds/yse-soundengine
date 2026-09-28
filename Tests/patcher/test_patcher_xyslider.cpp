@@ -502,12 +502,12 @@ TEST_SUITE("patcher") {
     // All four params are scalars and the object registers no clear/parse
     // callbacks, so SetParams on a running patcher must defer to the audio
     // thread rather than replace the object (issue #234).
+    MultiSink sink;
     patcherImplementation p(1, nullptr);
     YSE::pHandle* pad = p.CreateObject(YSE::OBJ::G_XYSLIDER, "0 127 0 127");
     REQUIRE(pad != nullptr);
 
     // Wired to x, which is the axis the narrowing bound moves here.
-    MultiSink sink;
     YSE::pHandle sinkHandle(&sink);
     p.Connect(pad, 0, &sinkHandle, 0);
 

@@ -67,7 +67,7 @@ namespace {
   //
   // Events are a fixed-size struct in a reserved vector rather than strings, so
   // the allocation probe measures the object under test and not this sink.
-  struct Notes : YSE::PATCHER::pObject {
+  struct Notes : TestHelpers::SinkBase {
     struct Event {
       char kind = 'p'; // 'p' pitch outlet, 'v' velocity outlet
       int value = 0;
@@ -75,7 +75,7 @@ namespace {
 
     std::vector<Event> events;
 
-    Notes() : pObject(false) {
+    Notes() : SinkBase(false) {
       events.reserve(4096);
 
       inputs.emplace_back(this, true, 0);
@@ -123,10 +123,10 @@ namespace {
   // chains where the message may be a binary MIDI list rather than a pair of
   // ints. Deliberately not owned by the patcher: it stands in for everything
   // downstream that a release has to reach.
-  struct Tap : YSE::PATCHER::pObject {
+  struct Tap : TestHelpers::SinkBase {
     std::vector<std::string> log;
 
-    Tap() : pObject(false) {
+    Tap() : SinkBase(false) {
       log.reserve(64);
       inputs.emplace_back(this, true, 0);
       inputs.back().RegisterInt(

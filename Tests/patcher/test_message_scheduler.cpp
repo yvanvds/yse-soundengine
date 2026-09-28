@@ -55,7 +55,7 @@ namespace {
   // Records every deferred delivery it receives, including the logical-event
   // id observed *during* the callback — the property the scheduler exists to
   // provide.
-  struct DeferProbe : YSE::PATCHER::pObject {
+  struct DeferProbe : TestHelpers::SinkBase {
     struct Hit {
       int tag;
       DEFERRED_KIND kind;
@@ -66,7 +66,7 @@ namespace {
     };
     std::vector<Hit> hits;
 
-    DeferProbe() : pObject(false) {}
+    DeferProbe() : SinkBase(false) {}
     const char* Type() const override {
       return "defer_probe";
     }
@@ -351,15 +351,15 @@ TEST_SUITE("patcher") {
   // ─── the first user: .bondo's delay argument ────────────────────────────────
 
   TEST_CASE("bondo: inside a patcher the delay argument defers the release (#628)") {
+    OrderSink left;
+    OrderSink right;
     patcherImplementation p(1, nullptr);
     YSE::pHandle* bondo = p.CreateObject(YSE::OBJ::G_BONDO, "2 100");
     REQUIRE(bondo != nullptr);
 
     std::vector<char> order;
-    OrderSink left;
     left.tag = 'a';
     left.log = &order;
-    OrderSink right;
     right.tag = 'b';
     right.log = &order;
     YSE::pHandle leftHandle(&left);
@@ -393,15 +393,15 @@ TEST_SUITE("patcher") {
 
   TEST_CASE(
       "bondo: a new message reschedules the pending release — one release, final set (#628)") {
+    OrderSink left;
+    OrderSink right;
     patcherImplementation p(1, nullptr);
     YSE::pHandle* bondo = p.CreateObject(YSE::OBJ::G_BONDO, "2 100");
     REQUIRE(bondo != nullptr);
 
     std::vector<char> order;
-    OrderSink left;
     left.tag = 'a';
     left.log = &order;
-    OrderSink right;
     right.tag = 'b';
     right.log = &order;
     YSE::pHandle leftHandle(&left);
@@ -437,15 +437,15 @@ TEST_SUITE("patcher") {
     // Max: "output will be immediate if triggered by a bang" — the delay
     // argument only defers message-triggered releases. A pending deferred
     // release is not consumed by the bang; it fires at its own time.
+    OrderSink left;
+    OrderSink right;
     patcherImplementation p(1, nullptr);
     YSE::pHandle* bondo = p.CreateObject(YSE::OBJ::G_BONDO, "2 100");
     REQUIRE(bondo != nullptr);
 
     std::vector<char> order;
-    OrderSink left;
     left.tag = 'a';
     left.log = &order;
-    OrderSink right;
     right.tag = 'b';
     right.log = &order;
     YSE::pHandle leftHandle(&left);
@@ -471,15 +471,15 @@ TEST_SUITE("patcher") {
   TEST_CASE("bondo: the deferred release emits the set held at fire time (#628)") {
     // The deferral defers the *release*, not a snapshot: a quiet `set` store
     // between arm and fire is included in what goes out.
+    OrderSink left;
+    OrderSink right;
     patcherImplementation p(1, nullptr);
     YSE::pHandle* bondo = p.CreateObject(YSE::OBJ::G_BONDO, "2 100");
     REQUIRE(bondo != nullptr);
 
     std::vector<char> order;
-    OrderSink left;
     left.tag = 'a';
     left.log = &order;
-    OrderSink right;
     right.tag = 'b';
     right.log = &order;
     YSE::pHandle leftHandle(&left);
@@ -505,6 +505,8 @@ TEST_SUITE("patcher") {
     // several stimuli. Through the scheduler, the deferred release happens
     // inside one dispatch frame: one separated bang, the rest continued —
     // checked against the real object, as the immediate-release test does.
+    OrderSink separated;
+    OrderSink continued;
     patcherImplementation p(1, nullptr);
     YSE::pHandle* bondo = p.CreateObject(YSE::OBJ::G_BONDO, "3 50");
     REQUIRE(bondo != nullptr);
@@ -514,10 +516,8 @@ TEST_SUITE("patcher") {
       p.Connect(bondo, outlet, next, 0);
 
     std::vector<char> order;
-    OrderSink separated;
     separated.tag = 'S';
     separated.log = &order;
-    OrderSink continued;
     continued.tag = 'C';
     continued.log = &order;
     YSE::pHandle separatedHandle(&separated);
@@ -561,11 +561,11 @@ TEST_SUITE("patcher") {
   TEST_CASE("bondo: without a delay argument the release stays synchronous in a patcher (#628)") {
     // The delay path must not tax the common case: no argument, same-frame
     // release, nothing pending, exactly as before #628.
+    OrderSink sink;
     patcherImplementation p(1, nullptr);
     YSE::pHandle* bondo = p.CreateObject(YSE::OBJ::G_BONDO, "2");
     REQUIRE(bondo != nullptr);
 
-    OrderSink sink;
     YSE::pHandle sinkHandle(&sink);
     p.Connect(bondo, 0, &sinkHandle, 0);
 

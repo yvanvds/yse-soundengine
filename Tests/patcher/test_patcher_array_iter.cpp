@@ -67,12 +67,12 @@ namespace {
   // tells two rigs apart in one log, and `onAny` lets a case act from
   // *inside* the walk — the mid-walk mutation and the loop-back trigger are
   // both things the elements' own subgraph does.
-  struct SeqSink : YSE::PATCHER::pObject {
+  struct SeqSink : TestHelpers::SinkBase {
     std::vector<std::string>* log = nullptr;
     std::string prefix;
     std::function<void()> onAny;
 
-    SeqSink() : pObject(false) {
+    SeqSink() : SinkBase(false) {
       inputs.emplace_back(this, true, 0);
       inputs.back().RegisterInt([this](int v, int, YSE::THREAD) {
         if (log != nullptr) log->push_back(prefix + "i:" + std::to_string(v));

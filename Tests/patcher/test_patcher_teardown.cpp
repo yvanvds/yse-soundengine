@@ -45,6 +45,7 @@
 #include "patcher/pObjectList.hpp"
 #include "patcher/patcher.hpp"
 #include "patcher/patcherImplementation.h"
+#include "patcher/sinks.hpp"
 #include "patcher/time/TimerThread.h"
 
 using YSE::PATCHER::patcherImplementation;
@@ -61,10 +62,10 @@ namespace {
   // a real patch is `.midiout` and a device. Declared before the patcher in
   // every case below, so the patcher dies first and the pass has somewhere to
   // send (sinks.hpp's teardown rule).
-  struct Tap : YSE::PATCHER::pObject {
+  struct Tap : TestHelpers::SinkBase {
     std::vector<std::string> log;
 
-    Tap() : pObject(false) {
+    Tap() : SinkBase(false) {
       log.reserve(64);
       inputs.emplace_back(this, true, 0);
       inputs.back().RegisterInt(
@@ -432,6 +433,40 @@ TEST_SUITE("patcher") {
 
     p.DeleteObject(metro);
     CHECK(YSE::PATCHER::TimerThread().size() == before);
+  }
+
+  // ─── the sink-order guard (#967) ─────────────────────────────────────────────
+
+  // Proves TestHelpers::SinkBase catches the misordering the cases above avoid:
+  // a sink declared after the patcher that feeds it. Nothing here sends from
+  // Teardown, so this is the latent form of the bug — it would pass silently
+  // without the guard. `expected_failures(1)` makes it a failure unless the
+  // guard reports exactly once.
+  TEST_CASE("teardown: a sink declared after its patcher fails the test (#967)" *
+            doctest::expected_failures(1)) {
+    patcherImplementation p(1, nullptr);
+    YSE::pHandle* number = p.CreateObject(YSE::OBJ::G_INT, "");
+    REQUIRE(number != nullptr);
+
+    TestHelpers::IntSink late; // wrong on purpose: destroyed before `p`
+    YSE::pHandle lateHandle(&late);
+    p.Connect(number, 0, &lateHandle, 0);
+
+    number->SetIntData(0, 7);
+    CHECK(late.received == 7);
+  }
+
+  // The control: the same rig in the right order raises nothing.
+  TEST_CASE("teardown: a sink declared before its patcher passes (#967)") {
+    TestHelpers::IntSink early;
+    YSE::pHandle earlyHandle(&early);
+    patcherImplementation p(1, nullptr);
+    YSE::pHandle* number = p.CreateObject(YSE::OBJ::G_INT, "");
+    REQUIRE(number != nullptr);
+    p.Connect(number, 0, &earlyHandle, 0);
+
+    number->SetIntData(0, 7);
+    CHECK(early.received == 7);
   }
 
 } // TEST_SUITE

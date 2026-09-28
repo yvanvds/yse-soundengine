@@ -66,7 +66,7 @@ namespace {
   // int into a list would not reach the int inlet the undelayed value would
   // have reached — so a sink that only recorded numbers would be blind to the
   // more interesting way of getting this wrong.
-  struct Recorder : YSE::PATCHER::pObject {
+  struct Recorder : TestHelpers::SinkBase {
     struct Event {
       char kind = 'i'; // 'i' int, 'f' float, 'l' list
       int intValue = 0;
@@ -76,7 +76,7 @@ namespace {
 
     std::vector<Event> events;
 
-    Recorder() : pObject(false) {
+    Recorder() : SinkBase(false) {
       // Reserved up front so the allocation probe measures the *object* rather
       // than this sink's own vector growing under it.
       events.reserve(1024);
@@ -342,11 +342,11 @@ TEST_SUITE("patcher") {
   // ─── the queue and the clock, which need a real patcher ─────────────────────
 
   TEST_CASE("pipe: a value comes back one wait later, not in the arming dispatch (#504)") {
+    Recorder out;
     patcherImplementation p(1, nullptr);
     YSE::pHandle* pipe = p.CreateObject(YSE::OBJ::G_PIPE, "100");
     REQUIRE(pipe != nullptr);
 
-    Recorder out;
     YSE::pHandle outHandle(&out);
     p.Connect(pipe, 0, &outHandle, 0);
 
@@ -379,11 +379,11 @@ TEST_SUITE("patcher") {
     // the left inlet, the first bang is forgotten". Five values in, five values
     // out, in order — an implementation that reused `.delay`'s single pending
     // handle would deliver exactly one and look perfectly healthy doing it.
+    Recorder out;
     patcherImplementation p(1, nullptr);
     YSE::pHandle* pipe = p.CreateObject(YSE::OBJ::G_PIPE, "100");
     REQUIRE(pipe != nullptr);
 
-    Recorder out;
     YSE::pHandle outHandle(&out);
     p.Connect(pipe, 0, &outHandle, 0);
 
@@ -412,11 +412,11 @@ TEST_SUITE("patcher") {
     // Here the second value is queued with a *shorter* delay than the first,
     // so it overtakes it — which is only possible because the two deadlines
     // are independent.
+    Recorder out;
     patcherImplementation p(1, nullptr);
     YSE::pHandle* pipe = p.CreateObject(YSE::OBJ::G_PIPE, "100");
     REQUIRE(pipe != nullptr);
 
-    Recorder out;
     YSE::pHandle outHandle(&out);
     p.Connect(pipe, 0, &outHandle, 0);
 
@@ -446,11 +446,11 @@ TEST_SUITE("patcher") {
   TEST_CASE("pipe: 'clear' drops every pending value (#504)") {
     // Max: "clear: removes all delayed items from pipe's memory, so they will
     // not be output." Every one of them, not just the newest.
+    Recorder out;
     patcherImplementation p(1, nullptr);
     YSE::pHandle* pipe = p.CreateObject(YSE::OBJ::G_PIPE, "100");
     REQUIRE(pipe != nullptr);
 
-    Recorder out;
     YSE::pHandle outHandle(&out);
     p.Connect(pipe, 0, &outHandle, 0);
 
@@ -476,11 +476,11 @@ TEST_SUITE("patcher") {
     // immediately." Immediately means inside this dispatch, not on the next
     // block — a flush that merely rescheduled everything for 0 ms would pass a
     // count assertion and fail this one.
+    Recorder out;
     patcherImplementation p(1, nullptr);
     YSE::pHandle* pipe = p.CreateObject(YSE::OBJ::G_PIPE, "100");
     REQUIRE(pipe != nullptr);
 
-    Recorder out;
     YSE::pHandle outHandle(&out);
     p.Connect(pipe, 0, &outHandle, 0);
 
@@ -516,11 +516,11 @@ TEST_SUITE("patcher") {
     // object's one guarantee at exactly the moment the patch is at its resource
     // limit, and would let a `.pipe` fed from its own outlet recurse on the
     // audio thread.
+    Recorder out;
     patcherImplementation p(1, nullptr);
     YSE::pHandle* pipe = p.CreateObject(YSE::OBJ::G_PIPE, "1000");
     REQUIRE(pipe != nullptr);
 
-    Recorder out;
     YSE::pHandle outHandle(&out);
     p.Connect(pipe, 0, &outHandle, 0);
 
@@ -548,11 +548,11 @@ TEST_SUITE("patcher") {
     // semantics rather than as rounding: `pipe 0` is how a patch breaks out of
     // the current message chain, and it is what keeps a pipe wired back into
     // its own inlet a fast delay line instead of a stack overflow.
+    Recorder out;
     patcherImplementation p(1, nullptr);
     YSE::pHandle* pipe = p.CreateObject(YSE::OBJ::G_PIPE, "");
     REQUIRE(pipe != nullptr);
 
-    Recorder out;
     YSE::pHandle outHandle(&out);
     p.Connect(pipe, 0, &outHandle, 0);
 
@@ -571,11 +571,11 @@ TEST_SUITE("patcher") {
     // patcher renders. That is the only meaning "100 ms from now" can have on a
     // clock that is not running, and it is what makes a queued value survive a
     // paused engine instead of arriving in a burst afterwards.
+    Recorder out;
     patcherImplementation p(1, nullptr);
     YSE::pHandle* pipe = p.CreateObject(YSE::OBJ::G_PIPE, "100");
     REQUIRE(pipe != nullptr);
 
-    Recorder out;
     YSE::pHandle outHandle(&out);
     p.Connect(pipe, 0, &outHandle, 0);
 
@@ -598,13 +598,13 @@ TEST_SUITE("patcher") {
     // second one. Nothing else in this file exercises an arrival on the audio
     // thread, and the arm path is precisely the code that must not allocate or
     // lock there.
+    Recorder out;
     patcherImplementation p(1, nullptr);
     YSE::pHandle* first = p.CreateObject(YSE::OBJ::G_PIPE, "50");
     YSE::pHandle* second = p.CreateObject(YSE::OBJ::G_PIPE, "50");
     REQUIRE(first != nullptr);
     REQUIRE(second != nullptr);
 
-    Recorder out;
     YSE::pHandle outHandle(&out);
     p.Connect(first, 0, second, 0);
     p.Connect(second, 0, &outHandle, 0);
@@ -639,11 +639,11 @@ TEST_SUITE("patcher") {
     if (!TestHelpers::probeCountsAllocations()) return;
     REQUIRE(TestHelpers::probeSeesStringAllocations());
 
+    Recorder out;
     patcherImplementation p(1, nullptr);
     YSE::pHandle* pipe = p.CreateObject(YSE::OBJ::G_PIPE, "1000");
     REQUIRE(pipe != nullptr);
 
-    Recorder out;
     YSE::pHandle outHandle(&out);
     p.Connect(pipe, 0, &outHandle, 0);
 

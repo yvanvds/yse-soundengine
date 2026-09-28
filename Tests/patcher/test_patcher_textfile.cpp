@@ -75,11 +75,11 @@ namespace {
   // Records every value it receives, in order and with its kind. The order and
   // the kinds are half of what this object promises — a dump of three lines has
   // to read back as three sends, and a line holding "60" has to arrive as an int.
-  struct Recorder : YSE::PATCHER::pObject {
+  struct Recorder : TestHelpers::SinkBase {
     // "i60", "f60.5", "sfoo", "!" for a bang — one string per send.
     std::vector<std::string> seen;
 
-    Recorder() : pObject(false) {
+    Recorder() : SinkBase(false) {
       inputs.emplace_back(this, true, 0);
       inputs.back().RegisterBang([this](int, YSE::THREAD) { seen.emplace_back("!"); });
       inputs.back().RegisterInt(
@@ -578,6 +578,8 @@ TEST_SUITE("patcher") {
     // "save data with patcher", `table` and `funbuff` have `embed`, and `text`
     // has none of them, because Max keeps a text's contents in a *file* reached
     // by read / write. When that lands here (#683) they will live there too.
+    Recorder out;
+    Recorder count;
     YSE::patcher src;
     src.create(2);
     YSE::pHandle* obj = src.CreateObject(YSE::OBJ::G_TEXTFILE);
@@ -595,8 +597,6 @@ TEST_SUITE("patcher") {
     YSE::pHandle* copy = loaded.GetHandleFromList(0);
     REQUIRE(copy != nullptr);
 
-    Recorder out;
-    Recorder count;
     YSE::pHandle outHandle(&out);
     YSE::pHandle countHandle(&count);
     loaded.Connect(copy, 0, &outHandle, 0);

@@ -47,6 +47,7 @@
 #include "patcher/pObjectList.hpp"
 #include "patcher/pRegistry.h"
 #include "patcher/math/gRunningExtremum.h"
+#include "patcher/sinks.hpp"
 
 namespace {
 
@@ -61,14 +62,14 @@ namespace {
   // message is silent" and the right-to-left outlet order can be asserted
   // rather than assumed. One type serves all three outlets: the extreme
   // arrives as a float, the two flags as ints.
-  struct OrderSink : YSE::PATCHER::pObject {
+  struct OrderSink : TestHelpers::SinkBase {
     std::vector<char>* log = nullptr;
     char tag = '?';
     float lastFloat = 0.f;
     int lastInt = -1;
     int hits = 0;
 
-    OrderSink() : pObject(false) {
+    OrderSink() : SinkBase(false) {
       inputs.emplace_back(this, true, 0);
       inputs.back().RegisterFloat([this](float v, int, YSE::THREAD) {
         lastFloat = v;

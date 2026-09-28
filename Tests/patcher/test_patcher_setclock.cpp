@@ -45,6 +45,7 @@
 #include "patcher/time/gSetClock.h"
 #include "patcher/time/messageScheduler.h"
 #include "support/alloc_probe.hpp"
+#include "patcher/sinks.hpp"
 
 namespace {
 
@@ -68,10 +69,10 @@ namespace {
   }
 
   // Records every float it is sent, in order.
-  struct FloatRecorder : YSE::PATCHER::pObject {
+  struct FloatRecorder : TestHelpers::SinkBase {
     std::vector<float> seen;
 
-    FloatRecorder() : pObject(false) {
+    FloatRecorder() : SinkBase(false) {
       // Reserved up front so the allocation-probe case measures the *object's*
       // handlers rather than this vector growing under them.
       seen.reserve(64);
@@ -86,10 +87,10 @@ namespace {
   };
 
   // Counts bangs. The end-to-end case wires a `.timepoint` into one of these.
-  struct BangCounter : YSE::PATCHER::pObject {
+  struct BangCounter : TestHelpers::SinkBase {
     int bangs = 0;
 
-    BangCounter() : pObject(false) {
+    BangCounter() : SinkBase(false) {
       inputs.emplace_back(this, true, 0);
       inputs.back().RegisterBang([this](int, YSE::THREAD) { bangs++; });
     }
@@ -102,8 +103,8 @@ namespace {
 
   // A `.setclock` living in a real patcher, with a recorder on its one outlet.
   struct SetClockRig {
-    patcherImplementation patcher{1, nullptr};
     FloatRecorder out;
+    patcherImplementation patcher{1, nullptr};
     YSE::pHandle outHandle{&out};
     YSE::pHandle* obj = nullptr;
 
@@ -494,8 +495,9 @@ TEST_SUITE("clock") {
     // clock is created stopped and is waiting for a `start` nobody sent.
     auto& mgr = YSE::CLOCK::Manager();
 
-    patcherImplementation live(1, nullptr);
     BangCounter fired;
+    BangCounter never;
+    patcherImplementation live(1, nullptr);
     YSE::pHandle firedHandle{&fired};
     REQUIRE(live.CreateObject(YSE::OBJ::G_SETCLOCK, "sc.poly 240") != nullptr);
     YSE::pHandle* point = live.CreateObject(YSE::OBJ::G_TIMEPOINT, "sc.poly 2");
@@ -511,7 +513,6 @@ TEST_SUITE("clock") {
     CHECK(fired.bangs == 1);
 
     patcherImplementation stopped(1, nullptr);
-    BangCounter never;
     YSE::pHandle neverHandle{&never};
     REQUIRE(stopped.CreateObject(YSE::OBJ::G_TRANSPORT, "sc.poly.tr 240") != nullptr);
     YSE::pHandle* other = stopped.CreateObject(YSE::OBJ::G_TIMEPOINT, "sc.poly.tr 2");

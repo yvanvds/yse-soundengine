@@ -50,11 +50,11 @@ namespace {
   // Records everything it receives, in order — so a dump of N values reads back
   // as the exact list of sends. MultiSink only keeps the last of each kind, which
   // cannot tell a dump of three values from a dump of one.
-  struct Recorder : YSE::PATCHER::pObject {
+  struct Recorder : TestHelpers::SinkBase {
     std::vector<std::string>* log = nullptr;
     std::string tag;
 
-    Recorder() : pObject(false) {
+    Recorder() : SinkBase(false) {
       inputs.emplace_back(this, true, 0);
       inputs.back().RegisterBang([this](int, YSE::THREAD) { log->push_back(tag + ":bang"); });
       inputs.back().RegisterInt(
@@ -729,6 +729,7 @@ TEST_SUITE("patcher") {
     // silence would bring `embed 0` back as `embed 1` and the table would quietly
     // start saving itself again — which is why .funbuff's "write nothing at all"
     // could not be copied here.
+    MultiSink sink;
     YSE::patcher src;
     src.create(2);
     YSE::pHandle* t = src.CreateObject(YSE::OBJ::G_TABLE, "4");
@@ -747,7 +748,6 @@ TEST_SUITE("patcher") {
     REQUIRE(copy != nullptr);
 
     // The contents did not come back...
-    MultiSink sink;
     YSE::pHandle sinkHandle(&sink);
     loaded.Connect(copy, 0, &sinkHandle, 0);
     copy->SetIntData(0, 1);
@@ -796,6 +796,7 @@ TEST_SUITE("patcher") {
     // registry the issue says not to build. The departure is asserted rather than
     // left implicit, because a patch relying on two tables being one store would
     // be wrong in a way nothing downstream could see.
+    MultiSink sink;
     YSE::patcher p;
     p.create(2);
     YSE::pHandle* a = p.CreateObject(YSE::OBJ::G_TABLE, "shared 8");
@@ -803,7 +804,6 @@ TEST_SUITE("patcher") {
     REQUIRE(a != nullptr);
     REQUIRE(b != nullptr);
 
-    MultiSink sink;
     YSE::pHandle sinkHandle(&sink);
     p.Connect(b, 0, &sinkHandle, 0);
 
@@ -961,8 +961,8 @@ TEST_SUITE("patcher") {
     // two delivery paths — in the monolithic test binary another translation unit
     // may have called System::init() first, in which case the receiver is also
     // subscribed to this patcher's own bus address.
-    YSE::PATCHER::patcherImplementation p{2, nullptr};
     MultiSink sink;
+    YSE::PATCHER::patcherImplementation p{2, nullptr};
     YSE::pHandle sinkHandle(&sink);
 
     YSE::pHandle* t = p.CreateObject(YSE::OBJ::G_TABLE, "8");

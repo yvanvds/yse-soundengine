@@ -66,10 +66,10 @@ namespace {
   // PassData path finds the receivers through the patcher rather than through
   // the graph.
   struct Rig {
-    YSE::PATCHER::patcherImplementation p{2, nullptr};
-    gForward fwd;
     MultiSink a;
     MultiSink b;
+    YSE::PATCHER::patcherImplementation p{2, nullptr};
+    gForward fwd;
     YSE::pHandle aHandle{&a};
     YSE::pHandle bHandle{&b};
 
@@ -214,10 +214,10 @@ TEST_SUITE("patcher") {
     // A destination computed by a .counter has to reach the .r a patch author
     // typed, so the int-to-text spelling here must be the one Parameters::Set
     // gave that .r its name with.
+    MultiSink sink;
     YSE::PATCHER::patcherImplementation p(2, nullptr);
     YSE::pHandle* recv = p.CreateObject(YSE::OBJ::G_RECEIVE, "3");
     REQUIRE(recv != nullptr);
-    MultiSink sink;
     YSE::pHandle sinkHandle(&sink);
     p.Connect(recv, 0, &sinkHandle, 0);
 
