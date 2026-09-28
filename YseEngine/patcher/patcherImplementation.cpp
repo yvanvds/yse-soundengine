@@ -598,31 +598,31 @@ void patcherImplementation::SetObjectContainer(YSE::pHandle* obj, YSE::pHandle* 
     return;
   }
   if (container == nullptr) {
-    obj->object->SetContainer(nullptr);
+    obj->ObjectUnderLock()->SetContainer(nullptr);
     return;
   }
   if (objects.find(container) == objects.end()) {
     INTERNAL::LogImpl().emit(E_ERROR, "Patcher: SetContainer target is not in this patcher");
     return;
   }
-  if (!IsSubpatcher(container->object)) {
+  if (!IsSubpatcher(container->ObjectUnderLock())) {
     INTERNAL::LogImpl().emit(E_ERROR, "Patcher: SetContainer target is not a 'patcher' object");
     return;
   }
   // A subpatcher may not end up inside itself or inside one of its own
   // descendants. Without this check the containment graph could hold a cycle,
   // and DeleteObject's subtree walk over it would never terminate.
-  if (ContainmentWouldCycle(obj->object, container->object)) {
+  if (ContainmentWouldCycle(obj->ObjectUnderLock(), container->ObjectUnderLock())) {
     INTERNAL::LogImpl().emit(E_ERROR, "Patcher: SetContainer would put a subpatcher inside itself");
     return;
   }
-  obj->object->SetContainer(container->object);
+  obj->ObjectUnderLock()->SetContainer(container->ObjectUnderLock());
 }
 
 YSE::pHandle* patcherImplementation::GetObjectContainer(YSE::pHandle* obj) {
   if (obj == nullptr) return nullptr;
   std::scoped_lock lk(mtx);
-  pObject* owner = obj->object->Container();
+  pObject* owner = obj->ObjectUnderLock()->Container();
   if (owner == nullptr) return nullptr;
   for (const auto& any : objects) {
     if (any.second == owner) return any.first;
@@ -633,15 +633,15 @@ YSE::pHandle* patcherImplementation::GetObjectContainer(YSE::pHandle* obj) {
 int patcherImplementation::SubpatcherInlets(YSE::pHandle* container) {
   if (container == nullptr) return 0;
   std::scoped_lock lk(mtx);
-  if (!IsSubpatcher(container->object)) return 0;
-  return BoundaryPinCount(container->object, BoundarySide::INLETS);
+  if (!IsSubpatcher(container->ObjectUnderLock())) return 0;
+  return BoundaryPinCount(container->ObjectUnderLock(), BoundarySide::INLETS);
 }
 
 int patcherImplementation::SubpatcherOutlets(YSE::pHandle* container) {
   if (container == nullptr) return 0;
   std::scoped_lock lk(mtx);
-  if (!IsSubpatcher(container->object)) return 0;
-  return BoundaryPinCount(container->object, BoundarySide::OUTLETS);
+  if (!IsSubpatcher(container->ObjectUnderLock())) return 0;
+  return BoundaryPinCount(container->ObjectUnderLock(), BoundarySide::OUTLETS);
 }
 
 YSE::PATCHER::inlet* patcherImplementation::ResolveInlet(pObject* obj, int pin) {
@@ -667,19 +667,38 @@ YSE::OUT_TYPE patcherImplementation::ResolveOutputType(pObject* obj, int pin) {
 // replacement (ReplaceObjectUnlocked) and hands the old one to the reclaimer.
 unsigned int patcherImplementation::OutletConnections(YSE::pHandle* handle, unsigned int outlet) {
   std::scoped_lock lk(mtx);
-  return handle->object->GetConnections(outlet);
+  return handle->ObjectUnderLock()->GetConnections(outlet);
 }
 
 unsigned int patcherImplementation::OutletTarget(YSE::pHandle* handle, unsigned int outlet,
                                                  unsigned int connection) {
   std::scoped_lock lk(mtx);
-  return handle->object->GetConnectionTarget(outlet, connection);
+  return handle->ObjectUnderLock()->GetConnectionTarget(outlet, connection);
 }
 
 unsigned int patcherImplementation::OutletTargetInlet(YSE::pHandle* handle, unsigned int outlet,
                                                       unsigned int connection) {
   std::scoped_lock lk(mtx);
-  return handle->object->GetConnectionTargetInlet(outlet, connection);
+  return handle->ObjectUnderLock()->GetConnectionTargetInlet(outlet, connection);
+}
+
+// Under mtx, like every write to what they read (issue #968): a host
+// SetGuiProperty, a scalar SetParams rewriting the parameter string, and the
+// GUI-property copy a structural SetParams makes onto the replacement.
+std::string patcherImplementation::ObjectGuiProperty(YSE::pHandle* handle, const std::string& key) {
+  std::scoped_lock lk(mtx);
+  return handle->ObjectUnderLock()->GetGuiProperty(key);
+}
+
+void patcherImplementation::SetObjectGuiProperty(YSE::pHandle* handle, const std::string& key,
+                                                 const std::string& value) {
+  std::scoped_lock lk(mtx);
+  handle->ObjectUnderLock()->SetGuiProperty(key, value);
+}
+
+std::string patcherImplementation::ObjectParams(YSE::pHandle* handle) {
+  std::scoped_lock lk(mtx);
+  return handle->ObjectUnderLock()->GetParams();
 }
 
 void patcherImplementation::ConnectUnlocked(YSE::pHandle* from, int outlet, YSE::pHandle* to,
@@ -690,8 +709,8 @@ void patcherImplementation::ConnectUnlocked(YSE::pHandle* from, int outlet, YSE:
   // untouched, which is why this is also correct on the ParseJSON path: a dump
   // records edges against the resolved boundary objects, so a reload resolves
   // nothing and rebuilds exactly the edge that was saved.
-  pObject* source = from->object;
-  pObject* target = to->object;
+  pObject* source = from->ObjectUnderLock();
+  pObject* target = to->ObjectUnderLock();
   int sourcePin = outlet;
   int targetPin = inlet;
   if (!ResolveOutletPin(source, sourcePin) || !ResolveInletPin(target, targetPin)) {
@@ -734,7 +753,7 @@ bool patcherImplementation::AcceptsHandlesUnlocked(YSE::pHandle* from, YSE::pHan
   // reach through the public API makes one, and the unit-test rigs use it to
   // hang a test-owned sink off an outlet.
   const auto foreign = [this](const YSE::pHandle* h) {
-    const pObject* owner = h->object->Parent();
+    const pObject* owner = h->ObjectUnderLock()->Parent();
     return owner != nullptr && owner != this;
   };
   if (from == nullptr || to == nullptr) {
@@ -769,8 +788,8 @@ void patcherImplementation::Disconnect(YSE::pHandle* from, int outlet, YSE::pHan
   // too: the edge that exists is the resolved one, so a Disconnect written
   // against the subpatcher's pin numbers has to be translated the same way to
   // find it.
-  pObject* source = from->object;
-  pObject* target = to->object;
+  pObject* source = from->ObjectUnderLock();
+  pObject* target = to->ObjectUnderLock();
   int sourcePin = outlet;
   int targetPin = inlet;
   if (!ResolveOutletPin(source, sourcePin) || !ResolveInletPin(target, targetPin)) {
@@ -875,10 +894,17 @@ void patcherImplementation::DeleteObject(YSE::pHandle* handle) {
   // case of a non-container object it is a one-element list and the code below
   // is exactly what it was.
   std::vector<YSE::pHandle*> doomedHandles;
+  std::vector<pObject*> stopping;
   {
     std::scoped_lock lk(mtx);
     if (objects.find(handle) == objects.end()) return;
     CollectSubtree(handle, doomedHandles);
+    // The objects are read here, under the lock a structural SetParams swaps
+    // them under, not from the handles in the pass below (issue #968) — the
+    // snapshot TeardownObjects takes, with the same trade-off.
+    stopping.reserve(doomedHandles.size());
+    for (YSE::pHandle* h : doomedHandles)
+      stopping.push_back(h->ObjectUnderLock());
   }
 
   // Teardown pass, before the lock and before anything is unwired (issue #758),
@@ -886,8 +912,8 @@ void patcherImplementation::DeleteObject(YSE::pHandle* handle) {
   // undefined order within it, and for the same reason: every cord in the patch
   // is still there for all of it, so an object releasing what it left sounding
   // reaches the device whichever order the pass happens to visit in.
-  for (YSE::pHandle* h : doomedHandles) {
-    h->object->Teardown(YSE::T_GUI);
+  for (pObject* obj : stopping) {
+    obj->Teardown(YSE::T_GUI);
   }
 
   std::scoped_lock lk(mtx);
@@ -944,7 +970,7 @@ void patcherImplementation::DeleteObject(YSE::pHandle* handle) {
 
 void patcherImplementation::SetObjectParams(YSE::pHandle* handle, const std::string& args) {
   std::scoped_lock lk(mtx);
-  pObject* object = handle->object;
+  pObject* object = handle->ObjectUnderLock();
   if (object == nullptr) return;
 
   std::unique_ptr<pObject> staged;
@@ -1032,7 +1058,7 @@ void patcherImplementation::ApplyParamOps(const ParamOp* ops, int count) {
 }
 
 void patcherImplementation::ReplaceObjectUnlocked(YSE::pHandle* handle, const std::string& args) {
-  pObject* old = handle->object;
+  pObject* old = handle->ObjectUnderLock();
   std::unique_ptr<pObject> staged(Register().Get(old->Type()));
   if (staged == nullptr) {
     // Not registry-built (the DAC) — but the DAC registers no params, so a
@@ -1091,7 +1117,10 @@ void patcherImplementation::ReplaceObjectUnlocked(YSE::pHandle* handle, const st
   // could still reference it — exactly like DeleteObject.
   old->UnwireFromPeers();
   objects[handle] = fresh;
-  handle->object = fresh;
+  // seq_cst, before the retirement below: a pHandle getter pins and then
+  // loads without mtx, and this ordering is what makes the pin cover the old
+  // object whenever the getter can still load it (issue #968, pHandle.cpp).
+  handle->object.store(fresh, std::memory_order_seq_cst);
   // Anything that named the old object as its container now names the
   // replacement (issue #545). `CopyStorageIdentity` already moved the object's
   // own containment across; this is the other direction, and it is what stops a
@@ -1517,10 +1546,10 @@ void patcherImplementation::BuildParsedGraph(json& j, std::vector<pObject*>& loa
       // handle can be null if called without gui context
       if (handle != nullptr) {
         created.push_back(handle);
-        loaded.push_back(handle->object);
+        loaded.push_back(handle->ObjectUnderLock());
         auto gui = obj["gui"];
         for (auto prop = gui.begin(); prop != gui.end(); ++prop) {
-          handle->SetGuiProperty(prop.key(), prop.value().get<std::string>());
+          handle->ObjectUnderLock()->SetGuiProperty(prop.key(), prop.value().get<std::string>());
         }
 
         // State the object holds beyond its creation parameters — a `.coll`'s
@@ -1529,7 +1558,7 @@ void patcherImplementation::BuildParsedGraph(json& j, std::vector<pObject*>& loa
         // json would insert a null here for all of them.
         const auto state = obj.find("state");
         if (state != obj.end()) {
-          handle->object->RestoreState(*state);
+          handle->ObjectUnderLock()->RestoreState(*state);
         }
       }
 
@@ -1557,16 +1586,17 @@ void patcherImplementation::BuildParsedGraph(json& j, std::vector<pObject*>& loa
       auto owner = OldIDs.find(stored->get<int>());
       if (self == OldIDs.end() || owner == OldIDs.end()) continue;
       if (self->second == nullptr || owner->second == nullptr) continue;
-      if (!IsSubpatcher(owner->second->object)) {
+      if (!IsSubpatcher(owner->second->ObjectUnderLock())) {
         INTERNAL::LogImpl().emit(E_ERROR, "Patcher: stored container is not a 'patcher' object");
         continue;
       }
-      if (ContainmentWouldCycle(self->second->object, owner->second->object)) {
+      if (ContainmentWouldCycle(self->second->ObjectUnderLock(),
+                                owner->second->ObjectUnderLock())) {
         INTERNAL::LogImpl().emit(E_ERROR, "Patcher: stored containment is cyclic; object loaded at "
                                           "the top level");
         continue;
       }
-      self->second->object->SetContainer(owner->second->object);
+      self->second->ObjectUnderLock()->SetContainer(owner->second->ObjectUnderLock());
     }
 
     // restore connections

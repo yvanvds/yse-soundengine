@@ -670,4 +670,80 @@ TEST_SUITE("patcher") {
     CHECK(from->GetConnectionTarget(0, kChurned + 1) == YSE::PATCHER::pObject::kNoObjectID);
   }
 
+  // Issue #968: every pHandle getter read the handle's object pointer with no
+  // lock and no pin, while a SetParams that changes the object's pin count
+  // (a `.gate`'s outlet count here) builds a replacement on another thread,
+  // writes it into the handle under mtx and retires the old object. TSan
+  // reports the write racing the getter's read of `pHandle::object`; with a
+  // render thread advancing the block counter the reclaimer frees the old
+  // object, and ASan reports a getter that loaded it reading freed memory.
+  // The reader touches every getter the host has; the test thread alternates
+  // the gate between 2 and 5 outlets.
+  TEST_CASE("concurrency: pHandle getters race no structural SetParams on another thread") {
+    LogSilencer silence;
+
+    patcherImplementation p(1, nullptr);
+    YSE::pHandle* gate = p.CreateObject(YSE::OBJ::G_GATE, "2");
+    YSE::pHandle* sink = p.CreateObject(YSE::OBJ::G_SLIDER, "");
+    REQUIRE(gate != nullptr);
+    REQUIRE(sink != nullptr);
+    p.Connect(gate, 0, sink, 0);
+    gate->SetGuiProperty("x", "10");
+    const unsigned int gateID = gate->GetID();
+
+    std::atomic<bool> stop{false};
+    std::atomic<std::uint64_t> blocks{0};
+    std::thread render([&] {
+      while (!stop.load(std::memory_order_relaxed)) {
+        p.Calculate(YSE::T_DSP);
+        blocks.fetch_add(1, std::memory_order_relaxed);
+      }
+    });
+
+    std::atomic<std::uint64_t> reads{0};
+    std::atomic<std::uint64_t> wrong{0};
+    std::thread reader([&] {
+      while (!stop.load(std::memory_order_relaxed)) {
+        const int outs = gate->GetOutputs();
+        if (outs != 2 && outs != 5) wrong.fetch_add(1, std::memory_order_relaxed);
+        if (gate->GetInputs() != 2) wrong.fetch_add(1, std::memory_order_relaxed);
+        if (gate->GetName() != YSE::OBJ::G_GATE) wrong.fetch_add(1, std::memory_order_relaxed);
+        if (std::string(gate->Type()) != YSE::OBJ::G_GATE)
+          wrong.fetch_add(1, std::memory_order_relaxed);
+        if (gate->GetID() != gateID) wrong.fetch_add(1, std::memory_order_relaxed);
+        const std::string params = gate->GetParams();
+        if (params != "2" && params != "5") wrong.fetch_add(1, std::memory_order_relaxed);
+        if (gate->GetGuiProperty("x") != "10") wrong.fetch_add(1, std::memory_order_relaxed);
+        gate->SetGuiProperty("x", "10");
+        (void)gate->GetGuiValue();
+        (void)gate->GetGuiValueCount();
+        (void)gate->GetGuiValueAt(0);
+        (void)gate->GuiValueIsSettable();
+        (void)gate->IsDSPInput(0);
+        (void)gate->OutputDataType(0);
+        // Outlet 0 survives every re-parse and is rewired onto the
+        // replacement, so its one cord is always there.
+        if (gate->GetConnections(0) != 1u) wrong.fetch_add(1, std::memory_order_relaxed);
+        gate->SetIntData(0, 1);
+        reads.fetch_add(1, std::memory_order_relaxed);
+      }
+    });
+
+    for (int round = 0; round < 400; round++)
+      gate->SetParams(round % 2 == 0 ? "5" : "2");
+
+    stop.store(true, std::memory_order_relaxed);
+    reader.join();
+    render.join();
+
+    CHECK(reads.load() > 0);
+    CHECK(blocks.load() > 0);
+    CHECK(wrong.load() == 0);
+    // The last re-parse asked for 2 outlets.
+    CHECK(gate->GetOutputs() == 2);
+    CHECK(gate->GetParams() == "2");
+    CHECK(gate->GetGuiProperty("x") == "10");
+    CHECK(gate->GetConnectionTarget(0, 0) == sink->GetID());
+  }
+
 } // TEST_SUITE("patcher")

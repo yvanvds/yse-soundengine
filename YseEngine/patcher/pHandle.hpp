@@ -1,5 +1,6 @@
 #pragma once
 #include "../headers/defines.hpp"
+#include <atomic>
 #include <string>
 #include "../headers/enums.hpp"
 #include "../utils/vector.hpp"
@@ -22,6 +23,17 @@ namespace YSE {
    *
    *  The patcher owns the underlying object — do not delete the handle
    *  directly; call ``patcher::DeleteObject`` instead.
+   *
+   *  Every call is for control threads, and every call is safe while another
+   *  control thread edits the patch — including a ``SetParams`` on this same
+   *  object that rebuilds it and swaps the rebuilt one in behind the handle
+   *  (issue #968). ``GetParams``, ``GetGuiProperty``, ``SetGuiProperty`` and
+   *  the three connection queries take the patcher's lock. ``Type``,
+   *  ``GetName``, ``GetID``, ``GetInputs``, ``GetOutputs`` and the
+   *  ``GetGuiValue`` family take none, so GUI polling never waits on an edit.
+   *  A call that races such a swap answers for the object before it or the
+   *  one after it. Using a handle after ``DeleteObject`` has removed it is
+   *  still the caller's error.
    */
   class API pHandle {
   public:
@@ -175,7 +187,26 @@ namespace YSE {
     bool GuiValueIsSettable();
 
   private:
-    PATCHER::pObject* object;
+    // The object this handle stands for. Not fixed: a SetParams that changes
+    // the object's shape builds a replacement and swaps it in here, under the
+    // owning patcher's lock, retiring the old one (issue #234). So a reader on
+    // another thread loads it atomically, and a getter pins the patcher before
+    // the load so the reclaimer cannot free the object it loaded (issue #968).
+    std::atomic<PATCHER::pObject*> object;
+    // The patcher that owns the object, or null for a standalone one (unit
+    // tests). Fixed at construction: a replacement joins the same patcher, so
+    // finding the patcher never has to go through `object`.
+    PATCHER::patcherImplementation* const owner;
+
+    // The object, for the owning patcher when it holds its own lock — the
+    // lock every write to `object` is made under.
+    PATCHER::pObject* ObjectUnderLock() const {
+      return object.load(std::memory_order_relaxed);
+    }
+
+    // A getter's read of `object`: pins the owner, then loads (pHandle.cpp).
+    class pinnedRead;
+
     friend class YSE::PATCHER::patcherImplementation;
   };
 

@@ -200,6 +200,17 @@ namespace YSE {
       unsigned int OutletTargetInlet(YSE::pHandle* handle, unsigned int outlet,
                                      unsigned int connection);
 
+      // `pHandle::GetGuiProperty` / `SetGuiProperty` / `GetParams` for an
+      // object this patcher owns (issue #968). GUI properties and the
+      // parameter string are plain strings that SetGuiProperty, a scalar
+      // SetParams and a structural SetParams's CopyStorageIdentity touch under
+      // mtx, so these read and write them under mtx, with the handle's object
+      // read under it as well. Same contract as the cord queries above.
+      std::string ObjectGuiProperty(YSE::pHandle* handle, const std::string& key);
+      void SetObjectGuiProperty(YSE::pHandle* handle, const std::string& key,
+                                const std::string& value);
+      std::string ObjectParams(YSE::pHandle* handle);
+
       std::string DumpJSON();
       void ParseJSON(const std::string& content);
 
@@ -229,7 +240,10 @@ namespace YSE {
       // The same counter is the control-side pin every control-thread send
       // holds (graphReadScope, issue #963), which is why graphs are held back
       // too: such a send walks a published snapshot, and the objects it
-      // names, for as long as its fan-out runs.
+      // names, for as long as its fan-out runs. The lock-free pHandle getters
+      // hold one too, taken before they load the handle's object, so an
+      // object a structural SetParams has just swapped out stays allocated
+      // under them (issue #968).
       //
       // Lock-free — one atomic add, one atomic sub — and it never waits. The
       // audio thread never pins while rendering its own patcher and is never

@@ -329,6 +329,13 @@ What the host may do from where
 - **GUI reads are control-thread reads.** Polling a GUI value takes no lock
   and never makes the audio thread wait, but some reads clear what they
   report. See :doc:`gui`.
+- **A handle's calls are safe during an edit.** A ``SetParams`` that changes
+  an object's inlets or outlets builds a new object and swaps it in behind
+  the same handle. Every ``pHandle`` call made from another thread meanwhile
+  answers for the old object or the new one, never for freed memory: the
+  lock-free calls (``Type``, ``GetName``, ``GetID``, ``GetInputs``,
+  ``GetOutputs`` and the GUI value reads) set the same in-use mark as a send,
+  and ``GetParams`` and the GUI property calls take the patcher's lock.
 - **Queries see a moment, not a transaction.** ``Objects``,
   ``GetHandleFromList`` and the cord queries (``GetConnections``,
   ``GetConnectionTarget``, ``GetConnectionTargetInlet``) take the patcher's
