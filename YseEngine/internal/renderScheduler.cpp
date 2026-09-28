@@ -145,7 +145,7 @@ Int YSE::INTERNAL::renderScheduler::autoWorkerCount(const cpuTopology& topology)
   // one core's execution units, and cores outside the affinity mask (a
   // container's cpuset, a masked process) cannot take a worker at all. On a
   // hybrid part efficiency cores count too: measured on a 4 Zen 5 + 8 Zen 5c
-  // part, the heavy scenes keep scaling onto them (Tests/TEST_PLAN.md, #862)
+  // part, the heavy scenes keep scaling onto them (docs/design/render_scheduler.md, #862)
   // — limiting the default to the performance cores cost ~75% there. What
   // hybrid awareness changes is placement: performance cores are filled
   // first. No topology: the #861 fallback on logical CPUs.

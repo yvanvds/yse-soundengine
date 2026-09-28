@@ -11,26 +11,32 @@
 #ifndef CONSTANTS_H_INCLUDED
 #define CONSTANTS_H_INCLUDED
 
+/** @file
+ *  @brief Engine-wide constants: the block size and the active sample rate.
+ */
+
 #include "types.hpp"
 
 namespace YSE {
+  /** @brief Samples per audio block. The engine renders, and advances its
+   *         clocks, in blocks of this size whatever the device buffer size. */
   const UInt STANDARD_BUFFERSIZE = 128;
 
-  // Default streaming-chunk size in samples. Sized as ~1 s of audio at 44.1
-  // kHz; at other negotiated sample rates the wall-clock duration scales
-  // accordingly (~0.92 s at 48 kHz, ~0.46 s at 96 kHz). Used as a fixed
-  // sample-count by file/streaming subsystems; not intended to track
-  // SAMPLERATE.
+  /** @brief Streaming chunk size in samples.
+   *
+   *  About 1 s of audio at 44.1 kHz; at other sample rates the wall-clock
+   *  length scales (about 0.92 s at 48 kHz, 0.46 s at 96 kHz). A fixed sample
+   *  count used by the file and streaming code; it does not follow
+   *  ``SAMPLERATE``. */
   const UInt STREAM_BUFFERSIZE = 44100;
 
-  // The active engine sample rate. Initialised to 48000 by the device
-  // manager's translation unit; written exactly once per session by the
-  // audio backend (application-requested or PortAudio default rate on
-  // desktop, Oboe-negotiated rate on Android — see system::requestSampleRate,
-  // issue #646) before INTERNAL::Global().sampleRateLocked is set at
-  // the end of system::initShared(). Treat as immutable within a session;
-  // see the lock contract enforced in portaudioDeviceManager.cpp /
-  // oboeImplementation.cpp.
+  /** @brief The active engine sample rate, in Hz.
+   *
+   *  48000 until a session starts. The audio backend writes it once per
+   *  session, while the session starts: the rate the application requested
+   *  (``System().requestSampleRate``) or the device default on desktop, the
+   *  rate Oboe negotiated on Android. Read it, never write it, and treat it as
+   *  fixed for the rest of the session. */
   extern API UInt SAMPLERATE;
 } // namespace YSE
 

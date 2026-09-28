@@ -8,8 +8,12 @@
     1. Default file sink (set with yse_log_set_logfile / inspect with
        yse_log_get_logfile).
     2. C callback installed via yse_log_set_callback. The callback is
-       invoked from whichever thread emitted the log entry — keep it
-       cheap and re-entrant. Pass NULL to restore the default file sink.
+       invoked from whichever engine thread emitted the log entry (never
+       the audio thread), one call at a time, with the engine's log lock
+       held. It must therefore not call back into the library: a yse_*
+       call that logs, or yse_log_send_message / yse_log_set_callback /
+       yse_log_set_logfile, deadlocks. Copy or queue the message, free it
+       and return; do not block. Pass NULL to restore the default file sink.
 
   Logging is only active between yse_system_init() and yse_system_close().
 */

@@ -497,12 +497,17 @@ def cmd_build(args):
 def cmd_test(args):
     sanitizer = getattr(args, "sanitizer", None)
     if sanitizer:
-        # ASan/TSan gate for the #229 patcher concurrency stress test.
+        # Sanitizer gates. The two presets scope differently (CMakePresets.json):
+        #   - tests-asan (Linux) is the #229 patcher concurrency gate: its test
+        #     preset filters to the patcher suite + send/return stress tests.
+        #   - tests-tsan (Linux) is the engine-wide race gate since #824: the
+        #     whole ctest set bar a short exclude list (the monolithic
+        #     yse_unit_tests and the content-pack suite).
         #
         # TSan stays Linux-only: MSYS2 Clang64 ships no ThreadSanitizer runtime
         # at all. ASan does ship, and issue #671 made the test binary linkable
         # under it, so Windows gets its own preset — it runs the whole ctest set
-        # rather than the Linux gate's patcher filter, and adds
+        # rather than the Linux ASan gate's patcher filter, and adds
         # -fsized-deallocation so new-delete-type-mismatch is observable there
         # (issue #662). Windows ASan has no leak detector either way.
         if IS_WINDOWS and sanitizer == "tsan":
@@ -1059,10 +1064,17 @@ def _make_release_readme(version, platform_name, dlls):
             "    include/                Public C++ headers (use `#include \"yse.hpp\"`)\n"
             "    lib/<abi>/libyse.so     One libyse.so per Android ABI shipped"
         )
+        layout += (
+            "\n    licenses/               License texts of the statically linked libraries\n"
+            "    third_party/            Source of libsndfile, as linked (LGPL-2.1, see NOTICE)"
+        )
         deps_section = (
             "libYSE on Android uses Oboe for audio I/O — it is statically linked\n"
             "into `libyse.so`, so the only system requirement is `android-26` (API 26\n"
-            "/ Android 8.0 Oreo) or newer."
+            "/ Android 8.0 Oreo) or newer.\n\n"
+            "libsndfile (LGPL-2.1-or-later) is also statically linked into\n"
+            "`libyse.so`. Its complete source is in `third_party/` and `NOTICE`\n"
+            "explains how to relink `libyse.so` against a modified libsndfile."
         )
         link_hint = (
             "Gradle:   copy the `lib/` directory into your module's\n"
@@ -1112,6 +1124,7 @@ prebuilt shared library and public headers for {platform_blurb}.
 ```
 {layout}
     LICENSE.md      MIT License
+    NOTICE          Third-party attributions and license obligations
     README.md       This file
 ```
 
@@ -1130,8 +1143,90 @@ surface, and known issues.
 ## License
 
 libYSE is distributed under the MIT License. See `LICENSE.md` for the full
-text.
+text. Third-party components keep their own licenses; see `NOTICE`.
 """
+
+
+def _fetchcontent_pin(name):
+    """Return (GIT_REPOSITORY, GIT_TAG) of `FetchContent_Declare(<name> ...)` in
+    the top-level CMakeLists.txt, so packaging uses the exact pinned source."""
+    text = (ROOT / "CMakeLists.txt").read_text(encoding="utf-8")
+    m = re.search(
+        r"FetchContent_Declare\(\s*" + re.escape(name)
+        + r"\s+GIT_REPOSITORY\s+(\S+)\s+GIT_TAG\s+(\S+)",
+        text,
+    )
+    if not m:
+        print(f"error: no FetchContent_Declare({name} ...) pin in CMakeLists.txt.")
+        sys.exit(1)
+    return m.group(1), m.group(2)
+
+
+def _android_third_party(args, out_root):
+    """Resolve the libsndfile and Oboe source trees the Android archive needs to
+    meet their licenses (#892): libsndfile is LGPL-2.1 and statically linked, so
+    its full source ships in the archive; Oboe is Apache-2.0, so its license
+    text does. Trees come from --sndfile-src / --oboe-src, or are shallow-cloned
+    at the CMakeLists.txt pins. Returns {name: (path, tag)}."""
+    trees = {}
+    for name, given in (("sndfile", args.sndfile_src), ("oboe", args.oboe_src)):
+        repo, tag = _fetchcontent_pin(name)
+        if given:
+            src = Path(given)
+            if not src.is_absolute():
+                src = (ROOT / src).resolve()
+        else:
+            src = out_root / "_third_party" / f"{name}-{tag}"
+            if not src.is_dir():
+                print(f"Fetching {name} {tag} from {repo} ...")
+                src.parent.mkdir(parents=True, exist_ok=True)
+                subprocess.run(
+                    ["git", "-c", "advice.detachedHead=false", "clone", "--quiet",
+                     "--depth", "1", "--branch", tag, repo, str(src)],
+                    check=True,
+                )
+        if not src.is_dir():
+            print(f"error: {name} source tree {src} not found.")
+            sys.exit(1)
+        trees[name] = (src, tag)
+
+    sndfile, sndfile_tag = trees["sndfile"]
+    cmake_lists = sndfile / "CMakeLists.txt"
+    declared = re.search(
+        r"project\(\s*libsndfile\s+VERSION\s+(\S+?)\s*\)",
+        cmake_lists.read_text(encoding="utf-8") if cmake_lists.exists() else "",
+    )
+    if not declared or declared.group(1) != sndfile_tag:
+        found = declared.group(1) if declared else "unknown"
+        print(f"error: {sndfile} is libsndfile {found}, but the linked version is {sndfile_tag}.")
+        sys.exit(1)
+    for name, required in (("sndfile", "COPYING"), ("oboe", "LICENSE")):
+        if not (trees[name][0] / required).is_file():
+            print(f"error: {trees[name][0] / required} not found.")
+            sys.exit(1)
+    return trees
+
+
+def _add_android_license_files(stage, trees):
+    """Ship the Android archive's third-party license texts and the LGPL source."""
+    sndfile, sndfile_tag = trees["sndfile"]
+    oboe, _ = trees["oboe"]
+
+    licenses = stage / "licenses"
+    licenses.mkdir()
+    shutil.copy2(sndfile / "COPYING", licenses / "libsndfile-COPYING.txt")
+    shutil.copy2(oboe / "LICENSE", licenses / "oboe-LICENSE.txt")
+
+    third_party = stage / "third_party"
+    third_party.mkdir()
+    tarball = third_party / f"libsndfile-{sndfile_tag}-src.tar.gz"
+
+    def _skip_git(info):
+        return None if ".git" in Path(info.name).parts else info
+
+    with tarfile.open(tarball, "w:gz") as tf:
+        tf.add(sndfile, arcname=f"libsndfile-{sndfile_tag}", filter=_skip_git)
+    print(f"Added licenses/ and third_party/{tarball.name}.")
 
 
 def cmd_package(args):
@@ -1216,6 +1311,8 @@ def cmd_package(args):
     out_root = Path(args.out_dir)
     if not out_root.is_absolute():
         out_root = (ROOT / out_root).resolve()
+    # Resolve before staging so a missing/mismatched source tree fails fast.
+    android_trees = _android_third_party(args, out_root) if platform_name == "android" else None
     arch_suffix = "android" if platform_name == "android" else f"{platform_name}-x64"
     pkg_name = f"libyse-v{version}-{arch_suffix}"
     stage = out_root / pkg_name
@@ -1291,6 +1388,15 @@ def cmd_package(args):
         print(f"error: {license_src} not found.")
         sys.exit(1)
     shutil.copy2(license_src, stage / "LICENSE.md")
+
+    # NOTICE — third-party attributions (#892).
+    notice_src = ROOT / "NOTICE"
+    if not notice_src.exists():
+        print(f"error: {notice_src} not found.")
+        sys.exit(1)
+    shutil.copy2(notice_src, stage / "NOTICE")
+    if android_trees is not None:
+        _add_android_license_files(stage, android_trees)
 
     # Generated README.md
     (stage / "README.md").write_text(
@@ -1416,11 +1522,13 @@ def build_parser():
     )
     p.add_argument(
         "--sanitizer", choices=["asan", "tsan"],
-        help="Build the test binary under Address- or ThreadSanitizer. On Linux "
-             "this is the #229 patcher concurrency gate (tests-asan / tests-tsan "
-             "presets, filtered to the patcher + send/return tests); on Windows "
-             "asan uses the tests-asan-windows preset and runs the whole suite. "
-             "tsan is Linux/clang only.",
+        help="Build the test binary under Address- or ThreadSanitizer. asan: on "
+             "Linux the tests-asan preset, filtered to the patcher + send/return "
+             "tests (the #229 patcher concurrency gate); on Windows the "
+             "tests-asan-windows preset, which runs the whole suite. tsan: the "
+             "tests-tsan preset, which runs the whole ctest set minus "
+             "yse_unit_tests and yse_tests_contentpack (the engine-wide race "
+             "gate, #824); Linux/clang only.",
     )
     p.set_defaults(func=cmd_test)
 
@@ -1614,6 +1722,18 @@ def build_parser():
     p.add_argument(
         "--android-libs", default="android-libs",
         help="Directory of per-ABI libyse.so subdirs (android only; default: android-libs)",
+    )
+    # libsndfile (LGPL-2.1) and Oboe (Apache-2.0) are statically linked into the
+    # Android libyse.so, so the archive carries their license texts and the
+    # libsndfile source (#892). Without these, the trees are shallow-cloned at
+    # the tags pinned in CMakeLists.txt.
+    p.add_argument(
+        "--sndfile-src", default=None,
+        help="libsndfile source tree at the pinned tag (android only; default: clone it)",
+    )
+    p.add_argument(
+        "--oboe-src", default=None,
+        help="Oboe source tree at the pinned tag (android only; default: clone it)",
     )
     p.set_defaults(func=cmd_package)
 

@@ -199,10 +199,9 @@ never makes the position jump.
 
 The host creates clocks with ``System::createClock``, ``setTempo`` and
 ``beatPosition`` (``yse_system_create_clock`` and friends in the C API).
-Clip transports play on the same clocks (see :doc:`/api/c_api`). A patch
-refers to a clock by name, so the host, the clips and the patch all share
-it. The guide to clocks and clips is tracked in `#886
-<https://github.com/yvanvds/yse-soundengine/issues/886>`_.
+Clips play notes on the same clocks. A patch refers to a clock by name, so the
+host, the clips and the patch all share it. :doc:`/tutorials/15_clocks_and_clips`
+is the guide to clocks and clips on the host side.
 
 Waiting on a clock
 ~~~~~~~~~~~~~~~~~~

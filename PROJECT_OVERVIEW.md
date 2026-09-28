@@ -23,7 +23,7 @@ YseEngine/                       # Core C++ sound engine — compiled to libyse 
 Tests/                           # doctest suite (~1470 TEST_CASEs across ~116 TUs) — gated by YSE_BUILD_TESTS
   Android/                       # Gradle wrapper that packages libyse_tests.so into a NativeActivity APK
   support/                       # audio_helpers, null_device, android_asset_bridge, fixtures
-  TEST_PLAN.md                   # Phased roadmap (utils → DSP → patcher → … → device)
+  TEST_PLAN.md                   # Historical 2.0 phased roadmap + how the suite runs today
 Bench/                           # google-benchmark suite — gated by YSE_BUILD_BENCHMARKS
   dsp/ patcher/ integration/     # bench_* TUs; results pushed to the `bench-history` orphan branch by CI
 Demo.Windows.Native/             # 22 C++ console demos (Demo00–Demo21 + Test01_Pitch + combined Demo)
@@ -556,7 +556,7 @@ Each standalone executable is generated from a per-target `main_<Demo>.cpp` prod
 **Framework:** [doctest](https://github.com/doctest/doctest) v2.4.11 vendored at `dependencies/doctest/doctest.h`.
 **Scale:** ~1470 TEST_CASEs across ~116 translation units.
 **Build gate:** `YSE_BUILD_TESTS=ON` (default OFF — demos and Android library builds are unaffected).
-**Roadmap:** [Tests/TEST_PLAN.md](Tests/TEST_PLAN.md).
+**Plan:** [Tests/TEST_PLAN.md](Tests/TEST_PLAN.md) (the 2.0 phased roadmap, kept as history, and how the suite runs today).
 
 All test files compile into a single executable (`yse_tests`) — except on Android where it's built as `libyse_tests.so` loaded by a NativeActivity APK (`Tests/Android/`). Both variants link `yse_objects` directly, bypassing the DLL boundary so internal symbols are reachable without `API` annotations.
 
@@ -613,7 +613,7 @@ Bench/
 
 The synth & effects sweep (issue [#181](https://github.com/yvanvds/yse-soundengine/issues/181)) adds per-voice Tier-1 benches (`bench_fm_voice`, alongside the existing `bench_va_voice` / `bench_sampler_voice`, each with a `sineVoice` reference baseline) and Tier-3 macro scenarios in `bench_synth_effects` (voice-count scaling, channel insert-chain cost, send fan-in, N positioned notes), all driven offline via `System().renderOffline(blocks)`.
 
-The render-scheduler foundation (issue [#857](https://github.com/yvanvds/yse-soundengine/issues/857), epic #856) adds `bench_render_heavy` — an 8-channel and a one-channel swarm scene of real per-voice DSP load, swept over the render worker count through the internal `INTERNAL::Global().setRenderWorkerCount()` hook — makes the 100-sound render benches order-independent, and pairs them with the bit-exact multi-worker golden test `Tests/channel/test_render_golden.cpp`. Protocol and baselines: `Tests/TEST_PLAN.md`. Since #861 the 100-sound and heavy render benches report a `serial` counter (1 = the serial gate kept the last block on the calling thread).
+The render-scheduler foundation (issue [#857](https://github.com/yvanvds/yse-soundengine/issues/857), epic #856) adds `bench_render_heavy` — an 8-channel and a one-channel swarm scene of real per-voice DSP load, swept over the render worker count through the internal `INTERNAL::Global().setRenderWorkerCount()` hook — makes the 100-sound render benches order-independent, and pairs them with the bit-exact multi-worker golden test `Tests/channel/test_render_golden.cpp`. Protocol and baselines: [docs/design/render_scheduler.md](docs/design/render_scheduler.md); how to run the sweeps: [Bench/README.md](Bench/README.md). Since #861 the 100-sound and heavy render benches report a `serial` counter (1 = the serial gate kept the last block on the calling thread).
 
 ---
 

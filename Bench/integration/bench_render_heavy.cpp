@@ -32,7 +32,7 @@
 // of one channel job, which is the figure #856 judges handoff designs against.
 // Real time is used throughout: the work runs on pool threads the main
 // thread's CPU clock does not see. Baselines are recorded in
-// Tests/TEST_PLAN.md.
+// docs/design/render_scheduler.md.
 //
 // Scene lifetime: each run builds its channels and sounds, pumps until every
 // voice is sounding, times, then destroys them and drains the managers, so no

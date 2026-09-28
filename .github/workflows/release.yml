@@ -141,7 +141,9 @@ jobs:
 
   package-android:
     # Merge the per-ABI matrix outputs into a single multi-ABI bundle
-    # (lib/<abi>/libyse.so + headers + LICENSE + README) for upload.
+    # (lib/<abi>/libyse.so + headers + LICENSE + NOTICE + README) for upload.
+    # The package step also clones libsndfile and Oboe at their CMakeLists.txt
+    # pins to ship their license texts and the LGPL libsndfile source (#892).
     name: Package (Android multi-ABI)
     needs: build-android
     runs-on: ubuntu-latest

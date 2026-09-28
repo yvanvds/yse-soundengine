@@ -9,6 +9,12 @@ This document settles the design gate in issue [#234][gh-234]: how a live
 `pHandle::SetParams` re-parse becomes RT-safe without bypassing the
 GraphState swap and without mutating a published object.
 
+> **User-facing pages.** What a host sees of this — which `SetParams`
+> calls are queued and which rebuild the object, and where the param
+> drain sits among everything else the start of a block runs — is in the
+> manual's [Real-time model][doc-realtime] page; the C API side is
+> [Embedding through the C API][doc-capi].
+
 ## Table of contents
 
 1. [The bug](#the-bug)
@@ -104,7 +110,12 @@ existing objects" to the value-command regime. Concretely:
   snapshot's object list**. That membership check makes delivery safe
   across a concurrent `DeleteObject`, exactly like the by-name
   re-resolution of value messages: a deleted object is simply absent and
-  the msg is dropped.
+  the msg is dropped. The param drain is still the first thing a block
+  does; since this was settled, the clock-binding poll, the deferred
+  scheduler, file-I/O completions and the block pollers
+  ([#529][gh-529], see [patcher_graphstate.md](patcher_graphstate.md))
+  run after the value drain and before the DSP traversal, so every one of
+  them already sees this block's params.
 
 Why the dangling-`target` ABA cannot happen: the queue is drained in
 full at the top of *every* block, so a msg never survives past the first
@@ -213,5 +224,8 @@ replaced/deleted `gReceive` instances.
 [gh-234]: https://github.com/yvanvds/yse-soundengine/issues/234
 [gh-237]: https://github.com/yvanvds/yse-soundengine/issues/237
 [gh-935]: https://github.com/yvanvds/yse-soundengine/issues/935
+[gh-529]: https://github.com/yvanvds/yse-soundengine/issues/529
+[doc-realtime]: ../../documentation/source/patcher/realtime.rst
+[doc-capi]: ../../documentation/source/patcher/c_api.rst
 [src-parameters]: ../../YseEngine/patcher/parameters.cpp
 [src-ggate]: ../../YseEngine/patcher/genericObjects/gGate.cpp

@@ -26,6 +26,7 @@ The pages below are generated from the source code by Doxygen + Breathe.
 
    music
    player
+   clips
 
 .. toctree::
    :maxdepth: 1
@@ -49,7 +50,13 @@ The patcher has its own section. Its C++ reference is
    :maxdepth: 1
    :caption: Utilities
 
+   types
    utils
+
+Language bindings use the flat C API. Its page opens with a
+:ref:`guide <c-api-guide>` to the rules every C function follows: handles
+and ownership, error codes and the last error, strings, and which thread each
+callback runs on.
 
 .. toctree::
    :maxdepth: 1
