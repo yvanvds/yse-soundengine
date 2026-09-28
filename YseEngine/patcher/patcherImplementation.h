@@ -91,32 +91,11 @@ namespace YSE {
       // See the definition for the host/graph channel-count contract.
       void ProcessAsInsert(MULTICHANNELBUFFER& io);
 
-      // The GraphState pinned for the block currently being rendered — but only
-      // when asked from the thread rendering it; null between blocks and null
-      // on every other thread. Read by inlets/outlets to resolve topology
-      // without a lock (issue #226).
-      //
-      // Per thread, not per patcher (issue #962): the pin only protects the
-      // renderer's own reads, because the reclaimer's +2 grace counts that
-      // thread's blocks. A control-thread send that ran while a block was in
-      // flight used to get the same pointer, walk it after the block ended, and
-      // race the reclaimer's delete. Every thread but the renderer now gets
-      // null and takes the live-wiring path the call sites document. Defined in
-      // patcherImplementation.cpp, next to the thread_local frame marker it
-      // consults (one TLS load on the audio path).
-      //
-      // This is the real accessor; pObject::CurrentBlockGraph() (non-virtual) is
-      // the forwarder that every *contained* object goes through -- it hops to
-      // its owning patcher and lands back here. The shadowing is therefore the
-      // intended direction of the relation, not accidental hiding. Reaching a
-      // patcherImplementation through a pObject* yields the base version, which
-      // returns null because a patcher has no parent; that is harmless, because
-      // the patcher's own inlets/outlets are never assigned a GraphState id
-      // (ids come from AssignObjectIds on objects *added* to the patcher, so
-      // theirs stay -1) and the `graphId >= 0` guard at both call sites already
-      // sends them down the live-wiring path. See issue #573.
-      // NOLINTNEXTLINE(bugprone-derived-method-shadowing-base-method)
-      const GraphState* CurrentBlockGraph() const;
+      // Inlets and outlets resolve topology through a graphReadScope
+      // (graphState.h): the block's pinned snapshot on the thread rendering
+      // it (issues #226, #962), the pinned published snapshot on any other
+      // thread (issue #963). It reads the members below directly.
+      friend class graphReadScope;
 
       void SetMessage(const std::string&, float) override {}
 
@@ -224,24 +203,29 @@ namespace YSE {
       // mtx cannot be held across the use: the use is an ordinary send that
       // may reach PassData and take mtx again. So the caller holds an
       // objectPin across lookup *and* use, taking it before the lookup. While
-      // any pin is held the reclaimer leaves retired objects parked (retired
-      // graphs are still freed), so an object found live under mtx stays
-      // allocated until the pin is dropped; the pass that runs after the last
-      // pin goes frees them as usual.
+      // any pin is held the reclaimer frees nothing retired, so an object
+      // found live under mtx stays allocated until the pin is dropped; the
+      // pass that runs after the last pin goes frees it as usual.
+      //
+      // The same counter is the control-side pin every control-thread send
+      // holds (graphReadScope, issue #963), which is why graphs are held back
+      // too: such a send walks a published snapshot, and the objects it
+      // names, for as long as its fan-out runs.
       //
       // Lock-free — one atomic add, one atomic sub — and it never waits. The
-      // audio thread never pins and is never made to wait by a pin. Handles
-      // are not covered: DeleteObject frees a pHandle at once, so a pinned
-      // caller keeps the pObject*, never the pHandle*.
+      // audio thread never pins while rendering its own patcher and is never
+      // made to wait by a pin. Handles are not covered: DeleteObject frees a
+      // pHandle at once, so a pinned caller keeps the pObject*, never the
+      // pHandle*.
       class objectPin {
       public:
         explicit objectPin(patcherImplementation& owner) : owner_(owner) {
-          owner_.objectPins_.fetch_add(1, std::memory_order_acq_rel);
+          owner_.objectPins_.fetch_add(1, std::memory_order_seq_cst);
         }
         ~objectPin() {
-          // Release: every use made under the pin happens-before the
-          // reclaimer's acquire load that lets the object go.
-          owner_.objectPins_.fetch_sub(1, std::memory_order_release);
+          // Every use made under the pin happens-before the reclaimer's load
+          // that lets the object go.
+          owner_.objectPins_.fetch_sub(1, std::memory_order_seq_cst);
         }
         objectPin(const objectPin&) = delete;
         objectPin& operator=(const objectPin&) = delete;
@@ -358,8 +342,7 @@ namespace YSE {
       // Non-const to keep it out of pObject::FileIO()'s signature, exactly as
       // Scheduler() sits beside pObject::Scheduler(): the two are a forwarder
       // and its destination, not an override, and letting them collide would
-      // put this in the same shadowing bucket CurrentBlockGraph had to be
-      // NOLINTed out of (issue #573).
+      // put this in clang-tidy's derived-method-shadowing bucket (issue #573).
       fileScheduler* FileIO() {
         return fileIO_.load(std::memory_order_acquire);
       }
@@ -662,12 +645,13 @@ namespace YSE {
       // when none is. Control / timer threads only, never the audio callback.
       template <typename F> bool SendToHandler(F&& send);
 
-      // Published topology snapshot the audio thread reads (issue #226). Only
-      // the control thread writes it, under mtx.
+      // Published topology snapshot the audio thread reads (issue #226), and
+      // control-thread sends read under a pin (issue #963). Only the control
+      // thread writes it, under mtx.
       std::atomic<const GraphState*> active_{nullptr};
       // Snapshot pinned for the duration of the block being rendered. Written
       // by the audio thread at the start/end of Calculate, and read only from
-      // inside that frame (CurrentBlockGraph and the T_DSP dispatch in
+      // inside that frame (graphReadScope and the T_DSP dispatch in
       // PassBang/PassData both check the thread first — issue #962).
       std::atomic<const GraphState*> currentBlockGraph_{nullptr};
       // Monotonic count of rendered blocks; the reclaimer reads it (acquire) to
@@ -720,8 +704,9 @@ namespace YSE {
       // Set once at teardown to stop scheduling and re-arming reclaim passes so
       // the destructor's joins terminate. Read on the background pool.
       std::atomic<bool> shuttingDown_{false};
-      // Held objectPins (issue #961). Non-zero keeps ReclaimElapsed from
-      // freeing retired objects; read on the background pool.
+      // Held objectPins (issue #961) and control-thread graphReadScopes (issue
+      // #963). Non-zero keeps ReclaimElapsed from freeing anything retired;
+      // read on the background pool.
       std::atomic<unsigned int> objectPins_{0};
       // Per-patcher dense id counters for inlets / outlets. An id is fixed for a
       // live object's lifetime (the audio thread reads it unsynchronised to

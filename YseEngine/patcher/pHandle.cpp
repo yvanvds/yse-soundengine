@@ -78,7 +78,7 @@ void YSE::pHandle::SetParams(const std::string& args) {
   // it in place (that mutates pin vectors and param fields the audio thread
   // reads — issue #234). Route through the patcher, which stages an RT-safe
   // scalar apply or a structural replacement. `parent` is the owning
-  // patcherImplementation by construction (see pObject::CurrentBlockGraph);
+  // patcherImplementation by construction (see graphReadScope);
   // a standalone object (unit tests) keeps the synchronous parse.
   PATCHER::pObject* parent = object->Parent();
   if (parent != nullptr) {

@@ -10,6 +10,8 @@ namespace YSE {
 
     class pObject;
     struct inlet;
+    struct GraphState;
+    class graphReadScope;
 
     struct outlet {
       // ``owner`` is the pObject this outlet belongs to; it is the route from a
@@ -71,9 +73,12 @@ namespace YSE {
       }
 
     private:
-      // Pinned-snapshot adjacency when the patcher is mid-block, else the live
-      // wiring. See the definition for the full contract (issue #226).
-      const std::vector<inlet*>& resolveTargets() const;
+      // The fan-out in the scope's snapshot, or the live wiring where nothing
+      // else writes it. See the definition for the full contract (issues
+      // #226, #963).
+      const std::vector<inlet*>& resolveTargets(const graphReadScope& scope) const;
+      // Whether `graph` records this outlet as the owner of its graph id.
+      bool OwnedBy(const GraphState* graph) const;
 
       OUT_TYPE type;
 

@@ -154,12 +154,34 @@ the top of the block, and read only by the same audio thread during that
 block. It never changes mid-block, so every send within the block sees
 one coherent snapshot.
 
-> **As built:** `currentBlockGraph_` is an atomic, and
-> `CurrentBlockGraph()` returns it only to the thread inside that
-> patcher's `Calculate` (the #690 `tRenderingPatcher` frame marker);
-> every other thread gets null and resolves through the live wiring.
-> Issue #962: a control-thread send made mid-block used to read the pinned
-> snapshot too, and the reclaimer's two-block grace does not cover it.
+> **As built:** `currentBlockGraph_` is an atomic, and it is handed only
+> to the thread inside that patcher's `Calculate` (the #690
+> `tRenderingPatcher` frame marker). Issue #962: a control-thread send
+> made mid-block used to read the pinned snapshot too, and the
+> reclaimer's two-block grace does not cover it.
+>
+> **Control-thread sends ([#963]):** every other thread resolves through
+> the *published* snapshot, never the live wiring. Each `outlet::Send*`
+> and `inlet::WaitingForDSP` opens a `graphReadScope` (graphState.h).
+> On the renderer it reads `currentBlockGraph_` (one TLS load, as
+> before). On any other thread the outermost scope takes a control-side
+> pin — the #961 `objectPins_` counter, one `seq_cst` add — then loads
+> `active_` (`seq_cst`) and keeps it in a thread_local frame that nested
+> scopes reuse, so a send's whole fan-out reads one snapshot under one
+> pin. While any pin is held the reclaimer frees nothing retired, graph
+> or object. The live vectors are then read only under `mtx` (by the
+> edits and `BuildGraph`), which removes the race with a structural edit
+> on another control thread: before #963 a send indexed
+> `outlet::connections` while `DeleteObject`'s `UnwireFromPeers` swapped
+> it out and freed it. A snapshot also records which pin owns each graph
+> id (`outletOwner` / `inletOwner`). A pin the frame's snapshot does not
+> own is looked up in the newest publish (an object created after the
+> frame opened and reached through a lookup under `mtx`), and failing
+> that reads its own live wiring: a standalone object, a test rig never
+> added to its patcher, or an object deleted since — unwired under `mtx`
+> before the publish that dropped it and never written again, so that
+> read is not racy, and it keeps a deleted object whose id a Clear
+> recompacted onto a new one from sending down the new one's cords.
 
 Each outlet resolves its targets from the pinned graph:
 
@@ -270,7 +292,9 @@ still touch it.
 > teardown (`FreeAllRetired`). The audio thread still only bumps
 > `audioBlock_` — no allocation, free, or wait. Objects are tagged only
 > *after* their covering graph is retired, so an object is never freed
-> while a retired graph still points into it.
+> while a retired graph still points into it. A pass that sees a
+> control-side pin held ([#961], [#963]) frees nothing and leaves the
+> items for a later pass.
 
 ## Scope of #226
 
@@ -320,6 +344,8 @@ still touch it.
 [gh-227]: https://github.com/yvanvds/yse-soundengine/issues/227
 [gh-228]: https://github.com/yvanvds/yse-soundengine/issues/228
 [gh-229]: https://github.com/yvanvds/yse-soundengine/issues/229
+[#961]: https://github.com/yvanvds/yse-soundengine/issues/961
+[#963]: https://github.com/yvanvds/yse-soundengine/issues/963
 [gh-151]: https://github.com/yvanvds/yse-soundengine/issues/151
 [gh-120]: https://github.com/yvanvds/yse-soundengine/issues/120
 [doc-synth]: synth_core.md

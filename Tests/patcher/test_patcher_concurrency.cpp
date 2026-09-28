@@ -479,4 +479,123 @@ TEST_SUITE("patcher") {
     CHECK(to->GetGuiValue() == from->GetGuiValue());
   }
 
+  // Issue #963: a control-thread send walked the live wiring (`outlet::
+  // connections`, `inlet::dspConnection`) while a structural edit on another
+  // control thread rewrote it under mtx — DeleteObject's UnwireFromPeers swaps
+  // the vectors out and frees them, Connect's push_back reallocates them. The
+  // send takes no lock, so TSan reports the edit's write racing the send's read
+  // in `outlet::SendFloat` / `inlet::WaitingForDSP`, and a send that loaded
+  // the old buffer can index freed memory. No render thread: both sides are
+  // control threads, so this is about the wiring, not a snapshot's lifetime
+  // (#962). Here one thread fans a value out of `from` into six churned sliders
+  // and a fixed one, while the test thread deletes, re-creates and re-wires
+  // the six.
+  TEST_CASE("concurrency: a control-thread send races no structural edit on another thread") {
+    LogSilencer silence;
+
+    patcherImplementation p(1, nullptr);
+    YSE::pHandle* from = p.CreateObject(YSE::OBJ::G_SLIDER, "");
+    YSE::pHandle* fixed = p.CreateObject(YSE::OBJ::G_SLIDER, "");
+    REQUIRE(from != nullptr);
+    REQUIRE(fixed != nullptr);
+    p.Connect(from, 0, fixed, 0);
+
+    constexpr int kChurned = 6;
+    std::vector<YSE::pHandle*> churned;
+    churned.reserve(kChurned);
+    auto wireNew = [&] {
+      YSE::pHandle* h = p.CreateObject(YSE::OBJ::G_SLIDER, "");
+      p.Connect(from, 0, h, 0);
+      p.Connect(h, 0, fixed, 0);
+      return h;
+    };
+    for (int i = 0; i < kChurned; i++)
+      churned.push_back(wireNew());
+
+    std::atomic<bool> stop{false};
+    std::atomic<std::uint64_t> sends{0};
+    std::thread sender([&] {
+      int i = 0;
+      while (!stop.load(std::memory_order_relaxed)) {
+        from->SetFloatData(0, static_cast<float>(i++ % 100) * 0.01f);
+        sends.fetch_add(1, std::memory_order_relaxed);
+      }
+    });
+
+    for (int round = 0; round < 300; round++) {
+      for (int i = 0; i < kChurned; i++) {
+        p.DeleteObject(churned[i]);
+        churned[i] = wireNew();
+      }
+    }
+
+    stop.store(true, std::memory_order_relaxed);
+    sender.join();
+
+    CHECK(sends.load() > 0);
+    // Every cord still carries the value once the storm is over.
+    from->SetFloatData(0, 0.5f);
+    CHECK(fixed->GetGuiValue() == from->GetGuiValue());
+    for (YSE::pHandle* h : churned)
+      CHECK(h->GetGuiValue() == from->GetGuiValue());
+  }
+
+  // Issue #963, the reported shape: a `.preset` recall on one thread pushes
+  // into sliders the test thread keeps deleting and re-creating. The recall's
+  // objectPin (#961) keeps the objects allocated; what raced was the wiring
+  // each recalled slider sends through, which DeleteObject unwires under mtx
+  // while the slider's outlet is being walked.
+  TEST_CASE("concurrency: a .preset recall races no delete of the sliders it recalls") {
+    LogSilencer silence;
+
+    patcherImplementation p(1, nullptr);
+    YSE::pHandle* preset = p.CreateObject(YSE::OBJ::G_PRESET, "4");
+    YSE::pHandle* kept = p.CreateObject(YSE::OBJ::G_SLIDER, "");
+    REQUIRE(preset != nullptr);
+    REQUIRE(kept != nullptr);
+
+    constexpr int kChurned = 6;
+    std::vector<YSE::pHandle*> churned;
+    churned.reserve(kChurned);
+    auto wireNew = [&] {
+      YSE::pHandle* h = p.CreateObject(YSE::OBJ::G_SLIDER, "");
+      p.Connect(h, 0, kept, 0);
+      return h;
+    };
+    for (int i = 0; i < kChurned; i++) {
+      churned.push_back(wireNew());
+      churned.back()->SetFloatData(0, 0.25f);
+    }
+    preset->SetListData(0, "store 0");
+
+    std::atomic<bool> stop{false};
+    std::atomic<std::uint64_t> recalls{0};
+    std::thread recaller([&] {
+      int i = 0;
+      while (!stop.load(std::memory_order_relaxed)) {
+        if (++i % 8 == 0) {
+          preset->SetListData(0, "store 1");
+        } else {
+          preset->SetIntData(0, 0);
+        }
+        recalls.fetch_add(1, std::memory_order_relaxed);
+      }
+    });
+
+    for (int round = 0; round < 300; round++) {
+      for (int i = 0; i < kChurned; i++) {
+        p.DeleteObject(churned[i]);
+        churned[i] = wireNew();
+      }
+    }
+
+    stop.store(true, std::memory_order_relaxed);
+    recaller.join();
+
+    CHECK(recalls.load() > 0);
+    // The patch is still whole: a slider pushes into the kept one.
+    churned[0]->SetFloatData(0, 0.75f);
+    CHECK(kept->GetGuiValue() == churned[0]->GetGuiValue());
+  }
+
 } // TEST_SUITE("patcher")

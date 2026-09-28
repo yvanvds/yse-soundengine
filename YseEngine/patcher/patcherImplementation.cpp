@@ -67,6 +67,14 @@ namespace {
   // that renders a child channel) tracks its own frame independently.
   thread_local const YSE::PATCHER::patcherImplementation* tRenderingPatcher = nullptr;
 
+  // The control-side send frame (issue #963): the patcher whose published
+  // snapshot this thread has pinned for the send in progress, and that
+  // snapshot. Set by the outermost graphReadScope and restored when it closes,
+  // so the whole fan-out below it reads one snapshot under one pin. Same
+  // RT-safety terms as tRenderingPatcher.
+  thread_local const YSE::PATCHER::patcherImplementation* tControlPatcher = nullptr;
+  thread_local const YSE::PATCHER::GraphState* tControlGraph = nullptr;
+
   // RAII frame marker for Calculate.
   struct renderFrameGuard {
     const YSE::PATCHER::patcherImplementation* previous;
@@ -152,27 +160,63 @@ YSE::THREAD patcherImplementation::CallingThread(YSE::THREAD tag) const {
   return tRenderingPatcher == this ? YSE::T_DSP : YSE::T_GUI;
 }
 
-// Only the thread inside this patcher's Calculate gets the pinned snapshot
-// (issue #962). currentBlockGraph_ is non-null for the whole block whichever
-// thread asks, but the reclaimer's two-block grace only covers the renderer:
-// a control-thread send that loaded it mid-block could still be walking it
-// when the reclaimer freed it. The frame marker is set after the pin and
-// cleared after the unpin, so inside the frame the load sees this block's
-// snapshot (or null past the unpin, which is the live-wiring answer anyway).
-const YSE::PATCHER::GraphState* patcherImplementation::CurrentBlockGraph() const {
-  if (tRenderingPatcher != this) return nullptr;
-  return currentBlockGraph_.load(std::memory_order_acquire);
+// See graphReadScope in graphState.h for the contract. ``Parent()`` is the
+// owning patcherImplementation by construction (set via SetParent when the
+// object is added); null for a standalone object or the patcher itself, which
+// have no snapshot to consult.
+graphReadScope::graphReadScope(const pObject* object) {
+  if (object == nullptr) return;
+  auto* p = static_cast<patcherImplementation*>(object->Parent());
+  if (p == nullptr) return;
+
+  // The renderer (issue #962): only the thread inside this patcher's Calculate
+  // gets the block's pin, because the reclaimer's two-block grace counts that
+  // thread's blocks and nobody else's. The frame marker is set after the pin
+  // and cleared after the unpin, so inside the frame this load sees this
+  // block's snapshot. This is the whole of the audio path: one TLS load, one
+  // atomic load.
+  if (tRenderingPatcher == p) {
+    graph_ = p->currentBlockGraph_.load(std::memory_order_acquire);
+    return;
+  }
+
+  // Already inside a send on this thread for this patcher: same pin, same
+  // snapshot for the whole fan-out.
+  control_ = p;
+  if (tControlPatcher == p) {
+    graph_ = tControlGraph;
+    return;
+  }
+
+  // Outermost control-side read (issue #963): pin, then load the published
+  // snapshot. All seq_cst, against the seq_cst publish in RebuildAndPublish
+  // and the seq_cst pin load in ReclaimElapsed. A retired graph G is freed
+  // only by a pass whose pin load L read 0. The publish that retired G
+  // happens-before L (it precedes the retire-list push, which precedes the
+  // pass, both under reclaimMtx_). If L read 0 it precedes this increment in
+  // the single seq_cst order, so it precedes the load below, which therefore
+  // sees the publish that retired G or a later one — never G. A graph loaded
+  // here is retired later still, by a pass that sees the pin until Release.
+  p->objectPins_.fetch_add(1, std::memory_order_seq_cst);
+  graph_ = p->active_.load(std::memory_order_seq_cst);
+  savedPatcher_ = tControlPatcher;
+  savedGraph_ = tControlGraph;
+  tControlPatcher = p;
+  tControlGraph = graph_;
+  pinned_ = p;
 }
 
-// pObject's forwarder lives here rather than in pObject.cpp so the call above
-// inlines into it: every inlet/outlet topology query on the audio path goes
-// through this one hop, as it did before #962. ``parent`` is the owning
-// patcherImplementation by construction (set via SetParent when the object is
-// added); null for a standalone object or the patcher itself, in which case
-// there is no snapshot to consult.
-const YSE::PATCHER::GraphState* pObject::CurrentBlockGraph() const {
-  if (parent == nullptr) return nullptr;
-  return static_cast<patcherImplementation*>(parent)->CurrentBlockGraph();
+// A load under a pin this thread already holds: the ordering argument in the
+// constructor applies unchanged, the increment having come before this load.
+const YSE::PATCHER::GraphState* graphReadScope::Latest() const {
+  if (control_ == nullptr) return nullptr;
+  return control_->active_.load(std::memory_order_seq_cst);
+}
+
+void graphReadScope::Release() {
+  tControlPatcher = savedPatcher_;
+  tControlGraph = savedGraph_;
+  pinned_->objectPins_.fetch_sub(1, std::memory_order_seq_cst);
 }
 
 patcherImplementation::patcherImplementation(int mainOutputs, YSE::patcher* head)
@@ -391,8 +435,9 @@ void patcherImplementation::Calculate(YSE::THREAD thread) {
     }
   }
 
-  // Unpin: between blocks the topology helpers fall back to the live wiring
-  // (control-thread / standalone path) instead of a possibly-retired snapshot.
+  // Unpin: nothing on this thread may read this block's snapshot once the
+  // frame closes; later sends from here are control-side and pin the published
+  // one instead (issue #963).
   currentBlockGraph_.store(nullptr, std::memory_order_release);
 }
 
@@ -1958,6 +2003,8 @@ YSE::PATCHER::GraphState* patcherImplementation::BuildGraph() {
   GraphState* g = new GraphState();
   g->outletTargets.resize(nextOutletId_);
   g->inletHasDsp.assign(nextInletId_, 0);
+  g->outletOwner.assign(nextOutletId_, nullptr);
+  g->inletOwner.assign(nextInletId_, nullptr);
 
   for (const auto& any : objects) {
     pObject* object = any.second;
@@ -1973,7 +2020,10 @@ YSE::PATCHER::GraphState* patcherImplementation::BuildGraph() {
       PATCHER::outlet* out = object->GetOutlet(i);
       if (out == nullptr) continue;
       int id = out->GraphId();
-      if (id >= 0 && id < nextOutletId_) g->outletTargets[id] = out->Targets();
+      if (id >= 0 && id < nextOutletId_) {
+        g->outletTargets[id] = out->Targets();
+        g->outletOwner[id] = out;
+      }
     }
     for (int i = 0; i < object->NumInputs(); i++) {
       PATCHER::inlet* in = object->GetInlet(i);
@@ -1981,6 +2031,7 @@ YSE::PATCHER::GraphState* patcherImplementation::BuildGraph() {
       int id = in->GraphId();
       if (id >= 0 && id < nextInletId_) {
         g->inletHasDsp[id] = in->HasActiveDSPConnection() ? 1 : 0;
+        g->inletOwner[id] = in;
       }
     }
   }
@@ -1990,9 +2041,11 @@ YSE::PATCHER::GraphState* patcherImplementation::BuildGraph() {
 void patcherImplementation::RebuildAndPublish() {
   GraphState* next = BuildGraph();
   // Only the control thread writes active_ (under mtx), so a relaxed load of
-  // the prior pointer is fine; the audio thread reads it with acquire.
+  // the prior pointer is fine; the audio thread reads it with acquire. The
+  // store is seq_cst for the control-side pin (issue #963): see
+  // graphReadScope's constructor for the ordering argument it completes.
   const GraphState* old = active_.load(std::memory_order_relaxed);
-  active_.store(next, std::memory_order_release);
+  active_.store(next, std::memory_order_seq_cst);
   if (old != nullptr) {
     std::scoped_lock lk(reclaimMtx_);
     retiredGraphs_.emplace_back(old, audioBlock_.load(std::memory_order_acquire));
@@ -2018,21 +2071,25 @@ bool patcherImplementation::ReclaimElapsed(std::uint64_t now) {
   // finished its render before block C+2's counter bump, which this pass's
   // acquire load of audioBlock_ synchronizes-with. Free graphs before the
   // objects they point into.
+  //
+  // A control-side pin (issue #961's objectPin, #963's graphReadScope) holds
+  // everything back. An objectPin holder may be using an object it found live
+  // under mtx and that has been retired since: the pin was taken before that
+  // lookup, the lookup came before the retirement (both under mtx), and the
+  // retirement before this pass (reclaimMtx_). A control-thread send may be
+  // walking a snapshot retired since it was loaded, and the objects it names:
+  // see graphReadScope's constructor for why this load sees that pin. Either
+  // way the load sees the pin — or a later count, which is 0 only once every
+  // such pin has been released.
+  const bool pinned = objectPins_.load(std::memory_order_seq_cst) != 0;
   for (std::size_t i = 0; i < retiredGraphs_.size();) {
-    if (now >= retiredGraphs_[i].second + 2) {
+    if (!pinned && now >= retiredGraphs_[i].second + 2) {
       delete retiredGraphs_[i].first;
       retiredGraphs_.erase(retiredGraphs_.begin() + i);
     } else {
       ++i;
     }
   }
-  // A control thread holding an objectPin (issue #961) may be using an object
-  // it found live under mtx and that has been retired since; nothing retired
-  // is freed until the last pin is dropped. The pin was taken before that
-  // lookup, the lookup came before the retirement (both under mtx), and the
-  // retirement before this pass (reclaimMtx_), so this load sees the pin — or
-  // a later count, which is 0 only once every such pin has been released.
-  const bool pinned = objectPins_.load(std::memory_order_acquire) != 0;
   for (std::size_t i = 0; i < retiredObjects_.size();) {
     if (!pinned && now >= retiredObjects_[i].epoch + 2) {
       // No live or retired snapshot can still index this object's ids now, so

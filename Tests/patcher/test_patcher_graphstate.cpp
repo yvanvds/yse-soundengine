@@ -515,7 +515,8 @@ TEST_SUITE("patcher") {
     }
   }
 
-  TEST_CASE("graphstate: a control-thread send during a block follows the live wiring (#962)") {
+  TEST_CASE(
+      "graphstate: a control-thread send during a block follows the published wiring (#962)") {
     // Only the thread rendering a block may resolve through the snapshot it
     // pinned: the reclaimer's two-block grace counts that thread's blocks and
     // nobody else's. Before #962 the pin was visible to every thread for the
@@ -528,9 +529,10 @@ TEST_SUITE("patcher") {
     // parked mid-block inside a GateSink (fed from a queued value delivered by
     // the block's own drain), so its snapshot stays pinned. The test thread
     // then wires slider -> sink, which publishes a snapshot the parked block
-    // does not have, and sends into the slider. The live wiring has the new
-    // edge, the pinned snapshot does not: the sink hears the value only if the
-    // send followed the live wiring.
+    // does not have, and sends into the slider. The published snapshot (which
+    // control-thread sends read since #963) has the new edge, the block's
+    // does not: the sink hears the value only if the send did not use the
+    // renderer's snapshot.
     TestHelpers::GateSink gate; // before the patcher: outlives it
     TestHelpers::FloatSink sink;
     YSE::pHandle gateHandle(&gate);
@@ -554,6 +556,47 @@ TEST_SUITE("patcher") {
 
     gate.Release();
     audio.join();
+  }
+
+  TEST_CASE("graphstate: a deleted object's send never takes the cords of the object that reused "
+            "its id (#963)") {
+    // Control-thread sends resolve through the published snapshot (issue
+    // #963), indexed by graph id. A control thread can still hold an object
+    // deleted since — a `.preset` recall does, under an objectPin — and a
+    // Clear recompacts the id space (issue #355), so a new object can carry
+    // the very ids the deleted one had. The snapshot records which pin owns
+    // each id, and a pin no snapshot owns falls back to its own wiring, which
+    // the delete emptied. Without that, the deleted slider's send below would
+    // come out of the new slider's cord.
+    TestHelpers::FloatSink oldSink; // before the patcher: outlive it
+    TestHelpers::FloatSink newSink;
+    YSE::pHandle oldSinkHandle(&oldSink);
+    YSE::pHandle newSinkHandle(&newSink);
+    patcherImplementation p(1, nullptr);
+    YSE::pHandle* first = p.CreateObject(YSE::OBJ::G_SLIDER, "");
+    REQUIRE(first != nullptr);
+    p.Connect(first, 0, &oldSinkHandle, 0);
+    YSE::PATCHER::pObject* deleted = p.GetObjectFromID(first->GetID());
+    REQUIRE(deleted != nullptr);
+
+    // No block is rendered, so the retired slider stays allocated.
+    p.Clear();
+    YSE::pHandle* second = p.CreateObject(YSE::OBJ::G_SLIDER, "");
+    REQUIRE(second != nullptr);
+    p.Connect(second, 0, &newSinkHandle, 0);
+    YSE::PATCHER::pObject* live = p.GetObjectFromID(second->GetID());
+    REQUIRE(live != nullptr);
+    REQUIRE(live != deleted);
+    REQUIRE(live->GetOutlet(0)->GraphId() == deleted->GetOutlet(0)->GraphId());
+
+    deleted->GetOutlet(0)->SendFloat(0.5f, YSE::T_GUI);
+    CHECK_FALSE(newSink.gotFloat);
+    CHECK_FALSE(oldSink.gotFloat); // its own cord went with the delete
+
+    // The live object's cord still carries.
+    second->SetFloatData(0, 0.25f);
+    CHECK(newSink.gotFloat);
+    CHECK(newSink.received == doctest::Approx(0.25f));
   }
 
 } // TEST_SUITE("patcher")

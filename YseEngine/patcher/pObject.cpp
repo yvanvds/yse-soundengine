@@ -9,10 +9,7 @@
 
 using namespace YSE::PATCHER;
 
-// pObject::CurrentBlockGraph is defined in patcherImplementation.cpp (issue
-// #962), next to the thread_local render-frame marker it consults.
-
-// Same hop as CurrentBlockGraph: the owning patcher's scheduler, or null when
+// The owning patcher's scheduler, or null when
 // there is no patcher to defer into (standalone / unit-test use, issue #628).
 YSE::PATCHER::messageScheduler* pObject::Scheduler() const {
   if (parent == nullptr) return nullptr;
