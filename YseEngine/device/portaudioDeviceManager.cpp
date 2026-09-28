@@ -397,17 +397,43 @@ Bool YSE::DEVICE::managerObject::openDevice(const YSE::deviceSetup& object) {
 #endif
   params.hostApiSpecificStreamInfo = nullptr;
   // See note at the addCallback() writer above.
-  {
-    const UInt newRate = (UInt)info->defaultSampleRate;
-    assert(!INTERNAL::Global().isSampleRateLocked() || newRate == SAMPLERATE);
-    if (!INTERNAL::Global().isSampleRateLocked()) {
-      SAMPLERATE = newRate;
+  //
+  // The rate the setup asks for (deviceSetup::setSampleRate, 0 = no request)
+  // used to be dropped on the floor here (issue #971). It follows the same
+  // session-lock rules as requestSampleRate() (#646): a running session keeps
+  // its rate, so a differing request is refused with a log line and the stream
+  // opens at the session rate; with no session rate locked, the request takes
+  // precedence over the device default, and a device that refuses it falls
+  // back to its default rate, as in addCallback().
+  const UInt deviceDefault = (UInt)info->defaultSampleRate;
+  const UInt requested = object.sampleRate > 0.0 ? (UInt)std::lround(object.sampleRate) : 0u;
+  if (INTERNAL::Global().isSampleRateLocked()) {
+    assert(deviceDefault == SAMPLERATE);
+    if (requested != 0 && requested != SAMPLERATE) {
+      INTERNAL::LogImpl().emit(
+          E_WARNING, "Requested device sample rate " + std::to_string(requested) +
+                         " Hz ignored: the session runs at " + std::to_string(SAMPLERATE) +
+                         " Hz. Call System().requestSampleRate() before init() "
+                         "to change it.");
     }
+  } else {
+    SAMPLERATE = requested != 0 ? requested : deviceDefault;
   }
 
-  err = Pa_OpenStream(&stream, NULL, &params, SAMPLERATE,
-                      object.bufferSize == 0 ? paFramesPerBufferUnspecified : object.bufferSize,
-                      paNoFlag, paCallback, this);
+  const unsigned long framesPerBuffer = object.bufferSize == 0
+                                            ? paFramesPerBufferUnspecified
+                                            : static_cast<unsigned long>(object.bufferSize);
+  err = Pa_OpenStream(&stream, NULL, &params, SAMPLERATE, framesPerBuffer, paNoFlag, paCallback,
+                      this);
+
+  if (err != paNoError && !INTERNAL::Global().isSampleRateLocked() && SAMPLERATE != deviceDefault) {
+    INTERNAL::LogImpl().emit(E_WARNING, "Requested sample rate " + std::to_string(SAMPLERATE) +
+                                            " Hz refused by the audio device; falling back to " +
+                                            std::to_string(deviceDefault) + " Hz");
+    SAMPLERATE = deviceDefault;
+    err = Pa_OpenStream(&stream, NULL, &params, SAMPLERATE, framesPerBuffer, paNoFlag, paCallback,
+                        this);
+  }
 
   if (err != paNoError) {
     audioDeviceError(err);

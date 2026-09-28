@@ -2,6 +2,8 @@
 
 #include "androidDeviceManager.h"
 #include "../internalHeaders.h"
+#include <cmath>
+#include <string>
 
 // Initial value before the Oboe stream opens. OboeImplementation::openStream
 // overwrites this with stream->getSampleRate() (typically 48 kHz on modern
@@ -91,6 +93,17 @@ Bool YSE::DEVICE::managerObject::openDevice(const YSE::deviceSetup& object) {
   // the request cannot fail. Reported as success so system::openDevice() keeps
   // applying the requested speaker layout here, which is what this backend has
   // always done (issue #665).
+  //
+  // The stream keeps the session rate, so a setup rate that differs from it is
+  // reported rather than silently dropped, as on PortAudio (issue #971).
+  const UInt requested = object.sampleRate > 0.0 ? (UInt)std::lround(object.sampleRate) : 0u;
+  if (requested != 0 && requested != SAMPLERATE) {
+    INTERNAL::LogImpl().emit(E_WARNING,
+                             "Requested device sample rate " + std::to_string(requested) +
+                                 " Hz ignored: the session runs at " + std::to_string(SAMPLERATE) +
+                                 " Hz. Call System().requestSampleRate() before init() "
+                                 "to change it.");
+  }
   return true;
 }
 

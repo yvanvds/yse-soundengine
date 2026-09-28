@@ -79,6 +79,11 @@ YSE_C_API YseDeviceSetup* yse_device_setup_create(void);
 YSE_C_API void yse_device_setup_destroy(YseDeviceSetup* setup);
 YSE_C_API void yse_device_setup_set_input(YseDeviceSetup* setup, const YseDevice* dev);
 YSE_C_API void yse_device_setup_set_output(YseDeviceSetup* setup, const YseDevice* dev);
+/** Sample rate to open the device at, in Hz; 0 (the default) means no request.
+   The session rate is fixed while a session runs: when it differs from the
+   session rate, yse_system_open_device() logs a warning and opens the stream
+   at the session rate. Choose the rate with yse_system_request_sample_rate()
+   before yse_system_init() instead. */
 YSE_C_API void yse_device_setup_set_sample_rate(YseDeviceSetup* setup, double value);
 YSE_C_API void yse_device_setup_set_buffer_size(YseDeviceSetup* setup, int value);
 

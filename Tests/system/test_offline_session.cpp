@@ -49,7 +49,10 @@
 #include <doctest/doctest.h>
 
 #include <chrono>
+#include <mutex>
+#include <string>
 #include <thread>
+#include <vector>
 
 #include "support/timer_pacing.hpp"
 
@@ -106,6 +109,45 @@ namespace {
     }
     return fallback;
   }
+
+  // Collects what the engine logs while installed (issue #971). Locked: engine
+  // threads may log while the test reads.
+  class CapturingLog : public YSE::logHandler {
+  public:
+    void AddMessage(const std::string& message) override {
+      const std::lock_guard<std::mutex> lock(mutex);
+      messages.push_back(message);
+    }
+    bool contains(const std::string& fragment) const {
+      const std::lock_guard<std::mutex> lock(mutex);
+      for (const std::string& m : messages)
+        if (m.find(fragment) != std::string::npos) return true;
+      return false;
+    }
+
+  private:
+    mutable std::mutex mutex;
+    std::vector<std::string> messages;
+  };
+
+  // Installs a sink for one case and restores the previous state even if an
+  // assertion unwinds. Safe: this suite owns its process.
+  class ScopedSink {
+  public:
+    explicit ScopedSink(YSE::logHandler* handler) : previousLevel(YSE::Log().getLevel()) {
+      YSE::Log().setLevel(YSE::EL_WARNING);
+      YSE::Log().setHandler(handler);
+    }
+    ~ScopedSink() {
+      YSE::Log().setHandler(nullptr);
+      YSE::Log().setLevel(previousLevel);
+    }
+    ScopedSink(const ScopedSink&) = delete;
+    ScopedSink& operator=(const ScopedSink&) = delete;
+
+  private:
+    YSE::ERROR_LEVEL previousLevel;
+  };
 
 } // namespace
 
@@ -239,6 +281,73 @@ TEST_SUITE("offlinesession") {
     if (rate != 0.0) YSE::System().closeCurrentDevice();
     CHECK(rate == 0.0);
     YSE::System().close();
+  }
+
+  // Issue #971. deviceSetup::setSampleRate() was stored and never read:
+  // openDevice() opened the stream at the session rate and said nothing about
+  // the request. The session rate is locked for the whole session (#646), so a
+  // differing request cannot be honoured on a running session — but it must be
+  // reported, not silently dropped. Lives in this suite because it needs what
+  // this process has: PortAudio up and a real device to open.
+  TEST_CASE("offlinesession: openDevice() reports a setup sample rate the session cannot honour "
+            "(issue #971)") {
+    if (!deviceReachable()) return;
+
+    YSE::System().close();
+
+    const YSE::device out = playableDevice();
+    if (out.getNumOutputChannelNames() == 0 || out.getNumAvailableSampleRates() == 0) {
+      MESSAGE("skipped: no enumerated device with output channels and an advertised rate.");
+      return;
+    }
+
+    // Run the session at the device's own rate, so the device can open at it
+    // (openDevice() asserts a locked rate matches the device it opens).
+    const unsigned int deviceRate = static_cast<unsigned int>(out.getAvailableSampleRate(0));
+    const unsigned int otherRate = deviceRate == 44100u ? 48000u : 44100u;
+    const unsigned int previousRequest = YSE::System().requestSampleRate();
+    YSE::System().requestSampleRate(deviceRate);
+    REQUIRE(YSE::System().init());
+    if (YSE::System().getSampleRate() != static_cast<double>(deviceRate)) {
+      MESSAGE("skipped: the default device did not open at the enumerated device's rate.");
+      YSE::System().close();
+      YSE::System().requestSampleRate(previousRequest);
+      return;
+    }
+
+    CapturingLog log;
+    bool opened = false;
+    {
+      ScopedSink sink(&log);
+
+      // A matching request is simply honoured: nothing to report.
+      YSE::deviceSetup same;
+      same.setOutput(out).setSampleRate(static_cast<double>(deviceRate)).setBufferSize(0);
+      opened = YSE::System().openDevice(same, YSE::CT_AUTO);
+      CHECK_FALSE(log.contains("sample rate"));
+
+      // A differing one is refused with a log line naming it, and the stream
+      // opens at the session rate.
+      if (opened) {
+        YSE::deviceSetup differing;
+        differing.setOutput(out).setSampleRate(static_cast<double>(otherRate)).setBufferSize(0);
+        opened = YSE::System().openDevice(differing, YSE::CT_AUTO);
+      }
+    }
+
+    const double active = YSE::System().getActiveSampleRate();
+    YSE::System().closeCurrentDevice();
+    YSE::System().close();
+    YSE::System().requestSampleRate(previousRequest);
+
+    if (!opened) {
+      MESSAGE("skipped: the enumerated device did not open in this process (exclusive-mode host, "
+              "device in use).");
+      return;
+    }
+    CHECK(
+        log.contains("Requested device sample rate " + std::to_string(otherRate) + " Hz ignored"));
+    CHECK(active == static_cast<double>(deviceRate));
   }
 
 } // TEST_SUITE("offlinesession")

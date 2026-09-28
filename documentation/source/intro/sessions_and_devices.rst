@@ -192,10 +192,12 @@ layout from the channel count. A layout with a different number of outputs
 makes the next audio block reallocate the mix buffers, so switch devices at
 setup, not while something audible plays.
 
-The new stream runs at the session's sample rate. The rate set with
-``deviceSetup::setSampleRate()`` is currently ignored (tracked as
-`#971 <https://github.com/yvanvds/yse-soundengine/issues/971>`_); choose the
-rate with ``requestSampleRate()`` before ``init()``.
+The new stream runs at the session's sample rate. The session rate cannot
+change while the session runs, so ``deviceSetup::setSampleRate()`` only
+matters when it differs from it: ``openDevice()`` then logs a warning that
+names the requested rate and opens the stream at the session rate anyway.
+Leave it at 0 (the default) or at the session rate, and choose the rate with
+``requestSampleRate()`` before ``init()``.
 
 On Android there is a single device ("Android Audio", stereo, through Oboe).
 ``openDevice()`` does not switch anything there. It only applies the speaker
