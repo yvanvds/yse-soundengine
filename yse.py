@@ -16,6 +16,7 @@ are propagated unchanged.
 import argparse
 import datetime
 import fnmatch
+import io
 import json
 import os
 import platform
@@ -24,6 +25,8 @@ import shutil
 import subprocess
 import sys
 import tarfile
+import urllib.error
+import urllib.request
 import zipfile
 from pathlib import Path
 
@@ -1040,13 +1043,190 @@ def _collect_mingw_dlls(dll_path, mingw_prefix):
     return sorted(found)
 
 
+# Upstream license files, as found in share/doc/<pkg>/ or an upstream tarball.
+_LICENSE_NAME_RE = re.compile(r"^(licen[sc]e|copying|copyright|notice)([.-].*)?$", re.IGNORECASE)
+MSYS2_SOURCES_URL = "https://repo.msys2.org/mingw/sources"
+
+
+def _pacman(msys_root, *pacman_args):
+    """Run pacman (PATH first, else <msys_root>/usr/bin) and return its stdout."""
+    pacman = shutil.which("pacman") or str(msys_root / "usr" / "bin" / "pacman.exe")
+    if not Path(pacman).exists():
+        print(f"error: pacman not found (looked on PATH and at {pacman}); "
+              "cannot resolve the licenses of the bundled DLLs.")
+        sys.exit(1)
+    return subprocess.check_output([pacman, *pacman_args], text=True, errors="replace")
+
+
+def _msys2_package(msys_root, dll):
+    """Return {name, version, base, licenses, files} of the MSYS2 package that
+    owns `dll` (pacman -Qqo / -Qi / -Qlq, and %BASE% from the local db)."""
+    try:
+        # pacman only resolves forward-slash Windows paths.
+        name = _pacman(msys_root, "-Qqo", Path(dll).as_posix()).strip()
+    except subprocess.CalledProcessError:
+        print(f"error: no MSYS2 package owns {dll}; cannot ship its license.")
+        sys.exit(1)
+    info = {}
+    for line in _pacman(msys_root, "-Qi", name).splitlines():
+        key, sep, value = line.partition(":")
+        if sep and key.strip() and not key.startswith(" "):
+            info[key.strip()] = value.strip()
+    version = info["Version"]
+    desc = msys_root / "var" / "lib" / "pacman" / "local" / f"{name}-{version}" / "desc"
+    base = re.search(r"^%BASE%\n(\S+)", desc.read_text(encoding="utf-8"), re.MULTILINE)
+    files = []
+    for entry in _pacman(msys_root, "-Qlq", name).splitlines():
+        if entry.endswith("/"):
+            continue
+        path = msys_root / entry.lstrip("/")
+        parts = Path(entry).parts
+        if "licenses" in parts or ("doc" in parts and _LICENSE_NAME_RE.match(path.name)):
+            files.append(path)
+    return {
+        "name": name,
+        "version": version,
+        "base": base.group(1) if base else name,
+        "licenses": info.get("Licenses", "unknown"),
+        "files": files,
+    }
+
+
+def _open_zst_tar(path):
+    """Open a .tar.zst (Python 3.14+ natively, else via the zstd CLI)."""
+    try:
+        return tarfile.open(path, "r:*")
+    except tarfile.TarError:
+        pass
+    zstd = shutil.which("zstd")
+    if zstd is None:
+        print(f"error: cannot read {path}: needs Python 3.14+ or zstd on PATH.")
+        sys.exit(1)
+    data = subprocess.check_output([zstd, "-d", "-c", str(path)])
+    return tarfile.open(fileobj=io.BytesIO(data), mode="r:")
+
+
+def _msys2_source_package(pkg, cache):
+    """Download (once, into `cache`) the MSYS2 source package that built `pkg`
+    at its installed version, and return its path."""
+    cache.mkdir(parents=True, exist_ok=True)
+    stem = f"{pkg['base']}-{pkg['version']}.src"
+    for ext in (".tar.zst", ".tar.gz"):
+        cached = cache / (stem + ext)
+        if cached.is_file():
+            return cached
+    for ext in (".tar.zst", ".tar.gz"):
+        url = f"{MSYS2_SOURCES_URL}/{stem}{ext}"
+        try:
+            with urllib.request.urlopen(url, timeout=120) as resp:
+                data = resp.read()
+        except urllib.error.HTTPError as e:
+            if e.code == 404:
+                continue
+            raise
+        target = cache / (stem + ext)
+        partial = target.with_name(target.name + ".part")
+        partial.write_bytes(data)
+        partial.replace(target)
+        print(f"Fetched {url}")
+        return target
+    print(f"error: MSYS2 source package {stem}.tar.{{zst,gz}} not found at "
+          f"{MSYS2_SOURCES_URL}/. Place it in {cache} to package offline.")
+    sys.exit(1)
+
+
+def _license_files_from_source(src_pkg):
+    """Return [(name, bytes)] of the top-level license files of the upstream
+    tarball inside an MSYS2 source package (for packages whose binary package
+    carries none, e.g. lame and libvorbis)."""
+    found = []
+    with _open_zst_tar(src_pkg) as outer:
+        for member in outer.getmembers():
+            if not member.isfile() or not re.search(r"\.tar\.(gz|xz|bz2|zst)$", member.name):
+                continue
+            inner_bytes = outer.extractfile(member).read()
+            try:
+                inner = tarfile.open(fileobj=io.BytesIO(inner_bytes), mode="r:*")
+            except tarfile.TarError:
+                continue
+            with inner:
+                for m in inner.getmembers():
+                    parts = Path(m.name).parts
+                    if m.isfile() and len(parts) == 2 and _LICENSE_NAME_RE.match(parts[1]):
+                        found.append((parts[1], inner.extractfile(m).read()))
+    return found
+
+
+def _add_windows_license_files(stage, bundled, mingw_prefix, cache):
+    """Ship each bundled DLL's license texts under licenses/<package>/ and, for
+    packages whose declared license includes the (L)GPL, the exact MSYS2 source
+    package under third_party/
+    (#979). Writes licenses/BUNDLED-DLLS.txt mapping each DLL to its package."""
+    msys_root = Path(mingw_prefix).parent
+    packages = {}   # name -> package info
+    owners = []     # (dll name, package name)
+    for dll in bundled:
+        pkg = _msys2_package(msys_root, dll)
+        packages.setdefault(pkg["name"], pkg)
+        owners.append((dll.name, pkg["name"]))
+
+    licenses = stage / "licenses"
+    third_party = stage / "third_party"
+    licenses.mkdir(exist_ok=True)
+    manifest = [
+        "DLLs bundled in bin/ and the MSYS2 Clang64 packages they come from.",
+        "License texts are in licenses/<package>/. Packages whose declared",
+        "license includes the (L)GPL ship their complete MSYS2 source package",
+        "(PKGBUILD, patches, upstream tarball) under third_party/; see NOTICE.",
+        "",
+    ]
+    for name, pkg in sorted(packages.items()):
+        short = re.sub(r"^mingw-w64-(?:clang-|ucrt-)?(?:x86_64|i686|aarch64)-", "", name)
+        dest = licenses / short
+        dest.mkdir(exist_ok=True)
+        copyleft = "GPL" in pkg["licenses"]
+        src_pkg = None
+        if copyleft or not pkg["files"]:
+            src_pkg = _msys2_source_package(pkg, cache)
+        if pkg["files"]:
+            for f in pkg["files"]:
+                shutil.copy2(f, dest / f.name)
+            copied = [f.name for f in pkg["files"]]
+        else:
+            texts = _license_files_from_source(src_pkg)
+            if not texts:
+                print(f"error: no license file found for {name} in its binary "
+                      f"or source package ({src_pkg.name}).")
+                sys.exit(1)
+            for fname, data in texts:
+                (dest / fname).write_bytes(data)
+            copied = [fname for fname, _ in texts]
+        dlls = ", ".join(d for d, owner in owners if owner == name)
+        manifest.append(f"{dlls}")
+        manifest.append(f"    package:  {name} {pkg['version']}")
+        manifest.append(f"    license:  {pkg['licenses']}")
+        manifest.append(f"    texts:    " + ", ".join(f"licenses/{short}/{c}" for c in copied))
+        if copyleft:
+            third_party.mkdir(exist_ok=True)
+            shutil.copy2(src_pkg, third_party / src_pkg.name)
+            manifest.append(f"    source:   third_party/{src_pkg.name}")
+            manifest.append(f"              ({MSYS2_SOURCES_URL}/{src_pkg.name})")
+        manifest.append("")
+    (licenses / "BUNDLED-DLLS.txt").write_text("\n".join(manifest), encoding="utf-8")
+    shipped = sorted(p.name for p in third_party.iterdir()) if third_party.is_dir() else []
+    print(f"Added licenses/ for {len(packages)} package(s); "
+          f"LGPL sources: {', '.join(shipped) or 'none'}.")
+
+
 def _make_release_readme(version, platform_name, dlls):
     today = datetime.date.today().isoformat()
     if platform_name == "windows":
         layout = (
             "    include/        Public C++ headers (use `#include \"yse.hpp\"`)\n"
             "    bin/            libyse.dll + bundled runtime dependencies\n"
-            "    lib/            libyse.dll.a (MinGW import library)"
+            "    lib/            libyse.dll.a (MinGW import library)\n"
+            "    licenses/       License texts of the bundled DLLs (see BUNDLED-DLLS.txt)\n"
+            "    third_party/    MSYS2 source packages of the LGPL DLLs (see NOTICE)"
         )
         deps_section = (
             "All runtime dependencies are bundled in `bin/`. Just drop the contents of\n"
@@ -1054,6 +1234,12 @@ def _make_release_readme(version, platform_name, dlls):
             "come from MSYS2 Clang64 and include:\n\n"
         )
         deps_section += "\n".join(f"- `{d.name}`" for d in dlls) if dlls else "- (none — see bin/)"
+        deps_section += (
+            "\n\nEach DLL's license text is in `licenses/`. For the LGPL ones (libsndfile,\n"
+            "mpg123 and LAME; FLAC's package also declares LGPL) the complete source,\n"
+            "as built by MSYS2, is in `third_party/`; see `licenses/BUNDLED-DLLS.txt`.\n"
+            "You may replace any of these DLLs with a compatible build of your own."
+        )
         link_hint = (
             "Compile: `-I<archive>/include`\n"
             "Link:    `-L<archive>/lib -lyse`\n"
@@ -1395,6 +1581,9 @@ def cmd_package(args):
         print(f"error: {notice_src} not found.")
         sys.exit(1)
     shutil.copy2(notice_src, stage / "NOTICE")
+    if platform_name == "windows":
+        _add_windows_license_files(stage, bundled, mingw_prefix,
+                                   out_root / "_third_party" / "msys2")
     if android_trees is not None:
         _add_android_license_files(stage, android_trees)
 

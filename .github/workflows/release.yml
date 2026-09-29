@@ -82,6 +82,8 @@ jobs:
           cmake --preset release
           cmake --build --preset release
 
+      # Also copies each bundled DLL's license files (via pacman) and downloads
+      # the MSYS2 source packages of the LGPL DLLs from repo.msys2.org (#979).
       - name: Package
         run: python yse.py package --platform windows
 
