@@ -114,18 +114,27 @@ TEST_SUITE("capilowcov") {
     CHECK(yse_dsp_buffer_read(nullptr, 0, scratch, 4) == 0u);
     CHECK(yse_dsp_buffer_write(nullptr, 0, scratch, 4) == 0u);
 
-    // Subclass entry points report an invalid handle rather than crashing.
-    CHECK(yse_dsp_buffer_draw_line(nullptr, 0, 4, 0.f, 1.f) == YSE_ERR_INVALID_HANDLE);
-    CHECK(yse_dsp_buffer_draw_flat(nullptr, 0, 4, 1.f) == YSE_ERR_INVALID_HANDLE);
-    CHECK(yse_dsp_buffer_load_file(nullptr, "nope.wav", 0) == YSE_ERR_INVALID_HANDLE);
-    CHECK(yse_dsp_buffer_save_file(nullptr, "nope.wav") == YSE_ERR_INVALID_HANDLE);
-    CHECK(yse_dsp_wavetable_create_saw(nullptr, 8, 64) == YSE_ERR_INVALID_HANDLE);
-    CHECK(yse_dsp_wavetable_create_square(nullptr, 8, 64) == YSE_ERR_INVALID_HANDLE);
-    CHECK(yse_dsp_wavetable_create_triangle(nullptr, 8, 64) == YSE_ERR_INVALID_HANDLE);
-
-    // The last failure above recorded a message for the C client.
-    CHECK(std::string(yse_last_error()).find("wavetable") != std::string::npos);
+    // Subclass entry points report an invalid handle rather than crashing, and
+    // the recorded message names the entry point and says the handle was NULL.
+    // as<T>() is an unchecked static_cast (#582), so no message may suggest a
+    // subclass type check happened (#977).
+    const auto expectNullHandle = [](YseStatus status, const char* entryPoint) {
+      CHECK(status == YSE_ERR_INVALID_HANDLE);
+      const std::string msg = yse_last_error();
+      CHECK(msg == std::string(entryPoint) + ": buffer handle is NULL");
+      CHECK(msg.find("is not a") == std::string::npos);
+      yse_clear_last_error();
+    };
     yse_clear_last_error();
+    expectNullHandle(yse_dsp_buffer_draw_line(nullptr, 0, 4, 0.f, 1.f), "yse_dsp_buffer_draw_line");
+    expectNullHandle(yse_dsp_buffer_draw_flat(nullptr, 0, 4, 1.f), "yse_dsp_buffer_draw_flat");
+    expectNullHandle(yse_dsp_buffer_load_file(nullptr, "nope.wav", 0), "yse_dsp_buffer_load_file");
+    expectNullHandle(yse_dsp_buffer_save_file(nullptr, "nope.wav"), "yse_dsp_buffer_save_file");
+    expectNullHandle(yse_dsp_wavetable_create_saw(nullptr, 8, 64), "yse_dsp_wavetable_create_saw");
+    expectNullHandle(yse_dsp_wavetable_create_square(nullptr, 8, 64),
+                     "yse_dsp_wavetable_create_square");
+    expectNullHandle(yse_dsp_wavetable_create_triangle(nullptr, 8, 64),
+                     "yse_dsp_wavetable_create_triangle");
   }
 
   TEST_CASE("c-api dsp buffer: all four subclasses construct and destroy") {
