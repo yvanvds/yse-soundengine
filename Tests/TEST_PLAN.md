@@ -574,12 +574,12 @@ None — Phase 12 tests are self-contained or build on `null_device.hpp`.
 - MIDI device enumeration lists at least zero devices without crash (hardware not required to be present).
 - End-to-end round-trip: synthesise a known signal, capture it via a loopback or buffer probe, compare to expected.
 
-**CI gating:** This phase **must be skippable** in CI. Implement via:
+**CI gating:** The suite was first registered `DISABLED TRUE` so it stayed out of CI. Since 948e1c77 it is enabled:
 ```cmake
 add_test(NAME yse_tests_integration COMMAND yse_tests --test-suite=integration)
-set_tests_properties(yse_tests_integration PROPERTIES LABELS integration DISABLED TRUE)
+set_tests_properties(yse_tests_integration PROPERTIES LABELS integration)
 ```
-The `DISABLED TRUE` property means the test is registered but not run by default. On machines with audio hardware, run with `ctest -L integration` to include it.
+It runs in the default ctest set (`python yse.py test` and CI). Cases that need a real device return early when none opens, so it passes headless. Run it alone with `ctest -L integration`.
 
 **Shared Helpers Introduced**
 
