@@ -9,6 +9,7 @@
 */
 
 #include "synthManager.h"
+#include <iterator>
 #include "../internalHeaders.h"
 
 YSE::SYNTH::managerObject& YSE::SYNTH::Manager() {
@@ -103,10 +104,16 @@ void YSE::SYNTH::managerObject::update() {
     INTERNAL::Global().addSlowJob(&mgrSetup);
   }
 
+  // Clear the delete request only once a job has actually been enqueued for it
+  // (issue #992). isQueued() stays true while the previous delete job is still
+  // *running*, and that job may already have walked past an impl
+  // syncAndReleaseInUse() marked OBJECT_DELETE on the last tick; clearing the
+  // flag regardless stranded it in `implementations`. Same fix as CHANNEL
+  // (#990) and SOUND (#817).
   if (runDelete && !mgrDelete.isQueued()) {
     INTERNAL::Global().addSlowJob(&mgrDelete);
+    runDelete = false;
   }
-  runDelete = false;
 
   promoteReadyImpls();
   syncAndReleaseInUse();
@@ -114,4 +121,9 @@ void YSE::SYNTH::managerObject::update() {
 
 Bool YSE::SYNTH::managerObject::empty() {
   return toLoad.empty() && inUse.empty();
+}
+
+std::size_t YSE::SYNTH::managerObject::implementationCount() {
+  std::scoped_lock lk(implementationsMutex);
+  return static_cast<std::size_t>(std::distance(implementations.begin(), implementations.end()));
 }

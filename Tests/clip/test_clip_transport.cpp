@@ -16,6 +16,8 @@
 
 #include <doctest/doctest.h>
 #include <atomic>
+#include <cstddef>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -26,6 +28,8 @@
 #include "clock/clockManager.h"
 #include "internal/global.h"
 #include "internal/threadPool.h"
+#include "support/inflight_delete.hpp"
+#include "support/timer_pacing.hpp"
 
 #if YSE_ENABLE_MIDI_DEVICE
 #include <chrono>
@@ -814,5 +818,48 @@ TEST_SUITE("clip") {
   }
 
 #endif // YSE_ENABLE_MIDI_DEVICE
+
+  // ─── Regression: a release marked while a delete job is in flight ───────────
+
+  TEST_CASE("clip: a release marked during an in-flight delete job is still reclaimed "
+            "(issue #992)") {
+    // CLIP::Manager().update() cleared its delete request even when the previous
+    // delete job was still running, and that job may already have walked past
+    // the transport the request was for — which then stayed in the canonical
+    // list, so the settle below could not succeed. Staging: see
+    // support/inflight_delete.hpp. The slow pool is live from process start, so no
+    // engine session is needed.
+    constexpr int kBulk = 2000;
+    constexpr int kRounds = 5;
+    auto& mgr = YSE::CLIP::Manager();
+    auto& clocks = YSE::CLOCK::Manager();
+    REQUIRE(clocks.createClock("clip.inflight", 60.f));
+    auto tick = [&mgr] { mgr.update(); };
+
+    for (int round = 0; round < kRounds; ++round) {
+      const std::size_t before = mgr.implementationCountForTest();
+
+      std::vector<std::unique_ptr<YSE::clip>> bulk;
+      bulk.reserve(kBulk);
+      for (int i = 0; i < kBulk; ++i) {
+        bulk.push_back(std::make_unique<YSE::clip>());
+        REQUIRE(bulk.back()->create("clip.inflight"));
+      }
+      auto x = std::make_unique<YSE::clip>(); // last: heads the canonical list
+      REQUIRE(x->create("clip.inflight"));
+      tick(); // drains the inbox: every transport is in the working list
+
+      REQUIRE(TestHelpers::releaseDuringInFlightDelete(
+          tick, [&] { bulk.clear(); }, [&] { x.reset(); }));
+
+      const bool reclaimed = TestHelpers::pacedPump(
+          5000, [&mgr, before] { return mgr.implementationCountForTest() <= before; }, tick, 2);
+      CHECK_MESSAGE(reclaimed, "round " << round << " stranded a released clip transport");
+      if (!reclaimed) break;
+    }
+
+    clocks.destroyClock("clip.inflight");
+    clocks.update(0.01f);
+  }
 
 } // TEST_SUITE("clip")

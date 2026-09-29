@@ -15,6 +15,7 @@
 #ifndef YSE_SYNTH_SYNTHMANAGER_H
 #define YSE_SYNTH_SYNTHMANAGER_H
 
+#include <cstddef>
 #include <forward_list>
 #include <mutex>
 
@@ -57,6 +58,13 @@ namespace YSE {
 
       /** Audio-thread-only "nothing alive" signal. */
       Bool empty();
+
+      /** Diagnostic: how many impls the canonical `implementations` list
+          currently holds. Takes implementationsMutex, so it is a
+          control-thread / test call only — never the audio thread. Exists so
+          the reclamation of retired impls is observable, mirroring MIDI and
+          REVERB (issue #992). */
+      std::size_t implementationCount();
 
     private:
       void drainInbox();

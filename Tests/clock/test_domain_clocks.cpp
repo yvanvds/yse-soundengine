@@ -18,7 +18,10 @@
 #include "yse.hpp"
 #include "clock/clockManager.h"
 #include "yse_c/yse_system.h"
+#include "support/inflight_delete.hpp"
+#include "support/timer_pacing.hpp"
 
+#include <memory>
 #include <string>
 
 namespace {
@@ -231,6 +234,48 @@ TEST_SUITE("clock") {
     yse_system_destroy_clock(sys, nullptr);
     yse_system_set_tempo(nullptr, "x", 120.f, 0.f);
     yse_system_set_tempo(sys, nullptr, 120.f, 0.f);
+  }
+
+  // ─── Regression: a release marked while a delete job is in flight ───────────
+
+  TEST_CASE("clock: a destroy marked during an in-flight delete job is still reaped "
+            "(issue #992)") {
+    // CLOCK::Manager().update() cleared its delete request even when the
+    // previous delete job was still running, and that job may already have
+    // walked past the clock the request was for — so the manager kept its share
+    // of that clock until some other clock happened to be destroyed. Staging:
+    // see support/inflight_delete.hpp. The slow pool is live from process start, so no
+    // engine session is needed.
+    //
+    // Reaping is observed through a weak_ptr: the manager's share is the only
+    // one, so the clock is freed exactly when the delete job drops it.
+    constexpr int kBulk = 4000;
+    constexpr int kRounds = 5;
+    auto& mgr = YSE::CLOCK::Manager();
+    auto clockTick = [] { tick(0.01f); };
+
+    for (int round = 0; round < kRounds; ++round) {
+      const std::string prefix = "clk.inflight." + std::to_string(round) + ".";
+      for (int i = 0; i < kBulk; ++i)
+        REQUIRE(mgr.createClock(prefix + std::to_string(i), 120.f));
+      const std::string x = prefix + "x"; // last: heads the canonical list
+      REQUIRE(mgr.createClock(x, 120.f));
+      const std::weak_ptr<YSE::CLOCK::domainClock> watch = mgr.lookup(x);
+      clockTick(); // drains the inbox: every clock is in the working list
+
+      REQUIRE(TestHelpers::releaseDuringInFlightDelete(
+          clockTick,
+          [&] {
+            for (int i = 0; i < kBulk; ++i)
+              mgr.destroyClock(prefix + std::to_string(i));
+          },
+          [&] { mgr.destroyClock(x); }));
+
+      const bool reaped =
+          TestHelpers::pacedPump(5000, [&watch] { return watch.expired(); }, clockTick, 2);
+      CHECK_MESSAGE(reaped, "round " << round << " stranded a destroyed clock");
+      if (!reaped) break;
+    }
   }
 
 } // TEST_SUITE("clock")

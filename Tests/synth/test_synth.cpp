@@ -15,6 +15,8 @@
 #include <doctest/doctest.h>
 #include <chrono>
 #include <cmath>
+#include <cstddef>
+#include <memory>
 #include <thread>
 #include <vector>
 
@@ -30,6 +32,7 @@
 #include "internal/time.h"
 #include "support/audio_helpers.hpp"
 #include "support/alloc_probe.hpp"
+#include "support/inflight_delete.hpp"
 #include "support/null_device.hpp"
 #include "support/timer_pacing.hpp"
 
@@ -476,6 +479,53 @@ TEST_SUITE("synth") {
     }
     drainSynth(8);
     CHECK(true);
+  }
+
+  TEST_CASE("synth lifecycle: a release marked during an in-flight delete job is still "
+            "reclaimed (issue #992)") {
+    if (!TestHelpers::engineInit()) return;
+
+    // SYNTH::Manager().update() cleared its delete request even when the
+    // previous delete job was still running, and that job may already have
+    // walked past the impl the request was for — which then stayed in the
+    // canonical list, so the settle below could not succeed. Staging: see
+    // support/inflight_delete.hpp.
+    constexpr int kBulk = 2000;
+    constexpr int kRounds = 5;
+    auto& mgr = YSE::SYNTH::Manager();
+    auto tick = [&mgr] { mgr.update(); };
+
+    for (int round = 0; round < kRounds; ++round) {
+      const std::size_t before = mgr.implementationCount();
+
+      std::vector<std::unique_ptr<YSE::synth>> bulk;
+      bulk.reserve(kBulk);
+      for (int i = 0; i < kBulk; ++i) {
+        bulk.push_back(std::make_unique<YSE::synth>());
+        bulk.back()->create();
+      }
+      auto x = std::make_unique<YSE::synth>(); // last: heads the canonical list
+      x->create();
+      // Bring every impl to OBJECT_READY in the working list. Setup runs on the
+      // slow pool, and parking + unparking the pool's one worker is a FIFO
+      // barrier behind whatever a tick queued: tick one drains the inbox and
+      // queues setup, tick two re-queues it if an earlier, already-running
+      // setup job missed these impls, and tick three promotes them.
+      for (int i = 0; i < 3; ++i) {
+        tick();
+        TestHelpers::PoolBlocker barrier;
+        REQUIRE(barrier.Park());
+        barrier.Unpark();
+      }
+
+      REQUIRE(TestHelpers::releaseDuringInFlightDelete(
+          tick, [&] { bulk.clear(); }, [&] { x.reset(); }));
+
+      const bool reclaimed = TestHelpers::pacedPump(
+          5000, [&mgr, before] { return mgr.implementationCount() <= before; }, tick, 2);
+      CHECK_MESSAGE(reclaimed, "round " << round << " stranded a released synth impl");
+      if (!reclaimed) break;
+    }
   }
 
 } // TEST_SUITE("synth")

@@ -123,10 +123,16 @@ void YSE::REVERB::managerObject::update() {
 
   toLoad.remove_if(implementationObject::canBeRemovedFromLoading);
 
+  // Clear the delete request only once a job has actually been enqueued for it
+  // (issue #992). isQueued() stays true while the previous delete job is still
+  // *running*, and that job may already have walked past an impl the inUse
+  // pass below marked OBJECT_DELETE on the last tick; clearing the flag
+  // regardless stranded it in `implementations`. Same fix as CHANNEL (#990)
+  // and SOUND (#817).
   if (runDelete && !mgrDelete.isQueued()) {
     INTERNAL::Global().addSlowJob(&mgrDelete);
+    runDelete = false;
   }
-  runDelete = false;
 
   ///////////////////////////////////////////
   // check if loaded implementations are ready

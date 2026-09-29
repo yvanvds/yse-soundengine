@@ -18,12 +18,15 @@
 #include <chrono>
 #include <cmath>
 #include <cstddef>
+#include <memory>
 #include <thread>
+#include <vector>
 #include "yse.hpp"
 #include "reverb/reverbInterface.hpp"
 #include "reverb/reverbManager.h"
 #include "internal/reverbDSP.h"
 #include "internal/time.h"
+#include "support/inflight_delete.hpp"
 #include "support/null_device.hpp"
 #include "support/timer_pacing.hpp"
 
@@ -123,6 +126,46 @@ TEST_SUITE("reverb") {
 
     // Final settle: reclamation completing is the signal, not a fixed count (#842).
     CHECK(drainUntil([before] { return reclaimedTo(before); }));
+  }
+
+  // ─── Regression: a release marked while a delete job is in flight ───────────
+
+  TEST_CASE("reverb concurrency: a release marked during an in-flight delete job "
+            "is still reclaimed (issue #992)") {
+    if (!TestHelpers::engineInit()) return;
+
+    // REVERB::Manager().update() cleared its delete request even when the
+    // previous delete job was still running, and that job may already have
+    // walked past the impl the request was for — which then stayed in the
+    // canonical list, so the settle below could not succeed. Staging: see
+    // support/inflight_delete.hpp.
+    constexpr int kBulk = 5000;
+    constexpr int kRounds = 5;
+    auto tick = [] {
+      YSE::INTERNAL::Time().update();
+      YSE::REVERB::Manager().update();
+    };
+
+    for (int round = 0; round < kRounds; ++round) {
+      const std::size_t before = YSE::REVERB::Manager().implementationCount();
+
+      std::vector<std::unique_ptr<YSE::reverb>> bulk;
+      bulk.reserve(kBulk);
+      for (int i = 0; i < kBulk; ++i) {
+        bulk.push_back(std::make_unique<YSE::reverb>());
+        bulk.back()->create();
+      }
+      auto x = std::make_unique<YSE::reverb>(); // last: heads the canonical list
+      x->create();
+      tick(); // inbox -> toLoad -> READY -> inUse, all in one pass
+
+      REQUIRE(TestHelpers::releaseDuringInFlightDelete(
+          tick, [&] { bulk.clear(); }, [&] { x.reset(); }));
+
+      const bool reclaimed = drainUntil([before] { return reclaimedTo(before); });
+      CHECK_MESSAGE(reclaimed, "round " << round << " stranded a released reverb impl");
+      if (!reclaimed) break;
+    }
   }
 
   // ─── Global reverb setters race with update() (issue #192) ───────────────────

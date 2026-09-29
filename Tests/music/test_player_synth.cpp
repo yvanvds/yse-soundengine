@@ -28,8 +28,10 @@
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
+#include <memory>
 #include <vector>
 
+#include "support/inflight_delete.hpp"
 #include "support/timer_pacing.hpp"
 #include "yse.hpp"
 #include "channel/channelInterface.hpp"
@@ -40,6 +42,8 @@
 #include "music/motif/motifInterface.hpp"
 #include "music/pNote.hpp"
 #include "player/playerInterface.hpp"
+#include "player/playerMessage.h"
+#include "player/playerManager.h"
 #include "internal/time.h"
 
 namespace {
@@ -155,6 +159,48 @@ TEST_SUITE("music") {
 
     CHECK(p.isPlaying() == false);
     CHECK(true); // reached here without dereferencing a null implementation
+  }
+
+  TEST_CASE("player concurrency: a release marked during an in-flight delete job "
+            "is still reclaimed (issue #992)") {
+    // PLAYER::Manager().update() cleared its delete request even when the
+    // previous delete job was still running, and that job may already have
+    // walked past the impl the request was for — which then stayed in the
+    // canonical list, so the settle below could not succeed. Staging: see
+    // support/inflight_delete.hpp. The slow pool is live from process start,
+    // so no engine session is needed; the synth is only the players' target
+    // and is never created, since no player here plays.
+    //
+    // A smaller bulk than the other managers' cases: every player impl
+    // preallocates its note / motif / voice pools (issue #195), which makes
+    // each one both large and slow to destroy.
+    constexpr int kBulk = 200;
+    constexpr int kRounds = 5;
+    auto& mgr = YSE::PLAYER::Manager();
+    auto tick = [&mgr] { mgr.update(0.01f); };
+    YSE::synth instrument;
+
+    for (int round = 0; round < kRounds; ++round) {
+      const std::size_t before = mgr.implementationCount();
+
+      std::vector<std::unique_ptr<YSE::player>> bulk;
+      bulk.reserve(kBulk);
+      for (int i = 0; i < kBulk; ++i) {
+        bulk.push_back(std::make_unique<YSE::player>());
+        bulk.back()->create(instrument);
+      }
+      auto x = std::make_unique<YSE::player>(); // last: heads the canonical list
+      x->create(instrument);
+      tick(); // drains the inbox: every impl is in the working list
+
+      REQUIRE(TestHelpers::releaseDuringInFlightDelete(
+          tick, [&] { bulk.clear(); }, [&] { x.reset(); }));
+
+      const bool reclaimed = TestHelpers::pacedPump(
+          5000, [&mgr, before] { return mgr.implementationCount() <= before; }, tick, 2);
+      CHECK_MESSAGE(reclaimed, "round " << round << " stranded a released player impl");
+      if (!reclaimed) break;
+    }
   }
 
 } // TEST_SUITE("music")
