@@ -76,10 +76,19 @@ void YSE::CHANNEL::managerObject::update() {
     INTERNAL::Global().addSlowJob(&mgrSetup);
   }
 
+  // Clear the delete request only once a job has actually been enqueued for it
+  // (issue #990). isQueued() stays true while the previous delete job is still
+  // *running*, and that job may already have walked past an impl the inUse pass
+  // below marked OBJECT_DELETE on the last tick. Clearing the flag regardless
+  // dropped that request, stranding the impl in `implementations` until some
+  // other channel happened to be released — at the end of a churn, never. Keep
+  // it for the next tick instead; the one spare delete pass this costs when the
+  // job was merely queued is a no-op remove_if on the slow pool. Same fix as
+  // SOUND::Manager's #817.
   if (runDelete && !mgrDelete.isQueued()) {
     INTERNAL::Global().addSlowJob(&mgrDelete);
+    runDelete = false;
   }
-  runDelete = false;
 
   ///////////////////////////////////////////
   // check if loaded implementations are ready
