@@ -11,6 +11,7 @@
 #ifndef PLAYERMANAGER_H_INCLUDED
 #define PLAYERMANAGER_H_INCLUDED
 
+#include <cstddef>
 #include <forward_list>
 #include <mutex>
 #include "player.hpp"
@@ -49,6 +50,13 @@ namespace YSE {
           retires orphaned impls for slow-pool deletion. `delta` is the block
           duration in seconds. */
       void update(Flt delta);
+
+      /** Diagnostic: how many impls the canonical `implementations` list
+          currently holds. Takes implementationsMutex, so it is a
+          control-thread / test call only — never the audio thread. Exists so
+          the reclamation of retired impls is observable, mirroring MIDI and
+          REVERB (issue #992). */
+      std::size_t implementationCount();
 
     private:
       // Canonical owner of every impl. Touched by the main thread

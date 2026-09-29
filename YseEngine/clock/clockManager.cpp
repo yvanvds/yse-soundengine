@@ -106,11 +106,17 @@ void YSE::CLOCK::managerObject::update(Flt delta) {
   // enqueue the slow-pool delete job for clocks retired on the previous tick.
   // Deferring by a tick guarantees the orphan is already out of `inUse` before
   // the slow pool can free it — no audio-thread free, no dangling `inUse` entry.
+  //
+  // The request is cleared only once a job has actually been enqueued for it
+  // (issue #992). isQueued() stays true while the previous delete job is still
+  // *running*, and that job may already have walked past a clock retired on
+  // the last tick; clearing the flag regardless stranded the manager's share of
+  // it in `implementations`. Same fix as CHANNEL (#990) and SOUND (#817).
   ///////////////////////////////////////////
   if (runDelete && !mgrDelete.isQueued()) {
     INTERNAL::Global().addSlowJob(&mgrDelete);
+    runDelete = false;
   }
-  runDelete = false;
 
   ///////////////////////////////////////////
   // advance each clock, and retire released clocks from the working list. A

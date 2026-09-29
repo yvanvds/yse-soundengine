@@ -23,10 +23,13 @@
 #include <atomic>
 #include <chrono>
 #include <cstddef>
+#include <memory>
 #include <thread>
+#include <vector>
 #include "yse.hpp"
 #include "midi/midifile.hpp"
 #include "midi/midifileManager.h"
+#include "support/inflight_delete.hpp"
 #include "support/null_device.hpp"
 #include "support/timer_pacing.hpp"
 
@@ -117,6 +120,39 @@ TEST_SUITE("midi") {
 
     // Final settle: reclamation completing is the signal, not a fixed count (#842).
     CHECK(drainUntil([before] { return reclaimedTo(before); }));
+  }
+
+  // ─── Regression: a release marked while a delete job is in flight ───────────
+
+  TEST_CASE("midifile concurrency: a release marked during an in-flight delete job "
+            "is still reclaimed (issue #992)") {
+    if (!TestHelpers::engineInit()) return;
+
+    // MIDI::Manager().update() cleared its delete request even when the previous
+    // delete job was still running, and that job may already have walked past
+    // the impl the request was for — which then stayed in the canonical list,
+    // so the settle below could not succeed. Staging: see support/inflight_delete.hpp.
+    constexpr int kBulk = 30000;
+    constexpr int kRounds = 5;
+    auto tick = [] { YSE::MIDI::Manager().update(); };
+
+    for (int round = 0; round < kRounds; ++round) {
+      const std::size_t before = YSE::MIDI::Manager().implementationCount();
+
+      std::vector<std::unique_ptr<YSE::MIDI::file>> bulk;
+      bulk.reserve(kBulk);
+      for (int i = 0; i < kBulk; ++i)
+        bulk.push_back(std::make_unique<YSE::MIDI::file>());
+      auto x = std::make_unique<YSE::MIDI::file>(); // last: heads the canonical list
+      tick(); // drains the inbox: every impl is in the working list
+
+      REQUIRE(TestHelpers::releaseDuringInFlightDelete(
+          tick, [&] { bulk.clear(); }, [&] { x.reset(); }));
+
+      const bool reclaimed = drainUntil([before] { return reclaimedTo(before); });
+      CHECK_MESSAGE(reclaimed, "round " << round << " stranded a released midifile impl");
+      if (!reclaimed) break;
+    }
   }
 
 } // TEST_SUITE("midi")
