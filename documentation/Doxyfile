@@ -17,7 +17,6 @@ FILE_PATTERNS          = *.hpp *.h *.cpp *.md
 EXCLUDE                = ../YseEngine/utils/json.hpp
 EXCLUDE_PATTERNS       = */internal/* \
                          */implementations/* \
-                         */json/* \
                          *Implementation.h \
                          *Implementation.hpp \
                          *Implementation.cpp \

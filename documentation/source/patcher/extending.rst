@@ -45,8 +45,6 @@ files. A new object touches the same set:
    * - ``documentation/source/_data/patcher_objects.json``
      - Regenerated with ``python yse.py dump-patcher-meta``. Never edit it by
        hand.
-   * - ``PROJECT_OVERVIEW.md``
-     - A mention in the patcher node list.
 
 Two CMake lists per side is easy to get wrong. The second list gives patcher
 files the warning flags they need (``-Wno-unused-parameter`` and the
@@ -801,7 +799,8 @@ Before you commit
 - ``patcher_objects.json`` is regenerated.
 - The object counts at the top of :doc:`index` are updated.
 - If the object saves state, its format is in :doc:`file_format`.
-- ``PROJECT_OVERVIEW.md`` mentions the object in the patcher node list.
+- The object is documented by its ``ADD_DESCRIPTION`` / ``PARAM_DOC``
+  metadata. ``PROJECT_OVERVIEW.md`` no longer lists objects one by one.
 
 Checklist
 ---------

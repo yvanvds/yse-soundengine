@@ -39,6 +39,29 @@ before `init()` with `YSE::System().renderThreads(n)` — or
 as Android), and `n` is exactly `n` workers. The setting decides only which
 thread renders each part of the mix, never how it is summed.
 
+**Also in the box:**
+
+- **Patcher** — a Max/Pd-style graph library with 305 objects (control and
+  audio rate), subpatchers, data stores and the `.dict` / `.array` value
+  types, MIDI and GUI-control families, loaded from and saved to JSON.
+- **Domain clocks and clips** — tempo-relative clocks that drive the
+  patcher's timing objects, and clips — looping note sequences in beats,
+  played by a per-block transport on a bound clock.
+- **Named bus** — a global publish/subscribe bus; patcher slots are
+  addressed as `patcher.<name>.<slot>`.
+- **Python live coding** — an optional embedded CPython interpreter for the
+  live-coding DSL (`YSE_ENABLE_PYTHON`, desktop only).
+- **Offline rendering** — `System().initOffline()` + `renderOffline(blocks)`
+  run the engine without an audio device.
+- **Benchmark suite** — google-benchmark micro and macro benchmarks under
+  `Bench/` (see [Bench/README.md](Bench/README.md)).
+
+**What's new in 3.0.** 3.0 changes the C ABI and several defaults (48 kHz
+sample rate, `init()` failing without a device, patcher bus prefixes, …).
+Read [Upgrading from 2.4 to 3.0](https://yvanvds.github.io/yse-soundengine/upgrading.html)
+before you update; the release notes draft is
+[docs/release-notes/v3.0.md](docs/release-notes/v3.0.md).
+
 **What is YSE trying to be?** Neither a game-audio engine nor a DAW: an
 authored signal graph played by spatial and physical controllers, built
 for experimental electronic music and live performance. The full
@@ -113,9 +136,14 @@ cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo
 | `YSE_BUILD_TESTS` | `OFF` | Build the `Tests/` doctest suite and enable CTest |
 | `YSE_BUILD_BENCHMARKS` | `OFF` | Build the `Bench/` google-benchmark suite (fetched on demand) |
 | `YSE_BUILD_C_API` | `ON` | Fold the `extern "C"` ABI bridge into `libyse` |
+| `YSE_BUILD_TOOLS` | `OFF` | Build developer tools (`dump_patcher_meta`); turned on by `python yse.py dump-patcher-meta` |
+| `YSE_ENABLE_PYTHON` | `OFF` | Embed CPython for the live-coding DSL (desktop only; fails on Android) |
 | `YSE_ENABLE_MIDI_DEVICE` | `ON` (desktop) | RtMidi-backed MIDI device backend |
+| `YSE_ENABLE_COVERAGE` | `OFF` | gcov/gcovr coverage instrumentation (Linux, GCC or Clang); implies `YSE_BUILD_TESTS` |
+| `YSE_LLVM_COVERAGE` | `OFF` | LLVM source-based coverage (Windows/Clang); implies `YSE_BUILD_TESTS` |
 | `YSE_FETCH_CONTENT_PACK` | `OFF` | Download the optional instrument [content pack](#content-pack-optional-instrument-assets) (SFZ instruments, wavetables, DX7/FM banks) |
 | `YSE_INSTALL_CONTENT_PACK` | `OFF` | Install the content pack under `<prefix>/share/yse/content` |
+| `YSE_CONTENT_PACK_DIR` | `content/` | Path where the content pack lives / is assembled |
 
 ---
 
@@ -148,15 +176,9 @@ cmake -B build -G Ninja
 cmake --build build
 ```
 
-### Run a demo
-
-```sh
-cd build/bin
-./Demo00          # Play a sound
-```
-
-The `$ORIGIN` rpath is embedded in each demo binary so that `libyse.so` is
-found automatically from the same directory.
+`libyse.so` lands in `build/bin/`. The demos in `Demo.Windows.Native/` are
+Windows-only and are not built on Linux; exercise a Linux build through the
+test suite (`python yse.py test`) or your own host program.
 
 ---
 
@@ -179,7 +201,7 @@ way and publishes them as release assets.
 ```sh
 cd Tests/Android
 ./gradlew installDebug
-adb shell am start -n net.attrx.yse.tests/.MainActivity
+adb shell am start -n net.attrx.yse.tests/android.app.NativeActivity
 adb logcat -s yse_tests
 ```
 
@@ -201,14 +223,24 @@ python yse.py build --python     # debug build with the embedded-Python live-cod
 python yse.py build --content-pack  # debug build + fetch the optional SFZ/DX7/FM content pack
 python yse.py test               # build tests-debug preset, run ctest
 python yse.py test --python      # tests-debug-python preset — also runs the embedded-interpreter suite
-python yse.py coverage           # coverage build + gcovr report (Linux only)
-python yse.py run                # run Demo00 from build-debug/bin/
+python yse.py test --integration # also run the integration suite (needs a real audio device)
+python yse.py test --sanitizer asan  # tests-asan (Linux) / tests-asan-windows preset
+python yse.py test --sanitizer tsan  # tests-tsan preset (Linux/clang only)
+python yse.py bench              # bench preset (Release) + run yse_benchmarks; --filter <regex>, --json
+python yse.py coverage           # coverage build + report (Linux: gcovr; Windows: llvm-cov)
+python yse.py run                # run Demo00 from build-debug/bin/ (Windows demos)
 python yse.py run Demo05         # run a specific demo
 python yse.py debug Demo00       # launch under lldb
-python yse.py clean              # remove all build directories
+python yse.py clean              # remove build directories (asks first; --yes skips the prompt)
 python yse.py analyze [path]     # run clang-tidy; path narrows scope (default: full tree)
 python yse.py format             # clang-format on YseEngine/ and Tests/
+python yse.py dump-patcher-meta  # regenerate the patcher object metadata the docs render
+python yse.py package            # build a release archive in dist/ (used by CI)
+python yse.py release patch      # bump version, commit, tag, push (maintainers; --dry-run, --no-push)
 ```
+
+Running `yse_tests` directly without a `--test-suite=` / `--test-case=`
+filter is refused; CTest (via `python yse.py test`) is the test entry point.
 
 On Unix you can also `chmod +x yse.py` and use `./yse.py <command>`.
 Pass `--help` to any subcommand for full usage.
@@ -267,6 +299,16 @@ asset are in [CONTENT-LICENSES.md](CONTENT-LICENSES.md).
 ---
 
 ## Documentation
+
+The published site is <https://yvanvds.github.io/yse-soundengine/>. Good
+starting points:
+
+- [Threading model](https://yvanvds.github.io/yse-soundengine/intro/threading.html)
+  — which thread calls what, and the audio-thread rules
+- [Patcher guide](https://yvanvds.github.io/yse-soundengine/patcher/index.html)
+  — messages, graphs, subpatchers, host I/O, time, data, and the per-category
+  object reference
+- [Upgrading from 2.4 to 3.0](https://yvanvds.github.io/yse-soundengine/upgrading.html)
 
 API reference is generated from the source by **Doxygen + Sphinx + Breathe**
 using the `sphinx-book-theme`. Sources live under `documentation/`.
@@ -333,10 +375,17 @@ Pages is configured for the repo with **Source: GitHub Actions**
 | `Tests/` | doctest unit suite (`YSE_BUILD_TESTS=ON`); `Tests/Android/` packages it as a NativeActivity APK |
 | `Bench/` | google-benchmark suite (`YSE_BUILD_BENCHMARKS=ON`); CI pushes results to the `bench-history` orphan branch |
 | `Demo.Windows.Native/` | Native C++ demos (one executable each) — Windows only |
+| `Yse.Windows.Native/` | Legacy Visual Studio project for the library (not used by the CMake build) |
 | `TestResources/` | Audio files referenced by demos |
+| `content/` | Content pack: the committed CC0 seed plus any fetched instrument assets |
+| `cmake/` | CMake modules (`YseContentPack.cmake`, `YsePython.cmake`) and the demo template |
 | `documentation/` | Doxygen + Sphinx + Breathe documentation sources |
-| `tools/ci-linux/` | Docker images for local Linux CI reproduction (`Dockerfile`, `Dockerfile.audio`) |
-| `dependencies/` | Vendored headers (rtmidi, doctest); PortAudio/libsndfile system packages on desktop |
+| `docs/` | Project vision, design notes (`docs/design/`) and release notes (`docs/release-notes/`) |
+| `tools/ci-linux/` | Docker images for local Linux CI reproduction (`Dockerfile`, `Dockerfile.audio`, `Dockerfile.sanitizers`) |
+| `tools/dump_patcher_metadata/` | `dump_patcher_meta` tool behind `python yse.py dump-patcher-meta` |
+| `tools/lsan/` | LeakSanitizer suppressions for the embedded CPython interpreter |
+| `logo/` | Project logo |
+| `dependencies/` | Vendored sources: doctest, rtmidi, portaudio, libsndfile (read-only) |
 
 A deeper architectural reference lives in [PROJECT_OVERVIEW.md](PROJECT_OVERVIEW.md).
 

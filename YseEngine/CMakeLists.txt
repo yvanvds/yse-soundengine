@@ -95,7 +95,6 @@ set(YSE_SRCS
   internal/time.cpp
   internal/underWaterEffect.cpp
   internal/virtualFinder.cpp
-  json/cJSON.cpp
   midi/midifile.cpp
   midi/midifileImplementation.cpp
   midi/midifileManager.cpp
@@ -456,11 +455,6 @@ if(YSE_ENABLE_PYTHON)
 endif()
 
 # ── Source-file-scoped warning suppressions ───────────────────────────────────
-# cJSON is a vendored C file; suppress all its warnings rather than patching it.
-set_source_files_properties(json/cJSON.cpp
-  PROPERTIES COMPILE_FLAGS "-w"
-)
-
 # The dsp/fm/msfa/ files are ported verbatim from music-synthesizer-for-android
 # (Apache-2.0, see NOTICE). They are treated like vendored third-party code:
 # suppress compiler warnings rather than patching upstream style, and they are
