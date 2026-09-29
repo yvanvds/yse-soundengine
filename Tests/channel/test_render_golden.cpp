@@ -243,6 +243,13 @@ namespace {
   // The master's insert, run by the master's mix task: every voice on the
   // master must already have rendered this block, or the mix did not wait for
   // all of the master's voice slices.
+  //
+  // Counts are compared relative to `base`, each voice's count when the check
+  // was armed (issue #981). The absolute counts differ by however many blocks
+  // apart the voices started: the slow pool sets sounds up one by one, and an
+  // update() that lands mid-setup promotes only the finished ones, so the rest
+  // start rendering a block or more later. Comparing absolute counts read that
+  // start offset as an early mix on every block.
   class MasterSliceCheck : public YSE::DSP::dspObject {
   public:
     void create() override {}
@@ -251,15 +258,28 @@ namespace {
       if (!armed.load(std::memory_order_acquire)) return;
       int lo = -1;
       int hi = -1;
-      for (auto* v : voices) {
-        const int b = v->blocks.load(std::memory_order_acquire);
+      for (std::size_t i = 0; i < voices.size(); ++i) {
+        const int b = voices[i]->blocks.load(std::memory_order_acquire) - base[i];
         if (lo < 0 || b < lo) lo = b;
         if (b > hi) hi = b;
       }
       if (lo != hi) early.fetch_add(1, std::memory_order_relaxed);
       checked.fetch_add(1, std::memory_order_relaxed);
     }
+    // Test thread, only while nothing renders: the release store to `armed`
+    // publishes `base` to the render threads.
+    void arm() {
+      base.clear();
+      for (auto* v : voices)
+        base.push_back(v->blocks.load(std::memory_order_acquire));
+      armed.store(true, std::memory_order_release);
+    }
+    // Test thread, after the run: blocks each voice rendered while armed.
+    int renderedSinceArm(std::size_t i) const {
+      return voices[i]->blocks.load(std::memory_order_acquire) - base[i];
+    }
     std::vector<CountingVoice*> voices;
+    std::vector<int> base;
     std::atomic<bool> armed{false};
     std::atomic<int> early{0};
     std::atomic<int> checked{0};
@@ -559,6 +579,10 @@ TEST_SUITE("rendergolden") {
 
     std::vector<std::unique_ptr<YSE::sound>> sounds;
     for (auto& v : voices) {
+      // Start the second half of the voices a few blocks after the first, on
+      // purpose: the staggered start the slow pool produces under load (issue
+      // #981), made deterministic, so every run exercises the check's baseline.
+      if (&v == &voices[kMasterVoices / 2]) pump(2);
       auto s = std::make_unique<YSE::sound>();
       s->create(v, &YSE::ChannelMaster(), 0.1f);
       s->relative(true);
@@ -591,11 +615,21 @@ TEST_SUITE("rendergolden") {
     auto& renderer = YSE::INTERNAL::Global().renderer();
     renderer.setSerialGating(false);
     YSE::INTERNAL::Global().setRenderWorkerCount(3);
-    check.armed.store(true, std::memory_order_release);
+    check.arm();
     YSE::System().renderOffline(24);
     check.armed.store(false, std::memory_order_release);
     CHECK(check.checked.load() == 24);
     CHECK(check.early.load() == 0);
+    // Every voice rendered every block: none was skipped, so an equal count
+    // at each mix means the mix waited, not that the voices sat still.
+    int minRendered = 24;
+    int maxRendered = 24;
+    for (std::size_t i = 0; i < check.voices.size(); ++i) {
+      minRendered = std::min(minRendered, check.renderedSinceArm(i));
+      maxRendered = std::max(maxRendered, check.renderedSinceArm(i));
+    }
+    CHECK(minRendered == 24);
+    CHECK(maxRendered == 24);
 
     renderer.setSerialGating(true);
     YSE::INTERNAL::Global().setRenderWorkerCount(-1);
