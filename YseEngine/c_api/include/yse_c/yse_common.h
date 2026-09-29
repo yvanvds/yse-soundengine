@@ -36,6 +36,22 @@
 #define YSE_C_CALLBACK
 #endif
 
+/* Opaque handle typedefs. Several headers forward-declare the same handle
+   (YseChannel appears in yse_system.h, yse_channel.h, yse_sound.h and
+   yse_synth.h). Repeating a typedef is only legal from C11 on, so every
+   handle typedef — in its home header and in each forward declaration — sits
+   behind its own YSE_C_HANDLE_<Type> guard. That keeps the headers valid C99
+   (issue #976). A new handle typedef follows the same shape, with its
+   ownership comment inside the guard so Doxygen attaches it to the typedef
+   rather than to the guard macro:
+
+     #ifndef YSE_C_HANDLE_YseFoo
+     #define YSE_C_HANDLE_YseFoo
+     (ownership comment)
+     typedef struct YseFoo YseFoo;
+     #endif
+*/
+
 #ifdef __cplusplus
 extern "C" {
 #endif

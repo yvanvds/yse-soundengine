@@ -28,7 +28,11 @@ EXCLUDE_PATTERNS       = */internal/* \
 EXCLUDE_SYMBOLS        = INTERNAL::* *::INTERNAL \
                          nlohmann::* detail::* \
                          SOUND::* CHANNEL::* REVERB::* DEVICE::* \
-                         PATCHER::* SCALE::* PLAYER::* MOTIF::*
+                         PATCHER::* SCALE::* PLAYER::* MOTIF::* \
+                         YSE_C_HANDLE_*
+# YSE_C_HANDLE_* are the C API's handle-typedef guards (#976). Several headers
+# define the same guard, so documenting them makes Breathe emit duplicate C
+# declarations.
 
 # Output: XML only — Sphinx/Breathe consumes it. No HTML/LaTeX from Doxygen.
 # Doxygen auto-creates OUTPUT_DIRECTORY; XML_OUTPUT is then a sub-directory

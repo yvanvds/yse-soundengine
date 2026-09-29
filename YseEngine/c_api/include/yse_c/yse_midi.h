@@ -40,17 +40,32 @@
 extern "C" {
 #endif
 
+#ifndef YSE_C_HANDLE_YseMidiFile
+#define YSE_C_HANDLE_YseMidiFile
 /** Owned — release with yse_midi_file_destroy. */
 typedef struct YseMidiFile YseMidiFile;
+#endif
+#ifndef YSE_C_HANDLE_YseMidiOut
+#define YSE_C_HANDLE_YseMidiOut
 /** Owned — release with yse_midi_out_destroy. */
 typedef struct YseMidiOut YseMidiOut;
+#endif
+#ifndef YSE_C_HANDLE_YseMidiIn
+#define YSE_C_HANDLE_YseMidiIn
 /** Owned — release with yse_midi_in_destroy. */
 typedef struct YseMidiIn YseMidiIn;
+#endif
+#ifndef YSE_C_HANDLE_YseMidiNote
+#define YSE_C_HANDLE_YseMidiNote
 /** Owned — release with yse_midi_note_destroy. */
 typedef struct YseMidiNote YseMidiNote;
+#endif
+#ifndef YSE_C_HANDLE_YseSynth
+#define YSE_C_HANDLE_YseSynth
 /** Opaque synth handle (defined in yse_synth.h) — target of
    yse_midi_file_connect_synth / yse_midi_in_connect_synth. */
 typedef struct YseSynth YseSynth;
+#endif
 
 /* ─── standard MIDI file playback ─────────────────────────────────── */
 

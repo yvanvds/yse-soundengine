@@ -35,8 +35,11 @@
 extern "C" {
 #endif
 
+#ifndef YSE_C_HANDLE_YseBusTap
+#define YSE_C_HANDLE_YseBusTap
 /** Owned — release with yse_bus_tap_destroy. */
 typedef struct YseBusTap YseBusTap;
+#endif
 
 /** Payload kind of a bus value. The bus carries five kinds: bang (a valueless
    trigger, published e.g. by a patcher gSend bang outlet), int, float, string,
@@ -121,8 +124,11 @@ YSE_C_API YseStatus yse_bus_publish_list(const char* address, const float* value
    "patcher.lead.cutoff" does not see "patcher.lead.cutoff2". No glob or
    wildcard forms (the DSL spec rules them out). */
 
+#ifndef YSE_C_HANDLE_YseBusSub
+#define YSE_C_HANDLE_YseBusSub
 /** Owned — release with yse_bus_unsubscribe. */
 typedef struct YseBusSub YseBusSub;
+#endif
 
 /** Same frame contract as YseBusTapCallback: `address` is the subscribed
    address, exactly one payload parameter is meaningful per `kind`, and every

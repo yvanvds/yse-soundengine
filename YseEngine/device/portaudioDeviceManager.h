@@ -40,7 +40,7 @@ namespace YSE {
 
       void updateDeviceList() override;
       Bool openDevice(const YSE::deviceSetup& object) override;
-      void addCallback() override;
+      Bool addCallback() override;
 
       // Live device-state getters (see deviceManager.h for contract).
       double getActiveSampleRate() const override;

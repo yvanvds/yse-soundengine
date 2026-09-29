@@ -61,7 +61,13 @@ namespace YSE {
      *        re-derived, so driving ``init()`` and ``update()`` from different
      *        threads silently loses the named-bus inline fast path — see the
      *        ``update()`` threading note (issue #290).
-     *  @return ``true`` on success, ``false`` if no device could be opened.
+     *  @return ``true`` when a stream on the default output device is running,
+     *          ``false`` if no device could be opened: the audio backend
+     *          failed to start, there is no default output device, or the
+     *          device refused to open or start the stream. The reason is
+     *          logged. A failed call tears down everything it set up, so the
+     *          engine is left closed; call ``init()`` again, or
+     *          ``initOffline()`` to run without a device (issue #973).
      */
     bool init();
 
@@ -204,12 +210,27 @@ namespace YSE {
      *  #719). Unlike ``resume()``, this call names the device it wants, so it
      *  is taken at its word.
      *
+     *  On desktop the promotion needs the audio backend to be running already:
+     *  ``initOffline()`` does not start PortAudio, and ``openDevice()`` does
+     *  not start it on demand, so the device list is empty and this returns
+     *  ``false`` with a log line in a process that has only ever run offline
+     *  sessions. In a process where an earlier ``init()`` started the backend,
+     *  the device list from that session is still there and the call works
+     *  (issue #972).
+     *
+     *  The stream opens at the session's sample rate, which is locked for the
+     *  whole session and need not be the device's default rate (an offline
+     *  session runs at the requested rate, or 48 kHz). A device that refuses
+     *  that rate is reported with a log line and nothing opens; choose the rate
+     *  with ``requestSampleRate()`` before ``init()`` / ``initOffline()``.
+     *
      *  @param object Device + host + sample-rate configuration.
      *  @param conf   Speaker layout. ``CT_AUTO`` picks stereo when possible.
      *  @return ``true`` when the backend opened a stream for ``object``.
      *          ``false`` when it refused the setup — no output device, an
-     *          output ID no host API resolves, a stream open error, or an
-     *          offline backend — in which case the reason is logged, the
+     *          output ID no host API resolves, a stream open error (a refused
+     *          session rate included), or a backend that was never started —
+     *          in which case the reason is logged, the
      *          running stream and the mixer layout are left alone, and the
      *          session is not promoted (issue #900).
      */

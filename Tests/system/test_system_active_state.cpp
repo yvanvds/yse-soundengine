@@ -16,8 +16,9 @@
 // size is populated on the first audio callback. We pump the engine for a
 // few sleep+update cycles before reading buffer size.
 //
-// On CI without an audio device, engineInit() returns false and every test
-// case bails out — doctest counts that as a pass.
+// On CI without an audio device, init() fails (issue #973) and engineInit()
+// falls back to an offline session: the paused-engine cases still run, and the
+// live-device cases skip on their getNumDevices() / audioIsFlowing() guards.
 
 #include <doctest/doctest.h>
 #include "yse.hpp"

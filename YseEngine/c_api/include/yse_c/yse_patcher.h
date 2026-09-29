@@ -32,12 +32,18 @@
 extern "C" {
 #endif
 
+#ifndef YSE_C_HANDLE_YsePatcher
+#define YSE_C_HANDLE_YsePatcher
 /** Owned — release with yse_patcher_destroy. */
 typedef struct YsePatcher YsePatcher;
+#endif
+#ifndef YSE_C_HANDLE_YsePHandle
+#define YSE_C_HANDLE_YsePHandle
 /** Borrowed — owned by the parent YsePatcher. Release with
    yse_patcher_delete_object(patcher, handle); never call a destroy on
    the handle directly. */
 typedef struct YsePHandle YsePHandle;
+#endif
 
 /** "No such object" — the answer from every function in this header that
    returns a patcher object ID but has nothing to report.

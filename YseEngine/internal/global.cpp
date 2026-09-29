@@ -184,9 +184,10 @@ void YSE::INTERNAL::global::close() {
   // the next session. Safe to tear down synchronously here: the device is
   // already closed and both pools are joined, so no audio thread can advance a
   // clock and no slow job can reap one.
-  // Clear clip transports (issue #250) before the clocks they bind to, so no
-  // transport can reference a clock past teardown. Safe synchronously here: the
-  // device is closed and both pools are joined.
+  // Clear clip transports (issue #250) before the clocks they bind to. Orphans
+  // are freed; a transport whose YSE::clip is still alive is kept for the next
+  // session (issue #974) and holds its own share of its bound clock (#707).
+  // Safe synchronously here: the device is closed and both pools are joined.
   CLIP::Manager().clear();
   CLOCK::Manager().clear();
 #if YSE_ENABLE_MIDI_DEVICE

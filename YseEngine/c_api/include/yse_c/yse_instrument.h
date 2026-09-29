@@ -36,18 +36,24 @@
 extern "C" {
 #endif
 
+#ifndef YSE_C_HANDLE_YseSfzInstrument
+#define YSE_C_HANDLE_YseSfzInstrument
 /** Owned — release with yse_sfz_destroy. A reference-counted SFZ instrument
    (region table + resident PCM). Share it across any number of synth voice
    groups via yse_synth_add_voices_sampler; each group retains its own share,
    so destroying this handle afterwards does not free the PCM until the last
    group is gone. Safe to destroy across yse_system_close(). */
 typedef struct YseSfzInstrument YseSfzInstrument;
+#endif
 
+#ifndef YSE_C_HANDLE_YseDx7Bank
+#define YSE_C_HANDLE_YseDx7Bank
 /** Owned — release with yse_dx7_destroy. A parsed DX7 SysEx bank (a list of FM
    patches, 1 or 32). Select a patch into a synth's FM voice group with
    yse_synth_fm_set_patch; the patch is copied into the synth, so the bank may
    be destroyed afterwards. Safe to destroy across yse_system_close(). */
 typedef struct YseDx7Bank YseDx7Bank;
+#endif
 
 /* ─── SFZ sampler instrument ─────────────────────────────────────────────── */
 

@@ -403,6 +403,131 @@ TEST_SUITE("clip") {
     clocks.update(0.01f);
   }
 
+  TEST_CASE("clip: a clip outliving the session teardown keeps its transport (#974)") {
+    // Issue #974: CLIP::Manager().clear() — run by System().close() — freed
+    // every transport, including those whose YSE::clip was still alive. The
+    // clip's pimpl then dangled: its destructor, and any call, wrote into freed
+    // memory. clear() now frees only orphans and re-queues the survivors for
+    // the next session. The counts below fail deterministically without the
+    // fix (the survivor is gone after clear()); the memory claim itself is
+    // gated by the asan run of this suite and of the lifecycle case.
+    auto& mgr = YSE::CLIP::Manager();
+    auto& clocks = YSE::CLOCK::Manager();
+    mgr.clear(); // start from no orphans left behind by earlier cases
+    const std::size_t base = mgr.implementationCountForTest();
+
+    REQUIRE(clocks.createClock("clip.teardown", 60.f));
+    auto* c = new YSE::clip; // heap: freed storage is poisoned under asan
+    REQUIRE(c->create("clip.teardown"));
+    c->setEvents({ev(1.0, 1.0, 1, 60)});
+    c->play();
+    for (int i = 0; i < 4; ++i) {
+      clocks.update(0.25f);
+      mgr.update();
+    }
+    CHECK(mgr.implementationCountForTest() == base + 1);
+
+    // Session teardown, in global::close() order: clips, then clocks.
+    mgr.clear();
+    clocks.clear();
+    CHECK(mgr.implementationCountForTest() == base + 1); // survivor kept
+
+    // The clip stays callable with no session, and in the next one.
+    c->loopLength(4.0);
+    c->setEvents({ev(0.5, 1.0, 1, 62)});
+    CHECK(c->isPlaying());
+    CHECK_FALSE(c->create("clip.teardown")); // its clock went with the session
+    REQUIRE(clocks.createClock("clip.teardown", 60.f));
+    CHECK(c->create("clip.teardown"));
+    for (int i = 0; i < 4; ++i) {
+      clocks.update(0.25f);
+      mgr.update(); // picks the re-queued transport up and advances it
+    }
+    c->stop();
+    clocks.update(0.25f);
+    mgr.update();
+    CHECK_FALSE(c->isPlaying());
+
+    // Destroying it retires the transport through the normal reap path.
+    delete c;
+    for (int i = 0; i < 3 && mgr.implementationCountForTest() != base; ++i) {
+      REQUIRE(DrainSlowPool());
+      mgr.update();
+    }
+    REQUIRE(DrainSlowPool());
+    CHECK(mgr.implementationCountForTest() == base);
+
+    clocks.destroyClock("clip.teardown");
+    clocks.update(0.01f);
+  }
+
+  TEST_CASE("clip: destroying a clip after the session teardown is safe (#974)") {
+    // The issue's exact repro at manager level: the clip is destroyed while no
+    // session is up. Its transport is left for the next session's reap (or the
+    // manager's own destruction at exit); the destructor must only touch live
+    // memory.
+    auto& mgr = YSE::CLIP::Manager();
+    auto& clocks = YSE::CLOCK::Manager();
+    REQUIRE(clocks.createClock("clip.teardown.late", 120.f));
+    auto* c = new YSE::clip;
+    REQUIRE(c->create("clip.teardown.late"));
+    mgr.clear();
+    clocks.clear();
+    delete c; // use-after-free before the fix
+
+    // Next "session": the orphan is reaped normally.
+    mgr.update();
+    REQUIRE(DrainSlowPool());
+    mgr.update();
+    REQUIRE(DrainSlowPool());
+    mgr.clear();
+    CHECK(true);
+  }
+
+  TEST_CASE("clip: a clip destroyed just before its synth releases without touching it (#975)") {
+    // Destroying a clip now releases its sounding notes on the next block
+    // (issue #975). The documented teardown order is clip first, then synth —
+    // with nothing in between — so by the time that block runs the synth
+    // interface may already be freed. The release must go to the synth's
+    // implementation (which outlives the interface until the synth manager
+    // reaps it) and never through the interface. Heap-allocated so asan
+    // poisons the freed interface: routing the release through it is a
+    // use-after-free there.
+    auto& mgr = YSE::CLIP::Manager();
+    auto& clocks = YSE::CLOCK::Manager();
+    mgr.clear();
+    const std::size_t base = mgr.implementationCountForTest();
+    REQUIRE(clocks.createClock("clip.retire.synth", 60.f)); // 1 beat / second
+
+    auto* s = new YSE::synth;
+    s->create();
+    int dummyHead = 0;
+    YSE::CLIP::transport* t = mgr.addImplementation(reinterpret_cast<YSE::clip*>(&dummyHead));
+    REQUIRE(t->bind("clip.retire.synth"));
+    t->connect(s);
+    t->setEvents({ev(0.5, 100.0, 1, 64)}); // long note: still sounding at destroy
+    t->play();
+    for (int i = 0; i < 4; ++i) { // -> beat 1: the note-on went to the synth
+      clocks.update(0.25f);
+      mgr.update();
+    }
+
+    t->removeInterface(); // ~clip ...
+    delete s; // ... then ~synth, before the engine runs another block
+    clocks.update(0.25f);
+    mgr.update(); // retire: the note-off goes to the synth's implementation
+
+    for (int i = 0; i < 3 && mgr.implementationCountForTest() != base; ++i) {
+      REQUIRE(DrainSlowPool());
+      mgr.update();
+    }
+    REQUIRE(DrainSlowPool());
+    CHECK(mgr.implementationCountForTest() == base);
+
+    clocks.destroyClock("clip.retire.synth");
+    clocks.update(0.01f);
+  }
+
 #if YSE_ENABLE_MIDI_DEVICE
 
   // ─── external MIDI-out sink (issue #350) ──────────────────────────────────
@@ -619,6 +744,73 @@ TEST_SUITE("clip") {
     sender.stop();
     REQUIRE(ReapClock("clip.midiout.doomed"));
     DropFillerClocks();
+  }
+
+  TEST_CASE("clip: destroying a playing clip releases its sounding notes (#975)") {
+    // Issue #975: ~clip only orphans the transport, and the manager used to
+    // retire an orphan without advancing it, so releaseAll never ran and a
+    // note-on on the wire was never followed by its note-off. The same held for
+    // stop() immediately followed by destruction, since stop() is only an
+    // intent the next block acts on. Both run here through the real manager:
+    // the transport is registered with a stand-in head (stored and compared,
+    // never dereferenced) and orphaned exactly as ~clip does it.
+    auto& mgr = YSE::CLIP::Manager();
+    auto& clocks = YSE::CLOCK::Manager();
+    mgr.clear(); // start from no orphans left behind by earlier cases
+    const std::size_t base = mgr.implementationCountForTest();
+    REQUIRE(clocks.createClock("clip.retire", 60.f)); // 1 beat / second
+
+    auto& sender = YSE::MIDI::OutSender();
+    int dummyPort = 0;
+    auto* fakePort = reinterpret_cast<RtMidiOut*>(&dummyPort);
+    int dummyHead = 0;
+    auto* fakeHead = reinterpret_cast<YSE::clip*>(&dummyHead);
+
+    for (const bool stopFirst : {false, true}) {
+      CAPTURE(stopFirst);
+      MidiHookRecorder rec;
+      sender.setSendHookForTest(&MidiHookRecorder::hook, &rec);
+
+      YSE::CLIP::transport* t = mgr.addImplementation(fakeHead);
+      REQUIRE(t->bind("clip.retire"));
+      t->connectMidiOut(fakePort); // (re)starts the sender thread
+      // No loop, so the start is placed ahead of wherever the clock is now.
+      // Long note: still sounding at destroy.
+      const double start = clocks.beatPosition("clip.retire") + 0.5;
+      t->setEvents({ev(start, 100.0, 1, 64)});
+      t->play();
+      for (int i = 0; i < 4; ++i) { // -> start + 0.5: note-on fired, off far ahead
+        clocks.update(0.25f);
+        mgr.update();
+      }
+      REQUIRE(rec.await(1));
+      CHECK(rec.at(0).event.bytes[0] == 0x90);
+
+      // stop() then destroy before the next block: isPlaying() already reads
+      // false, so the host has no way to know the stop was never processed.
+      if (stopFirst) t->stop();
+      t->removeInterface(); // what ~clip does
+
+      clocks.update(0.25f);
+      mgr.update(); // retires the orphan — and must release its note first
+      sender.stop(); // joins and flushes: everything handed over is recorded
+      REQUIRE(rec.count() == 2);
+      CHECK(rec.at(1).event.bytes[0] == 0x80);
+      CHECK(rec.at(1).event.bytes[1] == 64);
+      CHECK(rec.at(1).event.port == fakePort);
+      sender.setSendHookForTest(nullptr, nullptr);
+
+      // The orphan is still reaped through the normal slow-pool path.
+      for (int i = 0; i < 3 && mgr.implementationCountForTest() != base; ++i) {
+        REQUIRE(DrainSlowPool());
+        mgr.update();
+      }
+      REQUIRE(DrainSlowPool());
+      CHECK(mgr.implementationCountForTest() == base);
+    }
+
+    clocks.destroyClock("clip.retire");
+    clocks.update(0.01f);
   }
 
 #endif // YSE_ENABLE_MIDI_DEVICE

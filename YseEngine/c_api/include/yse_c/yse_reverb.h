@@ -25,9 +25,12 @@
 extern "C" {
 #endif
 
+#ifndef YSE_C_HANDLE_YseReverb
+#define YSE_C_HANDLE_YseReverb
 /** Owned via yse_reverb_create — release with yse_reverb_destroy.
    Borrowed via yse_system_get_global_reverb — never destroy that. */
 typedef struct YseReverb YseReverb;
+#endif
 
 /** Owned reverb zone — yse_reverb_create() runs both the C++ constructor
    and reverb::create() so the handle is ready to configure immediately. */

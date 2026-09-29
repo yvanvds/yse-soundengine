@@ -88,6 +88,26 @@ typedef struct YseChannel YseChannel;
 typedef struct YseDspBuffer YseDspBuffer;
 ```
 
+Every handle typedef — home header and forward declaration alike — sits
+behind its own `YSE_C_HANDLE_<Type>` guard (#976), because repeating a
+typedef is a C11 feature and the headers must stay C99-clean:
+
+```c
+#ifndef YSE_C_HANDLE_YseFoo
+#define YSE_C_HANDLE_YseFoo
+/** Owned — release with yse_foo_destroy. */
+typedef struct YseFoo YseFoo;
+#endif
+```
+
+Keep the comment *inside* the guard, directly above the typedef: placed
+above the `#ifndef`, Doxygen attaches it to the `#define` instead, and the
+Sphinx build fails on the duplicated macro.
+
+The `yse_c99_header_check` object library in `Tests/CMakeLists.txt` compiles
+every public header as `-std=c99 -pedantic-errors`, so an unguarded typedef
+fails the test build.
+
 Canonical examples: [yse_patcher.h](../../../YseEngine/c_api/include/yse_c/yse_patcher.h)
 (owned + borrowed pair), [yse_reverb.h](../../../YseEngine/c_api/include/yse_c/yse_reverb.h)
 (dual-shape).

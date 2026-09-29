@@ -18,8 +18,11 @@
 extern "C" {
 #endif
 
+#ifndef YSE_C_HANDLE_YseBufferIO
+#define YSE_C_HANDLE_YseBufferIO
 /** Owned — release with yse_buffer_io_destroy. */
 typedef struct YseBufferIO YseBufferIO;
+#endif
 
 /** store_copy=1 copies the supplied bytes; store_copy=0 keeps a pointer
    to the caller's buffer (which must outlive the registration). */

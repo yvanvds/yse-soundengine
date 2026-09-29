@@ -68,17 +68,29 @@
 extern "C" {
 #endif
 
+#ifndef YSE_C_HANDLE_YseSynth
+#define YSE_C_HANDLE_YseSynth
 /** Owned — release with yse_synth_destroy. The handle also owns the built-in
    voice prototypes created by yse_synth_add_voices_*, freeing them on
    destroy; keep the synth alive until after any sound rendering it is
    destroyed (see yse_synth_attach_to_sound). */
 typedef struct YseSynth YseSynth;
+#endif
 
+#ifndef YSE_C_HANDLE_YseSound
+#define YSE_C_HANDLE_YseSound
 /** Forward declarations — see yse_sound.h / yse_channel.h / yse_music.h for
    ownership. */
 typedef struct YseSound YseSound;
+#endif
+#ifndef YSE_C_HANDLE_YseChannel
+#define YSE_C_HANDLE_YseChannel
 typedef struct YseChannel YseChannel;
+#endif
+#ifndef YSE_C_HANDLE_YseNote
+#define YSE_C_HANDLE_YseNote
 typedef struct YseNote YseNote;
+#endif
 
 /** Audio-thread note-rewrite hook, mirroring YSE::synth::onNoteEvent
    (docs/design/synth_core.md §7). Invoked by the engine on the AUDIO THREAD

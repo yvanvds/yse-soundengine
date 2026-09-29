@@ -21,7 +21,8 @@ There are two ways to start one:
      - What you get
    * - ``System().init()``
      - Starts the audio backend and opens the platform's default output
-       device. The audio thread renders the mix.
+       device. The audio thread renders the mix. Returns ``false`` if no
+       device opens.
    * - ``System().initOffline()``
      - The same engine, channel tree and DSP graph, but no audio backend and
        no audio thread. You render blocks yourself with
@@ -33,14 +34,14 @@ music, GUI, voice), install a stereo speaker layout and set ``maxSounds`` to
 50. Calling ``init()`` again while a session is running logs a message and
 returns ``true`` without doing anything.
 
-.. note::
-
-   On desktop, ``init()`` returns ``false`` only when the audio backend itself
-   fails to start. If there is no default output device, or the device refuses
-   the stream, the reason is logged and ``init()`` still returns ``true``
-   (tracked as `#973 <https://github.com/yvanvds/yse-soundengine/issues/973>`_).
-   To confirm a device is open, check that ``System().getActiveSampleRate()``
-   is not 0. See also `Is audio flowing?`_.
+``init()`` returns ``true`` only when a stream on the default output device
+is running. It returns ``false`` when the audio backend fails to start, when
+there is no default output device, or when the device refuses to open or start
+the stream (for example because another application holds it exclusively). The
+reason is logged. A failed ``init()`` leaves no session behind: you can call
+``init()`` again, or ``initOffline()`` to run the engine without a device.
+A stream that has just started can still take a moment to deliver audio; see
+`Is audio flowing?`_.
 
 ``System().close()`` ends the session. It closes the device, stops the engine
 threads and frees the engine's side of every sound and channel. You can call
@@ -121,11 +122,20 @@ nothing there, and ``autoReconnect()`` cannot open a device on it either.
 The one way to give an offline session a device is ``openDevice()`` (see
 below). When it succeeds, the session becomes a device session:
 ``pause()`` and ``resume()`` work on it, and an audio thread now renders the
-mix. **Stop calling** ``renderOffline()`` **after that.** On desktop this
-only works in a process where an earlier ``init()`` has already started
-PortAudio. In a process that has only ever run offline sessions, the device
-list is empty and ``openDevice()`` returns ``false`` (tracked as
-`#972 <https://github.com/yvanvds/yse-soundengine/issues/972>`_).
+mix. **Stop calling** ``renderOffline()`` **after that.**
+
+On desktop this needs the audio backend (PortAudio) to be running already.
+``initOffline()`` does not start it, so that headless machines never probe
+audio hardware, and ``openDevice()`` does not start it on demand either. In a
+process that has only ever run offline sessions, the device list is empty and
+``openDevice()`` returns ``false`` with a log line. In a process where an
+earlier ``init()`` started the backend, the device list from that session is
+still there and ``openDevice()`` works.
+
+The stream opens at the offline session's rate: the requested one, or 48 kHz.
+If the device refuses that rate, ``openDevice()`` logs a warning naming both
+rates and returns ``false``. To be safe, request the device's rate (for
+example ``getDevice(i).getAvailableSampleRate(0)``) before ``initOffline()``.
 
 Choosing an audio device
 ------------------------
@@ -192,10 +202,14 @@ layout from the channel count. A layout with a different number of outputs
 makes the next audio block reallocate the mix buffers, so switch devices at
 setup, not while something audible plays.
 
-The new stream runs at the session's sample rate. The rate set with
-``deviceSetup::setSampleRate()`` is currently ignored (tracked as
-`#971 <https://github.com/yvanvds/yse-soundengine/issues/971>`_); choose the
-rate with ``requestSampleRate()`` before ``init()``.
+The new stream runs at the session's sample rate, even when that is not the
+new device's default rate. A device that refuses it is logged and
+``openDevice()`` returns ``false``. The session rate cannot
+change while the session runs, so ``deviceSetup::setSampleRate()`` only
+matters when it differs from it: ``openDevice()`` then logs a warning that
+names the requested rate and opens the stream at the session rate anyway.
+Leave it at 0 (the default) or at the session rate, and choose the rate with
+``requestSampleRate()`` before ``init()``.
 
 On Android there is a single device ("Android Audio", stereo, through Oboe).
 ``openDevice()`` does not switch anything there. It only applies the speaker

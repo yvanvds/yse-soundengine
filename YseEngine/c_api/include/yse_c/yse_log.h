@@ -28,9 +28,12 @@
 extern "C" {
 #endif
 
+#ifndef YSE_C_HANDLE_YseLog
+#define YSE_C_HANDLE_YseLog
 /** Borrowed singleton — owned by the engine, never destroy.
    Obtain via yse_log_get(). */
 typedef struct YseLog YseLog;
+#endif
 
 YSE_C_API YseLog* yse_log_get(void);
 

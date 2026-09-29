@@ -48,11 +48,18 @@ namespace TestHelpers {
 
   // Initialise the full engine state and pause the audio stream so the test
   // thread is the sole driver of `Manager().update()`. Returns true on
-  // success, false if init failed (typically CI without a default audio
-  // device — addCallback() is a no-op there).
+  // success, false if the engine could not be brought up at all.
+  //
+  // A host with no default audio output device (headless CI) falls back to an
+  // offline session. init() fails there since issue #973 — it used to return
+  // true over a session with no stream — and these suites exercise the engine,
+  // not the device, so they ran against a deviceless session all along. An
+  // offline session is that same state, declared: channels, managers and pools
+  // up, no audio thread. The cases that need a live device already ask for one
+  // (audioIsFlowing(), getNumDevices()) rather than assume it.
   inline bool engineInit() {
     if (engineInitialized()) return true;
-    if (!YSE::System().init()) return false;
+    if (!YSE::System().init()) return YSE::System().initOffline();
     YSE::System().pause();
     return true;
   }

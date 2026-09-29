@@ -26,12 +26,21 @@
 extern "C" {
 #endif
 
+#ifndef YSE_C_HANDLE_YseClip
+#define YSE_C_HANDLE_YseClip
 /** Owned — release with yse_clip_destroy. */
 typedef struct YseClip YseClip;
+#endif
+#ifndef YSE_C_HANDLE_YseSynth
+#define YSE_C_HANDLE_YseSynth
 /** Opaque synth handle (defined in yse_synth.h). */
 typedef struct YseSynth YseSynth;
+#endif
+#ifndef YSE_C_HANDLE_YseMidiOut
+#define YSE_C_HANDLE_YseMidiOut
 /** Opaque MIDI-out handle (defined in yse_midi.h). */
 typedef struct YseMidiOut YseMidiOut;
+#endif
 
 /** One timed note event, positioned in beats on the bound domain clock.
    Layout-compatible with YSE::clipEvent. */

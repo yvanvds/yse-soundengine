@@ -14,20 +14,41 @@
 extern "C" {
 #endif
 
+#ifndef YSE_C_HANDLE_YseSystem
+#define YSE_C_HANDLE_YseSystem
 /** Borrowed singleton — owned by the engine, never destroy.
    Obtain via yse_system_get(). */
 typedef struct YseSystem YseSystem;
+#endif
+#ifndef YSE_C_HANDLE_YseChannel
+#define YSE_C_HANDLE_YseChannel
 /** Forward declarations — see yse_channel.h / yse_reverb.h / yse_device.h
    for ownership semantics. */
 typedef struct YseChannel YseChannel;
+#endif
+#ifndef YSE_C_HANDLE_YseReverb
+#define YSE_C_HANDLE_YseReverb
 typedef struct YseReverb YseReverb;
+#endif
+#ifndef YSE_C_HANDLE_YseDevice
+#define YSE_C_HANDLE_YseDevice
 typedef struct YseDevice YseDevice;
+#endif
+#ifndef YSE_C_HANDLE_YseDeviceSetup
+#define YSE_C_HANDLE_YseDeviceSetup
 typedef struct YseDeviceSetup YseDeviceSetup;
+#endif
 
 /** Borrowed singleton pointer — never destroy. */
 YSE_C_API YseSystem* yse_system_get(void);
 
-/** Lifecycle. */
+/** Lifecycle.
+
+   yse_system_init() returns YSE_OK only when a stream on the default output
+   device is running. With no default device, or one that refuses to open or
+   start the stream, it returns YSE_ERR_AUDIO_DEVICE and leaves the engine
+   closed; yse_system_init_offline() runs the engine without a device
+   (issue #973). */
 YSE_C_API YseStatus yse_system_init(YseSystem* sys);
 YSE_C_API YseStatus yse_system_init_offline(YseSystem* sys);
 YSE_C_API void yse_system_render_offline(YseSystem* sys, int blocks);
@@ -138,7 +159,13 @@ YSE_C_API YseDevice* yse_system_get_device(YseSystem* sys, unsigned int idx);
    whose id is -1 or no longer resolves, a stream open error, or an offline
    session with no audio backend — returns YSE_ERR_AUDIO_DEVICE and sets
    yse_last_error(); the running stream and the speaker layout are left
-   untouched (issue #900). */
+   untouched (issue #900).
+
+   On desktop, yse_system_init_offline() does not start the audio backend and
+   open_device does not start it on demand: an offline session can only open a
+   device in a process where an earlier yse_system_init() started it. The
+   stream opens at the locked session rate; a device that refuses that rate is
+   a logged YSE_ERR_AUDIO_DEVICE (issue #972). */
 YSE_C_API YseStatus yse_system_open_device(YseSystem* sys, const YseDeviceSetup* setup,
                                            YseChannelType layout);
 YSE_C_API void yse_system_close_current_device(YseSystem* sys);

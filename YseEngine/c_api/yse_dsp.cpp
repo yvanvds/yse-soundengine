@@ -268,7 +268,7 @@ YSE_C_API YseStatus yse_dsp_buffer_draw_line(YseDspBuffer* buf, unsigned int sta
                                              float stop_value) {
   auto* d = as<YSE::DSP::drawableBuffer>(buf);
   if (!d) {
-    yse_c::set_last_error("buffer is not a drawableBuffer");
+    yse_c::set_last_error("yse_dsp_buffer_draw_line: buffer handle is NULL");
     return YSE_ERR_INVALID_HANDLE;
   }
   d->drawLine(start, stop, start_value, stop_value);
@@ -279,7 +279,7 @@ YSE_C_API YseStatus yse_dsp_buffer_draw_flat(YseDspBuffer* buf, unsigned int sta
                                              unsigned int stop, float value) {
   auto* d = as<YSE::DSP::drawableBuffer>(buf);
   if (!d) {
-    yse_c::set_last_error("buffer is not a drawableBuffer");
+    yse_c::set_last_error("yse_dsp_buffer_draw_flat: buffer handle is NULL");
     return YSE_ERR_INVALID_HANDLE;
   }
   d->drawLine(start, stop, value);
@@ -290,7 +290,7 @@ YSE_C_API YseStatus yse_dsp_buffer_load_file(YseDspBuffer* buf, const char* file
                                              unsigned int channel) {
   auto* f = as<YSE::DSP::fileBuffer>(buf);
   if (!f) {
-    yse_c::set_last_error("buffer is not a fileBuffer");
+    yse_c::set_last_error("yse_dsp_buffer_load_file: buffer handle is NULL");
     return YSE_ERR_INVALID_HANDLE;
   }
   if (!filename) {
@@ -309,7 +309,7 @@ YSE_C_API YseStatus yse_dsp_buffer_load_file(YseDspBuffer* buf, const char* file
 YSE_C_API YseStatus yse_dsp_buffer_save_file(YseDspBuffer* buf, const char* filename) {
   auto* f = as<YSE::DSP::fileBuffer>(buf);
   if (!f) {
-    yse_c::set_last_error("buffer is not a fileBuffer");
+    yse_c::set_last_error("yse_dsp_buffer_save_file: buffer handle is NULL");
     return YSE_ERR_INVALID_HANDLE;
   }
   if (!filename) {
@@ -333,7 +333,7 @@ YSE_C_API float yse_dsp_buffer_get_file_sample_rate(YseDspBuffer* buf) {
 YSE_C_API YseStatus yse_dsp_wavetable_create_saw(YseDspBuffer* buf, int harmonics, int length) {
   auto* w = as<YSE::DSP::wavetable>(buf);
   if (!w) {
-    yse_c::set_last_error("buffer is not a wavetable");
+    yse_c::set_last_error("yse_dsp_wavetable_create_saw: buffer handle is NULL");
     return YSE_ERR_INVALID_HANDLE;
   }
   w->createSaw(harmonics, length);
@@ -343,7 +343,7 @@ YSE_C_API YseStatus yse_dsp_wavetable_create_saw(YseDspBuffer* buf, int harmonic
 YSE_C_API YseStatus yse_dsp_wavetable_create_square(YseDspBuffer* buf, int harmonics, int length) {
   auto* w = as<YSE::DSP::wavetable>(buf);
   if (!w) {
-    yse_c::set_last_error("buffer is not a wavetable");
+    yse_c::set_last_error("yse_dsp_wavetable_create_square: buffer handle is NULL");
     return YSE_ERR_INVALID_HANDLE;
   }
   w->createSquare(harmonics, length);
@@ -354,7 +354,7 @@ YSE_C_API YseStatus yse_dsp_wavetable_create_triangle(YseDspBuffer* buf, int har
                                                       int length) {
   auto* w = as<YSE::DSP::wavetable>(buf);
   if (!w) {
-    yse_c::set_last_error("buffer is not a wavetable");
+    yse_c::set_last_error("yse_dsp_wavetable_create_triangle: buffer handle is NULL");
     return YSE_ERR_INVALID_HANDLE;
   }
   w->createTriangle(harmonics, length);
