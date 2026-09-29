@@ -9,10 +9,13 @@
 //   - Sound loading and playback on a real output device
 //   - End-to-end signal probe: DSP source signal reaches an attached effect processor
 //
-// These tests require a real audio output device and are DISABLED in CTest by
-// default (LABELS integration, DISABLED TRUE).  Run explicitly with:
+// The device-dependent cases need a real audio output device and return early
+// when none opens, so the suite is headless-safe. It is registered as
+// yse_tests_integration (LABELS integration, not DISABLED) and runs as part of
+// the default ctest set, including `python yse.py test` and CI. Run it alone
+// with:
 //
-//   ctest -L integration
+//   ctest --preset tests-debug -L integration
 //   yse_tests --test-suite=integration
 //
 // DSP lifetime note: sound implementations are process-scoped static singletons
@@ -448,9 +451,9 @@ TEST_SUITE("integration") {
   // shape from the original repro, so the test also exercises the
   // FTZ/DAZ path on the audio thread (issue #53 / PR #70).
   //
-  // Total runtime: ~13 s on a Release build. Run explicitly with:
+  // Total runtime: ~13 s on a Release build. Run it alone with:
   //
-  //   python yse.py test --integration
+  //   ctest --preset tests-debug -L integration
   //   yse_tests --test-suite=integration --test-case='*cpuLoad recovers*'
   TEST_CASE("engine: cpuLoad recovers after multi-sine playback stops [issue #82]") {
     if (!TestHelpers::engineInitWithAudio()) return;

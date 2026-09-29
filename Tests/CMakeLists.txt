@@ -1075,6 +1075,9 @@ target_compile_definitions(yse_tests PRIVATE
 )
 
 if(NOT ANDROID)
+  # Real-device suite. Not DISABLED (since 948e1c77): it runs in the default
+  # ctest set, and its device-dependent cases return early when no audio
+  # device opens, so it passes headless. `ctest -L integration` runs it alone.
   add_test(
     NAME    yse_tests_integration
     COMMAND yse_tests --test-suite=integration

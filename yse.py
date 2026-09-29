@@ -527,28 +527,13 @@ def cmd_test(args):
         run_ctest(preset)
         return
 
+    # The ctest run includes yse_tests_integration (label `integration`): it
+    # has not been DISABLED since 948e1c77, and its device-dependent cases
+    # return early when no audio device opens, so it is headless-safe.
     preset = "tests-debug-python" if args.python else "tests-debug"
-    build_dir = "build-tests-python" if args.python else "build-tests"
     run(["cmake", "--preset", preset])
     run(["cmake", "--build", "--preset", preset])
     run_ctest(preset)
-
-    if args.integration:
-        suffix = ".exe" if IS_WINDOWS else ""
-        exe = ROOT / build_dir / "bin" / ("yse_tests" + suffix)
-        if not exe.exists():
-            print(f"error: {exe} not found after build.")
-            sys.exit(1)
-        # ctest's DISABLED property on yse_tests_integration blocks the suite
-        # even with `-L integration`, so invoke the doctest binary directly.
-        # WORKING_DIRECTORY = bin/ matches the per-suite CTest entries.
-        bin_dir = exe.parent
-        _print_cmd([exe.name, "--test-suite=integration"], cwd=bin_dir)
-        result = subprocess.run(
-            [str(exe), "--test-suite=integration"], cwd=str(bin_dir)
-        )
-        if result.returncode != 0:
-            sys.exit(result.returncode)
 
 
 def cmd_bench(args):
@@ -1625,8 +1610,7 @@ def build_parser():
   python yse.py build --release    configure + build (release)
   python yse.py build --python     configure + build (debug) with embedded-Python live-coding (YSE_ENABLE_PYTHON=ON)
   python yse.py build --content-pack   configure + build (debug) and fetch the optional SFZ/DX7/FM content pack (YSE_FETCH_CONTENT_PACK=ON)
-  python yse.py test               build tests-debug preset, run ctest
-  python yse.py test --integration same, plus the integration suite (needs real audio device)
+  python yse.py test               build tests-debug preset, run ctest (includes the integration suite)
   python yse.py test --python      build tests-debug-python preset so the embedded-interpreter suite runs
   python yse.py bench              build bench preset, run benchmark binary
   python yse.py bench --filter Buffer  run only benchmarks matching 'Buffer'
@@ -1688,20 +1672,17 @@ def build_parser():
         description=(
             "Configures with YSE_BUILD_TESTS=ON (tests-debug preset), builds, "
             "then runs ctest --preset tests-debug.\n\n"
-            "With --integration, additionally runs the integration suite by "
-            "invoking yse_tests --test-suite=integration directly.  These tests "
-            "are DISABLED in CTest because they require a real audio output "
-            "device (and on Windows probe the RtMidi backend), so they only "
-            "run when explicitly requested.\n\n"
+            "The ctest run includes the integration suite "
+            "(yse_tests_integration, label `integration`). Its cases that need "
+            "a real audio output device return early when none opens, so it "
+            "passes headless; on a machine with a device it exercises the live "
+            "audio path. Run it alone with "
+            "`ctest --preset tests-debug -L integration`.\n\n"
             "If ctest fails, the run's Testing/Temporary/ logs are copied to "
             "Testing/failures/<preset>-<timestamp>/ inside the build directory "
             "before the exit code is propagated, so an intermittent failure is "
             "still readable after the re-run that overwrites them (#738)."
         ),
-    )
-    p.add_argument(
-        "--integration", action="store_true",
-        help="Also run the integration suite (requires a real audio device)",
     )
     p.add_argument(
         "--python", action="store_true",
