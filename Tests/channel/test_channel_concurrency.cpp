@@ -22,13 +22,17 @@
 #include <chrono>
 #include <cstddef>
 #include <cstring>
+#include <memory>
 #include <new>
 #include <string>
 #include <thread>
+#include <vector>
 #include "yse.hpp"
 #include "channel/channelInterface.hpp"
 #include "channel/channelImplementation.h"
 #include "channel/channelManager.h"
+#include "dsp/dspObject.hpp"
+#include "patcher/pool_blocker.hpp"
 #include "sound/soundManager.h"
 #include "internal/time.h"
 #include "support/null_device.hpp"
@@ -76,6 +80,26 @@ namespace {
   // the baseline.
   bool reclaimedTo(std::size_t before) {
     return YSE::CHANNEL::Manager().implementationCount() <= before;
+  }
+
+  // A no-op insert used as a readiness fence, as in test_channel_metering.cpp:
+  // an insert message is applied in sync(), which the manager runs only for an
+  // impl it has promoted to OBJECT_READY, and the `calledfrom` back-pointer is
+  // written on this (the update) thread. Attach, wait for it, detach, wait for
+  // it to clear.
+  struct FenceDsp : YSE::DSP::dspObject {
+    void create() override {}
+    void process(std::vector<YSE::DSP::buffer>&) override {}
+  };
+
+  bool awaitChannelReady(YSE::channel& c) {
+    // Static so a still-attached fence on the timeout path points at live memory.
+    static FenceDsp fence;
+    c.setDSP(&fence);
+    const bool attached = drainUntil([] { return fence.calledfrom != nullptr; });
+    c.setDSP(nullptr);
+    const bool detached = drainUntil([] { return fence.calledfrom == nullptr; });
+    return attached && detached;
   }
 
 } // namespace
@@ -158,6 +182,75 @@ TEST_SUITE("channel") {
 
     // Final settle: reclamation completing is the signal, not a fixed count (#842).
     CHECK(drainUntil([before] { return reclaimedTo(before); }));
+  }
+
+  // ─── Regression: a release marked while a delete job is in flight ───────────
+
+  TEST_CASE("channel concurrency: a release marked during an in-flight delete job "
+            "is still reclaimed (issue #990)") {
+    if (!TestHelpers::engineInit()) return;
+
+    // CHANNEL::Manager().update() used to clear its delete request even when it
+    // could not enqueue the delete job because the previous one was still in
+    // flight (isQueued() stays true while a job runs). That job may already have
+    // walked past the impl the request was for, so the request was lost and the
+    // impl stayed in the canonical list until some *other* channel happened to
+    // be released — here, never, so the settle below cannot succeed.
+    //
+    // Staging, per round (the pool has one worker, and its ring is FIFO):
+    //   - `x` is created last, so it heads the canonical list and is the first
+    //     entry the delete job walks;
+    //   - `bulk` is released with the worker parked, and the next tick queues
+    //     the delete job for it behind the blocker;
+    //   - unparking hands the worker straight to that job, which walks past `x`
+    //     first and then spends a long time destroying `bulk`;
+    //   - `x` is released and marked on the next tick, and the tick after that
+    //     finds the job still running — the tick that used to drop the request.
+    // The fixed engine reclaims `x` whatever the interleaving, so the timing
+    // below cannot make this case fail spuriously; it only decides whether the
+    // unfixed engine is caught (5/5 runs in the debug build).
+    constexpr int kBulk = 2000;
+    constexpr int kRounds = 5;
+
+    auto tick = [] {
+      YSE::INTERNAL::Time().update();
+      YSE::SOUND::Manager().update();
+      YSE::CHANNEL::Manager().update();
+    };
+
+    for (int round = 0; round < kRounds; ++round) {
+      const std::size_t before = YSE::CHANNEL::Manager().implementationCount();
+
+      std::vector<std::unique_ptr<YSE::channel>> bulk;
+      bulk.reserve(kBulk);
+      for (int i = 0; i < kBulk; ++i) {
+        bulk.push_back(std::make_unique<YSE::channel>());
+        bulk.back()->create(("bulk_" + std::to_string(i)).c_str(), YSE::ChannelMusic());
+      }
+      auto x = std::make_unique<YSE::channel>();
+      x->create(("x_" + std::to_string(round)).c_str(), YSE::ChannelMusic());
+      REQUIRE(awaitChannelReady(*x)); // bulk was set up in the same or an earlier pass
+
+      TestHelpers::PoolBlocker blocker;
+      REQUIRE(blocker.Park());
+      bulk.clear();
+      tick(); // marks bulk OBJECT_DELETE, raises the delete request
+      tick(); // queues the delete job behind the blocker
+      blocker.Unpark();
+      // Let the worker pick the job up and walk past `x` (its first entry)
+      // before `x` is marked. The job then runs for tens of milliseconds
+      // (measured ~50 ms for 2000 impls in the debug build), so the two ticks
+      // below — a few microseconds — land well inside it.
+      std::this_thread::sleep_for(std::chrono::milliseconds(1));
+
+      x.reset();
+      tick(); // marks x OBJECT_DELETE while the job is busy with bulk
+      tick(); // the job is still in flight: x's request must survive this tick
+
+      const bool reclaimed = drainUntil([before] { return reclaimedTo(before); });
+      CHECK_MESSAGE(reclaimed, "round " << round << " stranded a released channel impl");
+      if (!reclaimed) break;
+    }
   }
 
   // ─── Nested-release stress: childrenToParent has actual reparenting to do ────
