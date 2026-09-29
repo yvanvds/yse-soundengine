@@ -378,10 +378,10 @@ namespace YSE {
      *  The serialisation goes through the layer ``DumpJSON`` / ``ParseJSON``
      *  actually runs on, which is **nlohmann::json** — the same
      *  ``nlohmann::json::value_type`` every other object's state hook takes.
-     *  (#548 names ``YseEngine/json/cJSON.cpp``; that file is vendored for the
-     *  engine's own use and the patcher does not go through it. Routing array
-     *  state through cJSON would *add* the second JSON implementation the issue
-     *  asks not to add, not avoid it.)
+     *  (#548 names ``YseEngine/json/cJSON.cpp``; nothing in the engine used
+     *  that file and it has since been removed (#984). Routing array state
+     *  through cJSON would have *added* a second JSON implementation, which
+     *  the issue asked not to do.)
      *
      *  ### Real-time behaviour
      *

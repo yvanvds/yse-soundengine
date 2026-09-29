@@ -181,7 +181,7 @@ Headless audio coverage on GHA is **not** feasible — `snd-aloop`, `PulseAudio 
 `sonar-project.properties` declares:
 - `sonar.projectKey=yvanvds_yse-soundengine`, `sonar.organization=yvanvds`
 - `sonar.sources=YseEngine`, `sonar.tests=Tests`
-- Exclusions: `dependencies/**`, vendored `YseEngine/json/**`, all `build*/`, legacy native projects
+- Exclusions: `dependencies/**`, vendored `YseEngine/dsp/fm/msfa/**` and `YseEngine/utils/json.hpp`, all `build*/`, legacy native projects
 - `sonar.cfamily.compile-commands=build/compile_commands.json`
 - `sonar.coverageReportPaths=coverage.xml`
 
@@ -652,4 +652,3 @@ The version string in `conf.py` is auto-synced from `YseEngine/system.hpp` so th
 | pybind11 v2.13.6 | FetchContent (`cmake/YsePython.cmake`, only with `YSE_ENABLE_PYTHON=ON`) | The embedded `yse` Python module |
 | doctest 2.4.11 | `dependencies/doctest/doctest.h` | Single-header C++ test framework (MIT) |
 | google-benchmark 1.9.0 | FetchContent (when `YSE_BUILD_BENCHMARKS=ON`) | Benchmarks |
-| cJSON | `YseEngine/json/cJSON.cpp` | Still compiled into `libyse` (warnings suppressed, excluded from SonarQube), but no engine source includes it |
