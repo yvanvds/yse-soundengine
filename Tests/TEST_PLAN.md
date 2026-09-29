@@ -587,7 +587,7 @@ None beyond what was introduced in earlier phases.
 
 **Dependencies:** All prior phases.
 
-**Definition of Done:** `ctest -R integration` passes on a developer machine with audio hardware. CI pipeline excludes the `integration` label by default. Disabling this phase does not break any earlier phase.
+**Definition of Done:** `ctest -L integration` passes on a developer machine with audio hardware and headless in CI. Disabling this phase does not break any earlier phase.
 
 ---
 
@@ -607,4 +607,4 @@ None beyond what was introduced in earlier phases.
 | 10 | Reverb DSP | 1 | — | Yes |
 | 11 | MIDI file parsing | 1 | — | Yes |
 | 12 | Music & composition | 3 | — | Yes |
-| 13 | Device integration | 1 | — | **No (opt-in)** |
+| 13 | Device integration | 1 | — | Yes (device cases return early headless) |

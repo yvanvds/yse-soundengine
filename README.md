@@ -221,9 +221,8 @@ python yse.py build              # configure + debug build (default)
 python yse.py build --release    # release build
 python yse.py build --python     # debug build with the embedded-Python live-coding feature (desktop only)
 python yse.py build --content-pack  # debug build + fetch the optional SFZ/DX7/FM content pack
-python yse.py test               # build tests-debug preset, run ctest
+python yse.py test               # build tests-debug preset, run ctest (includes the integration suite)
 python yse.py test --python      # tests-debug-python preset — also runs the embedded-interpreter suite
-python yse.py test --integration # also run the integration suite (needs a real audio device)
 python yse.py test --sanitizer asan  # tests-asan (Linux) / tests-asan-windows preset
 python yse.py test --sanitizer tsan  # tests-tsan preset (Linux/clang only)
 python yse.py bench              # bench preset (Release) + run yse_benchmarks; --filter <regex>, --json

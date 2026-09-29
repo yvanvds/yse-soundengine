@@ -91,8 +91,7 @@ python yse.py build --release      # release variant
 python yse.py build --python       # debug variant with embedded-Python live-coding (YSE_ENABLE_PYTHON=ON, desktop only)
 python yse.py build --content-pack  # also fetch the optional SFZ/DX7/FM content pack (YSE_FETCH_CONTENT_PACK=ON);
                                    # --install-content-pack also installs it (YSE_INSTALL_CONTENT_PACK=ON)
-python yse.py test                 # tests-debug preset + ctest
-python yse.py test --integration   # also run the integration suite (needs a real audio device)
+python yse.py test                 # tests-debug preset + ctest (includes the integration suite)
 python yse.py test --python        # tests-debug-python preset — also runs the embedded-interpreter suite
 python yse.py test --sanitizer asan  # tests-asan (Linux) / tests-asan-windows preset + ctest
 python yse.py test --sanitizer tsan  # tests-tsan preset + ctest (Linux/clang only)
@@ -575,7 +574,7 @@ Tests/
 
 - `yse_unit_tests` — the catchall: every suite except the ones that drive `System::close()` / `initOffline()`, mutate process-global engine state, or need a device, which each run in their own process.
 - Per-suite entries with CTest labels, e.g. `yse_tests_patcher`, `_patcher_concurrency`, `_channel`, `_rendergolden` (bit-exact multi-worker mix, #857), `_sendstress`, `_synth*`, `_lifecycle`, `_logsafety`, `_devicelayer`, `_offlinesession`, `_capilowcov` / `_capilowcovlife` / `_close_interleaving`, `_clock`, `_clip`, `_probe`, `_contentpack`.
-- `yse_tests_integration` (label `integration`) needs a real audio device; `python yse.py test --integration` runs the suite directly.
+- `yse_tests_integration` (label `integration`) runs in the default ctest set (since 948e1c77); its cases that need a real audio device return early when none opens, so it passes headless. `ctest --preset tests-debug -L integration` runs it alone.
 
 ### Audio-thread allocation probe
 
