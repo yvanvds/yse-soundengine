@@ -277,8 +277,11 @@ DLLs bundled in the Windows archive (bin/)
 
 The Windows archive copies every DLL that libyse.dll needs from MSYS2 Clang64.
 Licenses below are those declared by the MSYS2 package that provides each DLL
-(`pacman -Qi`); each project's own license file ships in its MSYS2 package
-(usually under share/licenses/<package>/).
+(`pacman -Qi`). The archive ships each package's own license files under
+licenses/<package>/ (copied from the MSYS2 package, or from the upstream
+tarball in its MSYS2 source package when the binary package carries none, as
+for LAME and libvorbis). licenses/BUNDLED-DLLS.txt maps each DLL to its
+package, version, license and license files.
 
     DLL                 Project (MSYS2 package)   License
     ------------------  ------------------------  ----------------------------
@@ -297,6 +300,33 @@ Licenses below are those declared by the MSYS2 package that provides each DLL
 
 The exact set depends on the MSYS2 packages installed on the build machine;
 the archive's README.md lists the DLLs actually bundled.
+
+LGPL obligations for the bundled DLLs (Windows)
+-----------------------------------------------
+
+libsndfile-1.dll, libmpg123-0.dll and libmp3lame-0.dll are distributed under
+the GNU Lesser General Public License. libyse.dll only links them dynamically,
+so any of them can be replaced by a compatible build without relinking
+libyse.dll (LGPL-2.1 section 6(b)). Because the archive distributes the
+libraries themselves, it also carries their complete corresponding source
+(LGPL-2.1 section 4). Every Windows archive (libyse-vX.Y.Z-windows-x64.zip)
+ships, next to bin/:
+
+  - licenses/<package>/
+        The license files of each bundled package, including the full text
+        of the GNU Lesser General Public License for the LGPL ones.
+  - third_party/<msys2-package>-<version>.src.tar.{zst,gz}
+        For each package whose declared license includes the LGPL or GPL
+        (libsndfile, mpg123, LAME, and also FLAC, whose MSYS2 package lists
+        LGPL/GPL next to the Xiph license that covers libFLAC.dll), the
+        MSYS2 source package of the exact version
+        that was bundled: the upstream source tarball plus the PKGBUILD and
+        patches MSYS2 used to build the DLL. The same files are published at
+        https://repo.msys2.org/mingw/sources/.
+
+The `yse.py package --platform windows` step adds these files and refuses to
+build a Windows archive when a bundled DLL's package, license text or LGPL
+source package cannot be resolved.
 
 
 ################################################################################
