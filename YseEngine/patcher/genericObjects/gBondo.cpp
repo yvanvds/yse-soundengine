@@ -21,16 +21,10 @@ namespace {
   }
 
   constexpr char kInletDoc[] =
-      "Hot, like every other inlet on this object. An int, float, list or symbol is stored here "
-      "and then the whole set is released, right to left. 'set <anything>' performs the same "
-      "store and releases nothing; a bang releases the set without storing. A list whose first "
-      "token is a number is spread over this slot and the ones to its right unless the 'n' "
-      "creation argument was given, in which case it is stored whole.";
+      "Stores a value here and sends every outlet. A bang sends without storing; 'set "
+      "<message>' stores without sending.";
 
-  constexpr char kOutletDoc[] =
-      "What the corresponding inlet is holding, sent on every release. Int 0 until that inlet has "
-      "received something. Released right to left with every other outlet, each send completing "
-      "in full before the outlet to its left is served.";
+  constexpr char kOutletDoc[] = "What the matching inlet holds: 0 until it receives something.";
 
 } // namespace
 
@@ -49,62 +43,13 @@ CONSTRUCT() {
   ShapePorts();
 
   ADD_DESCRIPTION(
-      "Holds one value per inlet and releases the whole set together the moment any one of them "
-      "changes — Max's bondo, 'synchronizes and outputs a set of inputs when any input is "
-      "received'. The problem it solves is incoherence in transit: a patch that has to change "
-      "three related parameters at once sends them down three cords, and whatever is downstream "
-      "sees the new first value against the old second and third for as long as it takes the next "
-      "cord to be served — a gap that is invisible in a diagram and audible in a patch. .bondo "
-      "closes it, so a reader is never handed a mixture of the old set and the new one. Every "
-      "inlet is hot, and that is the object: this is the reverse of almost every other "
-      "multi-inlet box here, where one inlet acts and the rest are cold. Max says it once per "
-      "method and says it the same way each time — 'In any inlet: the input is stored in the "
-      "location corresponding to that inlet, and causes anything previously stored to be sent out "
-      "its corresponding outlet' — so a patch does not have to know which of its parameters moved "
-      "and does not have to route a bang alongside them; whichever one moves carries the others "
-      "out with it. Its sibling buddy is the opposite policy, waiting until every inlet has "
-      "something before releasing once; .bondo never waits. There are two ways to store without "
-      "releasing. 'set <anything>' stores into the receiving inlet and emits nothing, which is the "
-      "only way to write an inlet quietly since there are no cold inlets to do it with, and here "
-      "it performs exactly the store the same message without the word would have performed and "
-      "suppresses only the output. A bang is the other half — 'send all stored messages' — "
-      "storing nothing and releasing everything, in any inlet, so 'set' three values then bang is "
-      "the manual mode and it composes with the automatic one rather than replacing it. An inlet "
-      "that has never been written releases int 0, as Max's does, so a reader wired to every "
-      "outlet gets a complete set from the very first release and never needs a 'have I seen this "
-      "one yet' flag of its own. Stored values persist rather than being consumed: a release does "
-      "not empty the object, so banging twice sends the same set twice and changing one inlet "
-      "re-sends the others unchanged — a consuming object would emit zeros on the second bang, "
-      "which is the incoherence this box exists to prevent. Outlet n-1 is served first and outlet "
-      "0 last, each send completing in full (the whole subgraph behind it, depth first) before the "
-      "next starts, which is Max's right-to-left rule and load-bearing here: the idiom wires "
-      "outlet 0 into whatever acts and the rest into whatever stores, so by the time the leftmost "
-      "value lands the rest of the set is already in place. A release happens inside the call "
-      "frame of the message that caused it, so the whole set is one logical event and .bondo into "
-      ".next gives one separated bang and the rest continued, however many outlets there are. A "
-      "list whose first token is a number is spread across the outlets from the receiving one "
-      "rightwards, as Max spreads one, and anything else is stored whole in the single slot — the "
-      "leading-token test is Max's own rule for which method a message reaches, and it is what "
-      "this patcher can use in place of a symbol type it does not have. The 'n' creation argument "
-      "turns distribution off so that a whole list is stored per outlet, which is the mode to "
-      "reach for when an inlet's value is itself a list. Max's delay argument defers a "
-      "message-triggered release by that many milliseconds through the patcher's deferred-message "
-      "scheduler: the release fires inside the patcher's own dispatch as one fresh logical event, "
-      "so the one-release-is-one-event guarantee keeps holding through the deferral. One release "
-      "is pending at a time — a new message reschedules it, so a burst of stores collapses into "
-      "one deferred release of the final set — and a bang is Max's documented exception, "
-      "releasing immediately and leaving a pending release to fire at its own time. A standalone "
-      "object outside any patcher has no dispatch to defer into and releases immediately. At most "
-      "256 inlet/outlet pairs are built, and the slot table is sized once before the object is "
-      "published — Calculate() does nothing, and no message path allocates, locks or blocks.");
+      "Holds one value per inlet and sends all of them, right to left, whenever any inlet "
+      "receives one. Keeps a set of related values together, so nothing downstream sees half an "
+      "update.");
   ADD_CATEGORY(pCategory::CONTROL);
   PARAM_DOC("ports", "2",
-            "Max's argument list, in Max's order and read by type. The first whole number is how "
-            "many inlet/outlet pairs to build, clamped to 1-256 and defaulting to 2. A second "
-            "whole number is Max's delay in milliseconds: a message-triggered release is deferred "
-            "by that long (block-quantised on the patcher's clock, rescheduled by each new "
-            "message), while a bang still releases immediately. The symbol 'n' stores a whole "
-            "list per outlet instead of spreading it across them. Anything else is ignored.",
+            "Number of inlet/outlet pairs (1-256), then an optional delay in ms, and 'n' to store "
+            "lists whole.",
             "1-256, optional delay in ms, optional 'n'");
 }
 

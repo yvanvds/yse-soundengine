@@ -12,22 +12,9 @@ using namespace YSE::PATCHER;
 namespace {
 
   constexpr char kInletDoc[] =
-      "A bang here makes the object send its bang, exactly as a load does — Max's 'sending a bang "
-      "message to a loadbang object causes it to output a bang message'. It is the manual trigger, "
-      "and it is the answer to the one case a load cannot cover: an object added to a patch that "
-      "is already running never receives a loadbang, because at creation time it has no cords to "
-      "send down and re-firing on a later edit would undo whatever the patch has done since. A "
-      "host that has just built a graph object by object therefore initialises it by banging its "
-      ".loadbang objects, and a host that loaded one from JSON does not have to.";
+      "A bang sends a bang, as a load does. Use it to initialise a patch built with CreateObject.";
 
-  constexpr char kOutletDoc[] =
-      "A bang, sent once when the patcher finishes loading — Max's 'sent automatically when the "
-      "patch is loaded' — and again for every bang that arrives at the inlet. The load bang leaves "
-      "here only after the whole parsed graph has been built, wired and published, so everything "
-      "the file describes is already in place and reachable when it travels; nothing downstream "
-      "can see a half-built patch. The order in which two .loadbang objects in one patch fire is "
-      "not defined, as in Max: if one initialisation has to precede another, put a .trigger "
-      "between them.";
+  constexpr char kOutletDoc[] = "A bang when the patch has finished loading, and for each bang in.";
 
 } // namespace
 
@@ -43,27 +30,8 @@ CONSTRUCT() {
   // load produce the same object, which then fires because it was loaded.
 
   ADD_DESCRIPTION(
-      "Sends a bang once the patcher has finished loading — Max's 'loadbang', which 'outputs a "
-      "bang automatically when the file is opened or when the patch is part of another file that "
-      "is opened'. It is what lets a saved patch describe its own starting state: before it "
-      "existed, a graph restored from JSON was a graph plus a list of things the host had to "
-      "remember to do to it afterwards, because every parameter that needed initialising had to be "
-      "pushed in from outside. Pair it with .loadmess, which is the same statement with a payload. "
-      "The firing point is the whole of the object. The bang is sent at the end of ParseJSON, "
-      "after the parsed graph has been compiled and published with a single atomic swap — not from "
-      "a constructor, where the cords do not exist yet and the bang would reach nothing, and not "
-      "part-way through the build, where it would reach some of the patch and not the rest with "
-      "which part depending on the order the file happens to list its objects in. Only after the "
-      "publish is the patch the patch the file describes. The pass runs on the control thread, "
-      "outside the patcher's lock, so a patch whose initialisation travels through a .forward or a "
-      ".qlist loads rather than deadlocking. The order in which two .loadbang objects fire is not "
-      "defined, as in Max; use a .trigger when one initialisation must precede another. An object "
-      "created live through CreateObject never receives a loadbang and stays silent until the "
-      "patch is saved and loaded again: at creation time it has no cords, and firing on a later "
-      "edit would re-run the patch's initialisation every time the patch was touched, undoing "
-      "whatever had happened since. The inlet is the manual trigger for that case — a bang in "
-      "makes it output, which is Max's documented behaviour. One inlet, one bang outlet, no "
-      "creation arguments. Calculate() does nothing, and neither send allocates, locks or blocks.");
+      "Sends a bang when the patch it is in has finished loading, so a saved patch can set up its "
+      "own starting state. A bang at the inlet sends one by hand.");
   ADD_CATEGORY(pCategory::CONTROL);
 
   INLET_DOC(0, "trigger", kInletDoc, "bang");

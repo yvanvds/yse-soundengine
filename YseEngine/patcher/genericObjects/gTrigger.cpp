@@ -14,26 +14,21 @@ namespace {
   const char* KindDoc(gTrigger::Kind kind) {
     switch (kind) {
     case gTrigger::Kind::INT:
-      return "The input as an int — a float is truncated towards zero, and a list or a bang "
-             "becomes 0. Fired in right-to-left order with every other outlet.";
+      return "The input as an int: a float is truncated toward zero, a list or a bang sends 0.";
     case gTrigger::Kind::FLOAT:
-      return "The input as a float — an int is widened, and a list or a bang becomes 0. Fired in "
-             "right-to-left order with every other outlet.";
+      return "The input as a float: a list or a bang sends 0.";
     case gTrigger::Kind::BANG:
-      return "A bang, whatever arrived. Fired in right-to-left order with every other outlet.";
+      return "A bang, whatever arrived.";
     case gTrigger::Kind::LIST:
-      return "The input list unchanged; anything else becomes the single-item list 0. Fired in "
-             "right-to-left order with every other outlet.";
+      return "A list unchanged; anything else sends the list 0.";
     case gTrigger::Kind::SYMBOL:
-      return "The input text unchanged; anything else becomes the empty symbol. Fired in "
-             "right-to-left order with every other outlet.";
+      return "Text (a list) unchanged; anything else sends the empty symbol.";
     case gTrigger::Kind::CONST_INT:
     case gTrigger::Kind::CONST_FLOAT:
     case gTrigger::Kind::CONST_SYMBOL:
       break;
     }
-    return "The constant given as this outlet's creation argument, emitted on every input "
-           "whatever arrived. Fired in right-to-left order with every other outlet.";
+    return "This outlet's constant, sent on every input.";
   }
 
   const char* KindRange(gTrigger::Kind kind) {
@@ -83,47 +78,14 @@ CONSTRUCT() {
   ShapePorts();
 
   ADD_DESCRIPTION(
-      "Sends one input to many outlets in a defined right-to-left order, converting it per outlet "
-      "on the way. Max's trigger, and the only object in the patcher whose point is ordering: "
-      "everywhere else the order in which two branches run is an accident of how the patch was "
-      "wired, and .trigger makes it a statement. Outlet n-1 is sent first and outlet 0 last, and "
-      "each send completes in full — the whole subgraph hanging off that outlet, depth first — "
-      "before the next one starts, because the patcher's send path calls the target inlet directly "
-      "with no queue in between. That is what makes '.trigger b i' expressible: the int leaves the "
-      "right outlet and lands in a cold inlet, and only then does the bang leave the left one, so "
-      "the bang can never fire the old value. The order in which several patch cords from the same "
-      "outlet are served is deliberately not guaranteed, as in Max; the answer to needing it is "
-      "another .trigger. One outlet per argument, in argument order, and each argument is either a "
-      "format letter or a constant. The five format letters convert whatever arrives: i sends an "
-      "int (a float truncated towards zero, a list or bang as 0), f sends a float (an int widened, "
-      "a list or bang as 0.), b sends a bang whatever arrived, l sends the input list unchanged or "
-      "else the single-item list 0, and s sends the input text unchanged or else the empty symbol. "
-      "Anything that is not one of those five letters is a constant, and a constant outlet emits "
-      "its own value on every input, ignoring what arrived: a token that reads as a whole finite "
-      "number is an int constant when it is spelled as one and a float constant when it carries a "
-      "'.' or an exponent, which is how Max's own parser tells the two atoms apart, and anything "
-      "else is a symbol constant that goes out as its own text. With no arguments there are two "
-      "outlets, both i — Max's default. One deviation: this patcher has no symbol message, and "
-      "text travels as a list message carrying a string, so an s outlet cannot ask whether what "
-      "arrived was a symbol or a list. A list message therefore passes through both l and s "
-      "unchanged, rather than inventing a single-token-is-a-symbol rule no other object follows. "
-      "What survives is the useful half of Max's distinction — what the two do with everything "
-      "else — so a number or a bang still leaves an l outlet as the list 0 and an s outlet as the "
-      "empty symbol. It also means the list '5 6' leaves an i outlet as 0 rather than as 5, which "
-      "is what Max says a list reaching an i outlet does: .trigger is not a list reader, .route "
-      "and .sel are. At most 256 outlets are built.");
+      "Sends its input out every outlet, right to left, converted per outlet to an int, a float, a "
+      "bang, a list or text, or replaced by a constant. Use it to make the order of two branches "
+      "explicit.");
   ADD_CATEGORY(pCategory::CONTROL);
-  INLET_DOC(0, "in",
-            "Bang, int, float or list. Whatever arrives is sent out every outlet, right to left, "
-            "converted per outlet.",
-            "any");
+  INLET_DOC(0, "in", "Bang, int, float or list, sent out every outlet, right to left.", "any");
   PARAM_DOC("formats", "i i",
-            "One argument per outlet, in order. 'i', 'f', 'b', 'l' and 's' are format letters that "
-            "convert the input to an int, a float, a bang, a list or a symbol; anything else is a "
-            "constant that outlet emits on every input. A constant token that reads as a whole "
-            "finite number is an int when spelled as one and a float when it carries a '.' or an "
-            "exponent; anything else is a symbol. With no argument there are two 'i' outlets. At "
-            "most 256 are held.",
+            "One argument per outlet: 'i', 'f', 'b', 'l' or 's' to convert the input, or any other "
+            "token as a constant. Two 'i' outlets by default, at most 256.",
             "any list of i/f/b/l/s letters and constants");
 }
 

@@ -77,97 +77,25 @@ CONSTRUCT() {
   base = DEFAULT_BASE;
 
   ADD_DESCRIPTION(
-      "Sends a burst of bangs immediately, with a running index — Max's uzi, and the patcher's "
-      "loop. Every other object answers one message with one message, so until now filling a "
-      "table, "
-      "building a chord or spawning a burst of grains had to come from outside the patch; .uzi 16 "
-      "is sixteen iterations with an index, in one box, inside one stimulus. Three outlets, and "
-      "their order is the object: per iteration the index goes out the right outlet first and the "
-      "bang out the left outlet second, which is Max's right-to-left order and here the whole "
-      "point "
-      "— the idiom wires the index into whatever holds the loop variable and the bang into "
-      "whatever "
-      "reads it, so an index arriving after its bang would make every iteration read the previous "
-      "one's number. Max's wording is 'the number of each bang is sent out': the number and the "
-      "bang are one pair. The middle outlet is the carry, and Max states its position explicitly "
-      "rather than leaving it to the rule — 'after the last bang is sent out its left outlet, uzi "
-      "sends one bang out its middle outlet [...] much like the carry outlet on the counter "
-      "object' "
-      "— so .uzi 3 produces index 1, bang, index 2, bang, index 3, bang, carry, in that order, "
-      "each "
-      "send completing in full (the whole subgraph behind it, depth first) before the next starts. "
-      "The index is 1-based, Max's 'numbering begins from 1', and the optional second creation "
-      "argument moves the base, so .uzi 8 0 is the 0-based loop a table index usually wants. The "
-      "whole burst is one logical event — Max's own next reference cites this object as the "
-      "example "
-      "— so .uzi into .next gives one bang out the separated outlet and the rest out the continued "
-      "one, whatever the count. Where this departs from Max is bounding, and it has to: the send "
-      "path is synchronous, so an unbounded .uzi is not a slow object but a hang. The count is "
-      "clamped to 4096, the ceiling .urn already uses, so one stimulus can never cost more than "
-      "4096 iterations of this object; a larger count is reported rather than silently truncated, "
-      "logged when it comes from the creation argument and readable as the gap between the "
-      "requested and effective counts when it comes from a message. A start arriving while a run "
-      "is "
-      "in progress is refused and counted, so a bang outlet wired back into the start inlet "
-      "terminates by construction rather than recursing N-deep per level until the stack goes. And "
-      "the loop bound is pinned when the run starts, so a patch raising the count from the right "
-      "inlet once per iteration — which is not a start and so never meets the guard — changes the "
-      "next run rather than extending this one forever. pause (Max's break) stops a run from "
-      "inside it, which is how a patch breaks out early: search a table with .uzi 4096 and pause "
-      "the moment the value is found. It is read at the top of each iteration, so an iteration is "
-      "atomic and an index is never left without its bang, and a paused run emits no carry, since "
-      "the carry means the bangs have all been sent. resume (Max's continue) picks up where it "
-      "stopped, numbering from wherever it left off and against the same pinned bound. offset n "
-      "skips the first n iterations, Max's 'the number is subtracted from the previously assigned "
-      "number of bangs'. An unrecognised symbol is ignored rather than converted to a bang: Max "
-      "lists no anything method here, and where a stray message costs .bangbang one bang it would "
-      "cost this object up to 4096. Floats are truncated towards zero on both inlets, as Max "
-      "converts a float to an int. Calculate() does nothing — an emitting one would run the whole "
-      "loop again on every DSP block from a stimulus no patch sent, which is the family's rule and "
-      "here the most expensive possible way to break it.");
+      "Sends a burst of bangs at once, each preceded by its index, then a carry bang when the run "
+      "is done. The patcher's loop: '.uzi 16' runs sixteen iterations inside one message.");
   ADD_CATEGORY(pCategory::CONTROL);
   INLET_DOC(0, "start",
-            "A bang runs the loop; an int or float sets the count and then runs it, truncating "
-            "towards zero. Also takes five words: 'pause' (or 'break') stops a run that is in "
-            "progress, which only a message caused by the run's own output can do, and is silent "
-            "and a no-op otherwise; 'resume' (or 'continue') sends the rest of a paused run, "
-            "numbering from where it left off; 'offset n' skips the first n iterations of the next "
-            "run. Any other symbol is ignored — this object does not convert anything to a bang. A "
-            "start that arrives while a run is already in progress is refused, which is what makes "
-            "an outlet wired back to here terminate.",
+            "A bang runs the loop; an int or float sets the count, then runs it. Also 'pause', "
+            "'resume' and 'offset <n>'.",
             "any");
   INLET_DOC(1, "count",
-            "An int or float sets how many bangs the next run emits, without producing any output "
-            "— Max's right inlet. Clamped to 0-4096. Setting it during a run applies to the next "
-            "run, never to the one already going, so a patch feeding this inlet from the bang "
-            "outlet cannot extend the loop it is inside.",
+            "Sets the count for the next run without starting it. Clamped to 0-4096; a float is "
+            "truncated.",
             "0-4096");
-  OUTLET_DOC(0, "bang",
-             "One bang per iteration, sent immediately after that iteration's index. The subgraph "
-             "behind it runs to completion before the next iteration starts.",
-             "bang");
-  OUTLET_DOC(1, "carry",
-             "One bang, after the last bang of a completed run — 'all the bang messages have been "
-             "sent', like the carry outlet on .counter. Wire it to whatever should happen once the "
-             "loop is done. A run stopped by 'pause' does not fire it; a run of zero bangs does, "
-             "so an after-the-loop branch is not silently skipped when the count computes to 0.",
-             "bang");
-  OUTLET_DOC(2, "index",
-             "The number of each bang, sent just before it. Counts from 1 by default, or from the "
-             "base creation argument, and continues from where it left off after a 'pause' and "
-             "'resume'.",
+  OUTLET_DOC(0, "bang", "One bang per iteration, right after its index.", "bang");
+  OUTLET_DOC(1, "carry", "A bang once a run has finished. Not sent when a run is paused.", "bang");
+  OUTLET_DOC(2, "index", "The iteration's number, sent just before its bang.",
              "base to base+count-1");
   PARAM_DOC("count", "1",
-            "How many bangs a run emits. With no argument the object sends one, as Max's does. "
-            "Clamped to 0-4096: 4096 is the documented ceiling, and a larger argument is clamped "
-            "and logged rather than silently truncated. A float is truncated towards zero; an "
-            "argument that is not a whole finite number leaves the default in place.",
+            "Bangs per run, clamped to 0-4096 (a larger value is logged). A float is truncated.",
             "0-4096");
-  PARAM_DOC("base", "1",
-            "What the index counts from. Max: 'the base value defaults to 1 when no second "
-            "argument is given', so .uzi 8 0 gives the 0-based indices a table wants. Clamped to "
-            "+/- 1000000000, which is what keeps base+index inside the int range for any count.",
-            "-1000000000 to 1000000000");
+  PARAM_DOC("base", "1", "The first index. '.uzi 8 0' counts 0 to 7.", "-1000000000 to 1000000000");
 }
 
 PARM_CLEAR() {
