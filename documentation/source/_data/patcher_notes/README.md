@@ -74,6 +74,6 @@ The docs build (`sphinx-build -W`) fails when a notes file:
 
 `Tests/patcher/test_doc_coverage.cpp` enforces the summary side: at most 300
 characters, and no `Max` in the description or in any inlet, outlet or
-parameter doc. Objects that predate the rule are listed in
-`DocRuleExempt()` in that file. The list only shrinks: remove an object's
-entry in the commit that brings it into line (#998).
+parameter doc. `DocRuleExempt()` in that file is the allow-list for
+exceptions. It has been empty since #998 and must stay empty: every object,
+including a new one, follows the rule.

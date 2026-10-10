@@ -275,7 +275,7 @@ A send is synchronous: it returns only after everything downstream has run.
 So:
 
 - **Send right to left.** When one message fires several outlets, send the
-  rightmost first, as Max does (see :doc:`messages`).
+  rightmost first (see :doc:`messages`).
 - **Copy your state before the first send.** A cord from your outlet back to
   your own inlet runs your handler again, inside the send. ``.swap`` copies
   both values into locals before it sends either of them:
@@ -421,8 +421,9 @@ and a text, and that the number of ``PARAM_DOC`` calls equals the number of
 ``ADD_PARAM`` calls. They cannot check the order, so keep the two lists in
 step yourself. They also hold the summary to 300 characters and reject the
 word "Max" in it and in the pin and parameter docs. ``DocRuleExempt()`` in
-``Tests/patcher/test_doc_coverage.cpp`` lists the older objects that do not
-meet that rule yet. Never add to it. The docs build applies the same word
+``Tests/patcher/test_doc_coverage.cpp`` is the allow-list for objects that
+break that rule. It is empty and must stay empty: every object, including a
+new one, follows the rule. The docs build applies the same word
 check to the notes files, and fails on notes for an object that does not
 exist or that already has notes.
 

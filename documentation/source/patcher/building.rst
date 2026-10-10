@@ -149,7 +149,7 @@ happens depends on the object's parameters:
    * - Internal state
      - Kept. An oscillator keeps its phase and a filter its memory, so a
        frequency change does not click.
-     - Starts fresh, as in Max. A ``.gate`` forgets which outlet was open, and
+     - Starts fresh. A ``.gate`` forgets which outlet was open, and
        anything the old object had scheduled is dropped.
    * - Cords
      - Unchanged.
@@ -214,7 +214,7 @@ Keep in mind that:
   new part first and draw the cord into the sounding graph (usually into
   ``~dac``) last.
 - **Glitch-free does not mean faded.** Deleting an object or cutting a cord
-  that carries sound stops that sound at the next block, as it does in Max.
+  that carries sound stops that sound at the next block.
   To remove a voice without a click, ramp it to zero first, for example with
   ``~line`` driving a ``~*``.
 - **Edits and queries can come from several threads.** They are serialized

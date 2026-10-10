@@ -5,8 +5,7 @@ A subpatcher groups part of a patch into one object. The parent patch
 connects to the group by pin number, the way it connects to any other object,
 and does not need to know what is inside. Use subpatchers to keep a large
 patch readable and to build a piece once (a voice, a filter bank, an
-envelope) and create it again wherever it is needed. It works like Max's
-``patcher`` object.
+envelope) and create it again wherever it is needed.
 
 .. versionadded:: 3.0
    Subpatchers (issue `#545
@@ -276,8 +275,8 @@ stores such as ``.value``, ``.coll`` and ``.array`` are scoped by the name of
 the whole :cpp:class:`YSE::patcher`, whatever subpatcher they are in (see
 :doc:`host_io`). If you create the same voice twice and each copy contains a
 ``.r freq``, both copies receive every ``freq`` message. There is no
-equivalent of Max's ``#0`` per-instance prefix. To address one copy, send to
-its inlets, or give each copy's names a different argument when you build it.
+per-instance prefix that makes a name local to one copy. To address one
+copy, send to its inlets, or give each copy's names a different argument when you build it.
 
 The same in C
 -------------

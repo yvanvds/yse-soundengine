@@ -2,9 +2,9 @@ Patcher
 =======
 
 A :cpp:class:`YSE::patcher` is a graph of small objects wired together by
-cords, in the style of Max and Pure Data. Each object has **inlets** that take
-input and **outlets** that send output. ``Connect(from, outlet, to, inlet)``
-draws a cord from one outlet to one inlet. The engine currently registers 305
+cords. The object set is modelled on Max and Pure Data. Each object has
+**inlets** that take input and **outlets** that send output.
+``Connect(from, outlet, to, inlet)`` draws a cord from one outlet to one inlet. The engine currently registers 305
 object types: oscillators, filters, math, routing, lists, timing, data stores,
 MIDI, GUI controls and more. :doc:`objects/index` lists every one of them.
 
@@ -62,8 +62,8 @@ channel, and the number of channels is the count you pass to
 
 - ``~dac`` is the graph's audio **output**. Each inlet is one output channel.
   A patch is silent until something reaches a ``~dac``. A patch can hold
-  several ``~dac`` objects. Their channels are added together, as in Max and
-  Pd, with no scaling, so keep the combined level in range yourself.
+  several ``~dac`` objects. Their channels are added together with no
+  scaling, so keep the combined level in range yourself.
 - ``~adc`` is the graph's audio **input**. Each outlet carries one channel of
   the host's incoming audio. It only has something to carry when the patcher
   runs as an insert (see below).

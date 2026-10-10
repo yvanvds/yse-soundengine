@@ -122,8 +122,8 @@ Channels are not numbered the same way everywhere
      - 0-15
      - 0-127
 
-The input objects and the codecs count the way hardware displays it, from 1,
-as in Max. The single-message senders take their channel as a creation
+The input objects and the codecs count the way hardware displays it, from 1.
+The single-message senders take their channel as a creation
 argument that is added to the status byte, so ``.noteon 0`` sends on the
 channel hardware calls 1. ``.programchange`` sends the program number as
 given, 0-127. ``.midiformat`` takes 1-128 and subtracts one.
@@ -258,7 +258,7 @@ The input objects
 ~~~~~~~~~~~~~~~~~
 
 All of them take ``port`` as the first argument. Most take ``channel`` as the
-second one (1-16, or 0 for all channels). Unlike Max, a ``channel`` argument
+second one (1-16, or 0 for all channels). A ``channel`` argument
 does **not** remove the channel outlet. The outlet stays and reports the
 filtered channel, so the outlet numbering never depends on the arguments and
 saved cords stay valid.
@@ -387,7 +387,7 @@ channel its channel inlet holds (1 by default).
 - **Long messages.** A SysEx dump longer than 128 bytes leaves the raw outlet
   in consecutive chunks.
 
-Two readings are lossy, as in Max: pitch bend keeps only the coarse byte, and
+Two readings are lossy: pitch bend keeps only the coarse byte, and
 a note-off message comes back from ``.midiformat`` as a note-on with velocity
 0. For full-resolution bend use ``.xbendin`` / ``.xbendout``.
 
@@ -483,7 +483,7 @@ Plain MIDI values have 7 bits. The ``x`` objects use the extra bits that the
 protocol has room for:
 
 - **Pitch bend** is really 14 bits. ``.bendin`` / ``.bendout`` use only the
-  coarse byte (0-127), as Max does. Over a two-semitone range that is a step
+  coarse byte (0-127). Over a two-semitone range that is a step
   of about three cents, which is audible on a slow bend. ``.xbendin`` /
   ``.xbendout`` use all 14 bits (0-16383). ``.xbendin2`` / ``.xbendout2``
   keep the two bytes apart, so a value passes through unchanged.
@@ -508,7 +508,7 @@ two carry a 14-bit value (controllers 6 and 38).
   out as its own list, because ``.midiout`` sends every list as a single
   message. The selection is sent again with every value, because anything
   else on the cable may have changed it. The closing RPN Null is not
-  appended, as in Max. Send parameter 16383 yourself if you want it.
+  appended. Send parameter 16383 yourself if you want it.
 - ``.rpnin`` / ``.nrpnin`` remember the selected parameter **per channel**
   and report each write as value, parameter, channel. Both kinds move the
   same selection, so each object only reports its own kind. ``.rpnin``
@@ -576,14 +576,14 @@ number of member channels, one note each.
    A number on the inlet (0-15, default 15) sends the MPE Configuration
    Message: three control changes, each its own list, on the master channel.
    0 turns the zone off. Only the two zones that MPE 1.0 defines are
-   supported (``0`` lower, ``1`` upper), not Max's seven.
+   supported (``0`` lower, ``1`` upper).
 
 ``.mpeformat``
    Builds note, bend, pressure and slide messages for one member channel.
    Inlets: note (``pitch velocity``), bend (0-16383, 14 bits, because MPE
    devices use a 48-semitone range), pressure, slide, and a cold channel
-   inlet (1-16). Unlike Max it has one channel inlet rather than one inlet
-   per member channel.
+   inlet (1-16). There is one channel inlet, not one inlet per member
+   channel.
 
 ``.mpeparse <zone> <members>``
    The inverse. Outlets: note, bend, pressure, slide, channel, and role
