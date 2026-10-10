@@ -1,6 +1,6 @@
 <!-- META
-last_updated_commit: 911ea2d4
-last_updated_at: 2026-10-10
+last_updated_commit: c5860752
+last_updated_at: 2026-10-11
 -->
 
 # YSE Sound Engine — Project Overview
@@ -37,7 +37,7 @@ documentation/                   # Doxygen + Sphinx + Breathe (sphinx-book-theme
   source/live_coding/            # Live-coding DSL page
   source/api/                    # Breathe-driven API reference (16 grouped pages + index)
   source/upgrading.rst           # 2.4 → 3.0 upgrade guide
-  source/_data/                  # Committed data snapshots consumed by Sphinx hooks (patcher_objects.json)
+  source/_data/                  # Inputs to the Sphinx patcher-reference hook: patcher_objects.json + patcher_notes/<slug>.rst
   source/_templates/             # Jinja templates rendered by the pre-build hook in conf.py
 docs/                            # project_vision.md, design records (design/), release notes (release-notes/)
 content/                         # Instrument content pack: committed CC0 seed + fetched assets (pack-manifest.cmake)
@@ -369,7 +369,7 @@ std::string json = patch.DumpJSON();                 // serialize
 patch.ParseJSON(json);                               // restore
 ```
 
-**Per-object behaviour is not documented here.** Each object's constructor declares its description, category, inlet/outlet roles and parameter schema with the `ADD_DESCRIPTION` / `ADD_CATEGORY` / `INLET_DOC` / `OUTLET_DOC` / `PARAM_DOC` macros ([patcher/pObject.h](YseEngine/patcher/pObject.h)). `tools/dump_patcher_metadata` (`python yse.py dump-patcher-meta`) writes that metadata to [documentation/source/_data/patcher_objects.json](documentation/source/_data/patcher_objects.json), and a `conf.py` hook renders it into the per-category object reference under `documentation/source/patcher/objects/` (objects that need the MIDI device backend carry a `requires_midi_device` flag, #870). [Tests/patcher/test_doc_coverage.cpp](Tests/patcher/test_doc_coverage.cpp) fails if a registered object lacks metadata; [Tests/patcher/test_c_api_metadata.cpp](Tests/patcher/test_c_api_metadata.cpp) asserts C API parity.
+**Per-object behaviour is not documented here.** Each object's constructor declares its description, category, inlet/outlet roles and parameter schema with the `ADD_DESCRIPTION` / `ADD_CATEGORY` / `INLET_DOC` / `OUTLET_DOC` / `PARAM_DOC` macros ([patcher/pObject.h](YseEngine/patcher/pObject.h)). `tools/dump_patcher_metadata` (`python yse.py dump-patcher-meta`) writes that metadata to [documentation/source/_data/patcher_objects.json](documentation/source/_data/patcher_objects.json), and a `conf.py` hook renders it into the per-category object reference under `documentation/source/patcher/objects/` (objects that need the MIDI device backend carry a `requires_midi_device` flag, #870). Since #997 `ADD_DESCRIPTION` is a short summary (1–3 sentences, ≤ 300 characters; it is also what `yse_patcher_get_type_description` and editor tooltips show). Long-form notes live in `documentation/source/_data/patcher_notes/<slug>.rst`, one file per category, each object's section opened by a `.. patcher-object:: <name>` marker (format: [patcher_notes/README.md](documentation/source/_data/patcher_notes/README.md)); the `conf.py` hook renders them under the summary and fails the `-W` build on unknown/duplicate/miscategorised objects or the word "Max". All 305 objects were rewritten to this scheme in #998 (#1002–#1012). [Tests/patcher/test_doc_coverage.cpp](Tests/patcher/test_doc_coverage.cpp) fails if a registered object lacks metadata, has a description over 300 characters, or names Max in its description or any pin/parameter doc (`DocRuleExempt()` is empty and must stay so); [Tests/patcher/test_c_api_metadata.cpp](Tests/patcher/test_c_api_metadata.cpp) asserts C API parity.
 
 **Key mechanisms, in one line each** (design records in `docs/design/`, user-facing pages in [documentation/source/patcher/](documentation/source/patcher/)):
 
@@ -620,14 +620,15 @@ documentation/
   requirements.txt                 # Sphinx + Breathe + sphinx-book-theme (upper-bounded; breathe exact-pinned)
   Makefile / make.bat              # `make html`, `make sphinx`, `make doxygen`, `make serve`
   source/
-    conf.py                        # Reads VERSION from YseEngine/system.hpp (PR #89)
+    conf.py                        # Reads VERSION from YseEngine/system.hpp (PR #89); renders the patcher object reference
+    _data/                         # patcher_objects.json (metadata snapshot) + patcher_notes/<slug>.rst (long-form notes, #997)
     index.rst                      # Landing page
     intro/                         # install, hello_sound, mental_model, sessions_and_devices, threading
     tutorials/                     # 16 pages: sounds, 3D, channels, reverb, synths/voices/instruments,
                                    # mixing, per-note 3D, patcher (5 pages), clocks and clips
     patcher/                       # Patcher guide: 14 pages (messages, realtime, subpatchers, host_io, time,
                                    # data, files, gui, midi, extending, c_api, file_format, api, building)
-      objects/                     # Per-category object reference, rendered from _data/patcher_objects.json
+      objects/                     # Per-category object reference, rendered from _data/patcher_objects.json + _data/patcher_notes/
     live_coding/                   # Live-coding DSL
     api/                           # 16 grouped Breathe pages + index (core, sounds, channels, dsp, dsp_modules,
                                    # effects, synth, devices, midi, music, clips, patcher, player, types, utils, c_api)
