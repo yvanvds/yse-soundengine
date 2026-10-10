@@ -313,7 +313,8 @@ cheap and safe on the audio thread.
 .. patcher-object:: .ftom
 
 The scale is equal temperament with 12 notes per octave: 440 Hz is 69, 880 Hz
-is 81, and 450 Hz is about 69.39. Give it a frequency above 0.
+is 81, and 450 Hz is about 69.39. A frequency of 0 or below has no note, so it
+gives -1500, which ``.mtof`` turns back into a frequency of almost 0.
 
 .. patcher-object:: .histo
 
@@ -407,7 +408,8 @@ positive number. Give it an argument, or a number on the right inlet.
 
 The scale is equal temperament with 12 notes per octave: 69 is 440 Hz, 60
 (middle C) is about 261.63 Hz, and 69.5 is a quarter tone above A4. Note
-numbers outside 0-127 work too.
+numbers outside 0-127 work too, from -1500 to 1499: a higher note is treated
+as 1499, and a lower one gives 0 Hz.
 
 .. patcher-object:: .past
 

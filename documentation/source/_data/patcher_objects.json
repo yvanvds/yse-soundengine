@@ -6917,7 +6917,7 @@
           "FLOAT",
           "INT"
         ],
-        "doc": "Frequency in Hz, above 0; sends the result.",
+        "doc": "Frequency in Hz; sends the result. 0 Hz or below gives -1500.",
         "index": 0,
         "label": "freq",
         "range": "0-20000 Hz"

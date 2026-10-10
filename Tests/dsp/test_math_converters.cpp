@@ -2,9 +2,9 @@
 // Both are pure closed-form computations; no audio device or system state needed.
 //
 // Also covers the buffer-call wrappers `YSE::DSP::midiToFreq` and `freqToMidi`,
-// which apply the same transforms element-wise across a DSP buffer with
-// engine-specific clamping (notes < -1500 → 0 Hz, > 1499 → clamped at 1499;
-// non-positive frequencies → -1500 MIDI).
+// which apply the same transforms element-wise across a DSP buffer. Scalar and
+// buffer forms share the engine's clamping (notes < -1500 → 0 Hz, > 1499 →
+// clamped at 1499; non-positive frequencies → -1500 MIDI).
 
 #include <doctest/doctest.h>
 #include <cmath>
@@ -85,6 +85,24 @@ TEST_SUITE("dsp") {
     CHECK(YSE::DSP::FreqToMidi(YSE::DSP::MidiToFreq(0.0f)) == doctest::Approx(0.0f).epsilon(1e-4f));
     CHECK(YSE::DSP::FreqToMidi(YSE::DSP::MidiToFreq(127.0f)) ==
           doctest::Approx(127.0f).epsilon(1e-4f));
+  }
+
+  // #1017: the scalar forms follow the buffer forms' clamping instead of
+  // returning -inf / NaN / +inf.
+  TEST_CASE("FreqToMidi: zero, negative and NaN frequencies map to -1500") {
+    CHECK(YSE::DSP::FreqToMidi(0.0f) == -1500.0f);
+    CHECK(YSE::DSP::FreqToMidi(-440.0f) == -1500.0f);
+    CHECK(YSE::DSP::FreqToMidi(std::nanf("")) == -1500.0f);
+    CHECK(std::isfinite(YSE::DSP::FreqToMidi(INFINITY)));
+  }
+
+  TEST_CASE("MidiToFreq: notes are clamped to -1500..1499 and stay finite") {
+    CHECK(YSE::DSP::MidiToFreq(-1501.0f) == 0.0f);
+    CHECK(YSE::DSP::MidiToFreq(-INFINITY) == 0.0f);
+    CHECK(YSE::DSP::MidiToFreq(std::nanf("")) == 0.0f);
+    CHECK(std::isfinite(YSE::DSP::MidiToFreq(1600.0f)));
+    CHECK(std::isfinite(YSE::DSP::MidiToFreq(INFINITY)));
+    CHECK(YSE::DSP::MidiToFreq(1600.0f) == YSE::DSP::MidiToFreq(1499.0f));
   }
 
   // --- buffer-call wrappers (midiToFreq / freqToMidi classes) ---

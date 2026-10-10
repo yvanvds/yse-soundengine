@@ -67,6 +67,35 @@ TEST_SUITE("patcher") {
     CHECK(sb.received - sa.received == doctest::Approx(12.0f).epsilon(1e-3f));
   }
 
+  // #1017: a frequency of 0 or below sent -inf / NaN. It now sends -1500, the
+  // floor the buffer-rate freqToMidi already uses.
+  TEST_CASE("pFrequencyToMidi: a frequency of 0 or below sends -1500, never a non-finite value") {
+    for (float f : {0.0f, -0.0f, -440.0f, std::nanf("")}) {
+      CAPTURE(f);
+      YSE::PATCHER::pFrequencyToMidi node;
+      FloatSink sink;
+      Wire(node, 0, sink);
+
+      node.GetInlet(0)->SetFloat(f, YSE::T_GUI);
+
+      REQUIRE(sink.gotFloat);
+      CHECK(std::isfinite(sink.received));
+      CHECK(sink.received == doctest::Approx(-1500.0f));
+    }
+  }
+
+  TEST_CASE("pFrequencyToMidi: an infinite frequency sends a finite note") {
+    YSE::PATCHER::pFrequencyToMidi node;
+    FloatSink sink;
+    Wire(node, 0, sink);
+
+    node.GetInlet(0)->SetFloat(INFINITY, YSE::T_GUI);
+
+    REQUIRE(sink.gotFloat);
+    CHECK(std::isfinite(sink.received));
+    CHECK(sink.received > 1400.0f);
+  }
+
   // ─── pMidiToFrequency ─────────────────────────────────────────────────────────
 
   TEST_CASE("pMidiToFrequency: type name, input/output count, and output type") {
@@ -100,6 +129,34 @@ TEST_SUITE("patcher") {
 
     CHECK(sink.gotFloat);
     CHECK(sink.received == doctest::Approx(440.0f).epsilon(1e-3f));
+  }
+
+  // #1017: a note above ~1600 overflowed to +inf. Notes are clamped to
+  // -1500..1499 like the buffer-rate midiToFreq; below -1500 (or NaN) is 0 Hz.
+  TEST_CASE("pMidiToFrequency: extreme notes never send a non-finite frequency") {
+    SUBCASE("a note far above the range is clamped to a finite frequency") {
+      for (float n : {1600.0f, 1e9f, INFINITY}) {
+        CAPTURE(n);
+        YSE::PATCHER::pMidiToFrequency node;
+        FloatSink sink;
+        Wire(node, 0, sink);
+        node.GetInlet(0)->SetFloat(n, YSE::T_GUI);
+        REQUIRE(sink.gotFloat);
+        CHECK(std::isfinite(sink.received));
+        CHECK(sink.received > 1e38f);
+      }
+    }
+    SUBCASE("a note below -1500 or NaN sends 0 Hz") {
+      for (float n : {-1501.0f, -INFINITY, std::nanf("")}) {
+        CAPTURE(n);
+        YSE::PATCHER::pMidiToFrequency node;
+        FloatSink sink;
+        Wire(node, 0, sink);
+        node.GetInlet(0)->SetFloat(n, YSE::T_GUI);
+        REQUIRE(sink.gotFloat);
+        CHECK(sink.received == 0.0f);
+      }
+    }
   }
 
   TEST_CASE("pMidiToFrequency followed by pFrequencyToMidi is identity") {
