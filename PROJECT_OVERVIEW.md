@@ -104,7 +104,7 @@ python yse.py clean [--yes]        # remove all build dirs + coverage artefacts
 python yse.py analyze [path]       # clang-tidy via compile_commands.json (sonar-scanner fallback)
 python yse.py format               # clang-format -i over YseEngine/ and Tests/
 python yse.py package              # release archive in dist/ (consumed by CI); --platform, --android-libs
-python yse.py release patch        # bump VERSION (patch/minor/major), commit, tag, push; --dry-run, --no-push
+python yse.py release patch --bump-only  # bump VERSION + commit on release/vX.Y.Z-prep; `release --tag <commit>` tags + pushes; --dry-run
 python yse.py dump-patcher-meta    # regenerate documentation/source/_data/patcher_objects.json
 ```
 
