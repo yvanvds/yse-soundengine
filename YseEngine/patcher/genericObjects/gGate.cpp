@@ -25,15 +25,17 @@ CONSTRUCT() {
   activeOutlet = 0;
   numOutlets = 2;
 
-  ADD_DESCRIPTION("Demultiplexer. Routes a value inlet to one of N outlets, selected by inlet 0. "
-                  "activeOutlet=0 silences output; 1-based otherwise.");
+  ADD_DESCRIPTION("Passes messages from its right inlet out one of its outlets, chosen by a number "
+                  "in the left inlet. Outlets count from 1; 0 closes the gate.");
   ADD_CATEGORY(pCategory::ROUTING);
-  INLET_DOC(0, "select", "1-based outlet index to forward to (0 = mute).", "0+");
-  INLET_DOC(1, "in", "Value inlet — accepts bang / int / float / list.", "");
-  OUTLET_DOC(0, "out0", "Outlet 0 — emits the routed value when select == 1.", "");
-  OUTLET_DOC(1, "out1", "Outlet 1 — emits the routed value when select == 2.", "");
-  PARAM_DOC("numOutlets", "2",
-            "Number of value outlets (additional outlets are created by SetParams).", "1+");
+  INLET_DOC(0, "select",
+            "The outlet to send to, counting from 1. 0 (the start value) or a number with no "
+            "outlet closes the gate.",
+            "0+");
+  INLET_DOC(1, "in", "Bang, int, float or list to pass to the selected outlet.", "");
+  OUTLET_DOC(0, "out0", "Sends the message when select is 1.", "");
+  OUTLET_DOC(1, "out1", "Sends the message when select is 2.", "");
+  PARAM_DOC("numOutlets", "2", "How many outlets to build. Fewer than 2 still builds 2.", "2+");
 }
 
 INT_IN(SetActiveOutlet) {

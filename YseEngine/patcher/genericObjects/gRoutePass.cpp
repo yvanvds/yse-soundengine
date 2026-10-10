@@ -13,13 +13,8 @@ namespace {
   std::string MatchDoc(int index, const std::string& selector) {
     char digits[FORMAT_INT_WIDTH];
     const std::size_t written = WriteInt(index, digits);
-    return "The whole message, unchanged and with its first item still on it, when that item "
-           "matches selector " +
-           std::string(digits, written) + " (" + selector +
-           "). This is the difference from .route: the matched item is not consumed, so the "
-           "downstream object still sees the tag it was routed by. Exactly one outlet fires per "
-           "input, and a selector repeated in the argument list uses the leftmost of its outlets "
-           "only.";
+    return "The whole message, unchanged, when its first item matches selector " +
+           std::string(digits, written) + " (" + selector + ").";
   }
 
 } // namespace
@@ -48,63 +43,16 @@ CONSTRUCT() {
   ShapePorts();
 
   ADD_DESCRIPTION(
-      "Routes a complete message by what its first item matches, and leaves that item on the "
-      "message — Max's routepass, which 'routes a complete incoming message based on input "
-      "matching' and 'does not strip off the matched portion of the message'. One outlet per "
-      "creation argument plus a rightmost outlet for everything that matched none of them. "
-      "Stripping is what makes .route a dispatcher: it turns 'note 60 100' into '60 100' on the "
-      "note branch, so the branch works in bare values and never sees the word that got it there. "
-      "That is right until the downstream object needs the tag too — a .s that re-tags the "
-      "message, a .m that echoes it, a second .routepass further down matching on the same word, a "
-      "bank keyed by name — because then the patch has to put the word back on, which means "
-      "knowing it at the far end of the cord, in a second place, where it can disagree with the "
-      "first. Here the branch is chosen by the tag and the tag stays. Its relatives: .sel matches "
-      "the same way but sends a bang, dropping the value because the outlet's position is the "
-      "whole answer, so it is the object to test with; .route is the stripping form, which "
-      "forwarded the whole message too until issue #672 fixed it, so the pair is Max's pair now "
-      "and this is the one to reach for when the message has to arrive intact; .split routes by "
-      "numeric range rather than by a "
-      "match; and .gate, .switch and .router route by state the object holds rather than by "
-      "anything in the message, where here the message chooses its own destination and nothing "
-      "about the object changes as it does. The shape follows Max: 'the number of arguments "
-      "determines the number of outlets, in addition to the rightmost outlet', so .routepass note "
-      "ctl has three outlets and a bare .routepass has one, through which everything passes "
-      "unchanged. That degenerate object is built rather than papered over with an invented "
-      "default selector, which would put a branch in a patch that did not ask for one. The matcher "
-      "is .sel's, deliberately — two objects whose only job is to branch must branch alike or a "
-      "patch that swaps one for the other changes meaning silently. A selector is a number or a "
-      "symbol, decided once when the argument is read, and the two never match each other: a "
-      "number matches by value with an int widened to a float, so .routepass 5 answers both the "
-      "int 5 and the float 5.0; a symbol matches by exact text; a bang matches a selector spelled "
-      "'bang'; and a list is matched on its first element alone, which is a number if it reads as "
-      "one and a symbol otherwise. The comparison is exact, so a computed float may miss a "
-      "selector it looks equal to — 0.1 + 0.2 is not 0.3 in binary floating point, and a .round "
-      "upstream is the fix — and a NaN matches nothing and leaves the rightmost outlet. A selector "
-      "repeated in the argument list uses the leftmost of its outlets only, Max's rule for select "
-      "and the only sane reading here, since an object that fired both would fan out and this one "
-      "routes. Exactly one outlet fires per input, and what leaves it is whatever arrived, in the "
-      "kind it arrived as and spelled as it was spelled: a matched list as the same list with its "
-      "first item included, a matched int as that int, a matched bang as a bang. The rightmost "
-      "outlet does the same for everything unmatched, so a chain of .routepass objects strings "
-      "together with each reject outlet feeding the next inlet — and because nothing is consumed, "
-      "every object in the chain sees the message the first one saw. At most 256 selectors are "
-      "held. Calculate() does nothing, and no message path allocates, locks or blocks: matching is "
-      "a bounded walk doing a float compare or a length-checked string compare against a character "
-      "range, one Send follows, and a matched list is forwarded by reference rather than rebuilt.");
+      "Sends a whole message out the outlet whose selector matches its first item, keeping that "
+      "item on. A message that matches no selector leaves the rightmost outlet unchanged.");
   ADD_CATEGORY(pCategory::ROUTING);
   INLET_DOC(0, "in",
-            "Bang, int, float or list to route. The first item decides — a list's leading token, a "
-            "bare number itself, or the symbol 'bang' — and the whole message, that item still on "
-            "it, leaves the matching outlet in the kind it arrived as. Anything matching no "
-            "selector leaves the rightmost outlet, equally unchanged.",
+            "Bang, int, float or list. Its first item is matched against the selectors, and the "
+            "message leaves unchanged.",
             "any");
   PARAM_DOC("selectors", "",
-            "The values to match against, as a list. Each one gets an outlet, in order, and the "
-            "rightmost outlet takes everything that matches none of them. A token that reads as a "
-            "finite number is a numeric selector and matches by value; anything else is a symbol "
-            "and matches by exact text. With no argument there are no match outlets at all, only "
-            "the rightmost one, which is Max's 'the number of arguments determines the number of "
-            "outlets, in addition to the rightmost outlet'. At most 256 are held.",
+            "The selectors, one outlet each, at most 256. A number matches by value, anything else "
+            "by exact text. With no argument there is only the rightmost outlet.",
             "any list of numbers and symbols");
 }
 
@@ -131,9 +79,8 @@ void gRoutePass::ShapePorts() {
   // `.routepass` it is the only outlet there is.
   ADD_OUT_ANY;
   outputs.back().SetDoc("rest",
-                        "The message, unchanged and in its own type, when it matched no selector. "
-                        "Chain this into the next .routepass to carry on testing — nothing was "
-                        "consumed, so the next object sees exactly what this one saw.",
+                        "The message, unchanged, when it matched no selector. Wire it into another "
+                        ".routepass to test further.",
                         "any");
 }
 

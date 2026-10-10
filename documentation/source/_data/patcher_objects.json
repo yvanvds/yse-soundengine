@@ -4968,7 +4968,7 @@
   },
   ".bucket": {
     "category": "ROUTING",
-    "description": "Passes numbers from outlet to outlet, shifting on every input — Max's bucket, which 'outputs incoming values to outlets in bucket-brigade fashion' and 'acts as an n-stage shift register which can shift its contents from outlet to outlet in either direction'. A delay line for events rather than for samples: outlet 1 is whatever arrived one step ago, outlet 2 two steps ago, and so on for as many outlets as the creation argument asked for, which is the canonical shape of a canon, an arpeggio echo, a comparison of a value against its own recent history, and anything that has to reappear N steps later. It is not .past, .peak or .trough, which each remember one thing about the stream; this remembers the last N values positionally and hands all of them out at once. Nor is it .cycle, which it resembles from the outside and is the opposite of: .cycle sends one message out one outlet and moves a cursor, where this sends the whole register out every outlet on each input — 'spread these notes over four voices' is .cycle, 'play these notes again four steps later' is this. And unlike .trigger, which fans one value out every outlet as copies, every outlet here carries a different, older value: the fan-out is across time. By default the register is one step behind the input, Max's 'the numbers currently stored in bucket are sent out, then each number is moved one outlet to the right and the new number is stored to be sent out the left outlet the next time a number is received'; a second non-zero creation argument is Max's 'echo to output' mode, which swaps the order of the shift and the send so the value that arrived is in this burst rather than the next. 'L2R' and 'R2L' choose which end new values enter, and outlets always fire in Max's universal right-to-left order whichever way the storage is shifting, so a downstream collector sees the oldest value before the newest. The burst is captured before the state changes and the state is settled before the first send, the settle-first argument .onebang, .togedge, .next, .buddy and .cycle make: the send path is synchronous, so a patch looping an outlet back into the inlet re-enters inside the Send and must find a register that has already shifted, while the interrupted burst goes on emitting the values it started with. 'set <n>' fills every stage with n and sends it out every outlet — it emits, unlike .cycle's and .past's silent sets, because it changes the whole visible contents of the register rather than a cursor; 'clear' is the silent one and resets every stage to int 0. 'freeze' suspends the output while incoming numbers go on shifting internally and 'thaw' resumes it, so a frozen bucket records quietly and a thaw plus a bang shows what it collected; the gag covers bang, set and roll too. 'roll' feeds the value at the far end back in as if it had been received, a rotation in which nothing enters and nothing is lost, which turns the register into a phrase loop the patch can step; Max documents an argument that is not read, so a bare roll is the same message. Each stored value leaves as the kind it was spelled as, so 1 2 3 does not come back out as 1. 2. 3. A bang sends the stored values without shifting. Max documents no list method; here a message whose first token is a number is fed in token by token, each numeric token one full input, because a shift register is a thing you push a sequence through and dropping all but the first element would throw data away at the object least able to afford it — a one-element list still behaves exactly as Max's int. Anything else is ignored. At most 256 stages, built once before the object is published; Calculate() does nothing, and no message path allocates, locks or blocks.",
+    "description": "A shift register for numbers. Each number pushes the stored values one outlet along and every outlet sends what it holds, each one a step older than the outlet to its left.",
     "inlets": [
       {
         "accepts": [
@@ -4977,7 +4977,7 @@
           "BANG",
           "LIST"
         ],
-        "doc": "A number shifts the register one stage and every outlet fires, right to left. A bang sends the stored values without shifting. 'set <n>' fills every stage with n and sends it out every outlet; 'clear' resets every stage to 0 silently. 'freeze' suspends the output while incoming numbers go on shifting, 'thaw' resumes it. 'L2R' and 'R2L' choose which end new values enter. 'roll' feeds the value at the far end back in, rotating the register. A message whose first token is a number is fed in token by token; anything else is ignored.",
+        "doc": "A number shifts the register and every outlet sends. A bang sends without shifting. A list of numbers is fed in one number at a time. Also takes 'set <n>', 'clear', 'freeze', 'thaw', 'L2R', 'R2L' and 'roll'.",
         "index": 0,
         "label": "in",
         "range": "any"
@@ -4987,7 +4987,7 @@
     "name": ".bucket",
     "outlets": [
       {
-        "doc": "The value this stage holds — outlet 0 the most recent, each outlet to its right one step older (reversed after 'R2L'). Every outlet fires on every input, in Max's order: the last outlet first, outlet 0 last. Each value leaves as the kind it arrived as.",
+        "doc": "The value this stage holds: outlet 0 the newest, each outlet to its right one step older (the other way round after 'R2L'). A value keeps its int or float type.",
         "index": 0,
         "label": "out0",
         "range": "any",
@@ -4997,7 +4997,7 @@
     "params": [
       {
         "default": "1",
-        "doc": "Max's argument list, in Max's order. The first whole number is how many outlets — and therefore stages — to build, clamped to 1-256 and defaulting to 1. A second whole number is Max's 'echo to output' flag: non-zero puts the value that just arrived in the same burst rather than the next one, 0 (the default) keeps the register one step behind. A float is truncated; anything that is not a whole finite number is ignored and leaves the defaults in place.",
+        "doc": "How many outlets (stages) to build. A non-zero second number turns on echo mode: the number that just arrived is sent in the same burst instead of the next one.",
         "name": "outlets",
         "range": "1-256, optional echo flag"
       }
@@ -5675,7 +5675,7 @@
   },
   ".cycle": {
     "category": "ROUTING",
-    "description": "Deals successive messages to successive outlets, wrapping round to the first after the last — Max's cycle, 'each incoming number is sent to the next outlet, wrapping around to the first outlet after the last has been reached'. The dealer: one cord in, N cords out, and consecutive messages land on consecutive outlets, which is the natural way to spread notes across a bank of voices, alternate between two effect chains, or split one stream into parallel processing paths. Built by hand it is a .counter wrapped at N into a .gate's select inlet with the value routed through the other one — three boxes and an inlet-ordering hazard to say one thing. It is not .poly, which allocates by voice availability: this rotates blindly, so the same outlet comes round every N messages whatever the receivers are doing, which is right where they are stateless or identical and wrong where they are a bank of voices that may still be sounding. It is not .gate or .switch either, which route by an index the patch supplies, where here the index is the object's own and the traffic advances it; and unlike .trigger, which fans one message out every outlet, this sends each message out exactly one, so there is no right-to-left order to state. The outlet is taken and the position advanced before the message is sent, which is correctness and not tidiness: the send path is synchronous, so a patch looping an outlet back into the inlet re-enters inside the Send and must find the rotation already moved on — advancing afterwards would hand every message of the loop the same outlet. A message whose first token is a number is Max's list and is dealt one token per outlet ('the stream of ints, floats, or symbols to be directed to successive outlets'), each token forwarded as the kind it was spelled as so that 1 2 3 does not come back out as 1. 2. 3.; anything else is Max's 'anything' and leaves one outlet verbatim, the same leading-token rule .bondo uses, because splitting 'note 60 100' across three outlets would arrive downstream as three unrelated fragments and every object matching on a leading word would stop seeing it. 'set <n>' moves the rotation to outlet n and emits nothing, so the next message lands where it was told and the rotation carries on from there; an index outside the outlet range is ignored rather than wrapped, since a set 4 on a three-outlet object is a miscount and silently redirecting the stream would hide it. The second creation argument and the 'thresh' message set Max's output mode, which restarts the rotation at outlet 0 for each new logical event: not a clock and not an elapsed time — this reads the same logical-event ids .next does, so two host calls are two events however close together and a whole .trigger fan-out is one however slow. With mode on, a three-note chord arriving as one burst is dealt 0, 1, 2 and the next chord starts at 0 again however long the first was, which is the difference between a voice bank that stays aligned with the music and one that drifts by a voice per odd-sized chord; with mode off, the default, the rotation ignores event boundaries and keeps counting. 'set' is honoured for the rest of its own event and a later event restarts over the top of it, which falls out of the ordering rather than being a special case. 'thresh' is run-time state rather than a parameter, so it does not survive a save; the creation argument is what a patch carries. At most 256 outlets, built once before the object is published — Calculate() does nothing, and no message path allocates, locks or blocks.",
+    "description": "Sends each message out the next outlet in turn, going back to outlet 0 after the last. Use it to deal notes across a bank of voices or to alternate between processing chains.",
     "inlets": [
       {
         "accepts": [
@@ -5684,7 +5684,7 @@
           "BANG",
           "LIST"
         ],
-        "doc": "Everything that arrives leaves by the next outlet in the rotation, which then moves on and wraps round to outlet 0 after the last. A bang, int or float goes out one outlet whole. A message whose first token is a number is Max's list and is dealt one token per outlet, each forwarded as the kind it was spelled as; anything else is Max's 'anything' and leaves one outlet verbatim. 'set <n>' points the rotation at outlet n and emits nothing; 'thresh <n>' turns event mode on (non-zero) or off.",
+        "doc": "Any message goes out the next outlet in turn. A list of numbers is dealt one item per outlet. 'set <n>' makes outlet n the next one; 'thresh <0/1>' turns event mode off or on.",
         "index": 0,
         "label": "in",
         "range": "any"
@@ -5694,7 +5694,7 @@
     "name": ".cycle",
     "outlets": [
       {
-        "doc": "Every nth message, counting from wherever the rotation currently stands — bang, int, float or text, whichever arrived. Only one outlet fires per message, so there is no firing order to respect.",
+        "doc": "Each message whose turn falls on this outlet, unchanged.",
         "index": 0,
         "label": "out0",
         "range": "any",
@@ -5704,7 +5704,7 @@
     "params": [
       {
         "default": "1",
-        "doc": "Max's argument list, in Max's order. The first whole number is how many outlets to build, clamped to 1-256 and defaulting to 1. A second whole number is Max's output mode: non-zero restarts the rotation at outlet 0 for each new logical event, 0 (the default) ignores event boundaries. A float is truncated; anything that is not a whole finite number is ignored and leaves the defaults in place.",
+        "doc": "How many outlets to build. A non-zero second number turns on event mode: each new event starts again at outlet 0.",
         "name": "outlets",
         "range": "1-256, optional mode"
       }
@@ -5790,14 +5790,14 @@
   },
   ".decode": {
     "category": "ROUTING",
-    "description": "Sends 1 out a selected outlet and 0 out every other one — Max's decode, which 'provides hierarchical switching' where 'the right inlet turns all outlets off, while the middle inlet turns all outlets on. The right inlet overrides the middle inlet, and the middle inlet overrides numbers sent to the left inlet that turn individual outlets on or off'. The one-hot decoder: an index goes in and a set of states comes out, which is what drives a bank of gates, a row of indicators or any group of things of which exactly one is meant to be live — the mutual exclusion is the object rather than something the patch maintains, where the alternative is a .sel or a .== in front of every member of the bank with the constants kept in step by hand. It is not .gate, which routes a value to one outlet and says nothing on the others: this emits a state on every outlet and the values are its own rather than anything the patch sent, so a .gate fed 60 puts 60 somewhere while a .decode fed 2 puts 1 on outlet 2 and 0 everywhere else. The two compose — a .decode into the select inlets of a bank of gates is exactly the hierarchical switch Max names. It is not .sel either, which bangs on a match and therefore reports the arrival of a state but never its departure; turning the previously selected outlet off is the whole difference and the reason the object exists. And unlike .spray or .cycle, which each send one message out one numbered outlet, one message here reaches all of them. The three inlets are state rather than events: each remembers the last number it was given and every message re-resolves the whole set from all three, which is what makes the overrides non-destructive — a 1 and then a 0 in the right inlet leave the bank exactly as it was, without the patch re-sending the index. The right inlet is Max's master mute, 'any positive number other than 0 sends a 0 out all outlets' and 0 restores what the other two describe, with non-zero taken as off whichever sign it has since -1 meaning the opposite of 1 in an on/off inlet would surprise every patch. The middle inlet is the 'all on' override, strictly 'a number greater than 0' as Max words it, with 0 or less falling through to the selection. The left inlet is the selection itself, 'an index (starting with 0 for the left outlet) that specifies an outlet out to turn on, turning off all other outlets'. Each accepted message sends the complete state, one int out every outlet from the last to outlet 0 in Max's universal order, which is the reading every sentence of the reference takes and what makes the object idempotent: a downstream bank always agrees with the decoder whatever it missed earlier. The three values are snapshotted before the first send, the settle-first discipline .onebang, .next, .buddy, .cycle, .bucket and .spray share, so a patch looping an outlet back into an inlet re-enters inside the Send and the interrupted burst goes on emitting the state it started with. The left outlet is initially enabled, Max's words, so a bang before anything else arrives reports 1 on outlet 0 rather than a bank in no state at all; an index the object has no outlet for is ignored and leaves the selection alone, .gate's, .cycle's and .spray's discipline, since wrapping it or blanking the bank would hide a miscount at the object best placed to expose it. bang 'causes decode to output its current state' and is scoped to the left inlet, where the reference puts it. float, list and anything are not accepted on any inlet: Max documents bang and int and nothing more. At most 256 outlets, built once before the object is published; Calculate() does nothing, and no message path allocates, locks or blocks — a burst is three ints on the stack and one integer compare per outlet.",
+    "description": "Sends 1 out the selected outlet and 0 out all the others, to switch a bank of which exactly one member is on. Two more inlets override the selection: one turns every outlet on, the other mutes them all.",
     "inlets": [
       {
         "accepts": [
           "INT",
           "BANG"
         ],
-        "doc": "An int selects the outlet that carries 1; every other outlet carries 0, and the whole state is sent on each message, right to left. An index the object has no outlet for is ignored and leaves the selection alone. A bang re-sends the current state without changing it. The left outlet is selected before anything arrives.",
+        "doc": "An int selects the outlet that gets 1, and every outlet sends its state. An index with no outlet is ignored. A bang sends the current state again. Outlet 0 is selected at the start.",
         "index": 0,
         "label": "select",
         "range": "0 to outlets-1"
@@ -5806,7 +5806,7 @@
         "accepts": [
           "INT"
         ],
-        "doc": "Max's 'all on' override, one step above the selection. An int greater than 0 puts 1 on every outlet; 0 or less hands control back to the left inlet's selection. Overridden in turn by the right inlet, so while that holds a non-zero number anything sent here sends 0 out every outlet.",
+        "doc": "All on: an int above 0 sends 1 out every outlet; 0 or less goes back to the selection. The right inlet overrides it.",
         "index": 1,
         "label": "secondary",
         "range": "int"
@@ -5815,7 +5815,7 @@
         "accepts": [
           "INT"
         ],
-        "doc": "Max's master mute, the top of the hierarchy. A non-zero int puts 0 on every outlet whatever the other two inlets say; 0 restores the state the middle and left inlets describe, so the mute is non-destructive and the selection underneath it survives.",
+        "doc": "Mute: a non-zero int sends 0 out every outlet, whatever the other inlets say. 0 brings back the state they describe.",
         "index": 2,
         "label": "primary",
         "range": "int"
@@ -5825,7 +5825,7 @@
     "name": ".decode",
     "outlets": [
       {
-        "doc": "1 when this outlet is the selected one (or the middle inlet has turned the whole bank on), 0 otherwise. Every outlet fires on every accepted message, in Max's order: the last outlet first, outlet 0 last.",
+        "doc": "1 when this outlet is selected or all are on, 0 otherwise.",
         "index": 0,
         "label": "out0",
         "range": "0 or 1",
@@ -5835,7 +5835,7 @@
     "params": [
       {
         "default": "1",
-        "doc": "Max's one creation argument: how many outlets to build, clamped to 1-256 and defaulting to 1. A float is truncated, as Max's own argument list documents; anything that is not a whole finite number is ignored and leaves the default in place.",
+        "doc": "How many outlets to build.",
         "name": "outlets",
         "range": "1-256"
       }
@@ -7052,7 +7052,7 @@
   },
   ".funnel": {
     "category": "ROUTING",
-    "description": "Tags incoming data with the number of the inlet it arrived at and merges everything onto one outlet — Max's funnel, which 'outputs a list consisting of the inlet number followed the input' when 'a number or list is received in any inlet'. The many-to-one collector: a bank of controls, a row of sensors or eight voices reporting their state all reach one destination, and the destination still knows which of them spoke. Without it a patch either runs one cord per source the whole way or puts a box in front of every source to stamp a constant on it by hand, which is N boxes to maintain and N places to get the number wrong when a source is inserted; this is that stamp, once, with the number taken from the wiring itself. It is the exact inverse of .spray, which Max lists under See Also: .spray turns 2 60 into 60 leaving outlet 2, and this turns 60 arriving at inlet 2 into 2 60. The pairing is literal — a .funnel n into a .spray n with the same offset is an n-way bus carried over a single patch cord, entering at inlet i and leaving at outlet i, and the cord between them can cross a subpatch boundary or a .s/.r pair, which n separate cords could not do as cheaply. It is not .bondo or .buddy, which also gather several inlets but gather them into a set, with N outlets and a release that speaks about all of them at once; this has one outlet and speaks about exactly one arrival, so two values at two inlets make two output lists rather than one, and nothing here ever waits. It is not .switch either, which merges by selecting: there only the chosen inlet passes and what comes out carries no record of its origin, where here every inlet always passes and the record is the point. The objects that read the tag back are .route and .sel, which is why it is the first element of the list. The number prepended is the inlet index plus the offset — Max's second argument 'specifies an offset for the first inlet number' and the 'offset' message 'will offset the numbering of inlets by the number given', one value from two directions — and it adds where .spray's offset subtracts, which is precisely what makes the two mirror images at any offset. It exists because the numbers a downstream object expects usually start where it starts, MIDI channels at 1 or a table's rows at some base, and the alternative is a .+ on the far side of the merge that has to be kept in step by hand. 'offset' is run-time state rather than a parameter, as .spray's offset and .cycle's thresh are, so a saved patch carries the creation argument. Each inlet also remembers the last number it received and a bang replays it tagged, Max's 'the stored (most recently received) number in that inlet are sent out as a two-item list', which makes the object pollable as well as reactive — a patch can ask what source 3 is saying without source 3 speaking again. Because Max says the store is a number and the reply a two-item list, a list or an anything is tagged and forwarded but is not stored: replaying note 60 would send three items out of a method documented to send two. The store starts at 0, so a bang into an inlet nothing has reached is 0 rather than silence. Max 'set followed by a list of numbers which correspond with the number of inlets' addresses every inlet at once, element k writing inlet k's store and sending nothing, which is how a patch primes the whole bank before anything has spoken; elements past the last inlet are dropped, a short list leaves the rest alone, and a non-number element spends its position without writing, .spray's discipline for a positional message. Both set and offset are matched in any inlet as Max scopes them, and a bare message word is the method with nothing to do rather than a symbol to forward. Values keep the spelling they arrived with — Max's 'in a list floats are not converted to ints' — since a list is forwarded by text, character for character, while the tag itself is always an int. At most 256 inlets, built once before the object is published; Calculate() does nothing, and no message path allocates, locks or blocks.",
+    "description": "Merges several inlets onto one outlet, putting the inlet's number in front of each message so the receiver knows where it came from. The inverse of .spray.",
     "inlets": [
       {
         "accepts": [
@@ -7061,7 +7061,7 @@
           "BANG",
           "LIST"
         ],
-        "doc": "An int, float, list or symbol is sent out the one outlet with this inlet's number prepended, so a bank of sources merges onto one cord without losing which of them spoke. An int or a float is also stored here, and a bang re-sends the stored number tagged the same way — 0 before anything has arrived. A list is forwarded but not stored, since the stored value is a number and bang's output is a two-item list. In any inlet, 'set <n0> <n1> ...' writes the stored numbers of the inlets in order and sends nothing, and 'offset <n>' changes the number every inlet stamps.",
+        "doc": "A message goes out with this inlet's number in front. A number is also stored, and a bang sends the stored number again. 'set <n0> <n1> ...' and 'offset <n>' work in every inlet.",
         "index": 0,
         "label": "in0",
         "range": "any"
@@ -7073,7 +7073,7 @@
           "BANG",
           "LIST"
         ],
-        "doc": "An int, float, list or symbol is sent out the one outlet with this inlet's number prepended, so a bank of sources merges onto one cord without losing which of them spoke. An int or a float is also stored here, and a bang re-sends the stored number tagged the same way — 0 before anything has arrived. A list is forwarded but not stored, since the stored value is a number and bang's output is a two-item list. In any inlet, 'set <n0> <n1> ...' writes the stored numbers of the inlets in order and sends nothing, and 'offset <n>' changes the number every inlet stamps.",
+        "doc": "A message goes out with this inlet's number in front. A number is also stored, and a bang sends the stored number again. 'set <n0> <n1> ...' and 'offset <n>' work in every inlet.",
         "index": 1,
         "label": "in1",
         "range": "any"
@@ -7083,7 +7083,7 @@
     "name": ".funnel",
     "outlets": [
       {
-        "doc": "A list whose first element is the number of the inlet the message arrived at, plus the offset, followed by the message itself. Values keep the spelling they arrived with — a float in a list is not converted to an int — and the tag is always an int.",
+        "doc": "The inlet's number plus the offset, followed by the message as it arrived.",
         "index": 0,
         "label": "out",
         "range": "list",
@@ -7093,7 +7093,7 @@
     "params": [
       {
         "default": "2",
-        "doc": "Max's argument list, in Max's order. The first whole number is how many inlets to build, clamped to 1-256 and defaulting to 2. The second is the offset added to the inlet numbering, so inlet 0 stamps that value; it defaults to 0 and is the starting value of the 'offset' message. A float is truncated; anything that is not a whole finite number is ignored and leaves the defaults in place.",
+        "doc": "How many inlets to build. A second number is the offset added to every inlet's number, so inlet 0 sends that value.",
         "name": "inlets",
         "range": "1-256, optional offset"
       }
@@ -7102,13 +7102,13 @@
   },
   ".gate": {
     "category": "ROUTING",
-    "description": "Demultiplexer. Routes a value inlet to one of N outlets, selected by inlet 0. activeOutlet=0 silences output; 1-based otherwise.",
+    "description": "Passes messages from its right inlet out one of its outlets, chosen by a number in the left inlet. Outlets count from 1; 0 closes the gate.",
     "inlets": [
       {
         "accepts": [
           "INT"
         ],
-        "doc": "1-based outlet index to forward to (0 = mute).",
+        "doc": "The outlet to send to, counting from 1. 0 (the start value) or a number with no outlet closes the gate.",
         "index": 0,
         "label": "select",
         "range": "0+"
@@ -7120,7 +7120,7 @@
           "BANG",
           "LIST"
         ],
-        "doc": "Value inlet — accepts bang / int / float / list.",
+        "doc": "Bang, int, float or list to pass to the selected outlet.",
         "index": 1,
         "label": "in",
         "range": ""
@@ -7130,14 +7130,14 @@
     "name": ".gate",
     "outlets": [
       {
-        "doc": "Outlet 0 — emits the routed value when select == 1.",
+        "doc": "Sends the message when select is 1.",
         "index": 0,
         "label": "out0",
         "range": "",
         "type": "ANY"
       },
       {
-        "doc": "Outlet 1 — emits the routed value when select == 2.",
+        "doc": "Sends the message when select is 2.",
         "index": 1,
         "label": "out1",
         "range": "",
@@ -7147,9 +7147,9 @@
     "params": [
       {
         "default": "2",
-        "doc": "Number of value outlets (additional outlets are created by SetParams).",
+        "doc": "How many outlets to build. Fewer than 2 still builds 2.",
         "name": "numOutlets",
-        "range": "1+"
+        "range": "2+"
       }
     ],
     "requires_midi_device": false
@@ -8080,13 +8080,13 @@
   },
   ".matrix": {
     "category": "ROUTING",
-    "description": "A message crossbar whose cells carry a gain — Max's matrix, the 'event routing matrix' that 'controls the connections between inlets and outlets' where 'each connection has an associated gain factor and all values travelling through matrix can be scaled'. It is .router's sibling and shares its whole control protocol; the one difference runs all the way through, because a .router cell is a switch and a .matrix cell is a coefficient. A crossbar of switches can only answer 'does this reach that', so a patch that wants to route and weight needs a multiplier per destination wired behind it — which puts the weights in N-by-M separate objects that cannot be addressed as a matrix or set by one message. Here the weight is the connection: 'connect 0 1 0.25' says inlet 0 reaches outlet 1 at a quarter, and Max's rule that 'a non-zero gain adds a connection with the designated gain; a gain of 0 deletes the connection if it exists' means connection and gain are one value with no connected-but-unweighted state in between. That is the control-domain patchbay, and the companion to a send/return mixer for routing modulation rather than audio, where a send has always been a destination and an amount at once. Unity is transparent: a gain of exactly 1 forwards the message untouched, so an int stays an int, a bang stays a bang and a list arrives character for character — which is what makes .matrix at its default gain interchangeable with .router, and what a patch depends on wherever the value is a note number rather than a quantity. Any other gain multiplies and its result leaves as a float even from an int, because truncating it back would discard exactly the scaling asked for: an int of 1 at a gain of 0.5 would arrive as 0, and a modulation matrix whose fine settings all read zero is worse than no matrix at all. A bang carries no value and is forwarded as a bang at any gain. A list is scaled element-wise when every item is a number and forwarded unchanged otherwise, which is Max's scalemode rule read from its default position — scaling applies to numbers, and scalemode exists to extend it to 'numeric arguments to messages that do not start with a number' — and the only reading that keeps 'note 60 100' from having its channel quietly rescaled while its selector stays put; a list of more than 256 items is forwarded unscaled rather than truncated. Unlike matrix~, the outlets do not add the values of multiple inputs: two inlets reaching one outlet produce two messages out of it, one per event, since two events are never simultaneous and there is nothing to add them at. The leftmost inlet is not routable — Max scopes every connection message to 'In left inlet' and numbers the routed ones 'starting at 0 for the object's second inlet from left' — so the object has one more inlet than asked for, the extra one takes the connection messages, and it accepts a list and declines bang, int and float outright the way .decode, .spray and .router decline what Max does not document. Symmetrically there is one more outlet than asked for, the rightmost, carrying only the answer to dumpconnections: Max sends that answer as a dictionary out its left outlet and can, because a dictionary is a distinguishable kind of message, but this patcher is headless and has no dictionaries, so the answer is a list, routed data is also lists, and a dump line on a data outlet would be indistinguishable from a value routed there. Only current connections are dumped, as Max says, and each line is '<inlet> <outlet> <gain>' — the same three items in the same order that set a cell, so storing a routing is storing the dump and restoring one is clear followed by replaying it. A dump requested while one is running is ignored rather than nested, since its outlet is one cord away from the control inlet. 'dictionary <name>' names a Max dictionary object, of which there are none here, and is accepted and silent rather than read as data. Max's attributes — defaultgain, exclusive, inhibit, inrange, outscale, scalemode — are not modelled, because the patcher has no attribute mechanism; the one a patch would miss is defaultgain, and it is the third creation argument, which is where Max puts it too. At most 256 routable inlets and 256 routable outlets, built once before the object is published. Calculate() does nothing, and no message path allocates, locks or blocks: routing reads one row and sends, setting a cell writes one float, a list is parsed into a bounded stack array once per message rather than once per destination, and the row is snapshotted before the first send so a patch looping an outlet back into the control inlet cannot deliver one message under two different sets of gains.",
+    "description": "Routes messages from its data inlets to its outlets as set by connection messages, like .router, but each connection has a gain that scales the numbers passing through. At a gain of 1 messages pass unchanged.",
     "inlets": [
       {
         "accepts": [
           "LIST"
         ],
-        "doc": "The connection inlet, and the one inlet nothing is routed from. A list of three numbers is an inlet number, an outlet number and a gain: 'a non-zero gain adds a connection with the designated gain; a gain of 0 deletes the connection if it exists', so the gain is the connection and there is no connected-but-unweighted state. 'connect <inlet> <outlet> [gain]' names the same cell in words and falls back to the default gain (the third creation argument, 1 if absent) when no gain is given; 'disconnect <inlet> <outlet>' deletes it; 'clear' removes every connection; 'dumpconnections' sends the current connections out the rightmost outlet, one '<inlet> <outlet> <gain>' list each — the same three items in the same order that set a cell, so a dump line fed back here re-creates what it describes. Inlet numbers count the routable inlets from 0, 'starting at 0 for the object's second inlet from left', so 'connect 0 0' addresses the inlet immediately to the right of this one. A number naming a port the object does not have, and a message that is not one of these forms, are ignored. 'dictionary <name>' is accepted and does nothing — the patcher is headless and has no Max dictionaries; 'dumpconnections' is the question a patch can read the answer to.",
+        "doc": "Sets the connections: '<inlet> <outlet> <gain>' (gain 0 disconnects), 'connect <inlet> <outlet> [gain]', 'disconnect <inlet> <outlet>', 'clear' and 'dumpconnections'. Inlets and outlets count from 0, starting at the first data inlet.",
         "index": 0,
         "label": "connections",
         "range": "list"
@@ -8098,7 +8098,7 @@
           "BANG",
           "LIST"
         ],
-        "doc": "A bang, int, float or list arriving here is sent out every outlet this inlet is currently connected to — none, one, or all of them — in Max's universal right-to-left order, scaled by that cell's gain. A gain of exactly 1 forwards the message untouched, so an int stays an int and a list arrives spelled character for character; any other gain multiplies, and the result leaves as a float even from an int, since truncating it back would discard the scaling itself. A bang has no value to scale and is forwarded as a bang. A list is scaled element-wise when every item is a number and forwarded unchanged otherwise, so 'note 60 100' keeps its selector and its numbers; a list of more than 256 items is forwarded unscaled rather than truncated. Nothing is routed until the control inlet says so, and message words are not interpreted here, so 'connect 0 1' arriving at this inlet is data to forward and not a method call.",
+        "doc": "A message here goes out every outlet this inlet is connected to, right to left, scaled by each connection's gain.",
         "index": 1,
         "label": "in0",
         "range": "any"
@@ -8110,7 +8110,7 @@
           "BANG",
           "LIST"
         ],
-        "doc": "A bang, int, float or list arriving here is sent out every outlet this inlet is currently connected to — none, one, or all of them — in Max's universal right-to-left order, scaled by that cell's gain. A gain of exactly 1 forwards the message untouched, so an int stays an int and a list arrives spelled character for character; any other gain multiplies, and the result leaves as a float even from an int, since truncating it back would discard the scaling itself. A bang has no value to scale and is forwarded as a bang. A list is scaled element-wise when every item is a number and forwarded unchanged otherwise, so 'note 60 100' keeps its selector and its numbers; a list of more than 256 items is forwarded unscaled rather than truncated. Nothing is routed until the control inlet says so, and message words are not interpreted here, so 'connect 0 1' arriving at this inlet is data to forward and not a method call.",
+        "doc": "A message here goes out every outlet this inlet is connected to, right to left, scaled by each connection's gain.",
         "index": 2,
         "label": "in1",
         "range": "any"
@@ -8120,21 +8120,21 @@
     "name": ".matrix",
     "outlets": [
       {
-        "doc": "Whatever arrived at any inlet currently connected to this outlet, multiplied by that connection's gain. Several inlets may reach this outlet at once, in which case each of them sends here independently — unlike ~matrix-style audio routing, the outlets do not add the values of multiple inputs, because two events are never simultaneous and so there is nothing to add them at.",
+        "doc": "Messages from every inlet connected to this outlet, each scaled by its connection's gain. Messages from different inlets are not added together.",
         "index": 0,
         "label": "out0",
         "range": "any",
         "type": "ANY"
       },
       {
-        "doc": "Whatever arrived at any inlet currently connected to this outlet, multiplied by that connection's gain. Several inlets may reach this outlet at once, in which case each of them sends here independently — unlike ~matrix-style audio routing, the outlets do not add the values of multiple inputs, because two events are never simultaneous and so there is nothing to add them at.",
+        "doc": "Messages from every inlet connected to this outlet, each scaled by its connection's gain. Messages from different inlets are not added together.",
         "index": 1,
         "label": "out1",
         "range": "any",
         "type": "ANY"
       },
       {
-        "doc": "The current connections, in answer to a 'dumpconnections' on the control inlet: one list per connected cell in the form '<inlet> <outlet> <gain>', ascending by inlet and then by outlet. Only connected cells are reported, as Max reports 'all current connections' — at 256 by 256 the full table would be 65536 lines where the connections are usually a handful. The line is the same shape that sets a cell, so a patch can store a routing by storing the dump and restore it with 'clear' followed by replaying the lines. Silent otherwise — no routed message ever leaves here. A dump requested while one is already running is ignored rather than nested.",
+        "doc": "The answer to 'dumpconnections': one '<inlet> <outlet> <gain>' list per connection.",
         "index": 2,
         "label": "connections",
         "range": "list",
@@ -8144,7 +8144,7 @@
     "params": [
       {
         "default": "2",
-        "doc": "Max's argument list, in Max's order: how many routable inlets to build, how many routable outlets, then the gain a bare 'connect' uses. Each count is clamped to 1-256 and defaults to 2, which Max states outright ('if not present the default is 2'); the gain defaults to 1, the only value that makes a bare 'connect' mean what the word says. The object builds one inlet and one outlet more than the counts, for the connection messages and for dumpconnections. A float count is truncated; anything that is not a whole finite number is ignored and leaves that default in place. The connections themselves are not parameters and do not survive a save — 'dumpconnections' is how a patch reads them back.",
+        "doc": "How many data inlets, then how many data outlets (2 each by default), then the gain 'connect' uses when none is given (1 by default).",
         "name": "inputs",
         "range": "1-256, optional outputs 1-256, optional default gain"
       }
@@ -10828,7 +10828,7 @@
   },
   ".route": {
     "category": "ROUTING",
-    "description": "Routes a message by what its first item matches and takes that item off — Max's route, whose 'the rest of the message is sent out the outlet that corresponds to that argument' is the whole object. One outlet per creation argument plus a rightmost fall-through for everything that matched none of them, and a bare .route has two outlets and matches the single number 0, which is Max's no-argument case and the shape .sel already reproduces (issue #679). Until then a bare .route had no outlets at all and silently swallowed everything sent to it, so a patch that dropped one in before wiring its arguments lost messages rather than passing them on; .routepass is the object that deliberately does not invent a default selector, because Max documents one for route and select and none for routepass. The stripping is what makes this a dispatcher rather than a splitter: 'note 60 100' leaves the note branch as '60 100', so the branch works in bare values and never sees the word that got it there. Before issue #672 this object forwarded the whole message instead, which is Max's routepass and not Max's route, and the engine's own .sel documentation had described the stripping behaviour all along — the code was the odd one out. A patch that wants the matched word to stay on the message has .routepass, whose contract guarantees exactly that, and swapping the object is the migration. What leaves a matched outlet is whatever is left, in the kind that remainder is: 'foo 1 2' through .route foo sends the list '1 2'; 'foo 1' sends the int 1 rather than a one-element list, and 'foo 1.5' the float 1.5, decided by the spelling as .trigger and .match decide it; 'foo bar' sends the list 'bar', since a lone symbol has no type of its own here; and 'foo' alone sends a bang, Max's 'if the first item of a message matches one of the arguments, but the message has no additional items, bang is sent out the specified outlet'. A bare number matched by a numeric selector is that same case — the number was the whole message — so .route 5 bangs for the int 5 and for the float 5.0 alike. Anything unmatched leaves the rightmost outlet whole and in its own type, so a chain of .route objects strings together with each fall-through feeding the next inlet. The matcher is .sel's and .routepass's: a selector is a number or a symbol, decided once when the argument is read, and the two never match each other — a number matches by value with an int widened to a float, a symbol by exact text, a bang matches a selector spelled 'bang', and a list is matched on its first element alone, which is a number if it reads as one and a symbol otherwise. That shared matcher is the other half of #672: the object used to compare std::to_string(value) against the selector text, and std::to_string(5.f) is '5.000000', a spelling no hand-written selector ever has, so .route 5 could never match the float 5.0. The comparison is exact, so a computed float may miss a selector it looks equal to — 0.1 + 0.2 is not 0.3 in binary floating point, and a .round upstream is the fix — and a NaN matches nothing and leaves the rightmost outlet. A selector repeated in the argument list uses the leftmost of its outlets only. Exactly one outlet fires per input. Calculate() does nothing, and no message path allocates except for a remainder of two or more items, which is one string — the cost stripping has and pass-through does not.",
+    "description": "Sends a message out the outlet whose selector matches its first item, with that item removed. A message that matches no selector leaves the rightmost outlet unchanged.",
     "inlets": [
       {
         "accepts": [
@@ -10837,7 +10837,7 @@
           "BANG",
           "LIST"
         ],
-        "doc": "Value inlet — accepts bang / int / float / list. The first item decides: a list's leading token, a bare number itself, or the symbol 'bang'. What leaves the matching outlet is the rest of the message, as a list, as an int or float when it is a single number, or as a bang when the selector was the whole message. Anything matching no selector leaves the fall-through outlet whole and in its own type.",
+        "doc": "Bang, int, float or list. Its first item is matched against the selectors.",
         "index": 0,
         "label": "in",
         "range": ""
@@ -10847,14 +10847,14 @@
     "name": ".route",
     "outlets": [
       {
-        "doc": "What is left of the message once its first item is taken off, when that item matches selector 0 (0). A remainder of two or more items leaves as a list, a remainder of one number as that int or float, a remainder of one symbol as a one-element list, and nothing left at all as a bang. Exactly one outlet fires per input, and a selector repeated in the argument list uses the leftmost of its outlets only.",
+        "doc": "The rest of the message when its first item matches selector 0 (0): a list, a single int or float, or a bang when nothing is left.",
         "index": 0,
         "label": "match0",
         "range": "0",
         "type": "ANY"
       },
       {
-        "doc": "The message, unchanged and in its own type, when its first item matched no selector. Nothing is taken off it, so chaining this into the next .route carries on testing the message the first one saw.",
+        "doc": "The message, unchanged, when its first item matched no selector. Wire it into another .route to test further.",
         "index": 1,
         "label": "rest",
         "range": "any",
@@ -10864,7 +10864,7 @@
     "params": [
       {
         "default": "0",
-        "doc": "Space-separated list of match tokens; one outlet is created per token plus one fall-through outlet. A token that reads as a finite number is a numeric selector and matches by value, with an int widened to a float; anything else is a symbol and matches by exact text. With no argument the object matches the single number 0, which is Max's no-argument case.",
+        "doc": "The selectors, one outlet each. A number matches by value, anything else by exact text. With no argument the object matches 0.",
         "name": "list",
         "range": "any tokens"
       }
@@ -10873,7 +10873,7 @@
   },
   ".routepass": {
     "category": "ROUTING",
-    "description": "Routes a complete message by what its first item matches, and leaves that item on the message — Max's routepass, which 'routes a complete incoming message based on input matching' and 'does not strip off the matched portion of the message'. One outlet per creation argument plus a rightmost outlet for everything that matched none of them. Stripping is what makes .route a dispatcher: it turns 'note 60 100' into '60 100' on the note branch, so the branch works in bare values and never sees the word that got it there. That is right until the downstream object needs the tag too — a .s that re-tags the message, a .m that echoes it, a second .routepass further down matching on the same word, a bank keyed by name — because then the patch has to put the word back on, which means knowing it at the far end of the cord, in a second place, where it can disagree with the first. Here the branch is chosen by the tag and the tag stays. Its relatives: .sel matches the same way but sends a bang, dropping the value because the outlet's position is the whole answer, so it is the object to test with; .route is the stripping form, which forwarded the whole message too until issue #672 fixed it, so the pair is Max's pair now and this is the one to reach for when the message has to arrive intact; .split routes by numeric range rather than by a match; and .gate, .switch and .router route by state the object holds rather than by anything in the message, where here the message chooses its own destination and nothing about the object changes as it does. The shape follows Max: 'the number of arguments determines the number of outlets, in addition to the rightmost outlet', so .routepass note ctl has three outlets and a bare .routepass has one, through which everything passes unchanged. That degenerate object is built rather than papered over with an invented default selector, which would put a branch in a patch that did not ask for one. The matcher is .sel's, deliberately — two objects whose only job is to branch must branch alike or a patch that swaps one for the other changes meaning silently. A selector is a number or a symbol, decided once when the argument is read, and the two never match each other: a number matches by value with an int widened to a float, so .routepass 5 answers both the int 5 and the float 5.0; a symbol matches by exact text; a bang matches a selector spelled 'bang'; and a list is matched on its first element alone, which is a number if it reads as one and a symbol otherwise. The comparison is exact, so a computed float may miss a selector it looks equal to — 0.1 + 0.2 is not 0.3 in binary floating point, and a .round upstream is the fix — and a NaN matches nothing and leaves the rightmost outlet. A selector repeated in the argument list uses the leftmost of its outlets only, Max's rule for select and the only sane reading here, since an object that fired both would fan out and this one routes. Exactly one outlet fires per input, and what leaves it is whatever arrived, in the kind it arrived as and spelled as it was spelled: a matched list as the same list with its first item included, a matched int as that int, a matched bang as a bang. The rightmost outlet does the same for everything unmatched, so a chain of .routepass objects strings together with each reject outlet feeding the next inlet — and because nothing is consumed, every object in the chain sees the message the first one saw. At most 256 selectors are held. Calculate() does nothing, and no message path allocates, locks or blocks: matching is a bounded walk doing a float compare or a length-checked string compare against a character range, one Send follows, and a matched list is forwarded by reference rather than rebuilt.",
+    "description": "Sends a whole message out the outlet whose selector matches its first item, keeping that item on. A message that matches no selector leaves the rightmost outlet unchanged.",
     "inlets": [
       {
         "accepts": [
@@ -10882,7 +10882,7 @@
           "BANG",
           "LIST"
         ],
-        "doc": "Bang, int, float or list to route. The first item decides — a list's leading token, a bare number itself, or the symbol 'bang' — and the whole message, that item still on it, leaves the matching outlet in the kind it arrived as. Anything matching no selector leaves the rightmost outlet, equally unchanged.",
+        "doc": "Bang, int, float or list. Its first item is matched against the selectors, and the message leaves unchanged.",
         "index": 0,
         "label": "in",
         "range": "any"
@@ -10892,7 +10892,7 @@
     "name": ".routepass",
     "outlets": [
       {
-        "doc": "The message, unchanged and in its own type, when it matched no selector. Chain this into the next .routepass to carry on testing — nothing was consumed, so the next object sees exactly what this one saw.",
+        "doc": "The message, unchanged, when it matched no selector. Wire it into another .routepass to test further.",
         "index": 0,
         "label": "rest",
         "range": "any",
@@ -10902,7 +10902,7 @@
     "params": [
       {
         "default": "",
-        "doc": "The values to match against, as a list. Each one gets an outlet, in order, and the rightmost outlet takes everything that matches none of them. A token that reads as a finite number is a numeric selector and matches by value; anything else is a symbol and matches by exact text. With no argument there are no match outlets at all, only the rightmost one, which is Max's 'the number of arguments determines the number of outlets, in addition to the rightmost outlet'. At most 256 are held.",
+        "doc": "The selectors, one outlet each, at most 256. A number matches by value, anything else by exact text. With no argument there is only the rightmost outlet.",
         "name": "selectors",
         "range": "any list of numbers and symbols"
       }
@@ -10911,13 +10911,13 @@
   },
   ".router": {
     "category": "ROUTING",
-    "description": "A message crossbar whose connections are set by messages rather than by patch cords — Max's router, where 'any message received in any but the leftmost inlet will be routed to the outlet to which the inlet is currently connected'. A switching matrix, and the point of it is when the switching happens: every other way of getting a message from source i to destination j fixes the answer at edit time, and in this patcher changing a patch cord means a whole GraphState rebuilt on the control thread and published between audio blocks, while a .router connection change is one message that writes one byte into a table the object already owns and takes effect on the next message through. That is what makes 'rewire this while it runs' something a patch can do to itself — from a .metro, a .sel or a preset — rather than something only an editor can do to a patch. And it is many-to-many: several inlets may reach the same outlet, one inlet may reach several outlets, and both hold at once, because the state is a full inlet-by-outlet matrix and not a selection. That is the difference from the rest of the routing family. It is not .gate, which routes one inlet to one of N outlets chosen by a number arriving as data on the same event being routed, nor .switch, which is .gate's N-to-one mirror; neither can express 'inlet 1 reaches outlets 0 and 3 while inlet 2 also reaches outlet 3', which is one message here. It is not .spray, which addresses numbered outlets from an index riding in the message and holds no routing state at all — here the message carries nothing but itself, so a source needs to know nothing about where it is going, which is precisely what lets the destination be changed without touching the source. It is not .decode, which also speaks on every outlet but speaks its own 1s and 0s describing a selection, where this forwards and the values are the patch's. And it is not .funnel, the degenerate one-column case plus a tag; the tag is exactly what a crossbar must not add, since one that rewrote what passed through it would not be transparent to swap in. The leftmost inlet is not routable — Max scopes every routed method to 'any but the leftmost inlet' — so the object has one more inlet than asked for and the extra one takes the connection messages, accepting a list and declining bang, int and float outright the way .decode and .spray decline what Max does not document. Inlet numbers in those messages count the routable inlets from 0, so 'connect 0 0' addresses the inlet immediately right of the control inlet; numbering from the physical inlet 0 would make 'connect 0 x' name an inlet no message can pass through. Symmetrically there is one more outlet than asked for, the rightmost, which carries nothing but the answer to dump. Four spellings set a connection, all of them Max's: the bare list '<inlet> <outlet> <state>', the form a patch computes, with any non-zero state connecting; 'connect' and 'disconnect' naming the same cell in words, of which Max says 'multiple inlets can be connected to multiple outlets, and vice versa'; 'patch <inlet> <outlet>', which 'connects an inlet to an outlet and disconnects all other inlets that are currently connected to that outlet' and is the one column operation — it makes an outlet's source exclusive in a single message, where two messages would leave a moment with two sources or none; and 'clear', after which 'all inlets are disconnected from all outlets'. A number naming a port the object does not have is ignored, and so is a malformed message: .gate's, .spray's and .decode's discipline, since folding a bad index onto a real port would hide a miscount at the object best placed to expose it. dump 'sends the state of the object's switching matrix out the right outlet as a series of single line lists in the form inlet-number outlet-number state' — every cell, ascending by inlet then by outlet, so the routing is recoverable by a patch and not merely by a person, which is the only way state that lives in messages rather than in the file can be saved at all. A dump requested while one is running is ignored rather than nested, since a dump line fed back into the control inlet would otherwise start a full dump inside every line of the one already running. print is accepted and does nothing: it targets the Max Console, an application window this headless patcher does not have, and the engine's own log is not a substitute because no patcher object logs from a message handler — a handler runs on whichever thread sent the message, and that may be the audio thread. At most 256 routable inlets and 256 routable outlets, built once before the object is published. Calculate() does nothing, and no message path allocates, locks or blocks: routing reads one row and sends, a connection message writes one byte, and the row is snapshotted onto the stack before the first send so a patch looping an outlet back into the control inlet cannot deliver one message under two different routings.",
+    "description": "Routes messages from its data inlets to its outlets, unchanged, as set by connection messages. Any inlet can reach any number of outlets, and the routing can change while the patch runs.",
     "inlets": [
       {
         "accepts": [
           "LIST"
         ],
-        "doc": "The connection inlet, and the one inlet nothing is routed from. A list of three numbers is 'an inlet number, an outlet number, and a 0 or 1 specifying the state of a connection', with any non-zero state connecting. 'connect <inlet> <outlet>' and 'disconnect <inlet> <outlet>' name the same cell in words; 'patch <inlet> <outlet>' connects it and disconnects every other inlet from that outlet, making the outlet's source exclusive in one message; 'clear' disconnects everything; 'dump' sends the whole matrix out the rightmost outlet. Inlet numbers count the routable inlets from 0, so 'connect 0 0' addresses the inlet immediately to the right of this one. A number naming a port the object does not have, and a message that is not one of these forms, are ignored. 'print' is accepted and does nothing — the patcher is headless and has no Max Console; 'dump' is the question a patch can read the answer to.",
+        "doc": "Sets the connections: '<inlet> <outlet> <0/1>', 'connect <inlet> <outlet>', 'disconnect <inlet> <outlet>', 'patch <inlet> <outlet>', 'clear' and 'dump'. Inlets and outlets count from 0, starting at the first data inlet.",
         "index": 0,
         "label": "connections",
         "range": "list"
@@ -10929,7 +10929,7 @@
           "BANG",
           "LIST"
         ],
-        "doc": "A bang, int, float, list or symbol arriving here is sent, unchanged, out every outlet this inlet is currently connected to — none, one, or all of them — in Max's universal right-to-left order. Nothing is routed until the control inlet says so, and nothing about the message itself selects a destination: the routing is the object's state, which is what lets a destination change without the source knowing. Message words are not interpreted here, so 'connect 0 1' arriving at this inlet is data to forward and not a method call.",
+        "doc": "A message here goes out, unchanged, every outlet this inlet is connected to, right to left.",
         "index": 1,
         "label": "in0",
         "range": "any"
@@ -10941,7 +10941,7 @@
           "BANG",
           "LIST"
         ],
-        "doc": "A bang, int, float, list or symbol arriving here is sent, unchanged, out every outlet this inlet is currently connected to — none, one, or all of them — in Max's universal right-to-left order. Nothing is routed until the control inlet says so, and nothing about the message itself selects a destination: the routing is the object's state, which is what lets a destination change without the source knowing. Message words are not interpreted here, so 'connect 0 1' arriving at this inlet is data to forward and not a method call.",
+        "doc": "A message here goes out, unchanged, every outlet this inlet is connected to, right to left.",
         "index": 2,
         "label": "in1",
         "range": "any"
@@ -10951,21 +10951,21 @@
     "name": ".router",
     "outlets": [
       {
-        "doc": "Whatever arrived at any inlet currently connected to this outlet, forwarded with its kind and spelling intact — the object switches, it does not convert. Several inlets may reach this outlet at once, in which case each of them sends here independently.",
+        "doc": "Messages from every inlet connected to this outlet, unchanged.",
         "index": 0,
         "label": "out0",
         "range": "any",
         "type": "ANY"
       },
       {
-        "doc": "Whatever arrived at any inlet currently connected to this outlet, forwarded with its kind and spelling intact — the object switches, it does not convert. Several inlets may reach this outlet at once, in which case each of them sends here independently.",
+        "doc": "Messages from every inlet connected to this outlet, unchanged.",
         "index": 1,
         "label": "out1",
         "range": "any",
         "type": "ANY"
       },
       {
-        "doc": "The switching matrix, in answer to a 'dump' on the control inlet: one list per cell, in the form '<inlet> <outlet> <state>', ascending by inlet and then by outlet, so a patch can read the whole routing back out and store it. Silent otherwise — no routed message ever leaves here. A dump requested while one is already running is ignored rather than nested.",
+        "doc": "The answer to 'dump': one '<inlet> <outlet> <state>' list for every inlet and outlet pair.",
         "index": 2,
         "label": "dump",
         "range": "list",
@@ -10975,7 +10975,7 @@
     "params": [
       {
         "default": "2",
-        "doc": "Max's argument list, in Max's order: how many routable inlets to build, then how many routable outlets. Each is clamped to 1-256 and defaults to 2 — Max documents both as optional and states no default, so the family's is used. The object builds one inlet and one outlet more than these, for the connection messages and for dump. A float is truncated; anything that is not a whole finite number is ignored and leaves that default in place. The connections themselves are not parameters and do not survive a save — 'dump' is how a patch reads them back.",
+        "doc": "How many data inlets, then how many data outlets (2 each by default).",
         "name": "inlets",
         "range": "1-256, optional outlets 1-256"
       }
@@ -11318,7 +11318,7 @@
   },
   ".sel": {
     "category": "ROUTING",
-    "description": "Bangs the outlet whose selector the input matches — Max's select, and with .trigger the backbone of message dispatch. One outlet per creation argument plus a rightmost pass-through, so a stream of numbers or symbols fans out into one branch per value: .route matches the leading symbol of a list and forwards the remainder, .split routes by range, and neither can branch on a bare number. A bare .sel has two outlets and matches the single number 0, which is Max's no-argument case. Exactly one outlet fires per input — the object looks like it might fan out and does not — and Max settles the only case where the question could arise: a selector repeated in the argument list bangs the leftmost of its outlets only. That is what spares this object the right-to-left firing order .mean and .peak have to respect. A match sends a bang and nothing else, since the outlet's position already carries the value; anything unmatched leaves the rightmost outlet unchanged and in its own type — an int as an int, a float as a float, a list as the same list, a bang as a bang — so a chain of .sel objects strings together with each reject outlet feeding the next inlet. On a match the rest of a list is dropped, as in Max; .route is the object that keeps the remainder. A selector is a number or a symbol, decided once when the argument is read, and the two never match each other: a number matches by value with an int widened to a float, so .sel 5 answers both the int 5 and the float 5.0; a symbol matches by exact text; a bang matches a selector spelled 'bang'; and a list is matched on its first element alone, which is a number if it reads as one and a symbol otherwise, so .sel 5 bangs for the list '5 6'. The comparison is exact. Max's matchfloat attribute, whose default of 0 makes select ignore floats altogether, has no meaning in a patcher with a single numeric type and reproducing it would silently drop half the messages the object is sent; Max's fuzzy attribute is a real convenience and a real hazard, since a tolerance makes .sel match values it was not given and two selectors closer together than the tolerance would both be right with the leftmost silently winning — put a .round on the way in, where the rounding is visible. What remains is Max's 'matchfloat 1, fuzzy 0.'. One consequence is worth knowing: a computed float may miss a selector it looks equal to, because 0.1 + 0.2 is not 0.3 in binary floating point, and a .round upstream is the fix. A NaN matches nothing at all and leaves the rightmost outlet; the patcher's usual 'read a non-finite as 0' substitution is deliberately not applied here, because it would make a stray NaN bang the outlet a patch wired for a real 0. Max's settable right inlet is reproduced with 'numeric' in place of 'int': a single numeric selector gets the inlet, a single symbolic one does not, and two or more do not. The deviation is forced, because .sel 5 and .sel 5.0 are the same parameter string here so there is no int-ness left to test, and keying the inlet count off whether the argument text happens to contain a decimal point would make the object's shape depend on spelling a JSON round trip is free to normalise. The inlet is silent, takes an int or a float and replaces the value of the single selector. With more than one selector there is no way to change them, which is Max's answer too: the argument list is the object's shape, and changing it changes the outlet count. At most 256 selectors are held.",
+    "description": "Bangs the outlet whose selector matches the input. Anything that matches no selector leaves the rightmost outlet unchanged.",
     "inlets": [
       {
         "accepts": [
@@ -11327,7 +11327,7 @@
           "BANG",
           "LIST"
         ],
-        "doc": "Bang, int, float or list to match against the selectors. A match bangs the corresponding outlet; anything else leaves the rightmost outlet unchanged and in its own type. A list is matched on its first element alone and the rest is dropped — .route is the object that keeps the remainder.",
+        "doc": "Bang, int, float or list to match. A list is matched on its first item, and the rest is dropped on a match.",
         "index": 0,
         "label": "in",
         "range": "any"
@@ -11337,7 +11337,7 @@
           "FLOAT",
           "INT"
         ],
-        "doc": "Replaces the value of the single selector, silently. Present only when there is exactly one selector and it is a number, which is Max's rule.",
+        "doc": "Replaces the selector's value without sending anything. Present only when there is exactly one selector and it is a number.",
         "index": 1,
         "label": "value",
         "range": "any float"
@@ -11347,14 +11347,14 @@
     "name": ".sel",
     "outlets": [
       {
-        "doc": "Bang when the input matches selector 0 (0). Exactly one outlet fires per input, and a selector repeated in the argument list bangs the leftmost of its outlets only.",
+        "doc": "A bang when the input matches selector 0 (0).",
         "index": 0,
         "label": "match0",
         "range": "0",
         "type": "BANG"
       },
       {
-        "doc": "The input, unchanged and in its own type, when it matched no selector. Chain this into the next .sel to carry on testing.",
+        "doc": "The input, unchanged, when it matched no selector. Wire it into another .sel to test further.",
         "index": 1,
         "label": "rest",
         "range": "any",
@@ -11364,7 +11364,7 @@
     "params": [
       {
         "default": "0",
-        "doc": "The values to match against, as a list. Each one gets an outlet, in order, and the rightmost outlet takes everything that matches none of them. A token that reads as a finite number is a numeric selector and matches by value; anything else is a symbol and matches by exact text. With no argument the object matches the single number 0. At most 256 are held.",
+        "doc": "The selectors, one outlet each, at most 256. A number matches by value, anything else by exact text. With no argument the object matches 0.",
         "name": "selectors",
         "range": "any list of numbers and symbols"
       }
@@ -11751,14 +11751,14 @@
   },
   ".split": {
     "category": "ROUTING",
-    "description": "Control-rate two-way routing by range. Tests the value on inlet 0 against the [low, high] range and passes it on unchanged: out of outlet 0 when it falls inside the range, out of outlet 1 when it does not. Both bounds are inclusive. Exactly one outlet fires per evaluation, which is what separates .split from the rest of the range family — .clip and .pong reshape the value, .split leaves it alone and decides where it goes. The building block for keyboard splits, velocity layers and zone-based dispatch: chain the out-of-range outlet into the next .split for the next zone. Limits given the wrong way round (low above high) are treated as an ordered pair and still split on the right two numbers. Nothing is computed and so nothing is substituted — a non-finite value is routed, and a NaN leaves the out-of-range outlet.",
+    "description": "Sends a number out the left outlet when it lies between low and high, and out the right outlet when it does not. Both limits are inclusive, and the number is not changed.",
     "inlets": [
       {
         "accepts": [
           "FLOAT",
           "INT"
         ],
-        "doc": "Value to route — fires the evaluation.",
+        "doc": "The number to test; sends it out one of the outlets.",
         "index": 0,
         "label": "value",
         "range": "any float"
@@ -11768,7 +11768,7 @@
           "FLOAT",
           "INT"
         ],
-        "doc": "Lower limit, inclusive — stored until the next evaluation.",
+        "doc": "Lower limit, inclusive. Stored for the next number.",
         "index": 1,
         "label": "low",
         "range": "any float"
@@ -11778,7 +11778,7 @@
           "FLOAT",
           "INT"
         ],
-        "doc": "Upper limit, inclusive — stored until the next evaluation.",
+        "doc": "Upper limit, inclusive. Stored for the next number.",
         "index": 2,
         "label": "high",
         "range": "any float"
@@ -11788,14 +11788,14 @@
     "name": ".split",
     "outlets": [
       {
-        "doc": "The input value, unchanged, when it lies inside [low, high].",
+        "doc": "The number, as a float, when it lies inside [low, high].",
         "index": 0,
         "label": "in",
         "range": "low to high",
         "type": "FLOAT"
       },
       {
-        "doc": "The input value, unchanged, when it lies outside [low, high].",
+        "doc": "The number, as a float, when it lies outside [low, high].",
         "index": 1,
         "label": "out",
         "range": "any float",
@@ -11820,13 +11820,13 @@
   },
   ".spray": {
     "category": "ROUTING",
-    "description": "Distributes the values of a list to numbered outlets — Max's spray, which 'accepts lists as input, where the first number is taken as the outlet number, and one or more values that follow are sent out that outlet and those to its right, in right-to-left order'. A demultiplexer whose destination is data rather than structure: the patch sends 2 60 and 60 leaves by outlet 2, so one stream can address a bank of destinations without a box per destination. It is the inverse of Max's funnel, which tags a value with the inlet it arrived on: a funnel into a spray of the same width is a numbered bus that survives being carried through one cord. It is not .gate, which routes by an index arriving at a separate inlet and therefore in a separate message, so the patch must set the destination before sending the value and every ordering mistake in between sends a value to last time's outlet; here the pair arrives together and cannot be desynchronised, which is the whole reason to reach for it. It is not .cycle, which picks the outlet itself by rotating, nor .route or .sel, which pick by matching against constants fixed at creation; this is the one that takes the destination as a number at run time. And unlike .trigger, which fans one value out every outlet as copies, a list here may well reach several outlets but each receives a different element — it spreads rather than copies, and unlike .unpack it starts wherever the message says rather than always at outlet 0. Element k of the remainder goes out outlet index+k; an element whose outlet does not exist is dropped rather than wrapped, .gate's and .cycle's discipline, since an index the object has no outlet for is a miscount that silent folding would hide. The burst is captured before the first send and the outlets fire right to left, Max's universal order and one this object's own description states outright: the send path is synchronous, so a patch looping an outlet back into the inlet re-enters inside the Send and the interrupted burst must go on emitting the values it started with. A first number of -1 is Max's broadcast, 'the remaining elements of the list will be repeated to all outlets', tested on the number as written and before the offset is applied so that an offset -1 cannot silently turn a broadcast into an ordinary index; with several values 'repeated' is taken as repeated around the outlets, so -1 0 1 sets alternate outlets and a single value still reaches all of them. The second creation argument and the 'offset' message are one value described from opposite ends — Max's 'an offset for the numbering of the outlets' and 'the output of the object ... shifted to the left' both mean the outlet reached is index minus offset — and it exists because the numbers a patch sprays usually start where their source starts, MIDI channels at 1 or a controller's buttons at 64, where the alternative is a .- in front of every stream. 'offset' is run-time state rather than a parameter, as .cycle's thresh and .bucket's R2L are, so a saved patch carries the creation argument. The third creation argument is Max's list mode, in which 'an entire list is output through the indicated outlet ... instead of unpacking the list and sending the individual elements out sequential outlets' — what a patch wants when the elements belong together, since a note and its velocity are one message and splitting them across two outlets makes two facts out of one. Each element leaves as the kind it was spelled as, so 0 1 2 does not arrive downstream as 1. 2.; Max's 'the list may contain only ints or floats; symbols will be ignored' is honoured in place, a symbol costing its outlet a send while the elements after it keep their positions, because closing the gap would silently rewrite the destination of every later element in a positional object. A bare int, float or bang is not accepted at all, Max's 'an error-message ... stating that spray requires a list', and neither is a one-element list or a message whose first token is a symbol. At most 256 outlets, built once before the object is published; Calculate() does nothing, and no message path allocates, locks or blocks.",
+    "description": "Takes a list whose first number is an outlet index and sends the values after it out that outlet and the ones to its right. The inverse of .funnel.",
     "inlets": [
       {
         "accepts": [
           "LIST"
         ],
-        "doc": "A list whose first number is an outlet index and whose remaining elements are the values to send: the first goes out that outlet, the next out the outlet to its right, and so on, all of them right to left. An index of -1 repeats the remaining elements around every outlet. Elements with no outlet are dropped and symbols are ignored in place, costing their outlet a send without moving the elements after them. 'offset <n>' shifts every incoming index by n. A bare int, float or bang is not accepted — Max's spray requires a list — and a message whose first token is a symbol is ignored.",
+        "doc": "A list: an outlet index, then the values for that outlet and the ones to its right. An index of -1 sends the values to every outlet. 'offset <n>' shifts the outlet numbering.",
         "index": 0,
         "label": "in",
         "range": "list"
@@ -11836,14 +11836,14 @@
     "name": ".spray",
     "outlets": [
       {
-        "doc": "The element of an incoming list that addressed this outlet, as the kind it was spelled as, or the whole remainder of the list in list mode. Outlets fire right to left, so a downstream collector sees the last element of a burst before the first.",
+        "doc": "The value addressed to this outlet, or the whole rest of the list in list mode.",
         "index": 0,
         "label": "out0",
         "range": "any",
         "type": "ANY"
       },
       {
-        "doc": "The element of an incoming list that addressed this outlet, as the kind it was spelled as, or the whole remainder of the list in list mode. Outlets fire right to left, so a downstream collector sees the last element of a burst before the first.",
+        "doc": "The value addressed to this outlet, or the whole rest of the list in list mode.",
         "index": 1,
         "label": "out1",
         "range": "any",
@@ -11853,7 +11853,7 @@
     "params": [
       {
         "default": "2",
-        "doc": "Max's argument list, in Max's order. The first whole number is how many outlets to build, clamped to 1-256 and defaulting to 2. The second is the offset added to the outlet numbering, so an index of that value reaches outlet 0; it defaults to 0 and is the starting value of the 'offset' message. A third whole number set to non-zero is Max's list mode: the whole remainder of a message goes out the one indicated outlet instead of one element per outlet. A float is truncated; anything that is not a whole finite number is ignored and leaves the defaults in place.",
+        "doc": "How many outlets to build. A second number is the offset: an index equal to it reaches outlet 0. A non-zero third number turns on list mode, which sends the whole rest of the list out the one indicated outlet.",
         "name": "outlets",
         "range": "1-256, optional offset and list mode"
       }
@@ -12170,13 +12170,13 @@
   },
   ".switch": {
     "category": "ROUTING",
-    "description": "Selector switch. Routes one of N value inlets to a single outlet, chosen by the index on inlet 0. The number of value inlets is set by the numInlets parameter.",
+    "description": "Passes messages from one of its right-hand inlets to the outlet, chosen by a number in the left inlet. Inlets count from 1; 0 closes the switch.",
     "inlets": [
       {
         "accepts": [
           "INT"
         ],
-        "doc": "Index (0-based) of the value inlet to forward.",
+        "doc": "Which inlet passes, counting from 1 for the inlet next to this one. 0 (the start value) or a number with no inlet passes nothing.",
         "index": 0,
         "label": "select",
         "range": "0+"
@@ -12188,7 +12188,7 @@
           "BANG",
           "LIST"
         ],
-        "doc": "Value inlet 0 — accepts bang / int / float / list.",
+        "doc": "Bang, int, float or list, passed on when select is 1.",
         "index": 1,
         "label": "in0",
         "range": ""
@@ -12200,7 +12200,7 @@
           "BANG",
           "LIST"
         ],
-        "doc": "Value inlet 1 — accepts bang / int / float / list.",
+        "doc": "Bang, int, float or list, passed on when select is 2.",
         "index": 2,
         "label": "in1",
         "range": ""
@@ -12210,7 +12210,7 @@
     "name": ".switch",
     "outlets": [
       {
-        "doc": "Forwarded value from the currently selected inlet.",
+        "doc": "Messages from the selected inlet.",
         "index": 0,
         "label": "out",
         "range": "",
@@ -12220,9 +12220,9 @@
     "params": [
       {
         "default": "2",
-        "doc": "Number of value inlets (additional inlets are created by SetParams).",
+        "doc": "How many inlets to pass from. Fewer than 2 still builds 2.",
         "name": "numInlets",
-        "range": "1+"
+        "range": "2+"
       }
     ],
     "requires_midi_device": false

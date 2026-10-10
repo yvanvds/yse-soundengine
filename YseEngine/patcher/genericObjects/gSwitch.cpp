@@ -33,15 +33,17 @@ CONSTRUCT() {
   numInlets = 2;
 
   ADD_DESCRIPTION(
-      "Selector switch. Routes one of N value inlets to a single outlet, chosen by the index on "
-      "inlet 0. The number of value inlets is set by the numInlets parameter.");
+      "Passes messages from one of its right-hand inlets to the outlet, chosen by a number in the "
+      "left inlet. Inlets count from 1; 0 closes the switch.");
   ADD_CATEGORY(pCategory::ROUTING);
-  INLET_DOC(0, "select", "Index (0-based) of the value inlet to forward.", "0+");
-  INLET_DOC(1, "in0", "Value inlet 0 — accepts bang / int / float / list.", "");
-  INLET_DOC(2, "in1", "Value inlet 1 — accepts bang / int / float / list.", "");
-  OUTLET_DOC(0, "out", "Forwarded value from the currently selected inlet.", "");
-  PARAM_DOC("numInlets", "2",
-            "Number of value inlets (additional inlets are created by SetParams).", "1+");
+  INLET_DOC(0, "select",
+            "Which inlet passes, counting from 1 for the inlet next to this one. 0 (the start "
+            "value) or a number with no inlet passes nothing.",
+            "0+");
+  INLET_DOC(1, "in0", "Bang, int, float or list, passed on when select is 1.", "");
+  INLET_DOC(2, "in1", "Bang, int, float or list, passed on when select is 2.", "");
+  OUTLET_DOC(0, "out", "Messages from the selected inlet.", "");
+  PARAM_DOC("numInlets", "2", "How many inlets to pass from. Fewer than 2 still builds 2.", "2+");
 }
 
 INT_IN(SetActiveInlet) {
