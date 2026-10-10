@@ -313,7 +313,8 @@ cheap and safe on the audio thread.
 .. patcher-object:: .ftom
 
 The scale is equal temperament with 12 notes per octave: 440 Hz is 69, 880 Hz
-is 81, and 450 Hz is about 69.39. Give it a frequency above 0.
+is 81, and 450 Hz is about 69.39. A frequency of 0 or below has no note, so it
+gives -1500, which ``.mtof`` turns back into a frequency of almost 0.
 
 .. patcher-object:: .histo
 
@@ -407,7 +408,8 @@ positive number. Give it an argument, or a number on the right inlet.
 
 The scale is equal temperament with 12 notes per octave: 69 is 440 Hz, 60
 (middle C) is about 261.63 Hz, and 69.5 is a quarter tone above A4. Note
-numbers outside 0-127 work too.
+numbers outside 0-127 work too, from -1500 to 1499: a higher note is treated
+as 1499, and a lower one gives 0 Hz.
 
 .. patcher-object:: .past
 
@@ -668,16 +670,13 @@ result is ``outLow``. The inlets work as described under ``.+``.
 
 - The left inlet takes the audio signal. Nothing comes out while no audio
   reaches it.
-- The right inlet takes an audio signal or a float. While audio is connected
-  there, it is used sample by sample; otherwise the last float is used, or
-  the argument until a float arrives.
-- A new float takes effect at the next audio block and is not smoothed, so a
+- The right inlet takes an audio signal or a number, int or float. While
+  audio is connected there, it is used sample by sample; otherwise the last
+  number is used, or the argument until a number arrives.
+- A new number takes effect at the next audio block and is not smoothed, so a
   large jump can click. Ramp it with ``~line`` instead.
-- The right inlet takes floats only; an int is ignored, so send ``2.`` rather
-  than ``2``.
-- The argument is 1 when it is not given, for all four objects. A bare ``~+``
-  therefore adds 1 and a bare ``~-`` subtracts 1: give them an argument of 0,
-  or connect the right inlet.
+- When no argument is given, ``~+`` and ``~-`` use 0 and ``~*`` and ``~/``
+  use 1, so a bare object passes the signal through unchanged.
 
 .. code-block:: text
 
@@ -685,12 +684,12 @@ result is ``outLow``. The inlets work as described under ``.+``.
 
 .. patcher-object:: ~/
 
-A float of 0 on the right inlet leaves the signal unchanged. An audio divisor
+A number of 0 on the right inlet leaves the signal unchanged. An audio divisor
 that reaches 0 produces infinite samples, so keep it away from 0. The other
 rules are described under ``~*``.
 
 .. patcher-object:: ~clip
 
-The limits are floats; an int on the low or high inlet is ignored. When low
+The low and high inlets take ints and floats. When low
 is above high, every sample becomes high. New limits take effect at the next
 audio block.

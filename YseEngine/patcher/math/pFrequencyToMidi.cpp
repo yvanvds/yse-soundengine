@@ -19,7 +19,8 @@ CONSTRUCT() {
   ADD_DESCRIPTION("Converts a frequency in Hz to a MIDI note number, with 440 Hz (A4) at note 69. "
                   "The result is fractional, so a detuned pitch keeps its offset.");
   ADD_CATEGORY(pCategory::MATH);
-  INLET_DOC(0, "freq", "Frequency in Hz, above 0; sends the result.", "0-20000 Hz");
+  INLET_DOC(0, "freq", "Frequency in Hz; sends the result. 0 Hz or below gives -1500.",
+            "0-20000 Hz");
   OUTLET_DOC(0, "midi", "MIDI note number, with a fractional part.", "any float");
 }
 

@@ -242,8 +242,8 @@ TEST_SUITE("patcher") {
   }
 
   TEST_CASE("midiout: a binary message carrying a zero byte survives (#748)") {
-    // `.bendout` sends the fine byte as 0, and `.programchange` pads with one.
-    // A reader that stopped at a NUL would cut both messages short.
+    // `.bendout` sends the fine byte as 0. A reader that stopped at a NUL
+    // would cut the message short.
     const Wire bend = Send(Binary(0xE0, 0, 96));
     CHECK(bend.how == midiByteList::characters);
     REQUIRE(bend.bytes.size() == 3u);
@@ -368,6 +368,89 @@ TEST_SUITE("patcher") {
     CHECK(wire.bytes[2] == 100);
 
     patch.DeleteObject(noteon);
+  }
+
+  TEST_CASE("midiout: .programchange and .channelpressure send two bytes, not three (#1014)") {
+    // Both messages carry one data byte. A padding third byte went out on the
+    // wire once `.midiout` honoured a list's length (#748) — and under running
+    // status it reads as a second program change to 0, or a second pressure of
+    // 0, on any receiver that parses the stream.
+    struct Case {
+      const char* type;
+      int status;
+    };
+    for (const Case c : {Case{YSE::OBJ::M_PROGCHANGE, 0xC0}, Case{YSE::OBJ::M_CHANPRESS, 0xD0}}) {
+      const std::string type = c.type;
+      CAPTURE(type);
+      YSE::patcher patch;
+      patch.create(2);
+
+      YSE::pHandle* sender = patch.CreateObject(c.type, "2");
+      REQUIRE(sender != nullptr);
+
+      TestHelpers::ListSink sink;
+      auto handle = std::make_unique<YSE::pHandle>(&sink);
+      patch.Connect(sender, 0, handle.get(), 0);
+
+      sender->SetIntData(0, 5);
+      REQUIRE(sink.gotList);
+
+      const Wire wire = Send(sink.received);
+      CHECK(wire.how == midiByteList::characters);
+      REQUIRE(wire.bytes.size() == 2u);
+      CHECK(wire.bytes[0] == c.status + 2);
+      CHECK(wire.bytes[1] == 5);
+
+      patch.DeleteObject(sender);
+    }
+  }
+
+  TEST_CASE("midiout: the six older senders clamp the channel to 0-15 (#1014)") {
+    // A channel outside 0-15 used to carry into the status nibble and turn the
+    // message into a different one: `.noteon 16` sent poly pressure. They now
+    // clamp it, as `.bendout` does (#532).
+    struct Case {
+      const char* type;
+      const char* extra; // arguments after the channel
+      int status;
+    };
+    const Case cases[] = {
+        {YSE::OBJ::M_NOTEON, "", 0x90},    {YSE::OBJ::M_NOTEOFF, "", 0x80},
+        {YSE::OBJ::M_CONTROL, " 7", 0xB0}, {YSE::OBJ::M_POLYPRESS, "", 0xA0},
+        {YSE::OBJ::M_CHANPRESS, "", 0xD0}, {YSE::OBJ::M_PROGCHANGE, "", 0xC0},
+    };
+    struct Channel {
+      const char* arg;
+      int expected;
+    };
+    for (const Case& c : cases) {
+      for (const Channel ch : {Channel{"16", 15}, Channel{"200", 15}, Channel{"-1", 0}}) {
+        const std::string type = c.type;
+        const std::string arg = ch.arg;
+        CAPTURE(type);
+        CAPTURE(arg);
+        YSE::patcher patch;
+        patch.create(2);
+
+        const std::string args = std::string(ch.arg) + c.extra;
+        YSE::pHandle* sender = patch.CreateObject(c.type, args.c_str());
+        REQUIRE(sender != nullptr);
+
+        TestHelpers::ListSink sink;
+        auto handle = std::make_unique<YSE::pHandle>(&sink);
+        patch.Connect(sender, 0, handle.get(), 0);
+
+        sender->SetIntData(0, 60);
+        REQUIRE(sink.gotList);
+
+        const Wire wire = Send(sink.received);
+        CHECK(wire.how == midiByteList::characters);
+        REQUIRE_FALSE(wire.bytes.empty());
+        CHECK(wire.bytes[0] == c.status + ch.expected);
+
+        patch.DeleteObject(sender);
+      }
+    }
   }
 
   // ─── the deferred port open (#759) ────────────────────────────────────────

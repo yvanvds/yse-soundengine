@@ -17,7 +17,12 @@ namespace YSE {
   private:
     aFlt target;
     aFlt time;
-    bool stop;
+    // `stop` asks the next block to freeze the ramp. `targetSerial` counts the
+    // targets received; `stoppedAt` is its value when the last stop arrived, so
+    // the object holds while the two are equal (#1019).
+    aBool stop;
+    aInt targetSerial;
+    aInt stoppedAt;
     DSP::ramp ramp;
   };
 }

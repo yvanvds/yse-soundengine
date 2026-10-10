@@ -17,8 +17,7 @@ byte set to 0. That matches what ``.bendin`` and ``.midiparse`` report, so a
 value means the same on the way in and on the way out. ``.xbendout`` sends
 the full 14 bits.
 
-The channel argument and the output work as described under ``.noteon``,
-except that a channel outside 0-15 is clamped.
+The channel argument and the output work as described under ``.noteon``.
 
 .. patcher-object:: .borax
 
@@ -408,7 +407,8 @@ share these rules:
 
 - The channel is a creation argument counted from 0: ``0`` is MIDI channel 1
   and ``15`` is channel 16. This differs from the input objects and
-  ``.midiformat``, which number channels 1-16. Keep it within 0-15.
+  ``.midiformat``, which number channels 1-16. A channel outside 0-15 is
+  clamped.
 - The leftmost inlet sends the message. The other inlets store a value for
   the next message.
 - Values are clamped to the range MIDI allows rather than refused.
@@ -680,14 +680,13 @@ under ``.midiin``.
 .. patcher-object:: .xbendout
 
 The value is clamped to 0-16383. The channel argument and the output work as
-described under ``.noteon``, except that a channel outside 0-15 is clamped.
+described under ``.noteon``.
 
 .. patcher-object:: .xbendout2
 
 The left inlet takes the coarse byte (64 at rest) and sends; the right inlet
 stores the fine byte. Both are clamped to 0-127. The channel argument and the
-output work as described under ``.noteon``, except that a channel outside
-0-15 is clamped.
+output work as described under ``.noteon``.
 
 .. patcher-object:: .xctlin
 
@@ -710,8 +709,7 @@ controller number, then the fine half on that number plus 32. Only
 controllers 0-31 have a fine half, so the controller number is clamped to
 0-31. The value is clamped to 0-16383.
 
-The channel argument and the output work as described under ``.noteon``,
-except that a channel outside 0-15 is clamped.
+The channel argument and the output work as described under ``.noteon``.
 
 .. patcher-object:: .xmidiin
 
@@ -746,5 +744,4 @@ carrying the release velocity from the right inlet, which defaults to 64.
 All three values are clamped to 0-127. The middle and right inlets store
 their value for the next pitch.
 
-The channel argument and the output work as described under ``.noteon``,
-except that a channel outside 0-15 is clamped.
+The channel argument and the output work as described under ``.noteon``.

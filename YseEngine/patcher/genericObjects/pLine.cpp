@@ -29,6 +29,8 @@ CONSTRUCT_DSP() {
   ADD_PARAM(time);
 
   stop = false;
+  targetSerial = 0;
+  stoppedAt = -1; // not holding
 
   ADD_DESCRIPTION("Linear-ramp generator. Ramps an audio-rate value toward a target over a given "
                   "time in ms.");
@@ -42,12 +44,14 @@ CONSTRUCT_DSP() {
 
 MESSAGES() {
   if (message == "stop") {
+    stoppedAt = targetSerial.load();
     stop = true;
   }
 }
 
 FLOAT_IN(SetTarget) {
   target = value;
+  ++targetSerial;
 }
 
 FLOAT_IN(SetTime) {
@@ -55,14 +59,13 @@ FLOAT_IN(SetTime) {
 }
 
 CALC() {
-  if (stop) {
-    // Holds for this block only: `target` still has the old value, so the next
-    // setIfNew() restarts the ramp (#1019).
-    ramp.stop();
-    stop = false;
-  } else {
-    ramp.setIfNew(target, (int)time);
-  }
+  if (stop.exchange(false)) ramp.stop();
+  // ramp.stop() only moves the ramp's own target, so `target` still holds the
+  // value from before the stop. Feeding it to setIfNew() would restart the ramp
+  // on the next block; hold instead until a new target has arrived (#1019). A
+  // target sent after the stop, even in the same block, bumps the serial and
+  // wins.
+  if (targetSerial.load() != stoppedAt.load()) ramp.setIfNew(target, (int)time);
   ramp.update();
   outputs[0].SendBuffer(&ramp(), thread);
 }

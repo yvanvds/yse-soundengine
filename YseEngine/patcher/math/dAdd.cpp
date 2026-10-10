@@ -10,16 +10,17 @@ CONSTRUCT_DSP() {
   // default data
   leftIn = nullptr;
   rightIn = nullptr;
-  rightFloatIn = 1.f;
+  rightFloatIn = 0.f; // the identity of addition, so a bare ~+ is neutral (#1015)
 
   // in 0: audio buffer
   ADD_IN_0;
   REG_BUFFER_IN(SetLeftBuffer);
 
-  // in 1: multiplier (float or audio)
+  // in 1: addend (int, float or audio)
   ADD_IN_1;
   REG_BUFFER_IN(SetRightBuffer);
   REG_FLOAT_IN(SetRightFloat);
+  REG_INT_IN(SetRightInt);
 
   // out 0: audio output
   ADD_OUT_BUFFER;
@@ -29,9 +30,9 @@ CONSTRUCT_DSP() {
   ADD_DESCRIPTION("Adds two audio signals, or adds a float to an audio signal.");
   ADD_CATEGORY(pCategory::MATH);
   INLET_DOC(0, "left", "Audio signal.", "any float");
-  INLET_DOC(1, "right", "Audio signal, or a float used while no audio is connected.", "any float");
+  INLET_DOC(1, "right", "Audio signal, or a number used while no audio is connected.", "any float");
   OUTLET_DOC(0, "out", "left + right.", "any float");
-  PARAM_DOC("right", "1.0", "Float used while no audio is connected to the right inlet.",
+  PARAM_DOC("right", "0", "Float used while no audio is connected to the right inlet.",
             "any float");
 }
 
@@ -45,6 +46,10 @@ BUFFER_IN(SetRightBuffer) {
 
 FLOAT_IN(SetRightFloat) {
   rightFloatIn = value;
+}
+
+INT_IN(SetRightInt) {
+  rightFloatIn = static_cast<float>(value);
 }
 
 RESET() // {

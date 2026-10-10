@@ -6917,7 +6917,7 @@
           "FLOAT",
           "INT"
         ],
-        "doc": "Frequency in Hz, above 0; sends the result.",
+        "doc": "Frequency in Hz; sends the result. 0 Hz or below gives -1500.",
         "index": 0,
         "label": "freq",
         "range": "0-20000 Hz"
@@ -14399,9 +14399,10 @@
       {
         "accepts": [
           "BUFFER",
-          "FLOAT"
+          "FLOAT",
+          "INT"
         ],
-        "doc": "Audio signal, or a float used while no audio is connected.",
+        "doc": "Audio signal, or a number used while no audio is connected.",
         "index": 1,
         "label": "right",
         "range": "any float"
@@ -14444,9 +14445,10 @@
       {
         "accepts": [
           "BUFFER",
-          "FLOAT"
+          "FLOAT",
+          "INT"
         ],
-        "doc": "Audio signal, or a float used while no audio is connected.",
+        "doc": "Audio signal, or a number used while no audio is connected.",
         "index": 1,
         "label": "right",
         "range": "any float"
@@ -14465,7 +14467,7 @@
     ],
     "params": [
       {
-        "default": "1.0",
+        "default": "0",
         "doc": "Float used while no audio is connected to the right inlet.",
         "name": "right",
         "range": "any float"
@@ -14489,9 +14491,10 @@
       {
         "accepts": [
           "BUFFER",
-          "FLOAT"
+          "FLOAT",
+          "INT"
         ],
-        "doc": "Audio signal, or a float used while no audio is connected.",
+        "doc": "Audio signal, or a number used while no audio is connected.",
         "index": 1,
         "label": "right",
         "range": "any float"
@@ -14510,7 +14513,7 @@
     ],
     "params": [
       {
-        "default": "1.0",
+        "default": "0",
         "doc": "Float used while no audio is connected to the right inlet.",
         "name": "right",
         "range": "any float"
@@ -14534,9 +14537,10 @@
       {
         "accepts": [
           "BUFFER",
-          "FLOAT"
+          "FLOAT",
+          "INT"
         ],
-        "doc": "Audio signal, or a float used while no audio is connected. A float of 0 leaves the signal unchanged.",
+        "doc": "Audio signal, or a number used while no audio is connected. A number of 0 leaves the signal unchanged.",
         "index": 1,
         "label": "right",
         "range": "any non-zero float"
@@ -14639,7 +14643,7 @@
         "range": "0-20000 Hz"
       },
       {
-        "default": "0",
+        "default": "1",
         "doc": "Initial Q / resonance.",
         "name": "Q",
         "range": "0.1-100"
@@ -14662,18 +14666,20 @@
       },
       {
         "accepts": [
-          "FLOAT"
+          "FLOAT",
+          "INT"
         ],
-        "doc": "Lower limit, as a float.",
+        "doc": "Lower limit, as an int or a float.",
         "index": 1,
         "label": "low",
         "range": "any float"
       },
       {
         "accepts": [
-          "FLOAT"
+          "FLOAT",
+          "INT"
         ],
-        "doc": "Upper limit, as a float.",
+        "doc": "Upper limit, as an int or a float.",
         "index": 2,
         "label": "high",
         "range": "any float"
