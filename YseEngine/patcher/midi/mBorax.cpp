@@ -33,47 +33,15 @@ namespace {
   }
 
   constexpr char kPitchInletDoc[] =
-      "The pitch, and the half of the pair that acts. An int or a float here is paired with the "
-      "stored velocity and measured: a non-zero velocity takes the lowest free voice, gives the "
-      "note the next serial number and reports it, while a velocity of 0 closes off the voice "
-      "holding that pitch and reports how long it lasted — 0 being how the whole MIDI world spells "
-      "a release. A float pitch is truncated to an int, as it is in Max. A list is Max's inlet "
-      "distribution written on one cord: the first element is the pitch and a second element sets "
-      "the velocity first, so '60 100' measures pitch 60 at velocity 100 and '60 0' ends it — "
-      "which "
-      "is exactly the shape '.midiparse''s note outlet sends. Further elements are ignored. A "
-      "single-token numeric list is the number it spells, so a '.m 60' reaches this inlet as a "
-      "pitch. The message 'delta' sends the time since the last note-on out the two delta outlets "
-      "without touching anything else, which is how a patch asks how long it has been quiet. A "
-      "release for a pitch no voice is holding, and a note-on with all 128 voices taken, are both "
-      "ignored silently — there is nothing true to report about either. Any pitch at all can be "
-      "measured, the table holding pitches rather than being a bitmap over the MIDI note range. "
-      "There is no bang method here: Max's bang is the right inlet's, and it resets.";
+      "A pitch is measured as a note-on, or as a note-off when the stored velocity is 0. A list "
+      "\"pitch velocity\" sets the velocity first. \"delta\" reports the time since the last "
+      "note-on.";
 
   constexpr char kVelocityInletDoc[] =
-      "Sets the velocity that pitches arriving *after* it will be paired with — Max's middle "
-      "inlet. "
-      "It outputs nothing by itself: only a pitch completes a note, so only a pitch can start a "
-      "measurement or end one. Ints, floats and a list whose leading token is a number all set it; "
-      "a float is truncated. The value is stored and reported exactly as given, unclamped and "
-      "never "
-      "refused for being outside MIDI's 0-127 — this object measures notes, it does not rewrite "
-      "them, and 0 is the only value it reads meaning into, that being what a release is spelled "
-      "with.";
+      "Velocity for the pitches that follow; sends nothing. 0 means a note-off. Not clamped.";
 
   constexpr char kResetInletDoc[] =
-      "A bang resets — Max's only bang, and his wording: 'resets borax by sending note-offs for "
-      "all "
-      "notes currently being held, erasing the borax object's memory of all notes received, and "
-      "setting its counters and its clock to 0'. The note-offs are full note-off reports, duration "
-      "and note-off count included, and go out in ascending voice order before the counters are "
-      "zeroed: the durations are the one thing this object measured that nothing else could "
-      "reconstruct, so a reset hands them over rather than dropping them. Afterwards the note "
-      "serial, the note-off count and the delta count all start again from zero, no voice is "
-      "sounding, and the next note-on reports no delta — there being no earlier attack left to "
-      "measure from. A reset with nothing sounding sends nothing but still zeroes the counters. "
-      "The "
-      "inlet takes nothing but a bang; a number here is neither a pitch nor a velocity.";
+      "A bang reports a note-off for every sounding note, then sets every counter back to 0.";
 
 } // namespace
 
@@ -113,62 +81,8 @@ CONSTRUCT() {
   // configure — the table is the MIDI note range and the clock is the engine's.
 
   ADD_DESCRIPTION(
-      "Reports note-on and note-off statistics over a stream of pitch/velocity pairs — Max's "
-      "'borax', his 'swiss army knife for music analysis'. Nine outlets report what the stream is "
-      "doing: the serial number of each note, the voice it took, how many notes are sounding, the "
-      "pitch and velocity, how many notes have completed, how long the one that just ended lasted "
-      "in milliseconds, how many delta times have been reported and how far apart successive "
-      "attacks are. This is the input side of adaptive musical behaviour and the only object in "
-      "the "
-      "patcher that answers those questions: everything else around a note either makes one "
-      "('.makenote', '.noteon'), routes one ('.poly'), filters one ('.stripnote') or cleans up "
-      "after one ('.flush', '.sustain', '.midiflush'), so a patch that wants to play denser when "
-      "the performer plays faster, or pick a reverb size from how long a phrase's notes are, had "
-      "no "
-      "way to ask before this. Where '.timer' measures one interval between two bangs, this "
-      "measures every note in a polyphonic stream at once, each against its own attack. It reports "
-      "rather than holds: the notes it knows about are sounding somewhere else, and it is wired "
-      "alongside that rather than in the path. The leftmost outlet is the note's own serial and "
-      "not "
-      "a running total — the same number that came out at the attack comes out again at the "
-      "release, which is what lets something that saw both recognise them as one event and is why "
-      "a duration is worth reporting beside it. Voices are the lowest free number, from 1, which "
-      "is "
-      "'.poly''s numbering so that a '.borax' watching a stream a '.poly' also allocates does not "
-      "report different numbers for the same notes; a repeated pitch takes a second voice and the "
-      "two release oldest-first, so a balanced source stays balanced. It never steals and has no "
-      "overflow outlet — stealing exists so a sounding voice can be reused and this object sounds "
-      "nothing — so a note-on with all 128 voices taken is ignored, as is a note-off for a pitch "
-      "no "
-      "voice is holding: both silently, the thread being routinely the audio callback where a "
-      "warning would be an allocation. The outlets fire right to left, Max's order, which here is "
-      "not cosmetic: the serial is the value a patch keys on, so it has to reach a hot inlet last "
-      "or it would carry the previous note's figures with it. Not every outlet fires on every "
-      "message, and that selectivity is Max's and is information — the duration and note-off count "
-      "only on a note-off, the two delta outlets only on a note-on that had a predecessor or on "
-      "the "
-      "'delta' message, which takes a reading on demand and emits nothing before the first "
-      "note-on. "
-      "The milliseconds are measured, never counted: the clock is std::chrono::steady_clock, which "
-      "is '.timer''s reading, the patcher timer thread's scheduling clock and the engine's own "
-      "time source, so a duration never disagrees with a '.timer' beside it; it is deliberately "
-      "not "
-      "the deferred-message scheduler '.makenote' arms releases on, that being the patcher's block "
-      "counter and right for scheduling but a block coarse for measuring. A bang in the right "
-      "inlet "
-      "resets, Max's wording: it sends note-offs for everything held — full reports, durations "
-      "included — then zeroes the counters and the clock. There is no teardown release (issue "
-      "#758) and deliberately so: '.flush', '.poly' and '.makenote' override it because each is "
-      "the "
-      "only thing that knows about a sounding note, while this object knows about no note "
-      "something "
-      "else does not, and a burst of duplicate note-off reports timing how long the patcher took "
-      "to "
-      "die would be a worse answer than silence. Like '.poly' and '.flush' it opens no device and "
-      "needs none, so it works on every platform. The table is 128 entries allocated with the "
-      "object, no path allocates, locks or blocks on the audio thread — every one is a bounded "
-      "walk "
-      "plus one clock read, and no outlet carries text — and Calculate() does nothing.");
+      "Reports statistics about a stream of notes: serial number, voice, how many notes "
+      "are sounding, durations and the time between attacks.");
   ADD_CATEGORY(pCategory::MIDI);
 
   INLET_DOC(0, "pitch", kPitchInletDoc, "int, float, list, 'delta'");
@@ -176,63 +90,19 @@ CONSTRUCT() {
   INLET_DOC(2, "reset", kResetInletDoc, "bang");
 
   OUTLET_DOC(0, "serial",
-             "The number this note was given, counting note-ons from 1 since the last reset. Max's "
-             "leftmost outlet, and not a running total: the same number goes out at the attack and "
-             "again at the release, which is what lets something that saw both recognise them as "
-             "one event and pair a duration with the note it belongs to. Sent last, after every "
-             "other outlet, Max's outlets firing right to left — this is the value a patch keys "
-             "on, so everything downstream takes it on a hot inlet.",
+             "The note's number, counting note-ons from 1. The same at its note-on and its "
+             "note-off. Sent last.",
              "1+");
-  OUTLET_DOC(1, "voice",
-             "The voice this note took: the lowest number not already in use, from 1. A voice "
-             "comes free when the note holding it is released, so a patch with more voices than it "
-             "uses always sees the low ones. The same number comes out again at the release. "
-             "Numbered from 1 like '.poly''s, so the two objects watching one stream agree.",
-             "1-128");
-  OUTLET_DOC(
-      2, "poly",
-      "How many notes are sounding right now, sent on every note-on and every note-off — "
-      "the figure this object mostly exists to make a patch able to ask for. It counts up on "
-      "an attack and down on a release, so a patch reads 0 as 'the passage has ended' and "
-      "reads a rising number as a thickening texture.",
-      "0-128");
-  OUTLET_DOC(3, "pitch",
-             "The pitch of the note being started or ended. The same value on the way in and on "
-             "the way out, so a release is identifiable as belonging to its attack. Any int at "
-             "all — the table holds pitches rather than being a bitmap over the MIDI range.",
-             "int");
-  OUTLET_DOC(4, "velocity",
-             "The velocity: the stored one when a note starts, and 0 for every release, including "
-             "the ones a reset sends. Reported exactly as it was given, unclamped.",
-             "int");
-  OUTLET_DOC(5, "notesoff",
-             "How many notes have completed since the last reset, sent only when one does — Max's "
-             "sixth outlet, the count that accompanies each duration. Together with the note "
-             "serial it says how much of what was played has finished.",
-             "1+");
-  OUTLET_DOC(6, "duration",
-             "How long the note that just ended lasted, in milliseconds, sent only on a note-off "
-             "— and on the note-offs a reset sends. Measured rather than counted: the attack and "
-             "the release each read the engine's monotonic clock (std::chrono::steady_clock, the "
-             "same source '.timer' reads and the patcher's timer thread schedules on) and the "
-             "figure is their difference, so a message the OS delivered late is timed at the "
-             "instant it really arrived. A float rather than Max's int, because a grace note and "
-             "the next note of a rolled chord can differ by less than a millisecond. Sent before "
-             "the note-off count, Max's outlets firing right to left.",
-             "0+ ms");
-  OUTLET_DOC(7, "deltacount",
-             "How many delta times have been reported since the last reset — Max's eighth outlet. "
-             "Both a note-on that had a predecessor and the 'delta' message add one, and it is "
-             "sent whenever a delta is. It stays silent when the delta outlet does, so a patch "
-             "reads a repeat of the previous number as 'no new attack', never as a new one.",
-             "1+");
+  OUTLET_DOC(1, "voice", "The voice the note took: the lowest free number, from 1.", "1-128");
+  OUTLET_DOC(2, "poly", "How many notes are sounding, on every note-on and note-off.", "0-128");
+  OUTLET_DOC(3, "pitch", "The pitch of the note that started or ended.", "int");
+  OUTLET_DOC(4, "velocity", "The stored velocity at a note-on, 0 at a note-off.", "int");
+  OUTLET_DOC(5, "notesoff", "How many notes have ended, sent at each note-off.", "1+");
+  OUTLET_DOC(6, "duration", "How long the note that just ended lasted, in milliseconds.", "0+ ms");
+  OUTLET_DOC(7, "deltacount", "How many delta times have been reported, sent with each one.", "1+");
   OUTLET_DOC(8, "delta",
-             "The time between successive attacks, in milliseconds — how fast the passage is "
-             "being played. Sent on every note-on except the first, there being no earlier attack "
-             "to measure from, and on the 'delta' message, which takes the reading on demand (the "
-             "time since the last note-on, right now) and is how a patch asks how long it has been "
-             "quiet. Same clock, same float, and the same reasons as the duration outlet. Sent "
-             "first of all, Max's outlets firing right to left.",
+             "Milliseconds since the previous note-on, sent at each note-on after the first and "
+             "on \"delta\".",
              "0+ ms");
 }
 

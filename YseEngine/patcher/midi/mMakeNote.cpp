@@ -45,36 +45,16 @@ namespace {
   }
 
   constexpr char kPitchInletDoc[] =
-      "The pitch, and the trigger. An int or a float arriving here is sent straight out the left "
-      "outlet with the stored velocity out the right one, and the same pitch is sent again with "
-      "velocity 0 once the duration has elapsed — Max's 'a note-on message paired with a velocity "
-      "value followed by a note-off message after a specified amount of time'. A float pitch is "
-      "truncated to an int, as it is in Max. A list is Max's inlet distribution written on one "
-      "cord: the first element is the pitch and a second element sets the velocity first, so "
-      "'60 100' plays pitch 60 at velocity 100 and leaves the velocity at 100 for the notes after "
-      "it. Further elements are ignored, there being no channel outlet here. A single-token "
-      "numeric list is the number it spells, so a .m 60 reaches this inlet as a pitch. The message "
-      "'stop' releases every note this object is holding immediately, in the order they were "
-      "played, and 'clear' forgets them without sending anything — Max's two commands, and words "
-      "rather than pitches. There is no bang method, as Max's makenote has none.";
+      "A pitch plays a note with the stored velocity and duration. A list \"pitch velocity\" sets "
+      "the velocity first. \"stop\" releases every sounding note; \"clear\" forgets them.";
 
   constexpr char kVelocityInletDoc[] =
-      "Sets the velocity for pitches arriving *after* it — Max's middle inlet. Notes already "
-      "sounding are unaffected, their release always being velocity 0. Ints, floats and a list "
-      "whose leading token is a number all set it; a float is truncated. Values outside MIDI's "
-      "0-127 are clamped when the velocity is read, because this value decides whether a release "
-      "is scheduled at all. A velocity of 0 is a release in MIDI, so the pair goes out unchanged "
-      "and nothing is scheduled behind it.";
+      "Velocity for the notes that follow; sends nothing. Clamped to 0-127. With 0, the pair "
+      "passes through and no release is scheduled.";
 
   constexpr char kDurationInletDoc[] =
-      "Sets how long notes played *after* it will sound, in milliseconds — Max's right inlet. "
-      "Notes already sounding keep the duration they were played with, which is what lets a patch "
-      "shorten the duration under a long note without cutting it off. Ints, floats and a list "
-      "whose leading token is a number all set it; a negative or NaN duration counts as 0, which "
-      "still releases on the next audio block rather than inside the same dispatch. Max's "
-      "tempo-relative time syntax is not read here — this object has no clock to measure a beat "
-      "against — and a note value ('4nd') or tick count ('1440 ticks') is refused outright rather "
-      "than misread as the milliseconds it is not, leaving the duration where it was.";
+      "Duration in milliseconds for the notes that follow; sends nothing. A negative value counts "
+      "as 0. Note values and ticks are not supported.";
 
 } // namespace
 
@@ -107,74 +87,22 @@ CONSTRUCT() {
   duration = DEFAULT_DURATION;
 
   ADD_DESCRIPTION(
-      "Plays a note: a pitch and a velocity out now, and the same pitch with velocity 0 a duration "
-      "later. This is the object that lets a patch play a note at all without hanging one. Every "
-      "MIDI sender downstream of it — .noteon, .midiformat, the .x*out family — is a stateless "
-      "formatter that sends what it is handed and remembers nothing, so a patch that plays a note "
-      "has to send its own release, and forgetting one is the single most common way to strand a "
-      "synth. .midiflush is the cure for that after the fact; this is the prevention, because the "
-      "release is scheduled at the same instant as the attack. A pitch in the left inlet plays; "
-      "the middle inlet sets the velocity and the right one the duration in milliseconds, both for "
-      "notes played after them, so a note already sounding is never retimed or revoiced under a "
-      "patch's feet. A list in the left inlet is Max's inlet distribution on one cord: '60 100' is "
-      "pitch 60 at velocity 100. The velocity goes out the right outlet before the pitch goes out "
-      "the left, Max's outlets firing right to left, which here is not cosmetic — every sender "
-      "downstream takes pitch on a hot inlet and velocity on a cold one, so a pitch sent first "
-      "would carry the previous note's velocity. 'stop' releases everything sounding immediately "
-      "in the order it was played and 'clear' forgets it without sending anything, which are Max's "
-      "two commands. The wait runs on the patcher's deferred-message scheduler (issue #628) rather "
-      "than on the timer thread behind .metro, so playing a note allocates nothing and takes no "
-      "lock, and the release arrives inside the patcher's own dispatch as the continuation of the "
-      "note-on rather than as an unrelated stimulus. That clock is the block counter, so it stops "
-      "when the engine does and a paused patch holds its pending releases where they stand instead "
-      "of firing them in a burst on resume, and its resolution is one audio block: a duration of 0 "
-      "releases on the next block rather than inside the same dispatch, which is what keeps a "
-      ".makenote wired back into its own inlet a fast trill instead of a stack overflow. At most "
-      "64 notes may sound at once per object, pre-allocated with it, and beyond that sits the "
-      "patcher-wide limit of 128 pending messages shared with .pipe, .delay, .qlist, .mtr and "
-      ".seq. The two overflows are answered differently and both are counted rather than logged, "
-      "the refusing thread being routinely the audio callback: a full pending set refuses the "
-      "whole note, attack included, because an attack this object has already proved it cannot "
-      "release is the hanging note it exists to prevent, while a full patcher-wide budget is only "
-      "discovered after the attack has gone out and so releases the note immediately instead — a "
-      "note shorter than it was asked to be rather than one that never ends. Unlike Max there are "
-      "always three inlets and two outlets: Max grows a channel pair when given three creation "
-      "arguments, and ports here are built before the arguments are parsed, but every sender "
-      "downstream already takes a channel of its own. Max's repeatmode is not implemented — this "
-      "object is poly, Max's default, so a repeated pitch is a second note with its own deadline — "
-      "and milliseconds are the only unit, a note value or tick count in the duration inlet being "
-      "refused rather than misread as milliseconds. A velocity of 0 is already a release in MIDI, "
-      "so it passes through and schedules nothing. A patcher cleared or destroyed while notes are "
-      "sounding releases them, and so does deleting the object on its own: the patcher stops every "
-      "object before it unwires any of them, and this object's stop is 'stop' (issue #758). "
-      "Calculate() does nothing and no message path allocates, locks or blocks.");
+      "Plays a note: sends a pitch and velocity now, and the same pitch with velocity 0 "
+      "after a duration in milliseconds.");
   ADD_CATEGORY(pCategory::MIDI);
 
   INLET_DOC(0, "pitch", kPitchInletDoc, "int, float, list, 'stop', 'clear'");
   INLET_DOC(1, "velocity", kVelocityInletDoc, "0-127");
   INLET_DOC(2, "duration", kDurationInletDoc, "0+ ms");
-  OUTLET_DOC(0, "pitch",
-             "The note's pitch, sent once when the note is played and again when it is released. "
-             "The same value both times, which is what lets a note-off find the note it belongs "
-             "to. Sent after the velocity, Max's outlets firing right to left.",
+  OUTLET_DOC(0, "pitch", "The pitch, when the note plays and again when it is released. Sent last.",
              "int");
-  OUTLET_DOC(1, "velocity",
-             "The note's velocity: the stored velocity when the note is played, and 0 when it is "
-             "released. Sent before the pitch so a sender downstream has it in hand by the time "
-             "the pitch reaches its hot inlet.",
-             "0-127");
+  OUTLET_DOC(1, "velocity", "The velocity when the note plays, 0 when it is released.", "0-127");
   PARAM_DOC("velocity", "0",
-            "The initial velocity — Max's first creation argument, whose documented default is 0. "
-            "The middle inlet overwrites it afterwards, for notes played after that. Clamped to "
-            "MIDI's 0-127 when it is read, and a velocity of 0 sends the pair without scheduling a "
-            "release, a note-on with velocity 0 already being a release in MIDI.",
+            "Starting velocity. With 0, notes pass through and no release is scheduled, so set "
+            "it or send a velocity before playing.",
             "0-127");
   PARAM_DOC("duration", "0",
-            "The initial note length in milliseconds — Max's second creation argument, whose "
-            "documented default is immediate. A duration of 0 is not the same as no note: the "
-            "release still comes on the next audio block, as its own event. The right inlet "
-            "overwrites it afterwards, for notes played after that. A negative value counts as 0. "
-            "Notes already sounding keep the duration they were played with.",
+            "Starting duration in milliseconds. 0 releases each note on the next audio block.",
             "0+ ms");
 }
 

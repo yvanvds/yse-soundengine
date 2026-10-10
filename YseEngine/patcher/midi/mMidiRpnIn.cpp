@@ -42,15 +42,11 @@ namespace {
   }
 
   constexpr char kChannelOutletDoc[] =
-      "The MIDI channel the sequence arrived on, 1-16 — the numbering Max uses, the numbering the "
-      "sending objects use, and the numbering printed on the hardware, rather than the 0-15 nibble "
-      "on the wire. Sent first, before the outlets to its left, so anything the leftmost outlet "
-      "triggers downstream already knows which channel it is looking at.";
+      "The channel the value arrived on, 1-16. Sent before the outlets to its left.";
 
   constexpr char kValueOutletDoc[] =
-      "The value written, 0-16383, sent last of the three so the parameter number and channel that "
-      "identify it are already out when it triggers anything. A device that sends only the coarse "
-      "byte covers the range in steps of 128.";
+      "The value written. Sent last. A device that sends only the coarse byte moves in steps of "
+      "128.";
 
 } // namespace
 
@@ -149,68 +145,24 @@ void mRpnInBase::Receive(const YSE::MIDI::inEvent& event, YSE::THREAD thread) {
 // ─── .rpnin ─────────────────────────────────────────────────────────────────
 
 mRpnIn::mRpnIn() : mRpnInBase(true) {
-  ADD_DESCRIPTION(
-      "Registered parameter number input — Max's 'rpnin' (issue #534). MIDI has 128 controller "
-      "numbers and a synthesiser has far more than 128 parameters; registered and non-registered "
-      "parameter numbers are the escape hatch, and this is the registered half. A write is not one "
-      "message but four control changes — controllers 101 and 100 select a 14-bit parameter "
-      "number, "
-      "then controllers 6 and 38 write a 14-bit value into whatever is selected — so this object "
-      "is "
-      "a small state machine rather than a decoder: nothing in the value bytes says which "
-      "parameter "
-      "they belong to, and remembering that is the whole job. The selection is tracked per "
-      "channel, "
-      "so two devices on one cable cannot cross-contaminate each other. Registered numbers are the "
-      "specification's own and mean the same thing on every device that implements them: 0 "
-      "pitch-bend sensitivity, 1 fine tuning, 2 coarse tuning, 3 tuning program select, 4 tuning "
-      "bank select. Manufacturer-specific numbers are '.nrpnin''s, and because both pairs move the "
-      "same selection register, an interleaved stream comes out of the right box — this object "
-      "stays quiet while a non-registered parameter is selected. The RPN Null (parameter 16383) "
-      "deselects, as the specification intends, so a Data Entry that follows an abandoned sequence "
-      "is reported by nobody. A value is emitted on both halves, not only on the fine one: the "
-      "coarse byte emits at once with the fine byte read as 0, which is what keeps the many "
-      "devices "
-      "that send only the coarse byte from leaving the object silent. The three outlets fire right "
-      "to left. A 'channel' argument filters and, unlike Max, leaves the channel outlet in place. "
-      "Events cross from the device backend's thread on a bounded lock-free queue and are drained "
-      "once per audio block, so nothing allocates, locks or blocks on either side.");
+  ADD_DESCRIPTION("Registered parameter (RPN) input. Follows the control changes that select and "
+                  "write a parameter, and reports each value written with its parameter number and "
+                  "channel.");
   OUTLET_DOC(1, "parameter",
-             "Which registered parameter was written, 0-16383: 0 pitch-bend sensitivity, 1 fine "
-             "tuning, 2 coarse tuning, 3 tuning program select, 4 tuning bank select. 16383 is "
-             "never reported — that is the Null, which deselects rather than selecting.",
+             "The registered parameter written: 0 pitch-bend range, 1 fine tuning, 2 coarse "
+             "tuning, 3 tuning program, 4 tuning bank.",
              "0-16382");
 }
 
 // ─── .nrpnin ────────────────────────────────────────────────────────────────
 
 mNrpnIn::mNrpnIn() : mRpnInBase(false) {
-  ADD_DESCRIPTION(
-      "Non-registered parameter number input — Max's 'nrpnin' (issue #534). The same mechanism "
-      "'.rpnin' reports, with controllers 99 and 98 selecting the 14-bit parameter number instead "
-      "of 101 and 100, and controllers 6 and 38 writing the 14-bit value as before. The difference "
-      "is what the number means: a registered number is the MIDI specification's and means the "
-      "same "
-      "everywhere, while a non-registered one means whatever the sending device's documentation "
-      "says. That is where a hardware synthesiser's filter cutoff, envelope times and oscillator "
-      "settings actually live, so this is the object that lets a patch follow a synth's own front "
-      "panel. A write is four control changes rather than one message and the selection is tracked "
-      "per channel; both selecting pairs move the same register, so this object stays quiet while "
-      "a "
-      "registered parameter is selected and an interleaved stream comes out of the right box. "
-      "Parameter 16383 is reported here — the Null is defined for registered numbers only, and "
-      "stealing a legal non-registered address would silence a device that used it. A value is "
-      "emitted on both halves, the coarse byte at once with the fine byte read as 0, so a device "
-      "that sends only the coarse byte is still heard. The three outlets fire right to left. A "
-      "'channel' argument filters and, unlike Max, leaves the channel outlet in place. Events "
-      "cross "
-      "from the device backend's thread on a bounded lock-free queue and are drained once per "
-      "audio "
-      "block, so nothing allocates, locks or blocks on either side.");
+  ADD_DESCRIPTION("Non-registered parameter (NRPN) input. Follows the control changes that select "
+                  "and write a device's own parameter, and reports each value written with its "
+                  "parameter number and channel.");
   OUTLET_DOC(1, "parameter",
-             "Which non-registered parameter was written, 0-16383. What each number means is the "
-             "sending device's business — read it off the manufacturer's MIDI implementation "
-             "chart.",
+             "The non-registered parameter written. What each number means is in the sending "
+             "device's documentation.",
              "0-16383");
 }
 

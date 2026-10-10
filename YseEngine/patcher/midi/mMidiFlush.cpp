@@ -87,50 +87,16 @@ CONSTRUCT() {
   // writes into storage that already exists.
   scratch.reserve(static_cast<std::size_t>(3) * (FORMAT_INT_WIDTH + 1));
 
-  ADD_DESCRIPTION(
-      "Releases every note left hanging — Max's 'midiflush' (issue #537), and the safety valve a "
-      "MIDI patch needs. Put it in the stream, between the senders and '.midiout' or straight "
-      "after '.midiin': everything that arrives at the inlet goes out of the outlet untouched, and "
-      "on the way through the object remembers which notes the bytes left sounding. A bang then "
-      "sends one note-off per sounding note, on exactly the channel it was played on, and empties "
-      "the set — so a patch stopped mid-phrase does not leave the device holding a chord until "
-      "someone power-cycles it. Nothing else in the patcher can do this: the sender objects are "
-      "stateless formatters that do not know what they have sent, and '.midiout''s 'allnotesoff' "
-      "is controller 123, which many devices ignore and which reaches only the one port that "
-      "object holds. The stream is decoded properly rather than searched for status bytes, because "
-      "a note-on may arrive with no status byte in front of it at all (running status, which is "
-      "how a chord is usually sent), a timing clock may land between its two data bytes, and a "
-      "system-exclusive dump is full of bytes that would read as notes if they were not inside a "
-      "dump — the same three rules '.midiparse' keeps. Both spellings of a release clear a note, a "
-      "note-off message and a note-on with velocity 0, so a device that uses either is not flushed "
-      "for notes it has already let go. Both of the patcher's spellings of a byte list are read, "
-      "the numeric one ('144 60 100', what '.midiformat', '.sxformat' and '.seq' send) and the "
-      "binary one (what '.noteon' and the older senders build), and a bare int is a byte too, "
-      "which is the shape '.midiin' emits. The note-offs it generates go out as numeric lists — "
-      "'128 60 0' — the only spelling that survives the 0 byte every one of them ends with. What "
-      "is sounding is a fixed bitmap of 16 channels by 128 pitches allocated with the object, so "
-      "neither the pass-through nor the flush allocates, locks or blocks on the audio thread. Like "
-      "'.midiparse' it opens no device and needs none, so it works on every platform. It also "
-      "flushes by itself when the patcher is cleared or destroyed, and when the object is deleted "
-      "on its own (issue #758): the patcher stops every object before it unwires any of them, so "
-      "the note-offs go out down a patch that is still whole and reach '.midiout' exactly as a "
-      "bang's do. Nothing can be promised for a process killed outright.");
+  ADD_DESCRIPTION("Passes a MIDI byte stream through and remembers which notes it left sounding. A "
+                  "bang sends a note-off for each of them.");
   ADD_CATEGORY(pCategory::MIDI);
 
   INLET_DOC(0, "midi",
-            "The MIDI stream, and the flush. Bytes arrive as a numeric list ('144 60 100', what "
-            "'.midiformat' and '.seq' send), as a binary list (what '.noteon' and the older "
-            "senders build), or as an int per byte (what '.midiin' emits); all three pass straight "
-            "out of the outlet and are read for the notes they turn on and off. A float is read as "
-            "an int, a value outside 0-255 is not a MIDI byte and is ignored rather than clamped, "
-            "and a numeric list carrying one is dropped whole rather than sent in part. A bang "
-            "here is the flush: a note-off for every note still sounding.",
+            "MIDI bytes as a list of byte values, a message from a sender object, or one int at a "
+            "time; all pass through. A bang sends a note-off for every sounding note.",
             "0-255");
   OUTLET_DOC(0, "midi",
-             "The stream, unaltered and in the spelling it arrived in, plus the note-offs a bang "
-             "generates. Those go out as numeric byte lists, '128 60 0' being middle C released on "
-             "channel 1, in channel then pitch order — feed the outlet to '.midiout' to reach "
-             "hardware, or to '.midiparse' to read what went past.",
+             "The stream, unchanged, plus the note-offs a bang sends, as lists such as 128 60 0.",
              "0-255");
 }
 
