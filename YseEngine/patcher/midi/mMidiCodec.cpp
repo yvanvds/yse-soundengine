@@ -109,79 +109,26 @@ CONSTRUCT() {
   raw.reserve(static_cast<std::size_t>(RAW_CHUNK_BYTES) * (FORMAT_INT_WIDTH + 1));
   scratch.reserve(static_cast<std::size_t>(2) * (FORMAT_INT_WIDTH + 1));
 
-  ADD_DESCRIPTION(
-      "Interprets a raw MIDI byte stream into typed outlets — Max's 'midiparse' (issue #530), and "
-      "what makes '.midiin' usable without seven separate objects. Bytes arrive in the inlet as "
-      "ints (one at a time, the shape '.midiin' and '.seq' emit) or as a numeric list (the shape "
-      "'.midiformat' emits), and each complete message leaves the outlet that belongs to its type: "
-      "note, polyphonic key pressure and control change as two-number lists, program change, "
-      "aftertouch and pitch bend as ints, the channel on its own outlet, and everything the "
-      "decoding does not cover — system exclusive, song position, MIDI time code, the real-time "
-      "clock — as a list of bytes on the rightmost. It knows the three things that make MIDI "
-      "harder than it looks: running status, so a chord sent as one status byte followed by pairs "
-      "of data bytes decodes as the notes it is; interleaving, so a timing clock arriving between "
-      "two bytes of a note is reported at once and the note carries on where it left off; and "
-      "messages that do not fit, so a system-exclusive dump longer than the buffer leaves in "
-      "consecutive chunks rather than being truncated. The channel outlet fires before the typed "
-      "one, as the '.notein' family's outlets do, so whatever a value triggers downstream already "
-      "knows which channel it belongs to. Three readings are Max's and are shared with '.notein', "
-      "'.pgmin' and '.bendin' so that a number means the same thing wherever a patch reads it: a "
-      "note-off is reported as that pitch with velocity 0, which also folds together the two "
-      "spellings hardware uses for a release; a program change is 1-128 rather than the wire's "
-      "0-127, the numbering hardware displays; and pitch bend is the coarse byte alone, 0-127 "
-      "centred at 64, with the full 14 bits left to '.xbendin'. The last two are lossy through a "
-      "round trip back into '.midiformat', which is Max's behaviour rather than an oversight. "
-      "Unlike the rest of this family the object opens no device and needs none, so it decodes a "
-      "stream from a file, from '.seq' or from a patch on every platform.");
+  ADD_DESCRIPTION("Splits a raw MIDI byte stream into notes, controllers, program changes, "
+                  "pressure, pitch bend and channel. Messages it does not decode leave the "
+                  "rightmost outlet as bytes.");
   ADD_CATEGORY(pCategory::MIDI);
 
   INLET_DOC(0, "midi",
-            "Raw MIDI bytes: an int per byte, as '.midiin' and '.seq' send them, or a numeric "
-            "list, as '.midiformat' sends them. Both go through the same state machine, so a "
-            "message split across several messages decodes exactly as one arriving whole does. A "
-            "float is read as an int; a value outside 0-255 is not a MIDI byte and is ignored.",
+            "MIDI bytes, one int at a time or as a list of byte values. A value outside 0-255 is "
+            "ignored.",
             "0-255");
-  OUTLET_DOC(0, "note",
-             "Note-on and note-off as the list 'pitch velocity'. A release is reported as velocity "
-             "0 whichever way the device spelled it — a note-off message, or a note-on with "
-             "velocity 0 — so a patch tests for it once, with a '.sel 0' or a '.togedge'.",
-             "0-127 0-127");
-  OUTLET_DOC(1, "poly",
-             "Polyphonic key pressure as the list 'pitch pressure': the pressure on one held key, "
-             "which is what separates it from the aftertouch outlet's single value for the whole "
-             "channel.",
-             "0-127 0-127");
-  OUTLET_DOC(2, "control",
-             "Control change as the list 'controller value' — the knobs, faders, wheels and pedals "
-             "of a control surface. Feed the list to a '.unpack' or a '.route' to fan one stream "
-             "out by controller number.",
-             "0-127 0-127");
-  OUTLET_DOC(3, "program",
-             "Program change, 1-128 — the wire's 0-127 plus one, which is the number a hardware "
-             "front panel displays and the number '.midiformat' takes back.",
-             "1-128");
-  OUTLET_DOC(4, "aftertouch",
-             "Channel aftertouch, 0-127: one value for the whole channel however many keys are "
-             "held. Per-note pressure is the poly outlet.",
-             "0-127");
-  OUTLET_DOC(5, "bend",
-             "Pitch bend, 0-127 with 64 at rest — the coarse byte of a 14-bit message, which is "
-             "Max's reading and '.bendin''s. The fine byte is discarded here; '.xbendin' is the "
-             "object that keeps it.",
-             "0-127");
-  OUTLET_DOC(6, "channel",
-             "The channel the message arrived on, 1-16 rather than the 0-15 nibble on the wire. "
-             "Sent before the typed outlet, so anything the value triggers downstream already "
-             "knows which channel it is looking at.",
+  OUTLET_DOC(0, "note", "Note as \"pitch velocity\"; a release reports velocity 0.", "0-127 0-127");
+  OUTLET_DOC(1, "poly", "Polyphonic key pressure as \"pitch pressure\".", "0-127 0-127");
+  OUTLET_DOC(2, "control", "Control change as \"controller value\".", "0-127 0-127");
+  OUTLET_DOC(3, "program", "Program change, numbered from 1.", "1-128");
+  OUTLET_DOC(4, "aftertouch", "Channel pressure: one value for the whole channel.", "0-127");
+  OUTLET_DOC(5, "bend", "Pitch bend, coarse byte only, 64 at rest.", "0-127");
+  OUTLET_DOC(6, "channel", "The channel the message arrived on. Sent before the typed outlet.",
              "1-16");
   OUTLET_DOC(7, "raw",
-             "Everything the decoding does not cover, as a list of byte values: system exclusive, "
-             "song position, song select, MIDI time code, tune request, and the one-byte real-time "
-             "messages (248 clock, 250 start, 251 continue, 252 stop, 255 reset). A real-time byte "
-             "may arrive in the middle of another message and leaves here on its own without "
-             "disturbing it. A dump longer than 128 bytes leaves in consecutive chunks, the first "
-             "beginning with 240 and the last ending with 247 — the treatment 'MIDI::inHub' "
-             "already gives a message too long for one transport event.",
+             "Every other message as a list of byte values: system exclusive, song position, time "
+             "code, clock and the rest.",
              "0-255");
 }
 
@@ -421,71 +368,30 @@ CONSTRUCT() {
 
   scratch.reserve(static_cast<std::size_t>(RAW_MAX_BYTES) * (FORMAT_INT_WIDTH + 1));
 
-  ADD_DESCRIPTION(
-      "Assembles structured data into raw MIDI messages — Max's 'midiformat' (issue #530), and the "
-      "exact inverse of '.midiparse', inlet for outlet, so the two wire straight across and a "
-      "patch can take a stream apart, edit the part it cares about and put it back together "
-      "without ever spelling a status byte itself. It is also the combined form of the six "
-      "single-purpose formatters ('.noteon', '.noteoff', '.controlchange', '.polypressure', "
-      "'.channelpressure', '.programchange'): one box with one channel setting instead of six with "
-      "six. Every inlet but the channel is hot — a message arriving at it produces a MIDI message "
-      "at once, on whatever channel the channel inlet is holding, which is Max's rule and the "
-      "reason the channel is the rightmost of Max's inlets. One complete message leaves the outlet "
-      "as a list of byte values in decimal, '144 60 100' for a note-on: Max sends its bytes one at "
-      "a time because Max's midiout reassembles them, while this patcher's transport is list text "
-      "and '.seq' already documents a numeric byte list as the shape this object's output has, so "
-      "a whole message per list is both the local convention and the safer one — three bytes that "
-      "belong together cannot be split across two blocks by anything downstream. Program change "
-      "takes 1-128 and pitch bend 0-127, the readings '.midiparse', '.pgmin' and '.bendin' report, "
-      "so a round trip gives back the numbers it was given. Values are clamped into the ranges "
-      "MIDI has rather than refused, so a patch that scales a controller into 0-140 produces "
-      "sensible notes at the top of its range instead of silence. The one exception is the raw "
-      "inlet, where a value outside 0-255 is not a byte at all and is dropped: clamping a status "
-      "byte would change which message it is. The object opens no device and needs none, so it "
-      "runs on every platform, and it allocates nothing on a message path — the outgoing text is "
-      "built into a string reserved when the object is created.");
+  ADD_DESCRIPTION("Builds raw MIDI messages from notes, controllers, program changes, pressure and "
+                  "pitch bend. The inverse of .midiparse; each message leaves as a list of byte "
+                  "values.");
   ADD_CATEGORY(pCategory::MIDI);
 
   INLET_DOC(0, "note",
-            "The list 'pitch velocity', or a bare pitch with velocity 0. Velocity 0 is a release, "
-            "which is how '.midiparse' reports one, so the pair round-trips; a real note-off "
-            "message (status 128) is what '.noteoff' sends and is not produced here, exactly as in "
-            "Max.",
+            "\"pitch velocity\"; a bare pitch sends velocity 0, a release. Sends a note-on.",
             "0-127 0-127");
-  INLET_DOC(1, "poly",
-            "Polyphonic key pressure as the list 'pitch pressure' — pressure on one held key. A "
-            "bare int is the pitch with pressure 0.",
+  INLET_DOC(1, "poly", "Polyphonic key pressure as \"pitch pressure\"; a bare pitch sends 0.",
             "0-127 0-127");
-  INLET_DOC(2, "control",
-            "Control change as the list 'controller value'. A bare int is the controller number "
-            "with value 0.",
+  INLET_DOC(2, "control", "Control change as \"controller value\"; a bare number sends value 0.",
             "0-127 0-127");
-  INLET_DOC(3, "program",
-            "Program change, 1-128 — the number a hardware front panel displays, and the one "
-            "'.midiparse' and '.pgmin' report. One is subtracted on the way to the wire.",
-            "1-128");
-  INLET_DOC(4, "aftertouch", "Channel aftertouch: one pressure value for the whole channel.",
-            "0-127");
-  INLET_DOC(5, "bend",
-            "Pitch bend, 0-127 with 64 at rest — the coarse byte, which is Max's resolution and "
-            "'.bendin''s. The fine byte of the message is sent as 0.",
-            "0-127");
-  INLET_DOC(6, "channel",
-            "The channel every message is formatted on, 1-16. Cold: it stores and sends nothing, "
-            "which is Max's rule for this inlet. Defaults to 1.",
+  INLET_DOC(3, "program", "Program change, numbered from 1.", "1-128");
+  INLET_DOC(4, "aftertouch", "Channel pressure: one value for the whole channel.", "0-127");
+  INLET_DOC(5, "bend", "Pitch bend, coarse byte, 64 at rest. The fine byte is sent as 0.", "0-127");
+  INLET_DOC(6, "channel", "Channel for the messages that follow. Stores only; starts at 1.",
             "1-16");
   INLET_DOC(7, "raw",
-            "Byte values passed straight through to the outlet, as a list or one at a time. Not "
-            "Max's inlet — it exists so the pair is a true inverse: '.midiparse''s rightmost "
-            "outlet carries the system exclusive, song position and real-time traffic it could not "
-            "decode, and without somewhere for that to go back in a patch could take a stream "
-            "apart but not put the whole of it back together. A value outside 0-255 is not a byte "
-            "and is dropped rather than clamped, and a list longer than 128 bytes is cut there.",
+            "Byte values passed straight to the outlet, as a list or one at a time. A value "
+            "outside 0-255 is dropped; a list is cut at 128 bytes.",
             "0-255");
   OUTLET_DOC(0, "midi",
-             "One complete MIDI message per hot inlet message, as a list of byte values in "
-             "decimal: '144 60 100' is a note-on, middle C, velocity 100 on channel 1. Feed it to "
-             "'.seq' to record, or to '.midiparse' to read back what was built.",
+             "One message per list, such as 144 60 100: a note-on for middle C, velocity 100, "
+             "channel 1.",
              "0-255");
 }
 

@@ -9,13 +9,15 @@ CONSTRUCT_DSP() {
   ADD_IN_0;
   REG_BUFFER_IN(SetBuffer);
 
-  // in 1: low value (float)
+  // in 1: low value (int or float)
   ADD_IN_1;
   REG_FLOAT_IN(SetLow);
+  REG_INT_IN(SetIntLow);
 
-  // in 2: high value (float)
+  // in 2: high value (int or float)
   ADD_IN_2;
   REG_FLOAT_IN(SetHigh);
+  REG_INT_IN(SetIntHigh);
 
   // out 0: audio output
   ADD_OUT_BUFFER;
@@ -27,16 +29,15 @@ CONSTRUCT_DSP() {
   low = -1.0f;
   high = 1.0f;
 
-  ADD_DESCRIPTION("Audio-rate hard clipper. Constrains every sample of the input buffer to the "
-                  "[low, high] range — use it to tame stray peaks or as a deliberate distortion "
-                  "stage.");
+  ADD_DESCRIPTION("Hard clipper: limits every sample of an audio signal to the range low to "
+                  "high. Use it to tame stray peaks, or as a distortion stage.");
   ADD_CATEGORY(pCategory::MATH);
-  INLET_DOC(0, "in", "Audio input buffer.", "any float");
-  INLET_DOC(1, "low", "Lower clipping threshold.", "any float");
-  INLET_DOC(2, "high", "Upper clipping threshold.", "any float");
-  OUTLET_DOC(0, "out", "Input clamped to [low, high].", "low to high");
-  PARAM_DOC("low", "-1.0", "Initial lower clipping threshold.", "any float");
-  PARAM_DOC("high", "1.0", "Initial upper clipping threshold.", "any float");
+  INLET_DOC(0, "in", "Audio signal.", "any float");
+  INLET_DOC(1, "low", "Lower limit, as an int or a float.", "any float");
+  INLET_DOC(2, "high", "Upper limit, as an int or a float.", "any float");
+  OUTLET_DOC(0, "out", "The signal limited to low to high.", "low to high");
+  PARAM_DOC("low", "-1.0", "Starting lower limit.", "any float");
+  PARAM_DOC("high", "1.0", "Starting upper limit.", "any float");
 }
 
 RESET() // {
@@ -53,6 +54,14 @@ FLOAT_IN(SetLow) {
 
 FLOAT_IN(SetHigh) {
   high = value;
+}
+
+INT_IN(SetIntLow) {
+  low = static_cast<float>(value);
+}
+
+INT_IN(SetIntHigh) {
+  high = static_cast<float>(value);
 }
 
 CALC() {

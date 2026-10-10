@@ -28,58 +28,36 @@ namespace {
   constexpr std::size_t kTextCapacity = (gCharCodeBase::MAX_CODES * UTF8_MAX_BYTES) + 1;
 
   constexpr char kAtoiInletDoc[] =
-      "The message to convert. Whatever arrives replaces the stored codes and the result goes "
-      "straight out: an int digit by digit (123 gives 49 50 51), a float including its decimal "
-      "point, and a list character by character with the code 32 between its items, which is Max's "
-      "four separate rules falling out of the one rule this patcher's message model allows. A bang "
-      "sends the stored codes again without converting anything. Runs of whitespace collapse to a "
-      "single 32 and the ends are trimmed. An empty message stores nothing and sends nothing.";
+      "The message to convert. It replaces the stored codes and the codes are sent. A bang sends "
+      "the stored codes again. An empty message clears them and sends nothing.";
 
   constexpr char kAtoiAppendDoc[] =
-      "Max's middle inlet: the codes of whatever arrives are added to the stored codes and nothing "
-      "is sent. Appending is at the code level, so 'a' then 'b' gives 97 98 — the same as the one "
-      "message 'ab', and not the 97 32 98 that the two-token message 'a b' gives. A message that "
-      "would take the stored codes past 256 is refused whole, leaving what was already there "
-      "untouched.";
+      "Adds the codes of the message to the stored codes and sends nothing. Characters are added "
+      "with no space between messages: 'a' then 'b' gives 97 98.";
 
   constexpr char kAtoiStoreDoc[] =
-      "Max's right inlet: the codes of whatever arrives replace the stored codes and nothing is "
-      "sent, so a patch can load the object and send it later with a bang on inlet 0. An empty "
-      "message here is Max's clear — replacing the contents with nothing is what clearing them "
-      "is, and it needs no reserved word on the inlet that has to carry arbitrary text.";
+      "Replaces the stored codes with the codes of the message and sends nothing. An empty "
+      "message clears them.";
 
   constexpr char kAtoiOutletDoc[] =
-      "The stored codes, as one list, in the order the characters appear — 'hi' leaves as 104 105. "
-      "Max sends them one at a time; they leave together here because nothing in this patcher "
-      "accumulates a stream of numbers back into a message, while a list can be taken apart by a "
-      ".spray whenever a patch wants them separately. Nothing is sent when there is nothing "
-      "stored.";
+      "The stored codes as one list, in the order the characters appear: 'hi' leaves as 104 105.";
 
   constexpr char kItoaInletDoc[] =
-      "The character codes to convert. An int, a float (truncated, Max's 'converted to an int') or "
-      "a list of them replaces the stored characters and the result goes straight out; a bang "
-      "sends the stored characters again without converting anything. A token that is not a "
-      "number, or a number that is not a code point — negative, above 1114111, or a surrogate half "
-      "— makes the whole message refused, since there is no character to write in its place. An "
-      "empty message stores nothing and sends nothing.";
+      "The character codes to convert: an int, a float (truncated) or a list of them. They "
+      "replace the stored text and the text is sent. A bang sends the stored text again. An "
+      "empty message clears it and sends nothing.";
 
   constexpr char kItoaAppendDoc[] =
-      "Max's middle inlet: the characters the arriving codes spell are added to the stored "
-      "characters and nothing is sent — how a patch builds up a symbol one character at a time and "
-      "sends it with a bang once it is complete. A message that would take the stored characters "
-      "past 256 is refused whole, leaving what was already there untouched.";
+      "Adds the characters the codes spell to the stored text and sends nothing. Use it to build "
+      "a word one character at a time, then bang inlet 0 to send it.";
 
   constexpr char kItoaStoreDoc[] =
-      "Max's right inlet: the characters the arriving codes spell replace the stored characters "
-      "and nothing is sent. An empty message here is Max's clear — replacing the contents with "
-      "nothing is what clearing them is, and it needs no reserved word on the inlet that has to "
-      "carry arbitrary codes.";
+      "Replaces the stored text with the characters the codes spell and sends nothing. An empty "
+      "message clears it.";
 
   constexpr char kItoaOutletDoc[] =
-      "The stored characters, as a list — 104 105 leaves as 'hi'. Always a list, whatever the "
-      "codes spell: a result that happens to read as a number is still the text those codes wrote, "
-      "and a patch that wants the number back sends it through a .fromsymbol, which is the object "
-      "whose job restoring a type is. Nothing is sent when there is nothing stored.";
+      "The stored text as a list: 104 105 leaves as 'hi'. Always a list, even when the text reads "
+      "as a number.";
 
 } // namespace
 
@@ -317,57 +295,20 @@ LIST_IN(StoreList) {
 
 // ─── the two directions ───────────────────────────────────────────────────────
 
+// gCharCode.h explains the shared design: one conversion rule for every kind
+// of message, the UTF-8 reading, the three inlets with an empty message as
+// the clear, and refusal rather than truncation at 256. No message path
+// allocates, locks or blocks, and Calculate() does nothing.
 gAtoi::gAtoi() : gCharCodeBase(charCodeDirection::ToCodes) {
-  Document(
-      "Converts the characters of a message into their character codes, and holds them — Max's "
-      "atoi, 'convert characters to integers'. Max documents four rules, one per atom type: an int "
-      "is converted digit by digit, a symbol character by character, a list with a space (32) "
-      "between its items, and anything with all its items converted one character at a time. They "
-      "collapse into a single rule here, and not by cutting a corner: a message in this patcher is "
-      "text, with no atom types at all, so .atoi sends the code of every character of the message "
-      "as it stands and each of Max's four rules falls out of that — a number's digits are its "
-      "text, and a list gets its 32 because a space is the character that is actually between its "
-      "items. Runs of whitespace collapse to one space and the ends are trimmed. The encoding is "
-      "the one .spell states and shares with this object, character for character: bytes forming a "
-      "well-formed UTF-8 sequence give the one code point they spell, so the two bytes of an "
-      "accented letter give one code and not two, and any byte that is not part of a well-formed "
-      "sequence spells its own value 0-255 with decoding resuming at the next byte, so the object "
-      "never fails, never drops a byte and never guesses. What .spell does not have is the state: "
-      "this object holds what it converted, so a bang sends it again, inlet 1 adds to it a piece "
-      "at a time without sending, and inlet 2 loads it silently — Max's three inlets. An empty "
-      "message on inlet 2 is Max's clear, spelled as an empty message rather than a reserved word "
-      "because inlet 0 has to be able to carry the word 'clear' as text like any other. At most "
-      "256 codes; a message that would take it past that is refused whole rather than truncated, "
-      "leaving what was already stored untouched, because half a spelling is a different word "
-      "rather than a shorter one. Pair it with .itoa, which converts codes back into the "
-      "characters they spell and returns exactly the message that went in. Calculate() does "
-      "nothing, and no message path allocates, locks or blocks.",
-      kAtoiInletDoc, kAtoiAppendDoc, kAtoiStoreDoc, kAtoiOutletDoc);
+  Document("Converts a message into the character codes of its text and holds them: 'hi' gives "
+           "104 105. A bang sends the held codes again, and the other two inlets add to them or "
+           "replace them without sending.",
+           kAtoiInletDoc, kAtoiAppendDoc, kAtoiStoreDoc, kAtoiOutletDoc);
 }
 
 gItoa::gItoa() : gCharCodeBase(charCodeDirection::ToText) {
-  Document(
-      "Converts character codes into the characters they spell, and holds them — Max's itoa, "
-      "'convert a stream or list of up to 256 integer character codes into a symbol'. The inverse "
-      "of .atoi, and the direction nothing in the message-construction family could go before: "
-      ".spell and .atoi leave the text model and hand a patch numbers, and until now nothing "
-      "brought it back, so codes computed inside a patch could never become a name, a path or a "
-      "word again. A list of codes gives the text they spell, an int or a float gives the one "
-      "character it names (a float truncated, Max's 'converted to an int'), and the result leaves "
-      "as a list. Always a list, whatever the codes spell: a result that happens to read as a "
-      "number is still the text those codes wrote, and a patch that wants a type restored sends it "
-      "through a .fromsymbol, whose job that is. The codes are written as UTF-8 by the exact "
-      "inverse of the decoder .atoi and .spell read with, which is what makes the pair a real "
-      "round trip — .atoi after .itoa gives back the codes that went in, and .itoa after .atoi "
-      "gives back the message. A token that is not a number, or a number that is not a code point "
-      "— negative, above 1114111, or a surrogate half — makes the whole message refused rather "
-      "than replaced with something arbitrary, since a substituted character would come back from "
-      "an .atoi as a different code and break that guarantee. Max's three inlets are kept: inlet 0 "
-      "converts and sends, a bang sends what is held again, inlet 1 adds characters without "
-      "sending — which is how a patch builds a symbol one character at a time and sends it once it "
-      "is complete — and inlet 2 loads it silently. An empty message on inlet 2 is Max's clear. At "
-      "most 256 characters; a message that would take it past that is refused whole, leaving what "
-      "was already stored untouched. Calculate() does nothing, and no message path allocates, "
-      "locks or blocks.",
-      kItoaInletDoc, kItoaAppendDoc, kItoaStoreDoc, kItoaOutletDoc);
+  Document("Converts character codes into the text they spell and holds it: 104 105 gives 'hi'. "
+           "A bang sends the held text again, and the other two inlets add to it or replace it "
+           "without sending. The inverse of .atoi.",
+           kItoaInletDoc, kItoaAppendDoc, kItoaStoreDoc, kItoaOutletDoc);
 }

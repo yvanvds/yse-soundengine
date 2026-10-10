@@ -381,166 +381,43 @@ LIST_IN(PackList) {
 
 gPack::gPack() : gPackBase(YSE::OBJ::G_PACK, packTrigger::LeftInlet) {
   Document(
-      "Builds one list out of values arriving at separate inlets — Max's pack, 'combine items into "
-      "an output list'. The patcher could hold a list (.l) but not build one, which blocked every "
-      "list-consuming object and the list payloads the named bus accepts, a three-element list "
-      "being how sound.<name>.position is addressed; this is the object that turns three cords "
-      "carrying three numbers into one cord carrying one list, and .unpack is the way back. There "
-      "is one inlet per creation argument, and each argument's spelling decides what its slot "
-      "holds as well as what it starts as: a whole integer makes an int slot, a token with a "
-      "decimal point or an exponent makes a float slot, and anything else makes a symbol slot. "
-      "With no arguments the object is Max's default, two int inlets starting at 0. Only the "
-      "leftmost inlet releases the list — writing any other one stores and stays quiet — so a "
-      "patch loads the right-hand values first and lets the leftmost carry the finished list out; "
-      ".pak is the same object with every inlet hot. The type is enforced on the way in, Max's "
-      "'type conversion occurs based on initialization': an int slot truncates a float, a float "
-      "slot promotes an int and keeps its decimal point, a symbol slot takes whatever arrives "
-      "verbatim, and a number slot handed a symbol keeps the value it had and counts the refusal "
-      "rather than storing a 0 that would read downstream as a value the patch chose. A "
-      "multi-item message spreads from the inlet that received it rightwards, one item per slot, "
-      "and items past the last slot are dropped and counted. A bang releases the list as it "
-      "stands without storing, and 'set <message>' performs exactly the store the same message "
-      "without the word would have performed while suppressing only the release. The packed list "
-      "leaves as list text, or — when the object has a single slot — as the int, float or symbol "
-      "that slot spells, since a list of one is not a list and this patcher does no coercion at an "
-      "inlet. The list is the bounded pre-allocated storage the whole list family shares: at most "
-      "256 slots spanning at most 1024 characters between them, in memory reserved when the object "
-      "is built. A store whose result would not fit is refused whole and counted rather than "
-      "losing its tail, because the tail here is the values the other inlets are holding rather "
-      "than surplus input; the count is a counter rather than a log line because the refusing "
-      "thread may be the audio callback, while a creation argument that does not fit is logged, "
-      "parameter parsing being control-thread only. Re-typing the creation arguments rebuilds the "
-      "object, since the arguments are the inlet count and the slot types. Calculate() does "
-      "nothing and no message path allocates, locks or blocks: numbers are rendered into a stack "
-      "buffer, the store is a rebuild inside a list reserved at construction, and the release "
-      "renders into a buffer reserved at the same time. Two threads writing the same object are "
-      "serialised by a single test-and-set guard whose loser is dropped and counted rather than "
-      "made to spin, which is also what stops an object wired back into its own inlet from "
-      "recursing on the audio thread.",
+      "Combines values arriving at separate inlets into one list, one element per inlet. Each "
+      "creation argument sets an element's type and starting value. Only the leftmost inlet "
+      "sends the list; .pak sends from every inlet.",
 
-      "The hot inlet, and the first element of the list. A value arriving here is stored in "
-      "element 0 and the whole list is released. A multi-item message spreads across this element "
-      "and the ones to its right, one item per element, with anything past the last element "
-      "dropped and counted. A bang releases the list as it stands without storing anything, and is "
-      "accepted on this inlet only, which is where Max documents it. 'set <message>' performs the "
-      "same store as the message without the word and releases nothing, which is how a patch loads "
-      "every element and then chooses when to send. What this element accepts is fixed by the "
-      "creation argument in its position: an int element truncates a float, a float element "
-      "promotes an int, a symbol element takes anything verbatim, and a number element handed a "
-      "symbol keeps the value it had and counts the refusal.",
+      "Element 0. Storing a value here sends the whole list. A bang sends the list without "
+      "storing, and 'set <message>' stores without sending. A list spreads over this element and "
+      "the ones to its right.",
 
-      "Cold: a value arriving here is stored in the element that corresponds to this inlet and "
-      "nothing is sent. That is the object's arrangement — load the right-hand elements, then let "
-      "the leftmost inlet carry the finished list out. Use .pak instead when every element should "
-      "release on arrival. A multi-item message spreads from this element rightwards rather than "
-      "being stored whole, and 'set <message>' is accepted here too, though it means the same as "
-      "the plain message since this inlet never releases. The element's type comes from the "
-      "creation argument in its position and is enforced on every store, exactly as it is on the "
-      "leftmost inlet.",
+      "The element in this position. Stores the value without sending. A list spreads over this "
+      "element and the ones to its right.",
 
-      "The packed list, sent whenever the leftmost inlet is written or banged. Every element goes "
-      "out together, in inlet order, as space-separated list text — so an element that has never "
-      "been written carries its creation argument rather than a gap. An object with a single "
-      "element sends the int, float or symbol that element spells rather than a list of one, so it "
-      "reaches the inlets an uncollected value would have reached.",
+      "The list, every element in inlet order. With a single element, that element is sent as an "
+      "int, float or symbol.",
 
-      "One argument per inlet, and each one is that element's starting value as well as its type. "
-      "A token spelled as a whole integer declares an int element, one carrying a decimal point or "
-      "an exponent declares a float element, and anything else declares a symbol element whose "
-      "starting value is the token itself. With no arguments the object is Max's default: two int "
-      "elements starting at 0. At most 256 elements are built, spanning at most 1024 characters "
-      "between them; an argument list that does not fit is clamped and the clamp is logged.");
+      "One argument per element, setting its type and starting value: a whole number makes an int "
+      "element, a number with a decimal point or exponent a float element, anything else a symbol "
+      "element. Without arguments: two int elements starting at 0.");
 }
 
 // ─── .pak ───────────────────────────────────────────────────────────────────
 
 gPak::gPak() : gPackBase(YSE::OBJ::G_PAK, packTrigger::AnyInlet) {
   Document(
-      "Builds one list out of values arriving at separate inlets and sends it whenever any of them "
-      "is written — Max's pak, which 'offers much of the functionality of pack, but outputs the "
-      "entire list whenever input is received in any inlet'. It is .pack with every inlet hot, and "
-      "that is the whole difference: same elements, same types, same coercion, same output. Reach "
-      "for it when every component should propagate the moment it changes — a position whose x, y "
-      "and z arrive on three separate cords and should move the sound as each one lands, rather "
-      "than waiting for a leftmost inlet that may never be written again. Reach for .pack instead "
-      "when the elements should be loaded first and released together, since a .pak fed three "
-      "values sends three lists, two of them half-built. There is one inlet per creation argument, "
-      "and each argument's spelling decides what its element holds as well as what it starts as: a "
-      "whole integer makes an int element, a token with a decimal point or an exponent makes a "
-      "float element, and anything else makes a symbol element. With no arguments the object is "
-      "Max's default, two int elements starting at 0. The type is enforced on the way in, Max's "
-      "'type conversion occurs based on initialization': an int element truncates a float, a float "
-      "element promotes an int and keeps its decimal point, a symbol element takes whatever "
-      "arrives "
-      "verbatim, and a number element handed a symbol keeps the value it had and counts the "
-      "refusal "
-      "rather than storing a 0 that would read downstream as a value the patch chose. A multi-item "
-      "message spreads from the inlet that received it rightwards, one item per element, and items "
-      "past the last element are dropped and counted. A bang releases the list as it stands "
-      "without "
-      "storing, and — unlike .pack, where Max documents it on the left inlet only — it is accepted "
-      "on every inlet here, since every inlet of this object is a releasing one. 'set <message>' "
-      "performs exactly the store the same message without the word would have performed while "
-      "suppressing the release, which is the only way to load an element of a .pak quietly. The "
-      "list leaves as list text, or — when the object has a single element — as the int, float or "
-      "symbol that element spells, since a list of one is not a list and this patcher does no "
-      "coercion at an inlet. The list is the bounded pre-allocated storage the whole list family "
-      "shares: at most 256 elements spanning at most 1024 characters between them, in memory "
-      "reserved when the object is built. A store whose result would not fit is refused whole and "
-      "counted rather than losing its tail, because the tail here is the values the other inlets "
-      "are holding rather than surplus input; the count is a counter rather than a log line "
-      "because "
-      "the refusing thread may be the audio callback, while a creation argument that does not fit "
-      "is logged, parameter parsing being control-thread only. Re-typing the creation arguments "
-      "rebuilds the object, since the arguments are the inlet count and the element types. "
-      "Calculate() does nothing and no message path allocates, locks or blocks: numbers are "
-      "rendered into a stack buffer, the store is a rebuild inside a list reserved at "
-      "construction, "
-      "and the release renders into a buffer reserved at the same time. Two threads writing the "
-      "same object are serialised by a single test-and-set guard whose loser is dropped and "
-      "counted "
-      "rather than made to spin — which matters more here than in .pack, because every inlet of a "
-      ".pak can start a cascade, and the guard is also what stops an object wired back into one of "
-      "its own inlets from recursing on the audio thread. That feedback case is the classic "
-      "accidental loop this object invites, and it is bounded rather than fatal: the returning "
-      "message finds the guard taken, is counted on the drop counter, and goes no further.",
+      "Combines values arriving at separate inlets into one list, and sends the list whenever any "
+      "inlet receives a value. Otherwise the same as .pack.",
 
-      "The first element of the list, and — like every other inlet of this object — a hot one. A "
-      "value arriving here is stored in element 0 and the whole list is released immediately. A "
-      "multi-item message spreads across this element and the ones to its right, one item per "
-      "element, with anything past the last element dropped and counted, and the list goes out "
-      "once "
-      "the spread is stored. A bang releases the list as it stands without storing anything. 'set "
-      "<message>' performs the same store as the message without the word and releases nothing, "
-      "which is how a patch loads an element of a .pak without sending. What this element accepts "
-      "is fixed by the creation argument in its position: an int element truncates a float, a "
-      "float "
-      "element promotes an int, a symbol element takes anything verbatim, and a number element "
-      "handed a symbol keeps the value it had and counts the refusal.",
+      "Element 0. Storing a value here sends the whole list. A bang sends the list without "
+      "storing, and 'set <message>' stores without sending. A list spreads over this element and "
+      "the ones to its right.",
 
-      "Hot, exactly like the leftmost inlet — this is what makes the object a .pak rather than a "
-      ".pack. A value arriving here is stored in the element that corresponds to this inlet and "
-      "the "
-      "whole list is sent, carrying the current contents of every other element alongside it, so a "
-      "patch that writes three inlets in turn gets three lists rather than one. Use .pack instead "
-      "when the elements should be loaded first and released together. A bang is accepted here too "
-      "and releases the list without storing, and a multi-item message spreads from this element "
-      "rightwards rather than being stored whole. 'set <message>' stores without releasing, which "
-      "is the way to fill this element quietly. The element's type comes from the creation "
-      "argument "
-      "in its position and is enforced on every store, exactly as it is on the leftmost inlet.",
+      "The element in this position. Storing a value here sends the whole list, the same as the "
+      "leftmost inlet. Takes bang and 'set <message>' too.",
 
-      "The packed list, sent whenever any inlet is written or banged. Every element goes out "
-      "together, in inlet order, as space-separated list text — so an element that has never been "
-      "written carries its creation argument rather than a gap, and a half-loaded object still "
-      "sends a complete list. An object with a single element sends the int, float or symbol that "
-      "element spells rather than a list of one, so it reaches the inlets an uncollected value "
-      "would have reached.",
+      "The list, every element in inlet order, sent whenever any inlet is written or banged. With "
+      "a single element, that element is sent as an int, float or symbol.",
 
-      "One argument per inlet, and each one is that element's starting value as well as its type. "
-      "A token spelled as a whole integer declares an int element, one carrying a decimal point or "
-      "an exponent declares a float element, and anything else declares a symbol element whose "
-      "starting value is the token itself. With no arguments the object is Max's default: two int "
-      "elements starting at 0. At most 256 elements are built, spanning at most 1024 characters "
-      "between them; an argument list that does not fit is clamped and the clamp is logged.");
+      "One argument per element, setting its type and starting value: a whole number makes an int "
+      "element, a number with a decimal point or exponent a float element, anything else a symbol "
+      "element. Without arguments: two int elements starting at 0.");
 }

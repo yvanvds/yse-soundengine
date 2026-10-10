@@ -18,34 +18,17 @@ namespace {
   // Doc strings, hoisted out of the constructor because they are long enough
   // that it stops being readable with them inline — the family's arrangement.
   constexpr char kInletDoc[] =
-      "The document: one JSON array of typed elements as a single list message — [60,62.5,"
-      "\"kick\"] — exactly the form .array saves with a patch, and anything else JSON calls an "
-      "array. It is handed to the background pool to parse (nlohmann allocates, and this inlet "
-      "may be the audio thread) and, a block later, replaces the bound array whole — read back "
-      "by the same ArrayFromJson a saved patch loads through, so booleans become 1/0, null, "
-      "empty strings and nested documents are skipped, and over-long elements are dropped while "
-      "the rest still loads. A document longer than 255 characters — the longest list payload "
-      "the patcher's value queue carries — is refused whole and counted, never truncated: the "
-      "prefix of a JSON document is a different document or none. A document arriving while the "
-      "previous one is still in flight is refused and counted too, and one that fails to parse "
-      "to a JSON array — malformed text, a bare number, an object, an \"array <name>\" "
-      "reference wired here by mistake — is counted and changes nothing: a bad document never "
-      "costs an array its contents. No bang and no bare number: a bang carries no document, and "
-      "a number is not a JSON array.";
+      "A JSON array as one message, for example [60,62.5,\"kick\"]. Text longer than 255 "
+      "characters is refused, and so is a document that arrives while the previous one is still "
+      "being parsed.";
 
   constexpr char kOutletDoc[] =
-      "\"array <name>\" once a document has been parsed and installed — the reference the "
-      "array.* family binds, the way an array leaves an object on the value model, so the rest "
-      "of the family can pick the result up the moment it exists. Emitted from the patcher's "
-      "block poll, one block after the document arrived, because the parse finishes on the "
-      "background pool and has no cord to arrive on. Silent for an unnamed array, which has no "
-      "name to pass on, and silent on a failed parse, which installed nothing.";
+      "\"array <name>\" once the parsed contents are in the array, one audio block after the "
+      "document arrived. Nothing is sent when parsing fails or the object has no name.";
 
   constexpr char kNameDoc[] =
-      "The array the parsed document fills, addressed as \"patcher.<patcherName>.<name>\" — the "
-      "sequence an .array of the same name in this patcher holds. Resolved once, on the control "
-      "thread, which is why no message re-points it at run time. Empty fills a private array: "
-      "the document still loads, but there is no name to announce.";
+      "Name of the array to fill: the .array with this name in the same patcher. Empty fills a "
+      "private array.";
 
 } // namespace
 
@@ -75,23 +58,9 @@ gArrayDeserialize::gArrayDeserialize() : gArrayEndsBase() {
   }
 
   ADD_DESCRIPTION(
-      "Builds an array from serialised text — Max's array.deserialize on the name-addressed "
-      "value model .array settled. The reader half of the JSON form .array already saves: a "
-      "document arriving from a host, a .textedit, a .s/.r pair or the live-coding DSL becomes "
-      "an array the patch can address. The target array is bound from the creation argument, "
-      "\".array.deserialize <name>\", resolved once on the control thread; a list message "
-      "holding one JSON array of typed elements — [60,62.5,\"kick\"], exactly what a saved "
-      "patch's .array contents spell — replaces that array whole, read back by the same "
-      "ArrayFromJson a saved patch loads through, and the reference \"array <name>\" leaves the "
-      "outlet so the rest of the family can pick the result up. The parse runs on the "
-      "background pool — nlohmann allocates without bound, and the inlet may be the audio "
-      "thread — so the inlet is a wait-free hand-off and the result is installed by the "
-      "patcher's block poll one block later, .dict.deserialize's arrangement for a result with "
-      "no cord to arrive on. A document past 255 characters — the longest list payload the "
-      "patcher's value queue carries — is refused whole and counted, never truncated; one that "
-      "fails to parse to a JSON array is counted and changes nothing, so a bad document never "
-      "costs an array its contents. Only the creation argument persists across a save; the "
-      "array's contents persist with the .array that owns them.");
+      "Fills a named array from a JSON array such as [60,62.5,\"kick\"], replacing its contents. "
+      "The text is parsed in the background, and the array's reference is sent once the new "
+      "contents are in place.");
   ADD_CATEGORY(pCategory::ARRAY);
   INLET_DOC(0, "json", kInletDoc, "at most 255 characters");
   OUTLET_DOC(0, "reference", kOutletDoc, "");

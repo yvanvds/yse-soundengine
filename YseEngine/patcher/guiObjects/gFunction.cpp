@@ -69,62 +69,18 @@ namespace {
   }
 
   constexpr char kInDoc[] =
-      "The function, and the only inlet. An int or a float is taken as an x and answers with the "
-      "interpolated y out outlet 0 - Max's 'outputs a corresponding Y value ... produced by linear "
-      "floating-point interpolation', shaped by the arriving point's curve here; an x outside the "
-      "stored span answers with the nearest end's y, and an empty function answers nothing. A bang "
-      "sends the whole function out outlet 1 as one ramp list of <target> <time> pairs, the "
-      "breakpoint grammar .line and .bline read. A list of two numbers '<x> <y>' adds a breakpoint "
-      "with a linear (0) curve, replacing the point already at that exact x - a function holds one "
-      "y per x; a list of 3N numbers is the whole state, '<x> <y> <curve>' per point, the exact "
-      "string GetGuiValue() produces (issue #551's round trip): the store is cleared and refilled "
-      "through the same sorted, clamped path. 'set <index> <x> <y> [<curve>]' rewrites the point "
-      "at that ascending-x position and re-sorts, keeping the point's curve when none is given - "
-      "Max's split between his three- and four-element point messages; 'setcurve <index> <curve>' "
-      "re-curves one point; 'nth <index>' answers that point's y out outlet 0; 'clear' empties the "
-      "store and 'clear <index>' removes one point; 'dump' sends every point out outlet 2. Writes "
-      "are silent - outlet 1 is a trigger, not a mirror, and a control that replayed its envelope "
-      "on every edit would restart the .line it feeds exactly while a patch is being drawn into; "
-      "Max's function is silent on edit too. Every x is folded to at least 0 (Max's domain starts "
-      "at 0) and a NaN is dropped; every y is clamped into the minimum-maximum bounds; every "
-      "curve is clamped into -1 to 1. A point past the capacity is refused whole and silently, "
-      "since this inlet may be the audio thread. Not here: sustain / autosustain / next (the "
-      "note-driven envelope player is the engine's envelope generators' job), fix (mouse "
-      "protection without a mouse), setdomain and the domain / range attributes (bounds are "
-      "creation parameters in this family), outputmode, mode (the curve is simply always "
-      "available), and Max's bare index-edit lists, whose three-number form would collide with a "
-      "one-point whole state - the 'set' keyword spells the same edit unambiguously.";
+      "A number is an x and sends its y; a bang sends the ramp; '<x> <y>' adds a point; 3 "
+      "numbers per point replace them all; 'set', 'setcurve', 'nth', 'clear' and 'dump' edit "
+      "and query points. Edits send nothing.";
 
   constexpr char kYOutDoc[] =
-      "The interpolated y - the answer to an int or float x on the inlet, and to 'nth <index>'. "
-      "Always a float: the y between two breakpoints is fractional by definition, and truncating "
-      "it would quantise every curve the object exists to draw. A query between two points is "
-      "shaped by the right-hand point's curve: t^((1+c)/(1-c)) over the segment's normalised "
-      "position, so a positive curve leaves the starting value slowly and moves late, a negative "
-      "one moves early and lands slowly, and +/-1 are honest steps. An x at or outside either end "
-      "answers that end's stored y, which is what every envelope does at its ends. Nothing is "
-      "sent when the store is empty, when an 'nth' index names no point, or when the store was "
-      "busy on another thread - the family's rule that an object with no answer stays quiet.";
+      "The y for an x arriving on the inlet, or for 'nth <index>'. Always a float.";
 
   constexpr char kRampOutDoc[] =
-      "The whole function as one ramp list, on a bang: 'y0 0 y1 (x1-x0) y2 (x2-x1) ...' - one "
-      "<target> <time> pair per breakpoint, which is exactly the breakpoint grammar .line and "
-      ".bline read. The first pair's time is 0, so the consumer jumps to the first y and ramps "
-      "through the rest; the absolute x of the first point is dropped, Max's default (his "
-      "outputmode attribute is not ported). Max emits an odd-length list with a bare leading y0 "
-      "because line~ reads a leading singleton as a jump; .line reads pairs, so the jump is "
-      "spelled as the zero-time pair and the observable ramp is the same. Curves are flattened "
-      "to their linear segments here - the patcher has no curve~ to speak triples to; the curved "
-      "shape lives in the query path. An empty function sends nothing.";
+      "On a bang, the whole function as '<y> <time>' pairs for .line or .bline: the first time "
+      "is 0, each later one the distance in x from the point before.";
 
-  constexpr char kDumpOutDoc[] =
-      "Every breakpoint as its own list, '<index> <x> <y> <curve>', ascending by x, in answer to "
-      "'dump' - Max's dump outlet made headless. The burst is captured whole under one "
-      "acquisition of the store's guard and emitted after releasing it, so a re-entrant write "
-      "cannot shift the sorted table under the walk and the dump is a consistent snapshot. "
-      "Four numbers per line on purpose: a triple wired back into inlet 0 would read as a "
-      "one-point whole state, while four numbers address nothing and pass through harmlessly. "
-      "Silent otherwise, and silent for an empty store.";
+  constexpr char kDumpOutDoc[] = "On 'dump', every point as '<index> <x> <y> <curve>', in x order.";
 
 } // namespace
 
@@ -152,67 +108,19 @@ CONSTRUCT() {
 
   ShapeStore();
 
-  ADD_DESCRIPTION(
-      "A breakpoint function editor as one control - Max's function, 'draw or store a set of x, y "
-      "points as floating-point numbers'. A bounded, sorted store of (x, y, curve) breakpoints "
-      "that answers any x with the interpolation between its neighbours and bangs out the whole "
-      "envelope as a ramp list .line and .bline consume - every hand-drawn envelope, velocity "
-      "curve, filter sweep and automation shape is authored in one of these, and the engine's "
-      "fixed-shape ADSR envelopes are the special case it generalises past. Issue #561 asks for "
-      "the storage decision against .funbuff up front: the two keep separate stores on purpose. "
-      ".funbuff is an integer function whose floor lookup is a step and whose exact-int search is "
-      "load-bearing; this is a float function with per-point curvature whose lookup is the "
-      "interpolation .funbuff keeps behind a separate message - one store would either quantise "
-      "these curves or break that exactness, so what they share is the invariant (a bounded array "
-      "sorted by its own key, one y per x) and the guard model, not code. An int or float on the "
-      "inlet answers with the interpolated y out outlet 0, shaped by the arriving point's curve: "
-      "t^((1+c)/(1-c)), positive leaving the start slowly, negative moving early, +/-1 honest "
-      "steps, 0 linear - Max gates curves behind his mode attribute and speaks them to curve~, "
-      "and with no attribute surface and no curve~ here the curve is simply always available. A "
-      "bang sends the whole function out outlet 1 as 'y0 0 y1 (x1-x0) ...', one <target> <time> "
-      "pair per point - exactly the breakpoint grammar .line and .bline read, with the jump to "
-      "the first y spelled as a zero-time pair where Max's odd-length list carries a bare leading "
-      "y0 for line~. A two-number list adds a point, a 3N-number list is the whole state (issue "
-      "#551's round trip, the exact string GetGuiValue() produces), 'set <index> <x> <y> "
-      "[<curve>]' rewrites one point keeping its curve when none is given, 'setcurve' re-curves "
-      "one, 'nth' answers one point's y, 'clear [<index>]' empties or removes, and 'dump' sends "
-      "every point as '<index> <x> <y> <curve>' out outlet 2. Writes are silent, deliberately "
-      "unlike .multislider and .matrixctrl: their outlet mirrors their state, while outlet 1 here "
-      "is a trigger, and a control that replayed its envelope on every edit would restart the "
-      ".line it feeds exactly while a patch is being drawn into - Max's function is silent on "
-      "edit too, and the GUI protocol leaves emission per object. A GUI cell is one breakpoint "
-      "'<x> <y> <curve>'; an empty function's bulk read is the word 'clear', the one string that "
-      "both round-trips and keeps a zero-token list from being a destructive write. The "
-      "breakpoints persist through DumpState / RestoreState unconditionally - Max's function is "
-      "a UI object whose points save with the patch, .coll's always-rule rather than .funbuff's "
-      "opt-in embed - and restore runs through the same sorted, clamped store the inlet uses. "
-      "The store is allocated exactly once at SetParams time from the points capacity argument "
-      "(.matrixctrl's arrangement; a live re-parse replaces the object through the graph swap), "
-      "no message path allocates, locks or blocks, sends happen with the non-blocking guard "
-      "released, and a point past the capacity is refused whole and silently. Not ported: "
-      "sustain / autosustain / next (the note-driven envelope player), fix, setdomain and the "
-      "domain / range attributes (bounds are creation parameters in this family), outputmode, "
-      "mode, Max's bare index-edit lists (the 'set' keyword spells the edit unambiguously), and "
-      "everything about drawing and the mouse.");
+  ADD_DESCRIPTION("A breakpoint function, for drawing envelopes and curves. It stores sorted (x, "
+                  "y, curve) points, answers an x with the y between them, and on a bang sends "
+                  "the whole shape as a ramp for .line or .bline. Its points are saved with the "
+                  "patch.");
   ADD_CATEGORY(pCategory::GUI);
   INLET_DOC(0, "function", kInDoc, "x >= 0, y in minimum-maximum, curve -1 to 1");
   OUTLET_DOC(0, "y", kYOutDoc, "minimum-maximum");
   OUTLET_DOC(1, "ramp", kRampOutDoc, "target time pairs");
   OUTLET_DOC(2, "dump", kDumpOutDoc, "index x y curve");
-  PARAM_DOC(
-      "points", "128",
-      "The store, in one breath: how many breakpoints the function can hold, then the lowest and "
-      "highest y a point may carry. The capacity is clamped to 2-1024 and defaults to 128; it is "
-      "a creation parameter because the storage is allocated exactly once, at SetParams time, on "
-      "the control thread - a live SetParams therefore replaces the object rather than resizing "
-      "it under the audio thread. The bounds default to 0-1, Max's range attribute's default, "
-      "and are taken as an ordered pair so a reversed argument still bounds against the right "
-      "two numbers; every stored y is clamped into them on the way in. A '.function 256 0 127' "
-      "is a velocity curve at full width. A capacity that is not a whole finite number leaves "
-      "the default in place. The breakpoints themselves are not parameters - they are contents, "
-      "and they ride the saved patch through the object's state instead, unconditionally, "
-      "because Max's function is a UI object whose points save with the patch.",
-      "2-1024, optional minimum, optional maximum");
+  PARAM_DOC("points", "128",
+            "How many points the function can hold, then optionally the lowest and highest y "
+            "(default 0 and 1).",
+            "2-1024, optional minimum, optional maximum");
 }
 
 // ─── the store ────────────────────────────────────────────────────────────────
@@ -494,6 +402,10 @@ void gFunction::EmitDump(YSE::THREAD thread) {
 
   emitting = true;
   for (std::size_t i = 0; i < taken; i++) {
+    // Four numbers per line on purpose: a three-number line wired back into
+    // inlet 0 would read as a one-point whole state and wipe the function,
+    // while four numbers address nothing there and pass harmlessly.
+    //
     // Refilled per point into memory reserved at construction, immediately
     // before its send.
     char digits[FORMAT_INT_WIDTH];

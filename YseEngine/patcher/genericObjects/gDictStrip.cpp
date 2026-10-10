@@ -22,32 +22,15 @@ namespace {
   // the constructor stops being readable with them inline — gDict's
   // arrangement.
   constexpr char kInletDoc[] =
-      "A bang strips the bound dictionary in place: every entry under the path — its key begins "
-      "\"<path>::\" — is erased, and everything else survives untouched, including a leaf "
-      "stored at exactly the path, which is a value, not a sub-tree. \"dictionary <name>\" does "
-      "the same when it names the dictionary bound by the first creation argument — the message "
-      "a .dict's reference outlet emits on a bang, so wiring that outlet here gives Max's own "
-      "gesture. A reference naming anything else, or any other message, is refused and counted "
-      "rather than logged, since this inlet may be the audio thread.";
+      "A bang removes every entry under the path and sends the dictionary's reference. So does "
+      "the dictionary's reference 'dictionary <name>'.";
   constexpr char kOutletDoc[] =
-      "\"dictionary <name>\" after a strip — the reference the dict.* family binds, carrying "
-      "the local name so the receiving object prefixes it with its own patcher's name. What "
-      "lets a strip sit in a chain: bang it, and whatever reads the dictionary next sees the "
-      "sub-tree gone. Silent for an unnamed dictionary, which has no name to pass on — the "
-      "strip still ran, on the private store.";
+      "'dictionary <name>' after each strip. Silent for an unnamed dictionary.";
   constexpr char kNameDoc[] =
-      "The dictionary's shared name, addressed as \"patcher.<patcherName>.<name>\" — the "
-      "dictionary a "
-      ".dict of the same name in this patcher holds, edited in place. Resolved once, on the "
-      "control thread, which is why no message re-points it at run time. Empty strips a "
-      "private, empty dictionary.";
+      "The name of the dictionary to edit. Empty strips an empty dictionary.";
   constexpr char kPathDoc[] =
-      "The key path whose sub-tree a strip removes: \"voice::1\" erases every "
-      "\"voice::1::...\" entry. A leaf stored at exactly the path is a value, not a sub-tree, "
-      "and survives — that one entry is .dict's delete. The prefix ends at a \"::\" boundary "
-      "or it is not a prefix, so stripping \"voice\" never removes \"voices::1\". Empty "
-      "matches nothing — there is no sub-tree above the root; clearing a whole dictionary is "
-      ".dict's clear.";
+      "The key path whose entries are removed: 'voice::1' removes every 'voice::1::...' entry. "
+      "An entry at exactly the path is kept. Empty removes nothing.";
 
 } // namespace
 
@@ -72,20 +55,8 @@ CONSTRUCT() {
   Rebind();
   RefreshReference();
 
-  ADD_DESCRIPTION(
-      "Removes a dictionary's entries under a key path, in place — Max's dict.strip on the "
-      "name-addressed value model .dict settled: the dictionary is bound from the creation "
-      "argument, \".dict.strip <name> [<path>]\", because a dictionary is addressed by name "
-      "and never passed down a cord. A bang, or the dictionary's reference message "
-      "\"dictionary <name>\", erases every entry under the path — its key begins \"<path>::\" "
-      "— and leaves everything else untouched, including a leaf stored at exactly the path, "
-      "which is a value, not a sub-tree. The prefix ends at a \"::\" boundary or it is not a "
-      "prefix, so stripping \"voice\" never removes \"voices::1\". The dictionary's reference "
-      "then leaves the outlet, so the rest of the dict.* family can pick the edited dictionary "
-      "up. An empty path matches nothing — there is no sub-tree above the root. The branch "
-      "removal .dict's delete cannot spell (one path, not a sub-tree), and the in-place half "
-      "of .dict.slice's partition: what a slice of the same path leaves in its remainder is "
-      "exactly what a strip leaves behind.");
+  ADD_DESCRIPTION("Removes every entry under a key path from a named dictionary, in place, then "
+                  "sends its reference. An entry stored at exactly the path is kept.");
   ADD_CATEGORY(pCategory::DICT);
   INLET_DOC(0, "strip", kInletDoc, "");
   OUTLET_DOC(0, "dictionary reference", kOutletDoc, "");

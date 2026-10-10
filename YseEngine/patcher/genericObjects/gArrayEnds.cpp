@@ -17,21 +17,16 @@ namespace {
   // them inline — gArray's arrangement. What differs per object stays with
   // that object below.
   constexpr char kReferenceInletDoc[] =
-      "\"array <name>\" is accepted silently when it names the array bound by the creation "
-      "argument, so a patch may wire the array's reference outlet across. It sets nothing — the "
-      "binding is the creation argument, resolved on the control thread — and anything else is "
-      "refused and counted.";
+      "Accepts the bound array's reference \"array <name>\" and ignores it, so the array's "
+      "reference outlet can be wired here. Anything else is refused.";
   constexpr char kWriterOutletDoc[] =
-      "The bound array's reference, \"array <name>\", sent after an add that landed — the way an "
-      "array leaves an object on the value model, so wiring it onward chains the family: into "
-      ".array.length it reports the new depth, into a remover's trigger it acts on the array just "
-      "grown. A refused add emits nothing, and an unnamed object stays silent — the write "
-      "happens, but there is no name to pass on.";
+      "The array's reference \"array <name>\" after each change, so further .array objects can "
+      "be chained. Nothing is sent when the object has no name.";
   constexpr char kEmptyOutletDoc[] =
-      "Bang when the trigger found the array empty — the state a patch draining a queue must be "
-      "able to see, and its loop's exit condition rather than an error. An unnamed (private) "
-      "array is always empty. A lost try-lock is a counted refusal instead: the array's state is "
-      "unknown, so neither outlet fires.";
+      "Bang when the array is empty: the end of a loop that empties the array.";
+  constexpr char kNameParamDoc[] =
+      "Name of the array to use: the .array with this name in the same patcher. Empty uses a "
+      "private, empty array.";
 
 } // namespace
 
@@ -330,37 +325,16 @@ void gArrayEndsRemover::Remove(YSE::THREAD thread) {
 #define className gArrayPush
 
 gArrayPush::gArrayPush() : gArrayEndsWriter(false) {
-  ADD_DESCRIPTION(
-      "Adds an element at the end of an array — Max's array.push on the name-addressed value "
-      "model .array settled: the array is bound from the creation argument, \".array.push "
-      "<name>\", because an array is addressed by name and never passed down a cord. An int or a "
-      "float in the element inlet is appended as the text that spells it, and a list is appended "
-      "whole, every atom one element in the order sent — or refused whole, one counted refusal "
-      "and nothing changed, when the array cannot take all of it. After an add that lands, the "
-      "outlet emits the array's reference, \"array <name>\", so the family chains: into "
-      ".array.length it reports the new depth, into .array.pop's trigger it is a stack, into "
-      ".array.shift's a queue. With .array.pop this is the stack, and with .array.shift the "
-      "event buffer, a generative patch actually uses.");
+  ADD_DESCRIPTION("Appends a value or a list to the end of a named array, then sends the array's "
+                  "reference. With .array.pop it makes a stack, with .array.shift a queue.");
   ADD_CATEGORY(pCategory::ARRAY);
   INLET_DOC(0, "element",
-            "An int or a float is appended as the text that spells it; a symbol is appended as "
-            "itself; a list is appended whole, every atom one element in the order sent, or "
-            "refused whole — one counted refusal and nothing changed — when the array cannot "
-            "take all of it or an element outruns 64 characters. \"array <name>\" is refused "
-            "even naming the bound array: a reference is an identity, not an element, so a "
-            "mis-wired reference cord shows up in the refusal count instead of in the data. "
-            "Refusals are counted rather than logged, since this inlet may be the audio thread.",
+            "An int, float, word or list to append. A list is appended whole, in order, or "
+            "refused whole when the array cannot take all of it.",
             "at most 256 elements");
   INLET_DOC(1, "array reference", kReferenceInletDoc, "");
   OUTLET_DOC(0, "reference", kWriterOutletDoc, "");
-  PARAM_DOC(
-      "name", "",
-      "The array's shared name, addressed as \"patcher.<patcherName>.<name>\" — the sequence an "
-      ".array of the same name in this patcher holds. Resolved once, on the control "
-      "thread, which is why no message re-points it at run time. Empty writes into a "
-      "private, empty array: the pushes land, but nothing shares them and no reference "
-      "leaves.",
-      "any identifier");
+  PARAM_DOC("name", "", kNameParamDoc, "any identifier");
 }
 
 // ─── .array.pop ───────────────────────────────────────────────────────────────
@@ -370,38 +344,17 @@ gArrayPush::gArrayPush() : gArrayEndsWriter(false) {
 
 gArrayPop::gArrayPop() : gArrayEndsRemover(false) {
   ADD_DESCRIPTION(
-      "Removes the last element of an array and outputs it — Max's array.pop on the "
-      "name-addressed value model .array settled: the array is bound from the creation argument, "
-      "\".array.pop <name>\", because an array is addressed by name and never passed down a "
-      "cord. A bang removes the last element and emits it out the element outlet, typed the way "
-      "the patcher spells it — the read and the erase one hold of the store's guard, so the "
-      "element that leaves is exactly the one that left the array, and the difference from "
-      ".array's own \"delete\", which discards silently. An empty array bangs the empty outlet "
-      "instead: \"nothing left\" is a queue-draining loop's exit condition, not an error. The "
-      "message an .array's reference outlet emits on a bang triggers the same removal, so "
-      "wiring that outlet here gives the family's gesture. With .array.push this is a stack.");
+      "Removes the last element of a named array and outputs it. On an empty array, the empty "
+      "outlet bangs instead.");
   ADD_CATEGORY(pCategory::ARRAY);
   INLET_DOC(0, "trigger",
-            "A bang removes the last element and emits it out the element outlet; on an empty "
-            "array it bangs the empty outlet instead. \"array <name>\" does the same when it "
-            "names the array bound by the creation argument — the message an .array's reference "
-            "outlet emits on a bang. A reference naming anything else, or any other message, is "
-            "refused and counted rather than logged, since this inlet may be the audio thread.",
+            "Bang, or the bound array's reference \"array <name>\": remove the last element and "
+            "send it.",
             "");
   INLET_DOC(1, "array reference", kReferenceInletDoc, "");
-  OUTLET_DOC(0, "element",
-             "The removed last element, typed the way the patcher spells it: a numeric element "
-             "leaves as an int or a float by its spelling and anything else as a symbol. Read "
-             "and removed under one hold of the store's guard, sent after it is released.",
-             "");
+  OUTLET_DOC(0, "element", "The removed element, as an int, float or symbol by its spelling.", "");
   OUTLET_DOC(1, "empty", kEmptyOutletDoc, "");
-  PARAM_DOC(
-      "name", "",
-      "The array's shared name, addressed as \"patcher.<patcherName>.<name>\" — the sequence an "
-      ".array of the same name in this patcher holds. Resolved once, on the control "
-      "thread, which is why no message re-points it at run time. Empty reads a private, "
-      "empty array: every trigger bangs the empty outlet.",
-      "any identifier");
+  PARAM_DOC("name", "", kNameParamDoc, "any identifier");
 }
 
 // ─── .array.shift ─────────────────────────────────────────────────────────────
@@ -411,39 +364,17 @@ gArrayPop::gArrayPop() : gArrayEndsRemover(false) {
 
 gArrayShift::gArrayShift() : gArrayEndsRemover(true) {
   ADD_DESCRIPTION(
-      "Removes the first element of an array and outputs it — Max's array.shift on the "
-      "name-addressed value model .array settled: the array is bound from the creation argument, "
-      "\".array.shift <name>\", because an array is addressed by name and never passed down a "
-      "cord. A bang removes the first element and emits it out the element outlet, typed the way "
-      "the patcher spells it — the read and the erase one hold of the store's guard, so the "
-      "element that leaves is exactly the one that left the array, and every element behind it "
-      "moves down one position, which is what an ordered sequence means. An empty array bangs "
-      "the empty outlet instead: \"nothing left\" is a queue-draining loop's exit condition, not "
-      "an error. The message an .array's reference outlet emits on a bang triggers the same "
-      "removal. With .array.push this is the queue a generative patch pushes events onto and "
-      "takes them off in arrival order.");
+      "Removes the first element of a named array and outputs it; the other elements move down "
+      "one position. On an empty array, the empty outlet bangs instead.");
   ADD_CATEGORY(pCategory::ARRAY);
   INLET_DOC(0, "trigger",
-            "A bang removes the first element and emits it out the element outlet; on an empty "
-            "array it bangs the empty outlet instead. \"array <name>\" does the same when it "
-            "names the array bound by the creation argument — the message an .array's reference "
-            "outlet emits on a bang. A reference naming anything else, or any other message, is "
-            "refused and counted rather than logged, since this inlet may be the audio thread.",
+            "Bang, or the bound array's reference \"array <name>\": remove the first element and "
+            "send it.",
             "");
   INLET_DOC(1, "array reference", kReferenceInletDoc, "");
-  OUTLET_DOC(0, "element",
-             "The removed first element, typed the way the patcher spells it: a numeric element "
-             "leaves as an int or a float by its spelling and anything else as a symbol. Read "
-             "and removed under one hold of the store's guard, sent after it is released.",
-             "");
+  OUTLET_DOC(0, "element", "The removed element, as an int, float or symbol by its spelling.", "");
   OUTLET_DOC(1, "empty", kEmptyOutletDoc, "");
-  PARAM_DOC(
-      "name", "",
-      "The array's shared name, addressed as \"patcher.<patcherName>.<name>\" — the sequence an "
-      ".array of the same name in this patcher holds. Resolved once, on the control "
-      "thread, which is why no message re-points it at run time. Empty reads a private, "
-      "empty array: every trigger bangs the empty outlet.",
-      "any identifier");
+  PARAM_DOC("name", "", kNameParamDoc, "any identifier");
 }
 
 // ─── .array.unshift ───────────────────────────────────────────────────────────
@@ -453,33 +384,14 @@ gArrayShift::gArrayShift() : gArrayEndsRemover(true) {
 
 gArrayUnshift::gArrayUnshift() : gArrayEndsWriter(true) {
   ADD_DESCRIPTION(
-      "Adds an element at the front of an array — Max's array.unshift on the name-addressed "
-      "value model .array settled: the array is bound from the creation argument, "
-      "\".array.unshift <name>\", because an array is addressed by name and never passed down a "
-      "cord. An int or a float in the element inlet is inserted at the front as the text that "
-      "spells it, every element already there moving up one position, and a list lands whole, in "
-      "the order sent — \"unshift a b c\" leaves a b c at the front — or is refused whole, one "
-      "counted refusal and nothing changed, when the array cannot take all of it. After an add "
-      "that lands, the outlet emits the array's reference, \"array <name>\", so the family "
-      "chains. .array.shift's inverse: what unshift put in front is what shift takes out first.");
+      "Inserts a value or a list at the front of a named array, moving the other elements up, "
+      "then sends the array's reference.");
   ADD_CATEGORY(pCategory::ARRAY);
   INLET_DOC(0, "element",
-            "An int or a float is inserted at the front as the text that spells it; a symbol is "
-            "inserted as itself; a list lands whole, in the order sent, or is refused whole — "
-            "one counted refusal and nothing changed — when the array cannot take all of it or "
-            "an element outruns 64 characters. \"array <name>\" is refused even naming the "
-            "bound array: a reference is an identity, not an element, so a mis-wired reference "
-            "cord shows up in the refusal count instead of in the data. Refusals are counted "
-            "rather than logged, since this inlet may be the audio thread.",
+            "An int, float, word or list to insert at the front. A list keeps its order and is "
+            "inserted whole, or refused whole when the array cannot take all of it.",
             "at most 256 elements");
   INLET_DOC(1, "array reference", kReferenceInletDoc, "");
   OUTLET_DOC(0, "reference", kWriterOutletDoc, "");
-  PARAM_DOC(
-      "name", "",
-      "The array's shared name, addressed as \"patcher.<patcherName>.<name>\" — the sequence an "
-      ".array of the same name in this patcher holds. Resolved once, on the control "
-      "thread, which is why no message re-points it at run time. Empty writes into a "
-      "private, empty array: the adds land, but nothing shares them and no reference "
-      "leaves.",
-      "any identifier");
+  PARAM_DOC("name", "", kNameParamDoc, "any identifier");
 }

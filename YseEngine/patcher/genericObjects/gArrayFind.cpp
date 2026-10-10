@@ -16,32 +16,18 @@ namespace {
   // them inline — gArray's arrangement. What differs per object stays with
   // that object below.
   constexpr char kValueInletDoc[] =
-      "An int, a float or a symbol searches for the element that spells it and stores the value; "
-      "a bang re-searches with the stored value. Equality is the spelling — an int 7 finds the "
-      "element \"7\", a float 7. finds \"7.\", and the two are different elements — and the "
-      "match is case-sensitive, as every comparison in this patcher is. \"array <name>\" "
-      "searches with the stored value when it names the array bound by the first creation "
-      "argument — the message an .array's reference outlet emits on a bang, so wiring that "
-      "outlet here gives the family's gesture. A multi-atom list is refused whole: an element "
-      "is one atom, so only one atom can be held, and a sub-array match is not offered. A bang "
-      "before any value has arrived, an atom past 64 characters, or a reference naming anything "
-      "else is refused and counted rather than logged, since this inlet may be the audio "
-      "thread.";
+      "An int, float or word searches for that value and remembers it; a bang searches for the "
+      "remembered value again, and so does the bound array's reference. A list of more than one "
+      "item is refused.";
   constexpr char kReferenceInletDoc[] =
-      "\"array <name>\" is accepted silently when it names the array bound by the creation "
-      "argument, so a patch may wire the array's reference outlet across. It sets nothing — "
-      "the binding is the creation argument, resolved on the control thread — and anything "
-      "else is refused and counted.";
+      "Accepts the bound array's reference \"array <name>\" and ignores it, so the array's "
+      "reference outlet can be wired here. Anything else is refused.";
   constexpr char kNameParamDoc[] =
-      "The array's shared name, addressed as \"patcher.<patcherName>.<name>\" — the sequence an "
-      ".array "
-      "of the same name in this patcher holds. Resolved once, on the control thread, which is "
-      "why no message re-points it at run time. Empty searches a private, empty array: every "
-      "search misses.";
+      "Name of the array to search: the .array with this name in the same patcher. Empty "
+      "searches a private, empty array.";
   constexpr char kValueParamDoc[] =
-      "The initial stored value — what a bang searches for before any value has arrived on the "
-      "inlet. One atom, exactly as every value the inlet takes; absent means no value, and a "
-      "bang before one arrives is refused.";
+      "The value a bang searches for before any value arrives. Without it, a bang is refused "
+      "until a value has arrived.";
 
 } // namespace
 
@@ -254,26 +240,13 @@ gArrayIndexOf::gArrayIndexOf() : gArrayFindBase() {
   ADD_OUT_INT;
 
   ADD_DESCRIPTION(
-      "Outputs the position of a value — Max's array.indexof on the name-addressed value model "
-      ".array settled: the array is bound from the creation argument, \".array.indexof <name> "
-      "[<value>]\", because an array is addressed by name and never passed down a cord. An int, "
-      "a float or a symbol searches for the element that spells it and stores the value; a bang "
-      "re-searches with the stored value, and the message an .array's reference outlet emits on "
-      "a bang does the same, so wiring that outlet here gives the family's gesture. The answer "
-      "is one int: the first matching position, or -1 on a miss — Max's own answer, the one a "
-      "patch can test with .sel -1 or feed straight into .array.at. Every position is not "
-      "reported: the reply stays one usable int, and renumbering writes make a set of "
-      "positions stale as a set where a single position is simply a position. The search is "
-      "one scan under one hold of the store's guard, so the answer is the array as it stood at "
-      "the trigger; .array.index is the same search with the miss split onto an outlet.");
+      "Outputs the position of the first element of a named array that matches a value, or -1 "
+      "when no element matches.");
   ADD_CATEGORY(pCategory::ARRAY);
   INLET_DOC(0, "value", kValueInletDoc, "one atom");
   INLET_DOC(1, "array reference", kReferenceInletDoc, "");
   OUTLET_DOC(0, "position",
-             "The first position holding the searched value, or -1 when no element spells it — "
-             "the miss in-band, so one int leaves per answered search. Zero-based, read under "
-             "one hold of the store's guard, sent after it is released. An empty or unnamed "
-             "(private) array misses every search.",
+             "The position of the first matching element, or -1 when no element matches.",
              "-1, or 0-255");
   PARAM_DOC("name", "", kNameParamDoc, "any identifier");
   PARAM_DOC("value", "", kValueParamDoc, "one atom");
@@ -295,31 +268,13 @@ gArrayIndex::gArrayIndex() : gArrayFindBase() {
   ADD_OUT_BANG;
 
   ADD_DESCRIPTION(
-      "Outputs whether, and where, a value is held — the membership half of the search pair on "
-      "the name-addressed value model .array settled: the array is bound from the creation "
-      "argument, \".array.index <name> [<value>]\", because an array is addressed by name and "
-      "never passed down a cord. An int, a float or a symbol searches for the element that "
-      "spells it and stores the value; a bang re-searches with the stored value, and the "
-      "message an .array's reference outlet emits on a bang does the same — the family "
-      "gesture. The first matching position leaves the position outlet on a hit and a miss "
-      "bangs the miss outlet — .array.at's split, so whether is which outlet fired and where "
-      "is the int, and the membership test becomes a cord choice rather than a comparison: "
-      "wire the position outlet to the held branch and the miss outlet to the not-held branch, "
-      "no .sel -1 in between. The search is one scan under one hold of the store's guard; "
-      ".array.indexof is the same search answered in-band as -1.");
+      "Looks up a value in a named array. The position of the first matching element leaves "
+      "the left outlet; when no element matches, the right outlet bangs.");
   ADD_CATEGORY(pCategory::ARRAY);
   INLET_DOC(0, "value", kValueInletDoc, "one atom");
   INLET_DOC(1, "array reference", kReferenceInletDoc, "");
-  OUTLET_DOC(0, "position",
-             "The first position holding the searched value — the value is held, and this is "
-             "where. Zero-based, read under one hold of the store's guard, sent after it is "
-             "released. Silent on a miss: the miss outlet carries that half of the answer.",
-             "0-255");
-  OUTLET_DOC(1, "miss",
-             "Bang when no element spells the searched value — the value is not held. Kept off "
-             "the position outlet so a patch can route on membership without comparing: an "
-             "empty or unnamed (private) array misses every search.",
-             "");
+  OUTLET_DOC(0, "position", "The position of the first matching element.", "0-255");
+  OUTLET_DOC(1, "miss", "Bang when no element matches.", "");
   PARAM_DOC("name", "", kNameParamDoc, "any identifier");
   PARAM_DOC("value", "", kValueParamDoc, "one atom");
 }

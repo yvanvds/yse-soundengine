@@ -49,38 +49,16 @@ namespace {
   // the constructor stops being readable with them inline — gDict's
   // arrangement.
   constexpr char kInletDoc[] =
-      "The document: one JSON object as a single list message — exactly what .dict.serialize "
-      "emits, and anything else JSON calls an object. It is handed to the background pool to "
-      "parse (nlohmann allocates, and this inlet may be the audio thread) and, a block later, "
-      "replaces the bound dictionary whole — \"::\" paths flattened back out of the nesting by "
-      "the same DictFromJson a saved patch loads through, so a serialise/deserialise round trip "
-      "reproduces the dictionary. A document longer than 255 characters — the longest list "
-      "payload the patcher's value queue carries — is refused whole and counted, never "
-      "truncated: the prefix of a JSON document is a different document or none. A document "
-      "arriving while the previous one is still in flight is refused and counted too, and one "
-      "that fails to parse is counted and changes nothing — a bad document never costs a "
-      "dictionary its contents. 'read [file]' is the document past that bound: the file loads "
-      "through the patcher's file scheduler — the request claims a patcher-owned slot, the disk "
-      "work runs on the background pool, and the bytes are handed to the same parse slot the "
-      "inlet uses, so a file document installs and announces exactly as an inlet document does, "
-      "up to the scheduler slot's 128 KiB (a larger file is refused whole by the scheduler, "
-      "never truncated). A bare 'read' reuses the last path given. No bang and no bare number: "
-      "a bang carries no document, and a number names nothing.";
+      "A JSON object as one list message, such as the text .dict.serialize sends. It replaces "
+      "the dictionary's contents one block later. 'read <file>' loads the JSON from a file; a "
+      "bare 'read' reads the last file again.";
 
   constexpr char kOutletDoc[] =
-      "\"dictionary <name>\" once a document has been parsed and installed — the reference the "
-      "dict.* family binds, .dict.pack's gesture, so the rest of the family can pick the result "
-      "up the moment it exists. Emitted from the patcher's block poll, one block after the "
-      "document arrived, because the parse finishes on the background pool and has no cord to "
-      "arrive on. Silent for an unnamed dictionary, which has no name to pass on, and silent on "
-      "a failed parse, which installed nothing.";
+      "'dictionary <name>' once a document has been loaded. Silent for an unnamed dictionary and "
+      "for a document that could not be read.";
 
   constexpr char kNameDoc[] =
-      "The dictionary the parsed document fills, addressed as \"patcher.<patcherName>.<name>\" — "
-      "the "
-      "dictionary a .dict of the same name in this patcher holds. Resolved once, on the control "
-      "thread, which is why no message re-points it at run time. Empty binds a private "
-      "dictionary: the document still loads, but there is no name to announce.";
+      "The name of the dictionary to fill. Empty fills a private dictionary and sends nothing.";
 
 } // namespace
 
@@ -121,27 +99,14 @@ CONSTRUCT() {
                                           " in use); this object will refuse every document");
   }
 
-  ADD_DESCRIPTION(
-      "Builds a dictionary from serialised text — Max's dict.deserialize on the name-addressed "
-      "value model .dict settled. The read half of the interchange pair whose write half is "
-      ".dict.serialize: a JSON string arriving from a host, a .textedit, a .s/.r pair or the "
-      "live-coding DSL becomes a dictionary the patch can address. The target dictionary is "
-      "bound from the creation argument, \".dict.deserialize <name>\", resolved once on the "
-      "control thread; a list message holding one JSON object — exactly what .dict.serialize "
-      "emits — replaces that dictionary whole, \"::\" paths flattened back out of the nesting, "
-      "and the reference \"dictionary <name>\" leaves the outlet so the rest of the family can "
-      "pick the result up. The parse runs on the background pool — nlohmann allocates without "
-      "bound, and the inlet may be the audio thread — so the inlet is a wait-free hand-off and "
-      "the result is installed by the patcher's block poll one block later, .midiinfo's "
-      "arrangement for a result with no cord to arrive on. A document past 255 characters — the "
-      "longest list payload the patcher's value queue carries — is refused whole and counted, "
-      "never truncated; a document that fails to parse is counted and changes nothing, so a bad "
-      "document never costs a dictionary its contents. A larger document takes the file route: "
-      "'read [file]' loads a JSON file through the patcher's file scheduler — background disk "
-      "work, the same background parse, the same block-poll install — lifting the bound to the "
-      "scheduler slot's 128 KiB, past which a file is refused whole. Only the creation argument "
-      "persists across a save; the dictionary's contents persist with the .dict that owns "
-      "them.");
+  // The parse runs on the background pool (nlohmann allocates without bound,
+  // and the inlet may be the audio thread), so the inlet is a wait-free
+  // hand-off and CALC() installs the result from the block poll one block
+  // later. 'read' goes through the patcher's fileScheduler into the same
+  // parse slot. gDictDeserialize.h has the whole design.
+  ADD_DESCRIPTION("Fills a named dictionary from JSON text, replacing its contents, and sends its "
+                  "reference. Takes a JSON object as a message, or 'read <file>' for a larger "
+                  "document.");
   ADD_CATEGORY(pCategory::DICT);
   INLET_DOC(0, "json", kInletDoc, "at most 255 characters inline; a file up to 128 KiB");
   OUTLET_DOC(0, "reference", kOutletDoc, "");

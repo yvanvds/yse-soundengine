@@ -15,27 +15,30 @@ CONSTRUCT_DSP() {
   ADD_IN_0;
   REG_BUFFER_IN(SetLeftBuffer);
 
-  // in 1: multiplier (float or audio)
+  // in 1: divisor (int, float or audio)
   ADD_IN_1;
   REG_BUFFER_IN(SetRightBuffer);
   REG_FLOAT_IN(SetRightFloat);
+  REG_INT_IN(SetRightInt);
 
   // out 0: audio output
   ADD_OUT_BUFFER;
 
   ADD_PARAM(rightFloatIn);
 
-  ADD_DESCRIPTION(
-      "Audio-rate divide. Divides the left buffer by either the right buffer (audio-rate) or the "
-      "right float (control-rate). A right-float of 0 is silently treated as a no-op.");
+  ADD_DESCRIPTION("Divides an audio signal by another audio signal or by a float. A float of 0 "
+                  "leaves the signal unchanged.");
   ADD_CATEGORY(pCategory::MATH);
-  INLET_DOC(0, "left", "Left operand — audio buffer.", "any float");
-  INLET_DOC(1, "right", "Right operand — audio buffer or float (non-zero).", "any non-zero float");
+  INLET_DOC(0, "left", "Audio signal.", "any float");
+  INLET_DOC(1, "right",
+            "Audio signal, or a number used while no audio is connected. A number of 0 leaves the "
+            "signal unchanged.",
+            "any non-zero float");
   OUTLET_DOC(0, "out", "left / right.", "any float");
-  PARAM_DOC(
-      "right", "1.0",
-      "Initial right-operand float (used until a buffer arrives on inlet 1). 0 disables division.",
-      "any non-zero float");
+  PARAM_DOC("right", "1.0",
+            "Float used while no audio is connected to the right inlet. 0 leaves the signal "
+            "unchanged.",
+            "any non-zero float");
 }
 
 BUFFER_IN(SetLeftBuffer) {
@@ -48,6 +51,10 @@ BUFFER_IN(SetRightBuffer) {
 
 FLOAT_IN(SetRightFloat) {
   rightFloatIn = value;
+}
+
+INT_IN(SetRightInt) {
+  rightFloatIn = static_cast<float>(value);
 }
 
 RESET() // {

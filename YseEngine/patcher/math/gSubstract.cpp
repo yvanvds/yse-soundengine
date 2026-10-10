@@ -21,12 +21,13 @@ CONSTRUCT() {
 
   leftIn = rightIn = 0;
 
-  ADD_DESCRIPTION("Control-rate subtract. Emits left - right as a float whenever inlet 0 fires.");
+  ADD_DESCRIPTION("Subtracts the right operand from the left one and sends the difference as a "
+                  "float.");
   ADD_CATEGORY(pCategory::MATH);
-  INLET_DOC(0, "left", "Left operand — fires the subtraction.", "any float");
-  INLET_DOC(1, "right", "Right operand — stored until next subtract.", "any float");
+  INLET_DOC(0, "left", "Left operand; sends the result.", "any float");
+  INLET_DOC(1, "right", "Right operand, stored for the next result.", "any float");
   OUTLET_DOC(0, "out", "left - right.", "any float");
-  PARAM_DOC("right", "0", "Initial right-operand value.", "any float");
+  PARAM_DOC("right", "0", "Starting right operand.", "any float");
 }
 
 FLOAT_IN(SetLeftFloat) {

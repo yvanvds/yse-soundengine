@@ -31,37 +31,18 @@ CONSTRUCT() {
   ADD_PARAM(size);
   REG_PARM_PARSE;
 
-  ADD_DESCRIPTION(
-      "Histogram of the numbers received — one running count per value, reported as the list "
-      "'<value> <count>'. Where .anal counts which number followed which, this counts how often "
-      "each number appeared at all, so a patch can notice what it has already played and weight "
-      "what it plays next towards or away from it. A number on inlet 0 is counted and its new "
-      "count comes out; the same number on inlet 1 is only read, which is Max's right inlet. A "
-      "bang re-reports the most recently counted number and its count without counting anything, "
-      "and reports '0 0' before any number has arrived. The 'size' parameter names how many bins "
-      "there are, so the accepted values are [0, size-1] — the default of 128 is why a MIDI note "
-      "number arrives unchanged. A number outside that range is disregarded as it is in Max: not "
-      "counted, nothing on outlet 0, and a bang on outlet 1 instead, since clipping it into range "
-      "would pile every stray value onto the boundary bin and report a mode the stream never had. "
-      "'clear' zeroes every bin but keeps the last number, so a bang after it honestly reports a "
-      "count of zero for that number, and 'dump' sends every non-empty bin out outlet 0 in "
-      "ascending order. The bins are a fixed 4096-entry array, size is clamped into 1-4096, and a "
-      "bin saturates rather than wrapping — nothing on any path allocates or runs unbounded.");
+  ADD_DESCRIPTION("Counts how often each number arrives and sends '<number> <count>' each time. "
+                  "The right inlet reports a number's count without counting it.");
   ADD_CATEGORY(pCategory::MATH);
   INLET_DOC(0, "in",
-            "Int or float to count the next number of the stream / bang to re-report the most "
-            "recently counted number without counting it / list 'clear' to zero every bin / list "
-            "'dump' to send every non-empty bin out outlet 0.",
+            "Number: count it and send its count. Bang: send the count of the last counted number "
+            "again. 'clear': set every count to 0. 'dump': send every number counted so far.",
             "0 to size-1");
-  INLET_DOC(1, "query", "Reads the count of a number without counting it.", "0 to size-1");
-  OUTLET_DOC(0, "count",
-             "'<value> <count>' — how often this number has been counted. Silent for a number "
-             "outside the histogram's range.",
-             "");
-  OUTLET_DOC(1, "reject",
-             "Bangs when a number is outside [0, size-1] and so was neither counted nor read.", "");
-  PARAM_DOC("size", "128",
-            "Number of bins, so the accepted values are [0, size-1]. Clamped to 1-4096.", "1-4096");
+  INLET_DOC(1, "query", "Number: send its count without counting it.", "0 to size-1");
+  OUTLET_DOC(0, "count", "'<number> <count>': how often this number has been counted.", "");
+  OUTLET_DOC(1, "reject", "Bang when a number is outside 0 to size-1; it is not counted.", "");
+  PARAM_DOC("size", "128", "How many numbers can be counted: 0 to size-1. Clamped to 1-4096.",
+            "1-4096");
 }
 
 PARM_PARSE() {

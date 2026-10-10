@@ -46,9 +46,8 @@ void gRunningExtremumBase::Document(const char* summary, const char* inletDoc, c
   INLET_DOC(0, "in", inletDoc, "any float");
   INLET_DOC(1, "seed", seedDoc, "any float");
   OUTLET_DOC(0, "out", outletDoc, "any float");
-  OUTLET_DOC(1, "new", "1 when the number just received was a new extreme, 0 when it was not.",
-             "0 or 1");
-  OUTLET_DOC(2, "same", "The inverse of the 'new' outlet: 0 for a new extreme, 1 for a rejection.",
+  OUTLET_DOC(1, "new", "1 when the number just received set a new record, otherwise 0.", "0 or 1");
+  OUTLET_DOC(2, "same", "The opposite of the 'new' outlet: 0 for a new record, otherwise 1.",
              "0 or 1");
   PARAM_DOC("initial", defaultValue, paramDoc, "any float");
 }
@@ -187,90 +186,24 @@ GUI_VALUE() {
 // The ordering, where the extreme starts, and the words describing them.
 
 gPeak::gPeak() : gRunningExtremumBase(ExtremumGreater, 0.f) {
-  Document(
-      "Keeps the largest number it has seen and sends it out only when a new one arrives, which is "
-      "what peak-hold metering, envelope maxima and 'only react when this gets worse' logic are "
-      "made of. This is the running reading of the idea .maximum deliberately does not have: "
-      ".maximum compares an input against a sticky comparand and forgets it, answering every "
-      "message and never moving, while .peak stores what it emits and stays silent until the "
-      "record is broken. Two inlets and three outlets, as in Max: a number on inlet 0 is kept and "
-      "sent out outlet 0 if it is greater than the stored peak and produces no value at all if it "
-      "is not; outlet 1 carries 1 when the number was a new peak and 0 when it was not, and outlet "
-      "2 carries the inverse so that 'it was not a record' is one cord rather than a cord plus a "
-      ".== 0. The three are sent right to left, so anything the value triggers already sees the "
-      "matching flags. A number on inlet 1 reseeds the peak and sends it out — always a new peak, "
-      "flags and all — which is the opposite of .maximum's silent cold inlet. A bang sends the "
-      "stored peak out outlet 0 alone, and before any input that is the 'initial' creation "
-      "argument (0 by default, as in Max) rather than silence, since a patch that bangs its "
-      "objects once on load has to get an answer. Two silent messages on inlet 0 complete the "
-      "object, because Max leaves a running extreme with no way back that does not announce "
-      "itself: 'reset' returns to the initial argument and 'set <n>' stores n, both without "
-      "emitting, so the next number received is the next peak event. 'clear' is deliberately "
-      "absent, because on a '.peak 5' it could not be told whether it meant 0 or 5. A list is "
-      "Max's two-element idiom — the second number becomes the new peak and is sent out, then the "
-      "first is offered to it — with anything past the second ignored and a one-element list "
-      "treated as a plain number. A message with no numbers in it is ignored. Everything is a "
-      "float and outlet 0 is a float outlet: Max's int-unless-the-argument-has-a-decimal-point "
-      "duality is not reproduced, because '.peak 5' and '.peak 5.0' are the same parameter string "
-      "here and guessing integral would silently round a peak a patch is metering with — put a "
-      ".round on the outlet instead. A non-finite number is read as 0 wherever it arrives, the "
-      "convention ./ , .sqrt, .zmap, .clip, .slide and .mean already use, and it matters more here "
-      "than anywhere else because this object keeps what it accepts: a stored NaN would lose every "
-      "later comparison and be reported forever, and a stored -infinity would make every number a "
-      "new peak while +infinity would silence the outlet for good.",
-      "Int or float to offer to the stored peak, sent out only if it is greater / bang to send the "
-      "stored peak out / list '<input> <peak>' to reseed with the second number and then offer the "
-      "first / list 'set <n>' to store n silently / list 'reset' to return to the initial "
-      "argument.",
-      "The new peak value. Stored and sent out — a number received here is always a new peak.",
-      "New peak values. Silent when the number received was not greater than the stored peak.", "0",
-      "Starting peak, what a bang reports before any input, and the value 'reset' returns to. Max "
-      "starts peak at 0.");
+  Document("Keeps the largest number received so far and sends it only when a new number beats "
+           "it. Two more outlets report whether each number set a new peak.",
+           "Number: send it if it beats the peak. Bang: send the peak. List '<number> <peak>': "
+           "set the peak, then offer the number. 'set <n>': set the peak without sending. "
+           "'reset': go back to the starting peak without sending.",
+           "Number that becomes the new peak and is sent, always reported as a new record.",
+           "The new peak. Silent when a number does not beat it.", "0",
+           "Starting peak, and the peak 'reset' returns to.");
 }
 
 gTrough::gTrough() : gRunningExtremumBase(ExtremumLess, 128.f) {
-  Document(
-      "Keeps the smallest number it has seen and sends it out only when a new one arrives — the "
-      "mirror of .peak, for tracking minima, best-case timings and 'only react when this improves' "
-      "logic. This is the running reading of the idea .minimum deliberately does not have: "
-      ".minimum compares an input against a sticky comparand and forgets it, answering every "
-      "message and never moving, while .trough stores what it emits and stays silent until the "
-      "record is broken. Two inlets and three outlets, as in Max: a number on inlet 0 is kept and "
-      "sent out outlet 0 if it is less than the stored trough and produces no value at all if it "
-      "is not; outlet 1 carries 1 when the number was a new minimum and 0 when it was not, and "
-      "outlet 2 carries the inverse so that 'it was not a record' is one cord rather than a cord "
-      "plus a .== 0. The three are sent right to left, so anything the value triggers already sees "
-      "the matching flags. A number on inlet 1 reseeds the trough and sends it out — always a new "
-      "minimum, flags and all — which is the opposite of .minimum's silent cold inlet. A bang "
-      "sends the stored minimum out outlet 0 alone, and before any input that is the 'initial' "
-      "creation argument rather than silence. That argument defaults to 128, Max's value and not "
-      "an oversight next to .peak's 0: a running extreme is only useful if its starting value can "
-      "lose, this family refuses to store an infinity because one that wins would pin the outlet "
-      "for good, and a trough starting at 0 would reject every positive number it was ever sent. "
-      "Two silent messages on inlet 0 complete the object, because Max leaves a running extreme "
-      "with no way back that does not announce itself: 'reset' returns to the initial argument and "
-      "'set <n>' stores n, both without emitting, so the next number received is the next trough "
-      "event. 'clear' is deliberately absent, because on a '.trough 5' it could not be told "
-      "whether it meant 0 or 5. A list is Max's two-element idiom — the second number becomes the "
-      "new trough and is sent out, then the first is offered to it — with anything past the second "
-      "ignored and a one-element list treated as a plain number. A message with no numbers in it "
-      "is ignored. Everything is a float and outlet 0 is a float outlet: Max's "
-      "int-unless-the-argument-has-a-decimal-point duality is not reproduced, because '.trough 5' "
-      "and '.trough 5.0' are the same parameter string here. A non-finite number is read as 0 "
-      "wherever it arrives, the convention ./ , .sqrt, .zmap, .clip, .slide and .mean already use, "
-      "and it matters more here than anywhere else because this object keeps what it accepts: a "
-      "stored NaN would lose every later comparison and be reported forever, and a stored "
-      "+infinity would make every number a new minimum while -infinity would silence the outlet "
-      "for good.",
-      "Int or float to offer to the stored minimum, sent out only if it is less / bang to send the "
-      "stored minimum out / list '<input> <trough>' to reseed with the second number and then "
-      "offer the first / list 'set <n>' to store n silently / list 'reset' to return to the "
-      "initial argument.",
-      "The new minimum value. Stored and sent out — a number received here is always a new "
-      "minimum.",
-      "New minimum values. Silent when the number received was not less than the stored minimum.",
-      "128",
-      "Starting minimum, what a bang reports before any input, and the value 'reset' returns to. "
-      "Max starts trough at 128, high enough that ordinary input can beat it — 0 could not be "
-      "beaten by anything positive.");
+  Document("Keeps the smallest number received so far and sends it only when a new number goes "
+           "below it. Two more outlets report whether each number set a new minimum.",
+           "Number: send it if it is below the minimum. Bang: send the minimum. List '<number> "
+           "<minimum>': set the minimum, then offer the number. 'set <n>': set the minimum "
+           "without sending. 'reset': go back to the starting minimum without sending.",
+           "Number that becomes the new minimum and is sent, always reported as a new record.",
+           "The new minimum. Silent when a number does not go below it.", "128",
+           "Starting minimum, and the minimum 'reset' returns to. 128 by default, so that "
+           "ordinary numbers can go below it.");
 }

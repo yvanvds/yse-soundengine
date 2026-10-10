@@ -14,25 +14,12 @@ namespace {
   // the constructor stops being readable with them inline — gDict's
   // arrangement.
   constexpr char kInletDoc[] =
-      "A bang walks the bound dictionary: one \"<path> <value...>\" list per entry out the pair "
-      "outlet, in storage order, then one bang out the done outlet. \"dictionary <name>\" does "
-      "the same when it names the dictionary bound by the creation argument — the message a "
-      ".dict's reference outlet emits on a bang, so wiring that outlet here gives Max's own "
-      "gesture. A reference naming anything else, any other message, or a trigger arriving while "
-      "a walk is already running — a cord looped back from an outlet, or another thread — is "
-      "refused and counted rather than logged, since this inlet may be the audio thread.";
+      "A bang walks the dictionary: one pair per entry out of the left outlet, then a bang out "
+      "of the right one. So does the dictionary's reference 'dictionary <name>'.";
   constexpr char kPairDoc[] =
-      "One entry per send: the whole \"::\" path followed by the stored value's tokens, in "
-      "storage order — the order paths were first written. An entry holding nothing leaves as "
-      "its path alone. The walk is a snapshot of the dictionary as it stood at the trigger, so "
-      "a set or delete arriving mid-walk — including from this outlet's own subgraph — changes "
-      "the dictionary but not the walk in flight: every entry held at the trigger is emitted "
-      "exactly once. Each send completes in full, the whole subgraph behind this outlet, before "
-      "the next pair leaves — up to 256 sends per trigger, on whichever thread sent it.";
-  constexpr char kDoneDoc[] =
-      "Bang after the last pair — 'all the pairs have been sent', the exception to right-to-left "
-      "that Max states for uzi's carry. It fires even for an empty dictionary, so the 'and "
-      "afterwards, do this' branch is never silently skipped; a refused walk emits no done bang.";
+      "One entry per message: its whole '::' path followed by its value, in the order the "
+      "entries were first written. An entry with an empty value leaves as its path alone.";
+  constexpr char kDoneDoc[] = "Bang after the last pair, also for an empty dictionary.";
 
 } // namespace
 
@@ -63,29 +50,15 @@ CONSTRUCT() {
   // the control thread, so composing one on the walk never allocates.
   emit.reserve(dictStore::KEY_CAPACITY + 1 + dictStore::VALUE_CAPACITY + 1);
 
-  ADD_DESCRIPTION(
-      "Outputs a dictionary's key/value pairs one at a time — Max's dict.iter, whose summary is "
-      "'stream the content of a dictionary', on the name-addressed value model .dict settled: "
-      "the dictionary is bound from the creation argument, \".dict.iter <name>\", because a "
-      "dictionary is addressed by name and never passed down a cord. A bang, or the "
-      "dictionary's reference message \"dictionary <name>\", emits one \"<path> <value...>\" "
-      "list per entry in storage order out the pair outlet, then a bang out the done outlet — "
-      "the .uzi/.iter shape applied to structured data, and the object every 'do this for each "
-      "entry' patch is built from. Paths are whole \"::\" paths, so what leaves here feeds "
-      ".route, .zl and a set-building .prepend unchanged. The walk is a snapshot of the "
-      "dictionary as it stood at the trigger: a set or delete arriving mid-walk changes the "
-      "dictionary but never the walk in flight, and two .dict.iter on one name walk "
-      "independently. A trigger arriving mid-walk is refused and counted, as .uzi refuses a "
-      "re-entrant start.");
+  ADD_DESCRIPTION("Walks a named dictionary, sending one '<path> <value>' list per entry, then a "
+                  "bang from the right outlet when it is done.");
   ADD_CATEGORY(pCategory::DICT);
   INLET_DOC(0, "walk", kInletDoc, "");
   OUTLET_DOC(0, "pair", kPairDoc, "");
   OUTLET_DOC(1, "done", kDoneDoc, "");
   PARAM_DOC("name", "",
-            "The dictionary's shared name, addressed as \"patcher.<patcherName>.<name>\" — the "
-            "dictionary a .dict of the same name in this patcher holds. Resolved once, on the "
-            "control thread, which is why no message re-points it at run time. Empty walks a "
-            "private, empty dictionary: no pairs, just the done bang.",
+            "The name of the dictionary to walk. Empty walks an empty dictionary: no pairs, only "
+            "the done bang.",
             "any identifier");
 }
 

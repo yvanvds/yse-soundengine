@@ -347,14 +347,14 @@ Notes on individual controls:
 
 - ``.t`` accepts its own ``on`` / ``off`` back, and also a number. A restore
   sets the state; it never flips it the way a bang does.
-- ``.incdec`` has two ``set`` forms. ``set <n>`` (one number) is Max's silent
+- ``.incdec`` has two ``set`` forms. ``set <n>`` (one number) is a silent
   set; ``set 0 <n>`` (two numbers) is the protocol's cell write.
 - ``.rslider`` stores the two ends as they were written and sorts them when
   it reports them, so cell 0 is always the low end.
 - ``.multislider`` takes its size from a whole-state list, so restoring a
   snapshot also restores the bank size.
 - ``.matrixctrl``: on a grid of exactly three cells, a three-number list is
-  read as the whole state, never as Max's ``<column> <row> <value>`` triple.
+  read as the whole state, never as a ``<column> <row> <value>`` cell write.
 - ``.function``: an empty function reports the word ``clear`` rather than an
   empty string. ``GetGuiValueCount()`` is then 0. ``clear`` round-trips like
   any other state, so a snapshot of an empty envelope empties it again on
@@ -392,7 +392,7 @@ settable.
 Presets
 -------
 
-``.preset`` is Max's ``preset`` object: a bank of numbered slots, each
+``.preset`` is a bank of numbered slots, each
 holding a snapshot of the patch's controls. It is the host snapshot from the
 example above, built into the patch.
 
@@ -470,7 +470,7 @@ type**. IDs are reused after a delete, and this check keeps a recall from
 writing one control's state into whatever object took over its number. A
 stale entry is skipped; the rest of the slot is still recalled.
 
-There is no interpolated recall: a recall is instant, as in Max. To morph
+There is no interpolated recall: a recall is instant. To morph
 between states, build it in the patch, for example ``.xyslider`` into
 ``.nodes`` into the gains you want to blend.
 
@@ -496,8 +496,8 @@ works, but not every way runs at the same moment:
   millisecond later, in the order they arrived. Queuing is lock-free and
   allocation-free, so it costs the audio thread nothing noticeable.
 
-So a ``.pgmin`` wired into a ``.preset`` recalls a preset on a program change,
-as in Max. Keep in mind that the recall lands after the block that carried the
+So a ``.pgmin`` wired into a ``.preset`` recalls a preset on a program change.
+Keep in mind that the recall lands after the block that carried the
 program change, not inside it. A bang or a bare ``clear`` reads the active
 slot when it runs, so a ``store 3`` followed by a bang in the same block
 recalls slot 3.

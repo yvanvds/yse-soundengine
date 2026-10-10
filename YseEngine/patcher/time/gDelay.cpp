@@ -24,34 +24,13 @@ namespace {
   }
 
   constexpr char kHotInletDoc[] =
-      "The bang inlet. A bang starts the wait: Max's 'a bang is delayed a certain number of "
-      "milliseconds before being sent out the outlet'. Only one bang is held at a time — a second "
-      "one cancels the first and restarts the wait, Max's 'if a bang is already in delay when a "
-      "new bang is received in the left inlet, the first bang is forgotten'. An int or a float "
-      "sets the delay time and then starts the wait, which is Max's own wording: the number 'is "
-      "stored as the number of milliseconds to delay a bang received in the left inlet. It then "
-      "automatically sends a bang message to itself to start the delay.' The message 'stop' "
-      "cancels the held bang without sending it. A list whose first item is a number sets the "
-      "time and starts the wait, the same as a bare number; Max's list method exists to carry its "
-      "time-format syntax, and since issue #705 the tempo-relative half of that syntax is read "
-      "here: a note value ('4n', '4nd', '8nt') or a tick count ('1440 ticks') sets the delay in "
-      "beats on the domain clock named by 'clock <name>', which is Max's own method — 'the word "
-      "clock, followed by the name of an existing setclock object, sets the delay object to be "
-      "controlled by that setclock object rather than by Max's internal millisecond clock' — and "
-      "a bare 'clock' takes the clock away again. Any plain number puts the object back on "
-      "milliseconds. A beat time with no clock bound arms nothing and bangs nothing, there being "
-      "no transport here to measure a beat against; send the 'clock' message and the next bang "
-      "works. bars.beats.units stays out, needing a meter no domain clock has. Anything else does "
-      "nothing.";
+      "A bang starts the wait, forgetting a bang already waiting. A number or a beat time sets "
+      "the time and starts the wait. 'stop' cancels the waiting bang; 'clock <name>' sets the "
+      "clock for beat times.";
 
   constexpr char kColdInletDoc[] =
-      "Sets the delay time without starting anything. Max: 'a number received in the right inlet "
-      "changes the delay time of the next bang received -- it does not modify the time of a bang "
-      "currently being delayed', so a bang already waiting still leaves at the time it was armed "
-      "with. Ints, floats and a list whose first item is a number all set it in milliseconds; a "
-      "negative time counts as 0. A note value ('4nd') or a tick count ('1440 ticks') sets it in "
-      "beats instead (issue #705), to be measured on the clock 'clock <name>' named in the left "
-      "inlet. There is no bang method here, as there is none in Max.";
+      "Sets the time for the next bang, in milliseconds or as a beat time. A bang already "
+      "waiting keeps its time.";
 
 } // namespace
 
@@ -75,52 +54,17 @@ CONSTRUCT() {
   delaybeats = 0.f;
 
   ADD_DESCRIPTION(
-      "Delays a bang. A bang in the left inlet comes back out the outlet a settable number of "
-      "milliseconds later, which is the patcher's most basic scheduling primitive: .metro can "
-      "only repeat, and until this object there was no way to defer anything at all. Only one "
-      "bang is held at a time — a new one cancels the pending one and restarts the wait, Max's "
-      "'the first bang is forgotten' — and 'stop' cancels it outright. A number in the left inlet "
-      "sets the time and starts the wait; a number in the right inlet sets the time for the next "
-      "bang only, leaving a bang already in flight alone. The wait runs on the patcher's "
-      "deferred-message scheduler (issue #628) rather than on the timer thread behind .metro, so "
-      "arming allocates nothing and takes no lock, and the released bang arrives inside the "
-      "patcher's own dispatch as one fresh logical event rather than as an unrelated stimulus. "
-      "That clock is the block counter, so it stops when the engine does and a paused patch holds "
-      "a delayed bang where it stands, and its resolution is one audio block. A delay of 0 still "
-      "defers to the next block rather than firing immediately, which is Max's behaviour and the "
-      "reason a delay wired back into itself is a fast metronome instead of a stack overflow. "
-      "Since issue #705 the delay may also be tempo-relative: a note value ('4n', '4nd', '8nt') "
-      "or a tick count ('1440 ticks') sets it in beats, and 'clock <name>' names the YSE domain "
-      "clock those beats are counted on — Max's own method, delay and metro being two of the "
-      "objects setclock names explicitly — so the wait then follows that domain's tempo changes "
-      "and ramps, stays in step with every clip on it, and holds where it stands when the domain "
-      "pauses. A bare 'clock' goes back to Max's millisecond clock and any plain number goes back "
-      "to milliseconds, so an object never sent a beat time is Max's object exactly. A beat time "
-      "with no clock bound arms nothing, this patcher having no transport to measure a beat "
-      "against, and bars.beats.units, quantize and transport stay out because all three need a "
-      "meter a domain clock does not have. Calculate() does nothing and no "
-      "message path allocates, locks or blocks.");
+      "Sends a bang a set time after it receives one: 5 ms by default, or a beat time on a "
+      "domain clock. It holds one bang at a time; a new bang restarts the wait and 'stop' "
+      "cancels it.");
   ADD_CATEGORY(pCategory::TIME);
   INLET_DOC(0, "bang", kHotInletDoc, "bang, int, float, list, 'stop', 'clock <name>'");
   INLET_DOC(1, "time", kColdInletDoc, "0+ ms, or a note value / tick count");
-  OUTLET_DOC(0, "out", "The delayed bang, one audio block or more after the bang that caused it.",
-             "");
-  PARAM_DOC("delaytime", "5",
-            "The initial delay in milliseconds — Max's creation argument. Max's reference page "
-            "disagrees with itself here: its Arguments section says 'if there is no argument, the "
-            "initial time interval is 5 milliseconds' while its Attributes table lists delaytime "
-            "as defaulting to 0 ms. The argument prose wins, being the statement about this "
-            "object's constructor rather than about the attribute's declared default. Either "
-            "inlet overwrites it afterwards. A negative value counts as 0.",
-            "0+ ms");
+  OUTLET_DOC(0, "out", "The delayed bang.", "");
+  PARAM_DOC("delaytime", "5", "The delay in milliseconds. A negative value counts as 0.", "0+ ms");
   PARAM_DOC("delaybeats", "0",
-            "The initial delay in beats, for the tempo-relative unit issue #705 added. 0 means "
-            "the delay is the millisecond one above, which is what a Max delay always is; any "
-            "positive value makes it a beat count on the domain clock a 'clock <name>' message "
-            "names, and a note value or tick count in either inlet overwrites it afterwards. A "
-            "plain number in either inlet clears it back to 0, Max's 'the number is stored as the "
-            "number of milliseconds'. The clock binding itself is run-time state and is not "
-            "saved. A negative value counts as 0.",
+            "The delay in beats on the bound clock. 0 uses the millisecond delay instead. A plain "
+            "number in either inlet sets it back to 0.",
             "0+ beats");
 }
 

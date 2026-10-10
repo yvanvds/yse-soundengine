@@ -48,30 +48,15 @@ namespace {
   }
 
   constexpr char kPortDoc[] =
-      "Index of the MIDI input device to listen to, as numbered by "
-      "YSE::system::getMidiInDeviceName. The port is opened the first time any patcher object asks "
-      "for it and closed when the last one goes, so several objects on one keyboard share a single "
-      "device and each still gets a queue of its own. A port that will not open — no hardware, or "
-      "a "
-      "backend that allows one client per port and a host that already holds it — leaves an object "
-      "that is perfectly valid and simply never receives anything, which is what lets a patch load "
-      "the same way on a machine with nothing plugged in. Editing this argument on a live object "
-      "rebuilds the object rather than storing into it: the subscription is taken when the object "
-      "joins its patcher, and a field written on the audio thread cannot move a device port.";
+      "MIDI input port to listen to, counted from 0; .midiinfo lists them. A port that cannot be "
+      "opened leaves the object silent, and the patch still loads.";
 
   constexpr char kChannelDoc[] =
-      "MIDI channel to accept, 1-16, or 0 for every channel — Max's omni, and the default. Unlike "
-      "Max, giving a channel here does not remove the channel outlet: an object whose outlet count "
-      "depends on its arguments has no stable outlet numbering, so adding an argument would "
-      "silently re-point every cord leaving the box and a saved patch's connection indices would "
-      "mean two different things. The outlet stays and carries the filtered channel back, which "
-      "costs a patch nothing.";
+      "MIDI channel to listen to, 1-16, or 0 for all channels. Any other value means all "
+      "channels. The channel outlet stays either way.";
 
   constexpr char kChannelOutletDoc[] =
-      "The MIDI channel the message arrived on, 1-16 — the numbering Max uses, the numbering the "
-      "sending objects use, and the numbering printed on the hardware, rather than the 0-15 nibble "
-      "on the wire. Sent first, before the outlets to its left, so anything the leftmost outlet "
-      "triggers downstream already knows which channel it is looking at.";
+      "The channel the message arrived on, 1-16. Sent before the outlets to its left.";
 
 } // namespace
 
@@ -177,32 +162,11 @@ bool mMidiChannelInBase::Accepts(unsigned char nibble) const {
 mMidiIn::mMidiIn() : mMidiInBase() {
   ADD_OUT_INT;
 
-  ADD_DESCRIPTION(
-      "Raw MIDI input — Max's 'midiin' (issue #529). Every byte received on the port leaves the "
-      "outlet as an int, in the order it arrived and with nothing interpreted: a note-on is three "
-      "ints, a SysEx dump is however many the device sent, up to the input transport's limit of "
-      "8192 bytes per message (twice a DX7 32-voice bank) — a longer message, or one arriving "
-      "while the patch is not draining, is dropped whole and logged, never passed on truncated. "
-      "This is the one member of the input "
-      "family that does not decode, and it is the one to reach for when a patch needs the whole "
-      "protocol rather than the common cases — SysEx, song position, manufacturer-specific "
-      "traffic, "
-      "or anything a '.notein' / '.ctlin' pair would filter out. It is also the object that feeds "
-      "a "
-      "'.seq' recording, whose stored format is the raw byte stream. Bytes are drained from a "
-      "bounded lock-free queue once per audio block, at most 512 bytes per block, so a long dump "
-      "is spread over a few blocks: MIDI arrives on the device backend's own "
-      "thread and this object hands it to the patch on the audio thread without allocating, "
-      "locking "
-      "or blocking on either side. Status bytes are reported as they are on the wire, 0-255, so a "
-      "note-on on channel 1 is 144 rather than 'channel 1' — the decoding objects are where "
-      "channels become 1-16.");
+  ADD_DESCRIPTION("Raw MIDI input. Every byte received on a MIDI input port leaves the outlet as "
+                  "an int, in arrival order and uninterpreted.");
   OUTLET_DOC(0, "byte",
-             "Every byte received on the port, one int per byte, in arrival order. Status bytes "
-             "keep their wire value (144-159 note-on, 176-191 control change, 240 SysEx start, and "
-             "so on) and data bytes are 0-127; nothing is filtered, split or reordered. A message "
-             "longer than the transport's event size arrives as consecutive chunks, which changes "
-             "nothing here, the bytes being sent one at a time either way.",
+             "Each received byte as an int. Status bytes keep their value on the wire (144-159 is "
+             "a note-on, 240 starts a system-exclusive dump); data bytes are 0-127.",
              "0-255");
 }
 
@@ -217,24 +181,13 @@ void mMidiIn::Receive(const YSE::MIDI::inEvent& event, YSE::THREAD thread) {
 mRtIn::mRtIn() : mMidiInBase() {
   ADD_OUT_INT;
 
-  ADD_DESCRIPTION(
-      "MIDI system real-time input — Max's 'rtin' (issue #529). Reports the one-byte messages a "
-      "master clock sends to keep everything on it in step: 248 timing clock (24 per quarter "
-      "note), "
-      "250 start, 251 continue, 252 stop and 255 system reset. This is how a patch follows an "
-      "external sequencer or drum machine rather than leading it — count the clocks with a "
-      "'.counter' for a tempo grid, and use start / stop to drive a '.transport'. Real-time bytes "
-      "are the one part of MIDI that may appear *inside* another message on the wire; the device "
-      "backend delivers them as separate one-byte messages, so a clock arriving mid-SysEx reaches "
-      "this outlet whole and does not disturb a '.midiin' reading the dump. Active sensing (254) "
-      "is "
-      "deliberately absent: the backend filters it, because a device that sends it sends 300 a "
-      "minute forever and no patch wants that in its queue. Drained once per audio block from a "
-      "bounded lock-free queue, so nothing on the path allocates, locks or blocks.");
+  // Active sensing (254) never arrives: the device backend filters it, since a
+  // device that sends it sends 300 a minute forever.
+  ADD_DESCRIPTION("MIDI clock input. Reports the system real-time messages a sequencer or drum "
+                  "machine sends: timing clock, start, continue, stop and reset.");
   OUTLET_DOC(0, "status",
-             "The real-time status byte: 248 timing clock, 250 start, 251 continue, 252 stop, 255 "
-             "system reset. Nothing else is ever sent here — a channel-voice message goes to the "
-             "decoding objects and the raw stream to '.midiin'.",
+             "The message: 248 timing clock (24 per quarter note), 250 start, 251 continue, 252 "
+             "stop, 255 reset.",
              "248-255");
 }
 
@@ -253,35 +206,13 @@ mNoteIn::mNoteIn() : mMidiChannelInBase() {
   ADD_OUT_INT; // velocity
   ADD_OUT_INT; // channel
 
-  ADD_DESCRIPTION(
-      "MIDI note input — Max's 'notein' (issue #529), and the object that makes a patch playable "
-      "from a keyboard at all. Every note-on and note-off received on the port leaves as pitch, "
-      "velocity and channel. A note-off is reported the way Max reports it, as the same pitch with "
-      "velocity 0 rather than on a separate outlet, so the common case is one comparison "
-      "downstream: '.sel 0' on the velocity, or a '.togedge' if what the patch wants is the gate "
-      "rather than the numbers. That also folds the two spellings of a note-off — a real note-off "
-      "message and a note-on with velocity 0, both of which hardware sends — into one shape, which "
-      "is exactly the ambiguity a patch should not have to handle itself. The three outlets fire "
-      "right to left, channel first, so whatever the pitch triggers downstream already sees the "
-      "velocity and channel that came with it. A 'channel' argument filters; unlike Max it does "
-      "not "
-      "remove the channel outlet, so an object's shape never depends on its arguments. Events "
-      "cross "
-      "from the device backend's thread on a bounded lock-free queue and are drained once per "
-      "audio "
-      "block, so nothing allocates, locks or blocks on either side.");
-  OUTLET_DOC(
-      0, "pitch",
-      "The note number, 0-127, sent last of the three so the velocity and channel that "
-      "belong to it are already out when it triggers anything. Middle C is 60; '.mtof' turns "
-      "it into a frequency.",
-      "0-127");
-  OUTLET_DOC(
-      1, "velocity",
-      "How hard the key was struck, 0-127, and 0 for a release — Max's convention, and the "
-      "one that folds a note-off message and a note-on with velocity 0 into a single shape a "
-      "patch can test once.",
-      "0-127");
+  ADD_DESCRIPTION("MIDI note input. Every note-on and note-off received on a MIDI input port "
+                  "leaves as pitch, velocity and channel; a release reports velocity 0.");
+  OUTLET_DOC(0, "pitch", "The note number; middle C is 60. Sent last.", "0-127");
+  OUTLET_DOC(1, "velocity",
+             "How hard the key was struck, or 0 for a release: a note-off message and a note-on "
+             "with velocity 0 both report 0.",
+             "0-127");
   OUTLET_DOC(2, "channel", kChannelOutletDoc, "1-16");
 }
 
@@ -313,42 +244,18 @@ mCtlIn::mCtlIn() : mMidiChannelInBase() {
   ADD_PARAM(controller);
   controller = -1;
 
-  ADD_DESCRIPTION(
-      "MIDI control-change input — Max's 'ctlin' (issue #529). Every control-change message "
-      "received on the port leaves as value, controller number and channel: this is the object a "
-      "patch reads knobs, faders, the modulation wheel, the sustain pedal and the expression pedal "
-      "with. The three outlets fire right to left, so whatever the value triggers downstream "
-      "already knows which controller and channel it came from — which is what lets one '.ctlin' "
-      "feed a '.route' or a '.sel' over the controller-number outlet and fan a whole control "
-      "surface out of a single box. A 'channel' argument filters by channel and a second argument "
-      "filters by controller number, whose default is -1 rather than 0 because controller 0 is "
-      "Bank "
-      "Select MSB, a real controller a patch may want on its own. Unlike Max, neither filter "
-      "removes an outlet: an object's shape must not depend on its arguments. Events cross from "
-      "the "
-      "device backend's thread on a bounded lock-free queue and are drained once per audio block, "
-      "so nothing allocates, locks or blocks on either side.");
-  OUTLET_DOC(
-      0, "value",
-      "The controller's new value, 0-127, sent last of the three so the controller number "
-      "and channel that identify it are already out when it triggers anything. A switch-type "
-      "controller such as the sustain pedal sends 0 and 127 rather than a sweep.",
-      "0-127");
+  ADD_DESCRIPTION("MIDI control-change input. Reports the value, controller number and channel of "
+                  "every control change received on a MIDI input port: knobs, faders, wheels and "
+                  "pedals.");
+  OUTLET_DOC(0, "value", "The controller's value. Sent last.", "0-127");
   OUTLET_DOC(1, "controller",
-             "Which controller moved, 0-127: 1 modulation wheel, 7 channel volume, 11 expression, "
-             "64 sustain pedal, and so on. Constant when the object was given a controller "
-             "argument, which is the whole reason the outlet is kept in that case — a patch's "
-             "wiring should not change shape with its arguments.",
+             "The controller number: 1 is the modulation wheel, 7 volume, 64 the sustain pedal.",
              "0-127");
   OUTLET_DOC(2, "channel", kChannelOutletDoc, "1-16");
-  PARAM_DOC(
-      "controller", "-1",
-      "Controller number to accept, 0-127, or -1 for every controller — the default. Not 0 "
-      "for 'any': controller 0 is Bank Select MSB, a controller a patch may legitimately want "
-      "on its own, so it could not double as the wildcard. Anything outside 0-127 is read as "
-      "-1, so a stray argument means 'every controller' rather than silencing the object "
-      "outright.",
-      "-1 to 127");
+  PARAM_DOC("controller", "-1",
+            "Controller number to listen to, 0-127, or -1 for all controllers. Any other value "
+            "means all controllers.",
+            "-1 to 127");
 }
 
 void mCtlIn::ParseParams() {
@@ -378,24 +285,9 @@ mBendIn::mBendIn() : mMidiChannelInBase() {
   ADD_OUT_INT; // bend
   ADD_OUT_INT; // channel
 
-  ADD_DESCRIPTION(
-      "MIDI pitch-bend input — Max's 'bendin' (issue #529). Reports the pitch wheel's position as "
-      "0-127 with 64 at rest, which is Max's 7-bit reading of a message that is 14 bits on the "
-      "wire: only the most significant byte is used, and that is the reference behaviour rather "
-      "than a shortcut. The full resolution is what '.xbendin' is for (issue #533), and the two "
-      "exist separately for a reason worth knowing — 7 bits over a two-semitone bend range is "
-      "about "
-      "three cents a step, which is audible as a staircase on a slow bend, so a patch that bends "
-      "expressively wants the extended object while one that just needs a modulation source does "
-      "not. The wheel's rest position is 64 here, not 0, so a patch usually subtracts before "
-      "scaling. Both outlets fire right to left, channel first. A 'channel' argument filters and, "
-      "unlike Max, leaves the channel outlet in place. Events cross from the device backend's "
-      "thread on a bounded lock-free queue and are drained once per audio block, so nothing "
-      "allocates, locks or blocks on either side.");
-  OUTLET_DOC(0, "bend",
-             "The wheel position, 0-127, centred at 64: 0 is fully down, 127 fully up. This is the "
-             "high byte of the 14-bit message, Max's reading; '.xbendin' reports all 14 bits.",
-             "0-127");
+  ADD_DESCRIPTION("MIDI pitch-bend input at 7-bit resolution: reports the pitch wheel as 0-127 "
+                  "with 64 at rest. .xbendin reports the full 14 bits.");
+  OUTLET_DOC(0, "bend", "The wheel position: 0 fully down, 64 at rest, 127 fully up.", "0-127");
   OUTLET_DOC(1, "channel", kChannelOutletDoc, "1-16");
 }
 
@@ -417,23 +309,9 @@ mPgmIn::mPgmIn() : mMidiChannelInBase() {
   ADD_OUT_INT; // program
   ADD_OUT_INT; // channel
 
-  ADD_DESCRIPTION(
-      "MIDI program-change input — Max's 'pgmin' (issue #529). Reports patch changes as 1-128, "
-      "which is Max's numbering and one more than the 0-127 the wire carries: hardware front "
-      "panels "
-      "and patch sheets count from 1, and the object that *sends* program changes takes the same "
-      "numbering, so a round trip through a patch gives back the number the user saw. This is how "
-      "a "
-      "patch follows a hardware program change — recalling a preset, switching a sampler's kit, or "
-      "arming a whole scene from one button on a keyboard. Both outlets fire right to left, "
-      "channel "
-      "first. A 'channel' argument filters and, unlike Max, leaves the channel outlet in place. "
-      "Events cross from the device backend's thread on a bounded lock-free queue and are drained "
-      "once per audio block, so nothing allocates, locks or blocks on either side.");
-  OUTLET_DOC(0, "program",
-             "The program number, 1-128 — the wire's 0-127 plus one, which is what the hardware's "
-             "own display shows and what the sending objects take.",
-             "1-128");
+  ADD_DESCRIPTION("MIDI program-change input. Reports each program change received on a MIDI "
+                  "input port as 1-128, the numbering most devices display.");
+  OUTLET_DOC(0, "program", "The program number: the value on the wire plus one.", "1-128");
   OUTLET_DOC(1, "channel", kChannelOutletDoc, "1-16");
 }
 
@@ -453,21 +331,11 @@ mTouchIn::mTouchIn() : mMidiChannelInBase() {
   ADD_OUT_INT; // pressure
   ADD_OUT_INT; // channel
 
-  ADD_DESCRIPTION(
-      "MIDI channel-aftertouch input — Max's 'touchin' (issue #529). Reports the pressure applied "
-      "after a key is already down, as one value for the whole channel: a keyboard with channel "
-      "aftertouch sends the hardest-pressed key's reading, not one per note, which is what "
-      "separates this from '.polyin'. It is the cheapest expressive input a patch can have — a "
-      "vibrato depth, a filter opening or a swell that the player controls without moving a hand "
-      "off the keys — and the one most keyboards actually implement. Both outlets fire right to "
-      "left, channel first. A 'channel' argument filters and, unlike Max, leaves the channel "
-      "outlet "
-      "in place. Events cross from the device backend's thread on a bounded lock-free queue and "
-      "are "
-      "drained once per audio block, so nothing allocates, locks or blocks on either side.");
+  ADD_DESCRIPTION("MIDI channel-aftertouch input. Reports the pressure on the keys after they are "
+                  "down, as one value for the whole channel.");
   OUTLET_DOC(0, "pressure",
-             "Channel aftertouch, 0-127: one value for the whole channel, however many keys are "
-             "held. Per-note pressure is '.polyin'.",
+             "Channel pressure: one value however many keys are held. Per-key pressure is "
+             ".polyin's.",
              "0-127");
   OUTLET_DOC(1, "channel", kChannelOutletDoc, "1-16");
 }
@@ -489,26 +357,12 @@ mPolyIn::mPolyIn() : mMidiChannelInBase() {
   ADD_OUT_INT; // pressure
   ADD_OUT_INT; // channel
 
-  ADD_DESCRIPTION(
-      "MIDI polyphonic key-pressure input — Max's 'polyin' (issue #529). The per-note counterpart "
-      "of '.touchin': every held key reports its own pressure, so a chord can be shaped one note "
-      "at "
-      "a time rather than as a whole. Far fewer keyboards send it than send channel aftertouch, "
-      "which is why the two are separate objects rather than one — a patch built on '.polyin' "
-      "silently does nothing on hardware that has only the channel kind. The three outlets fire "
-      "right to left, so whatever the pitch triggers downstream already sees the pressure and "
-      "channel that came with it; pairing the pitch with the one a '.notein' reported is how a "
-      "patch routes the value to the right voice. A 'channel' argument filters and, unlike Max, "
-      "leaves the channel outlet in place. Events cross from the device backend's thread on a "
-      "bounded lock-free queue and are drained once per audio block, so nothing allocates, locks "
-      "or "
-      "blocks on either side.");
-  OUTLET_DOC(
-      0, "pitch",
-      "Which held key the pressure belongs to, 0-127 — the same numbering '.notein' reports, "
-      "which is how a patch matches the value to a sounding voice. Sent last of the three.",
-      "0-127");
-  OUTLET_DOC(1, "pressure", "Pressure on that one key, 0-127.", "0-127");
+  ADD_DESCRIPTION("MIDI polyphonic key-pressure input. Reports the pressure on each held key "
+                  "separately, as pitch, pressure and channel.");
+  OUTLET_DOC(0, "pitch",
+             "The key the pressure belongs to, numbered as .notein numbers it. Sent last.",
+             "0-127");
+  OUTLET_DOC(1, "pressure", "The pressure on that key.", "0-127");
   OUTLET_DOC(2, "channel", kChannelOutletDoc, "1-16");
 }
 

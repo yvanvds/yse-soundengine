@@ -20,12 +20,13 @@ CONSTRUCT() {
 
   leftIn = rightIn = 0;
 
-  ADD_DESCRIPTION("Control-rate add. Emits left + right as a float whenever inlet 0 fires.");
+  ADD_DESCRIPTION("Adds two numbers. A number on the left inlet is added to the stored right "
+                  "operand, and the sum is sent as a float.");
   ADD_CATEGORY(pCategory::MATH);
-  INLET_DOC(0, "left", "Left operand — fires the addition.", "any float");
-  INLET_DOC(1, "right", "Right operand — stored until next add.", "any float");
+  INLET_DOC(0, "left", "Left operand; sends the result.", "any float");
+  INLET_DOC(1, "right", "Right operand, stored for the next result.", "any float");
   OUTLET_DOC(0, "out", "left + right.", "any float");
-  PARAM_DOC("right", "0", "Initial right-operand value.", "any float");
+  PARAM_DOC("right", "0", "Starting right operand.", "any float");
 }
 
 FLOAT_IN(SetLeftFloat) {

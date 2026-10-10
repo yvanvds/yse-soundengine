@@ -38,68 +38,30 @@ gArrayRandom::gArrayRandom() : gArrayEndsBase() {
   AtomList::ReserveRender(emitScratch);
 
   ADD_DESCRIPTION(
-      "Outputs a random element of an array — Max's array.random on the name-addressed value "
-      "model .array settled: the array is bound from the creation argument, \".array.random "
-      "<name> [<seed>]\", because an array is addressed by name and never passed down a cord. "
-      "A bang picks one element — the length read, the position drawn and the element copied "
-      "out under one hold of the store's guard, so the draw ranges over the array as it stood "
-      "at the trigger and can never miss — and the element leaves typed the way the patcher "
-      "spells it. The position comes from a per-object random sequence, the source .drunk, "
-      ".urn and .array.scramble share: a non-zero seed replays the same picks every run, 0 "
-      "takes an arbitrary stream, and exactly one draw is taken per element that leaves. "
-      "Repeats are allowed — every pick is an independent uniform draw; drawing without "
-      "replacement is .urn's behaviour, a second object rather than a mode of this one. An "
-      "empty or unnamed (private) array bangs the empty outlet instead, taking no draw.");
+      "Outputs a randomly chosen element of a named array. A seed makes the sequence of picks "
+      "repeat on every run.");
   ADD_CATEGORY(pCategory::ARRAY);
   INLET_DOC(0, "trigger",
-            "A bang picks one element at random — one guarded read at a drawn position, the "
-            "element out the element outlet typed by its spelling, or the empty outlet when "
-            "there is nothing to pick. \"array <name>\" does the same when it names the array "
-            "bound by the first creation argument — the message an .array's reference outlet "
-            "emits on a bang, so wiring that outlet here gives the family's gesture: bang the "
-            "array, out comes a random element. A reference naming anything else, or any other "
-            "message, is refused and counted rather than logged, since this inlet may be the "
-            "audio thread.",
+            "Bang, or the bound array's reference \"array <name>\": send one element picked at "
+            "random.",
             "");
   INLET_DOC(1, "seed",
-            "An int restarts the random sequence, silently — a non-zero seed replays the same "
-            "picks every run, 0 takes an arbitrary stream, .urn's contract and Max's @seed 0. "
-            "A float truncates to an int first; a non-finite one is refused rather than "
-            "quietly becoming seed 0. The author's creation argument is not rewritten: a "
-            "run-time reseed is the patch's business, the saved seed the author's.",
+            "An int restarts the random sequence. A non-zero seed repeats the same picks every "
+            "run; 0 gives an unpredictable sequence. A float is truncated.",
             "any int");
   INLET_DOC(2, "array reference",
-            "\"array <name>\" is accepted silently when it names the array bound by the first "
-            "creation argument, so a patch may wire the array's reference outlet across. It "
-            "sets nothing — the binding is the creation argument, resolved on the control "
-            "thread — and anything else is refused and counted.",
+            "Accepts the bound array's reference \"array <name>\" and ignores it, so the "
+            "array's reference outlet can be wired here. Anything else is refused.",
             "");
-  OUTLET_DOC(0, "element",
-             "The picked element, typed the way the patcher spells it: a numeric element "
-             "leaves as an int or a float by its spelling and anything else as a symbol. "
-             "Every pick is an independent uniform draw over the positions the array holds at "
-             "that moment — repeats allowed, .urn's no-repeat being a different object — and "
-             "the element sent is the array's as it stood at the trigger, read under one hold "
-             "of the store's guard.",
-             "");
-  OUTLET_DOC(1, "empty",
-             "Bang when there is no element to pick — an empty or unnamed (private) array. "
-             "\"No data\" is a state a patch must be able to route on, not an error, and a "
-             "sentinel value would be indistinguishable from a real answer — .array.pop's "
-             "empty outlet, for the same reason. No draw is taken, so a seeded stream stays "
-             "aligned with the elements actually picked. A lost try-lock is a counted refusal "
-             "instead: the array's state is unknown, so neither outlet fires.",
-             "");
-  PARAM_DOC(
-      "name", "",
-      "The array's shared name, addressed as \"patcher.<patcherName>.<name>\" — the sequence an "
-      ".array of the same name in this patcher holds. Resolved once, on the control "
-      "thread, which is why no message re-points it at run time. Empty picks from a "
-      "private, empty array: every ask bangs the empty outlet.",
-      "any identifier");
+  OUTLET_DOC(0, "element", "The picked element, as an int, float or symbol by its spelling.", "");
+  OUTLET_DOC(1, "empty", "Bang when the array is empty.", "");
+  PARAM_DOC("name", "",
+            "Name of the array to pick from: the .array with this name in the same patcher. "
+            "Empty uses a private, empty array.",
+            "any identifier");
   PARAM_DOC("seed", "0",
-            "Random seed for the pick sequence; non-zero replays the same picks every run, 0 "
-            "picks an arbitrary stream.",
+            "Random seed. A non-zero seed repeats the same picks every run; 0 gives an "
+            "unpredictable sequence.",
             "any int");
 }
 

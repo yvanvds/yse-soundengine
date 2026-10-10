@@ -235,7 +235,7 @@ python yse.py analyze [path]     # run clang-tidy; path narrows scope (default: 
 python yse.py format             # clang-format on YseEngine/ and Tests/
 python yse.py dump-patcher-meta  # regenerate the patcher object metadata the docs render
 python yse.py package            # build a release archive in dist/ (used by CI)
-python yse.py release patch      # bump version, commit, tag, push (maintainers; --dry-run, --no-push)
+python yse.py release patch --bump-only  # maintainers: bump + commit on release/vX.Y.Z-prep; then release --tag <commit>
 ```
 
 Running `yse_tests` directly without a `--test-suite=` / `--test-case=`

@@ -41,11 +41,10 @@ How a request travels
 
 Some consequences:
 
-- **Nothing arrives inside the message.** In Max, ``read`` followed by
-  ``bang`` plays the file just read. Here the ``bang`` would reach the old
+- **Nothing arrives inside the message.** A ``read`` followed at once by a
+  ``bang`` does not play the file just read: the ``bang`` reaches the old
   contents. Wire the object's *file* outlet to whatever should happen next.
-  ``.mtr`` and ``.seq`` have a *file* outlet that Max does not, for exactly
-  this reason.
+  ``.mtr`` and ``.seq`` have a *file* outlet for exactly this reason.
 - **Results arrive only while the patcher renders.** A patcher that is not
   attached to a sound or an insert (see :doc:`index`) keeps its finished
   requests until it renders.
@@ -116,7 +115,7 @@ handled on the audio thread. If a *file* outlet never bangs, check the path
 reader is installed.
 
 **A write has no success signal.** None of these objects has an outlet that
-reports a finished write, as in Max. A failed write is silent too.
+reports a finished write. A failed write is silent too.
 
 ``.dict.deserialize`` and ``.seq`` also check what they read. A document
 that is not valid JSON, or a file that is not a MIDI sequence, is a failed
@@ -130,8 +129,8 @@ without a name reuses the last name the object was given. If it has never
 been given one, it does nothing.
 
 ``.textfile`` and ``.seq`` take a file name as their creation argument. The
-object reads that file as soon as it joins a patcher, which is Max's "read
-when the patch loads". The name is also the default for a bare ``read`` or
+object reads that file as soon as it joins a patcher, so the file is read
+when the patch loads. The name is also the default for a bare ``read`` or
 ``write``, so a bare ``write`` saves back over the same file. The other
 objects have no file-name argument.
 
@@ -148,7 +147,7 @@ Formats, object by object
      - File outlet
    * - ``.coll``
      - ``read``, ``readagain``, ``write``, ``writeagain``
-     - Max's coll text format
+     - coll text, one record per line
      - outlet 3
    * - ``.textfile``
      - ``read``, ``write``
@@ -156,15 +155,15 @@ Formats, object by object
      - outlet 2
    * - ``.qlist``
      - ``read``, ``write``
-     - Max's qlist cue-list text
+     - cue-list text, one cue per line
      - outlet 2
    * - ``.mtr``
      - ``read``, ``write``, in inlet 0 or a track inlet
-     - Max's mtr text format
+     - track text, one event per line
      - the last outlet
    * - ``.seq``
      - ``read``, ``write [file] [format]``
-     - read: Standard MIDI File or Max's seq text; write: Standard MIDI File
+     - read: Standard MIDI File or seq text; write: Standard MIDI File
      - outlet 3
    * - ``.dict.serialize``
      - ``write``
@@ -196,8 +195,7 @@ replaces the whole collection. ``readagain`` and ``writeagain`` repeat the
 last read or write. ``filetype`` is accepted and does nothing.
 
 A message that contains a comma or a semicolon cannot survive the round
-trip, because those characters end the address and the record. This is the
-same limitation as Max's.
+trip, because those characters end the address and the record.
 
 ``.textfile``
 ~~~~~~~~~~~~~
@@ -211,7 +209,7 @@ lines. A read replaces all lines.
 ``.qlist``
 ~~~~~~~~~~
 
-Max's cue-list format: one cue per line, each ending with a semicolon. On
+A cue-list text format: one cue per line, each ending with a semicolon. On
 reading, either a semicolon or a line break ends a cue, so hand-written files
 without semicolons also load. A line of numbers followed by a message is split
 into two cues, exactly as when it arrives on the inlet. A read replaces the
@@ -221,20 +219,20 @@ list.
 ``.mtr``
 ~~~~~~~~
 
-Max's text format. Each track is written as ``track <n>;``, then one
+A plain text format. Each track is written as ``track <n>;``, then one
 ``<delta> <message>;`` per event, then ``end;``. A bang is written as the word
 ``bang``. ``read`` and ``write`` in inlet 0 cover all tracks. In a track's own
 inlet they cover only that track, and a read there takes the first track in
 the file. A read replaces the tracks it covers and stops their playback.
 
-Max's ``.pat`` and JSON formats are not supported. To keep the recorded tracks
+Only this text format is read and written. To keep the recorded tracks
 inside the patch, use ``embed 1`` instead (see :ref:`data-saved`).
 
 ``.seq``
 ~~~~~~~~
 
 ``read`` accepts a Standard MIDI File (format 0 or 1, up to 32 tracks, merged
-into one sequence) or Max's seq text format (a time in milliseconds followed
+into one sequence) or a seq text file (a time in milliseconds followed
 by the bytes of the MIDI message). The file's tempo map is applied, and meta
 events are kept in the sequence and sent out of the meta outlet during
 playback. A read stops playback.

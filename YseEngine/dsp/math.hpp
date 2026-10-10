@@ -17,10 +17,17 @@
 namespace YSE {
   namespace DSP {
 
-    /** @brief Convert a MIDI note number (0-127) to a frequency in Hz. Scalar form. */
+    /** @brief Convert a MIDI note number (0-127) to a frequency in Hz. Scalar form.
+     *
+     *  Notes above 1499 are clamped to 1499; notes below -1500 (or NaN) give 0 Hz,
+     *  so the result is always finite.
+     */
     Flt API MidiToFreq(Flt note);
 
-    /** @brief Convert a frequency in Hz to a MIDI note number. Scalar form. */
+    /** @brief Convert a frequency in Hz to a MIDI note number. Scalar form.
+     *
+     *  A frequency of 0 or below (or NaN) gives -1500, so the result is always finite.
+     */
     Flt API FreqToMidi(Flt freq);
 
     /**

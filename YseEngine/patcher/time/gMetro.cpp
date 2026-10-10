@@ -15,33 +15,12 @@ using namespace YSE::PATCHER;
 namespace {
 
   constexpr char kHotInletDoc[] =
-      "Non-zero int starts the metronome; 0 stops it. Max: 'any number other than 0 starts the "
-      "metro object. At regular intervals, metro sends a bang out the outlet. 0 stops metro.' A "
-      "float does the same — Max's 'performs the same function as int' — and is compared against "
-      "zero rather than cast, so 0.5 starts the metro where a cast to int would stop it. A bang "
-      "also starts it, Max's 'in left inlet: starts the metro object', and starts a metro that is "
-      "already running by re-phasing it: Max Basic Tutorial 4 has 'when a metro receives a bang, "
-      "the metro will re-start itself and begin scheduling subsequent bang messages from the "
-      "moment we triggered it', which is how one button puts several metros in sync. The message "
-      "'stop' is int 0 under another name — Max's 'in left inlet: stops metro' (issue #711). The "
-      "message 'clock <name>' names the YSE domain clock a tempo-relative interval is counted on "
-      "and a bare 'clock' takes it away again, which is Max's own method for this object — "
-      "setclock names metro explicitly as one of the objects a 'clock' message controls (issue "
-      "#705). Whether a run uses that clock or the millisecond timer is decided when the metro is "
-      "started, so a 'clock' message reaches the next start rather than the run in progress.";
+      "A non-zero number or a bang starts the metro (a bang restarts a running one from now); 0 "
+      "or 'stop' stops it. 'clock <name>' sets the clock for a beat interval.";
 
   constexpr char kColdInletDoc[] =
-      "Sets the bang interval. An int or a float sets it in milliseconds — Max: 'the number is "
-      "the time interval, in milliseconds, at which metro sends out a bang' — and retimes a "
-      "running millisecond metro immediately, without restarting it. A list may carry one of "
-      "Max's time formats instead, and since issue #705 the tempo-relative ones are read here: a "
-      "note value ('4n', '4nd', '8nt') or a tick count ('1440 ticks') sets the interval in beats "
-      "on the clock named by 'clock <name>', which retimes a running beat metro by rebasing the "
-      "grid at the current beat, keeping the phase rather than re-triggering. Any plain number "
-      "puts the interval back on milliseconds. bars.beats.units stays out, needing a meter no "
-      "domain clock has. There is no bang, no toggle and no 'stop' here: Max documents all three "
-      "as left-inlet methods, so a 'stop' arriving here is only a word that is not a time value, "
-      "and does nothing.";
+      "Sets the interval, in milliseconds or as a beat time. A running metro keeps going at the "
+      "new interval without restarting.";
 
   // The metro whose timer callback this thread is currently inside, and what
   // the message cycle running inside that callback has left the metro's own
@@ -149,46 +128,19 @@ CONSTRUCT() {
   timerSlot = TimerBridge().Claim(&gMetro::BangTrampoline, this);
 
   ADD_DESCRIPTION(
-      "Periodic bang generator. Once toggled on, emits a bang every 'period' milliseconds (and "
-      "immediately on start). Toggle off to stop. All four of Max's left-inlet ways to do that are "
-      "here since issue #711: a non-zero int or float starts it, 0 stops it, a bang starts it — "
-      "re-phasing it if it was already running, which is how one button puts several metros in "
-      "sync — and 'stop' stops it. Since issue #705 the interval may be "
-      "tempo-relative instead: a note value ('4n', '4nd', '8nt') or a tick count ('1440 ticks') "
-      "in the right inlet sets it in beats, and 'clock <name>' names the YSE domain clock those "
-      "beats are counted on — Max's own method, setclock naming metro as one of the objects a "
-      "'clock' message controls. The metro then follows that domain's tempo changes and ramps, "
-      "stays in step with every clip on it, and holds where it stands when the domain pauses. Any "
-      "plain number puts it back on milliseconds and a bare 'clock' gives the millisecond clock "
-      "back, so a metro never sent a beat interval is Max's object exactly. The bang count of a "
-      "beat run is read off the clock's beat position rather than counted from the wakeups that "
-      "deliver it, which is load-bearing rather than fastidious: a beat deadline is armed "
-      "relative to the beat it was armed at but delivered at the first audio block boundary past "
-      "it, so counting deliveries would drop that overshoot every bang and run the metro slow — "
-      "and once the interval is shorter than a block it would cap at one bang per block however "
-      "fast the domain ran. quantize, transport and bars.beats.units stay out, all three needing "
-      "a meter a domain clock does not have. Calculate() does nothing, and since issue #718 no "
-      "message or delivery path allocates, locks or blocks when it turns out to be running on the "
-      "audio callback — the millisecond timer is armed and disarmed through timerBridge, which "
-      "takes a wait-free request there and does the locking work on the background pool, while a "
-      "toggle from any other thread still arms it inline and still stops it with the handshake "
-      "that guarantees no further bang.");
+      "Sends a bang at a regular interval while it runs, starting with one bang the moment it "
+      "starts. The interval is in milliseconds (1000 by default) or a beat time on a domain "
+      "clock.");
   ADD_CATEGORY(pCategory::TIME);
   INLET_DOC(0, "on/off", kHotInletDoc, "0 or 1, bang, 'stop', 'clock <name>'");
   INLET_DOC(1, "period", kColdInletDoc, "1+ ms, or a note value / tick count");
-  OUTLET_DOC(0, "out", "Periodic bang.", "");
+  OUTLET_DOC(0, "out", "A bang on every tick, and one when the metro starts.", "");
   PARAM_DOC("period", "1000",
-            "Interval in milliseconds. Re-editing it while the metronome runs takes effect from "
-            "the next bang.",
+            "The interval in milliseconds. A change reaches a running metro one tick later.",
             "1+ ms");
   PARAM_DOC("periodbeats", "0",
-            "Interval in beats, for the tempo-relative unit issue #705 added. 0 means the "
-            "interval is the millisecond one above, which is what a Max metro always is; any "
-            "positive value makes it a beat count on the domain clock a 'clock <name>' message "
-            "names, and a note value or tick count in the right inlet overwrites it afterwards. A "
-            "plain number in the right inlet clears it back to 0. Re-editing it while the "
-            "metronome runs on a clock rebases the grid at the current beat, keeping the phase. "
-            "The clock binding itself is run-time state and is not saved.",
+            "The interval in beats on the bound clock. 0 uses the millisecond interval instead. A "
+            "plain number in the right inlet sets it back to 0.",
             "0+ beats");
 }
 

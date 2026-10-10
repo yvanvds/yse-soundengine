@@ -13,25 +13,10 @@ using namespace YSE::PATCHER;
 namespace {
 
   constexpr char kInletDoc[] =
-      "Sets the beat position to bang at, and carries the object's two messages. An int or a float "
-      "is a new time value — Max's 'sets the time value at which timepoint will send a bang' — and "
-      "always re-arms, so handing a spent timepoint a number puts it back to work. 'clock <name>' "
-      "names the YSE domain clock the position is measured on, the same message '.metro' takes, "
-      "and "
-      "a bare 'clock' unbinds and stops the object watching. 'active 0' disarms the object and "
-      "'active 1' arms it again from wherever the clock now stands, which is Max's active "
-      "attribute. Everything else does nothing, deliberately, rather than being read as some "
-      "command it is not: there is no 'seek', no bars.beats.units and no quantize, all three "
-      "needing an origin or a meter a YSE domain clock does not have.";
+      "A number sets the beat position and arms the object. 'active 0|1' disarms or re-arms it; "
+      "'clock <name>' changes the clock.";
 
-  constexpr char kOutletDoc[] =
-      "Bang, once, when the clock reaches the time. Reaching it is a crossing rather than a "
-      "condition: the object bangs on the way past its target and is then spent, and a target that "
-      "is already in the past when the object is armed never bangs at all — the moment happened "
-      "before anything was watching, and a domain clock has no rewind to bring it round again. A "
-      "new time value, 'active 1' or a new clock arms it afresh. Nothing is emitted while the "
-      "named clock does not exist, while it is paused short of the target, or while the object is "
-      "inactive.";
+  constexpr char kOutletDoc[] = "A bang, once, when the clock passes the beat position.";
 
   // Read one whitespace-separated number out of `text` starting at `from`.
   // Bounded and allocation-free: this runs on whichever thread sent the message.
@@ -64,54 +49,17 @@ CONSTRUCT() {
   active = 1;
 
   ADD_DESCRIPTION(
-      "Bangs when a named YSE domain clock reaches a beat position — Max's timepoint, and the "
-      "patcher's first absolute point on a musical timeline (issue #507). '.timepoint main 128' "
-      "watches the clock called 'main' and bangs when it reads 128. Where '.delay' and '.metro' "
-      "measure time from now, this object names a moment: 'at beat 128, change the patch' is "
-      "arranged, score-like behaviour, and it is what lets a generative patch have a form rather "
-      "than only a texture. The clock is one of the engine's named domain clocks — the same ones "
-      "the host addresses through yse_system_create_clock / beatPosition, the same one a clip "
-      "transport plays on, and the same one a '.transport main' drives — so the position is "
-      "measured on the tempo the whole domain shares, and a tempo change, a ramp or a pause is "
-      "inherited for free: the target arrives sooner, later, smoothly, or never. The name is the "
-      "creation argument and 'clock <name>' re-points it. This object never creates a clock and "
-      "never destroys one: '.transport' is the sole creator (issue #513), so a name nothing has "
-      "claimed simply never comes due until something claims it, and the object starts watching "
-      "the moment its clock starts existing. Reaching the time is a crossing and not a condition — "
-      "the object bangs on the way past its target and is then spent, and a target already in the "
-      "past when the object is armed never bangs at all, because a patch loaded while the clock "
-      "stands at bar 40 must not fire its whole score in one block. A new time value, 'active 1' "
-      "or a new clock arms it again. The position is in beats: a domain clock is a bare beat "
-      "accumulator with no origin and no meter, so bars.beats.units and quantize stay out, as they "
-      "do on '.metro' and '.transport'. Calculate() does nothing, and no path allocates, locks or "
-      "blocks when it turns out to be running on the audio callback — binding and arming are "
-      "wait-free, reading a beat is two acquire loads, and the object never touches the clock "
-      "manager's mutex at all, creating no clock being the reason it never has to.");
+      "Sends a bang once when a named domain clock passes a beat position, as in '.timepoint main "
+      "128'.");
   ADD_CATEGORY(pCategory::TIME);
   INLET_DOC(0, "time", kInletDoc, "beats, 'clock <name>', 'active 0|1'");
   OUTLET_DOC(0, "out", kOutletDoc, "");
   PARAM_DOC("clockname", "",
-            "The domain clock the beat position is measured on. Clocks are addressed by name "
-            "across the whole engine, so this is the same string the host passes to createClock "
-            "and the same one a '.transport <name>' drives. Empty (the default) means the object "
-            "watches nothing and bangs never. The name is bound when the object is added to a "
-            "patcher — bound, not created: a clock nobody has made yet leaves the object waiting, "
-            "and it starts watching when the clock appears. A 'clock <name>' message re-points the "
-            "object without rewriting this, so the patch file keeps the name its author typed.",
+            "The domain clock to watch. Empty watches nothing. A 'clock <name>' message does not "
+            "change it.",
             "");
-  PARAM_DOC("time", "0",
-            "The beat position to bang at, on the clock named above. Beats and not "
-            "bars.beats.units: a domain clock is a bare beat accumulator with no meter to name a "
-            "bar in and no origin to count one from. Setting it — here or through the inlet — "
-            "always re-arms the object, and a value the clock has already passed leaves it spent "
-            "rather than banging at once.",
-            "beats");
-  PARAM_DOC("active", "1",
-            "Whether the object is watching at all — Max's active attribute. 0 arms nothing and "
-            "bangs never; 1 is the default. 'active 1' on a spent or disarmed object arms it "
-            "afresh from wherever the clock now stands, which is the supported way to re-use a "
-            "timepoint that has already fired.",
-            "0 or 1");
+  PARAM_DOC("time", "0", "The beat position to bang at.", "beats");
+  PARAM_DOC("active", "1", "1 watches the clock, 0 does not.", "0 or 1");
 }
 
 // ─── the clock: bound, never created ────────────────────────────────────────

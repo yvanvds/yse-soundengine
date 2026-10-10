@@ -15,33 +15,15 @@ namespace {
   // them inline — gArray's arrangement. What differs per object stays with
   // that object below.
   constexpr char kPairTriggerInletDoc[] =
-      "A bang asks for the result — the set operation over the two bound arrays as they stood "
-      "at the trigger, the left copied out under its guard, the result built against the right "
-      "under that guard alone, and sent after every guard is released. \"array <name>\" does "
-      "the same when it names the left array bound by the first creation argument — the message "
-      "an .array's reference outlet emits on a bang, so wiring that outlet here gives the "
-      "family's gesture. A reference naming anything else, or any other message, is refused and "
-      "counted rather than logged, since this inlet may be the audio thread.";
+      "Bang, or the left array's reference \"array <name>\": send the result.";
   constexpr char kRightReferenceInletDoc[] =
-      "\"array <name>\" is accepted silently when it names the right array bound by the second "
-      "creation argument, so a patch may wire both reference outlets across as it would in Max. "
-      "It sets nothing — the binding is the creation argument, resolved on the control thread — "
-      "and anything else is refused and counted.";
-  constexpr char kPairEmptyOutletDoc[] =
-      "Bang when the operation selected nothing — for .array.sect two arrays with no element in "
-      "common, for .array.union two empty (or unnamed, private) arrays. \"No data\" is a state "
-      "a patch must be able to route on, not an error — routing on an empty intersection is "
-      "half the point of asking. A lost try-lock on either store is a counted refusal instead: "
-      "the arrays' state is unknown, so neither outlet fires.";
+      "Accepts the right array's reference \"array <name>\" and ignores it, so its reference "
+      "outlet can be wired here. Anything else is refused.";
   constexpr char kLeftParamDoc[] =
-      "The left array's shared name, addressed as \"patcher.<patcherName>.<name>\" — the sequence "
-      "an "
-      ".array of the same name in this patcher holds. Resolved once, on the control thread, "
-      "which is why no message re-points it at run time. Empty reads a private, empty array on "
-      "that side.";
+      "Name of the left array: the .array with this name in the same patcher. Empty uses a "
+      "private, empty array.";
   constexpr char kRightParamDoc[] =
-      "The right array's shared name, bound exactly as the left one. Empty reads a private, "
-      "empty array on that side.";
+      "Name of the right array, found the same way. Empty uses a private, empty array.";
 
 } // namespace
 
@@ -237,32 +219,16 @@ bool gArraySetOpBase::CollectLocked() {
 
 gArrayUnion::gArrayUnion() : gArraySetOpBase(false) {
   ADD_DESCRIPTION(
-      "Outputs the elements held by either of two arrays — Max's array.union on the "
-      "name-addressed value model .array settled: both arrays are bound from the creation "
-      "arguments, \".array.union <left> <right>\", because an array is addressed by name and "
-      "never passed down a cord, and neither may be re-pointed from a message. A set operation "
-      "produces a set — .zl union's semantics: the left array with its repeats dropped, then "
-      "the right array's elements the left does not hold, each element once at its first "
-      "occurrence, equality by the spelling (7 and 7. are different elements). The result "
-      "leaves as the list it spells, never as a new named array — creating one would resolve a "
-      "name on a message path — and two empty arrays bang the empty outlet. The left array is "
-      "copied out under its guard and the result built against the right under that guard "
-      "alone, so no two guards are ever held at once and \".array.union chord chord\" answers "
-      "instead of tripping over its own try-lock. \"Everything either hand plays\" — the "
-      "combining half of the harmonic patch .array.sect is the filtering half of.");
+      "Outputs the elements held by either of two named arrays, each once, as one list. "
+      "Neither array is changed.");
   ADD_CATEGORY(pCategory::ARRAY);
   INLET_DOC(0, "trigger", kPairTriggerInletDoc, "");
   INLET_DOC(1, "right reference", kRightReferenceInletDoc, "");
   OUTLET_DOC(0, "union",
-             "The elements held by either array, as the list they spell — one element as the "
-             "int, float or symbol it is, several as list text, never as a new named array. The "
-             "left array thinned, then the right array's elements the left does not hold, each "
-             "element once at its first occurrence. A result that outruns what a cord carries "
-             "is refused whole and counted — a partial set would be a lie about membership. "
-             "Silent when both arrays are empty: the empty outlet carries that half of the "
-             "answer.",
+             "The left array's elements, then the right array's elements the left does not "
+             "hold, each once. A single element leaves as an int, float or symbol.",
              "");
-  OUTLET_DOC(1, "empty", kPairEmptyOutletDoc, "");
+  OUTLET_DOC(1, "empty", "Bang when both arrays are empty.", "");
   PARAM_DOC("left", "", kLeftParamDoc, "any identifier");
   PARAM_DOC("right", "", kRightParamDoc, "any identifier");
 }
@@ -274,29 +240,16 @@ gArrayUnion::gArrayUnion() : gArraySetOpBase(false) {
 
 gArraySect::gArraySect() : gArraySetOpBase(true) {
   ADD_DESCRIPTION(
-      "Outputs the elements held by both of two arrays — Max's array.sect on the name-addressed "
-      "value model .array settled: both arrays are bound from the creation arguments, "
-      "\".array.sect <left> <right>\", because an array is addressed by name and never passed "
-      "down a cord, and neither may be re-pointed from a message. A set operation produces a "
-      "set — .zl sect's semantics: the left array's elements the right also holds, in the left "
-      "array's order, each element once at its first occurrence, equality by the spelling (7 "
-      "and 7. are different elements). The result leaves as the list it spells, never as a new "
-      "named array, and an empty intersection bangs the empty outlet — routing on \"nothing in "
-      "common\" is half the point of asking. The left array is copied out under its guard and "
-      "tested against the right under that guard alone, so no two guards are ever held at once. "
-      "\"Which notes are in both chords\" — the operation a harmonic or scale patch is written "
-      "from.");
+      "Outputs the elements two named arrays have in common, each once, as one list in the "
+      "left array's order. Neither array is changed.");
   ADD_CATEGORY(pCategory::ARRAY);
   INLET_DOC(0, "trigger", kPairTriggerInletDoc, "");
   INLET_DOC(1, "right reference", kRightReferenceInletDoc, "");
   OUTLET_DOC(0, "intersection",
-             "The elements held by both arrays, as the list they spell — one element as the "
-             "int, float or symbol it is, several as list text, never as a new named array. The "
-             "left array's order, each element once at its first occurrence. A result that "
-             "outruns what a cord carries is refused whole and counted. Silent when the "
-             "intersection is empty: the empty outlet carries that half of the answer.",
+             "The left array's elements that the right array also holds, each once, in the left "
+             "array's order. A single element leaves as an int, float or symbol.",
              "");
-  OUTLET_DOC(1, "empty", kPairEmptyOutletDoc, "");
+  OUTLET_DOC(1, "empty", "Bang when the arrays have no element in common.", "");
   PARAM_DOC("left", "", kLeftParamDoc, "any identifier");
   PARAM_DOC("right", "", kRightParamDoc, "any identifier");
 }
@@ -324,52 +277,26 @@ gArrayUnique::gArrayUnique() : gArrayEndsBase() {
   // control thread.
   AtomList::ReserveRender(emitScratch);
 
-  ADD_DESCRIPTION(
-      "Outputs an array with its repeated elements dropped — Max's array.unique on the "
-      "name-addressed value model .array settled: the array is bound from the creation "
-      "argument, \".array.unique <name>\", because an array is addressed by name and never "
-      "passed down a cord. Each element once, at the position of its first occurrence — .zl "
-      "thin's selection, under Max's array.unique name for it — with equality by the spelling "
-      "(7 and 7. are different elements). The result leaves as the list it spells, never as a "
-      "new named array, and the shared store is read, only: .array itself is where a patch "
-      "would write the thinned result back. An empty or unnamed (private) array bangs the "
-      "empty outlet. The whole selection happens under one hold of the store's guard, so the "
-      "result is the array as it stood at the trigger.");
+  ADD_DESCRIPTION("Outputs the elements of a named array with repeats removed, each at its first "
+                  "occurrence. The array itself is not changed.");
   ADD_CATEGORY(pCategory::ARRAY);
   INLET_DOC(0, "trigger",
-            "A bang asks for the thinned array — every element once, at its first occurrence, "
-            "collected under one hold of the store's guard and sent after it is released. "
-            "\"array <name>\" does the same when it names the array bound by the creation "
-            "argument — the message an .array's reference outlet emits on a bang, the family's "
-            "gesture. A reference naming anything else, or any other message, is refused and "
-            "counted rather than logged, since this inlet may be the audio thread.",
+            "Bang, or the bound array's reference \"array <name>\": send the array without "
+            "repeats.",
             "");
   INLET_DOC(1, "array reference",
-            "\"array <name>\" is accepted silently when it names the array bound by the "
-            "creation argument, so a patch may wire the array's reference outlet across. It "
-            "sets nothing — the binding is the creation argument, resolved on the control "
-            "thread — and anything else is refused and counted.",
+            "Accepts the bound array's reference \"array <name>\" and ignores it, so the "
+            "array's reference outlet can be wired here. Anything else is refused.",
             "");
   OUTLET_DOC(0, "unique",
-             "The array with its repeats dropped, as the list it spells — one element as the "
-             "int, float or symbol it is, several as list text, never as a new named array. "
-             "Each element at the position of its first occurrence, equality by the spelling. "
-             "A result that outruns what a cord carries is refused whole and counted. Silent "
-             "on an empty array: the empty outlet carries that half of the answer.",
+             "Each distinct element once, in order of first appearance. A single element leaves "
+             "as an int, float or symbol.",
              "");
-  OUTLET_DOC(1, "empty",
-             "Bang when the array holds nothing to thin — an empty or unnamed (private) "
-             "array. \"No data\" is a state a patch must be able to route on, not an error. A "
-             "lost try-lock is a counted refusal instead: the array's state is unknown, so "
-             "neither outlet fires.",
-             "");
-  PARAM_DOC(
-      "name", "",
-      "The array's shared name, addressed as \"patcher.<patcherName>.<name>\" — the sequence an "
-      ".array of the same name in this patcher holds. Resolved once, on the control "
-      "thread, which is why no message re-points it at run time. Empty reads a private, "
-      "empty array: every ask bangs the empty outlet.",
-      "any identifier");
+  OUTLET_DOC(1, "empty", "Bang when the array is empty.", "");
+  PARAM_DOC("name", "",
+            "Name of the array to use: the .array with this name in the same patcher. Empty "
+            "uses a private, empty array.",
+            "any identifier");
 }
 
 BANG_IN(BangIn) {

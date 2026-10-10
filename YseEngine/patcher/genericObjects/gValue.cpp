@@ -88,27 +88,19 @@ CONSTRUCT() {
   emitScratch.reserve(valueSlot::kTextCapacity);
 
   ADD_DESCRIPTION(
-      "Named cell shared by every .value with the same name. A value arriving on the inlet is "
-      "stored for all of them and emitted by none; a bang emits what is stored. The cell is "
-      "addressed as \"patcher.<patcherName>.<name>\", the same address form .s and .r use, so "
-      "patchers "
-      "sharing a name share their values. An unnamed .value keeps a cell of its own.");
+      "Holds a value shared by every .value with the same name. A value at the inlet is stored "
+      "for all of them without being sent; a bang sends out what is stored.");
   ADD_CATEGORY(pCategory::IO);
   INLET_DOC(0, "in",
-            "Bang emits the stored value; int / float / list store one for every .value of this "
-            "name without emitting anything. A list longer than 256 characters is refused and the "
-            "stored value kept.",
+            "An int, float or list stores a new value. A bang sends out the stored value. A list "
+            "longer than 256 characters is refused.",
             "");
-  OUTLET_DOC(0, "out",
-             "The stored value, on a bang. Nothing at all until something has been stored.", "");
-  PARAM_DOC("valueName", "",
-            "Name of the shared cell. Empty gives this object a private cell rather than pooling "
-            "it with every other unnamed .value.",
-            "any identifier");
+  OUTLET_DOC(0, "out", "The stored value, on a bang. Nothing until a value has been stored.", "");
+  PARAM_DOC("valueName", "", "The shared name. Without one the object has a private value.",
+            "any name");
   PARAM_DOC("initial", "",
-            "Value the cell starts at — the rest of the argument string, so \"0 0\" is a list. "
-            "Applied only by the object that creates the cell; a later .value of the same name "
-            "adopts what is already stored.",
+            "The starting value: the rest of the arguments, so '0 0' is a list. Only the first "
+            ".value with this name applies it.",
             "any int, float or list");
 }
 

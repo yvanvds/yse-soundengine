@@ -29,40 +29,31 @@ CONSTRUCT() {
   ADD_PARAM(outputMax);
   ADD_PARAM(curve);
 
-  // .scale's defaults — the MIDI range mapped onto 0-1 — with the 1.06 curve
-  // Max's own documentation calls appropriate for a 0-127 controller.
+  // .scale's defaults, the MIDI range mapped onto 0-1, with a 1.06 curve,
+  // which suits a 0-127 controller.
   input = 0.f;
   inputMax = 127.f;
   outputMax = 1.f;
   curve = 1.06f;
 
-  ADD_DESCRIPTION(
-      "Exponential scaling for control values. Maps the value on inlet 0 onto an exponential "
-      "response curve and emits it as a float, following Max's formula: out = outputMax * "
-      "curve^(input - inputMax). The input maximum is the anchor — feed it in and the output is "
-      "exactly outputMax, whatever the curve — and below it the output falls away geometrically, "
-      "one step of input always multiplying the output by curve. That is what makes a linear "
-      "controller such as a MIDI CC or a slider feel even across its whole range when it drives a "
-      "frequency or an amplitude, where .scale's linear mapping would bunch the audible change up "
-      "at one end. Max requires a curve above 1; any positive curve is accepted here, one below 1 "
-      "mirroring the response and 1 flattening it to the constant outputMax. A curve at or below "
-      "0 has no real exponential and emits 0, as does any result that would not be finite.");
+  // The curve follows out = outputMax * curve^(input - inputMax). Any positive
+  // curve is accepted, not only curves above 1: below 1 mirrors the response,
+  // and 1 flattens it to the constant outputMax.
+  ADD_DESCRIPTION("Maps a number onto an exponential curve: inputMax gives outputMax, and each "
+                  "step below it divides the output by the curve. Lets a linear control, such as "
+                  "a MIDI controller, drive a frequency or a gain evenly.");
   ADD_CATEGORY(pCategory::MATH);
-  INLET_DOC(0, "value", "Value to scale — fires the evaluation.", "any float");
-  INLET_DOC(1, "inputMax",
-            "Input value that maps onto the output maximum — stored until the next evaluation.",
-            "any float");
-  INLET_DOC(2, "outputMax",
-            "Output value reached at the input maximum — stored until the next evaluation.",
-            "any float");
+  INLET_DOC(0, "value", "Number to map; sends the result.", "any float");
+  INLET_DOC(1, "inputMax", "Input that gives outputMax, stored for the next result.", "any float");
+  INLET_DOC(2, "outputMax", "Output at inputMax, stored for the next result.", "any float");
   INLET_DOC(3, "curve",
-            "Curve base; larger is more steeply exponential, 1 is a constant — stored until the "
-            "next evaluation.",
+            "Curve base, stored for the next result. Larger is steeper; 1 gives a constant "
+            "outputMax; 0 or below sends 0.",
             "greater than 0");
-  OUTLET_DOC(0, "out", "The input value scaled along the exponential curve.", "any float");
-  PARAM_DOC("inputMax", "127", "Input value that maps onto the output maximum.", "any float");
-  PARAM_DOC("outputMax", "1", "Output value reached at the input maximum.", "any float");
-  PARAM_DOC("curve", "1.06", "Curve base; larger is more steeply exponential, 1 is a constant.",
+  OUTLET_DOC(0, "out", "The number mapped onto the curve.", "any float");
+  PARAM_DOC("inputMax", "127", "Input that gives outputMax.", "any float");
+  PARAM_DOC("outputMax", "1", "Output at inputMax.", "any float");
+  PARAM_DOC("curve", "1.06", "Curve base. Larger is steeper; 1 gives a constant outputMax.",
             "greater than 0");
 }
 

@@ -22,17 +22,20 @@ CONSTRUCT() {
   // (#956).
   REG_PARM_PARSE;
 
-  ADD_DESCRIPTION("Step counter. Bang increments the current value by 'step' and emits it. Send "
-                  "'reset' as a list to return to startValue.");
+  ADD_DESCRIPTION("Counts bangs. Each bang adds the step to the count and sends the new count as "
+                  "an int; an int on the left inlet sets the count and sends it.");
   ADD_CATEGORY(pCategory::MATH);
   INLET_DOC(0, "control",
-            "Bang to step / int to set the value / list 'reset' to return to startValue.",
+            "Bang: add the step and send the count. Int: set the count and send it. 'reset': go "
+            "back to the start value without sending. Floats are ignored.",
             "any int");
-  INLET_DOC(1, "step", "Sets the increment used on each bang.", "any int");
-  OUTLET_DOC(0, "out", "Current counter value.", "any int");
-  PARAM_DOC("startValue", "0", "Initial counter value (and the value 'reset' returns to).",
+  INLET_DOC(1, "step", "Step added on each bang. Floats are ignored.", "any int");
+  OUTLET_DOC(0, "out", "The count.", "any int");
+  PARAM_DOC("startValue", "0",
+            "The count before the first bang, and the count 'reset' returns to. The first bang "
+            "sends it plus the step.",
             "any int");
-  PARAM_DOC("step", "1", "Increment applied on each bang.", "any int");
+  PARAM_DOC("step", "1", "Starting step; may be negative to count down.", "any int");
 }
 
 INT_IN(SetIntValue) {

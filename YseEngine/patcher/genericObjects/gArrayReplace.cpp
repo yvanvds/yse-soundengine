@@ -61,82 +61,38 @@ gArrayReplace::gArrayReplace() : gArrayEndsBase() {
   ADD_PARAM(replaceSeed);
 
   ADD_DESCRIPTION(
-      "Replaces occurrences of a value — Max's array.replace on the name-addressed value model "
-      ".array settled: the array is bound from the creation argument, \".array.replace <name> "
-      "[<find>] [<replace>]\", because an array is addressed by name and never passed down a "
-      "cord. EVERY occurrence is replaced — the use case is retuning every occurrence of one "
-      "pitch, and first-only is already .array.indexof into .array's own set — and equality is "
-      "the spelling: an int 7 matches the element \"7\", a float 7. matches \"7.\", and the two "
-      "are different elements. An int, a float or a symbol on the find inlet stores the find "
-      "value and replaces now; a bang re-replaces with the stored values, and the message an "
-      ".array's reference outlet emits on a bang does the same — the family's gesture. The "
-      "replacement inlet stores its value silently, the cold half of the idiom. The number of "
-      "elements rewritten leaves the count outlet before the reference — right to left — which "
-      "is the only way a patch can tell replaced-nothing from replaced-everything: a replace "
-      "that matched nothing still landed and announces with count 0, where a refused one (a "
-      "lost try-lock, a trigger before both values exist) emits nothing. The whole replace is "
-      "one hold of the store's guard, and nothing renumbers: every element keeps its position, "
-      "only its spelling changes.");
+      "Replaces every occurrence of a value in a named array with another value. Sends how "
+      "many elements were replaced, then the array's reference.");
   ADD_CATEGORY(pCategory::ARRAY);
   INLET_DOC(0, "find",
-            "An int, a float or a symbol stores the find value and replaces every occurrence of "
-            "it now; a bang re-replaces with the stored find and replacement. Equality is the "
-            "spelling — 7 matches \"7\", 7. matches \"7.\", and the two are different elements — "
-            "and the match is case-sensitive, as every comparison in this patcher is. \"array "
-            "<name>\" replaces with the stored values when it names the array bound by the "
-            "creation argument — the message an .array's reference outlet emits on a bang, the "
-            "family's gesture. A trigger before both values exist is refused whole and stores "
-            "nothing: malformed, not a miss. A multi-atom list, a non-finite float, an atom "
-            "past 64 characters, or a reference naming anything else is refused and counted "
-            "rather than logged, since this inlet may be the audio thread.",
+            "An int, float or word: replace every element spelled this way, and remember the "
+            "value. A bang replaces with the remembered values, and so does the bound array's "
+            "reference. A list of more than one item is refused.",
             "one atom, at most 64 characters");
   INLET_DOC(1, "replacement",
-            "An int, a float or a symbol stores the replacement, silently — the cold half of "
-            "the idiom, .array.fill's count inlet with an atom where the number was: nothing is "
-            "rewritten until the find inlet triggers. One atom, at most 64 characters; a "
-            "non-finite float is refused (it has no spelling that reads back), and a reference "
-            "is two atoms and refused with every other multi-atom list — an identity is not an "
-            "element.",
+            "An int, float or word to write in place of each match. Stored for the next "
+            "replace; nothing changes until the left inlet triggers.",
             "one atom, at most 64 characters");
   INLET_DOC(2, "array reference",
-            "\"array <name>\" is accepted silently when it names the array bound by the "
-            "creation argument, so a patch may wire the array's reference outlet across. It "
-            "sets nothing — the binding is the creation argument, resolved on the control "
-            "thread — and anything else is refused and counted.",
+            "Accepts the bound array's reference \"array <name>\" and ignores it, so the "
+            "array's reference outlet can be wired here. Anything else is refused.",
             "");
   OUTLET_DOC(0, "reference",
-             "The bound array's reference, \"array <name>\", sent after a replace that landed — "
-             "the way an array leaves an object on the value model, so wiring it onward chains "
-             "the family: into .array.length it proves a replace never resizes. Sent after the "
-             "count outlet, Max's outlets firing right to left. A refused replace emits "
-             "nothing, and an unnamed object stays silent — the rewrite happens, but there is "
-             "no name to pass on.",
+             "The array's reference \"array <name>\" after each replace, also when nothing "
+             "matched. Sent after outlet 1. Nothing is sent when the object has no name.",
              "");
   OUTLET_DOC(1, "count",
-             "How many elements were rewritten, sent first — right to left — because it is the "
-             "only way a patch can tell replaced-nothing from replaced-everything: a replace "
-             "that matched nothing still landed and reports 0, where a refused one reports "
-             "nothing at all. Replacing a value with itself lands too, and counts its "
-             "occurrences. An unnamed (private) array counts as well — an answer is a value, "
-             "not an identity.",
+             "How many elements were replaced; 0 when none matched. Sent before the reference.",
              "0-256");
-  PARAM_DOC(
-      "name", "",
-      "The array's shared name, addressed as \"patcher.<patcherName>.<name>\" — the sequence an "
-      ".array of the same name in this patcher holds. Resolved once, on the control "
-      "thread, which is why no message re-points it at run time. Empty rewrites a "
-      "private, empty array: the replace lands with count 0 and no reference leaves.",
-      "any identifier");
-  PARAM_DOC("find", "",
-            "The initial stored find value — what a bang replaces before any value has arrived "
-            "on the find inlet. One atom, exactly as every value the inlet takes; absent means "
-            "no value, and a trigger before one arrives is refused.",
+  PARAM_DOC("name", "",
+            "Name of the array to change: the .array with this name in the same patcher. Empty "
+            "uses a private, empty array.",
+            "any identifier");
+  PARAM_DOC("find", "", "The value a bang replaces before one arrives on the left inlet.",
             "one atom, at most 64 characters");
   PARAM_DOC("replace", "",
-            "The initial stored replacement — what occurrences of the find value become. One "
-            "atom, at most 64 characters; absent means no value, and a trigger before one "
-            "arrives is refused: a replace with nothing to write is malformed, where erasing "
-            "is .array's own delete.",
+            "The value written in place of each match. Until one is set here or on the middle "
+            "inlet, every trigger is refused.",
             "one atom, at most 64 characters");
 }
 

@@ -132,63 +132,21 @@ GUI_VALUE() {
 // The only thing that differs is the ordering and the words describing it.
 
 gMaximum::gMaximum() : gExtremumBase(ExtremumGreater) {
-  Document(
-      "Sends out the larger of the number received on inlet 0 and a stored comparand, which makes "
-      "it a .clip whose bound is itself a signal and the natural way to combine two control "
-      "sources. Inlet 1 sets the comparand without emitting anything; a number on inlet 0 is "
-      "compared and then forgotten, so the comparand is never moved by the input — that running "
-      "reading of the idea is .peak, a different object. A bang re-sends the most recent output, "
-      "and before there has been one that is the 'initial' creation argument (0 by default) rather "
-      "than silence, since a patch that bangs its objects once on load has to get an answer. A "
-      "list of two or more numbers is Max's reduction: the numbers are compared with each other "
-      "and the greatest is sent out, the comparand taking no part, and afterwards the comparand is "
-      "replaced by the next greatest value in the list — not by the greatest, which would make "
-      "every later comparison a tie with the value just emitted. Up to 256 items are read; a "
-      "one-element list is a plain number and compares against the comparand as one. A message "
-      "with no numbers in it is ignored. Everything is a float and the outlet is a float outlet: "
-      "Max's int-unless-the-argument-has-a-decimal-point duality is deliberately not reproduced, "
-      "because '.maximum 5' and '.maximum 5.0' are the same parameter string here and guessing "
-      "integral would silently round a comparison a patch is using to clamp a gain — put a .round "
-      "on the outlet instead. A non-finite number is read as 0 wherever it arrives, the convention "
-      "./ , .sqrt, .zmap, .clip, .slide and .mean already use, and here it also keeps a stray NaN "
-      "from losing every comparison while still being the value sent out, and a stray infinity "
-      "from pinning the outlet for good.",
-      "Int or float to compare against the stored comparand, sending the larger of the two out / "
-      "bang to re-send the most recent output / a list of numbers to send out the greatest of "
-      "them and store the next greatest as the new comparand.",
-      "The value inlet-0 numbers are compared against. Stored without emitting anything.",
-      "The greater of the input and the stored comparand.",
-      "Initial comparand, and what a bang reports before anything has been sent.");
+  Document("Sends the larger of a number and a stored value. The right inlet sets the stored "
+           "value; a list sends its largest item.",
+           "Number: send the larger of it and the stored value. Bang: send the last result again. "
+           "List: send its largest item, and store the second largest.",
+           "Value to compare with, stored without sending.",
+           "The larger of the input and the stored value.",
+           "Starting value to compare with, and what a bang sends before the first result.");
 }
 
 gMinimum::gMinimum() : gExtremumBase(ExtremumLess) {
-  Document(
-      "Sends out the smaller of the number received on inlet 0 and a stored comparand, which makes "
-      "it a .clip whose bound is itself a signal and the natural way to combine two control "
-      "sources. Inlet 1 sets the comparand without emitting anything; a number on inlet 0 is "
-      "compared and then forgotten, so the comparand is never moved by the input — that running "
-      "reading of the idea is .trough, a different object. A bang re-sends the most recent output, "
-      "and before there has been one that is the 'initial' creation argument (0 by default) rather "
-      "than silence, since a patch that bangs its objects once on load has to get an answer. A "
-      "list of two or more numbers is Max's reduction: the numbers are compared with each other "
-      "and the smallest is sent out, the comparand taking no part, and afterwards the comparand is "
-      "replaced by the next smallest value in the list — not by the smallest, which would make "
-      "every later comparison a tie with the value just emitted. Up to 256 items are read; a "
-      "one-element list is a plain number and compares against the comparand as one. A message "
-      "with no numbers in it is ignored. Everything is a float and the outlet is a float outlet: "
-      "Max's int-unless-the-argument-has-a-decimal-point duality is deliberately not reproduced, "
-      "because '.minimum 5' and '.minimum 5.0' are the same parameter string here and guessing "
-      "integral would silently round a comparison a patch is using to clamp a gain — put a .round "
-      "on the outlet instead. Note that the default comparand of 0 makes a bare .minimum report 0 "
-      "for every positive input, so this object almost always wants an argument or a cord on inlet "
-      "1. A non-finite number is read as 0 wherever it arrives, the convention ./ , .sqrt, .zmap, "
-      ".clip, .slide and .mean already use, and here it also keeps a stray NaN from losing every "
-      "comparison while still being the value sent out, and a stray infinity from pinning the "
-      "outlet for good.",
-      "Int or float to compare against the stored comparand, sending the smaller of the two out / "
-      "bang to re-send the most recent output / a list of numbers to send out the smallest of "
-      "them and store the next smallest as the new comparand.",
-      "The value inlet-0 numbers are compared against. Stored without emitting anything.",
-      "The smaller of the input and the stored comparand.",
-      "Initial comparand, and what a bang reports before anything has been sent.");
+  Document("Sends the smaller of a number and a stored value. The right inlet sets the stored "
+           "value; a list sends its smallest item.",
+           "Number: send the smaller of it and the stored value. Bang: send the last result again. "
+           "List: send its smallest item, and store the second smallest.",
+           "Value to compare with, stored without sending.",
+           "The smaller of the input and the stored value.",
+           "Starting value to compare with, and what a bang sends before the first result.");
 }

@@ -161,7 +161,8 @@ The name scopes everything inside the patcher that works by name:
   :doc:`data` covers the stores themselves.
 
 The name applies to the whole patcher, including every subpatcher in it.
-There is no per-copy prefix like Max's ``#0`` (see :doc:`subpatchers`).
+There is no per-copy prefix that makes a name local to one copy (see
+:doc:`subpatchers`).
 
 What follows from this:
 
@@ -303,8 +304,7 @@ Watching values: ``.print``
 ---------------------------
 
 ``.print`` writes everything that arrives at its inlet to the engine log, one
-line per message. It is Max's ``print``. There is no Max window, so the
-engine log takes its place. The first argument is the label in front of each
+line per message. The first argument is the label in front of each
 line (default ``print``, at most 32 characters):
 
 .. code-block:: cpp
@@ -343,7 +343,7 @@ Stored values: ``.value``
 -------------------------
 
 ``.value <name>`` is a named cell shared by every ``.value`` with the same
-name, following the scope rules above. It is Max's ``value``:
+name, following the scope rules above:
 
 - An int, float or list at the inlet **stores** the value for every
   ``.value`` with that name and sends nothing.

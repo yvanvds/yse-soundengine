@@ -42,77 +42,33 @@ gArrayThin::gArrayThin() : gArrayEndsBase() {
   ADD_PARAM(tolerance);
 
   ADD_DESCRIPTION(
-      "Thins an array by removing near-duplicate neighbours — issue #807's reading of Max's "
-      "array.thin on the name-addressed value model .array settled: the array is bound from the "
-      "creation argument, \".array.thin <name> [<tolerance>]\", because an array is addressed "
-      "by name and never passed down a cord. Max's array.thin is the wholesale dedupe "
-      ".array.unique already is here, so this is the NEIGHBOUR thin instead — one scan "
-      "comparing each element with the last survivor before it, the repeats and near-repeats "
-      "dropped, distinct values kept in order however often they recur later — the operation "
-      "that decimates a control stream sampled faster than anything downstream needs. "
-      "Tolerance 0, the default, is the exact thin: the family's byte compare, so symbols thin "
-      "too and 7 and 7. stay distinct. A positive tolerance widens \"near\" for the pairs that "
-      "can carry a distance: both elements reading as numbers and no further apart than the "
-      "tolerance — measured against the last SURVIVOR, not the original predecessor, so a "
-      "drift climbing in steps inside the tolerance is kept, not erased. A pair that is not "
-      "wholly numeric falls back to the byte compare at any tolerance. A bang thins now; the "
-      "removed count leaves the count outlet before the reference — right to left — so a patch "
-      "can tell thinned-nothing (count 0, landed) from a refused thin (a lost try-lock, a "
-      "malformed tolerance), which emits nothing. The whole thin is one hold of the store's "
-      "guard — survivors close ranks in original order, each moved at most once — and yes, it "
-      "renumbers under every other object on the name, exactly as .array.remove does: "
-      "renumbering is what a removal is.");
+      "Removes elements of a named array that repeat the element kept before them. With a "
+      "tolerance, numbers that close to it count as repeats too, which thins out a stream of "
+      "values that barely change.");
   ADD_CATEGORY(pCategory::ARRAY);
   INLET_DOC(0, "trigger",
-            "A bang thins the array now: one scan against the last survivor, near-duplicate "
-            "neighbours removed, under one hold of the store's guard. \"array <name>\" does the "
-            "same when it names the array bound by the creation argument — the message an "
-            ".array's reference outlet emits on a bang, the family's gesture. A reference "
-            "naming anything else, or any other message, is refused and counted rather than "
-            "logged, since this inlet may be the audio thread — as is a trigger while the "
-            "stored tolerance is malformed (negative, a seed only the creation string can "
-            "plant).",
-            "");
+            "Bang, or the bound array's reference \"array <name>\": thin the array now.", "");
   INLET_DOC(1, "tolerance",
-            "An int or a float stores the tolerance, silently — the cold half of the idiom: "
-            "nothing is thinned until the trigger asks. 0 restores the exact thin (the "
-            "family's byte compare); a positive value calls a neighbour pair near when both "
-            "elements read as numbers no further apart than this. Negative and non-finite are "
-            "refused before they are stored — never clamped: a distance cannot be negative, "
-            "and a non-finite tolerance would call everything near.",
+            "Sets the largest difference between two numbers that still counts as a repeat. 0 "
+            "means exact repeats only. Negative values are refused.",
             "0 or greater, finite");
   INLET_DOC(2, "array reference",
-            "\"array <name>\" is accepted silently when it names the array bound by the "
-            "creation argument, so a patch may wire the array's reference outlet across. It "
-            "sets nothing — the binding is the creation argument, resolved on the control "
-            "thread — and anything else is refused and counted.",
+            "Accepts the bound array's reference \"array <name>\" and ignores it, so the "
+            "array's reference outlet can be wired here. Anything else is refused.",
             "");
   OUTLET_DOC(0, "reference",
-             "The bound array's reference, \"array <name>\", sent after a thin that landed — "
-             "the way an array leaves an object on the value model, so wiring it onward chains "
-             "the family: into .array.length it reports the thinned depth. Sent after the "
-             "count outlet, Max's outlets firing right to left. A refused thin emits nothing, "
-             "and an unnamed object stays silent — the thin happens, but there is no name to "
-             "pass on.",
+             "The array's reference \"array <name>\" after each thin, so further .array objects "
+             "can be chained. Sent after outlet 1. Nothing is sent when the object has no name.",
              "");
   OUTLET_DOC(1, "removed",
-             "How many elements went, sent first — right to left — because it is the only way "
-             "a patch can tell thinned-nothing from thinned-a-lot: a thin that removed nothing "
-             "still landed and reports 0, where a refused one reports nothing at all. An "
-             "unnamed (private) array counts as well — an answer is a value, not an identity.",
-             "0-255");
-  PARAM_DOC(
-      "name", "",
-      "The array's shared name, addressed as \"patcher.<patcherName>.<name>\" — the sequence an "
-      ".array of the same name in this patcher holds. Resolved once, on the control "
-      "thread, which is why no message re-points it at run time. Empty thins a private, "
-      "empty array: the thin lands with count 0 and no reference leaves.",
-      "any identifier");
+             "How many elements were removed; 0 when none. Sent before the reference.", "0-255");
+  PARAM_DOC("name", "",
+            "Name of the array to thin: the .array with this name in the same patcher. Empty "
+            "uses a private, empty array.",
+            "any identifier");
   PARAM_DOC("tolerance", "0",
-            "The initial tolerance — how far apart two numeric neighbours may sit and still "
-            "count as duplicates. Absent (0) means the exact thin, the family's byte compare "
-            "over every atom kind. Negative is malformed: it is refused at the trigger, never "
-            "clamped, until the tolerance inlet stores a real one.",
+            "The largest difference between two numbers that still counts as a repeat. 0 means "
+            "exact repeats only.",
             "0 or greater, finite");
 }
 

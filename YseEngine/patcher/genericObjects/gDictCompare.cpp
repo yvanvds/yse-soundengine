@@ -14,27 +14,17 @@ namespace {
   // the constructor stops being readable with them inline — gDict's
   // arrangement.
   constexpr char kLeftInletDoc[] =
-      "A bang compares the two bound dictionaries and sends the verdict out the outlet. "
-      "\"dictionary <name>\" does the same when it names the left dictionary bound by the first "
-      "creation argument — the message a .dict's reference outlet emits on a bang, so wiring that "
-      "outlet here gives Max's own gesture. A reference naming anything else, or any other "
-      "message, is refused and counted rather than logged, since this inlet may be the audio "
-      "thread.";
+      "A bang compares the two dictionaries. So does the left dictionary's reference "
+      "'dictionary <name>'.";
   constexpr char kRightInletDoc[] =
-      "\"dictionary <name>\" is accepted silently when it names the right dictionary bound by the "
-      "second creation argument, so a patch may wire both reference outlets across as it would in "
-      "Max. It sets nothing — the binding is the creation argument, resolved on the control "
-      "thread — and anything else is refused and counted.";
+      "Accepts the right dictionary's reference and does nothing with it, so its .dict can be "
+      "wired here.";
   constexpr char kOutletDoc[] =
-      "The verdict: 1 when the two dictionaries hold the same entries — the same number of them, "
-      "every key path present in both with identical value text, storage order ignored — and 0 "
-      "when they do not. Sent first, before the differing paths.";
+      "1 when the two dictionaries hold the same entries, 0 when they do not. Sent before the "
+      "differing paths.";
   constexpr char kPathsOutletDoc[] =
-      "On a difference, the key paths that differ, sent after the verdict as space-separated list "
-      "text — the getkeys rendering: paths only in the left dictionary or in both with different "
-      "value text, in the left's storage order, then paths only in the right. Silent when the two "
-      "are equal. At most 256 paths and the list-text bound; a path that does not fit is refused "
-      "and counted, and the verdict is unaffected.";
+      "The key paths that differ, as a list, sent after the verdict. Silent when the "
+      "dictionaries are equal.";
 
 } // namespace
 
@@ -66,31 +56,17 @@ CONSTRUCT() {
   // control thread — gDict's arrangement for its getkeys list.
   AtomList::ReserveRender(emitScratch);
 
-  ADD_DESCRIPTION(
-      "Compares two dictionaries — Max's dict.compare on the name-addressed value model .dict "
-      "settled: both dictionaries are bound from the creation arguments, \".dict.compare <left> "
-      "<right>\", because a dictionary is addressed by name and never passed down a cord. A bang, "
-      "or the left dictionary's reference message \"dictionary <name>\", sends 1 when the two "
-      "hold the same entries and 0 when they do not — the same number of entries and every key "
-      "path present in both with identical value text, storage order ignored. On a difference, "
-      "the differing key paths follow out the second outlet, so a patch that keeps a dictionary "
-      "of live parameters can compare the preset it just loaded against what is running and "
-      "repair exactly the keys that drifted.");
+  ADD_DESCRIPTION("Compares two named dictionaries and sends 1 when they hold the same entries, 0 "
+                  "when they do not. On a difference, the key paths that differ follow from the "
+                  "right outlet.");
   ADD_CATEGORY(pCategory::DICT);
   INLET_DOC(0, "compare", kLeftInletDoc, "");
   INLET_DOC(1, "right reference", kRightInletDoc, "");
   OUTLET_DOC(0, "equal", kOutletDoc, "0 or 1");
   OUTLET_DOC(1, "paths", kPathsOutletDoc, "at most 256 paths");
-  PARAM_DOC(
-      "left", "",
-      "The left dictionary's shared name, addressed as \"patcher.<patcherName>.<name>\" — the "
-      "dictionary a .dict of the same name in this patcher holds. Resolved once, on the "
-      "control thread, which is why no message re-points it at run time. Empty compares a "
-      "private, empty dictionary.",
-      "any identifier");
-  PARAM_DOC("right", "",
-            "The right dictionary's shared name, bound exactly as the left one. Empty compares a "
-            "private, empty dictionary.",
+  PARAM_DOC("left", "", "The name of the left dictionary. Empty compares an empty dictionary.",
+            "any identifier");
+  PARAM_DOC("right", "", "The name of the right dictionary. Empty compares an empty dictionary.",
             "any identifier");
 }
 

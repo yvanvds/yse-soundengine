@@ -27,21 +27,8 @@ namespace {
   }
 
   constexpr char kTimeInletDoc[] =
-      "Sets the minimum time between outputs — Max's 'the number is stored as the minimum amount "
-      "of "
-      "time, in milliseconds, between successive outputs'. Ints, floats and a list whose leading "
-      "token is a number all set it in milliseconds; a negative or NaN time counts as 0, which "
-      "means no limiting at all rather than a one-block wait. Since issue #728 the interval may "
-      "also be tempo-relative, Max's 'the time can be specified in milliseconds or using a "
-      "tempo-relative interval': a note value ('4n', '4nd', '8nt') or a tick count ('1440 ticks') "
-      "sets it in beats on the domain clock named by the left inlet's 'clock <name>' message, and "
-      "any plain number puts it back on milliseconds — the unit travels with the value, which is "
-      "Max's model. A beat interval with no clock bound limits nothing rather than closing the "
-      "window for good; bind a clock and it starts limiting. bars.beats.units is not read, needing "
-      "a meter no domain clock has. The new interval applies to the next message to arrive and is "
-      "measured from the last output, so shortening it can open the window immediately. There is "
-      "no "
-      "bang method on this inlet.";
+      "Sets the minimum time between outputs, in milliseconds or as a beat time. 0 lets "
+      "everything through.";
 
 } // namespace
 
@@ -85,46 +72,21 @@ void gRateLimitBase::Document(const char* summary, const char* inletDoc, const c
   INLET_DOC(1, "interval", kTimeInletDoc, "0+ ms, or a note value / tick count");
   OUTLET_DOC(0, "out", outletDoc, "any");
   PARAM_DOC("interval", "0", paramDoc, "0+ ms");
-  PARAM_DOC(
-      "intervalbeats", "0",
-      "The initial interval in beats, for the tempo-relative unit issue #728 added. 0 means "
-      "the interval is the millisecond one above, which is what a Max limiter is until it is "
-      "given a tempo-relative time; any positive value makes it a beat count on the domain "
-      "clock a 'clock <name>' message names, and a note value or tick count in the right "
-      "inlet overwrites it afterwards. A plain number in the right inlet clears it back to 0. "
-      "A beat interval with no clock bound limits nothing, rather than closing the window for "
-      "good the way an unmeasurable wait would. The clock binding itself is run-time state "
-      "and is not saved. A negative value counts as 0.",
-      "0+ beats");
-  PARAM_DOC(
-      "threshold", "0",
-      "The initial threshold in milliseconds — Max's 'time threshold under which only one "
-      "message may pass' (issue #728), and 0, the default, is off. It is a second window "
-      "measured from the same output as the interval, and a message arriving inside it is "
-      "dropped outright on both objects: not passed, not held, not queued. Turned on it "
-      "composes with the interval rather than replacing it, so the effective floor on the "
-      "output rate is the longer of the two. The 'threshold <time>' message in the left inlet "
-      "overwrites it afterwards. A negative value counts as 0.",
-      "0+ ms");
-  PARAM_DOC("thresholdbeats", "0",
-            "The initial threshold in beats, the tempo-relative spelling of the threshold above "
-            "(issue #728). 0 means the threshold is the millisecond one; any positive value makes "
-            "it a beat count on the bound domain clock, and 'threshold <time>' with a plain number "
-            "clears it back to 0. A beat threshold with no clock bound does not bite. A negative "
-            "value counts as 0.",
+  PARAM_DOC("intervalbeats", "0",
+            "The interval in beats on the bound clock. 0 uses the millisecond interval instead. A "
+            "plain number in the right inlet sets it back to 0.",
             "0+ beats");
-  PARAM_DOC(
-      "quantize", "0",
-      "The initial output grid in beats — Max's 'send output only on the specified "
-      "time-boundary if appropriate' (issue #728). 0, the default, is no quantizing. Beats "
-      "only, and inert until a clock is bound: a grid is a musical grid, and Max's other "
-      "spelling for it, bars.beats.units, needs a meter no domain clock has. With a grid set, "
-      "a held message is released on the first grid line at or after the moment its interval "
-      "is up, and an arriving message may pass only once the grid has moved past the line the "
-      "last output sat on — at most one output per line, and never one before it. The "
-      "'quantize <time>' message in the left inlet overwrites it afterwards, taking a note "
-      "value or a tick count; 'quantize 0' clears the grid. A negative value counts as 0.",
-      "0+ beats");
+  PARAM_DOC("threshold", "0",
+            "A window in milliseconds after each output in which every message is dropped. 0 is "
+            "off.",
+            "0+ ms");
+  PARAM_DOC("thresholdbeats", "0",
+            "The threshold in beats on the bound clock. 0 uses the millisecond threshold instead.",
+            "0+ beats");
+  PARAM_DOC("quantize", "0",
+            "A beat grid that output lands on, at most one message per grid line. 0 is off. Needs "
+            "a bound clock.",
+            "0+ beats");
 }
 
 int gRateLimitBase::Interval() const {
@@ -560,65 +522,12 @@ LIST_IN(ListIn) {
 
 gSpeedlim::gSpeedlim() : gRateLimitBase() {
   Document(
-      "Limits the rate of message throughput by **dropping** what arrives too soon. A message in "
-      "the left inlet goes straight out the outlet if at least the interval has elapsed since the "
-      "last one this object let out, and is discarded if it has not — nothing is stored and "
-      "nothing is deferred, so what comes out of a burst is its *first* message, at the moment it "
-      "arrived. That is the leading-edge throttle: 'redraw at most 20 times a second', 'one "
-      "trigger per beat however hard the pad is hit', 'stop this sensor from flooding the patch'. "
-      "Its sibling .qlim is the other answer to the same problem and holds the newest value "
-      "instead of dropping it — reach for .qlim whenever losing the last value of a gesture would "
-      "leave something set to the wrong number, and for this object whenever a skipped message "
-      "costs nothing. Everything passes through as the kind of message it went in as: a bang out "
-      "for a bang in, an int for an int, text for text, so the limiter can sit anywhere in a chain "
-      "without retyping what flows through it. A number in the right inlet sets the interval in "
-      "milliseconds; 0, the Max default, is no limiting at all and every message passes. The first "
-      "message after creation always passes, there being no previous output to measure against. "
-      "Elapsed time is measured on the patcher's block counter, the same clock the deferred-"
-      "message scheduler waits on, so it stops when the engine does and its resolution is one "
-      "audio block: two messages arriving in the same dispatch are zero milliseconds apart however "
-      "far apart they really were. Since issue #728 the interval may instead be tempo-relative, "
-      "Max's 'the time can be specified in milliseconds or using a tempo-relative interval': a "
-      "note value ('4n', '4nd', '8nt') or a tick count ('1440 ticks') in the right inlet sets it "
-      "in "
-      "beats on the YSE domain clock named by 'clock <name>' in the left inlet, so the window then "
-      "follows that domain's tempo changes and ramps and holds where it stands when the domain "
-      "pauses. Max's other two time attributes came with it: 'threshold <time>' is his 'time "
-      "threshold under which only one message may pass', a second window measured from the same "
-      "output inside which a message is dropped outright, and 'quantize <time>' is his 'send "
-      "output only on the specified time-boundary if appropriate', a beat grid that limits this "
-      "object to at most one message per grid line. Both default to 0, which is off, so an object "
-      "never sent either message behaves exactly as it did before. A beat time with no clock bound "
-      "is inert rather than fatal — the window still opens, because a limiter that stopped opening "
-      "would swallow the whole stream — and bars.beats.units stays out, needing a meter no domain "
-      "clock has. Dropped messages are counted rather than logged, a log line "
-      "being an allocation on whichever thread the message arrived on and that thread routinely "
-      "being the audio callback. A standalone object outside any patcher has no clock at all and "
-      "passes everything. Note that this is deliberately *not* Max's own speedlim/qlim split: Max "
-      "documents the same holding behaviour for both names and separates them by scheduler "
-      "priority — qlim being 'an interrupt safe replacement' for Jitter traffic — which is a "
-      "distinction a headless patcher with one dispatch model cannot express and which would leave "
-      "the two objects identical. Issue #508 gives the two names the two overflow policies "
-      "instead, and Max's usurp attribute lives on .qlim alone because it says what happens to a "
-      "message that is *waiting* and this object never has one. Calculate() does nothing and no "
-      "message path allocates, locks or blocks.",
-      "The message inlet. A bang, int, float or list arriving here goes straight out the outlet "
-      "when the interval has elapsed since the last output, and is dropped and counted when it has "
-      "not. Max's 'the message is passed out the outlet, provided that a certain minimum time has "
-      "elapsed since the previous output' — with this object's answer to the other case, which is "
-      "to discard it rather than hold it. A list whose whole text is one number passes as that "
-      "number, an int or a float by its spelling, so a .m 5 reaches an int inlet downstream; "
-      "anything else is carried whole as text. Three command words are matched here rather than "
-      "carried (issue #728), which is where Max puts the same three as attribute messages: 'clock "
-      "<name>' binds the domain clock a tempo-relative time is measured on and a bare 'clock' "
-      "takes it away, 'threshold <time>' sets Max's threshold window, and 'quantize <time>' sets "
-      "the beat grid output lands on ('quantize 0' clears it). Everything else is data.",
-      "The messages that got through, unchanged and as the kind of message they went in as. "
-      "Silent for anything dropped.",
-      "The initial minimum time between outputs in milliseconds — Max's creation argument, whose "
-      "documented default is 0: 'if there is no argument, the minimum time is 0 milliseconds', "
-      "which limits nothing. The right inlet overwrites it afterwards. A negative value counts as "
-      "0.");
+      "Limits how often messages pass. A message that arrives before the interval since the last "
+      "output is up is dropped, so a burst comes out as its first message.",
+      "Any message, passed or dropped. 'clock <name>', 'threshold <time>' and 'quantize <time>' "
+      "are settings, not data.",
+      "The messages that got through, unchanged.",
+      "The minimum time between outputs in milliseconds. 0 lets everything through.");
 }
 
 void gSpeedlim::Blocked(Held kind, int intValue, float floatValue, const std::string* text,
@@ -651,85 +560,18 @@ gQlim::gQlim() : gRateLimitBase() {
   usurp = 1;
 
   Document(
-      "Limits the rate of message throughput by **holding** what arrives too soon and sending it "
-      "when the window opens. A message in the left inlet goes straight out the outlet if at least "
-      "the interval has elapsed since the last one this object let out; if it has not, the message "
-      "is kept and sent the moment the interval is up. What happens to a *second* message arriving "
-      "while the first waits is Max's usurp attribute, and it is this object's one real switch. "
-      "With 'usurp 1', the default, 'the most recently received message replaces any currently "
-      "queued message', so what comes out of a burst is its *last* message, one interval after the "
-      "previous output — which is what makes this the right object for anything whose value "
-      "matters: a fader driving a filter cutoff ends up where the fader stopped rather than "
-      "wherever the message that happened to fit the window left it. With 'usurp 0' (issue #728) "
-      "'all messages received will be sent out': the object becomes a queue and every message "
-      "leaves in turn, one per window, which is the right shape when the messages are events "
-      "rather than samples of one value — notes to space out, cues to pace, a burst to replay at a "
-      "rate something downstream can take. Up to 32 messages may wait; a queue that is full drops "
-      "the newest and counts it rather than growing or discarding history a patch is relying on. "
-      "Its sibling .speedlim is the other answer and drops what arrives too soon instead — "
-      "cheaper, since it never defers anything, and correct whenever a skipped message costs "
-      "nothing. Everything passes through as the kind of message it went in as: a bang out for a "
-      "bang in, an int for an int, text for text. A number in the right inlet sets the interval in "
-      "milliseconds; 0, the Max default, is no limiting at all and every message passes straight "
-      "through without ever being held. The first message after creation always passes, there "
-      "being no previous output to measure against. The wait runs on the patcher's deferred-"
-      "message scheduler (issue #628) rather than on the timer thread behind .metro, so holding a "
-      "message allocates nothing and takes no lock, and the released message arrives inside the "
-      "patcher's own dispatch as one fresh logical event rather than as an unrelated stimulus. "
-      "However long the queue is it costs one slot of that patcher-wide scheduler, because the "
-      "release re-arms itself rather than arming a deadline per message. That clock is the block "
-      "counter, so it stops when the engine does — a paused patch holds the waiting message where "
-      "it stands — and its resolution is one audio block. Since issue #728 the interval may "
-      "instead be tempo-relative: a note value ('4n', '4nd', '8nt') or a tick count ('1440 ticks') "
-      "in the right inlet sets it in beats on the YSE domain clock named by 'clock <name>' in the "
-      "left inlet, and the wait then follows that domain's tempo changes and ramps. Max's other "
-      "two time attributes came with it: 'threshold <time>' is his 'time threshold under which "
-      "only one message may pass', a second window inside which a message is dropped outright "
-      "rather than held — which is also what keeps a usurp 0 queue from filling on a flood — and "
-      "'quantize <time>' is his 'send output only on the specified time-boundary if appropriate', "
-      "a beat grid the release lands on. Both default to 0, which is off. A beat time with no "
-      "clock bound is inert rather than fatal, the window still opening, and bars.beats.units "
-      "stays out because it needs a meter no domain clock has. A message that cannot be held — "
-      "over-long text, a full queue, a full patcher-wide scheduler, or the narrow race with a "
-      "delivery already in progress — is dropped and counted rather than sent early or written to "
-      "the log. A standalone object outside any patcher has no clock at all and passes everything. "
-      "Note that this is deliberately not a reproduction of Max's own speedlim/qlim split: Max "
-      "documents this same holding behaviour for both names and separates them by scheduler "
-      "priority — qlim being 'an interrupt safe replacement' for Jitter traffic — which a headless "
-      "patcher with one dispatch model cannot express and which would leave the two objects "
-      "identical. Issue #508 gives the two names the two overflow policies instead, and this one "
-      "is Max's. Calculate() does nothing and no message path allocates, locks or blocks.",
-      "The message inlet. A bang, int, float or list arriving here goes straight out the outlet "
-      "when the interval has elapsed since the last output, and is held until it has when it has "
-      "not — Max's 'otherwise, the message is held until that amount of time has passed (or until "
-      "it is overwritten by another incoming message)'. With usurp on, only the newest waiting "
-      "message survives; a message replaced that way is not counted as dropped, that being usurp "
-      "working rather than a refusal. With 'usurp 0' every message joins a queue and leaves in "
-      "turn, one per window. A list whose whole text is one number is carried as that number, an "
-      "int or a float by its spelling, so a .m 5 reaches an int inlet downstream; anything else is "
-      "carried whole as text, up to 256 characters, beyond which it cannot be held and is refused. "
-      "Four command words are matched here rather than carried (issue #728), which is where Max "
-      "puts the same four as attribute messages: 'clock <name>' binds the domain clock a "
-      "tempo-relative time is measured on and a bare 'clock' takes it away, 'threshold <time>' "
-      "sets Max's threshold window, 'quantize <time>' sets the beat grid a release lands on "
-      "('quantize 0' clears it), and 'usurp 0' / 'usurp 1' choose between the queue and the "
-      "replace. Everything else is data.",
-      "The messages that got through, unchanged and as the kind of message they went in as. A held "
-      "message arrives one interval after the previous output, inside the patcher's own dispatch.",
-      "The initial minimum time between outputs in milliseconds — Max's creation argument, whose "
-      "documented default is 0: 'if there is no argument, the minimum time is 0 milliseconds', "
-      "which limits nothing and holds nothing. The right inlet overwrites it afterwards. A "
-      "negative value counts as 0. A message already waiting keeps the deadline it was held with.");
+      "Limits how often messages pass. A message that arrives before the interval since the last "
+      "output is up is held and sent when it is up; a newer message replaces it, or with 'usurp "
+      "0' joins a queue.",
+      "Any message, passed or held. 'clock <name>', 'threshold <time>', 'quantize <time>' and "
+      "'usurp <0|1>' are settings, not data.",
+      "The messages that got through, unchanged. A held message goes out one interval after the "
+      "previous output.",
+      "The minimum time between outputs in milliseconds. 0 lets everything through.");
 
   PARAM_DOC("usurp", "1",
-            "Max's usurp attribute, and this object's one real switch (issue #728). 1, the "
-            "default, is Max's 'the most recently received message replaces any currently queued "
-            "message': exactly one message ever waits, and what comes out of a burst is its last "
-            "value. 0 is Max's 'when usurp is disabled, all messages received will be sent out': "
-            "the object becomes a queue of up to 32 messages that leave in arrival order, one per "
-            "window, so nothing is lost until the queue itself is full. Anything non-zero counts "
-            "as 1. The 'usurp <0|1>' message in the left inlet overwrites it afterwards; switching "
-            "it does not disturb whatever is already waiting.",
+            "1: a new message replaces the one waiting. 0: messages queue, up to 32, and go out "
+            "one per interval.",
             "0 or 1");
 }
 

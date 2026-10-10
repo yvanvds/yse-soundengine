@@ -41,37 +41,19 @@ CONSTRUCT() {
 
   ADD_PARAM(expression);
 
-  ADD_DESCRIPTION(
-      "Evaluates a C-like mathematical expression, replacing a tangle of arithmetic objects with "
-      "one line of text. The expression is the creation argument; its $i1-$i9 and $f1-$f9 "
-      "placeholders name the inlets ($i reads the inlet as an int, $f as a float), and the object "
-      "gets one inlet past the highest placeholder used. Inlet 0 is hot: it stores its value and "
-      "evaluates, while the other inlets only store. A list on inlet 0 fills the inlets left to "
-      "right and evaluates; a bang re-evaluates with the stored values. Operators are C's, with "
-      "C's precedence and C's types: + - * / % on two ints give an int (so $i1/$i2 is integer "
-      "division), the comparisons (< <= > >= == !=), the logic (&& || !) and the bitwise "
-      "operators (& | ^ << >> ~) always give an int, and ^ is exclusive-or rather than a power - "
-      "use pow(). Functions: min, max, abs, int, float, pow, sqrt, exp, ln, log, log10, sin, cos, "
-      "tan, asin, acos, atan, atan2, sinh, cosh, tanh, fact, round, floor, ceil. Division by zero "
-      "gives 0 and a non-finite result gives 0, the convention the rest of the math family uses. "
-      "The expression is compiled once, when the parameter is set; evaluation only walks the "
-      "compiled form, so it allocates nothing and takes no lock. A malformed expression is "
-      "reported to the log at parse time and the object then evaluates to 0. Max's table access "
-      "($s placeholders, size/sum/avg/store) and its random/noise functions are not supported and "
-      "are rejected when the expression is compiled.");
+  ADD_DESCRIPTION("Evaluates a C-style expression such as '$f1 * 2 + $f2'. The placeholders "
+                  "$i1-$i9 and $f1-$f9 create the inlets; the left inlet calculates and sends the "
+                  "result.");
   ADD_CATEGORY(pCategory::MATH);
   INLET_DOC(0, kInletLabels[0],
-            "Value for the $i1 / $f1 placeholders — stores and fires the evaluation. Also accepts "
-            "a bang (re-evaluate with the stored values) and a list (fill the inlets left to "
-            "right, then evaluate).",
+            "Value for $i1 and $f1; sends the result. Bang: calculate again. List: fill the "
+            "inlets from the left, then calculate.",
             "any float");
-  OUTLET_DOC(0, "out",
-             "Result of the expression. An int when the expression's type is int, otherwise a "
-             "float.",
+  OUTLET_DOC(0, "out", "The result: an int when the expression's type is int, otherwise a float.",
              "any float");
   PARAM_DOC("expression", "",
-            "The expression to evaluate, e.g. \"($f1 * 0.5) + pow($f2, 2)\". Placeholders $i1-$i9 "
-            "and $f1-$f9 name the inlets and determine how many there are.",
+            "The expression, for example \"($f1 * 0.5) + pow($f2, 2)\". Its placeholders decide "
+            "how many inlets there are.",
             "any expression");
 }
 
@@ -118,8 +100,8 @@ PARM_PARSE() {
     REG_INT_IN(SetInt);
     inputs.back().SetDoc(kInletLabels[index],
                          program.UsesInlet((int)index)
-                             ? "Value for the $i / $f placeholders with this index — stored until "
-                               "the next evaluation."
+                             ? "Value for the $i and $f placeholders with this number, stored "
+                               "for the next result."
                              : "Unused by the current expression; it exists so the inlets to its "
                                "right keep their numbering.",
                          "any float");

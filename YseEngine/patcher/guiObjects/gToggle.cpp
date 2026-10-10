@@ -68,20 +68,14 @@ CONSTRUCT() {
 
   value = false;
 
-  ADD_DESCRIPTION("Latching on/off toggle. Int sets the state directly (0 = off, non-zero = on); "
-                  "bang flips it. Emits 0 or 1 every calculate tick. Settable per the GUI value "
-                  "protocol (issues #551/#846): a one-token list on inlet 0 is the whole state - "
-                  "'on' or 'off', the exact string GetGuiValue() produces, or a number read like "
-                  "the int - and 'set 0 <value>' writes the one cell; both set the state "
-                  "absolutely, never flip, which is what lets .preset capture and restore the "
-                  "toggle.");
+  ADD_DESCRIPTION("An on/off toggle. An int sets it (0 is off, any other number on), a bang flips "
+                  "it, and every message sends the state as 0 or 1.");
   ADD_CATEGORY(pCategory::GUI);
   INLET_DOC(0, "set/toggle",
-            "Int sets state (0 = off, !=0 = on); bang flips the current state. A one-token list "
-            "- 'on', 'off' or a number - is the whole state and 'set 0 <value>' the cell write; "
-            "both set absolutely, never flip.",
+            "An int sets the state (0 off, anything else on); a bang flips it. Also takes its GUI "
+            "value back: 'on', 'off' or a number, alone or after 'set 0'.",
             "0 or 1");
-  OUTLET_DOC(0, "out", "Current state — 0 or 1.", "0 or 1");
+  OUTLET_DOC(0, "out", "The state.", "0 or 1");
 }
 
 INT_IN(SetValue) {

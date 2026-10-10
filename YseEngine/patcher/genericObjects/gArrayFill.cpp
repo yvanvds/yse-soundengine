@@ -34,77 +34,36 @@ gArrayFill::gArrayFill() : gArrayEndsBase() {
   ADD_PARAM(value);
 
   ADD_DESCRIPTION(
-      "Fills an array with a repeated value — Max's array.fill on the name-addressed value "
-      "model .array settled: the array is bound from the creation argument, \".array.fill "
-      "<name> [<count>] [<value>]\", because an array is addressed by name and never passed "
-      "down a cord. A fill REPLACES the contents: the array becomes exactly count copies of "
-      "the value, so a shorter fill shrinks it and a count of 0 clears it — which is what "
-      "makes it the initialiser, sizing an array in one message so an index-addressed write "
-      "pattern has positions to land on, since an index past the end is refused rather than "
-      "growing the array. A bang fills with the stored count and value (count seeded by the "
-      "second creation argument, moved silently by the count inlet; value the third creation "
-      "argument, 0 when absent — Max's default); an int, float or symbol on the value inlet "
-      "fills with the stored count of copies of that value at the moment it arrives and "
-      "stores nothing. The count is bounded at the store's 256 elements and refused rather "
-      "than truncated; the value is one atom of at most 64 characters. The whole fill is one "
-      "hold of the store's guard, and a fill that lands emits the array's reference, so the "
-      "family chains.");
+      "Fills a named array with a number of copies of one value, replacing its contents. Use "
+      "it to clear an array, or to give it a size before writing to it by position.");
   ADD_CATEGORY(pCategory::ARRAY);
   INLET_DOC(0, "value",
-            "A bang fills the bound array with the stored count of copies of the stored value "
-            "— the array becomes exactly that, whatever it held. An int or a float fills with "
-            "the stored count of copies of THAT value at the moment it arrives, spelled the "
-            "way it arrived (7.5 stays a float), and stores nothing — a bang afterwards fills "
-            "with the author's value. A symbol arrives as a one-atom list, kept equivalent to "
-            "the number. A non-finite float is refused: it has no spelling that reads back. A "
-            "list of more than one atom is refused whole — the fill value is one atom, and a "
-            "content list belongs to .array's own set message. \"array <name>\" fills with "
-            "the stored count and value when it names the array bound by the creation "
-            "argument — the message an .array's reference outlet emits on a bang, the "
-            "family's gesture. Anything else is refused and counted rather than logged, "
-            "since this inlet may be the audio thread.",
+            "A bang fills with the stored count and value, and so does the bound array's "
+            "reference. An int, float or word fills with that value instead, without storing "
+            "it. A list of more than one item is refused.",
             "one atom, at most 64 characters");
   INLET_DOC(1, "count",
-            "An int stores the count the next fill sizes the array to, silently — the cold "
-            "half of the Max idiom, Max's right-inlet length. Negative is malformed (a count "
-            "is a size, not a distance) and past the store's 256 could never land: both are "
-            "refused before they are stored, so a bang after the refusal fills with what it "
-            "would have filled before it. A float truncates to an int first; a non-finite "
-            "one is refused rather than quietly becoming count 0.",
+            "Sets the number of copies for the next fill. A float is truncated; values outside "
+            "0-256 are refused.",
             "0-256");
   INLET_DOC(2, "array reference",
-            "\"array <name>\" is accepted silently when it names the array bound by the "
-            "creation argument, so a patch may wire the array's reference outlet across. It "
-            "sets nothing — the binding is the creation argument, resolved on the control "
-            "thread — and anything else is refused and counted.",
+            "Accepts the bound array's reference \"array <name>\" and ignores it, so the "
+            "array's reference outlet can be wired here. Anything else is refused.",
             "");
   OUTLET_DOC(0, "reference",
-             "The bound array's reference, \"array <name>\", sent after a fill that landed — "
-             "the way an array leaves an object on the value model, so wiring it onward "
-             "chains the family: into .array.length it reports the new size. A refused fill "
-             "emits nothing — a lost try-lock, an out-of-range count only a creation argument "
-             "can plant, a value no element can hold — and an unnamed object stays silent: "
-             "the fill happens, but there is no name to pass on.",
+             "The array's reference \"array <name>\" after each fill, so further .array objects "
+             "can be chained. Nothing is sent when the object has no name.",
              "");
-  PARAM_DOC(
-      "name", "",
-      "The array's shared name, addressed as \"patcher.<patcherName>.<name>\" — the sequence an "
-      ".array of the same name in this patcher holds. Resolved once, on the control "
-      "thread, which is why no message re-points it at run time. Empty fills a private, "
-      "empty array: the fill lands, but nothing shares it and no reference leaves.",
-      "any identifier");
+  PARAM_DOC("name", "",
+            "Name of the array to fill: the .array with this name in the same patcher. Empty "
+            "fills a private array.",
+            "any identifier");
   PARAM_DOC("count", "0",
-            "The initial stored count — how many copies a bang fills the array with before "
-            "any int on the count inlet has moved it. 0, the default, makes a bare bang "
-            "clear the array. Bounded at the store's 256 elements; an out-of-range creation "
-            "argument is refused at the fill, counted, never clamped.",
+            "The number of copies a fill makes. 0 (the default) makes a fill empty the array.",
             "0-256");
   PARAM_DOC("value", "0",
-            "The stored fill value — what a bang repeats. One atom, at most 64 characters, "
-            "spelled the way it will be stored (7 an int, 7. a float, anything else a "
-            "symbol). Absent means 0 — Max's \"without any initial data, the array will be "
-            "filled with 0s\". An inline value on the value inlet never rewrites this: the "
-            "author's argument is the author's.",
+            "The value a bang fills with: one item of at most 64 characters. 7 is stored as an "
+            "int, 7. as a float, anything else as a word.",
             "one atom, at most 64 characters");
 
   // The default derivation, so an object that never sees a SetParams — an

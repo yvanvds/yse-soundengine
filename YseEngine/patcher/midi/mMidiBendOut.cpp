@@ -18,21 +18,12 @@ CONSTRUCT() {
   // field even though the inlet overwrites it before every send.
   cvalue = 64;
 
-  ADD_DESCRIPTION(
-      "MIDI Pitch Bend message generator, the expressive channel message the other senders "
-      "in this family do not cover. A value on the inlet stores it and emits a three-byte "
-      "packet on the channel given as the creation argument. The value is the coarse byte "
-      "of the wire message, 0-127 with 64 at rest, and the fine byte is sent as 0: that is "
-      "the 7-bit resolution Max's 'bendout' has and the one '.bendin', '.midiparse' and "
-      "'.midiformat' report, so a number means the same thing wherever a patch reads or "
-      "writes it. The full 14-bit form is '.xbendout'. Out-of-range values are clamped "
-      "rather than refused, as they are on the rest of the family, so a patch scaling a "
-      "controller into a wider range bends to the extremes instead of falling silent. The "
-      "output is a raw byte list for '.midiout'.");
+  ADD_DESCRIPTION("Builds a 7-bit MIDI pitch-bend message for .midiout: 0-127 with 64 at rest. "
+                  ".xbendout sends the full 14 bits.");
   ADD_CATEGORY(pCategory::MIDI);
-  INLET_DOC(0, "bend", "Pitch bend position, 64 at rest (also fires the output).", "0-127");
-  OUTLET_DOC(0, "midi", "Encoded MIDI Pitch Bend message (status, fine byte 0, bend).", "");
-  PARAM_DOC("channel", "0", "MIDI channel offset (0-based).", "0-15");
+  INLET_DOC(0, "bend", "Pitch bend, 64 at rest; sends the message.", "0-127");
+  OUTLET_DOC(0, "midi", "The pitch-bend message, for .midiout. The fine byte is 0.", "");
+  PARAM_DOC("channel", "0", "MIDI channel, counted from 0: 0 is channel 1.", "0-15");
 }
 
 INT_IN(SetIntValue) {

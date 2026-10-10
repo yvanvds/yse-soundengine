@@ -10,12 +10,21 @@
 
 #include "math.hpp"
 #include <cmath>
+#include <limits>
 
+// Both scalar forms clamp like the buffer forms (midiToFreq / freqToMidi below)
+// so they never return a non-finite value (#1017): notes below -1500 (and NaN)
+// are 0 Hz, notes above 1499 are clamped to 1499, and a frequency of 0 or
+// below (and NaN) is note -1500.
 Flt YSE::DSP::MidiToFreq(Flt note) {
+  if (!(note >= -1500.0f)) return 0.0f;
+  if (note > 1499.0f) note = 1499.0f;
   return 440.0f * std::pow(2.0f, (note - 69.0f) / 12.0f);
 }
 
 Flt YSE::DSP::FreqToMidi(Flt freq) {
+  if (!(freq > 0.0f)) return -1500.0f;
+  if (freq > std::numeric_limits<Flt>::max()) freq = std::numeric_limits<Flt>::max();
   return 69.0f + 12.0f * std::log(freq / 440.0f) / std::log(2.0f);
 }
 

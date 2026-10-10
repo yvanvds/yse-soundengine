@@ -16,18 +16,11 @@ namespace {
   // them inline — gArray's arrangement. What differs per object stays with
   // that object below.
   constexpr char kReferenceInletDoc[] =
-      "\"array <name>\" is accepted silently when it names the array bound by the first creation "
-      "argument, so a patch may wire the array's reference outlet across. It sets nothing — the "
-      "binding is the creation argument, resolved on the control thread — and anything else is "
-      "refused and counted.";
-  constexpr char kIndexParamDoc[] =
-      "The initial stored position — where the operation applies before any int has moved it. "
-      "Zero-based, exactly as every position the index inlet takes.";
+      "Accepts the bound array's reference \"array <name>\" and ignores it, so the array's "
+      "reference outlet can be wired here. Anything else is refused.";
   constexpr char kNameParamDoc[] =
-      "The array's shared name, addressed as \"patcher.<patcherName>.<name>\" — the sequence an "
-      ".array "
-      "of the same name in this patcher holds. Resolved once, on the control thread, which is "
-      "why no message re-points it at run time.";
+      "Name of the array to use: the .array with this name in the same patcher. Empty uses a "
+      "private, empty array.";
 
 } // namespace
 
@@ -110,51 +103,26 @@ gArrayInsert::gArrayInsert() : gArrayPositionBase() {
   ADD_OUT_LIST;
 
   ADD_DESCRIPTION(
-      "Adds an element at a position, shifting the rest up — Max's array.insert on the "
-      "name-addressed value model .array settled: the array is bound from the creation argument, "
-      "\".array.insert <name> [<position>]\", because an array is addressed by name and never "
-      "passed down a cord. This is the object a running patch wires a position into — .array's "
-      "own \"insert\" needs the index inside the message text. An int, a float or a symbol on "
-      "the element inlet is inserted at the stored position as the text that spells it, and a "
-      "list lands whole, in the order sent — \"a b c\" at position 1 leaves a b c starting at 1 "
-      "— or is refused whole, one counted refusal and nothing changed, when the position is past "
-      "the end or the array cannot take all of it. Positions are zero-based and run 0..length "
-      "inclusive — inserting at the length appends — never wrapped or clamped, the family's "
-      "indexing rule. An int on the index inlet stores the position silently; an insert that "
-      "lands emits the array's reference, \"array <name>\", so the family chains. The insert is "
-      "applied entirely under one hold of the store's guard. .array.remove's exact inverse.");
+      "Inserts a value or a list into a named array at a stored position, moving later "
+      "elements up. Set the position on the middle inlet, then send what to insert to the "
+      "left inlet.");
   ADD_CATEGORY(pCategory::ARRAY);
   INLET_DOC(0, "element",
-            "An int or a float is inserted at the stored position as the text that spells it; a "
-            "symbol is inserted as itself; a list lands whole, in the order sent, or is refused "
-            "whole — one counted refusal and nothing changed — when the position is past the "
-            "end, the array cannot take all of it, or an element outruns 64 characters. \"array "
-            "<name>\" is refused even naming the bound array: a reference is an identity, not an "
-            "element, so a mis-wired reference cord shows up in the refusal count instead of in "
-            "the data. Refusals are counted rather than logged, since this inlet may be the "
-            "audio thread.",
+            "An int, float, word or list to insert at the stored position. A list keeps its "
+            "order and is inserted whole, or refused whole when the position is past the end or "
+            "the array cannot take all of it.",
             "at most 256 elements");
   INLET_DOC(1, "position",
-            "An int stores the position the next insert applies at, silently — the cold half of "
-            "the Max idiom: position on the right, element on the left triggers. A float "
-            "truncates to an int first. Zero-based, 0..length inclusive at the moment of the "
-            "insert — the length appends. A negative or non-finite value is refused and counted, "
-            "and the stored position does not move.",
+            "Sets the position for the next insert, from 0 to the array's length (the length "
+            "appends). A float is truncated; a negative value is refused.",
             "0-256");
   INLET_DOC(2, "array reference", kReferenceInletDoc, "");
   OUTLET_DOC(0, "reference",
-             "The bound array's reference, \"array <name>\", sent after an insert that landed — "
-             "the way an array leaves an object on the value model, so wiring it onward chains "
-             "the family: into .array.length it reports the new depth, into .array.remove's "
-             "trigger it acts on the array just grown. A refused insert emits nothing, and an "
-             "unnamed object stays silent — the write happens, but there is no name to pass on.",
+             "The array's reference \"array <name>\" after each insert, so further .array "
+             "objects can be chained. Nothing is sent when the object has no name.",
              "");
-  PARAM_DOC("name", "",
-            std::string(kNameParamDoc) +
-                " Empty writes into a private, empty array: the inserts land, but nothing "
-                "shares them and no reference leaves.",
-            "any identifier");
-  PARAM_DOC("index", "0", kIndexParamDoc, "0-256");
+  PARAM_DOC("name", "", kNameParamDoc, "any identifier");
+  PARAM_DOC("index", "0", "The insert position before one arrives on the middle inlet.", "0-256");
 }
 
 void gArrayInsert::ParamsChanged() {
@@ -314,50 +282,19 @@ gArrayRemove::gArrayRemove() : gArrayPositionBase() {
   AtomList::ReserveRender(emitScratch);
 
   ADD_DESCRIPTION(
-      "Drops the element at a position and outputs it — Max's array.remove on the name-addressed "
-      "value model .array settled: the array is bound from the creation argument, "
-      "\".array.remove <name> [<position>]\", because an array is addressed by name and never "
-      "passed down a cord. This is the object a running patch wires a position into — .array's "
-      "own \"delete\" needs the index inside the message text, and discards silently where this "
-      "emits the departing element, typed the way the patcher spells it. An int removes at that "
-      "position and stores it, a bang removes at the stored position, and every element behind "
-      "the gap moves down one — the read and the erase one hold of the store's guard, so the "
-      "element that leaves is exactly the one that left the array. A position the array does not "
-      "have bangs the miss outlet instead: nothing removed, nothing counted, and never a wrap or "
-      "a clamp — the family's indexing rule. The message an .array's reference outlet emits on a "
-      "bang removes at the stored position, the family gesture. .array.insert's exact inverse.");
+      "Removes the element at a position from a named array and outputs it; later elements "
+      "move down. A position the array does not have bangs the miss outlet.");
   ADD_CATEGORY(pCategory::ARRAY);
   INLET_DOC(0, "position",
-            "An int removes the element at that position and stores the position; a bang removes "
-            "at the stored position; a float truncates to an int first — Max's float method. A "
-            "position the array does not have bangs the miss outlet instead, and the stored "
-            "position still moves: a miss is a property of the array at that moment, not of the "
-            "request. \"array <name>\" removes at the stored position when it names the array "
-            "bound by the first creation argument — the message an .array's reference outlet "
-            "emits on a bang. A negative position, a reference naming anything else, or any "
-            "other list is refused and counted rather than logged, since this inlet may be the "
-            "audio thread; a multi-position remove is not offered, because delete renumbers and "
-            "a list of positions would name different elements after each erase than it did when "
-            "it was sent.",
+            "An int removes the element at that position and remembers the position; a bang "
+            "removes at the remembered position, and so does the bound array's reference. A "
+            "float is truncated; a negative position is refused.",
             "0-255");
   INLET_DOC(1, "array reference", kReferenceInletDoc, "");
-  OUTLET_DOC(0, "element",
-             "The removed element, typed the way the patcher spells it: a numeric element leaves "
-             "as an int or a float by its spelling and anything else as a symbol. Read and "
-             "removed under one hold of the store's guard, sent after it is released.",
-             "");
-  OUTLET_DOC(1, "miss",
-             "Bang when the ask named a position the array does not have — nothing removed, "
-             "nothing counted, kept off the element outlet so a patch editing by position can "
-             "see the edit did not land. An empty or unnamed (private) array misses on every "
-             "position. A lost try-lock is a counted refusal instead: the array's state is "
-             "unknown, so neither outlet fires.",
-             "");
-  PARAM_DOC("name", "",
-            std::string(kNameParamDoc) +
-                " Empty reads a private, empty array: every ask bangs the miss outlet.",
-            "any identifier");
-  PARAM_DOC("index", "0", kIndexParamDoc, "0-255");
+  OUTLET_DOC(0, "element", "The removed element, as an int, float or symbol by its spelling.", "");
+  OUTLET_DOC(1, "miss", "Bang when there is no element at the position.", "");
+  PARAM_DOC("name", "", kNameParamDoc, "any identifier");
+  PARAM_DOC("index", "0", "The position a bang removes at before any position arrives.", "0-255");
 }
 
 BANG_IN(BangIn) {

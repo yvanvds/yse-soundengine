@@ -22,17 +22,10 @@ namespace {
   }
 
   constexpr char kInletDoc[] =
-      "Everything that arrives leaves by the next outlet in the rotation, which then moves on and "
-      "wraps round to outlet 0 after the last. A bang, int or float goes out one outlet whole. A "
-      "message whose first token is a number is Max's list and is dealt one token per outlet, each "
-      "forwarded as the kind it was spelled as; anything else is Max's 'anything' and leaves one "
-      "outlet verbatim. 'set <n>' points the rotation at outlet n and emits nothing; 'thresh <n>' "
-      "turns event mode on (non-zero) or off.";
+      "Any message goes out the next outlet in turn. A list of numbers is dealt one item per "
+      "outlet. 'set <n>' makes outlet n the next one; 'thresh <0/1>' turns event mode off or on.";
 
-  constexpr char kOutletDoc[] =
-      "Every nth message, counting from wherever the rotation currently stands — bang, int, float "
-      "or text, whichever arrived. Only one outlet fires per message, so there is no firing order "
-      "to respect.";
+  constexpr char kOutletDoc[] = "Each message whose turn falls on this outlet, unchanged.";
 
 } // namespace
 
@@ -59,62 +52,12 @@ CONSTRUCT() {
   ShapePorts();
 
   ADD_DESCRIPTION(
-      "Deals successive messages to successive outlets, wrapping round to the first after the last "
-      "— Max's cycle, 'each incoming number is sent to the next outlet, wrapping around to the "
-      "first outlet after the last has been reached'. The dealer: one cord in, N cords out, and "
-      "consecutive messages land on consecutive outlets, which is the natural way to spread notes "
-      "across a bank of voices, alternate between two effect chains, or split one stream into "
-      "parallel processing paths. Built by hand it is a .counter wrapped at N into a .gate's "
-      "select "
-      "inlet with the value routed through the other one — three boxes and an inlet-ordering "
-      "hazard "
-      "to say one thing. It is not .poly, which allocates by voice availability: this rotates "
-      "blindly, so the same outlet comes round every N messages whatever the receivers are doing, "
-      "which is right where they are stateless or identical and wrong where they are a bank of "
-      "voices that may still be sounding. It is not .gate or .switch either, which route by an "
-      "index the patch supplies, where here the index is the object's own and the traffic advances "
-      "it; and unlike .trigger, which fans one message out every outlet, this sends each message "
-      "out exactly one, so there is no right-to-left order to state. The outlet is taken and the "
-      "position advanced before the message is sent, which is correctness and not tidiness: the "
-      "send path is synchronous, so a patch looping an outlet back into the inlet re-enters inside "
-      "the Send and must find the rotation already moved on — advancing afterwards would hand "
-      "every "
-      "message of the loop the same outlet. A message whose first token is a number is Max's list "
-      "and is dealt one token per outlet ('the stream of ints, floats, or symbols to be directed "
-      "to "
-      "successive outlets'), each token forwarded as the kind it was spelled as so that 1 2 3 does "
-      "not come back out as 1. 2. 3.; anything else is Max's 'anything' and leaves one outlet "
-      "verbatim, the same leading-token rule .bondo uses, because splitting 'note 60 100' across "
-      "three outlets would arrive downstream as three unrelated fragments and every object "
-      "matching "
-      "on a leading word would stop seeing it. 'set <n>' moves the rotation to outlet n and emits "
-      "nothing, so the next message lands where it was told and the rotation carries on from "
-      "there; "
-      "an index outside the outlet range is ignored rather than wrapped, since a set 4 on a "
-      "three-outlet object is a miscount and silently redirecting the stream would hide it. The "
-      "second creation argument and the 'thresh' message set Max's output mode, which restarts the "
-      "rotation at outlet 0 for each new logical event: not a clock and not an elapsed time — this "
-      "reads the same logical-event ids .next does, so two host calls are two events however close "
-      "together and a whole .trigger fan-out is one however slow. With mode on, a three-note chord "
-      "arriving as one burst is dealt 0, 1, 2 and the next chord starts at 0 again however long "
-      "the "
-      "first was, which is the difference between a voice bank that stays aligned with the music "
-      "and one that drifts by a voice per odd-sized chord; with mode off, the default, the "
-      "rotation "
-      "ignores event boundaries and keeps counting. 'set' is honoured for the rest of its own "
-      "event "
-      "and a later event restarts over the top of it, which falls out of the ordering rather than "
-      "being a special case. 'thresh' is run-time state rather than a parameter, so it does not "
-      "survive a save; the creation argument is what a patch carries. At most 256 outlets, built "
-      "once before the object is published — Calculate() does nothing, and no message path "
-      "allocates, locks or blocks.");
+      "Sends each message out the next outlet in turn, going back to outlet 0 after the last. Use "
+      "it to deal notes across a bank of voices or to alternate between processing chains.");
   ADD_CATEGORY(pCategory::ROUTING);
   PARAM_DOC("outlets", "1",
-            "Max's argument list, in Max's order. The first whole number is how many outlets to "
-            "build, clamped to 1-256 and defaulting to 1. A second whole number is Max's output "
-            "mode: non-zero restarts the rotation at outlet 0 for each new logical event, 0 (the "
-            "default) ignores event boundaries. A float is truncated; anything that is not a whole "
-            "finite number is ignored and leaves the defaults in place.",
+            "How many outlets to build. A non-zero second number turns on event mode: each new "
+            "event starts again at outlet 0.",
             "1-256, optional mode");
 }
 

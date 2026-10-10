@@ -51,31 +51,20 @@ CONSTRUCT() {
 
   listText.reserve(LIST_CAPACITY);
 
-  ADD_DESCRIPTION(
-      "Range control: holds a span rather than a single value, which is what a velocity layer, a "
-      "key split or a random spread actually is. Each inlet sets one end of the range - the left "
-      "one emits, the right one stores silently - and a list on the left inlet sets both ends at "
-      "once, as a bang re-sends them. Neither inlet is the low end: both ends are clamped into "
-      "the minimum-maximum bounds and reported in order, so the lower of the two always leaves "
-      "outlet 0 and the higher outlet 1, with the pair as a two-element list on outlet 2. The "
-      "three fire right to left. The GUI value is the two ends as cells (issue #551): \"low "
-      "high\" as a whole, and inlet 0 takes that string back verbatim or \"set <index> <value>\" "
-      "to move one end.");
+  ADD_DESCRIPTION("A range control: two ends inside minimum-maximum, such as a key split or a "
+                  "velocity layer. It sends the lower end, the higher end and both as a list, "
+                  "whichever way round the ends were set.");
   ADD_CATEGORY(pCategory::GUI);
   INLET_DOC(0, "end/range",
-            "A float or int sets one end of the range; a list sets both ends from its first two "
-            "numbers; \"set <index> <value>\" moves one end (0 is the low end of the current "
-            "range, 1 the high end); a bang re-sends. Everything here emits.",
+            "A number sets one end; a list sets both ends; 'set <0|1> <value>' moves the low or "
+            "the high end; a bang sends again. Everything here sends.",
             "minimum-maximum");
-  INLET_DOC(1, "end", "Sets the other end of the range and stores it without sending anything out.",
-            "minimum-maximum");
-  OUTLET_DOC(0, "low", "The lower of the two ends. Sent last, after outlets 2 and 1.",
-             "minimum-maximum");
-  OUTLET_DOC(1, "high", "The higher of the two ends.", "minimum-maximum");
-  OUTLET_DOC(2, "range", "Both ends as a two-element list, the lower one first. Sent first.",
-             "minimum-maximum");
-  PARAM_DOC("minimum", "0", "Lowest value either end of the range can reach.", "any float");
-  PARAM_DOC("maximum", "127", "Highest value either end of the range can reach.", "any float");
+  INLET_DOC(1, "end", "Sets the other end without sending.", "minimum-maximum");
+  OUTLET_DOC(0, "low", "The lower end. Sent last.", "minimum-maximum");
+  OUTLET_DOC(1, "high", "The higher end.", "minimum-maximum");
+  OUTLET_DOC(2, "range", "Both ends as a list, lower first. Sent first.", "minimum-maximum");
+  PARAM_DOC("minimum", "0", "The lowest value either end can reach.", "any float");
+  PARAM_DOC("maximum", "127", "The highest value either end can reach.", "any float");
 }
 
 float gRSlider::Bound(float value) const {

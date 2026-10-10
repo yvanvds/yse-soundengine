@@ -423,7 +423,7 @@ messages travel down cords that exist.
   were already there.
 - **Not on** ``CreateObject``. A ``.loadbang`` added to a running patch stays
   silent until the patch is saved and loaded again. Send it a bang to fire it
-  by hand, which works on both objects, as in Max.
+  by hand, which works on both objects.
 - **Subpatchers change nothing.** Objects inside a subpatcher fire in the
   same pass as the top level. There is no "inner patchers first" rule,
   because the whole tree is published at the same instant.

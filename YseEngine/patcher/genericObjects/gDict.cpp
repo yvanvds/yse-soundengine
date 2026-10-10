@@ -155,25 +155,16 @@ namespace {
   // Doc strings, hoisted out of CONSTRUCT() because they are long enough that
   // the constructor stops being readable with them inline — .coll's arrangement.
   constexpr char kInletDoc[] =
-      "\"set <path> <value...>\" stores a value; \"get <path>\" fetches one out outlet 0 or bangs "
-      "outlet 2 when there is none; \"delete <path>\" removes one; \"clear\" empties the "
-      "dictionary; \"getsize\" reports the entry count and \"getkeys\" the top-level keys out "
-      "outlet 0. A bang emits this dictionary's reference out outlet 1. Paths nest with \"::\", "
-      "Max's own separator, so \"voice::1::freq\" is one entry three levels deep. Anything "
-      "refused — an unknown message, a path past 128 characters, a value past 256, or a store "
-      "into a full dictionary — is counted rather than logged, since this inlet may be the audio "
-      "thread.";
+      "'set <path> <value...>' stores a value, 'get <path>' sends one, 'delete <path>' removes "
+      "one, 'clear' empties the dictionary, 'getsize' sends the entry count and 'getkeys' the "
+      "top-level keys. A bang sends the reference out of outlet 1.";
   constexpr char kDataDoc[] =
-      "The value fetched by \"get\", typed the way the patcher spells it: a single numeric token "
-      "leaves as an int or a float by its spelling and anything else as a list. Also the int "
-      "\"getsize\" reports and the key list \"getkeys\" reports.";
+      "The value a 'get' fetched: one number leaves as an int or a float, anything else as a "
+      "list. Also the count from 'getsize' and the key list from 'getkeys'.";
   constexpr char kReferenceDoc[] =
-      "\"dictionary <name>\" on a bang — the reference the dict.* family binds. It carries the "
-      "*local* name, because the object receiving it prefixes that with its own patcher's name "
-      "exactly as this one does. Silent for an unnamed dictionary, which has no name to pass on.";
-  constexpr char kMissDoc[] =
-      "Bang when a \"get\" names a path the dictionary does not hold — the miss, kept off outlet 0 "
-      "so a patch can tell \"no such key\" from a key holding nothing.";
+      "'dictionary <name>' on a bang: the reference the other .dict objects accept. Silent for "
+      "an unnamed dictionary.";
+  constexpr char kMissDoc[] = "Bang when a 'get' names a path the dictionary does not hold.";
 
 } // namespace
 
@@ -499,29 +490,22 @@ CONSTRUCT() {
   // buffer carries the whole `getkeys` list.
   AtomList::ReserveRender(emitScratch);
 
-  ADD_DESCRIPTION(
-      "A nested key/value dictionary shared by name — Max's dict. Paths nest with \"::\", so "
-      "\"voice::1::freq\" is one entry three levels deep, and the contents are a proper nested "
-      "JSON object when the patch is saved. The dictionary is addressed as "
-      "\"patcher.<patcherName>.<name>\", the same address form .s, .r, .value and .coll use, so "
-      "every "
-      ".dict of one name shares one dictionary and two patchers given one name share theirs. "
-      "A bang emits \"dictionary <name>\" out outlet 1 — the reference the dict.* family binds. "
-      "Dictionaries are addressed by name rather than passed down a cord: an outlet carries a "
-      "value, never an identity, so the name is what travels and the store is resolved once, on "
-      "the control thread. An unnamed .dict keeps a dictionary of its own.");
+  // gDict.h explains the design: a flat table of "::" paths, allocated whole
+  // at construction and guarded by a try-lock, shared by name and resolved
+  // once on the control thread because a cord carries a value, never an
+  // identity.
+  ADD_DESCRIPTION("A key/value store shared by name. Keys nest with '::' (voice::1::freq), a "
+                  "value is any message, and the contents are saved with the patch. A bang sends "
+                  "the reference 'dictionary <name>' that the other .dict objects take.");
   ADD_CATEGORY(pCategory::DICT);
   INLET_DOC(0, "in", kInletDoc, "at most 256 entries");
   OUTLET_DOC(0, "data", kDataDoc, "");
   OUTLET_DOC(1, "reference", kReferenceDoc, "");
   OUTLET_DOC(2, "miss", kMissDoc, "");
   PARAM_DOC("name", "",
-            "Max's shared context: all .dict objects of this name share their contents, through a "
-            "store addressed as \"patcher.<patcherName>.<name>\". Empty gives this object a "
-            "dictionary of "
-            "its own rather than pooling it with every other unnamed .dict in the patcher. The "
-            "name is resolved once, on the control thread, which is why there is no message that "
-            "re-points a .dict at another name at run time.",
+            "The dictionary's name. Every .dict with this name in the patcher shares one "
+            "dictionary. Empty gives this object a private dictionary. Cannot be changed while "
+            "the patch runs.",
             "any identifier");
 }
 

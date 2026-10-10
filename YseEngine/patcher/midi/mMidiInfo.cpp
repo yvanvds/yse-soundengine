@@ -46,54 +46,23 @@ CONSTRUCT() {
   // quietly does nothing about.
   scan = MidiPortScanner().Claim();
 
-  ADD_DESCRIPTION(
-      "MIDI port directory — Max's 'midiinfo' (issue #536). Every other MIDI object in the patcher "
-      "addresses a device by a bare index ('.midiout 2', '.notein 1') and nothing in a patch could "
-      "say what index 2 actually is, so a patch that moved between machines silently addressed the "
-      "wrong hardware. A bang reports the machine's ports: the count out the right outlet first, "
-      "then one index / name pair per port in index order, so a patch can match a device by name "
-      "and feed the index it found to the object that opens it. The name is sent whole, spaces and "
-      "all, exactly as the driver spells it. Input and output ports are separate sets numbered "
-      "separately — input port 1 and output port 1 are unrelated devices — and the 'direction' "
-      "argument ('input', the default, or 'output') picks which set is reported; the messages "
-      "'input' and 'output' switch it live, and switching costs nothing because both sets are "
-      "snapshotted together. A machine with no ports sends a count of 0 and nothing else. The "
-      "ports "
-      "are read once, on the control thread, when the object joins its patcher: RtMidi's "
-      "enumeration allocates and talks to the platform's MIDI service, which the audio callback "
-      "may "
-      "not do, so a bang reads a fixed-size snapshot taken then. A controller plugged in "
-      "afterwards is picked up by the 'refresh' message (issue #757), which does not enumerate on "
-      "the spot — the message may have arrived on the audio thread — but asks a background thread "
-      "to, and re-sends the whole listing out the same three outlets once the new snapshot lands, "
-      "on the next block the patcher renders. At most 32 ports are held and a name longer than "
-      "63 characters is truncated. Nothing on the bang path allocates, locks or blocks, and two "
-      "threads banging at once — or an outlet wired back into the inlet — are refused rather than "
-      "allowed to recurse.");
+  ADD_DESCRIPTION("Lists the machine's MIDI ports. A bang sends the number of ports, then an index "
+                  "and a name for each, so a patch can find a device by name.");
   ADD_CATEGORY(pCategory::MIDI);
 
   INLET_DOC(0, "bang",
-            "A bang reports the ports: the count, then an index and a name for each one. 'input' "
-            "and 'output' switch which set is reported; 'refresh' re-scans the machine in the "
-            "background and re-sends the listing when the new snapshot arrives. All three are "
-            "accepted in either spelling — as a message from a '.message' box, or as a list.",
+            "A bang sends the listing. \"input\" and \"output\" switch which ports are listed; "
+            "\"refresh\" scans the machine again and sends the listing when the scan is done.",
             "");
   OUTLET_DOC(0, "name",
-             "The port's name as the driver reports it, sent whole — spaces included, truncated at "
-             "63 characters. Sent after the index of the same port, so anything it triggers "
-             "downstream already knows which port is being named.",
-             "");
+             "The port's name, spaces included, cut at 63 characters. Sent after its index.", "");
   OUTLET_DOC(1, "index",
-             "The port's index — the number '.midiout', '.notein' and the rest of the MIDI family "
-             "take as their 'port' argument. Counted from 0, within this direction only.",
+             "The port's index: the port argument .midiout, .notein and the other MIDI objects "
+             "take. Counted from 0.",
              "0-31");
-  OUTLET_DOC(2, "count",
-             "How many ports the selected direction has. Sent once, before the first pair, so a "
-             "patch knows how many to expect; 0 on a machine with none, and then nothing follows.",
-             "0-32");
+  OUTLET_DOC(2, "count", "How many ports there are. Sent first; 0 when there are none.", "0-32");
   PARAM_DOC("direction", "input",
-            "Which set of ports to report: 'input' for the ports a patch can receive from, "
-            "'output' for the ones it can send to. Anything else reads as 'input'.",
+            "Which ports to list: \"input\" or \"output\". Anything else means \"input\".",
             "input | output");
 }
 

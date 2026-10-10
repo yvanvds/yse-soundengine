@@ -44,17 +44,13 @@ namespace {
   }
 
   constexpr char kInletDoc[] =
-      "A number shifts the register one stage and every outlet fires, right to left. A bang sends "
-      "the stored values without shifting. 'set <n>' fills every stage with n and sends it out "
-      "every outlet; 'clear' resets every stage to 0 silently. 'freeze' suspends the output while "
-      "incoming numbers go on shifting, 'thaw' resumes it. 'L2R' and 'R2L' choose which end new "
-      "values enter. 'roll' feeds the value at the far end back in, rotating the register. A "
-      "message whose first token is a number is fed in token by token; anything else is ignored.";
+      "A number shifts the register and every outlet sends. A bang sends without shifting. A list "
+      "of numbers is fed in one number at a time. Also takes 'set <n>', 'clear', 'freeze', "
+      "'thaw', 'L2R', 'R2L' and 'roll'.";
 
   constexpr char kOutletDoc[] =
-      "The value this stage holds — outlet 0 the most recent, each outlet to its right one step "
-      "older (reversed after 'R2L'). Every outlet fires on every input, in Max's order: the last "
-      "outlet first, outlet 0 last. Each value leaves as the kind it arrived as.";
+      "The value this stage holds: outlet 0 the newest, each outlet to its right one step older "
+      "(the other way round after 'R2L'). A value keeps its int or float type.";
 
 } // namespace
 
@@ -81,56 +77,12 @@ CONSTRUCT() {
   ShapePorts();
 
   ADD_DESCRIPTION(
-      "Passes numbers from outlet to outlet, shifting on every input — Max's bucket, which "
-      "'outputs incoming values to outlets in bucket-brigade fashion' and 'acts as an n-stage "
-      "shift register which can shift its contents from outlet to outlet in either direction'. A "
-      "delay line for events rather than for samples: outlet 1 is whatever arrived one step ago, "
-      "outlet 2 two steps ago, and so on for as many outlets as the creation argument asked for, "
-      "which is the canonical shape of a canon, an arpeggio echo, a comparison of a value against "
-      "its own recent history, and anything that has to reappear N steps later. It is not .past, "
-      ".peak or .trough, which each remember one thing about the stream; this remembers the last N "
-      "values positionally and hands all of them out at once. Nor is it .cycle, which it resembles "
-      "from the outside and is the opposite of: .cycle sends one message out one outlet and moves "
-      "a cursor, where this sends the whole register out every outlet on each input — 'spread "
-      "these notes over four voices' is .cycle, 'play these notes again four steps later' is this. "
-      "And unlike .trigger, which fans one value out every outlet as copies, every outlet here "
-      "carries a different, older value: the fan-out is across time. By default the register is "
-      "one step behind the input, Max's 'the numbers currently stored in bucket are sent out, then "
-      "each number is moved one outlet to the right and the new number is stored to be sent out "
-      "the left outlet the next time a number is received'; a second non-zero creation argument is "
-      "Max's 'echo to output' mode, which swaps the order of the shift and the send so the value "
-      "that arrived is in this burst rather than the next. 'L2R' and 'R2L' choose which end new "
-      "values enter, and outlets always fire in Max's universal right-to-left order whichever way "
-      "the storage is shifting, so a downstream collector sees the oldest value before the newest. "
-      "The burst is captured before the state changes and the state is settled before the first "
-      "send, the settle-first argument .onebang, .togedge, .next, .buddy and .cycle make: the send "
-      "path is synchronous, so a patch looping an outlet back into the inlet re-enters inside the "
-      "Send and must find a register that has already shifted, while the interrupted burst goes on "
-      "emitting the values it started with. 'set <n>' fills every stage with n and sends it out "
-      "every outlet — it emits, unlike .cycle's and .past's silent sets, because it changes the "
-      "whole visible contents of the register rather than a cursor; 'clear' is the silent one and "
-      "resets every stage to int 0. 'freeze' suspends the output while incoming numbers go on "
-      "shifting internally and 'thaw' resumes it, so a frozen bucket records quietly and a thaw "
-      "plus a bang shows what it collected; the gag covers bang, set and roll too. 'roll' feeds "
-      "the value at the far end back in as if it had been received, a rotation in which nothing "
-      "enters and nothing is lost, which turns the register into a phrase loop the patch can step; "
-      "Max documents an argument that is not read, so a bare roll is the same message. Each stored "
-      "value leaves as the kind it was spelled as, so 1 2 3 does not come back out as 1. 2. 3. A "
-      "bang sends the stored values without shifting. Max documents no list method; here a message "
-      "whose first token is a number is fed in token by token, each numeric token one full input, "
-      "because a shift register is a thing you push a sequence through and dropping all but the "
-      "first element would throw data away at the object least able to afford it — a one-element "
-      "list still behaves exactly as Max's int. Anything else is ignored. At most 256 stages, "
-      "built once before the object is published; Calculate() does nothing, and no message path "
-      "allocates, locks or blocks.");
+      "A shift register for numbers. Each number pushes the stored values one outlet along and "
+      "every outlet sends what it holds, each one a step older than the outlet to its left.");
   ADD_CATEGORY(pCategory::ROUTING);
   PARAM_DOC("outlets", "1",
-            "Max's argument list, in Max's order. The first whole number is how many outlets — and "
-            "therefore stages — to build, clamped to 1-256 and defaulting to 1. A second whole "
-            "number is Max's 'echo to output' flag: non-zero puts the value that just arrived in "
-            "the same burst rather than the next one, 0 (the default) keeps the register one step "
-            "behind. A float is truncated; anything that is not a whole finite number is ignored "
-            "and leaves the defaults in place.",
+            "How many outlets (stages) to build. A non-zero second number turns on echo mode: the "
+            "number that just arrived is sent in the same burst instead of the next one.",
             "1-256, optional echo flag");
 }
 

@@ -27,47 +27,27 @@ namespace {
   // them inline — gArray's arrangement. What differs per object stays with
   // that object below.
   constexpr char kReferenceInletDoc[] =
-      "\"array <name>\" is accepted silently when it names the array bound by the first creation "
-      "argument, so a patch may wire the array's reference outlet across. It sets nothing — the "
-      "binding is the creation argument, resolved on the control thread — and anything else is "
-      "refused and counted.";
+      "Accepts the bound array's reference \"array <name>\" and ignores it, so the array's "
+      "reference outlet can be wired here. Anything else is refused.";
   constexpr char kReferenceOutletDoc[] =
-      "The bound array's reference, \"array <name>\", sent after a permutation that landed — the "
-      "way an array leaves an object on the value model, so wiring it onward chains the family: "
-      "into .array.at it fetches from the new order. A lost try-lock emits nothing (one counted "
-      "refusal, nothing changed), and an unnamed object stays silent — the permutation happens, "
-      "but there is no name to pass on.";
+      "The array's reference \"array <name>\" after each reorder, so further .array objects can "
+      "be chained. Nothing is sent when the object has no name.";
   constexpr char kNameParamDoc[] =
-      "The array's shared name, addressed as \"patcher.<patcherName>.<name>\" — the sequence an "
-      ".array "
-      "of the same name in this patcher holds. Resolved once, on the control thread, which is "
-      "why no message re-points it at run time. Empty permutes a private, empty array: the "
-      "trigger lands, but nothing shares it and no reference leaves.";
+      "Name of the array to reorder: the .array with this name in the same patcher. Empty uses "
+      "a private, empty array.";
   constexpr char kScrambleTriggerInletDoc[] =
-      "A bang shuffles the bound array in place — a fresh random order every time, from the "
-      "per-object sequence the seed argument starts, so two bangs give two shuffles of the "
-      "array rather than a shuffle of a shuffle only in the sense that the second acts on the "
-      "first's result, exactly as Max's. An empty array shuffles to itself and still announces. "
-      "\"array <name>\" does the same when it names the array bound by the first creation "
-      "argument — the message an .array's reference outlet emits on a bang, the family's "
-      "gesture. A reference naming anything else, or any other message, is refused and counted "
-      "rather than logged, since this inlet may be the audio thread.";
+      "Bang, or the bound array's reference \"array <name>\": shuffle the array into a new "
+      "random order.";
   constexpr char kScrambleSeedInletDoc[] =
-      "An int restarts the random sequence, silently — a non-zero seed replays the same "
-      "shuffles every run, 0 takes an arbitrary stream, .urn's contract and Max's @seed 0. A "
-      "float truncates to an int first; a non-finite one is refused rather than quietly "
-      "becoming seed 0. The author's creation argument is not rewritten: a run-time reseed is "
-      "the patch's business, the saved seed the author's.";
+      "An int restarts the random sequence. A non-zero seed repeats the same shuffles every "
+      "run; 0 gives an unpredictable sequence. A float is truncated.";
   constexpr char kScrambleOrderOutletDoc[] =
-      "The applied order — the picks as zero-based indices into the array as it stood at the "
-      "trigger, Max's \"scrambled index\" list — sent before the reference, Max's "
-      "right-to-left rule and .zl sort's idiom: feed this to an .array.indexmap's map inlet "
-      "and the reference to its trigger, and a parallel array lands in the same new order. A "
-      "one-element order leaves as the int it spells, which .array.indexmap's map inlet "
-      "accepts as the one-entry map; an empty array publishes no order.";
+      "The order applied: for each new position, the position the element came from. Sent "
+      "before the reference. Send it to .array.indexmap to put another array in the same order. "
+      "Nothing is sent for an empty array.";
   constexpr char kScrambleSeedParamDoc[] =
-      "Random seed for the shuffle order; non-zero replays the same shuffles every run, 0 "
-      "picks an arbitrary stream.";
+      "Random seed. A non-zero seed repeats the same shuffles every run; 0 gives an "
+      "unpredictable sequence.";
 
 } // namespace
 
@@ -142,23 +122,10 @@ gArrayReverse::gArrayReverse() : gArrayPermuteBase() {
   ADD_OUT_LIST;
 
   ADD_DESCRIPTION(
-      "Reverses an array's order — Max's array.reverse on the name-addressed value model .array "
-      "settled: the array is bound from the creation argument, \".array.reverse <name>\", "
-      "because an array is addressed by name and never passed down a cord. A bang reverses the "
-      "bound array in place — element i becomes element length-1-i, the whole reversal one hold "
-      "of the store's guard through a scratch table the object owns, so the order applied is "
-      "the array as it stood at the trigger. The message an .array's reference outlet emits on "
-      "a bang triggers the same reversal, the family's gesture, and a reversal that lands "
-      "emits the array's reference, so the family chains. An empty array reverses to itself "
-      "and still announces.");
+      "Reverses the order of the elements of a named array, then sends the array's reference.");
   ADD_CATEGORY(pCategory::ARRAY);
   INLET_DOC(0, "trigger",
-            "A bang reverses the bound array in place; an empty array reverses to itself and "
-            "still announces. \"array <name>\" does the same when it names the array bound by "
-            "the creation argument — the message an .array's reference outlet emits on a bang, "
-            "the family's gesture. A reference naming anything else, or any other message, is "
-            "refused and counted rather than logged, since this inlet may be the audio thread.",
-            "");
+            "Bang, or the bound array's reference \"array <name>\": reverse the array.", "");
   INLET_DOC(1, "array reference", kReferenceInletDoc, "");
   OUTLET_DOC(0, "reference", kReferenceOutletDoc, "");
   PARAM_DOC("name", "", kNameParamDoc, "any identifier");
@@ -234,46 +201,21 @@ gArrayRotate::gArrayRotate() : gArrayPermuteBase() {
   ADD_PARAM(amount);
 
   ADD_DESCRIPTION(
-      "Rotates an array by a signed amount, wrapping — Max's array.rotate on the name-addressed "
-      "value model .array settled: the array is bound from the creation argument, "
-      "\".array.rotate <name> [<amount>]\", because an array is addressed by name and never "
-      "passed down a cord. This is where the wrapping the base type refuses actually lives — "
-      "an index is a position, decided once on the store, and this object exists to provide "
-      "the alternative — so the amount is a signed distance: any magnitude is legal, taken "
-      "modulo the length so a whole turn is the identity, positive rotates toward the end with "
-      "the element pushed past the last position wrapping to the front, negative toward the "
-      "start, and 0 rotates by nothing and still announces. A bang rotates by the stored "
-      "amount, seeded by the second creation argument and replaced silently by an int on the "
-      "amount inlet; an int on the trigger rotates by that amount at the moment it arrives and "
-      "stores nothing. The whole rotation is one hold of the store's guard through a scratch "
-      "table the object owns; a rotation that lands emits the array's reference, so the "
-      "family chains.");
+      "Rotates the elements of a named array by a number of positions, wrapping around the "
+      "ends. Positive amounts move elements toward the end, negative toward the start.");
   ADD_CATEGORY(pCategory::ARRAY);
   INLET_DOC(0, "trigger",
-            "A bang rotates the bound array by the stored amount — the amount the last int on "
-            "the amount inlet stored, seeded by the second creation argument (0 when absent). "
-            "An int rotates by that amount at the moment it arrives and stores nothing — a "
-            "bang that replayed the last inline amount would be hidden state — a float "
-            "truncates to an int first, and a list spelling exactly one signed int is the "
-            "amount it spells, kept equivalent to the int. \"array <name>\" rotates by the "
-            "stored amount when it names the array bound by the creation argument — the "
-            "family's gesture. Anything else is refused and counted rather than logged, since "
-            "this inlet may be the audio thread.",
+            "A bang rotates by the stored amount, and so does the bound array's reference. An "
+            "int rotates by that amount instead, without storing it. A float is truncated.",
             "any int");
   INLET_DOC(1, "amount",
-            "An int stores the amount the next bang rotates by, silently — the cold half of "
-            "the Max idiom. Negative is legal here, the whole point of the object: positive "
-            "rotates toward the end, negative toward the start, any magnitude modulo the "
-            "length. A float truncates to an int first; a non-finite one is refused rather "
-            "than quietly becoming 0.",
+            "Sets the amount for the next bang. Any int; positive moves elements toward the "
+            "end, negative toward the start. A float is truncated.",
             "any int");
   INLET_DOC(2, "array reference", kReferenceInletDoc, "");
   OUTLET_DOC(0, "reference", kReferenceOutletDoc, "");
   PARAM_DOC("name", "", kNameParamDoc, "any identifier");
-  PARAM_DOC("amount", "0",
-            "The initial stored amount — what a bang rotates by before any int has moved it. "
-            "Signed: positive toward the end, negative toward the start, any magnitude modulo "
-            "the length.",
+  PARAM_DOC("amount", "0", "The amount a bang rotates by before one arrives on the middle inlet.",
             "any int");
 }
 
@@ -507,17 +449,9 @@ void gArrayScrambleBase::Shuffle(YSE::THREAD thread) {
 
 gArrayScramble::gArrayScramble() : gArrayScrambleBase() {
   ADD_DESCRIPTION(
-      "Reorders an array at random — Max's array.scramble on the name-addressed value model "
-      ".array settled: the array is bound from the creation argument, \".array.scramble <name> "
-      "[<seed>]\", because an array is addressed by name and never passed down a cord. A bang "
-      "shuffles the bound array in place — Fisher-Yates from a per-object random sequence, so "
-      "a non-zero seed replays the same shuffles every run and 0 takes an arbitrary stream — "
-      "the whole shuffle one hold of the store's guard through a scratch table the object "
-      "owns. A shuffle that lands publishes the applied order as zero-based indices out the "
-      "order outlet, then emits the array's reference: feed the order to an .array.indexmap's "
-      "map inlet and the reference to its trigger, and a parallel array lands in the same new "
-      "order, .zl sort's idiom. Max ships array.scramble and array.shuffle as one object under "
-      "two names, and so does this port: .array.shuffle is this same object.");
+      "Shuffles the elements of a named array into a random order, and sends the order it "
+      "applied so another array can be put in the same order. The same object as "
+      ".array.shuffle.");
   ADD_CATEGORY(pCategory::ARRAY);
   INLET_DOC(0, "trigger", kScrambleTriggerInletDoc, "");
   INLET_DOC(1, "seed", kScrambleSeedInletDoc, "any int");
@@ -535,17 +469,9 @@ gArrayScramble::gArrayScramble() : gArrayScrambleBase() {
 
 gArrayShuffle::gArrayShuffle() : gArrayScrambleBase() {
   ADD_DESCRIPTION(
-      "Shuffles an array's elements — Max's array.shuffle on the name-addressed value model "
-      ".array settled: the array is bound from the creation argument, \".array.shuffle <name> "
-      "[<seed>]\", because an array is addressed by name and never passed down a cord. A bang "
-      "shuffles the bound array in place — Fisher-Yates from a per-object random sequence, so "
-      "a non-zero seed replays the same shuffles every run and 0 takes an arbitrary stream — "
-      "the whole shuffle one hold of the store's guard through a scratch table the object "
-      "owns. A shuffle that lands publishes the applied order as zero-based indices out the "
-      "order outlet, then emits the array's reference: feed the order to an .array.indexmap's "
-      "map inlet and the reference to its trigger, and a parallel array lands in the same new "
-      "order, .zl sort's idiom. Max ships array.shuffle and array.scramble as one object under "
-      "two names, and so does this port: .array.scramble is this same object.");
+      "Shuffles the elements of a named array into a random order, and sends the order it "
+      "applied so another array can be put in the same order. The same object as "
+      ".array.scramble.");
   ADD_CATEGORY(pCategory::ARRAY);
   INLET_DOC(0, "trigger", kScrambleTriggerInletDoc, "");
   INLET_DOC(1, "seed", kScrambleSeedInletDoc, "any int");

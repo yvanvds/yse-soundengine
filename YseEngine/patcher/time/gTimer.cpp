@@ -14,38 +14,16 @@ using namespace YSE::PATCHER;
 
 namespace {
 
-  constexpr char kStartInletDoc[] =
-      "A bang marks the first of the two events — Max's 'in left inlet: starts or restarts the "
-      "timer'. It takes the instant it arrived at and the bound clock's beat position at that same "
-      "instant, and everything the right inlet later reports is measured from there. Banging it "
-      "again simply moves the mark, so a timer is re-used by re-starting it rather than by being "
-      "cleared. Nothing is emitted here: an interval needs two events and this is one of them.";
+  constexpr char kStartInletDoc[] = "A bang marks the start. Another bang moves the start to now.";
 
   constexpr char kReportInletDoc[] =
-      "A bang marks the second event and sends the interval — Max's 'in right inlet: sends out the "
-      "time elapsed since the timer was started'. It *measures* rather than stops: the mark stays "
-      "where the left inlet put it, so banging this inlet again reports a larger interval from the "
-      "same start, which is how split times are taken. A bang before the timer has ever been "
-      "started emits nothing at all, there being no interval between one event and no event.";
+      "A bang sends the time since the start. The start stays where it is.";
 
-  constexpr char kMsOutletDoc[] =
-      "The interval between the two events, in milliseconds. It is measured rather than counted: "
-      "both events read the engine's monotonic clock (std::chrono::steady_clock, the same source "
-      "the patcher's timer thread schedules on and the same one the engine times its own ticks "
-      "with) and the reading is their difference, so a bang that the OS delivered late is timed at "
-      "the instant it really arrived and the figure never disagrees with the events that produced "
-      "it. Sent after the beats outlet, which is Max's right-to-left outlet order.";
+  constexpr char kMsOutletDoc[] = "The time since the start, in milliseconds.";
 
   constexpr char kBeatsOutletDoc[] =
-      "The same interval expressed in beats of the domain clock named by the creation argument — "
-      "issue #506's 'second outlet reporting the interval in beats against a bound domain clock', "
-      "and what Max's own right outlet does against his transport. The clock's beat position is "
-      "read at each of the two events and subtracted, so a tempo change, a ramp or a pause "
-      "between them is accounted for exactly; this is emphatically not the millisecond figure "
-      "divided by a BPM number, and the two outlets are not two spellings of one value. Sent "
-      "first, Max's outlets firing right to left. Nothing at all is emitted when there is no beat "
-      "to report: no creation argument, a clock nothing has created, or a clock that only appeared "
-      "after the timer was started and so has no baseline in this interval.";
+      "The beats the named clock moved in the same time, sent just before the milliseconds. "
+      "Silent without a clock.";
 
 } // namespace
 
@@ -62,45 +40,15 @@ CONSTRUCT() {
   ADD_PARAM(clockname);
 
   ADD_DESCRIPTION(
-      "Reports the elapsed time between two events — Max's timer, and the first patcher object "
-      "that consumes time rather than producing it (issue #506). A bang in the left inlet marks "
-      "the start, a bang in the right sends the interval since that mark: the tempo of a tapped-in "
-      "beat, the length of a gesture, how long a note was held. The right inlet measures rather "
-      "than stops — the mark stays put, so banging it repeatedly gives split times from the one "
-      "start — and a report before any start emits nothing, there being no interval between one "
-      "event and no event. The milliseconds are measured, never counted: both events read the "
-      "engine's monotonic clock (std::chrono::steady_clock, the same source the patcher's timer "
-      "thread schedules on), so a '.metro' tick that the OS delivered late is timed at the instant "
-      "it really arrived. The second outlet reports the same interval in beats of a YSE domain "
-      "clock named by the creation argument ('.timer main'), which is what Max's own right outlet "
-      "does against his transport: the beat position is read at each event and subtracted, so a "
-      "tempo change or a ramp between them is accounted for exactly rather than being papered over "
-      "by dividing milliseconds by a BPM figure. The beats outlet stays silent when there is no "
-      "clock to read. This object never creates a clock and never destroys one — '.transport' is "
-      "the sole creator (issue #513) — so a name nobody has claimed simply has no beats until "
-      "something claims it. Max's 'clock <name>' message stays out because it names a setclock, an "
-      "alternative millisecond clock YSE does not have, and reusing the word for the beat domain "
-      "would give a Max message a different meaning in a patch that looks like Max's; the format "
-      "attribute stays out with it, the two units this object has being spelled by its two "
-      "outlets. Calculate() does nothing, and neither inlet allocates, locks or blocks when it "
-      "turns out to be running on the audio callback: the clock is read through the patcher's "
-      "bridge there, which is two acquire loads, and by name only off it.");
+      "Measures the time between a bang in the left inlet and a bang in the right inlet, in "
+      "milliseconds and, with a clock name as argument, in beats.");
   ADD_CATEGORY(pCategory::TIME);
   INLET_DOC(0, "start", kStartInletDoc, "bang");
   INLET_DOC(1, "report", kReportInletDoc, "bang");
   OUTLET_DOC(0, "ms", kMsOutletDoc, "0+ ms");
   OUTLET_DOC(1, "beats", kBeatsOutletDoc, "beats");
   PARAM_DOC("clockname", "",
-            "The domain clock the beats outlet measures against — YSE's answer to Max's transport "
-            "attribute. Clocks are addressed by name across the whole engine, so this is the same "
-            "string the host passes to createClock and the same one a '.transport <name>' drives. "
-            "Empty (the default) leaves the beats outlet silent and the object a pure millisecond "
-            "timer. The name is bound when the object is added to a patcher — bound, not created: "
-            "a clock nobody has made yet leaves the beats outlet quiet, and it starts reporting "
-            "once the clock exists and a fresh start has a beat position to measure from. There is "
-            "no message to re-point it, deliberately: Max's 'clock' word names a setclock and not "
-            "a transport, and '.transport' sets the same precedent of reading its clock name once.",
-            "");
+            "The domain clock to measure beats on. Empty measures milliseconds only.", "");
 }
 
 // ─── the time base ──────────────────────────────────────────────────────────

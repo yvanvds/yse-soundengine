@@ -33,24 +33,14 @@ CONSTRUCT() {
   high = 127.f;
 
   ADD_DESCRIPTION(
-      "Control-rate two-way routing by range. Tests the value on inlet 0 against the [low, high] "
-      "range and passes it on unchanged: out of outlet 0 when it falls inside the range, out of "
-      "outlet 1 when it does not. Both bounds are inclusive. Exactly one outlet fires per "
-      "evaluation, which is what separates .split from the rest of the range family — .clip and "
-      ".pong reshape the value, .split leaves it alone and decides where it goes. The building "
-      "block for keyboard splits, velocity layers and zone-based dispatch: chain the out-of-range "
-      "outlet into the next .split for the next zone. Limits given the wrong way round (low above "
-      "high) are treated as an ordered pair and still split on the right two numbers. Nothing is "
-      "computed and so nothing is substituted — a non-finite value is routed, and a NaN leaves the "
-      "out-of-range outlet.");
+      "Sends a number out the left outlet when it lies between low and high, and out the right "
+      "outlet when it does not. Both limits are inclusive, and the number is not changed.");
   ADD_CATEGORY(pCategory::ROUTING);
-  INLET_DOC(0, "value", "Value to route — fires the evaluation.", "any float");
-  INLET_DOC(1, "low", "Lower limit, inclusive — stored until the next evaluation.", "any float");
-  INLET_DOC(2, "high", "Upper limit, inclusive — stored until the next evaluation.", "any float");
-  OUTLET_DOC(0, "in", "The input value, unchanged, when it lies inside [low, high].",
-             "low to high");
-  OUTLET_DOC(1, "out", "The input value, unchanged, when it lies outside [low, high].",
-             "any float");
+  INLET_DOC(0, "value", "The number to test; sends it out one of the outlets.", "any float");
+  INLET_DOC(1, "low", "Lower limit, inclusive. Stored for the next number.", "any float");
+  INLET_DOC(2, "high", "Upper limit, inclusive. Stored for the next number.", "any float");
+  OUTLET_DOC(0, "in", "The number, as a float, when it lies inside [low, high].", "low to high");
+  OUTLET_DOC(1, "out", "The number, as a float, when it lies outside [low, high].", "any float");
   PARAM_DOC("low", "0", "Lower limit, inclusive.", "any float");
   PARAM_DOC("high", "127", "Upper limit, inclusive.", "any float");
 }

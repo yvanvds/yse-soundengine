@@ -98,31 +98,19 @@ CONSTRUCT() {
   ADD_PARAM(intMode);
 
   ADD_DESCRIPTION(
-      "Rotary control with a range of its own. The inlet takes the knob position as a float in "
-      "[0, 1], clamped on input exactly as .slider clamps, and the outlet carries that position "
-      "mapped onto the minimum-maximum range — so a parameter with a real range is one object "
-      "rather than a .slider and a .scale. An exponent other than 1 bends the mapping into a "
-      "curve, symmetrically around the bottom of the range, which is what an audio parameter like "
-      "a cutoff frequency wants. A minimum equal to the maximum emits the minimum, and any result "
-      "that would not be finite emits 0. Set intMode to 1 to round the result and emit it as an "
-      "int instead of a float. The GUI value is the position, not the mapped value, and it is "
-      "settable per the GUI value protocol (issues #551/#846): a list of one number on the inlet "
-      "is the whole state - the exact string GetGuiValue() produces - and 'set 0 <value>' writes "
-      "the one cell, both clamped like any other input, which is what lets .preset capture and "
-      "restore the dial. With the default parameters the object behaves exactly like .slider.");
+      "A knob with its own output range. It takes a position from 0 to 1 and sends it mapped onto "
+      "minimum-maximum, optionally bent into a curve by an exponent and rounded to an int.");
   ADD_CATEGORY(pCategory::GUI);
   INLET_DOC(0, "position",
-            "Sets the knob position and emits the mapped value; an int is widened to a float and "
-            "a bang re-emits without moving the knob. A list of one number is the whole state "
-            "and 'set 0 <value>' the cell write, both clamped like any other input.",
+            "A number sets the knob position, clamped to 0-1, and sends the mapped value; a bang "
+            "sends it again. Also takes its GUI value back, as a one-number list or "
+            "'set 0 <value>'.",
             "0.0-1.0");
-  OUTLET_DOC(0, "out", "The position mapped onto the minimum-maximum range through the exponent.",
-             "minimum-maximum");
-  PARAM_DOC("minimum", "0", "Value the mapping gives at position 0.", "any float");
-  PARAM_DOC("maximum", "1", "Value the mapping gives at position 1.", "any float");
-  PARAM_DOC("exponent", "1", "Curve exponent; 1 is a linear mapping.", "any float");
-  PARAM_DOC("intMode", "0", "1 rounds the mapped value and emits an int, 0 emits a float.",
-            "0 or 1");
+  OUTLET_DOC(0, "out", "The position mapped onto the range.", "minimum-maximum");
+  PARAM_DOC("minimum", "0", "The value sent at position 0.", "any float");
+  PARAM_DOC("maximum", "1", "The value sent at position 1.", "any float");
+  PARAM_DOC("exponent", "1", "Curve of the mapping; 1 is a straight line.", "any float");
+  PARAM_DOC("intMode", "0", "1 rounds the result and sends an int; 0 sends a float.", "0 or 1");
 }
 
 void gDial::Store(float value) {

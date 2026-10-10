@@ -1,5 +1,6 @@
 #include "mMidiNoteOff.h"
 #include "../pObjectList.hpp"
+#include <algorithm>
 
 using namespace YSE::PATCHER;
 
@@ -18,13 +19,13 @@ CONSTRUCT() {
 
   channel = pitch = velocity = 0;
 
-  ADD_DESCRIPTION("MIDI Note-Off message generator. Inlet 0 fires the message; emits a 3-byte "
-                  "status/pitch/velocity packet as a list.");
+  ADD_DESCRIPTION("Builds a MIDI note-off message for .midiout. A pitch on the left inlet sends "
+                  "it, with the release velocity stored on the right inlet.");
   ADD_CATEGORY(pCategory::MIDI);
-  INLET_DOC(0, "pitch", "MIDI note number (also fires the output).", "0-127");
-  INLET_DOC(1, "velocity", "Release velocity (stored until next pitch).", "0-127");
-  OUTLET_DOC(0, "midi", "Encoded MIDI Note-Off message (status, pitch, velocity).", "");
-  PARAM_DOC("channel", "0", "MIDI channel offset (0-based).", "0-15");
+  INLET_DOC(0, "pitch", "Note number; sends the message.", "0-127");
+  INLET_DOC(1, "velocity", "Release velocity, stored for the next pitch.", "0-127");
+  OUTLET_DOC(0, "midi", "The note-off message, for .midiout.", "");
+  PARAM_DOC("channel", "0", "MIDI channel, counted from 0: 0 is channel 1.", "0-15");
 }
 
 INT_IN(SetIntPitch) {
@@ -41,7 +42,9 @@ INT_IN(SetIntVelocity) {
 
 CALC() {
   std::string message = "000";
-  message[0] = 0x80 + channel;
+  // A channel outside 0-15 would carry into the status nibble and make
+  // another message; clamped as on .bendout (#532, #1014).
+  message[0] = (char)(0x80 + std::clamp(channel, 0, 15));
   message[1] = pitch;
   message[2] = velocity;
   outputs[0].SendList(message, thread);

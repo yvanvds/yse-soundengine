@@ -55,87 +55,22 @@ CONSTRUCT() {
   result.reserve((std::size_t)kMatchMaxPattern * (std::size_t)kExprValueTextMax);
 
   ADD_DESCRIPTION(
-      "Watches the stream of values arriving at its inlet and sends the whole sequence out as a "
-      "list the moment it spells the creation argument — Max's match, 'watches an incoming stream "
-      "of ints, floats, symbols, lists, or messages, and outputs the stream after it has met the "
-      "specification of its arguments'. This is pattern recognition over time rather than over a "
-      "single value, which is the thing the patcher had no way to express: .sel and .split answer "
-      "one number at a time and .change and .togedge compare a number with the one before it, so "
-      "recognising a played motif, a controller gesture or a trigger sequence meant a chain of "
-      "counters and gates whose state was implicit in the wiring. The word 'nn' is Max's wild card "
-      "and matches any number, so '.match 1 nn 3' fires on 1, 5, 3 — and what comes out is what "
-      "arrived, '1 5 3', not the pattern, which is why the object emits a list rather than a bang: "
-      "the wildcard positions carry the information the patch was listening for. The rule that "
-      "separates a working matcher from a plausible one is that a mismatch does not throw away the "
-      "values that caused it, because those values may be the start of the next candidate: against "
-      "'.match 1 2 3' the stream 1 2 1 2 3 matches, since the third value ends one candidate and "
-      "begins another at the same moment, and an implementation that walks a cursor forward and "
-      "resets it to 0 on a mismatch reports nothing at all there. So the object keeps the last N "
-      "values received, N being the pattern length, and after every value asks whether that window "
-      "now spells the pattern — every candidate starting position is tested at once rather than "
-      "one "
-      "chosen in advance, at a bounded cost of at most N comparisons per value with no allocation. "
-      "Matches do not overlap: on a match the window is emptied, so '.match 1 1 1' fed five 1s "
-      "fires once rather than three times, which is the same erasure Max's 'clear' performs by "
-      "hand "
-      "and is what makes the outlet a stream of events rather than of every window that happens to "
-      "fit. A value that is not a number occupies its position in the stream and matches nothing "
-      "there, breaking any candidate it lands in — that covers a symbol (a list token that does "
-      "not "
-      "read as a number in its entirety, so '5abc' is a symbol and not the number 5) and a "
-      "non-finite value, where the patcher's usual 'read a non-finite as 0' substitution is "
-      "deliberately not applied because it would let a stray NaN complete a sequence a patch wired "
-      "for a real 0; a NaN could never match a literal in any case, and what the rule settles is "
-      "that it does not match the wildcard either. Comparison against a literal is exact, as "
-      ".sel's "
-      "and .change's are, so a computed float may miss a literal it looks equal to and a .round "
-      "upstream is the fix; an int is widened to a float and compared as one, since this patcher "
-      "has one numeric type and '.match 5' and '.match 5.0' are the same parameter string. An "
-      "argument that is neither a number nor 'nn' is kept as an element nothing can match, so the "
-      "object goes silent rather than quietly matching a shorter sequence: the pattern's length is "
-      "half of what the object means, and turning the uppercase typo '.match 1 NN 3' into '.match "
-      "1 "
-      "3' would leave a box that fires on a sequence the patch never asked for. A pattern of zero "
-      "elements — a bare .match, or a 'set' with no list — has no sequence to detect and stays "
-      "silent, rather than matching everything immediately and putting an endless stream of empty "
-      "lists on the outlet. Two messages: 'clear' empties the window without touching the pattern "
-      "and emits nothing, and 'set <list>' replaces the pattern, taking 'nn' the way the creation "
-      "arguments do, and empties the window too, since a partial candidate against the old pattern "
-      "means nothing against the new one. 'set' deliberately does not rewrite the creation "
-      "argument, so a DumpJSON after one saves the pattern the object was created with — the same "
-      "split .peak's 'set' has from its 'initial' argument. There is no bang inlet: Max routes "
-      "bang "
-      "through 'anything', which performs the same as 'list', and a bang is a list of no values, "
-      "so "
-      "an inlet that accepted it would only be a way of spelling 'do nothing'. Calculate() does "
-      "nothing, an emitting one having no stimulus to report. At most 256 pattern elements are "
-      "held.");
+      "Watches a stream of numbers and sends the last few as a list when they match the pattern "
+      "in its arguments. The word 'nn' matches any number, so '.match 1 nn 3' sends '1 5 3' after "
+      "1, 5, 3.");
   ADD_CATEGORY(pCategory::CONTROL);
-  INLET_DOC(
-      0, "in",
-      "Int, float or list to feed into the sequence. Each number takes the next position in "
-      "the stream; a list contributes its tokens left to right, and a token that does not "
-      "read as a number in its entirety — like a non-finite value — takes a position that "
-      "matches nothing and so breaks any candidate it lands in. The message 'clear' forgets "
-      "every value received so far without touching the pattern, and 'set <list>' replaces "
-      "the pattern (with 'nn' accepted as the wildcard) and forgets the values too. A bang is "
-      "not accepted: a message carrying no number cannot advance a sequence.",
-      "any");
+  INLET_DOC(0, "in",
+            "Int, float or list: each number takes the next place in the stream. Also 'clear' and "
+            "'set <pattern>'.",
+            "any");
   OUTLET_DOC(0, "match",
-             "The matched sequence, as a list of exactly as many values as the pattern has "
-             "elements, in the order they arrived and in the spelling they arrived in — so the "
-             "wildcard positions carry the values that filled them. Sent the moment the last value "
-             "of the sequence arrives, and then the object forgets everything, so consecutive "
-             "matches never overlap.",
+             "The values that matched, in arrival order and spelling, as a list as long as the "
+             "pattern.",
              "list of numbers");
-  PARAM_DOC(
-      "pattern", "",
-      "The sequence to watch for, as a list. A token that reads as a finite number in its "
-      "entirety is a literal matched exactly; the word 'nn' is Max's wild card and matches "
-      "any number; anything else is kept as an element nothing can match, so a typo makes the "
-      "object silent rather than making it match a shorter sequence. With no argument there "
-      "is no sequence to detect and the object stays silent. At most 256 elements are held.",
-      "any list of numbers and nn");
+  PARAM_DOC("pattern", "",
+            "The sequence to watch for: numbers, matched exactly, and 'nn' for any number. At most "
+            "256 elements.",
+            "any list of numbers and nn");
 }
 
 // ─── the pattern ──────────────────────────────────────────────────────────────

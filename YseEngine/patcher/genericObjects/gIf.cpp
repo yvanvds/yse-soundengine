@@ -58,41 +58,21 @@ CONSTRUCT() {
   result.reserve((std::size_t)kIfMaxMessageItems * (std::size_t)kExprValueTextMax);
 
   ADD_DESCRIPTION(
-      "Conditional message dispatch: one object in place of a comparison box plus a gate plus a "
-      "select. The creation argument reads as a sentence - \"$i1 > 64 then bang else out2 $i1\" - "
-      "and means what it says: evaluate the condition, send the then message when it is non-zero, "
-      "send the else message when it is not. With no else, a false condition sends nothing at all, "
-      "which is how a stream gets filtered rather than mapped. The condition is everything before "
-      "the word then and is an .expr expression: the same language, the same $i1-$i9 and $f1-$f9 "
-      "placeholders ($i reads an inlet as an int, $f as a float), the same C operators, functions "
-      "and type rules - read .expr for the details. A message is a space-separated list of items, "
-      "each of which is itself an expression, so a literal (1, 0.5), a placeholder ($i1) or any "
-      "space-free expression ($i1*2) all work; one item is sent as an int or a float following its "
-      "type and two or more are sent as a list, while the word bang on its own sends a bang. The "
-      "keyword out2 in front of a message routes it to a second, right outlet, which the object "
-      "grows only when a message asks for it. The number of inlets is one past the highest "
-      "placeholder used anywhere in the statement, capped at nine; inlet 0 is hot (it stores its "
-      "value and evaluates) while the other inlets only store, a bang on inlet 0 re-evaluates from "
-      "the stored values and a list fills the inlets left to right. Max's send keyword and its $s "
-      "symbol placeholders are not supported and are rejected when the statement is compiled - "
-      "wire the outlet to a .s object instead. The statement is compiled once, when the parameter "
-      "is set; evaluation only walks the compiled form and writes into a buffer reserved up front, "
-      "so it allocates nothing and takes no lock. A malformed statement is reported to the log at "
-      "parse time and the object then sends nothing.");
+      "Tests a condition and sends one message when it is true and, optionally, another when it "
+      "is false: '$i1 > 64 then bang else out2 $i1'. The condition and the message items use the "
+      ".expr language.");
   ADD_CATEGORY(pCategory::CONTROL);
   INLET_DOC(0, kInletLabels[0],
-            "Value for the $i1 / $f1 placeholders — stores and fires the evaluation. Also accepts "
-            "a bang (re-evaluate with the stored values) and a list (fill the inlets left to "
-            "right, then evaluate).",
+            "Value for $i1 / $f1; stores it and evaluates. A bang evaluates with the stored "
+            "values; a list fills the inlets from the left, then evaluates.",
             "any float");
   OUTLET_DOC(0, "out",
-             "The then or else message, unless it was prefixed with out2. A single-item message "
-             "leaves as an int or a float following its type, a longer one as a list, and the "
-             "word bang as a bang. Nothing is sent when the branch that was taken has no message.",
+             "The then or else message, unless it starts with out2. One item is sent as an int or "
+             "float, several as a list, 'bang' as a bang.",
              "any");
   PARAM_DOC("statement", "",
-            "The conditional statement, e.g. \"$i1 > 64 then bang else out2 $i1\": a condition, "
-            "the word then, a message, and optionally the word else and a second message.",
+            "<condition> then <message> [else <message>], e.g. '$i1 > 64 then bang else out2 "
+            "$i1'.",
             "any statement");
 }
 
@@ -301,10 +281,10 @@ PARM_PARSE() {
     REG_INT_IN(SetInt);
     inputs.back().SetDoc(kInletLabels[index],
                          UsesInlet((int)index)
-                             ? "Value for the $i / $f placeholders with this index — stored until "
+                             ? "Value for the $i / $f placeholders with this number, stored for "
                                "the next evaluation."
-                             : "Unused by the current statement; it exists so the inlets to its "
-                               "right keep their numbering.",
+                             : "Unused by the statement; it keeps the inlets to its right in "
+                               "place.",
                          "any float");
   }
 
@@ -314,9 +294,8 @@ PARM_PARSE() {
   if ((thenMsg.toRight || elseMsg.toRight) && outputs.size() < 2) {
     ADD_OUT_ANY;
     outputs.back().SetDoc("out2",
-                          "The then or else message that was prefixed with out2. Same rules as "
-                          "the left outlet: an int, a float, a list or a bang, following the "
-                          "message.",
+                          "The then or else message that starts with out2. Same forms as the left "
+                          "outlet.",
                           "any");
   }
 }

@@ -40,24 +40,12 @@ CONSTRUCT() {
   // every send.
   cvalue = 8192;
 
-  ADD_DESCRIPTION(
-      "Extra-precision MIDI Pitch Bend message generator — Max's 'xbendout' (issue #533). A value "
-      "on the inlet stores it and emits a three-byte packet on the channel given as the creation "
-      "argument, using all fourteen bits the message carries: 0-16383 with 8192 at rest, against "
-      "'.bendout''s 0-127 with 64 at rest. The wire order is the fine byte then the coarse one, "
-      "and this object fills both, where '.bendout' sends the value as the coarse byte and 0 as "
-      "the fine one. The difference is a step of about a fortieth of a cent instead of three "
-      "cents over the usual two-semitone range, which is what stops a slow bend sounding like a "
-      "staircase. Out-of-range values are clamped rather than refused, as they are on the rest of "
-      "the family, so a patch scaling a controller into a wider range bends to the extremes "
-      "instead of falling silent. The output is a raw byte list for '.midiout'.");
+  ADD_DESCRIPTION("Builds a 14-bit MIDI pitch-bend message for .midiout: 0-16383 with 8192 at "
+                  "rest.");
   ADD_CATEGORY(pCategory::MIDI);
-  INLET_DOC(0, "bend",
-            "Pitch bend position at full resolution, 8192 at rest (also fires the "
-            "output).",
-            "0-16383");
-  OUTLET_DOC(0, "midi", "Encoded MIDI Pitch Bend message (status, fine byte, coarse byte).", "");
-  PARAM_DOC("channel", "0", "MIDI channel offset (0-based).", "0-15");
+  INLET_DOC(0, "bend", "Pitch bend, 8192 at rest; sends the message.", "0-16383");
+  OUTLET_DOC(0, "midi", "The pitch-bend message, for .midiout.", "");
+  PARAM_DOC("channel", "0", "MIDI channel, counted from 0: 0 is channel 1.", "0-15");
 }
 
 INT_IN(SetIntValue) {
@@ -95,22 +83,13 @@ CONSTRUCT() {
   msb = 64; // the wheel at rest, coarse half
   lsb = 0;
 
-  ADD_DESCRIPTION(
-      "Extra-precision MIDI Pitch Bend message generator taking separate bytes — Max's 'xbendout2' "
-      "(issue #533). The same message '.xbendout' sends, given as its coarse and fine bytes rather "
-      "than as one 0-16383 number: inlet 0 is the MSB, which is '.bendout''s 0-127 with 64 at "
-      "rest, and inlet 1 is the fine byte underneath it. This is '.xbendin2''s partner — the two "
-      "halves come out of that object and go into this one unchanged, so a wheel position "
-      "round-trips byte for byte without ever being combined and re-split. Inlet 0 is hot and "
-      "inlet 1 stores until the next MSB, which is the arrangement every sender in this family "
-      "has. Both bytes are clamped to 0-127: a byte with its top bit set would be read as a status "
-      "byte by the receiving device and would end the message early. The output is a raw byte list "
-      "for '.midiout'.");
+  ADD_DESCRIPTION("Builds a 14-bit MIDI pitch-bend message for .midiout from its coarse and fine "
+                  "bytes, the form .xbendin2 reports.");
   ADD_CATEGORY(pCategory::MIDI);
-  INLET_DOC(0, "msb", "Coarse bend byte, 64 at rest (also fires the output).", "0-127");
-  INLET_DOC(1, "lsb", "Fine bend byte, stored until the next MSB.", "0-127");
-  OUTLET_DOC(0, "midi", "Encoded MIDI Pitch Bend message (status, fine byte, coarse byte).", "");
-  PARAM_DOC("channel", "0", "MIDI channel offset (0-based).", "0-15");
+  INLET_DOC(0, "msb", "Coarse byte, 64 at rest; sends the message.", "0-127");
+  INLET_DOC(1, "lsb", "Fine byte, stored for the next coarse byte.", "0-127");
+  OUTLET_DOC(0, "midi", "The pitch-bend message, for .midiout.", "");
+  PARAM_DOC("channel", "0", "MIDI channel, counted from 0: 0 is channel 1.", "0-15");
 }
 
 INT_IN(SetIntMsb) {
@@ -150,32 +129,17 @@ CONSTRUCT() {
   cvalue = 0;
   controller = 0;
 
-  ADD_DESCRIPTION(
-      "14-bit MIDI Control Change message generator — Max's 'xctlout' (issue #533). MIDI pairs "
-      "controller n (0-31) with controller n+32 as the coarse and fine halves of one fourteen-bit "
-      "value, and this object sends both: a value on the inlet emits two complete messages, the "
-      "coarse one first and the fine one immediately after, which is the order the specification "
-      "requires and the order every receiver expects. '.controlchange' sends one seven-bit message "
-      "instead, and 128 steps is audibly steppy on a filter sweep — the zipper noise a patch hears "
-      "on any slow move. The two messages leave as two separate lists rather than one six-byte "
-      "list because '.midiout' hands each list it receives to the device as a single MIDI message, "
-      "so six bytes together would arrive as one malformed message rather than two good ones. Only "
-      "the 32 paired controllers can be addressed: a number above 31 has no fine half, and sending "
-      "its 'LSB' would be writing to an unrelated controller 32 higher up, so the number is "
-      "clamped into 0-31. The value is clamped into 0-16383 rather than refused, as everywhere in "
-      "this family. The output is a raw byte list for '.midiout'.");
+  ADD_DESCRIPTION("Sends a 14-bit controller value as two MIDI control-change messages for "
+                  ".midiout: the coarse half on controller 0-31, then the fine half on that "
+                  "number plus 32.");
   ADD_CATEGORY(pCategory::MIDI);
-  INLET_DOC(0, "value", "Controller value at full resolution (also fires both messages).",
-            "0-16383");
+  INLET_DOC(0, "value", "Controller value; sends both messages.", "0-16383");
   INLET_DOC(1, "controller",
-            "Coarse controller number, stored until the next value. The fine half is sent on this "
+            "Coarse controller number, stored for the next value. The fine half goes to this "
             "number plus 32.",
             "0-31");
-  OUTLET_DOC(0, "midi",
-             "Encoded MIDI Control Change messages: the coarse one on the controller number, then "
-             "the fine one on that number plus 32.",
-             "");
-  PARAM_DOC("channel", "0", "MIDI channel offset (0-based).", "0-15");
+  OUTLET_DOC(0, "midi", "Two control-change messages, coarse then fine, for .midiout.", "");
+  PARAM_DOC("channel", "0", "MIDI channel, counted from 0: 0 is channel 1.", "0-15");
 }
 
 INT_IN(SetIntValue) {
@@ -228,32 +192,18 @@ CONSTRUCT() {
   // that does not measure release velocity sends.
   release = 64;
 
-  ADD_DESCRIPTION(
-      "MIDI note message generator with release velocity — Max's 'xnoteout' (issue #533). "
-      "'.noteon' and '.noteoff' are two boxes and neither can send a release velocity: '.noteoff' "
-      "sends a note-off with velocity 0. This object is both of them plus that number. A velocity "
-      "of 0 on the middle inlet sends a real note-off (status 0x80) carrying the release velocity "
-      "from the third inlet; any other velocity sends a note-on. Release velocity says how fast "
-      "the key came back up — the only expressive gesture in MIDI that happens after a note is "
-      "already over, and what shapes the release of any voice whose release is not fixed, which "
-      "YSE's ADSR-based voices are. It is the sending half of what '.xnotein' reports. Inlet 0 is "
-      "hot and the other two store until the next pitch, which is the shape '.noteon' already has. "
-      "All three values are clamped into 0-127 rather than refused, as everywhere in this family. "
-      "The output is a raw byte list for '.midiout'.");
+  ADD_DESCRIPTION("Builds a MIDI note message with release velocity for .midiout. A velocity above "
+                  "0 sends a note-on; 0 sends a note-off carrying the release velocity.");
   ADD_CATEGORY(pCategory::MIDI);
-  INLET_DOC(0, "pitch", "MIDI note number (also fires the output).", "0-127");
+  INLET_DOC(0, "pitch", "Note number; sends the message.", "0-127");
   INLET_DOC(1, "velocity",
-            "Note velocity; 0 makes the message a note-off carrying the release "
-            "velocity. Stored until the next pitch.",
-            "0-127");
+            "Note velocity, stored for the next pitch. 0 makes the message a note-off.", "0-127");
   INLET_DOC(2, "release",
-            "Release velocity, used only when the velocity is 0. Stored until the next pitch.",
+            "Release velocity, stored for the next pitch and used only when the velocity is 0. "
+            "Starts at 64.",
             "0-127");
-  OUTLET_DOC(0, "midi",
-             "Encoded MIDI Note-On (status, pitch, velocity) or, when the velocity is 0, Note-Off "
-             "(status, pitch, release velocity).",
-             "");
-  PARAM_DOC("channel", "0", "MIDI channel offset (0-based).", "0-15");
+  OUTLET_DOC(0, "midi", "The note-on or note-off message, for .midiout.", "");
+  PARAM_DOC("channel", "0", "MIDI channel, counted from 0: 0 is channel 1.", "0-15");
 }
 
 INT_IN(SetIntPitch) {

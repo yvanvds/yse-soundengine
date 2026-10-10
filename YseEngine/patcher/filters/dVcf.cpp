@@ -30,17 +30,24 @@ CONSTRUCT_DSP() {
   center = nullptr;
   sharpness = 0.f;
 
+  // A one-pole complex resonator: per sample, the pole sits at angle
+  // 2*pi*center/SAMPLERATE with radius 1 - angle/sharpness (clamped to 0-1), so
+  // a higher sharpness narrows the band. The real part is the bandpass output.
   ADD_DESCRIPTION(
-      "Voltage-controlled (heterodyne) filter. Mixes the input with a center-frequency buffer; "
-      "sharpness controls resonance. Emits real and imaginary components on two buffer outlets.");
+      "Resonant bandpass filter whose center frequency is a signal, so it can sweep at audio "
+      "rate. Sharpness sets how narrow the band is.");
   ADD_CATEGORY(pCategory::FILTER);
-  INLET_DOC(0, "in", "Audio input buffer.", "-1.0 to 1.0");
-  INLET_DOC(1, "center", "Center-frequency buffer (typically a sine at the target frequency).",
-            "-1.0 to 1.0");
-  INLET_DOC(2, "sharpness", "Resonance / sharpness control.", "0.0-1.0");
-  OUTLET_DOC(0, "real", "Real component of the filtered signal.", "-1.0 to 1.0");
-  OUTLET_DOC(1, "imag", "Imaginary component of the filtered signal.", "-1.0 to 1.0");
-  PARAM_DOC("sharpness", "0", "Initial resonance / sharpness.", "0.0-1.0");
+  INLET_DOC(0, "in", "Audio input.", "-1.0 to 1.0");
+  INLET_DOC(1, "center",
+            "Center frequency in Hz, as a signal. Both signal inlets must be "
+            "connected for the filter to run.",
+            "0-20000 Hz");
+  INLET_DOC(2, "sharpness", "How narrow the band is: higher is narrower. 0 turns filtering off.",
+            "0+");
+  OUTLET_DOC(0, "real", "The bandpass output.", "-1.0 to 1.0");
+  OUTLET_DOC(1, "imag", "The imaginary part of the resonator, a lowpass-like response.",
+             "-1.0 to 1.0");
+  PARAM_DOC("sharpness", "0", "Initial sharpness.", "0+");
 }
 
 RESET() // {

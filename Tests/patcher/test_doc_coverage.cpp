@@ -21,6 +21,8 @@
 // device or graph state is required.
 
 #include <doctest/doctest.h>
+#include <cctype>
+#include <cstddef>
 #include <memory>
 #include <set>
 #include <string>
@@ -33,6 +35,22 @@
 using YSE::PATCHER::pCategory;
 using YSE::PATCHER::pObject;
 using YSE::PATCHER::Register;
+
+namespace {
+
+  // Objects exempt from the summary rule in "descriptions are short summaries
+  // and never name Max (#997)" below. The rewrite in #998 (#1002-#1012)
+  // brought every object into line, so the list is now empty and must stay
+  // empty: new objects follow the rule. The mechanism stays so the test
+  // keeps reporting stale entries. Sorted, one per line.
+  std::set<std::string> DocRuleExempt() {
+    // clang-format off
+    return {
+    };
+    // clang-format on
+  }
+
+} // namespace
 
 TEST_SUITE("patcher") {
 
@@ -75,6 +93,87 @@ TEST_SUITE("patcher") {
         REQUIRE_FALSE(p.name.empty());
         REQUIRE_FALSE(p.doc.empty());
       }
+    }
+  }
+
+  TEST_CASE("doc coverage: descriptions are short summaries and never name Max (#997)") {
+    // ADD_DESCRIPTION is what yse_patcher_get_type_description hands a host
+    // for a tooltip and what heads the object's reference entry, so it is a
+    // summary of one to three sentences. Long-form notes go in
+    // documentation/source/_data/patcher_notes/<category>.rst, where conf.py
+    // renders them under the summary. The reference describes YSE on its own
+    // terms, so neither the summary nor any pin or parameter doc names Max
+    // (case-sensitive whole word: "max" and "Maximum" are fine). conf.py
+    // applies the same word check to the notes files.
+    //
+    // DocRuleExempt() lists objects excused from this rule. It has been empty
+    // since the rewrite in #998 (#1002-#1012) and must stay empty; new
+    // objects follow the rule. An exempt object that already passes fails
+    // this test, so a stale entry cannot linger. An exempt name that
+    // is not registered (e.g. a MIDI device object in a build without
+    // YSE_ENABLE_MIDI_DEVICE) is skipped.
+    constexpr std::size_t kMaxDescriptionLength = 300;
+    const auto mentionsMax = [](const std::string& text) {
+      const auto isWordChar = [](char c) {
+        return std::isalnum(static_cast<unsigned char>(c)) != 0 || c == '_';
+      };
+      for (std::size_t pos = text.find("Max"); pos != std::string::npos;
+           pos = text.find("Max", pos + 1)) {
+        const bool startsWord = pos == 0 || !isWordChar(text[pos - 1]);
+        const bool endsWord = pos + 3 == text.size() || !isWordChar(text[pos + 3]);
+        if (startsWord && endsWord) return true;
+      }
+      return false;
+    };
+
+    const std::set<std::string> exempt = DocRuleExempt();
+    auto names = Register().AllNames();
+    REQUIRE(names.size() > 0);
+
+    std::string violators;
+    std::string stale;
+    for (const auto& name : names) {
+      std::unique_ptr<pObject> obj(Register().Get(name));
+      REQUIRE(obj != nullptr);
+
+      std::string problems;
+      const auto flag = [&problems](const std::string& what, const std::string& detail) {
+        problems.append(" ").append(what).append(" ").append(detail).append(";");
+      };
+      const std::size_t length = obj->GetDescription().size();
+      if (length > kMaxDescriptionLength) {
+        flag("description is", std::to_string(length) + " chars");
+      }
+      if (mentionsMax(obj->GetDescription())) flag("description", "names Max");
+      for (int i = 0; i < obj->NumInputs(); ++i) {
+        if (mentionsMax(obj->GetInlet(i)->GetDocDescription())) {
+          flag("inlet " + std::to_string(i), "names Max");
+        }
+      }
+      for (int i = 0; i < obj->NumOutputs(); ++i) {
+        if (mentionsMax(obj->GetOutlet(i)->GetDocDescription())) {
+          flag("outlet " + std::to_string(i), "names Max");
+        }
+      }
+      for (const auto& p : obj->GetParamDocs()) {
+        if (mentionsMax(p.doc)) flag("param " + p.name, "names Max");
+      }
+
+      const bool isExempt = exempt.count(name) != 0;
+      if (!problems.empty() && !isExempt)
+        violators.append("\n  ").append(name).append(":").append(problems);
+      if (problems.empty() && isExempt) stale.append("\n  ").append(name);
+    }
+    {
+      INFO("objects breaking the summary rule (shorten the description to <= 300 chars, move the "
+           "rest to documentation/source/_data/patcher_notes/, drop Max):",
+           violators);
+      CHECK(violators.empty());
+    }
+    {
+      INFO("objects that now pass but are still in DocRuleExempt() (remove them from the list):",
+           stale);
+      CHECK(stale.empty());
     }
   }
 

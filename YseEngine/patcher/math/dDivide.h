@@ -12,6 +12,7 @@ namespace YSE {
     _BUFFER_IN(SetLeftBuffer)
     _BUFFER_IN(SetRightBuffer)
     _FLOAT_IN(SetRightFloat)
+    _INT_IN(SetRightInt)
 
   private:
     DSP::buffer* leftIn;
