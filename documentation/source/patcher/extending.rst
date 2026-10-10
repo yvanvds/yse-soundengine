@@ -45,6 +45,9 @@ files. A new object touches the same set:
    * - ``documentation/source/_data/patcher_objects.json``
      - Regenerated with ``python yse.py dump-patcher-meta``. Never edit it by
        hand.
+   * - ``documentation/source/_data/patcher_notes/<category>.rst``
+     - The object's reference notes, if it needs more than its summary (see
+       `Documentation`_).
 
 Two CMake lists per side is easy to get wrong. The second list gives patcher
 files the warning flags they need (``-Wno-unused-parameter`` and the
@@ -209,7 +212,7 @@ strings shortened:
      ApplyArgument();
 
      ADD_DESCRIPTION(
-         "Reverses the order of a pair of numbers — Max's swap, ... ");
+         "Reverses the order of a pair of numbers: ... ");
      ADD_CATEGORY(pCategory::MATH);
      INLET_DOC(0, "left",
                "Hot. An int or float is stored and the pair is then released; ... ",
@@ -224,7 +227,7 @@ strings shortened:
                 "The number that arrived at inlet 0, as the kind it was given in. ... ",
                 "any number");
      PARAM_DOC("right", "0",
-               "Max's argument: the initial value of the right slot, ... ",
+               "The initial value of the right slot, ... ",
                "any number");
    }
 
@@ -369,7 +372,10 @@ object's entry in :doc:`objects/index`, the C API metadata and the JSON
 snapshot, so write it for a patch author, not for a reviewer.
 
 ``ADD_DESCRIPTION(text)``
-   What the object does and how it behaves at its edges.
+   A summary of what the object does: one to three sentences, at most 300
+   characters. The C API hands this string to hosts
+   (``yse_patcher_get_type_description``), where an editor shows it as a
+   tooltip, and it heads the object's reference entry.
 ``ADD_CATEGORY(pCategory::...)``
    The reference page and palette group it goes in: ``OSC``, ``FILTER``,
    ``MATH``, ``GUI``, ``TIME``, ``MIDI``, ``ROUTING``, ``CONTROL``, ``LIST``,
@@ -388,10 +394,37 @@ snapshot, so write it for a patch author, not for a reviewer.
 Every ``INLET_DOC`` and ``OUTLET_DOC`` indexes into the pins, so call them
 after the pins exist.
 
+Anything a patch author needs beyond the summary (the behaviour in detail,
+edge cases, message formats, examples) goes in the object's **notes**, in
+``documentation/source/_data/patcher_notes/<slug>.rst``, the file for its
+category (the slugs are in ``_PATCHER_CATEGORIES`` in
+``documentation/source/conf.py``). A marker line naming the object starts
+its notes, and they run to the next marker:
+
+.. code-block:: rst
+
+   .. patcher-object:: .swap
+
+   Ordinary reStructuredText: paragraphs, bullet lists, code blocks.
+
+The docs build renders the notes under the summary, before the pin and
+parameter tables. ``README.md`` in that directory has the full format.
+Implementation details that only matter to contributors (real-time
+reasoning, algorithms, threading) belong in source comments, not in either.
+
+Describe YSE on its own terms. The summary, the pin and parameter docs and
+the notes never mention Max, even when the object follows a Max object (the
+header comment is the place to record that).
+
 The tests check that every pin and every documented parameter has a label
 and a text, and that the number of ``PARAM_DOC`` calls equals the number of
 ``ADD_PARAM`` calls. They cannot check the order, so keep the two lists in
-step yourself.
+step yourself. They also hold the summary to 300 characters and reject the
+word "Max" in it and in the pin and parameter docs. ``DocRuleExempt()`` in
+``Tests/patcher/test_doc_coverage.cpp`` lists the older objects that do not
+meet that rule yet. Never add to it. The docs build applies the same word
+check to the notes files, and fails on notes for an object that does not
+exist or that already has notes.
 
 Rules for the handlers
 ----------------------
@@ -809,8 +842,10 @@ Checklist
   ``PATCHER_CLASS(gX, YSE::OBJ::G_X)`` and ``#define className gX``.
 - [ ] Every pin added in the constructor, every inlet with its handlers, and
   every pin with an ``INLET_DOC`` or ``OUTLET_DOC``.
-- [ ] ``ADD_DESCRIPTION``, ``ADD_CATEGORY`` (not ``GENERIC``), and one
-  ``PARAM_DOC`` per ``ADD_PARAM`` in the same order.
+- [ ] ``ADD_DESCRIPTION`` (a summary of at most 300 characters),
+  ``ADD_CATEGORY`` (not ``GENERIC``), and one ``PARAM_DOC`` per
+  ``ADD_PARAM`` in the same order. Anything longer goes in the category's
+  notes file. No mention of Max.
 - [ ] No allocation, lock, I/O or log line in any handler or ``Calculate()``.
 - [ ] ``DEFOBJ`` in ``pObjectList.hpp``, ``#include`` and ``Add`` in
   ``pRegistry.cpp``.
