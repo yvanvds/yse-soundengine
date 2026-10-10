@@ -1,5 +1,5 @@
 // Tests for patcher math nodes: gAdd, gSubstract, gDivide, gCounter, gRandom,
-// dClip, dDivide, dSubstract.
+// dAdd, dClip, dDivide, dSubstract.
 // No audio device required.
 
 #include <doctest/doctest.h>
@@ -14,6 +14,7 @@
 #include "patcher/math/gDivide.h"
 #include "patcher/math/gCounter.h"
 #include "patcher/math/gRandom.h"
+#include "patcher/math/dAdd.h"
 #include "patcher/math/dClip.h"
 #include "patcher/math/dDivide.h"
 #include "patcher/math/dSubstract.h"
@@ -488,6 +489,44 @@ TEST_SUITE("patcher") {
     sub.GetInlet(1)->SetBuffer(&right, YSE::T_GUI);
     sub.GetInlet(0)->SetBuffer(&left, YSE::T_GUI);
     sub.Calculate(YSE::T_DSP);
+
+    REQUIRE(sink.received != nullptr);
+    const float* out = sink.received->getPtr();
+    for (unsigned i = 0; i < 128; ++i)
+      CHECK(out[i] == doctest::Approx(3.0f));
+  }
+
+  // #1015: with nothing on the right inlet, ~+ and ~- must be neutral (right
+  // operand 0), not add or subtract a DC offset of 1.
+  TEST_CASE("dSubstract: right operand defaults to 0, leaving the signal unchanged") {
+    YSE::PATCHER::dSubstract sub;
+    BufferSink sink;
+    sub.ConnectOutlet(sink.GetInlet(0), 0);
+    sink.ConnectInlet(sub.GetOutlet(0), 0);
+
+    YSE::DSP::buffer in(128);
+    in = 3.0f;
+
+    sub.GetInlet(0)->SetBuffer(&in, YSE::T_GUI);
+    sub.Calculate(YSE::T_DSP);
+
+    REQUIRE(sink.received != nullptr);
+    const float* out = sink.received->getPtr();
+    for (unsigned i = 0; i < 128; ++i)
+      CHECK(out[i] == doctest::Approx(3.0f));
+  }
+
+  TEST_CASE("dAdd: right operand defaults to 0, leaving the signal unchanged") {
+    YSE::PATCHER::dAdd add;
+    BufferSink sink;
+    add.ConnectOutlet(sink.GetInlet(0), 0);
+    sink.ConnectInlet(add.GetOutlet(0), 0);
+
+    YSE::DSP::buffer in(128);
+    in = 3.0f;
+
+    add.GetInlet(0)->SetBuffer(&in, YSE::T_GUI);
+    add.Calculate(YSE::T_DSP);
 
     REQUIRE(sink.received != nullptr);
     const float* out = sink.received->getPtr();

@@ -675,9 +675,8 @@ result is ``outLow``. The inlets work as described under ``.+``.
   large jump can click. Ramp it with ``~line`` instead.
 - The right inlet takes floats only; an int is ignored, so send ``2.`` rather
   than ``2``.
-- The argument is 1 when it is not given, for all four objects. A bare ``~+``
-  therefore adds 1 and a bare ``~-`` subtracts 1: give them an argument of 0,
-  or connect the right inlet.
+- When no argument is given, ``~+`` and ``~-`` use 0 and ``~*`` and ``~/``
+  use 1, so a bare object passes the signal through unchanged.
 
 .. code-block:: text
 

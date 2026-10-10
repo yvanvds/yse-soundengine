@@ -14465,7 +14465,7 @@
     ],
     "params": [
       {
-        "default": "1.0",
+        "default": "0",
         "doc": "Float used while no audio is connected to the right inlet.",
         "name": "right",
         "range": "any float"
@@ -14510,7 +14510,7 @@
     ],
     "params": [
       {
-        "default": "1.0",
+        "default": "0",
         "doc": "Float used while no audio is connected to the right inlet.",
         "name": "right",
         "range": "any float"
