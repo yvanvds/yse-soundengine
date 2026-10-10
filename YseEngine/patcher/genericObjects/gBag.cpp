@@ -56,45 +56,6 @@ namespace {
     return true;
   }
 
-  constexpr char kValueDoc[] =
-      "The number to add or remove, and the hot inlet — which of the two happens is decided by the "
-      "flag on inlet 1, Max's 'the number is either added to or deleted from the collection ... "
-      "depending on the number in the right inlet'. A float is converted to an int. Neither adding "
-      "nor removing sends anything: Max's 'no output is triggered by a number received in either "
-      "inlet'. A list is Max's list method, '<value> <flag>' — the first item behaves as though it "
-      "had been sent to this inlet and the second as though it had been sent to inlet 1, so '60 1' "
-      "adds 60 and '60 0' removes it, and the flag it carries stays behind for later bare numbers. "
-      "Note the order: the value comes first and the flag second, which is Max's and is the "
-      "reverse "
-      "of the shorthand in issue #495. A bang sends the whole collection out the outlet one number "
-      "at a time, newest first. 'cut' sends the oldest number and deletes it, 'length' reports how "
-      "many numbers are stored, and 'clear' empties the collection. 'send <receive-name>' is Max's "
-      "'sends the result of a bang message to all receive objects with that name, instead of out "
-      "the bag object's outlet' — one message rather than a mode, so it dumps the collection to "
-      "every .r of that name right then and outlet 0 stays silent for that dump, while a later "
-      "bang goes out the outlet as usual and 'cut' and 'length' always do. A bare 'send' with no "
-      "name does nothing, and a name longer than 63 characters is refused. An add past 256 numbers "
-      "is refused whole and silently, since this inlet may be the audio thread.";
-
-  constexpr char kFlagDoc[] =
-      "Whether the next number on inlet 0 is added or removed — Max's 'if non-zero, the number "
-      "received in the left inlet is added to the bag; if 0, the number is deleted from the "
-      "collection'. A float is converted to an int first, so 0.5 is a 0 and means remove. Cold: "
-      "setting it sends nothing and changes nothing already stored. It starts at 0, which Max does "
-      "not document either way and is the conservative choice — a value arriving before the patch "
-      "has said what to do with it does not silently join the collection. Run-time state, so it "
-      "does not survive a save.";
-
-  constexpr char kOutletDoc[] =
-      "Numbers leaving the collection, always as ints. A bang sends every stored number one at a "
-      "time in Max's 'reverse order from that in which they were stored', so the newest comes out "
-      "first; 'cut' sends the single oldest one and takes it out of the collection; 'length' sends "
-      "the number of entries. Adding and removing send nothing at all, and neither does a 'send "
-      "<receive-name>' dump — Max's 'instead of out the bag object's outlet' — which goes to the "
-      "named .r objects and the global bus instead. The whole burst a bang sends "
-      "is captured before the first send, so a patch that wires this outlet back into the inlet "
-      "does not change the burst it is still receiving.";
-
 } // namespace
 
 CONSTRUCT() {
@@ -135,69 +96,20 @@ CONSTRUCT() {
   busAddress.reserve(MAX_NAME_LENGTH);
 
   ADD_DESCRIPTION(
-      "Stores an unordered collection of numbers that a patch adds to and removes from — Max's "
-      "bag, which 'stores and manages a collection of numbers' that 'you can add to or delete an "
-      "integer from ... as well as report its contents'. A multiset, and the classic use is the "
-      "one "
-      "nothing else in the patcher can spell: tracking which notes are currently held, so a patch "
-      "can answer what is sounding right now. A note-on adds the note number, the matching "
-      "note-off "
-      "removes it, and a bang hands back exactly the notes still down, which pairs directly with "
-      "YSE's synth voice model. It is not .coll, which is a keyed store whose point is to look an "
-      "address up; this has no addresses at all and answers only how many and which ones. Nor is "
-      "it "
-      ".bucket, which remembers the last N values positionally. Inlet 0 is the value and is hot, "
-      "inlet 1 is the flag and is cold: non-zero adds the number, 0 removes it, and a float is "
-      "converted to an int on either inlet. A list is Max's list method and its order is '<value> "
-      "<flag>' — Max's 'the first list item was sent to the left inlet and the second list item "
-      "was "
-      "sent to the right inlet' — so 60 1 adds 60 and 60 0 removes it, the reverse of the "
-      "shorthand "
-      "in the issue; a patcher whose argument order is the reverse of Max's would be a trap for "
-      "every patch brought across. The flag starts at 0, which Max does not document and is the "
-      "conservative choice, and the list form sets it before applying the value. Any creation "
-      "argument turns on duplicate entries: Max's 'bag with any argument maintains multiple "
-      "entries "
-      "with the same item; otherwise it holds only one of each', and the argument is read for its "
-      "presence rather than its value. Without it, adding a value already present is nothing at "
-      "all and the entry keeps the position it had. A bang sends every stored number one at a time "
-      "in Max's 'reverse order from that in which they were stored', newest first; 'cut' sends the "
-      "oldest and deletes it; 'length' reports the count; 'clear' empties the collection. Adding "
-      "and removing are silent, which is Max's 'no output is triggered by a number received in "
-      "either inlet'. Which instance a remove takes when duplicates are on is the one thing Max "
-      "leaves open: the newest is taken, so an add and a remove of the same value are an exact "
-      "undo "
-      "of each other and a held-note tracker unwinds in the order the keys came up. The store is "
-      "bounded at 256 numbers, allocated whole at construction and never resized, with .value's "
-      "non-blocking guard around it — .coll's model and for .coll's reason, since a copy-on-write "
-      "GraphState publish assumes the writer is the control thread while a .bag is written by "
-      "whichever thread its message arrived on and in-patcher delivery dispatches on the audio "
-      "thread. An add past the capacity is refused whole and silently, a loser of the guard drops "
-      "rather than waiting, and the guard is never held across a send: a bang captures the whole "
-      "collection into a stack array first, .bucket's trick, so a patch looping the outlet back "
-      "into the inlet cannot change the burst it is still receiving. Calculate() does nothing. The "
-      "duplicate flag survives a save because it is a creation argument; the contents deliberately "
-      "do not, since Max's bag has no 'save data with patcher' flag — that is coll's — and a "
-      "reloaded patch holding the notes that were down when it was saved would be holding notes "
-      "nothing is sounding. 'send <receive-name>' is Max's 'the word send, followed by the name of "
-      "a receive object, sends the result of a bang message to all receive objects with that name, "
-      "instead of out the bag object's outlet': one message rather than a mode, the shape .table's "
-      "send has, so it dumps the collection then and there — a bang's numbers in a bang's order — "
-      "to every .r of that name and on the global bus as 'patcher.<patcherName>.<name>', while "
-      "outlet 0 "
-      "stays silent for that dump. Nothing is redirected, so a later bang goes out the outlet as "
-      "usual, 'cut' and 'length' always keep the outlet, and a bare 'send' with no name does "
-      "nothing at all. The name is refused rather than truncated past 63 characters, since the bus "
-      "truncates there and the in-patcher path does not.");
+      "Holds a collection of numbers that a patch adds to and removes from, such as the notes "
+      "currently held down. A bang sends every number, newest first.");
   ADD_CATEGORY(pCategory::COLLECTION);
-  INLET_DOC(0, "value", kValueDoc, "any int");
-  INLET_DOC(1, "flag", kFlagDoc, "0 or non-zero");
-  OUTLET_DOC(0, "out", kOutletDoc, "any int");
+  INLET_DOC(0, "value",
+            "A number to add or remove, depending on the flag. Also bang, '<value> <flag>', "
+            "'cut', 'length', 'clear' and 'send <name>'.",
+            "any int");
+  INLET_DOC(1, "flag",
+            "Non-zero: numbers on the left inlet are added. 0: they are removed. Starts at 0.",
+            "0 or non-zero");
+  OUTLET_DOC(0, "out", "Stored numbers, on bang or 'cut', and the count on 'length'.", "any int");
   PARAM_DOC("duplicates", "",
-            "Any argument at all turns on duplicate entries — Max's 'the presence of any symbol "
-            "argument causes the bag to store duplicate values'. The argument is read for its "
-            "presence and never for its value. With no argument the collection holds only one of "
-            "each number at a time.",
+            "Any argument lets the same number be stored more than once. Without one, each "
+            "number is held at most once.",
             "any symbol");
 }
 

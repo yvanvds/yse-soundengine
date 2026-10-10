@@ -118,75 +118,6 @@ namespace {
     return true;
   }
 
-  constexpr char kInletDoc[] =
-      "The one inlet, and a command inlet rather than a data inlet — which is what lets .coll "
-      "reserve words the rest of the message family deliberately does not. A bang outputs the "
-      "entry "
-      "at the pointer; a number recalls the entry at that numeric address; a lone symbol recalls "
-      "the entry at that symbol address (items after it are ignored, as in Max); and a list whose "
-      "first item is a number stores the rest of it at that numeric address. The commands are "
-      "'store <address> <message>', 'insert <index> <message>', 'append <message>', 'remove "
-      "<address>', 'delete <address>' (which also brings every higher numeric address down by "
-      "one), 'clear', 'length', 'goto <address>', 'start', 'end', 'next', 'prev', 'dump', "
-      "'sub <address> <position> <data>' and 'nsub ...' (replace the element at a 1-based position "
-      "inside a stored message; sub also sends the result out afterwards), 'nth <address> "
-      "<position>', 'min [element]' and 'max [element]' (lowest / highest value at an element "
-      "position across every entry, default 1), 'sort [-1|1] [entry]' (ascending or descending, by "
-      "the address when entry is -1 and by the nth element otherwise), 'swap <address> <address>', "
-      "'merge <address> <data>', 'separate <index>', 'renumber [start]', 'renumber2 [from]' "
-      "(move every numeric address at or above 'from', 0 by default, up by one), "
-      "'assoc <symbol> <number>' and 'deassoc <symbol> <number>' (give a numeric entry a second, "
-      "symbol address that reaches it, or take it away again; the number has to exist already, and "
-      "an entry the symbol already reached is removed), 'nstore <number> <symbol> <message>' "
-      "(store and associate in one message — either order of the pair), 'subsym <new> <old>' "
-      "(rename a symbol address or an alias, refused when the new name is already in use), "
-      "'read [file]', 'readagain', 'write [file]', 'writeagain' and 'filetype'. An "
-      "address is a number or a symbol, decided by the same strict reader .sel and .route use, and "
-      "the two never collide: the address 1 and the address one are different entries. Anything "
-      "that does not fit — a message longer than 256 characters, an address longer than 64, or a "
-      "store into a collection that already holds 256 entries — is refused whole and silently, "
-      "since the inlet may be the audio thread.";
-
-  constexpr char kDataDoc[] =
-      "The stored message, in the kind it is: a stored '60 100' leaves as a list, a stored '60' as "
-      "the int 60, a stored '60.5' as that float, and a stored lone symbol as a one-element list — "
-      "the rule .route establishes for a remainder. Max instead prefixes a lone symbol with the "
-      "word 'symbol', which is how it restores an atom type this patcher does not have; inventing "
-      "that word here would put a token in the message nothing downstream asked for. 'length' "
-      "sends "
-      "the entry count out here as an int, and 'nth', 'min' and 'max' send the single element they "
-      "found in the kind it was stored as. Nothing is sent when the address holds nothing.";
-
-  constexpr char kAddressDoc[] =
-      "The address of the entry that just left the data outlet, as an int for a numeric address "
-      "and "
-      "as a one-element list for a symbol one. An entry with both — a numeric address and the "
-      "symbol alias an 'assoc' gave it — reports the number: the alias is a way in, not something "
-      "the outlet announces, which is what cyclone's single output routine does and what its help "
-      "patch annotates as 'address is still an int, not the alias'. Max's own text says a symbol "
-      "address sends 0 here, which contradicts the output table one screen away in the same "
-      "reference; the symbol is sent, as cyclone sends it, and 0 is reserved for an entry with "
-      "neither address — which this object cannot produce. It fires only where Max fires it — on "
-      "bang, dump, "
-      "next, prev and sub, Max's 'whenever a message out the 1st outlet is triggered by bang, "
-      "dump, next, prev, or sub' — and not on a plain lookup, which answers with the data alone "
-      "since the asking patch already had the address. It fires before the data outlet, which is "
-      "Max's right-to-left order.";
-
-  constexpr char kDoneDoc[] =
-      "Bangs when a dump has finished sending every entry. Max's fourth outlet, and the third "
-      "here: the file outlet beside it was appended rather than inserted in Max's position, so the "
-      "cords of every patch saved while .coll had three outlets still land where they did.";
-
-  constexpr char kFileDoc[] =
-      "Bangs when a read has finished loading a file into the collection — Max's third outlet, "
-      "appended here as the fourth so no saved patch's cords shift (the promise .coll made in #494 "
-      "and the rule the rest of the file-reading family follows). It fires only on success: a file "
-      "that does not exist, does not fit, or cannot be opened leaves it silent, and it does not "
-      "fire for a write, for which Max has no outlet either. It fires a block or more after the "
-      "read message rather than inside it, because the disk work happens on the background pool — "
-      "a read arrives on whichever thread dispatched it, which may be the audio callback.";
-
 } // namespace
 
 // ─── the store ────────────────────────────────────────────────────────────────
@@ -262,116 +193,28 @@ CONSTRUCT() {
   fileScratch.reserve(FILE_TEXT_CAPACITY + 1);
 
   ADD_DESCRIPTION(
-      "Stores and recalls a collection of messages held at addresses — Max's coll, 'store and edit "
-      "a collection of different messages'. The general-purpose data store of Max patching: "
-      "presets, note tables, mapping curves and sequences all live in one, and until this object "
-      "nothing in the YSE patcher could hold more than a single value at all, so a patch that "
-      "wanted a table had to spell it out as one object per entry. An address is a number or a "
-      "symbol, decided by the strict reader .sel and .route share, and the two never collide — the "
-      "address 1 and the address one are different entries — while numeric addresses need be "
-      "neither contiguous nor in order, exactly as in Max. Entries keep storage order rather than "
-      "address order, which is what makes dump, next and prev mean anything: Max sends them 'in "
-      "the "
-      "order in which they are stored', so a patch that stored a sequence gets that sequence back. "
-      "A list whose first item is a number stores the rest of it at that address (Max's list "
-      "method), a bare number or symbol recalls, a bang outputs the entry at the pointer, and "
-      "store, insert, append, remove, delete, clear, length, goto, start, end, next, prev, dump, "
-      "sub, nsub, nth, min, max, sort, swap, merge, separate, renumber, renumber2, assoc, deassoc, "
-      "nstore and subsym are read as "
-      "commands when they lead a message. Reserving those words is Max's own contract "
-      "for coll and not a shortcut: this is the one object in the family whose inlet is a command "
-      "inlet rather than a data inlet, which is exactly why the .prepend discipline — never "
-      "reserve "
-      "a word on an inlet that must carry arbitrary text — does not apply to it, and the data an "
-      "entry holds is never parsed for commands. The address leaves outlet 1 only where Max sends "
-      "it (bang, dump, next, prev, sub) and always before the data, which is Max's right-to-left "
-      "order; outlet 2 bangs when a dump has finished and outlet 3 when a read has. The first "
-      "creation argument is Max's shared name: all .coll objects of one name share their contents, "
-      "through a store held weakly in the patcher's shared-name registry under "
-      "'patcher.<patcherName>.<name>' — the address form .s, .r and .value already use. An unnamed "
-      ".coll "
-      "keeps a store of its own rather than pooling on the empty name, the traversal pointer stays "
-      "per-object so two .coll objects on one name walk the collection independently, and Max's "
-      "refer is not ported: it resolves a name from a message, and a name resolves under a mutex "
-      "on the control thread, never on the audio callback a message handler may be running on. "
-      "Max's second argument, no-search, is accepted and inert — there is no automatic hunt for a "
-      "file named after the collection to suppress. sub and nsub replace the element at a 1-based "
-      "position inside a stored message, nth reads one out, min and max scan an element position "
-      "across every entry, sort reorders storage (stably, ascending on -1 and descending on 1, by "
-      "the address when the second argument is -1 and by the nth element otherwise), swap "
-      "exchanges two entries' addresses without moving their data, merge appends to what an "
-      "address already holds, separate opens a numeric gap, renumber renumbers the numeric "
-      "entries consecutively from the address it is given (0 by default), and renumber2 moves "
-      "every numeric address at or above the one it is given (also 0 by default) up by one. "
-      "assoc, deassoc, nstore and subsym are Max's symbol/number address aliasing: a numeric entry "
-      "can be given a second, symbol address, and from then on any reference to that symbol is a "
-      "reference to the number — a store, a remove, an nth or a bare recall all reach the entry by "
-      "either name. One symbol reaches one entry, which is what keeps a lookup's answer "
-      "independent of storage order, so associating a symbol that already reached another entry "
-      "removes that entry, as Max's own reference says it does. The alias rides with its entry "
-      "through insert, delete, renumber, renumber2 and separate, and with the address through "
-      "swap; the address outlet reports the number for an entry that has both; and a plain store "
-      "at an aliased address keeps the alias, which is where this departs from cyclone. "
-      "read, readagain, "
-      "write and writeagain move the collection through a plain-text file in Max's format, one "
-      "'<address>, <message>;' record per line — an aliased entry writing both of its addresses, "
-      "number first and symbol second, the order Max 5's format paragraph gives and the one "
-      "cyclone writes, while a read accepts either order — and a read replaces what is held. None "
-      "of that "
-      "happens on the message path: a read arrives on whichever thread dispatched it, which may be "
-      "the audio callback, so the request is a wait-free claim on a patcher-owned slot, the disk "
-      "work runs on the background pool, and the contents are parsed in the completion the patcher "
-      "delivers at the top of a later block — which is also when outlet 3 bangs. The bare forms of "
-      "read and write reuse the last name given, since Max's open a file dialog and a headless "
-      "patcher has none, and filetype is consumed and inert for the same reason. Records past the "
-      "256-entry bound are dropped and the rest kept, one whose address or message does not fit is "
-      "skipped, and a file larger than a slot is refused whole with outlet 3 silent. The "
-      "format inherits Max's one limitation: a stored message containing a comma or a semicolon "
-      "cannot round-trip through a file. The contents survive a DumpJSON / ParseJSON round "
-      "trip, which is Max's 'save data with patcher' and the reason pObject grew a state hook: a "
-      "creation parameter is what an object was made with, not what it has since been told, so "
-      "rewriting one from run-time state would quietly change the arguments a patch author typed. "
-      "Every .coll on a shared name writes those contents and only the one that created the store "
-      "reads them back, so a sibling does not reload identical entries over the top and a patcher "
-      "loaded into an engine where the name is already live joins the running collection instead "
-      "of resetting it. The pointer is not saved — it is run-time position, as .cycle's thresh and "
-      ".bucket's freeze are. The store is bounded at 256 entries of at most 256 characters each, "
-      "held at addresses of at most 64, and the whole table is allocated when the store is built "
-      "and never resized: that bound is what makes the object real-time safe, and it is why the "
-      "store is not published as a "
-      "copy-on-write snapshot the way GraphState is. That model assumes the writer is the control "
-      "thread, and a .coll is written by whichever thread its message arrived on — in-patcher "
-      "delivery dispatches on the audio thread — so a store reaching it from a rendering graph "
-      "would have to allocate a replacement table there. Bounded storage with .value's "
-      "non-blocking guard gives what the mandate is after without that: nothing on any path "
-      "allocates, locks or blocks, the guard is never held across a send, and a store that loses "
-      "the guard drops rather than waiting. Even sort keeps that promise — the sort key of every "
-      "entry is read once into a fixed array, the indices are insertion-sorted against it, and the "
-      "permutation is applied by cycle-following through a single scratch entry, so no input costs "
-      "more than one entry copy per entry. Anything that does not fit is refused whole and "
-      "silently. Calculate() does nothing. Not ported: the editor window (open, wclose), refer, "
-      "and the embed / flags save switch.");
+      "Stores messages at number or symbol addresses and sends them back on request: presets, "
+      "note tables, cue lists. All .coll objects with the same name share one collection.");
   ADD_CATEGORY(pCategory::COLLECTION);
-  INLET_DOC(0, "in", kInletDoc, "at most 256 entries");
-  OUTLET_DOC(0, "data", kDataDoc, "");
-  OUTLET_DOC(1, "address", kAddressDoc, "");
-  OUTLET_DOC(2, "done", kDoneDoc, "");
-  OUTLET_DOC(3, "file", kFileDoc, "");
+  INLET_DOC(0, "in",
+            "A number or symbol recalls that address; '<number> <message>' stores; a bang sends "
+            "the entry at the pointer. Also the commands listed in the notes.",
+            "at most 256 entries");
+  OUTLET_DOC(0, "data",
+             "The entry's message: one number as an int or float, anything else as a list. Also "
+             "the results of 'length', 'nth', 'min' and 'max'.",
+             "");
+  OUTLET_DOC(1, "address",
+             "The entry's address, sent just before its data on bang, 'dump', 'next', 'prev' and "
+             "'sub'. Not sent on a plain recall.",
+             "");
+  OUTLET_DOC(2, "done", "A bang when a 'dump' has finished.", "");
+  OUTLET_DOC(3, "file", "A bang when a 'read' has loaded a file. Silent when the read fails.", "");
   PARAM_DOC("name", "",
-            "Max's shared context: all .coll objects of this name share their contents, through a "
-            "store addressed as \"patcher.<patcherName>.<name>\" — the same address form .s, .r "
-            "and .value "
-            "use, so two patchers given one name share their collections as they already share "
-            "their sends. Empty gives this object a store of its own rather than pooling it with "
-            "every other unnamed .coll in the patcher. The name is resolved once, on the control "
-            "thread, which is why Max's runtime 'refer' is not ported.",
+            "Every .coll with this name in the patcher shares one collection. Without a name the "
+            "collection is private.",
             "any identifier");
-  PARAM_DOC("no-search", "0",
-            "Max's second argument, which stops coll hunting for a file named after the "
-            "collection when the patch loads. Accepted so a patch brought across from Max builds, "
-            "and read for nothing: there is no such hunt here, and adding one would mean reading a "
-            "file at construction from a search path this engine does not have.",
-            "any int");
+  PARAM_DOC("no-search", "0", "Accepted for compatibility and ignored.", "any int");
 }
 
 // ─── naming (issue #684) ──────────────────────────────────────────────────────
