@@ -920,7 +920,57 @@ def _git_tag_exists(tag):
     ).returncode == 0
 
 
+def _release_tag_only(args):
+    """Tag an existing commit with the VERSION it carries and push the tag."""
+    sha = subprocess.run(
+        ["git", "rev-parse", "--verify", "--quiet", f"{args.tag}^{{commit}}"],
+        cwd=str(ROOT), capture_output=True, text=True,
+    ).stdout.strip()
+    if not sha:
+        print(f"error: {args.tag!r} does not name a commit.")
+        sys.exit(1)
+    text = subprocess.check_output(
+        ["git", "show", f"{sha}:{VERSION_FILE.relative_to(ROOT).as_posix()}"],
+        cwd=str(ROOT), text=True,
+    )
+    m = VERSION_RE.search(text)
+    if not m:
+        print(f"error: no VERSION line in {VERSION_FILE.name} at {sha[:12]}.")
+        sys.exit(1)
+    tag = f"v{m.group(2)}.{m.group(3)}.{m.group(4)}"
+
+    print(f"Commit:  {sha}")
+    print(f"Git tag: {tag}  (from VERSION at that commit)")
+
+    if args.dry_run:
+        print("\n--dry-run: not tagging or pushing.")
+        return
+
+    if _git_tag_exists(tag):
+        print(f"\nerror: tag {tag} already exists locally.")
+        sys.exit(1)
+
+    run(["git", "tag", tag, sha], cwd=ROOT)
+    if args.no_push:
+        print(f"\n--no-push: stopped before push. To publish:")
+        print(f"    git push origin {tag}")
+        return
+    run(["git", "push", "origin", tag], cwd=ROOT)
+    print(f"\nTagged {tag}. CI release workflow:")
+    print(f"    {REPO_URL}/actions")
+
+
 def cmd_release(args):
+    if args.tag:
+        if args.level or args.bump_only:
+            print("error: --tag takes no bump level and cannot be combined with --bump-only.")
+            sys.exit(1)
+        _release_tag_only(args)
+        return
+    if not args.level:
+        print("error: a bump level (patch/minor/major) is required unless --tag is given.")
+        sys.exit(1)
+
     text, m, (major, minor, patch) = _read_version()
     if args.level == "major":
         new = (major + 1, 0, 0)
@@ -937,13 +987,22 @@ def cmd_release(args):
     print(f"New version:     {new_str}")
     print(f"Git tag:         {tag}")
 
+    prep_branch = f"release/{tag}-prep"
+    if args.bump_only:
+        print(f"Branch:          {prep_branch}  (--bump-only: commit, no tag, no push)")
+
     if args.dry_run:
         print("\n--dry-run: not writing, committing, or pushing.")
         return
 
-    # Pre-flight: branch must be master or dev (the two branches CI watches).
+    # Pre-flight: --bump-only runs on the release-prep branch for this exact
+    # version; the legacy path runs on master or dev (the two branches CI watches).
     branch = _git_branch()
-    if branch not in ("master", "dev"):
+    if args.bump_only:
+        if branch != prep_branch:
+            print(f"\nerror: current branch is {branch!r}; --bump-only to {tag} must run on {prep_branch!r}.")
+            sys.exit(1)
+    elif branch not in ("master", "dev"):
         print(f"\nerror: current branch is {branch!r}; releases must come from 'master' or 'dev'.")
         sys.exit(1)
 
@@ -969,6 +1028,11 @@ def cmd_release(args):
 
     run(["git", "add", str(VERSION_FILE)], cwd=ROOT)
     run(["git", "commit", "-m", f"Release {tag}"], cwd=ROOT)
+    if args.bump_only:
+        print(f"\n--bump-only: committed `Release {tag}` on {branch}; not tagged, not pushed.")
+        print(f"After the dev -> master PR merges, tag its merge commit:")
+        print(f"    python yse.py release --tag origin/master")
+        return
     run(["git", "tag", tag], cwd=ROOT)
 
     if args.no_push:
@@ -1628,7 +1692,8 @@ def build_parser():
   python yse.py package            build a release archive in dist/ (used by CI)
   python yse.py package --platform linux    explicit target platform
   python yse.py package --platform android --android-libs <dir>   multi-ABI bundle from CI per-ABI artefacts
-  python yse.py release patch      bump VERSION, commit, tag vX.Y.Z, push
+  python yse.py release patch --bump-only   on release/vX.Y.Z-prep: bump VERSION + commit (no tag/push)
+  python yse.py release --tag origin/master   tag the dev -> master merge commit, push the tag
   python yse.py release minor --dry-run     preview without writing
 """,
     )
@@ -1910,21 +1975,37 @@ def build_parser():
     # release
     p = sub.add_parser(
         "release",
-        help="Bump VERSION in system.hpp, commit, tag, push",
+        help="Bump VERSION in system.hpp (--bump-only), or tag a release commit (--tag)",
         description=(
-            "Bumps the version string in YseEngine/system.hpp by one component "
-            "(patch/minor/major), commits the change as `Release vX.Y.Z`, tags "
-            "the commit `vX.Y.Z`, and pushes both branch and tag.  The tag push "
-            "triggers the release workflow at .github/workflows/release.yml, "
-            "which builds Windows and Linux archives and publishes a GitHub "
-            "Release.\n\n"
-            "Pre-flight checks: current branch must be 'master' or 'dev', the "
+            "Release flow (two PRs, see .claude/skills/release/SKILL.md):\n"
+            "  1. On release/vX.Y.Z-prep (cut from dev): `release <level> --bump-only` "
+            "bumps the version string in YseEngine/system.hpp by one component "
+            "and commits it as `Release vX.Y.Z` -- no tag, no push.  The bump "
+            "reaches dev through the prep PR and master through the dev -> master PR.\n"
+            "  2. After the dev -> master PR merges: `release --tag origin/master` "
+            "tags that commit vX.Y.Z (the version is read from system.hpp at the "
+            "commit) and pushes the tag, which triggers "
+            ".github/workflows/release.yml to build and publish the GitHub Release.\n\n"
+            "Without --bump-only or --tag (discouraged: it pushes straight to the "
+            "branch, which branch protection rejects on master) the command bumps, "
+            "commits, tags and pushes in one go from 'master' or 'dev'.\n\n"
+            "Pre-flight checks: the branch must be release/vX.Y.Z-prep for the "
+            "computed version (--bump-only) or 'master'/'dev' (default), the "
             "working tree must be clean, and the new tag must not already exist."
         ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     p.add_argument(
-        "level", choices=("patch", "minor", "major"),
-        help="Which version component to bump",
+        "level", nargs="?", choices=("patch", "minor", "major"),
+        help="Which version component to bump (omit with --tag)",
+    )
+    p.add_argument(
+        "--bump-only", action="store_true",
+        help="Commit the bump on release/vX.Y.Z-prep; do not tag or push",
+    )
+    p.add_argument(
+        "--tag", metavar="COMMIT", default=None,
+        help="Tag COMMIT (e.g. origin/master) as v<VERSION at COMMIT> and push the tag; no bump",
     )
     p.add_argument(
         "--dry-run", action="store_true",
@@ -1932,7 +2013,7 @@ def build_parser():
     )
     p.add_argument(
         "--no-push", action="store_true",
-        help="Commit and tag locally, but do not push to origin",
+        help="Tag (and in the default mode, commit) locally, but do not push to origin",
     )
     p.set_defaults(func=cmd_release)
 
