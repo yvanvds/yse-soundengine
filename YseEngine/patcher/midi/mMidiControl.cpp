@@ -1,5 +1,6 @@
 #include "mMidiControl.h"
 #include "../pObjectList.hpp"
+#include <algorithm>
 
 using namespace YSE::PATCHER;
 
@@ -33,7 +34,9 @@ INT_IN(SetIntValue) {
 
 CALC() {
   std::string message = "000";
-  message[0] = 0xB0 + channel;
+  // A channel outside 0-15 would carry into the status nibble and make
+  // another message; clamped as on .bendout (#532, #1014).
+  message[0] = (char)(0xB0 + std::clamp(channel, 0, 15));
   message[1] = controller;
   message[2] = cvalue;
   outputs[0].SendList(message, thread);

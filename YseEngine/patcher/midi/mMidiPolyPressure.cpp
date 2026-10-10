@@ -1,5 +1,6 @@
 #include "mMidiPolyPressure.h"
 #include "../pObjectList.hpp"
+#include <algorithm>
 
 using namespace YSE::PATCHER;
 
@@ -41,7 +42,9 @@ INT_IN(SetIntPressure) {
 
 CALC() {
   std::string message = "000";
-  message[0] = 0xA0 + channel;
+  // A channel outside 0-15 would carry into the status nibble and make
+  // another message; clamped as on .bendout (#532, #1014).
+  message[0] = (char)(0xA0 + std::clamp(channel, 0, 15));
   message[1] = pitch;
   message[2] = pressure;
   outputs[0].SendList(message, thread);

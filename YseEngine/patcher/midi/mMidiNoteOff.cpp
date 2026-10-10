@@ -1,5 +1,6 @@
 #include "mMidiNoteOff.h"
 #include "../pObjectList.hpp"
+#include <algorithm>
 
 using namespace YSE::PATCHER;
 
@@ -41,7 +42,9 @@ INT_IN(SetIntVelocity) {
 
 CALC() {
   std::string message = "000";
-  message[0] = 0x80 + channel;
+  // A channel outside 0-15 would carry into the status nibble and make
+  // another message; clamped as on .bendout (#532, #1014).
+  message[0] = (char)(0x80 + std::clamp(channel, 0, 15));
   message[1] = pitch;
   message[2] = velocity;
   outputs[0].SendList(message, thread);
