@@ -16,6 +16,7 @@ smooth, sample by sample.
 
    [~line 0 20]   left <- 1.   =>   rises from 0 to 1 over 20 ms
 
-``stop`` halts the ramp at its current value, but only for one block: on the
-next block it starts again toward the same target, taking the full ramp time
-from where it stopped.
+``stop`` halts the ramp and holds the output at its current value until the
+next target arrives. A new time on its own does not restart it. Any target
+after a ``stop``, even the one the ramp was heading for, starts a new ramp
+from the held value, taking the full ramp time.

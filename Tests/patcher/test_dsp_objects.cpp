@@ -198,6 +198,59 @@ TEST_SUITE("patcher") {
     CHECK(afterStop < 1.0f); // should not have advanced to target
   }
 
+  TEST_CASE("pLine: 'stop' holds until a new target arrives, not for one block (#1019)") {
+    // The ramp's stop() only moved the ramp's own target; the object's stored
+    // target still held the old value, so the next block's setIfNew() restarted
+    // the ramp toward it and the hold lasted a single block.
+    YSE::PATCHER::pLine line;
+    BufferSink sink;
+    line.ConnectOutlet(sink.GetInlet(0), 0);
+    sink.ConnectInlet(line.GetOutlet(0), 0);
+
+    line.GetInlet(1)->SetFloat(1000.0f, YSE::T_GUI);
+    line.GetInlet(0)->SetFloat(1.0f, YSE::T_GUI);
+    for (int i = 0; i < 4; ++i)
+      line.Calculate(YSE::T_DSP);
+
+    line.SetMessage("stop", 0.f);
+    line.Calculate(YSE::T_DSP);
+    REQUIRE(sink.received != nullptr);
+    const float held = sink.received->getPtr()[sink.received->getLength() - 1];
+    REQUIRE(held > 0.0f);
+    REQUIRE(held < 1.0f);
+
+    // Many blocks later (well past the 1000 ms ramp time) it has not moved, and
+    // every sample of the block is the held value.
+    for (int i = 0; i < 2000; ++i)
+      line.Calculate(YSE::T_DSP);
+    const float* p = sink.received->getPtr();
+    for (unsigned i = 0; i < sink.received->getLength(); ++i) {
+      CAPTURE(i);
+      REQUIRE(p[i] == held);
+    }
+
+    // A time on its own is not a new target: still held.
+    line.GetInlet(1)->SetFloat(0.0f, YSE::T_GUI);
+    line.Calculate(YSE::T_DSP);
+    CHECK(sink.received->getPtr()[sink.received->getLength() - 1] == held);
+
+    // A new target, even the same value as before the stop, resumes.
+    line.GetInlet(0)->SetFloat(1.0f, YSE::T_GUI);
+    line.Calculate(YSE::T_DSP);
+    CHECK(sink.received->getPtr()[sink.received->getLength() - 1] == doctest::Approx(1.0f));
+
+    // A stop followed by a target before the next block: the target wins.
+    line.GetInlet(1)->SetFloat(1000.0f, YSE::T_GUI);
+    line.GetInlet(0)->SetFloat(0.0f, YSE::T_GUI);
+    for (int i = 0; i < 4; ++i)
+      line.Calculate(YSE::T_DSP);
+    line.SetMessage("stop", 0.f);
+    line.GetInlet(1)->SetFloat(0.0f, YSE::T_GUI);
+    line.GetInlet(0)->SetFloat(0.25f, YSE::T_GUI);
+    line.Calculate(YSE::T_DSP);
+    CHECK(sink.received->getPtr()[sink.received->getLength() - 1] == doctest::Approx(0.25f));
+  }
+
   // ─── pBandpass ────────────────────────────────────────────────────────────────
 
   TEST_CASE("pBandpass: type name, input/output count, and output type") {
