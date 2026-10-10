@@ -1,11 +1,11 @@
 <!-- META
-last_updated_commit: 18f1bf45
-last_updated_at: 2026-09-29
+last_updated_commit: 911ea2d4
+last_updated_at: 2026-10-10
 -->
 
 # YSE Sound Engine — Project Overview
 
-**Version:** 2.4.0 on `dev`; the next release is 3.0 (single source of truth: [`YseEngine/system.hpp`](YseEngine/system.hpp); upgrade guide: [documentation/source/upgrading.rst](documentation/source/upgrading.rst), release notes draft: [docs/release-notes/v3.0.md](docs/release-notes/v3.0.md))
+**Version:** 3.0.0 (single source of truth: [`YseEngine/system.hpp`](YseEngine/system.hpp); upgrade guide: [documentation/source/upgrading.rst](documentation/source/upgrading.rst), release notes: [docs/release-notes/v3.0.md](docs/release-notes/v3.0.md))
 **Language:** C++17
 **Platforms:** Windows (MSYS2/Clang64, MSVC), Linux (gcc/clang), Android (NDK r27+, API 26+, arm64-v8a + x86_64)
 **Build:** CMake 3.20+ via `CMakePresets.json`; Android wraps the same CMake invocation through Gradle in `Tests/Android/`
@@ -415,7 +415,7 @@ Callback bridge conventions (atomic-swap callback pointer, no mutex, no malloc o
 - **Thread pool** — `threadPool` is the background pool only: `threadPoolThread` workers on a lock-free job ring with a timed backoff. The "slow pool" is single-threaded by construction (`slowThreads(1)`) so file loads + the manager setup/delete jobs are serialised.
 - **Render scheduler** — `renderScheduler` (`Global().renderer()`) owns the raised-priority render workers and runs the channel task graph once per block with the audio thread as worker 0 (see [§3](#3-channel-system-hierarchical-mixer); epic #856). Worker count (#861): `System().renderThreads(n)` / `yse_system_set_render_threads()` — `-1` auto = physical cores − 1 inside the process affinity mask, capped at `MAX_AUTO_WORKERS` (8); `0` = the audio thread alone; `n` = exactly n (≤ 64). This replaced #650's two-worker stopgap. Workers are placed performance-cores-first by [internal/cpuTopology.h](YseEngine/internal/cpuTopology.h) (#862), spin 50 µs after a block and then park in the kernel (futex / `WaitOnAddress`, #858). Details: [render_scheduler.md](docs/design/render_scheduler.md#as-built-render-path-voice-slices-cost-tracking-workers).
 - **Communication** — cross-thread state changes use a lock-free SPSC inbox (`utils/lfQueue.hpp`) between the main and audio threads. The audio thread never takes a mutex on the hot path.
-- **Lifecycle fences** — `OBJECT_DELETE_PENDING` handshake prevents the slow-pool deleter from freeing an impl while the audio thread still has it in `toLoad`; `connectedToParent` atomic flag coordinates parent-channel disconnect.
+- **Lifecycle fences** — `OBJECT_DELETE_PENDING` handshake prevents the slow-pool deleter from freeing an impl while the audio thread still has it in `toLoad`; `connectedToParent` atomic flag coordinates parent-channel disconnect. Each manager keeps its delete request (`runDelete`) set until a delete job is actually queued, so a request raised while the previous job is in flight carries to the next tick instead of stranding the impl (#817 SOUND, #990 CHANNEL, #992 the rest; regression cases stage the window with `Tests/support/inflight_delete.hpp`).
 - **Destructor error reporting** — a destructor's teardown is wrapped in `try { ... } catch (...) { ... }` and the handler **must** report through `INTERNAL::EmitNoThrow(code, "message")` ([implementations/logImplementation.h](YseEngine/implementations/logImplementation.h)), never `LogImpl().emit(...)`: `emit()` and a host `logHandler` can throw back out of the handler into `std::terminate()`, and `EmitNoThrow` also survives being called after the log itself is destroyed (#433). Coverage: `Tests/internal/test_log_nothrow.cpp` (`yse_tests_logsafety`).
 - **Engine time** — `INTERNAL::time` ([internal/time.h](YseEngine/internal/time.h)) measures update ticks with `std::chrono::steady_clock` (monotonic wall time, RT-safe), replacing `std::clock()` process-CPU time (#667).
 - **Atomic wrappers:** `aBool`, `aInt`, `aUInt`, `aFlt` (thin `std::atomic<T>` aliases in `utils/atomicOps.hpp`).

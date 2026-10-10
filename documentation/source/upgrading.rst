@@ -61,7 +61,7 @@ Default sample rate is 48 kHz (#646)
    over the device default. On a running session a rate that differs from
    the session rate is refused with a warning, and the stream opens at the
    session rate. ``System().openDevice()`` now returns ``bool`` instead of
-   ``void``.
+   ``void`` (#900).
 
 ``autoReconnect`` delay is in milliseconds (#681)
    The ``delay`` argument of ``System().autoReconnect(on, delay)`` was
