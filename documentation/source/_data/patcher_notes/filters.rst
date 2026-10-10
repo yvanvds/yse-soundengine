@@ -16,9 +16,13 @@ the sample rate up, the output is the difference between successive samples.
 .. patcher-object:: ~bp
 
 The center frequency is in Hz; below 0.001 Hz, including the default 0, the
-filter uses 10 Hz. A higher ``Q`` makes the band narrower. A ``Q`` below 0.001,
-including the default 0, turns filtering off and passes the input at twice
-its level, so give the filter a ``Q``: ``~bp 1000 5``.
+filter uses 10 Hz. A higher ``Q`` makes the band narrower; the default is 1.
+The output level is only close to the input's for a narrow band: at a ``Q``
+of 1 a tone at the center frequency comes out almost twice as loud, and a
+``Q`` low enough to open the band fully (below 0.001, or below about
+``2 * pi * frequency / samplerate``) turns filtering off and passes the input
+at twice its level. A higher ``Q`` brings the center level toward the
+input's, about 1.2 times at ``~bp 1000 5``.
 
 .. patcher-object:: ~vcf
 

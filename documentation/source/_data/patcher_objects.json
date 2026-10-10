@@ -14643,7 +14643,7 @@
         "range": "0-20000 Hz"
       },
       {
-        "default": "0",
+        "default": "1",
         "doc": "Initial Q / resonance.",
         "name": "Q",
         "range": "0.1-100"

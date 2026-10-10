@@ -302,6 +302,28 @@ TEST_SUITE("patcher") {
     CHECK(TestHelpers::measureRms(*sinkOn.received) > TestHelpers::measureRms(*sinkOff.received));
   }
 
+  TEST_CASE("pBandpass: without a Q it still filters, not a double-level pass (#1020)") {
+    // Q defaulted to 0, where DSP::bandPass turns filtering off and applies a
+    // gain of 2: `~bp 1000` passed every frequency at +6 dB. With the default Q
+    // of 1, a tone three octaves above the center is strongly attenuated.
+    YSE::PATCHER::pBandpass bp;
+    BufferSink sink;
+    bp.ConnectOutlet(sink.GetInlet(0), 0);
+    sink.ConnectInlet(bp.GetOutlet(0), 0);
+
+    bp.GetInlet(1)->SetFloat(1000.0f, YSE::T_GUI); // frequency only, no Q
+
+    YSE::DSP::buffer in(128);
+    for (int iter = 0; iter < 30; ++iter) {
+      fillSine(in, 8000.0f);
+      bp.GetInlet(0)->SetBuffer(&in, YSE::T_GUI);
+      bp.Calculate(YSE::T_DSP);
+    }
+
+    REQUIRE(sink.received != nullptr);
+    CHECK(maxAbs(*sink.received) < 0.25f);
+  }
+
   TEST_CASE("pBandpass: ResetDSP clears the buffer pointer") {
     YSE::PATCHER::pBandpass bp;
     BufferSink sink;

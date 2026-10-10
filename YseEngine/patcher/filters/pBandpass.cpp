@@ -27,7 +27,10 @@ CONSTRUCT_DSP() {
   ADD_PARAM(Q);
 
   buffer = nullptr;
-  frequency = Q = 0.f;
+  // Q 1, as DSP::MODULES::bandPassFilter: at Q 0 DSP::bandPass stops filtering
+  // and passes the input at twice its level (#1020).
+  frequency = 0.f;
+  Q = 1.f;
 
   ADD_DESCRIPTION("Bandpass filter. Passes a frequency band centered on 'frequency' with bandwidth "
                   "shaped by 'Q' (resonance).");
@@ -37,7 +40,7 @@ CONSTRUCT_DSP() {
   INLET_DOC(2, "Q", "Resonance / inverse bandwidth — higher narrows the band.", "0.1-100");
   OUTLET_DOC(0, "out", "Filtered audio output.", "-1.0 to 1.0");
   PARAM_DOC("frequency", "0", "Initial center frequency in Hz.", "0-20000 Hz");
-  PARAM_DOC("Q", "0", "Initial Q / resonance.", "0.1-100");
+  PARAM_DOC("Q", "1", "Initial Q / resonance.", "0.1-100");
 }
 
 RESET() // {
