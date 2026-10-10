@@ -21,82 +21,33 @@ gArrayTuplewise::gArrayTuplewise() : gArraySetOpBase(false) {
   ADD_PARAM(expression);
 
   ADD_DESCRIPTION(
-      "Combines two arrays element by element — issue #808's reading of Max's array.tuplewise "
-      "on the name-addressed value model .array settled: Max's own array.tuplewise collects a "
-      "stream into arrays of a set length, where #808 specifies the element-wise combiner "
-      "instead — the vector arithmetic .vexpr does for lists, applied to stored arrays. Both "
-      "arrays are bound from the creation arguments, \".array.tuplewise <left> <right> "
-      "<expression>\", because an array is addressed by name and never passed down a cord, and "
-      "neither may be re-pointed from a message. The operation is the expression family's "
-      "spelling, never a second one: the remaining creation arguments, compiled once on the "
-      "control thread by .expr's own compiler — $f1/$i1 the left element, $f2/$i2 the right "
-      "element, $f3/$i3 their position — so \"$f1 + $f2\" adds two arrays position by position. "
-      "The result is as long as the shorter array (.vexpr's rule for unequal lists), each "
-      "wholly numeric pair's result typed by the expression's C type and the left element "
-      "passed through unchanged for a pair either side of which is a symbol — the family's "
-      "positional pass-through. The result leaves as the list it spells, never as a new named "
-      "array, and an empty result bangs the empty outlet. The left array is copied out under "
-      "its guard and the result built against the right under that guard alone, so no two "
-      "guards are ever held at once and \".array.tuplewise seq seq $f1 + $f2\" doubles the "
-      "array instead of tripping over its own try-lock. A malformed expression fails loudly "
-      "when the parameter is set and the object then refuses every trigger, counted.");
+      "Combines two named arrays position by position with an expression, such as $f1 + $f2, "
+      "and outputs the results as one list. The result is as long as the shorter array.");
   ADD_CATEGORY(pCategory::ARRAY);
   INLET_DOC(0, "trigger",
-            "A bang asks for the combination — the expression compiled from the creation "
-            "arguments, applied to the two bound arrays position by position as they stood at "
-            "the trigger, the left copied out under its guard, the result built against the "
-            "right under that guard alone, and sent after every guard is released. \"array "
-            "<name>\" does the same when it names the left array bound by the first creation "
-            "argument — the message an .array's reference outlet emits on a bang, the family's "
-            "gesture. A reference naming anything else, any other message, or a trigger on an "
-            "object whose expression did not compile, is refused and counted rather than "
-            "logged, since this inlet may be the audio thread.",
+            "Bang, or the left array's reference \"array <name>\": combine the two arrays. "
+            "Refused when the expression is missing or did not compile.",
             "");
   INLET_DOC(1, "right reference",
-            "\"array <name>\" is accepted silently when it names the right array bound by the "
-            "second creation argument, so a patch may wire both reference outlets across as it "
-            "would in Max. It sets nothing — the binding is the creation argument, resolved on "
-            "the control thread — and anything else is refused and counted.",
+            "Accepts the right array's reference \"array <name>\" and ignores it, so its "
+            "reference outlet can be wired here. Anything else is refused.",
             "");
   OUTLET_DOC(0, "combined",
-             "The element-by-element combination as the list it spells — one element as the "
-             "int, float or symbol it is, several as list text, never as a new named array. "
-             "Position i is the expression over (left[i], right[i], i), typed by the "
-             "expression's C type, and the result is as long as the shorter array; a pair "
-             "either side of which is a symbol passes the left element through unchanged, so "
-             "every position still answers a position of the left array. A result that outruns "
-             "what a cord carries is refused whole and counted — a partial combination would "
-             "misalign every position after the cut. Silent when the result is empty: the "
-             "empty outlet carries that half of the answer.",
+             "One result per position, as a list. Where either element is a word, the left "
+             "element is passed through. A single result leaves as an int, float or symbol.",
              "");
-  OUTLET_DOC(1, "empty",
-             "Bang when there was nothing to combine — either array empty or unnamed "
-             "(private), so no position holds a pair. \"No data\" is a state a patch must be "
-             "able to route on, not an error. A lost try-lock on either store, or a trigger on "
-             "an object whose expression did not compile, is a counted refusal instead: the "
-             "result is unknown, so neither outlet fires.",
-             "");
+  OUTLET_DOC(1, "empty", "Bang when either array is empty.", "");
   PARAM_DOC("left", "",
-            "The left array's shared name, addressed as \"patcher.<patcherName>.<name>\" — the "
-            "sequence an .array of the same name in this patcher holds. Resolved once, on the "
-            "control thread, which is why no message re-points it at run time. Empty reads a "
-            "private, empty array on that side: every ask bangs the empty outlet.",
+            "Name of the left array: the .array with this name in the same patcher. Empty uses "
+            "a private, empty array.",
             "any identifier");
   PARAM_DOC("right", "",
-            "The right array's shared name, bound exactly as the left one. Empty reads a "
-            "private, empty array on that side: every ask bangs the empty outlet.",
+            "Name of the right array, found the same way. Empty uses a private, empty array.",
             "any identifier");
   PARAM_DOC("expression", "",
-            "The combining expression — every creation argument after the two names, compiled "
-            "once on the control thread by .expr's own compiler, so read .expr for the "
-            "operators, the functions and the C type rules. $f1/$i1 is the left element ($f "
-            "reads it as a float, $i as an int), $f2/$i2 the right element and $f3/$i3 their "
-            "position; a placeholder past $3 is rejected at parse time. The expression only "
-            "ever runs for a pair whose two elements both read as numbers — a symbol has no "
-            "number — and the left element passes through unchanged for the pairs it never "
-            "sees. A malformed expression is reported to the log when the parameter is set, "
-            "and the object then refuses every trigger, counted; absent, the object refuses "
-            "silently until given work.",
+            "The expression: the rest of the arguments, in .expr syntax. $f1 or $i1 is the left "
+            "element, $f2 or $i2 the right element and $f3 or $i3 their position. A malformed "
+            "expression is logged and the object then does nothing.",
             "any expression over $1..$3");
 }
 

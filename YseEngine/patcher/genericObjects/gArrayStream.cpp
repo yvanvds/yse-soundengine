@@ -33,83 +33,37 @@ gArrayStream::gArrayStream() : gArrayEndsBase() {
   ADD_PARAM(size);
 
   ADD_DESCRIPTION(
-      "Collects incoming values into a sliding array — Max's array.stream on the name-addressed "
-      "value model .array settled: the array is bound from the creation argument, "
-      "\".array.stream <name> [<size>]\", because an array is addressed by name and never "
-      "passed down a cord. Every value arriving on the value inlet is appended as the text that "
-      "spells it, the oldest element sliding off the front once the array holds the window, so "
-      "the array is always the last <size> values — the window an analysis patch runs its "
-      "statistics over. A list is collected whole, in the order sent, every atom one step of "
-      "the slide, or refused whole when any atom outruns 64 characters. The shortfall — how "
-      "many values the window still needs — leaves the shortfall outlet after every collect "
-      "that lands, and the array's reference leaves the reference outlet only when the window "
-      "is full, .zl stream's rule: a partial window is announced by its shortfall, never by "
-      "its reference. A bang re-announces without collecting, trimming the array to the window "
-      "first. The size inlet stores a new window silently (1-256, refused rather than "
-      "clamped); no window configured means every trigger is refused, counted. However many "
-      "atoms one message carries, the whole collect is one hold of the store's guard.");
+      "Appends incoming values to a named array and keeps only the most recent ones: a "
+      "sliding window of a set size. Sends the array's reference each time the window is "
+      "full.");
   ADD_CATEGORY(pCategory::ARRAY);
   INLET_DOC(0, "value",
-            "An int, a float or a symbol is collected: appended to the bound array as the text "
-            "that spells it (7.5 stays visibly a float), the oldest element sliding off the "
-            "front first when the array already holds the window. A list is collected whole, "
-            "in the order sent — every atom one step of the slide, one announcement per "
-            "message — or refused whole, one counted refusal and nothing changed, when any "
-            "atom outruns 64 characters. A bang re-announces without collecting, trimming the "
-            "array to the window first — .zl stream's bang. \"array <name>\" does the same "
-            "when it names the array bound by the creation argument — the message an .array's "
-            "reference outlet emits on a bang, the family's gesture; a reference is an "
-            "identity, not an element, so it is never collected into the data. Only the bound "
-            "name can be recognised at all — any other list, \"array\"-leading included, is "
-            "simply atoms. A non-finite float or a trigger while no window is configured is "
-            "refused and counted rather than logged, since this inlet may be the audio "
-            "thread.",
+            "An int, float, word or list to append; once the window is full, the oldest "
+            "elements drop off the front. A bang reports again without appending, and so does "
+            "the bound array's reference.",
             "one or more atoms, each at most 64 characters");
   INLET_DOC(1, "size",
-            "An int stores the window size, silently — the cold half of the idiom, .zl "
-            "stream's right-inlet length on .array.fill's count inlet. 1 to the store's 256: "
-            "0 is not a window, negative is malformed and past the store could never fill, so "
-            "all three are refused before they are stored — refused, never clamped — and a "
-            "trigger after the refusal slides the window it would have slid before it. A "
-            "float truncates to an int first; a non-finite one is refused rather than quietly "
-            "becoming size 0. Nothing shared moves here: a narrower window trims at the next "
-            "trigger, under that trigger's hold.",
+            "Sets the window size. A float is truncated; values outside 1-256 are refused.",
             "1-256");
   INLET_DOC(2, "array reference",
-            "\"array <name>\" is accepted silently when it names the array bound by the "
-            "creation argument, so a patch may wire the array's reference outlet across. It "
-            "sets nothing — the binding is the creation argument, resolved on the control "
-            "thread — and anything else is refused and counted.",
+            "Accepts the bound array's reference \"array <name>\" and ignores it, so the "
+            "array's reference outlet can be wired here. Anything else is refused.",
             "");
   OUTLET_DOC(0, "reference",
-             "The bound array's reference, \"array <name>\", sent after a collect or a bang "
-             "ONLY when the array holds the full window — .zl stream's rule, so the "
-             "statistics wired downstream never run over a population the patch did not ask "
-             "for. Sent after the shortfall outlet, Max's outlets firing right to left. A "
-             "refused collect emits nothing, and an unnamed object stays silent — the values "
-             "land in its private array, but there is no name to pass on.",
+             "The array's reference \"array <name>\" after each message, but only when the "
+             "window is full. Sent after outlet 1. Nothing is sent when the object has no name.",
              "");
   OUTLET_DOC(1, "shortfall",
-             "How many values the window still needs — 0 once it is full — sent first (right "
-             "to left) after every collect or bang that lands, so a patch can watch the "
-             "window fill and .sel 0 on it is the \"window ready\" edge. A refused trigger — "
-             "a lost try-lock, no window configured, an atom no element can hold — emits "
-             "nothing at all. An unnamed (private) array still counts: an answer is a value, "
-             "not an identity.",
+             "How many more values the window needs before it is full; 0 when it is full. Sent "
+             "after every value or bang.",
              "0-255");
-  PARAM_DOC(
-      "name", "",
-      "The array's shared name, addressed as \"patcher.<patcherName>.<name>\" — the sequence an "
-      ".array of the same name in this patcher holds. Resolved once, on the control "
-      "thread, which is why no message re-points it at run time. Empty streams into a "
-      "private, empty array: the values land and the shortfall counts, but nothing "
-      "shares them and no reference leaves.",
-      "any identifier");
+  PARAM_DOC("name", "",
+            "Name of the array to fill: the .array with this name in the same patcher. Empty "
+            "uses a private array.",
+            "any identifier");
   PARAM_DOC("size", "0",
-            "The window size — how many of the most recent values the array holds. 1 to the "
-            "store's 256; absent (0) means unconfigured, and every trigger is refused, "
-            "counted, until an int on the size inlet sets a window: malformed, not a miss. "
-            "An out-of-range creation argument is refused at the trigger, never clamped.",
+            "The window size: how many of the latest values the array keeps. Without one, "
+            "everything is refused until a size arrives on the middle inlet.",
             "1-256");
 }
 

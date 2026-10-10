@@ -40,7 +40,7 @@ CONSTRUCT() {
   ADD_PARAM(exponent);
   ADD_PARAM(clip);
 
-  // Max's defaults: the MIDI range mapped onto 0-1, linear, extrapolating.
+  // The MIDI range mapped onto 0-1, linear, extrapolating.
   input = 0.f;
   inLow = 0.f;
   inHigh = 127.f;
@@ -49,34 +49,28 @@ CONSTRUCT() {
   exponent = 1.f;
   clip = 0;
 
-  ADD_DESCRIPTION(
-      "Control-rate range mapping. Maps the value on inlet 0 from the input range onto the output "
-      "range and emits it as a float. An exponent other than 1 bends the mapping into a curve, "
-      "symmetrically around the bottom of the input range. Like Max's default the mapping "
-      "extrapolates: an input outside the input range gives an output outside the output range. "
-      "Set the clip parameter to 1 to clamp the result to the output range instead. A degenerate "
-      "input range (low equal to high) emits the output low, and any result that would not be "
-      "finite emits 0 rather than a NaN or an infinity.");
+  ADD_DESCRIPTION("Maps a number from the input range onto the output range and sends it as a "
+                  "float. An exponent other than 1 bends the mapping into a curve; numbers outside "
+                  "the input range map past the output range unless clip is 1.");
   ADD_CATEGORY(pCategory::MATH);
-  INLET_DOC(0, "value", "Value to map — fires the evaluation.", "any float");
-  INLET_DOC(1, "inLow", "Bottom of the input range — stored until the next evaluation.",
+  INLET_DOC(0, "value", "Number to map; sends the result.", "any float");
+  INLET_DOC(1, "inLow", "Input value that maps to outLow, stored for the next result.",
             "any float");
-  INLET_DOC(2, "inHigh", "Top of the input range — stored until the next evaluation.", "any float");
-  INLET_DOC(3, "outLow", "Bottom of the output range — stored until the next evaluation.",
+  INLET_DOC(2, "inHigh", "Input value that maps to outHigh, stored for the next result.",
             "any float");
-  INLET_DOC(4, "outHigh", "Top of the output range — stored until the next evaluation.",
+  INLET_DOC(3, "outLow", "Output for inLow, stored for the next result.", "any float");
+  INLET_DOC(4, "outHigh", "Output for inHigh, stored for the next result.", "any float");
+  INLET_DOC(5, "exponent", "Curve exponent, stored for the next result. 1 is a straight line.",
             "any float");
-  INLET_DOC(5, "exponent",
-            "Curve exponent, 1 for a linear mapping — stored until the next evaluation.",
-            "any float");
-  OUTLET_DOC(0, "out", "The input value mapped onto the output range.", "any float");
-  PARAM_DOC("inLow", "0", "Bottom of the input range.", "any float");
-  PARAM_DOC("inHigh", "127", "Top of the input range.", "any float");
-  PARAM_DOC("outLow", "0", "Bottom of the output range.", "any float");
-  PARAM_DOC("outHigh", "1", "Top of the output range.", "any float");
-  PARAM_DOC("exponent", "1", "Curve exponent; 1 is a linear mapping.", "any float");
+  OUTLET_DOC(0, "out", "The number mapped onto the output range.", "any float");
+  PARAM_DOC("inLow", "0", "Input value that maps to outLow.", "any float");
+  PARAM_DOC("inHigh", "127", "Input value that maps to outHigh.", "any float");
+  PARAM_DOC("outLow", "0", "Output for inLow.", "any float");
+  PARAM_DOC("outHigh", "1", "Output for inHigh.", "any float");
+  PARAM_DOC("exponent", "1", "Curve exponent; 1 is a straight line.", "any float");
   PARAM_DOC("clip", "0",
-            "1 clamps the result to the output range, 0 lets it extrapolate (Max's default).",
+            "1 limits the result to the output range; 0 lets numbers outside the input range "
+            "map past it.",
             "0 or 1");
 }
 

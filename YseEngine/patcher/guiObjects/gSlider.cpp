@@ -60,19 +60,14 @@ CONSTRUCT() {
 
   value = 0.f;
 
-  ADD_DESCRIPTION("Slider control. Stores a normalized float in [0, 1]; ints/floats are clamped on "
-                  "input. Emits the stored value on every calculate tick. Settable per the GUI "
-                  "value protocol (issues #551/#846): a list of one number on inlet 0 is the whole "
-                  "state - the exact string GetGuiValue() produces - and 'set 0 <value>' writes "
-                  "the one cell; both clamp exactly as a float does, which is what lets .preset "
-                  "capture and restore the slider.");
+  ADD_DESCRIPTION("A slider holding a position from 0 to 1. A number sets the position, clamped to "
+                  "that range, and sends it; a bang sends it again.");
   ADD_CATEGORY(pCategory::GUI);
   INLET_DOC(0, "set/bang",
-            "Sets the slider position; bang is a no-op trigger that still fires the output. A "
-            "list of one number is the whole state and 'set 0 <value>' the cell write, both "
-            "clamped like any other input.",
+            "A number sets the position and sends it; a bang sends it again. Also takes its GUI "
+            "value back, as a one-number list or 'set 0 <value>'.",
             "0.0-1.0");
-  OUTLET_DOC(0, "out", "Current slider value (clamped to [0, 1]).", "0.0-1.0");
+  OUTLET_DOC(0, "out", "The position.", "0.0-1.0");
 }
 
 void gSlider::Store(float value) {

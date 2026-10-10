@@ -57,81 +57,22 @@ namespace {
   }
 
   constexpr char kInDoc[] =
-      "The selection, and the only inlet - everything here emits, which is what a hot inlet in "
-      "this "
-      "patcher does, so a message that addresses nothing still re-sends. An int or a float is an "
-      "item number and selects it, or toggles it in multi select: that is 'the user clicked item "
-      "N', which is what a host driving a click has to hand. Max's radiogroup reads an int as the "
-      "whole bitmask in multi mode; that form is reachable here as the whole-state list, and one "
-      "message meaning 'an item' in one mode and 'every item' in another is something a patch "
-      "would "
-      "have to know rather than read. A list of numbers is the whole state, issue #551's round "
-      "trip: one number is the index in single select, and one number per item are the flags in "
-      "multi select. 'set <index> <value>' is #551's cell write - single select has one cell, so "
-      "'set 0 <item>' selects an item outright and never toggles, a cell write being absolute by "
-      "definition, while multi select writes one flag. Any other leading token is an item *name* "
-      "and selects the item that has it, which is Max's symbol message and half the point of "
-      "naming "
-      "the items; a name no item has is dropped, and an item named 'set' cannot be reached this "
-      "way "
-      "since the keyword wins. A bang re-sends. Max's item-list messages (append, insert, delete, "
-      "clear, setitem, prefix, populate) are not here: the item list is a creation parameter, "
-      "because a bank of strings written from a message path is exactly the write the parameter "
-      "system itself refuses - they cannot be written allocation-free and are read on both threads "
-      "once the object is published. Nor are 'next' / 'prev': stepping a bounded number is what "
-      ".incdec is, and wiring one into this inlet is one cord.";
+      "A number selects that item (toggles it with 'multi'); an item name selects that item; a "
+      "list of numbers sets the whole selection; 'set <index> <value>' writes one cell; a bang "
+      "sends again. Everything here sends.";
 
   constexpr char kIndexOutDoc[] =
-      "The item the object points at, as an int - Max's left outlet. In single select that is the "
-      "selection; in multi select it is the item that was just toggled, so a patch can act on the "
-      "change rather than diffing two masks, and a whole-state write points it at the lowest "
-      "selected item. Always a real item: it is bounded on the way out as well as in, the family's "
-      "rule, so an object whose item list shrank under it still reports an item it has. Sent last, "
-      "after outlets 2 and 1.";
+      "The item number: the selection, or with 'multi' the item just changed. Sent last.";
 
-  constexpr char kItemOutDoc[] =
-      "The name of the item outlet 0 just reported - Max's right outlet, and what makes this "
-      "object "
-      "more than a bounded .i. Every item has a name: one given none in the creation arguments is "
-      "called by its index, so this outlet always has something to say. The name is sent as the "
-      "object's own stored copy rather than a new one, which is sound precisely because the item "
-      "list is a creation parameter and cannot change under a send.";
+  constexpr char kItemOutDoc[] = "The name of that item.";
 
   constexpr char kStateOutDoc[] =
-      "The whole selection, spelled exactly as GetGuiValue() spells it, so a host reading the "
-      "state "
-      "and a patch receiving it downstream cannot disagree - and it is the string inlet 0 takes "
-      "straight back (issue #551). In multi select that is one 0 or 1 per item, which is the mask "
-      "issue #556 asks .radiogroup for; in single select it is the index again, which keeps the "
-      "three renderings structurally identical whichever mode they are built in. Sent first, "
-      "before "
-      "outlets 1 and 0. One sample of the state is taken at the top of the send, so a selection "
-      "moved by a message arriving down one of the cords mid-send cannot make the three outlets "
-      "describe two different choices.";
+      "The whole selection, as the GUI value spells it: the item number, or with 'multi' a 0 or "
+      "1 per item. Sent first.";
 
   constexpr char kItemsParamDoc[] =
-      "The item list, read as an optional leading 'multi' keyword followed by the items. With no "
-      "items there are 2 of them; with exactly one item that reads as a whole number of at least 1 "
-      "there are that many - a one-item control is not a choice, so the single-token case is free "
-      "to mean the count, which is what saves '.radiogroup multi 8' from having to be written out "
-      "as eight names. Anything else is one item per token, in order, and a list longer than 256 "
-      "is "
-      "clamped with a warning. Every item ends up named: one given no name is called by its index, "
-      "so outlet 1 always has something to send and no path has to render a number at send time. "
-      "An "
-      "item named 'multi' cannot be the first one and an item named 'set' cannot be selected by "
-      "name; both words are spoken for, and both are one position away from working. 'multi' lets "
-      "more than one item be selected at once - Max has it on radiogroup alone, as its 'nonzero' "
-      "attribute, but the mode is a property of the value (one index against a set) rather than of "
-      "the drawing, and this family's premise is that the value model is shared. It is a creation "
-      "argument and not a message because it changes what the GUI cells mean. The items are a "
-      "creation parameter and nothing changes them afterwards: registering the parameter callbacks "
-      "makes a live SetParams replace the object rather than rewrite a bank of strings underneath "
-      "the audio thread, which is what lets every path read a name with no synchronisation at all "
-      "- "
-      "and re-typing an object's arguments in Max recreates it too. The live selection is not a "
-      "parameter and does not survive a save; GetGuiValue() is the form a host stores it in, and "
-      "inlet 0 takes it straight back.";
+      "An optional 'multi' keyword, then the item names. A single number is a count of items "
+      "named by their numbers; no items gives two.";
 
 } // namespace
 
@@ -513,102 +454,17 @@ CALC() {
 // ─── the three renderings ─────────────────────────────────────────────────────
 
 gUMenu::gUMenu() : gItemListBase() {
-  Document(
-      "A pop-up menu over a named item list - Max's umenu, and one of the three renderings of the "
-      "patcher's indexed selector (issue #556). The patcher can express a number as a control "
-      "every "
-      "way there is (.slider a position, .dial a value, .rslider a span, .multislider a bank, "
-      ".kslider a note) and cannot express a bounded named choice at all, which is what picking a "
-      "waveform, a scale, a preset slot or a routing destination is: one of N named things, where "
-      "the name is half of what the patch wants back. This object, .radiogroup and .tab are one "
-      "implementation under three names - same inlets, same three outlets, same arguments, same "
-      "messages - because the value model is an index into an item list in all three and only the "
-      "widget a host draws differs. They are not one object with a display parameter, .zl's answer "
-      "to its own modes, because the rendering is not behaviour a patch drives: it never changes "
-      "at "
-      "run time, and a host reading the type is exactly how it learns which widget to build. The "
-      "item names are creation arguments and nothing changes them afterwards - not the GUI cells, "
-      "which are live state a host polls and .preset stores, and not guiProperties, which the "
-      "engine never reads while this object has to *emit* the name on outlet 1. Registering them "
-      "as "
-      "a list parameter makes a live SetParams replace the object through the #234 graph swap "
-      "rather than rewrite a bank of strings underneath the audio thread, which is what lets every "
-      "path read a name with no synchronisation at all. Max's append / insert / delete / clear are "
-      "therefore not ported: that write is precisely the one the parameter system itself refuses. "
-      "Arguments are an optional leading 'multi' keyword and then the items - no items gives 2 "
-      "named by index, one item that reads as a whole count gives that many named by index, and "
-      "anything else is one item per token up to 256. Every item ends up named, so outlet 1 always "
-      "has something to send. Inlet 0 is hot and everything on it emits: an int or a float is an "
-      "item number and selects it (toggles it in multi select), a list of numbers is the whole "
-      "state and issue #551's round trip, 'set <index> <value>' is #551's cell write, any other "
-      "leading token is an item name and selects the item that has it - Max's symbol message - and "
-      "a bang re-sends. Outlet 0 carries the item the object points at, outlet 1 its name and "
-      "outlet 2 the whole selection exactly as GetGuiValue() spells it; the three fire right to "
-      "left. Nothing about drawing is modelled - colours, fonts, arrows, 'open', the whole "
-      "attribute set - since the patcher is headless.");
+  Document("A menu of named items. A number or an item name selects an item, and it sends the "
+           "item number, its name and the whole selection. With 'multi', several items can be "
+           "selected at once.");
 }
 
 gRadioGroup::gRadioGroup() : gItemListBase() {
-  Document(
-      "Radio buttons or check boxes - Max's radiogroup, and one of the three renderings of the "
-      "patcher's indexed selector (issue #556). It holds the same value as .umenu and .tab, a "
-      "bounded index into a named item list, and shares their implementation exactly: same inlets, "
-      "same three outlets, same arguments, same messages. What differs is only what a host draws, "
-      "which is why the three are separate names rather than one object with a display parameter - "
-      "the rendering never changes at run time, and the type is how a host learns which widget to "
-      "build. This is the object Max gives multi-select to (its 'nonzero' attribute, check boxes "
-      "against radio buttons), and issue #556 asks for that mode to be carried; here the 'multi' "
-      "creation keyword is offered on all three, because selecting one item against selecting a "
-      "set "
-      "is a property of the value rather than of the drawing, and the family's premise is that the "
-      "value model is shared. With 'multi' the state is one flag per item - the mask the issue "
-      "asks "
-      "for - and outlet 2 carries it; without it the state is the index, one cell, the scalar "
-      "case. "
-      "Arguments are that optional keyword and then the items: no items gives 2 named by index, "
-      "one "
-      "item that reads as a whole count gives that many named by index (so '.radiogroup multi 8' "
-      "is "
-      "eight unnamed check boxes), and anything else is one item per token up to 256. The item "
-      "names are creation arguments and nothing changes them afterwards, which is what lets every "
-      "path read one with no synchronisation: registering them as a list parameter makes a live "
-      "SetParams replace the object rather than rewrite a bank of strings underneath the audio "
-      "thread, and Max's append / insert / delete / clear are not ported for that reason. Inlet 0 "
-      "is hot and everything on it emits: an int or a float is an item number and toggles it in "
-      "multi select or selects it in single select, a list of numbers is the whole state and issue "
-      "#551's round trip, 'set <index> <value>' is #551's cell write, any other leading token is "
-      "an "
-      "item name, and a bang re-sends. Outlet 0 carries the item just touched, outlet 1 its name "
-      "and outlet 2 the whole selection; the three fire right to left, so a patch acting on a "
-      "toggle has the mask in hand before the index arrives. Nothing about drawing is modelled - "
-      "colours, sizes, orientation, the whole attribute set - since the patcher is headless.");
+  Document("Radio buttons, or check boxes with 'multi', over named items. It works exactly like "
+           ".umenu; a host draws it as a group of buttons.");
 }
 
 gTab::gTab() : gItemListBase() {
-  Document(
-      "A tab control over a named item list - Max's tab, and one of the three renderings of the "
-      "patcher's indexed selector (issue #556). It holds the same value as .umenu and .radiogroup, "
-      "a bounded index into a named item list, and shares their implementation exactly: same "
-      "inlets, same three outlets, same arguments, same messages. Only what a host draws differs - "
-      "a row of tabs rather than a pop-up or a column of buttons - which is why the three are "
-      "separate names rather than one object with a display parameter: the rendering never changes "
-      "at run time, and the type is how a host learns which widget to build. Headless, a tab strip "
-      "is the natural control for switching a patch between named pages, layers or presets, and "
-      "outlet 1 hands the page's name straight to a .route or a .send. The item names are creation "
-      "arguments and nothing changes them afterwards - not the GUI cells, which are live state a "
-      "host polls and .preset stores, and not guiProperties, which the engine never reads while "
-      "this object has to emit the name. Registering them as a list parameter makes a live "
-      "SetParams replace the object through the #234 graph swap rather than rewrite a bank of "
-      "strings underneath the audio thread, and Max's append / insert / delete / clear are not "
-      "ported for exactly that reason. Arguments are an optional leading 'multi' keyword and then "
-      "the items: no items gives 2 named by index, one item that reads as a whole count gives that "
-      "many named by index, and anything else is one item per token up to 256. Inlet 0 is hot and "
-      "everything on it emits: an int or a float is a tab number and selects it, a list of numbers "
-      "is the whole state and issue #551's round trip, 'set <index> <value>' is #551's cell write, "
-      "any other leading token is a tab name and selects the tab that has it - Max's symbol "
-      "message "
-      "- and a bang re-sends. Outlet 0 carries the tab the object points at, outlet 1 its name and "
-      "outlet 2 the whole selection exactly as GetGuiValue() spells it; the three fire right to "
-      "left. Nothing about drawing is modelled - colours, fonts, tab layout and orientation, the "
-      "whole attribute set - since the patcher is headless.");
+  Document("A row of tabs over named items. It works exactly like .umenu; a host draws it as "
+           "tabs.");
 }

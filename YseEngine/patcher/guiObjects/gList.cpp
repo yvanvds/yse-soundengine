@@ -14,11 +14,12 @@ CONSTRUCT() {
 
   ADD_PARAM(message);
 
-  ADD_DESCRIPTION("Static list. Bang re-sends the stored list; list updates the stored payload.");
+  ADD_DESCRIPTION("A list box. A bang sends the stored list; a list arriving on the inlet replaces "
+                  "it without sending it.");
   ADD_CATEGORY(pCategory::GUI);
-  INLET_DOC(0, "trigger/set", "Bang re-sends the stored list; list replaces it.", "");
-  OUTLET_DOC(0, "out", "Stored list payload.", "");
-  PARAM_DOC("message", "", "Initial list payload.", "any string");
+  INLET_DOC(0, "trigger/set", "A bang sends the stored list; a list replaces it silently.", "");
+  OUTLET_DOC(0, "out", "The stored list.", "");
+  PARAM_DOC("message", "", "The list the box starts with.", "any text");
 }
 
 BANG_IN(Bang) {

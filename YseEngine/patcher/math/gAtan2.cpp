@@ -21,16 +21,13 @@ CONSTRUCT() {
 
   leftIn = rightIn = 0.f;
 
-  ADD_DESCRIPTION("Control-rate two-argument arc-tangent. Emits the angle in radians of the point "
-                  "(x, y) measured from the positive x axis, whenever inlet 0 fires. Unlike .atan "
-                  "it sees the signs of both operands, so it resolves the full circle rather than "
-                  "only the half plane — this is the angle half of a cartesian-to-polar "
-                  "conversion.");
+  ADD_DESCRIPTION("Sends the angle of the point (x, y) in radians, measured from the positive x "
+                  "axis, from -pi to pi. The left inlet takes y and the right inlet x.");
   ADD_CATEGORY(pCategory::MATH);
-  INLET_DOC(0, "y", "y coordinate — fires the evaluation.", "any float");
-  INLET_DOC(1, "x", "x coordinate — stored until the next evaluation.", "any float");
+  INLET_DOC(0, "y", "y coordinate; sends the result.", "any float");
+  INLET_DOC(1, "x", "x coordinate, stored for the next result.", "any float");
   OUTLET_DOC(0, "out", "The angle of (x, y) in radians.", "-pi to pi");
-  PARAM_DOC("x", "0", "Initial x coordinate.", "any float");
+  PARAM_DOC("x", "0", "Starting x coordinate.", "any float");
 }
 
 FLOAT_IN(SetLeftFloat) {

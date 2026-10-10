@@ -55,12 +55,12 @@ gBitwiseBase::gBitwiseBase(operation op) : pObject(false), apply(op), leftIn(0),
   ADD_PARAM(rightIn);
 
   ADD_CATEGORY(pCategory::MATH);
-  INLET_DOC(0, "left", "Left operand — fires the evaluation. Floats truncate towards zero.",
+  INLET_DOC(0, "left", "Left operand; sends the result. Floats are truncated toward zero.",
             "any int");
   INLET_DOC(1, "right",
-            "Right operand — stored until the next evaluation. Floats truncate towards zero.",
+            "Right operand, stored for the next result. Floats are truncated toward zero.",
             "any int");
-  PARAM_DOC("right", "0", "Initial right-operand value.", "any int");
+  PARAM_DOC("right", "0", "Starting right operand.", "any int");
 }
 
 void gBitwiseBase::Document(const char* summary, const char* outletDoc) {
@@ -94,25 +94,23 @@ CALC() {
 // Each captureless lambda decays to a plain int(*)(int, int).
 
 gBitAnd::gBitAnd() : gBitwiseBase([](int left, int right) { return left & right; }) {
-  Document("Control-rate bitwise AND. Emits left & right whenever inlet 0 fires. Floats truncate "
-           "towards zero on input.",
+  Document("Bitwise AND of two integers, sent as an int. Floats are truncated toward zero first.",
            "The bitwise AND of both operands.");
 }
 
 gBitOr::gBitOr() : gBitwiseBase([](int left, int right) { return left | right; }) {
-  Document("Control-rate bitwise OR. Emits left | right whenever inlet 0 fires. Floats truncate "
-           "towards zero on input.",
+  Document("Bitwise OR of two integers, sent as an int. Floats are truncated toward zero first.",
            "The bitwise OR of both operands.");
 }
 
 gShiftLeft::gShiftLeft() : gBitwiseBase(&ShiftLeftOp) {
-  Document("Control-rate bit shift left. Emits left << right whenever inlet 0 fires. Shift counts "
-           "below 0 shift by nothing and counts of 32 or more shift every bit out.",
+  Document("Shifts the bits of the left operand left by the right operand. A count below 0 "
+           "shifts nothing, and a count of 32 or more gives 0.",
            "The left operand shifted left by the right operand.");
 }
 
 gShiftRight::gShiftRight() : gBitwiseBase(&ShiftRightOp) {
-  Document("Control-rate arithmetic bit shift right. Emits left >> right whenever inlet 0 fires. "
-           "The sign bit is replicated, so negative values saturate at -1.",
+  Document("Shifts the bits of the left operand right by the right operand, keeping the sign. A "
+           "count below 0 shifts nothing; past 31, a negative number gives -1 and any other 0.",
            "The left operand shifted right by the right operand.");
 }

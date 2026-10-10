@@ -15,12 +15,12 @@ CONSTRUCT() {
 
   channel = cvalue = 0;
 
-  ADD_DESCRIPTION("MIDI Channel Pressure (aftertouch) message generator. Emits a status/value MIDI "
-                  "packet on every value change.");
+  ADD_DESCRIPTION("Builds a MIDI channel-aftertouch message for .midiout. Each pressure value on "
+                  "the inlet sends one message.");
   ADD_CATEGORY(pCategory::MIDI);
-  INLET_DOC(0, "pressure", "Aftertouch pressure value (also fires the output).", "0-127");
-  OUTLET_DOC(0, "midi", "Encoded MIDI Channel Pressure message.", "");
-  PARAM_DOC("channel", "0", "MIDI channel offset (0-based).", "0-15");
+  INLET_DOC(0, "pressure", "Pressure for the whole channel; sends the message.", "0-127");
+  OUTLET_DOC(0, "midi", "The channel-pressure message, for .midiout.", "");
+  PARAM_DOC("channel", "0", "MIDI channel, counted from 0: 0 is channel 1.", "0-15");
 }
 
 INT_IN(SetIntValue) {

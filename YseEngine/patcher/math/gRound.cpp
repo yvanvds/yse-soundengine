@@ -24,18 +24,15 @@ CONSTRUCT() {
   rightIn = 1.f;
   ADD_PARAM(rightIn);
 
-  ADD_DESCRIPTION("Control-rate rounding. Emits the input snapped to the nearest multiple of the "
-                  "step whenever inlet 0 fires — a step of 0.5 snaps to halves, the default step "
-                  "of 1 rounds to the nearest integer, and a step of 0 passes the input through "
-                  "unchanged. Halfway values round away from zero.");
+  ADD_DESCRIPTION("Rounds a number to the nearest multiple of the step and sends it as a float: "
+                  "a step of 1, the default, rounds to whole numbers and 0.5 to halves. Halfway "
+                  "values round away from zero; a step of 0 passes the number unchanged.");
   ADD_CATEGORY(pCategory::MATH);
-  INLET_DOC(0, "in", "Value to round — fires the evaluation.", "any float");
-  INLET_DOC(1, "step",
-            "Step to round to a multiple of — stored until the next evaluation. Zero disables "
-            "rounding.",
+  INLET_DOC(0, "in", "Number to round; sends the result.", "any float");
+  INLET_DOC(1, "step", "Step to round to, stored for the next result. 0 turns rounding off.",
             "any float");
-  OUTLET_DOC(0, "out", "The input snapped to the nearest multiple of the step.", "any float");
-  PARAM_DOC("step", "1", "Initial step. 0 passes the input through unchanged.", "any float");
+  OUTLET_DOC(0, "out", "The input rounded to the nearest multiple of the step.", "any float");
+  PARAM_DOC("step", "1", "Starting step. 0 passes numbers through unchanged.", "any float");
 }
 
 FLOAT_IN(SetLeftFloat) {

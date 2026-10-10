@@ -14,25 +14,11 @@ using namespace YSE::PATCHER;
 namespace {
 
   constexpr char kHotInletDoc[] =
-      "Starts and stops the clock, and reports where it stands. A non-zero int or float starts it, "
-      "0 stops it, and the messages 'start' and 'stop' are the same two under Max's own names. "
-      "'tempo <bpm>' sets the tempo the transport runs at, and an optional second number makes it "
-      "a glide in seconds ('tempo 140 2' reaches 140 over two seconds) — YSE's domain clocks ramp, "
-      "which is the one thing here Max's transport cannot do. A tempo sent while the transport is "
-      "stopped is remembered for the next start rather than obeyed, so setting a tempo never "
-      "starts anything. A bang reports the clock's current beat position out the left outlet and "
-      "its current tempo out the right one, right outlet first; a bang with no clock to read emits "
-      "nothing at all rather than a zero that would look like a real position. There is no 'seek' "
-      "and no bars.beats.units: a YSE domain clock is a bare beat accumulator, so 'stop' is a "
-      "pause that holds the beat where it stands and 'start' carries on from there.";
+      "A non-zero number or 'start' starts the clock; 0 or 'stop' stops it. 'tempo <bpm> "
+      "[<ramp>]' sets the tempo. A bang sends the tempo and the beat position.";
 
   constexpr char kColdInletDoc[] =
-      "Sets the tempo in BPM, which is the same value 'tempo <bpm>' sets in the left inlet — the "
-      "inlet a slider goes into. It takes effect at once while the transport is running and is "
-      "remembered for the next start while it is stopped. The glide set by 'tempo <bpm> <ramp>' "
-      "applies here too, so a transport given a ramp keeps gliding to every tempo it is handed. "
-      "Tempo is not clamped, because a domain clock's is not: 0 pauses the clock and a negative "
-      "tempo runs it backwards.";
+      "The tempo in BPM. Applied at once while running, kept for the next start while stopped.";
 
   // Read up to `max` whitespace-separated numbers out of `text` starting at
   // `from`, stopping at the first token that is not one whole finite number.
@@ -78,64 +64,27 @@ CONSTRUCT() {
   ramp = 0.f;
 
   ADD_DESCRIPTION(
-      "Controls one of YSE's named domain clocks from inside the patcher — Max's transport, and "
-      "the object that connects a patch to the engine's polytemporal clock system (issue #513). "
-      "The creation argument names the clock: '.transport main 120' controls the clock called "
-      "'main' and runs it at 120 BPM when started. That is the same clock "
-      "yse_system_create_clock / setTempo / beatPosition address from the host, the same one a "
-      "clip transport plays on, and the same one a '.metro clock main' counts its beats on — so a "
-      "patch and its host are two hands on one lever, and every object bound to that name follows "
-      "both. There is no tempo implementation here: start and stop are tempo writes onto the "
-      "engine's clock (a domain clock has no run flag — tempo 0 is what 'paused' means), and the "
-      "reported position is the clock's own beat count. Ownership is deliberate and narrow: the "
-      "object creates the named clock if nobody has yet, on the control thread when it is added to "
-      "a patcher, and creates it *stopped* so that dropping a transport into a patch never starts "
-      "anything; a clock the host already made is left exactly as it is, first registration "
-      "winning. It never destroys a clock — not on delete, not on a rename — because a remote "
-      "control that unplugged the studio clock would take every other object bound to that name "
-      "with it; teardown belongs to the host's destroyClock or System::close. A transport with no "
-      "creation argument controls nothing at all and says so by doing nothing — a bang with no "
-      "clock to read emits nothing rather than a zero that would look like a real position — and "
-      "one that is not in a patcher creates and binds nothing. "
-      "Calculate() does nothing, and no message handler allocates, locks or blocks "
-      "when it turns out to be running on the audio callback: the clock is written through the "
-      "patcher's clock bridge there, which is three atomic stores, and by name off it.");
+      "Starts, stops and sets the tempo of a named domain clock, creating the clock (stopped) if "
+      "it does not exist yet. A bang sends the clock's beat position and tempo.");
   ADD_CATEGORY(pCategory::TIME);
   INLET_DOC(0, "control", kHotInletDoc, "0 or 1, bang, 'start', 'stop', 'tempo <bpm> [<ramp>]'");
   INLET_DOC(1, "tempo", kColdInletDoc, "BPM");
-  OUTLET_DOC(0, "beat",
-             "The clock's current beat position, on bang. Beats are the running "
-             "integral of tempo, so this only ever moves forward while the tempo is "
-             "positive and holds while the clock is stopped. Nothing is emitted when "
-             "there is no clock to read.",
-             "");
+  OUTLET_DOC(0, "beat", "The clock's beat position, on bang.", "");
   OUTLET_DOC(1, "tempo",
-             "The clock's current tempo in BPM, on bang, sent before the beat "
-             "position so the pair arrives right to left as Max orders outlets. This "
-             "is the clock's tempo and not the transport's wanted one, so it shows a "
-             "ramp in progress and it shows a tempo the host changed behind the "
-             "transport's back.",
+             "The clock's tempo in BPM, on bang, sent just before the beat position. It shows a "
+             "glide in progress and changes made by the host.",
              "BPM");
   PARAM_DOC("clockname", "",
-            "The domain clock this transport controls. Clocks are addressed by name across the "
-            "whole engine, so this is the same string the host passes to createClock and the same "
-            "one a '.metro clock <name>' binds. Empty (the default) means the object controls "
-            "nothing: it creates no clock, binds nothing, and every command is a no-op. The name "
-            "is read once when the object is added to a patcher; re-pointing a transport at "
-            "another clock is a re-create, which is what keeps clock creation on the control "
-            "thread.",
+            "The domain clock to control, created when the object is added to a patcher. Empty "
+            "controls nothing.",
             "");
   PARAM_DOC("tempo", "120",
-            "The tempo in BPM the transport runs its clock at. Written to the clock on every "
-            "start and on every change while running; remembered rather than applied while "
-            "stopped. Not clamped, a domain clock's tempo not being clamped either — 0 pauses and "
-            "a negative value runs the clock backwards.",
+            "The tempo in BPM the clock runs at while started. Not clamped: a negative tempo runs "
+            "the clock backwards.",
             "BPM");
   PARAM_DOC("ramp", "0",
-            "Seconds every tempo write glides over, 0 being instant. This is domainClock's "
-            "rampable tempo, which is what lets a patch accelerando rather than jump; it applies "
-            "to a start and to any tempo change while running. A stop is always instant whatever "
-            "this says — a stop that glided to a halt would be a fade-out nobody asked for.",
+            "Seconds each start or tempo change glides over. 0 is instant. A stop is always "
+            "instant.",
             "0+ seconds");
 }
 

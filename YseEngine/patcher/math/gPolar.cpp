@@ -84,15 +84,13 @@ gCarToPol::gCarToPol()
       amplitude = std::hypot(x, y);
       angle = std::atan2(y, x);
     }) {
-  Document("Control-rate cartesian to polar conversion. Whenever inlet 0 fires it emits the polar "
-           "form of the point (x, y): its distance from the origin on outlet 0 and its angle in "
-           "radians, measured from the positive x axis, on outlet 1. Both outlets fire on every "
-           "evaluation, right one first.",
-           "x", "x coordinate — fires the evaluation.", "any float", "y",
-           "y coordinate — stored until the next evaluation.", "any float", "amplitude",
-           "Distance of (x, y) from the origin.", "0 or higher", "angle",
+  Document("Converts the point (x, y) to polar form: its distance from the origin on the left "
+           "outlet and its angle in radians on the right one.",
+           "x", "x coordinate; sends the result.", "any float", "y",
+           "y coordinate, stored for the next result.", "any float", "amplitude",
+           "Distance of (x, y) from the origin. Sent after the angle.", "0 or higher", "angle",
            "Angle of (x, y) in radians, measured from the positive x axis.", "-pi to pi",
-           "Initial y coordinate.");
+           "Starting y coordinate.");
 }
 
 gPolToCar::gPolToCar()
@@ -100,13 +98,10 @@ gPolToCar::gPolToCar()
       x = amplitude * std::cos(angle);
       y = amplitude * std::sin(angle);
     }) {
-  Document("Control-rate polar to cartesian conversion. Whenever inlet 0 fires it emits the "
-           "cartesian form of the polar point (amplitude, angle): the x coordinate on outlet 0 and "
-           "the y coordinate on outlet 1. The inverse of .cartopol, so feeding one into the other "
-           "returns the original pair. Both outlets fire on every evaluation, right one first.",
-           "amplitude", "Distance from the origin — fires the evaluation.", "any float", "angle",
-           "Angle in radians, measured from the positive x axis — stored until the next "
-           "evaluation.",
-           "any float", "x", "x coordinate of the point.", "any float", "y",
-           "y coordinate of the point.", "any float", "Initial angle in radians.");
+  Document("Converts a polar point, a distance from the origin and an angle in radians, to its x "
+           "and y coordinates. The inverse of .cartopol.",
+           "amplitude", "Distance from the origin; sends the result.", "any float", "angle",
+           "Angle in radians from the positive x axis, stored for the next result.", "any float",
+           "x", "x coordinate of the point. Sent after y.", "any float", "y",
+           "y coordinate of the point.", "any float", "Starting angle in radians.");
 }

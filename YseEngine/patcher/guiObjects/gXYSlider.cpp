@@ -55,33 +55,21 @@ CONSTRUCT() {
 
   listText.reserve(LIST_CAPACITY);
 
-  ADD_DESCRIPTION(
-      "Two-dimensional control pad: one control holding two correlated axes, so a cutoff against "
-      "a resonance, two FM ratios or a morph coordinate move as one gesture rather than as two "
-      "sliders that happen to be neighbours. A float or int on the left inlet sets x and emits; "
-      "the right inlet sets y and stores silently; a list on the left inlet sets both axes at "
-      "once, as a bang re-sends them. Cell 0 is always x and cell 1 always y - a position is "
-      "never sorted. Each axis is clamped into its own minimum-maximum pair, x leaves outlet 0, "
-      "y outlet 1 and the pair leaves outlet 2 as a two-element list - exactly the cursor "
-      "message .nodes takes. The three fire right to left. The GUI value is the two axes as "
-      "cells (issue #551): \"x y\" as a whole, and inlet 0 takes that string back verbatim or "
-      "\"set <index> <value>\" to move one axis.");
+  ADD_DESCRIPTION("A two-dimensional pad holding an x and a y, each inside its own bounds, so two "
+                  "parameters move as one gesture. It sends x, y and the pair as a list.");
   ADD_CATEGORY(pCategory::GUI);
   INLET_DOC(0, "x/position",
-            "A float or int sets the x axis; a list sets both axes from its first two numbers "
-            "(\"x y\"); \"set <index> <value>\" moves one axis (0 is x, 1 is y); a bang "
-            "re-sends. Everything here emits.",
+            "A number sets x; a list 'x y' sets both; 'set <0|1> <value>' sets x or y; a bang "
+            "sends again. Everything here sends.",
             "xminimum-xmaximum");
-  INLET_DOC(1, "y", "Sets the y axis and stores it without sending anything out.",
-            "yminimum-ymaximum");
-  OUTLET_DOC(0, "x", "The x axis. Sent last, after outlets 2 and 1.", "xminimum-xmaximum");
-  OUTLET_DOC(1, "y", "The y axis.", "yminimum-ymaximum");
-  OUTLET_DOC(2, "position", "Both axes as a two-element list, x first. Sent first.",
-             "per-axis bounds");
-  PARAM_DOC("xminimum", "0", "Lowest value the x axis can reach.", "any float");
-  PARAM_DOC("xmaximum", "127", "Highest value the x axis can reach.", "any float");
-  PARAM_DOC("yminimum", "0", "Lowest value the y axis can reach.", "any float");
-  PARAM_DOC("ymaximum", "127", "Highest value the y axis can reach.", "any float");
+  INLET_DOC(1, "y", "Sets y without sending.", "yminimum-ymaximum");
+  OUTLET_DOC(0, "x", "The x value. Sent last.", "xminimum-xmaximum");
+  OUTLET_DOC(1, "y", "The y value.", "yminimum-ymaximum");
+  OUTLET_DOC(2, "position", "Both values as the list 'x y'. Sent first.", "per-axis bounds");
+  PARAM_DOC("xminimum", "0", "The lowest value of x.", "any float");
+  PARAM_DOC("xmaximum", "127", "The highest value of x.", "any float");
+  PARAM_DOC("yminimum", "0", "The lowest value of y.", "any float");
+  PARAM_DOC("ymaximum", "127", "The highest value of y.", "any float");
 }
 
 float gXYSlider::Bound(float value, float boundA, float boundB) {

@@ -54,36 +54,20 @@ namespace {
   }
 
   constexpr char kControlDoc[] =
-      "The connection inlet, and the one inlet nothing is routed from. A list of three numbers is "
-      "'an inlet number, an outlet number, and a 0 or 1 specifying the state of a connection', "
-      "with any non-zero state connecting. 'connect <inlet> <outlet>' and 'disconnect <inlet> "
-      "<outlet>' name the same cell in words; 'patch <inlet> <outlet>' connects it and disconnects "
-      "every other inlet from that outlet, making the outlet's source exclusive in one message; "
-      "'clear' disconnects everything; 'dump' sends the whole matrix out the rightmost outlet. "
-      "Inlet numbers count the routable inlets from 0, so 'connect 0 0' addresses the inlet "
-      "immediately to the right of this one. A number naming a port the object does not have, and "
-      "a message that is not one of these forms, are ignored. 'print' is accepted and does nothing "
-      "— the patcher is headless and has no Max Console; 'dump' is the question a patch can read "
-      "the answer to.";
+      "Sets the connections: '<inlet> <outlet> <0/1>', 'connect <inlet> <outlet>', 'disconnect "
+      "<inlet> <outlet>', 'patch <inlet> <outlet>', 'clear' and 'dump'. Inlets and outlets count "
+      "from 0, starting at the first data inlet.";
 
   constexpr char kDataInletDoc[] =
-      "A bang, int, float, list or symbol arriving here is sent, unchanged, out every outlet this "
-      "inlet is currently connected to — none, one, or all of them — in Max's universal "
-      "right-to-left order. Nothing is routed until the control inlet says so, and nothing about "
-      "the message itself selects a destination: the routing is the object's state, which is what "
-      "lets a destination change without the source knowing. Message words are not interpreted "
-      "here, so 'connect 0 1' arriving at this inlet is data to forward and not a method call.";
+      "A message here goes out, unchanged, every outlet this inlet is connected to, right to "
+      "left.";
 
   constexpr char kDataOutletDoc[] =
-      "Whatever arrived at any inlet currently connected to this outlet, forwarded with its kind "
-      "and spelling intact — the object switches, it does not convert. Several inlets may reach "
-      "this outlet at once, in which case each of them sends here independently.";
+      "Messages from every inlet connected to this outlet, unchanged.";
 
   constexpr char kDumpOutletDoc[] =
-      "The switching matrix, in answer to a 'dump' on the control inlet: one list per cell, in the "
-      "form '<inlet> <outlet> <state>', ascending by inlet and then by outlet, so a patch can read "
-      "the whole routing back out and store it. Silent otherwise — no routed message ever leaves "
-      "here. A dump requested while one is already running is ignored rather than nested.";
+      "The answer to 'dump': one '<inlet> <outlet> <state>' list for every inlet and outlet "
+      "pair.";
 
 } // namespace
 
@@ -102,82 +86,11 @@ CONSTRUCT() {
   ShapePorts();
 
   ADD_DESCRIPTION(
-      "A message crossbar whose connections are set by messages rather than by patch cords — Max's "
-      "router, where 'any message received in any but the leftmost inlet will be routed to the "
-      "outlet to which the inlet is currently connected'. A switching matrix, and the point of it "
-      "is when the switching happens: every other way of getting a message from source i to "
-      "destination j fixes the answer at edit time, and in this patcher changing a patch cord "
-      "means "
-      "a whole GraphState rebuilt on the control thread and published between audio blocks, while "
-      "a "
-      ".router connection change is one message that writes one byte into a table the object "
-      "already owns and takes effect on the next message through. That is what makes 'rewire this "
-      "while it runs' something a patch can do to itself — from a .metro, a .sel or a preset — "
-      "rather than something only an editor can do to a patch. And it is many-to-many: several "
-      "inlets may reach the same outlet, one inlet may reach several outlets, and both hold at "
-      "once, because the state is a full inlet-by-outlet matrix and not a selection. That is the "
-      "difference from the rest of the routing family. It is not .gate, which routes one inlet to "
-      "one of N outlets chosen by a number arriving as data on the same event being routed, nor "
-      ".switch, which is .gate's N-to-one mirror; neither can express 'inlet 1 reaches outlets 0 "
-      "and 3 while inlet 2 also reaches outlet 3', which is one message here. It is not .spray, "
-      "which addresses numbered outlets from an index riding in the message and holds no routing "
-      "state at all — here the message carries nothing but itself, so a source needs to know "
-      "nothing about where it is going, which is precisely what lets the destination be changed "
-      "without touching the source. It is not .decode, which also speaks on every outlet but "
-      "speaks "
-      "its own 1s and 0s describing a selection, where this forwards and the values are the "
-      "patch's. And it is not .funnel, the degenerate one-column case plus a tag; the tag is "
-      "exactly what a crossbar must not add, since one that rewrote what passed through it would "
-      "not be transparent to swap in. The leftmost inlet is not routable — Max scopes every routed "
-      "method to 'any but the leftmost inlet' — so the object has one more inlet than asked for "
-      "and "
-      "the extra one takes the connection messages, accepting a list and declining bang, int and "
-      "float outright the way .decode and .spray decline what Max does not document. Inlet numbers "
-      "in those messages count the routable inlets from 0, so 'connect 0 0' addresses the inlet "
-      "immediately right of the control inlet; numbering from the physical inlet 0 would make "
-      "'connect 0 x' name an inlet no message can pass through. Symmetrically there is one more "
-      "outlet than asked for, the rightmost, which carries nothing but the answer to dump. Four "
-      "spellings set a connection, all of them Max's: the bare list '<inlet> <outlet> <state>', "
-      "the "
-      "form a patch computes, with any non-zero state connecting; 'connect' and 'disconnect' "
-      "naming "
-      "the same cell in words, of which Max says 'multiple inlets can be connected to multiple "
-      "outlets, and vice versa'; 'patch <inlet> <outlet>', which 'connects an inlet to an outlet "
-      "and disconnects all other inlets that are currently connected to that outlet' and is the "
-      "one "
-      "column operation — it makes an outlet's source exclusive in a single message, where two "
-      "messages would leave a moment with two sources or none; and 'clear', after which 'all "
-      "inlets "
-      "are disconnected from all outlets'. A number naming a port the object does not have is "
-      "ignored, and so is a malformed message: .gate's, .spray's and .decode's discipline, since "
-      "folding a bad index onto a real port would hide a miscount at the object best placed to "
-      "expose it. dump 'sends the state of the object's switching matrix out the right outlet as a "
-      "series of single line lists in the form inlet-number outlet-number state' — every cell, "
-      "ascending by inlet then by outlet, so the routing is recoverable by a patch and not merely "
-      "by a person, which is the only way state that lives in messages rather than in the file can "
-      "be saved at all. A dump requested while one is running is ignored rather than nested, since "
-      "a dump line fed back into the control inlet would otherwise start a full dump inside every "
-      "line of the one already running. print is accepted and does nothing: it targets the Max "
-      "Console, an application window this headless patcher does not have, and the engine's own "
-      "log "
-      "is not a substitute because no patcher object logs from a message handler — a handler runs "
-      "on whichever thread sent the message, and that may be the audio thread. At most 256 "
-      "routable "
-      "inlets and 256 routable outlets, built once before the object is published. Calculate() "
-      "does "
-      "nothing, and no message path allocates, locks or blocks: routing reads one row and sends, a "
-      "connection message writes one byte, and the row is snapshotted onto the stack before the "
-      "first send so a patch looping an outlet back into the control inlet cannot deliver one "
-      "message under two different routings.");
+      "Routes messages from its data inlets to its outlets, unchanged, as set by connection "
+      "messages. Any inlet can reach any number of outlets, and the routing can change while the "
+      "patch runs.");
   ADD_CATEGORY(pCategory::ROUTING);
-  PARAM_DOC("inlets", "2",
-            "Max's argument list, in Max's order: how many routable inlets to build, then how many "
-            "routable outlets. Each is clamped to 1-256 and defaults to 2 — Max documents both as "
-            "optional and states no default, so the family's is used. The object builds one inlet "
-            "and one outlet more than these, for the connection messages and for dump. A float is "
-            "truncated; anything that is not a whole finite number is ignored and leaves that "
-            "default in place. The connections themselves are not parameters and do not survive a "
-            "save — 'dump' is how a patch reads them back.",
+  PARAM_DOC("inlets", "2", "How many data inlets, then how many data outlets (2 each by default).",
             "1-256, optional outlets 1-256");
 }
 

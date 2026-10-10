@@ -45,37 +45,19 @@ CONSTRUCT() {
 
   ResizeStorage();
 
-  ADD_DESCRIPTION(
-      "Evaluates a C-like mathematical expression once for every element of a list, so one object "
-      "replaces an iteration loop: scaling a chord, transposing a motif or bending a set of "
-      "breakpoints becomes a single box. The expression is the creation argument and the language "
-      "is exactly .expr's - its $i1-$i9 and $f1-$f9 placeholders name the inlets ($i reads as an "
-      "int, $f as a float), the object gets one inlet past the highest placeholder used, and the "
-      "operators, the functions and the C type rules are the same, so read .expr for the details. "
-      "The difference is the data: every inlet holds a list rather than a single value, and an int "
-      "or a float is simply a one-item list. An inlet holding one item is broadcast across all the "
-      "elements (Max's scalarmode 1), so a list on one inlet and a number on another scales the "
-      "list; otherwise the number of results is the length of the shortest list among the inlets "
-      "the expression actually reads. Inlet 0 is hot: it stores its list and evaluates, while the "
-      "other inlets only store. A bang on inlet 0 re-evaluates from the stored lists. A single "
-      "result is sent as an int or a float, and a longer one as a list. Lists are held at up to "
-      "256 items per inlet (Max's default maxsize) and anything past that is dropped. The "
-      "expression is compiled once, when the parameter is set; evaluation only walks the compiled "
-      "form and writes into a buffer reserved up front, so it allocates nothing and takes no lock. "
-      "A malformed expression is reported to the log at parse time and the object then sends 0.");
+  ADD_DESCRIPTION("Evaluates an expression for every item of a list, as .expr does for single "
+                  "numbers, and sends the results as a list. A single number on an inlet is used "
+                  "for every item.");
   ADD_CATEGORY(pCategory::MATH);
   INLET_DOC(0, kInletLabels[0],
-            "List for the $i1 / $f1 placeholders — stores and fires the evaluation. An int or a "
-            "float is stored as a one-item list, which is then broadcast across every element. "
-            "Also accepts a bang, which re-evaluates from the stored lists.",
+            "List for $i1 and $f1; sends the results. A single number counts as a one-item list. "
+            "Bang: calculate again.",
             "any list of floats");
-  OUTLET_DOC(0, "out",
-             "One result per element. A single result is sent as an int or a float following the "
-             "expression's type; two or more are sent as a list.",
+  OUTLET_DOC(0, "out", "One result per item, as a list; a single result as an int or a float.",
              "any list of floats");
   PARAM_DOC("expression", "",
-            "The expression to evaluate for every element, e.g. \"$f1 * $f2\". Placeholders "
-            "$i1-$i9 and $f1-$f9 name the inlets and determine how many there are.",
+            "The expression to evaluate for every item, for example \"$f1 * $f2\". Its "
+            "placeholders decide how many inlets there are.",
             "any expression");
 }
 
@@ -129,8 +111,8 @@ PARM_PARSE() {
     REG_LIST_IN(SetList);
     inputs.back().SetDoc(kInletLabels[index],
                          program.UsesInlet((int)index)
-                             ? "List for the $i / $f placeholders with this index — stored until "
-                               "the next evaluation, and broadcast when it holds a single item."
+                             ? "List for the $i and $f placeholders with this number, stored for "
+                               "the next result. A single number is used for every item."
                              : "Unused by the current expression; it exists so the inlets to its "
                                "right keep their numbering.",
                          "any list of floats");

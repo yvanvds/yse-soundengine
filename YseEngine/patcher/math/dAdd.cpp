@@ -26,13 +26,12 @@ CONSTRUCT_DSP() {
 
   ADD_PARAM(rightFloatIn);
 
-  ADD_DESCRIPTION("Audio-rate add. Sums the left buffer with either the right buffer (audio-rate) "
-                  "or the right float (control-rate).");
+  ADD_DESCRIPTION("Adds two audio signals, or adds a float to an audio signal.");
   ADD_CATEGORY(pCategory::MATH);
-  INLET_DOC(0, "left", "Left operand — audio buffer.", "any float");
-  INLET_DOC(1, "right", "Right operand — audio buffer or float.", "any float");
+  INLET_DOC(0, "left", "Audio signal.", "any float");
+  INLET_DOC(1, "right", "Audio signal, or a float used while no audio is connected.", "any float");
   OUTLET_DOC(0, "out", "left + right.", "any float");
-  PARAM_DOC("right", "1.0", "Initial right-operand float (used until a buffer arrives on inlet 1).",
+  PARAM_DOC("right", "1.0", "Float used while no audio is connected to the right inlet.",
             "any float");
 }
 

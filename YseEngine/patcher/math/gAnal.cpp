@@ -25,41 +25,19 @@ CONSTRUCT() {
   ADD_PARAM(limit);
   REG_PARM_PARSE;
 
-  ADD_DESCRIPTION(
-      "Transition histogram — counts which number follows which. Every number received is counted "
-      "as a pair with the number before it, and the running count of that pair comes out as the "
-      "list '<previous> <current> <count>'. That is exactly the list .prob stores a transition "
-      "from, so a patch cord from this outlet into a .prob is the whole integration: play a phrase "
-      "in here and the .prob on the other end has learned its first-order style and will improvise "
-      "in it. The two agree because .anal accumulates the count and .prob replaces the weight with "
-      "it, so re-sending a growing pair never double-counts. The first number received has no "
-      "predecessor and is only remembered. Inputs are clipped into [0, limit], which is why the "
-      "limit defaults to 128 — a MIDI note number arrives unchanged. 'clear' forgets the counts "
-      "but "
-      "keeps the last number as the next pair's predecessor, 'reset' does the opposite, and 'dump' "
-      "sends every stored pair out outlet 0 so a table learned earlier can be replayed into a "
-      ".prob "
-      "created later. The table holds 1024 distinct pairs: once it is full, pairs already in it "
-      "keep "
-      "counting and a new one is dropped with a bang on outlet 1 rather than evicting somebody "
-      "else's statistics or reporting a count that no input produced.");
+  ADD_DESCRIPTION("Counts how often each number follows the one before it, and sends '<previous> "
+                  "<current> <count>' for every pair it counts. Wire it into .prob to make .prob "
+                  "play in the style of what it heard.");
   ADD_CATEGORY(pCategory::MATH);
   INLET_DOC(0, "in",
-            "Int or float to add the next number of the stream / list 'clear' to forget the "
-            "counted pairs but keep the last number / list 'reset' to forget the last number but "
-            "keep the counts / list 'dump' to send every stored pair out outlet 0.",
+            "Number: count it as following the previous number. 'clear': forget the counts. "
+            "'reset': forget the previous number. 'dump': send every stored pair.",
             "0 to limit");
-  OUTLET_DOC(0, "pair",
-             "'<previous> <current> <count>' — how often this succession has been seen. Silent for "
-             "the first number, and for a new pair that no longer fits the table.",
-             "");
+  OUTLET_DOC(0, "pair", "'<previous> <current> <count>': how often this pair has been seen.", "");
   OUTLET_DOC(1, "full",
-             "Bangs when a pair could not be counted because the table already holds its 1024 "
-             "distinct pairs.",
-             "");
+             "Bang when a new pair cannot be stored because 1024 different pairs already are.", "");
   PARAM_DOC("limit", "128",
-            "Top of the input range; incoming numbers are clipped into [0, limit]. Clamped to "
-            "1-16384.",
+            "Highest number accepted; numbers are limited to 0 to limit. Clamped to 1-16384.",
             "1-16384");
 }
 

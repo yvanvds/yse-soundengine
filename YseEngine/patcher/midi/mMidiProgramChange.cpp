@@ -15,12 +15,12 @@ CONSTRUCT() {
 
   channel = cvalue = 0;
 
-  ADD_DESCRIPTION("MIDI Program Change message generator. Emits a status/program packet on every "
-                  "value change.");
+  ADD_DESCRIPTION("Builds a MIDI program-change message for .midiout. Each program number on the "
+                  "inlet, 0-127 as on the wire, sends one message.");
   ADD_CATEGORY(pCategory::MIDI);
-  INLET_DOC(0, "program", "Program number (also fires the output).", "0-127");
-  OUTLET_DOC(0, "midi", "Encoded MIDI Program Change message.", "");
-  PARAM_DOC("channel", "0", "MIDI channel offset (0-based).", "0-15");
+  INLET_DOC(0, "program", "Program number as on the wire, from 0; sends the message.", "0-127");
+  OUTLET_DOC(0, "midi", "The program-change message, for .midiout.", "");
+  PARAM_DOC("channel", "0", "MIDI channel, counted from 0: 0 is channel 1.", "0-15");
 }
 
 INT_IN(SetIntValue) {

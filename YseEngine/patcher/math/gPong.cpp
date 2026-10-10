@@ -69,25 +69,17 @@ CONSTRUCT() {
   high = 1.f;
   mode = MODE_FOLD;
 
-  ADD_DESCRIPTION(
-      "Control-rate range limiting by folding or wrapping. Keeps the value on inlet 0 inside the "
-      "[low, high] range and emits it as a float. Where .clip flattens an out-of-range value "
-      "against the boundary, .pong reflects it back into the range (mode 3, fold, the default) or "
-      "carries it around to the other side (mode 2, wrap) — the object to reach for when "
-      "generative material has to stay in a register without collapsing onto the boundary, or when "
-      "a counter has to behave like a phase. Mode 1 clips and mode 0 passes the value through "
-      "unchanged. Limits given the wrong way round (low above high) are treated as an ordered pair "
-      "and still fold against the right two numbers, and in every mode but 0 nothing non-finite "
-      "can leave the object: the result is always inside the range.");
+  ADD_DESCRIPTION("Keeps a number inside the range low to high by folding it back from the "
+                  "limits, the default, by wrapping it around to the other side, or by clipping "
+                  "it. Sends the result as a float.");
   ADD_CATEGORY(pCategory::MATH);
-  INLET_DOC(0, "value", "Value to limit — fires the evaluation.", "any float");
-  INLET_DOC(1, "low", "Lower limit — stored until the next evaluation.", "any float");
-  INLET_DOC(2, "high", "Upper limit — stored until the next evaluation.", "any float");
-  OUTLET_DOC(0, "out", "The input value folded, wrapped or clipped into [low, high].",
-             "low to high");
+  INLET_DOC(0, "value", "Number to keep in range; sends the result.", "any float");
+  INLET_DOC(1, "low", "Lower limit, stored for the next result.", "any float");
+  INLET_DOC(2, "high", "Upper limit, stored for the next result.", "any float");
+  OUTLET_DOC(0, "out", "The number folded, wrapped or clipped into the range.", "low to high");
   PARAM_DOC("low", "-1", "Lower limit.", "any float");
   PARAM_DOC("high", "1", "Upper limit.", "any float");
-  PARAM_DOC("mode", "3", "0 none (pass through), 1 clip, 2 wrap, 3 fold.", "0 to 3");
+  PARAM_DOC("mode", "3", "0 passes numbers through, 1 clips, 2 wraps, 3 folds.", "0 to 3");
 }
 
 void gPong::Store(float value, int inlet) {

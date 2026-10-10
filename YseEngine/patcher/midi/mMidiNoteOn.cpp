@@ -18,13 +18,13 @@ CONSTRUCT() {
 
   channel = pitch = velocity = 0;
 
-  ADD_DESCRIPTION("MIDI Note-On message generator. Inlet 0 fires the message; emits a 3-byte "
-                  "status/pitch/velocity packet as a list.");
+  ADD_DESCRIPTION("Builds a MIDI note-on message for .midiout. A pitch on the left inlet sends it, "
+                  "with the velocity stored on the right inlet; velocity 0 is a release.");
   ADD_CATEGORY(pCategory::MIDI);
-  INLET_DOC(0, "pitch", "MIDI note number (also fires the output).", "0-127");
-  INLET_DOC(1, "velocity", "Note velocity (stored until next pitch).", "0-127");
-  OUTLET_DOC(0, "midi", "Encoded MIDI Note-On message (status, pitch, velocity).", "");
-  PARAM_DOC("channel", "0", "MIDI channel offset (0-based).", "0-15");
+  INLET_DOC(0, "pitch", "Note number; sends the message.", "0-127");
+  INLET_DOC(1, "velocity", "Note velocity, stored for the next pitch.", "0-127");
+  OUTLET_DOC(0, "midi", "The note-on message, for .midiout.", "");
+  PARAM_DOC("channel", "0", "MIDI channel, counted from 0: 0 is channel 1.", "0-15");
 }
 
 INT_IN(SetIntPitch) {

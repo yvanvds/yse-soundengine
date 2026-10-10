@@ -14,33 +14,14 @@ namespace {
   // that the constructor stops being readable with them inline — gArray's
   // arrangement.
   constexpr char kTriggerInletDoc[] =
-      "A bang walks the bound array: one send per element out the element outlet, first to "
-      "last, each typed the way the patcher spells it, then one bang out the done outlet. "
-      "\"array <name>\" does the same when it names the array bound by the creation argument — "
-      "the message an .array's reference outlet emits on a bang, so wiring that outlet here "
-      "gives the family's gesture. A reference naming anything else, any other message, or a "
-      "trigger arriving while a walk is already running — a cord looped back from an outlet, or "
-      "another thread — is refused and counted rather than logged, since this inlet may be the "
-      "audio thread.";
+      "Bang, or the bound array's reference \"array <name>\": send every element, then bang the "
+      "done outlet. A trigger that arrives while the elements are being sent is refused.";
   constexpr char kReferenceInletDoc[] =
-      "\"array <name>\" is accepted silently when it names the array bound by the creation "
-      "argument, so a patch may wire the array's reference outlet across without triggering a "
-      "walk. It sets nothing — the binding is the creation argument, resolved on the control "
-      "thread — and anything else is refused and counted.";
+      "Accepts the bound array's reference \"array <name>\" and ignores it, so the array's "
+      "reference outlet can be wired here. Anything else is refused.";
   constexpr char kElementOutletDoc[] =
-      "One element per send, first to last, typed the way the patcher spells it: a numeric "
-      "element leaves as an int or a float by its spelling and anything else as a symbol, so "
-      "each reaches the inlets an uncollected value would have reached. The walk is a snapshot "
-      "of the array as it stood at the trigger, so an insert or remove arriving mid-walk — "
-      "including from this outlet's own subgraph — renumbers the array but not the walk in "
-      "flight: every element held at the trigger is emitted exactly once. Each send completes "
-      "in full, the whole subgraph behind this outlet, before the next element leaves — up to "
-      "256 sends per trigger, on whichever thread sent it.";
-  constexpr char kDoneOutletDoc[] =
-      "Bang after the last element — 'all the elements have been sent', the exception to "
-      "right-to-left that Max states for uzi's carry. It fires even for an empty or unnamed "
-      "(private) array, so the 'and afterwards, do this' branch is never silently skipped; a "
-      "refused walk emits no done bang.";
+      "One element per message, first to last, as an int, float or symbol by its spelling.";
+  constexpr char kDoneOutletDoc[] = "Bang after the last element, also when the array is empty.";
 
 } // namespace
 
@@ -68,30 +49,17 @@ gArrayIter::gArrayIter() : gArrayEndsBase() {
   AtomList::ReserveRender(emitScratch);
 
   ADD_DESCRIPTION(
-      "Outputs an array's elements one at a time — Max's array.iter on the name-addressed "
-      "value model .array settled: the array is bound from the creation argument, \".array.iter "
-      "<name>\", because an array is addressed by name and never passed down a cord. A bang, or "
-      "the array's reference message \"array <name>\", emits every element in order out the "
-      "element outlet — one send per element, each typed the way the patcher spells it, so a "
-      "numeric element reaches the inlets an uncollected value would have reached — then a bang "
-      "out the done outlet: the .uzi/.iter shape applied to stored data, and the object every "
-      "'do this for each element' patch is built from. The walk is a snapshot of the array as "
-      "it stood at the trigger: an insert or remove arriving mid-walk renumbers the array but "
-      "never the walk in flight — every element held at the trigger is emitted exactly once — "
-      "and two .array.iter on one name walk independently, each over its own snapshot. A "
-      "trigger arriving mid-walk is refused and counted, as .uzi refuses a re-entrant start.");
+      "Sends the elements of a named array one at a time, first to last, then bangs its done "
+      "outlet. Use it to do something for each element.");
   ADD_CATEGORY(pCategory::ARRAY);
   INLET_DOC(0, "trigger", kTriggerInletDoc, "");
   INLET_DOC(1, "array reference", kReferenceInletDoc, "");
   OUTLET_DOC(0, "element", kElementOutletDoc, "");
   OUTLET_DOC(1, "done", kDoneOutletDoc, "");
-  PARAM_DOC(
-      "name", "",
-      "The array's shared name, addressed as \"patcher.<patcherName>.<name>\" — the sequence an "
-      ".array of the same name in this patcher holds. Resolved once, on the control "
-      "thread, which is why no message re-points it at run time. Empty walks a private, "
-      "empty array: no elements, just the done bang.",
-      "any identifier");
+  PARAM_DOC("name", "",
+            "Name of the array to use: the .array with this name in the same patcher. Empty "
+            "uses a private, empty array.",
+            "any identifier");
 }
 
 // ─── messages ─────────────────────────────────────────────────────────────────

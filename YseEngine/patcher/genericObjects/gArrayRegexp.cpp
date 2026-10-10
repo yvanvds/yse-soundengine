@@ -15,45 +15,21 @@ namespace {
   // that the constructor stops being readable with them inline — gArray's
   // arrangement.
   constexpr char kTriggerInletDoc[] =
-      "A bang matches every element of the bound array against the pattern and sends the "
-      "matched ones as one typed message out the matched outlet — or bangs the no-match outlet "
-      "when nothing matched. \"array <name>\" does the same when it names the array bound by "
-      "the creation argument — the message an .array's reference outlet emits on a bang, so "
-      "wiring that outlet here gives the family's gesture. A reference naming anything else, "
-      "any other message, or a trigger on an object whose pattern is absent or did not compile, "
-      "is refused and counted rather than logged, since this inlet may be the audio thread.";
+      "Bang, or the bound array's reference \"array <name>\": match every element against the "
+      "pattern. Refused when the pattern is missing or did not compile.";
   constexpr char kReferenceInletDoc[] =
-      "\"array <name>\" is accepted silently when it names the array bound by the creation "
-      "argument, so a patch may wire the array's reference outlet across. It sets nothing — the "
-      "binding is the creation argument, resolved on the control thread — and anything else is "
-      "refused and counted.";
+      "Accepts the bound array's reference \"array <name>\" and ignores it, so the array's "
+      "reference outlet can be wired here. Anything else is refused.";
   constexpr char kMatchedOutletDoc[] =
-      "The elements the pattern matched, as one typed message — order kept, repeats kept, one "
-      "match leaving as the int, float or symbol it spells and several as one list, SendAtoms' "
-      "rule. The answer is the array as it stood at the trigger: the whole scan is one hold of "
-      "the store's guard, and the send happens after it is released. A matched list is an "
-      "answer about membership, so it never leaves as a fragment of itself: one that cannot "
-      "leave whole (past what a cord carries), a scan that ran out of matching budget, and a "
-      "lost try-lock each refuse the whole ask, counted, nothing sent on either outlet.";
-  constexpr char kNoMatchOutletDoc[] =
-      "Bang when the ask landed and nothing matched — an empty or unnamed (private) array "
-      "included. \"No data\" is a state a patch must be able to route on, not an error — "
-      ".array.sect's empty outlet, for .array.sect's reason. A refused ask is a counted "
-      "refusal instead: neither outlet fires.";
+      "The matching elements, in order, as one list; a single match leaves as an int, float or "
+      "symbol.";
+  constexpr char kNoMatchOutletDoc[] = "Bang when no element matches, or the array is empty.";
   constexpr char kNameParamDoc[] =
-      "The array's shared name, addressed as \"patcher.<patcherName>.<name>\" — the sequence an "
-      ".array "
-      "of the same name in this patcher holds. Resolved once, on the control thread, which is "
-      "why no message re-points it at run time. Empty matches over a private, empty array: "
-      "always the no-match bang.";
+      "Name of the array to search: the .array with this name in the same patcher. Empty "
+      "searches a private, empty array.";
   constexpr char kPatternParamDoc[] =
-      "The regular expression, as one token — write \\s or \\x20 rather than a literal space, "
-      "which the parameter tokenizer would eat. The language is .regexp's: a PCRE-flavoured "
-      "core with classes, shorthands, anchors, quantifiers, alternation and groups, compiled "
-      "once on the control thread by the same bounded engine — read .regexp for the full "
-      "grammar and what it rejects. An element matches when the pattern matches anywhere in "
-      "it; anchor with ^ and $ for a whole-element match. A malformed pattern is reported to "
-      "the log when the parameter is set, and the object then refuses every trigger, counted.";
+      "The regular expression, as one word in .regexp syntax; write \\s for a space. A "
+      "malformed pattern is logged and the object then does nothing.";
 
 } // namespace
 
@@ -81,25 +57,8 @@ gArrayRegexp::gArrayRegexp() : gArrayEndsBase() {
   AtomList::ReserveRender(emitScratch);
 
   ADD_DESCRIPTION(
-      "Keeps the elements of an array a regular expression matches — issue #803's reading of "
-      "Max's array.regexp on the name-addressed value model .array settled: the array is bound "
-      "from the creation argument, \".array.regexp <name> <pattern>\", because an array is "
-      "addressed by name and never passed down a cord, and the pattern is one token, compiled "
-      "once on the control thread by .regexp's own bounded engine — read .regexp for the "
-      "grammar; no std::regex, which allocates, throws and backtracks without limit at match "
-      "time. A bang, or the array's reference message \"array <name>\", matches every element "
-      "as the text that spells it — the pattern matches anywhere in the element, so anchor "
-      "with ^ and $ for a whole-element match — and sends the matched ones as one typed "
-      "message, order kept, repeats kept; when nothing matched, the no-match outlet bangs "
-      "instead. The text filter .array.filter cannot be, since its expression never sees a "
-      "symbol; the per-element reporting — matched substrings, capture groups, substitution — "
-      "is deliberately .regexp's job, already composable as .array.iter into .regexp, where "
-      "Max's own array.regexp treats the array as one subject buffer, a byte-level operation "
-      "the value model does not have. The whole scan is one hold of the store's guard with a "
-      "step budget shared across every element, and the answer never leaves as a fragment of "
-      "itself: a matched list past what a cord carries, a scan that ran out of budget, and a "
-      "lost try-lock each refuse the whole ask, counted. A malformed pattern is reported when "
-      "the parameter is set and the object then refuses every trigger.");
+      "Outputs the elements of a named array that match a regular expression, as one list. "
+      "When nothing matches, the right outlet bangs. The array itself is not changed.");
   ADD_CATEGORY(pCategory::ARRAY);
   INLET_DOC(0, "trigger", kTriggerInletDoc, "");
   INLET_DOC(1, "array reference", kReferenceInletDoc, "");

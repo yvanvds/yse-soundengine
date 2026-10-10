@@ -25,34 +25,18 @@ namespace {
   // Doc strings, hoisted out of the constructor because they are long enough
   // that it stops being readable with them inline — gArray's arrangement.
   constexpr char kIndexInletDoc[] =
-      "An int fetches the element at that position modulo the array's length and stores the "
-      "index; a bang re-fetches at the stored index; a float truncates to an int first — Max's "
-      "float method. A negative index counts from the end — -1 the last element — and keeps "
-      "wrapping past that; where .array.at refuses a negative, here it is the point. A list of "
-      "indices fetches them all as one list, in the order asked, every position wrapped "
-      "independently, and never moves the stored index. \"array <name>\" fetches at the stored "
-      "index when it names the array bound by the first creation argument — the message an "
-      ".array's reference outlet emits on a bang, so wiring that outlet here gives the family's "
-      "gesture. A non-finite float, a list with anything in it that is not an integer, a "
-      "reference naming anything else, or any other message is refused and counted rather than "
-      "logged, since this inlet may be the audio thread.";
+      "An int fetches the element at that position, wrapped around the array's length, and "
+      "remembers the position; a bang fetches at the remembered position, and so does the bound "
+      "array's reference. A list of positions fetches them all at once. A float is truncated.";
   constexpr char kReferenceInletDoc[] =
-      "\"array <name>\" is accepted silently when it names the array bound by the first "
-      "creation argument, so a patch may wire the array's reference outlet across. It sets "
-      "nothing — the binding is the creation argument, resolved on the control thread — and "
-      "anything else is refused and counted.";
+      "Accepts the bound array's reference \"array <name>\" and ignores it, so the array's "
+      "reference outlet can be wired here. Anything else is refused.";
   constexpr char kElementDoc[] =
-      "The fetched element, typed the way the patcher spells it: a numeric element leaves as an "
-      "int or a float by its spelling and anything else as a symbol. A list of indices leaves "
-      "as one list of the named elements, in the order asked — every position wrapped against "
-      "the length and read under one hold of the store's guard, so the reply is the array as it "
-      "stood at the trigger.";
+      "The element, as an int, float or symbol by its spelling. A list of positions gives one "
+      "list, in the order asked.";
   constexpr char kEmptyDoc[] =
-      "Bang when a fetch finds the array empty — there is nothing to wrap onto: a modulus of "
-      "zero names no position, so the miss the wrapping removed everywhere else survives "
-      "exactly here. An unnamed (private) array is always empty. One bang even for a list "
-      "fetch — no partial reply. A lost try-lock is a counted refusal instead: the array's "
-      "state is unknown, so neither outlet fires.";
+      "Bang when the array is empty, so there is nothing to wrap onto. One bang for a list of "
+      "positions.";
 
 } // namespace
 
@@ -82,36 +66,20 @@ gArrayWrap::gArrayWrap() : gArrayEndsBase() {
   AtomList::ReserveRender(emitScratch);
 
   ADD_DESCRIPTION(
-      "Outputs the element at an index with wrapping — Max's array.wrap on the name-addressed "
-      "value model .array settled: the array is bound from the creation argument, \".array.wrap "
-      "<name> [<index>]\", because an array is addressed by name and never passed down a cord. "
-      "The family treats an index as a position — out of range is a miss on .array and "
-      ".array.at, negative a refusal — and this is the object that provides the alternative: "
-      "every index lands, taken modulo the length, so 5 into a three-element array reads "
-      "position 2 and -1 reads the last element — the modulo addressing a sequencer does every "
-      "bar. An int fetches at that wrapped position and stores the index, a bang re-fetches at "
-      "the stored index, a float truncates to an int first, and a list of indices is answered "
-      "whole, as one list in the order asked, every position wrapped independently against the "
-      "length one hold of the store's guard read. The element leaves typed the way the patcher "
-      "spells it. An empty or unnamed (private) array bangs the empty outlet instead — there is "
-      "nothing to wrap onto — and the stored index is this object's own: two .array.wrap on one "
-      "name fetch independently.");
+      "Outputs the element at a position in a named array, wrapping around: positions past "
+      "the end start again at the beginning, and -1 is the last element.");
   ADD_CATEGORY(pCategory::ARRAY);
   INLET_DOC(0, "index", kIndexInletDoc, "any int");
   INLET_DOC(1, "array reference", kReferenceInletDoc, "");
   OUTLET_DOC(0, "element", kElementDoc, "");
   OUTLET_DOC(1, "empty", kEmptyDoc, "");
-  PARAM_DOC(
-      "name", "",
-      "The array's shared name, addressed as \"patcher.<patcherName>.<name>\" — the sequence an "
-      ".array of the same name in this patcher holds. Resolved once, on the control "
-      "thread, which is why no message re-points it at run time. Empty reads a private, "
-      "empty array: every fetch bangs the empty outlet.",
-      "any identifier");
+  PARAM_DOC("name", "",
+            "Name of the array to use: the .array with this name in the same patcher. Empty "
+            "uses a private, empty array.",
+            "any identifier");
   PARAM_DOC("index", "0",
-            "The initial stored index — the position a bang fetches before any int has moved "
-            "it. Any sign: it wraps against the length at the moment of the fetch, so -1 is "
-            "the last element.",
+            "The position a bang fetches before any position arrives. Any int; -1 is the last "
+            "element.",
             "any int");
 }
 

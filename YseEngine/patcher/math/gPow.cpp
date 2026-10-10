@@ -21,15 +21,15 @@ CONSTRUCT() {
 
   leftIn = rightIn = 0.f;
 
-  ADD_DESCRIPTION("Control-rate power. Emits base ^ exponent as a float whenever inlet 0 fires. "
-                  "Inputs with no real result — a negative base with a fractional exponent, or a "
-                  "zero base with a negative exponent — emit 0 rather than a NaN or an infinity.");
+  ADD_DESCRIPTION("Raises the left operand to the power of the right one and sends the result as "
+                  "a float. Combinations with no finite real result, such as a negative base with "
+                  "a fractional exponent, send 0.");
   ADD_CATEGORY(pCategory::MATH);
-  INLET_DOC(0, "base", "Base — fires the evaluation.", "any float");
-  INLET_DOC(1, "exponent", "Exponent — stored until the next evaluation.", "any float");
-  OUTLET_DOC(0, "out", "base raised to the power of exponent (or 0 when that has no finite value).",
+  INLET_DOC(0, "base", "Base; sends the result.", "any float");
+  INLET_DOC(1, "exponent", "Exponent, stored for the next result.", "any float");
+  OUTLET_DOC(0, "out", "base to the power of exponent, or 0 when that has no finite value.",
              "any float");
-  PARAM_DOC("exponent", "0", "Initial exponent.", "any float");
+  PARAM_DOC("exponent", "0", "Starting exponent.", "any float");
 }
 
 FLOAT_IN(SetLeftFloat) {

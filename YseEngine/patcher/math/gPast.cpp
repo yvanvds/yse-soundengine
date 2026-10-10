@@ -38,68 +38,19 @@ CONSTRUCT() {
   initialThresholds[0] = 0.f;
   Rearm();
 
-  ADD_DESCRIPTION(
-      "Sends a bang the moment a value crosses a threshold, and then stays quiet until the value "
-      "drops back below and crosses again — edge detection on continuous control data, where the "
-      "interesting event is the crossing rather than the thousand messages that follow while the "
-      "value stays up there. A .>= into a .sel 1 would fire on every one of them; this fires once. "
-      "Max states the rule in two halves and only both together define the object: it bangs when "
-      "every number is at or above its threshold having not been so before, and it re-arms only "
-      "when a number goes back BELOW (strictly less than) its threshold. The two are exact "
-      "complements, so the object is a plain latch on 'value >= threshold' rather than a "
-      "hysteresis band, and two edges follow that a naive implementation gets wrong. A value "
-      "exactly at the threshold has crossed it, so '.past 5' fed 5 bangs. And a value exactly at "
-      "the threshold does not re-arm it, so 10, 5, 10 bangs once rather than twice: equality "
-      "belongs to the 'past it' side of the line going up and coming down alike. A freshly created "
-      "object is un-latched, so a value that is already above the threshold when the first message "
-      "arrives bangs immediately — nothing has met the threshold yet, so the first thing that does "
-      "is a crossing, which is also the state 'clear' restores. The creation argument is a list "
-      "and "
-      "so is the input: numbers are compared element-wise against the corresponding thresholds and "
-      "the bang is the conjunction, so '.past 60 100' is an AND gate of two thresholds in one box. "
-      "Each element keeps its own met/not-met flag, which is what Max's per-element re-arm wording "
-      "describes, so a list shorter than the threshold list updates only the elements it supplies "
-      "and a plain int or float is simply the one-element case; numbers past the last threshold "
-      "are "
-      "ignored, and at most 256 thresholds are held. 'clear' drops every flag so the next crossing "
-      "bangs again, silently and without touching the thresholds. 'set <numbers>' replaces the "
-      "thresholds and deliberately does NOT re-arm, because a patch that drives the threshold from "
-      "elsewhere sends 'set' continuously and an object that re-armed on each one would bang for "
-      "every message above the line, which is a .>= and not a .past; surviving elements keep their "
-      "flags, elements the new list adds start un-met, and the latch is re-derived from the flags. "
-      "'reset' is the patcher family's word rather than a Max message and means both halves at "
-      "once — back to the creation-argument thresholds with a cleared latch — since after a 'set' "
-      "there is otherwise no way back to the creation argument. All three are silent, and a "
-      "message "
-      "that is neither a word this object knows nor a list containing a number is ignored. A bang "
-      "is not accepted: a message carrying no number cannot cross anything. Everything is a float, "
-      "so Max's int-unless-the-argument-has-a-decimal-point duality is not reproduced. A "
-      "non-finite "
-      "number is read as 0 wherever it arrives, in the input and in the thresholds alike. On the "
-      "threshold side that is load-bearing rather than tidy: a NaN compares false against "
-      "everything, so a NaN threshold could never be met and would make the object permanently "
-      "mute — and in a multi-threshold object it would mute the conjunction while every other "
-      "element carried on working. A +infinity threshold does the same, and a -infinity one is met "
-      "by every number there is, including the ones a patch sends to bring the value back down, so "
-      "its element could never re-arm. On the input side the substitution buys consistency rather "
-      "than safety: it is simply the answer the rest of the patcher gives a NaN it was handed.");
+  ADD_DESCRIPTION("Sends a bang when a number rises to or above a threshold, then stays silent "
+                  "until the number drops below it again. With several thresholds, each item of a "
+                  "list must reach its own.");
   ADD_CATEGORY(pCategory::MATH);
   INLET_DOC(0, "in",
-            "Int, float or list to compare against the thresholds — a bang goes out the moment "
-            "every element is at or above its own threshold, having not been so before. Also "
-            "accepts the messages 'clear' (drop every met flag so the next crossing bangs again), "
-            "'set <numbers>' (replace the thresholds, keeping the latch) and 'reset' (back to the "
-            "creation-argument thresholds with the latch cleared). All three are silent.",
+            "Number or list to compare with the thresholds. 'clear': let the next crossing bang "
+            "again. 'set <thresholds>': change the thresholds. 'reset': go back to the creation "
+            "thresholds.",
             "any list of floats");
   OUTLET_DOC(0, "cross",
-             "Bang when every number is at or above its threshold, having not been so before. "
-             "Silent until a number drops strictly below its threshold and the crossing happens "
-             "again.",
-             "bang");
+             "Bang when every item has reached its threshold, having not done so before.", "bang");
   PARAM_DOC("thresholds", "0",
-            "The thresholds to watch, as a list. A number must be at or above its threshold for "
-            "the object to consider that element crossed, and all of them must be for the bang to "
-            "go out. Defaults to a single threshold of 0; at most 256 are held.",
+            "The thresholds, one per list position. A single 0 by default; at most 256.",
             "any list of floats");
 }
 

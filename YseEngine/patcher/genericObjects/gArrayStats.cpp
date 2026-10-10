@@ -17,36 +17,15 @@ namespace {
   // them inline — gArray's arrangement. What differs per object stays with
   // that object below.
   constexpr char kTriggerInletDoc[] =
-      "A bang asks for the statistic — one read of the array as it stood at the trigger, under "
-      "one hold of the store's guard, answered after it is released. \"array <name>\" does the "
-      "same when it names the array bound by the creation argument — the message an .array's "
-      "reference outlet emits on a bang, so wiring that outlet here gives the family's gesture: "
-      "bang the array, out comes its statistic. A reference naming anything else, or any other "
-      "message, is refused and counted rather than logged, since this inlet may be the audio "
-      "thread.";
+      "Bang, or the bound array's reference \"array <name>\": send the result.";
   constexpr char kReferenceInletDoc[] =
-      "\"array <name>\" is accepted silently when it names the array bound by the creation "
-      "argument, so a patch may wire the array's reference outlet across. It sets nothing — "
-      "the binding is the creation argument, resolved on the control thread — and anything "
-      "else is refused and counted.";
+      "Accepts the bound array's reference \"array <name>\" and ignores it, so the array's "
+      "reference outlet can be wired here. Anything else is refused.";
   constexpr char kNameParamDoc[] =
-      "The array's shared name, addressed as \"patcher.<patcherName>.<name>\" — the sequence an "
-      ".array "
-      "of the same name in this patcher holds. Resolved once, on the control thread, which is "
-      "why no message re-points it at run time. Empty reads a private, empty array: every ask "
-      "bangs the empty outlet.";
-  constexpr char kEmptyNumericOutletDoc[] =
-      "Bang when there is no numeric element to reduce — an empty or unnamed (private) array, "
-      "or one holding only symbols. \"No data\" is a state a patch must be able to route on, "
-      "not an error, and a sentinel value would be indistinguishable from a real answer — "
-      ".array.pop's empty outlet, for the same reason. A lost try-lock is a counted refusal "
-      "instead: the array's state is unknown, so neither outlet fires.";
-  constexpr char kEmptyModeOutletDoc[] =
-      "Bang when the array is empty — every element counts toward a mode, so only an empty or "
-      "unnamed (private) array has no answer. \"No data\" is a state a patch must be able to "
-      "route on, not an error — .array.pop's empty outlet, for the same reason. A lost "
-      "try-lock is a counted refusal instead: the array's state is unknown, so neither outlet "
-      "fires.";
+      "Name of the array to read: the .array with this name in the same patcher. Empty uses a "
+      "private, empty array.";
+  constexpr char kEmptyNumericOutletDoc[] = "Bang when the array holds no numbers.";
+  constexpr char kEmptyModeOutletDoc[] = "Bang when the array is empty.";
 
 } // namespace
 
@@ -184,27 +163,13 @@ void gArrayExtremumBase::Report(YSE::THREAD thread) {
 #define className gArrayMin
 
 gArrayMin::gArrayMin() : gArrayExtremumBase(false) {
-  ADD_DESCRIPTION(
-      "Outputs the smallest numeric element of an array — Max's array.min on the name-addressed "
-      "value model .array settled: the array is bound from the creation argument, \".array.min "
-      "<name>\", because an array is addressed by name and never passed down a cord. A bang asks "
-      "— one read of the array as it stood at the trigger, under one hold of the store's guard — "
-      "and the message an .array's reference outlet emits on a bang asks too, the family's "
-      "gesture. The population is the numeric elements: a symbol is skipped, not part of what a "
-      "minimum is over, and values compare numerically, so 7 and 7. tie and the first occurrence "
-      "wins. The answer is the element itself, typed the way the patcher spells it — 7.5 leaves "
-      "as the float it is. An array with no numeric element bangs the empty outlet instead: the "
-      "minimum of nothing does not exist, and a sentinel would be indistinguishable from a real "
-      "answer.");
+  ADD_DESCRIPTION("Outputs the smallest number in a named array. Words are skipped.");
   ADD_CATEGORY(pCategory::ARRAY);
   INLET_DOC(0, "trigger", kTriggerInletDoc, "");
   INLET_DOC(1, "array reference", kReferenceInletDoc, "");
   OUTLET_DOC(0, "minimum",
-             "The smallest numeric element, typed the way the patcher spells it: an int leaves "
-             "as an int, a float as a float. Values compare numerically — 7 and 7. tie, and a "
-             "tie keeps the first occurrence. Read under one hold of the store's guard, sent "
-             "after it is released. Silent when there is no numeric element: the empty outlet "
-             "carries that half of the answer.",
+             "The smallest numeric element, as the int or float it is spelled as. When several "
+             "are equal (7 and 7. count as equal), the first one.",
              "");
   OUTLET_DOC(1, "empty", kEmptyNumericOutletDoc, "");
   PARAM_DOC("name", "", kNameParamDoc, "any identifier");
@@ -216,27 +181,13 @@ gArrayMin::gArrayMin() : gArrayExtremumBase(false) {
 #define className gArrayMax
 
 gArrayMax::gArrayMax() : gArrayExtremumBase(true) {
-  ADD_DESCRIPTION(
-      "Outputs the largest numeric element of an array — Max's array.max on the name-addressed "
-      "value model .array settled: the array is bound from the creation argument, \".array.max "
-      "<name>\", because an array is addressed by name and never passed down a cord. A bang asks "
-      "— one read of the array as it stood at the trigger, under one hold of the store's guard — "
-      "and the message an .array's reference outlet emits on a bang asks too, the family's "
-      "gesture. The population is the numeric elements: a symbol is skipped, not part of what a "
-      "maximum is over, and values compare numerically, so 7 and 7. tie and the first occurrence "
-      "wins. The answer is the element itself, typed the way the patcher spells it — 7.5 leaves "
-      "as the float it is. An array with no numeric element bangs the empty outlet instead: the "
-      "maximum of nothing does not exist, and a sentinel would be indistinguishable from a real "
-      "answer.");
+  ADD_DESCRIPTION("Outputs the largest number in a named array. Words are skipped.");
   ADD_CATEGORY(pCategory::ARRAY);
   INLET_DOC(0, "trigger", kTriggerInletDoc, "");
   INLET_DOC(1, "array reference", kReferenceInletDoc, "");
   OUTLET_DOC(0, "maximum",
-             "The largest numeric element, typed the way the patcher spells it: an int leaves "
-             "as an int, a float as a float. Values compare numerically — 7 and 7. tie, and a "
-             "tie keeps the first occurrence. Read under one hold of the store's guard, sent "
-             "after it is released. Silent when there is no numeric element: the empty outlet "
-             "carries that half of the answer.",
+             "The largest numeric element, as the int or float it is spelled as. When several "
+             "are equal (7 and 7. count as equal), the first one.",
              "");
   OUTLET_DOC(1, "empty", kEmptyNumericOutletDoc, "");
   PARAM_DOC("name", "", kNameParamDoc, "any identifier");
@@ -254,25 +205,13 @@ gArrayMean::gArrayMean() : gArrayNumericStatsBase() {
   ADD_OUT_BANG;
 
   ADD_DESCRIPTION(
-      "Outputs the arithmetic mean of an array's numeric elements — Max's array.mean on the "
-      "name-addressed value model .array settled: the array is bound from the creation argument, "
-      "\".array.mean <name>\", because an array is addressed by name and never passed down a "
-      "cord. A bang asks — one read of the array as it stood at the trigger, under one hold of "
-      "the store's guard — and the message an .array's reference outlet emits on a bang asks "
-      "too, the family's gesture. The population is the numeric elements: a symbol is skipped, "
-      "not part of what a mean is over. The answer is always a float — the mean of ints is "
-      "routinely fractional — accumulated in double so a full array does not lose its tail to "
-      "the sum's magnitude. An array with no numeric element bangs the empty outlet instead: "
-      "the mean of nothing does not exist, and a sentinel would be indistinguishable from a "
-      "real answer.");
+      "Outputs the average of the numbers in a named array, as a float. Words are skipped.");
   ADD_CATEGORY(pCategory::ARRAY);
   INLET_DOC(0, "trigger", kTriggerInletDoc, "");
   INLET_DOC(1, "array reference", kReferenceInletDoc, "");
   OUTLET_DOC(0, "mean",
-             "The arithmetic mean of the numeric elements, as one float — a statistic of the "
-             "values, not one of them, so it is a float even over an all-int array. Read under "
-             "one hold of the store's guard, sent after it is released. Silent when there is "
-             "no numeric element: the empty outlet carries that half of the answer.",
+             "The average of the numeric elements, always a float, also when they are all "
+             "ints.",
              "");
   OUTLET_DOC(1, "empty", kEmptyNumericOutletDoc, "");
   PARAM_DOC("name", "", kNameParamDoc, "any identifier");
@@ -306,27 +245,14 @@ gArrayMedian::gArrayMedian() : gArrayNumericStatsBase() {
   ADD_OUT_BANG;
 
   ADD_DESCRIPTION(
-      "Outputs the median of an array's numeric elements — Max's array.median on the "
-      "name-addressed value model .array settled: the array is bound from the creation argument, "
-      "\".array.median <name>\", because an array is addressed by name and never passed down a "
-      "cord. A bang asks — one read of the array as it stood at the trigger, under one hold of "
-      "the store's guard — and the message an .array's reference outlet emits on a bang asks "
-      "too, the family's gesture. The population is the numeric elements: a symbol is skipped, "
-      "not part of what a median is over. The middle value in sorted order; an even population "
-      "answers the mean of the two middle values, which is why the answer is always a float. "
-      "The sort is a bounded merge over a scratch the object owns, never a reorder of the "
-      "shared store — a statistic must not move the array under everything else reading it; "
-      ".array.sort is the object that exists to do that. An array with no numeric element "
-      "bangs the empty outlet instead.");
+      "Outputs the median of the numbers in a named array, as a float. Words are skipped, and "
+      "the array itself is not reordered.");
   ADD_CATEGORY(pCategory::ARRAY);
   INLET_DOC(0, "trigger", kTriggerInletDoc, "");
   INLET_DOC(1, "array reference", kReferenceInletDoc, "");
   OUTLET_DOC(0, "median",
-             "The median of the numeric elements, as one float: the middle value in sorted "
-             "order, or the mean of the two middle values when the population is even. Sorted "
-             "in a scratch the object owns under one hold of the store's guard — the array "
-             "itself is never reordered — and sent after the guard is released. Silent when "
-             "there is no numeric element: the empty outlet carries that half of the answer.",
+             "The middle value in sorted order; with an even count, the average of the two "
+             "middle values. Always a float.",
              "");
   OUTLET_DOC(1, "empty", kEmptyNumericOutletDoc, "");
   PARAM_DOC("name", "", kNameParamDoc, "any identifier");
@@ -395,28 +321,14 @@ gArrayMode::gArrayMode() : gArrayStatsBase() {
   AtomList::ReserveRender(emitScratch);
 
   ADD_DESCRIPTION(
-      "Outputs the most frequent element of an array — Max's array.mode on the name-addressed "
-      "value model .array settled: the array is bound from the creation argument, \".array.mode "
-      "<name>\", because an array is addressed by name and never passed down a cord. A bang asks "
-      "— one read of the array as it stood at the trigger, under one hold of the store's guard — "
-      "and the message an .array's reference outlet emits on a bang asks too, the family's "
-      "gesture. The one statistic over every element, numeric or not, because a mode is about "
-      "identity rather than magnitude — and identity is the spelling, so 7 and 7. are different "
-      "elements to it, exactly as they are to .array.indexof. The count walks a stable spelling "
-      "order in a scratch the object owns — the array itself is never reordered — and a tie "
-      "keeps the element whose first occurrence is earliest. The answer is the element itself, "
-      "typed the way the patcher spells it. Only an empty array has no answer; it bangs the "
-      "empty outlet instead.");
+      "Outputs the element that occurs most often in a named array. Words count too, and "
+      "elements are compared by spelling, so 7 and 7. are different elements.");
   ADD_CATEGORY(pCategory::ARRAY);
   INLET_DOC(0, "trigger", kTriggerInletDoc, "");
   INLET_DOC(1, "array reference", kReferenceInletDoc, "");
   OUTLET_DOC(0, "mode",
-             "The most frequent element, typed the way the patcher spells it: a numeric element "
-             "leaves as an int or a float by its spelling and anything else as a symbol. "
-             "Equality is the spelling — 7 and 7. are different elements — and a tie keeps the "
-             "element whose first occurrence is earliest. Counted under one hold of the store's "
-             "guard, sent after it is released. Silent on an empty array: the empty outlet "
-             "carries that half of the answer.",
+             "The most frequent element, as an int, float or symbol by its spelling. On a tie, "
+             "the one that appears first.",
              "");
   OUTLET_DOC(1, "empty", kEmptyModeOutletDoc, "");
   PARAM_DOC("name", "", kNameParamDoc, "any identifier");
@@ -522,26 +434,14 @@ gArrayStdDev::gArrayStdDev() : gArrayNumericStatsBase() {
   ADD_OUT_BANG;
 
   ADD_DESCRIPTION(
-      "Outputs the standard deviation of an array's numeric elements — Max's array.stddev on "
-      "the name-addressed value model .array settled: the array is bound from the creation "
-      "argument, \".array.stddev <name>\", because an array is addressed by name and never "
-      "passed down a cord. A bang asks — one read of the array as it stood at the trigger, "
-      "under one hold of the store's guard — and the message an .array's reference outlet emits "
-      "on a bang asks too, the family's gesture. The population is the numeric elements: a "
-      "symbol is skipped, not part of what a spread is over. The population standard deviation "
-      "— divided by N, not N-1 — because the array is the whole population, not a sample of "
-      "one: what the patch collected is what the statistic describes. A one-element population "
-      "answers 0. Always a float, accumulated in double through the two-pass form. An array "
-      "with no numeric element bangs the empty outlet instead.");
+      "Outputs the standard deviation of the numbers in a named array, as a float. Words are "
+      "skipped.");
   ADD_CATEGORY(pCategory::ARRAY);
   INLET_DOC(0, "trigger", kTriggerInletDoc, "");
   INLET_DOC(1, "array reference", kReferenceInletDoc, "");
   OUTLET_DOC(0, "standard deviation",
-             "The population standard deviation of the numeric elements, as one float — "
-             "divided by N, not N-1, because the array is the whole population rather than a "
-             "sample of one, so a one-element population answers 0. Read under one hold of the "
-             "store's guard, sent after it is released. Silent when there is no numeric "
-             "element: the empty outlet carries that half of the answer.",
+             "The population standard deviation (divided by the count, not the count minus "
+             "one), as a float. A single number gives 0.",
              "0 or more");
   OUTLET_DOC(1, "empty", kEmptyNumericOutletDoc, "");
   PARAM_DOC("name", "", kNameParamDoc, "any identifier");

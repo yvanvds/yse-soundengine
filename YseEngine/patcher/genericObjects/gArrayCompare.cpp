@@ -57,65 +57,30 @@ gArrayChange::gArrayChange() : gArrayEndsBase() {
   ADD_OUT_INT;
 
   ADD_DESCRIPTION(
-      "Outputs only when the array has changed — Max's array.change on the name-addressed value "
-      "model .array settled: the array is bound from the creation argument, \".array.change "
-      "<name>\", because an array is addressed by name and never passed down a cord. A bang "
-      "compares the array against the baseline this object keeps, under one hold of the store's "
-      "guard, replacing the baseline whenever they differ; the changed outlet then reports 1 or "
-      "0 on every poll, and on a change the reference outlet also emits \"array <name>\", so "
-      "wiring it onward gates the family — into an .array.iter trigger it means \"walk only "
-      "when something moved\". Changed means count or spelling at any position, in order (7 and "
-      "7. differ, 10 20 is not 20 10); the baseline starts as the empty array, the scalar "
-      ".change's creation-argument rule, so an array that already has contents is news on the "
-      "first poll. \"array <name>\" on the baseline inlet re-baselines silently — Max's right "
-      "inlet, and the scalar .change's set: it moves the object's idea of current without "
-      "telling anybody. The guard a patch puts in front of expensive downstream work.");
+      "Reports whether a named array has changed since it was last polled. Each bang sends 1 or "
+      "0, and on a change also sends the array's reference, so work further down only runs when "
+      "something moved.");
   ADD_CATEGORY(pCategory::ARRAY);
   INLET_DOC(0, "trigger",
-            "A bang polls: the bound array is compared against the baseline under one hold of "
-            "the store's guard, and the baseline is replaced by what was found whenever they "
-            "differ. The changed outlet reports 1 or 0 on every poll; the reference outlet "
-            "emits only on a change. \"array <name>\" does the same when it names the array "
-            "bound by the creation argument — the message an .array's reference outlet emits on "
-            "a bang, the family's gesture. A reference naming anything else, or any other "
-            "message, is refused and counted rather than logged, since this inlet may be the "
-            "audio thread. A lost try-lock is a counted refusal and neither outlet fires: the "
-            "array's state is unknown, and a comparator that guessed would corrupt the very "
-            "state it exists to track.",
+            "Bang, or the bound array's reference \"array <name>\": compare the array with the "
+            "last state seen, then remember the array as it is now.",
             "");
   INLET_DOC(1, "set baseline",
-            "\"array <name>\" naming the bound array makes the array's current contents the "
-            "baseline and emits nothing — Max's right inlet, which stores without generating "
-            "output, and the scalar .change's set: it re-synchronises the object with a state "
-            "that arrived by some other route, so the next poll answers 0 unless something "
-            "moves again. Anything else is refused and counted. The one departure from the "
-            "family's acknowledge-only inlet 1, made because doing this silently is exactly the "
-            "Max semantics being ported.",
+            "The bound array's reference \"array <name>\" makes the array's current contents the "
+            "last state seen, without output. Anything else is refused.",
             "");
   OUTLET_DOC(0, "reference",
-             "The bound array's reference, \"array <name>\", sent only when the poll found a "
-             "change — the way an array leaves an object on the value model, so wiring it "
-             "onward gates the family behind \"something actually moved\". Silent on an "
-             "unchanged poll, which is the object's whole point, and silent on an unnamed "
-             "(private) object, which has no name to pass on. Fires after the changed outlet, "
-             "the scalar .change's right-to-left order, so whatever it triggers downstream "
-             "already sees the matching report.",
+             "\"array <name>\" when the poll found a change, sent after outlet 1. Nothing is sent "
+             "when the object has no name.",
              "");
   OUTLET_DOC(1, "changed",
-             "The verdict, on every poll that got an answer: 1 when the array differs from the "
-             "baseline — count or spelling at any position, in order — and 0 when it does not. "
-             "Max's right outlet. Nothing at all on a refused poll: a lost try-lock leaves the "
-             "array's state unknown, so no verdict is honest.",
+             "1 when the array differs from the last state seen, 0 when it does not. Sent on "
+             "every poll.",
              "0 or 1");
-  PARAM_DOC(
-      "name", "",
-      "The array's shared name, addressed as \"patcher.<patcherName>.<name>\" — the sequence an "
-      ".array of the same name in this patcher holds. Resolved once, on the control "
-      "thread, which is why no message re-points it at run time. Empty watches a private, "
-      "empty array: every poll answers 0 and the reference outlet never fires. A re-parse "
-      "and a patcher rename both reset the baseline to the empty array — the object then "
-      "watches a different binding, and whatever that array holds is news.",
-      "any identifier");
+  PARAM_DOC("name", "",
+            "Name of the array to watch: the .array with this name in the same patcher. Empty "
+            "watches a private, empty array.",
+            "any identifier");
 }
 
 // The reference follows the name and the baseline resets — a re-parse must
@@ -233,52 +198,25 @@ gArrayCompare::gArrayCompare() : gArrayEndsBase() {
   RebindRight();
 
   ADD_DESCRIPTION(
-      "Reports whether two arrays hold the same thing — Max's array.compare on the "
-      "name-addressed value model .array settled: both arrays are bound from the creation "
-      "arguments, \".array.compare <left> <right>\", because an array is addressed by name and "
-      "never passed down a cord, and neither may be re-pointed from a message. A bang, or the "
-      "left array's reference \"array <name>\", sends 1 when the two are equal and 0 when they "
-      "are not — equal meaning the same number of elements and a byte-identical element at "
-      "every position, Max's \"value and order\": 7 and 7. differ, and 10 20 is not 20 10, "
-      "because an array is a sequence. The left array is copied out under its guard and the "
-      "verdict decided against the right store under that guard alone — gDictCompare's "
-      "arrangement — so no two guards are ever held at once and \".array.compare seq seq\" "
-      "answers 1 instead of tripping over its own try-lock. With .array.change it is the "
-      "comparison pair: the guards a patch puts in front of expensive downstream work.");
+      "Compares two named arrays. A bang sends 1 when they hold the same elements in the same "
+      "order, and 0 when they do not.");
   ADD_CATEGORY(pCategory::ARRAY);
   INLET_DOC(0, "compare",
-            "A bang compares the two bound arrays as they stand — the left copied out under its "
-            "guard, the verdict decided against the right under that guard alone — and sends 1 "
-            "or 0 out the outlet. \"array <name>\" does the same when it names the left array "
-            "bound by the first creation argument — the message an .array's reference outlet "
-            "emits on a bang, the family's gesture. A reference naming anything else, the right "
-            "array's name included, or any other message, is refused and counted rather than "
-            "logged, since this inlet may be the audio thread. A lost try-lock on either store "
-            "is a counted refusal and nothing is sent: a verdict about state the object could "
-            "not read would be a guess.",
-            "");
+            "Bang, or the left array's reference \"array <name>\": compare the two arrays.", "");
   INLET_DOC(1, "right reference",
-            "\"array <name>\" is accepted silently when it names the right array bound by the "
-            "second creation argument, so a patch may wire both reference outlets across as it "
-            "would in Max. It sets nothing — the binding is the creation argument, resolved on "
-            "the control thread — and anything else is refused and counted.",
+            "Accepts the right array's reference \"array <name>\" and ignores it, so its "
+            "reference outlet can be wired here. Anything else is refused.",
             "");
   OUTLET_DOC(0, "equal",
-             "The verdict: 1 when the two arrays hold the same elements in the same order — the "
-             "same count and a byte-identical spelling at every position — and 0 when they do "
-             "not. Two empty (or unnamed, private) sides are equal: they hold the same "
-             "nothing.",
+             "1 when both arrays have the same length and the same element at every position, "
+             "otherwise 0. Two empty arrays are equal.",
              "0 or 1");
-  PARAM_DOC(
-      "left", "",
-      "The left array's shared name, addressed as \"patcher.<patcherName>.<name>\" — the sequence "
-      "an .array of the same name in this patcher holds. Resolved once, on the control "
-      "thread, which is why no message re-points it at run time. Empty compares a "
-      "private, empty array on that side.",
-      "any identifier");
+  PARAM_DOC("left", "",
+            "Name of the left array: the .array with this name in the same patcher. Empty uses "
+            "a private, empty array.",
+            "any identifier");
   PARAM_DOC("right", "",
-            "The right array's shared name, bound exactly as the left one. Empty compares a "
-            "private, empty array on that side.",
+            "Name of the right array, found the same way. Empty uses a private, empty array.",
             "any identifier");
 }
 

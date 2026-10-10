@@ -49,77 +49,19 @@ namespace {
   }
 
   constexpr char kInDoc[] =
-      "The state, and the only inlet - everything here emits, which is what a hot inlet in this "
-      "patcher does, so a message that addresses nothing still re-sends. Latching (the default), "
-      "an "
-      "int or a float *is* the state: 0 turns it off and anything else turns it on, and a bang "
-      "flips it. Momentary (the 'momentary' creation keyword), any int, float or bang is a press "
-      "whatever its value, which is what .b does and what 'the user clicked' has to mean for a "
-      "control with no state to be set to; the press stays lit until the next GUI poll consumes "
-      "it. "
-      "A list of one number is the whole state, issue #551's round trip - and in momentary mode "
-      "that is deliberately not the same thing as an int, because an int is the user pressing "
-      "while "
-      "a whole-state write is a host restoring the flag, and only the second can be asked to write "
-      "a 0. 'set 0 <value>' is #551's cell write; there is one cell, so any other index addresses "
-      "nothing, and the value is stored absolutely rather than toggled. Any other leading token is "
-      "dropped - in particular Max's 'settext' and 'text', which are not ported because the label "
-      "is a creation parameter: a string written from a message path is exactly the write the "
-      "parameter system itself refuses, since strings cannot be written allocation-free and are "
-      "read on both threads once the object is published. Max's silent 'set <value>' is not ported "
-      "either: 'set' is the cell write, which emits, and the two forms do not even coincide by "
-      "accident - Max's carries no index, so a 'set 1' from a Max patch is a cell write with no "
-      "value and is dropped rather than misread.";
+      "Latching: a number sets the state (0 off, anything else on) and a bang flips it. "
+      "Momentary: any number or bang is a press. In both modes a one-number list or "
+      "'set 0 <value>' sets the state outright. Everything here sends.";
 
-  constexpr char kStateOutDoc[] =
-      "The state, as an int - 0 or 1, and Max's only outlet on both objects. Latching, this is the "
-      "state the last message left; momentary, it is 1 for the press that caused the send, and 0 "
-      "only when a whole-state write cleared it. One sample of the state is taken at the top of "
-      "the "
-      "send, so a press arriving down one of the cords mid-send cannot make the two outlets "
-      "describe two different states. Sent last, after outlet 1.";
+  constexpr char kStateOutDoc[] = "The state. Sent last.";
 
   constexpr char kLabelOutDoc[] =
-      "The control's label, as a list. Max has no such outlet on either object, and it is what "
-      "makes this more than a decorated .t: a bank of labelled buttons into one .route or one .s "
-      "needs the label to say which one fired, and without it every host would keep a second copy "
-      "of the names it drew. It is the same outlet .umenu grew for the same reason. A control "
-      "built "
-      "with no label sends an empty list, which is honest - there is no name to send. The label is "
-      "sent as the object's own stored copy rather than a new one, which is sound precisely "
-      "because "
-      "it is a creation parameter and cannot change under a send. Sent first, before outlet 0, so "
-      "the name is in hand by the time the state lands on a hot inlet downstream.";
+      "The label, so a bank of controls wired into one object can say which one fired. Empty "
+      "when the control has no label. Sent first.";
 
   constexpr char kLabelParamDoc[] =
-      "An optional leading 'momentary' keyword, then the label. Everything after the keyword is "
-      "the "
-      "label, joined with single spaces, so 'filter cutoff' is one control called 'filter cutoff' "
-      "rather than two arguments; a control given no label has an empty one and is then a .t a "
-      "host "
-      "draws differently. A label that is literally 'momentary' cannot be the first word - the "
-      "word "
-      "is spoken for, and it is one position away from working. Without the keyword the control "
-      "latches (an int is the state, a bang flips it), which is .t's model; with it every input is "
-      "a press that stays lit until the next GUI poll clears it, which is .b's. The keyword is "
-      "offered on both .led and .textbutton rather than one each, because one press against one "
-      "latch is a property of the value and not of the drawing, and this family's premise is that "
-      "the value model is shared; both default to latching, which diverges from Max's textbutton "
-      "on "
-      "purpose, since a default that differed per name would break the one thing the family claims "
-      "- that swapping the name changes only what a host draws. It is a creation argument and not "
-      "Max's live 'mode' message because it changes what the GUI cell means, a state against an "
-      "event. The label is a creation parameter and nothing changes it afterwards: not the GUI "
-      "cell, which is live state a host polls and .preset stores, and not guiProperties, which the "
-      "engine never reads while this object has to emit the label on outlet 1 - and which a #234 "
-      "replacement inherits wholesale from the object it replaced, so a label mirrored there would "
-      "be reverted by the very rebuild meant to change it. Registering it as a list parameter "
-      "makes "
-      "a live SetParams replace the object through the #234 graph swap rather than rewrite a "
-      "string "
-      "underneath the audio thread, which is what lets every path read it with no synchronisation "
-      "at all. The live state is not a parameter and does not survive a save; GetGuiValue() is the "
-      "form a host stores it in, and inlet 0 takes it straight back.";
+      "An optional 'momentary' keyword, then the label. The words of the label are joined with "
+      "single spaces.";
 
 } // namespace
 
@@ -343,82 +285,12 @@ CALC() {
 // ─── the two renderings ───────────────────────────────────────────────────────
 
 gLed::gLed() : gLabelSwitchBase() {
-  Document(
-      "A labelled on/off indicator - Max's led, and one of the two renderings of the patcher's "
-      "labelled switch (issue #557). .b and .t carry no name, so a host rendering a headless patch "
-      "has nothing to title a control with and draws a grid of anonymous squares; this holds the "
-      "same value and can say what it is. It and .textbutton are one implementation under two "
-      "names "
-      "- same inlet, same two outlets, same arguments, same messages - because the value model is "
-      "a "
-      "named on/off in both and only the widget a host draws differs: a lamp here, a pressable "
-      "labelled rectangle there. They are not one object with a display parameter, .zl's answer to "
-      "its own modes, because the rendering is not behaviour a patch drives: it never changes at "
-      "run time, and a host reading the type is exactly how it learns which widget to build. "
-      "Arguments are an optional leading 'momentary' keyword and then the label, joined with "
-      "single "
-      "spaces; without the keyword the control latches (an int is the state, a bang flips it) and "
-      "with it every input is a press that stays lit until the next GUI poll consumes it, which is "
-      "Max's led responding to a bang. The keyword is offered on both names because one press "
-      "against one latch is a property of the value rather than of the drawing. The label is a "
-      "creation parameter and nothing changes it afterwards - not the GUI cell, which is live "
-      "state "
-      "a host polls and .preset stores, and not guiProperties, which the engine never reads while "
-      "this object has to emit the label on outlet 1, and which a #234 replacement inherits from "
-      "the object it replaced. Registering it as a list parameter makes a live SetParams replace "
-      "the object through the #234 graph swap rather than rewrite a string underneath the audio "
-      "thread, which is why Max's settext and text are not ported: that write is precisely the one "
-      "the parameter system itself refuses. Inlet 0 is hot and everything on it emits: an int or a "
-      "float is the state (a press in momentary mode), a list of one number is the whole state and "
-      "issue #551's round trip, 'set 0 <value>' is #551's cell write, and a bang flips or presses. "
-      "Outlet 0 carries the state and outlet 1 the label; the two fire right to left. The GUI cell "
-      "is '0' or '1' rather than .t's 'on' / 'off', and the object promises GuiValueIsSettable() - "
-      "inlet 0 takes a number, so the string a host polls is the string it can push back, and "
-      ".preset can store and restore a named switch. (.t has since joined that promise through "
-      "issue #846, taking its own 'on' / 'off' back; .b stays out, its value being a "
-      "consume-on-read press.) In "
-      "momentary mode that poll is destructive: it reports and clears a pending press in one "
-      "indivisible step, which is the lost-press fix of issue #197. Nothing about drawing is "
-      "modelled - colours, blinktime, size, the whole attribute set - since the patcher is "
-      "headless.");
+  Document("A labelled on/off indicator. It latches by default (a number sets it, a bang flips "
+           "it) or registers presses with the 'momentary' keyword, and sends its state and its "
+           "label.");
 }
 
 gTextButton::gTextButton() : gLabelSwitchBase() {
-  Document(
-      "A button or toggle carrying a text label - Max's textbutton, and one of the two renderings "
-      "of the patcher's labelled switch (issue #557). It holds the same value as .led, a named "
-      "on/off, and shares its implementation exactly: same inlet, same two outlets, same "
-      "arguments, "
-      "same messages. What differs is only what a host draws - a pressable labelled rectangle "
-      "rather than a lamp - which is why the two are separate names rather than one object with a "
-      "display parameter: the rendering never changes at run time, and the type is how a host "
-      "learns which widget to build. .b and .t carry no name, so a host rendering a headless patch "
-      "had nothing to title a control with; the label is the point of this object, and it is on "
-      "outlet 1 as well as in the parameters, so a bank of labelled buttons into one .route or one "
-      ".s can say which one fired without the host keeping a second copy of the names it drew. "
-      "Arguments are an optional leading 'momentary' keyword and then the label, joined with "
-      "single "
-      "spaces, so '.textbutton filter cutoff' is one control called 'filter cutoff'. Without the "
-      "keyword the control latches, which is Max's mode 1; with it every input is a press that "
-      "stays lit until the next GUI poll consumes it, which is Max's default. Latching is the "
-      "default on both names on purpose, diverging from Max here, because the family's whole claim "
-      "is that swapping the name changes only what a host draws - and a press with no label is "
-      "already .b, one word away. The label is a creation parameter and nothing changes it "
-      "afterwards, which is what lets every path read it with no synchronisation: registering it "
-      "as "
-      "a list parameter makes a live SetParams replace the object rather than rewrite a string "
-      "underneath the audio thread, and Max's settext and text are not ported for that reason. "
-      "Inlet 0 is hot and everything on it emits: an int or a float is the state (a press in "
-      "momentary mode), a list of one number is the whole state and issue #551's round trip, 'set "
-      "0 "
-      "<value>' is #551's cell write, and a bang flips or presses. Max's silent 'set <value>' is "
-      "not ported - 'set' is the cell write, which emits, and Max's form carries no index so it is "
-      "dropped rather than misread. Outlet 0 carries the state and outlet 1 the label; the two "
-      "fire "
-      "right to left. The GUI cell is '0' or '1' rather than .b's 'on' / 'off', which is what lets "
-      "this object promise GuiValueIsSettable(); in momentary mode the poll reports and clears a "
-      "pending press in one indivisible step, the lost-press fix of issue #197, so a host that "
-      "snapshots a press and restores it later replays it. Nothing about drawing is modelled - "
-      "colours, fonts, rounding, texton / textoff, the whole attribute set - since the patcher is "
-      "headless.");
+  Document("A button carrying a text label. It works exactly like .led; a host draws it as a "
+           "labelled button instead of a lamp.");
 }

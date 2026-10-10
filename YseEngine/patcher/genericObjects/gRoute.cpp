@@ -21,13 +21,9 @@ namespace {
   std::string MatchDoc(int index, const std::string& selector) {
     char digits[FORMAT_INT_WIDTH];
     const std::size_t written = WriteInt(index, digits);
-    return "What is left of the message once its first item is taken off, when that item matches "
-           "selector " +
+    return "The rest of the message when its first item matches selector " +
            std::string(digits, written) + " (" + selector +
-           "). A remainder of two or more items leaves as a list, a remainder of one number as "
-           "that int or float, a remainder of one symbol as a one-element list, and nothing left "
-           "at all as a bang. Exactly one outlet fires per input, and a selector repeated in the "
-           "argument list uses the leftmost of its outlets only.";
+           "): a list, a single int or float, or a bang when nothing is left.";
   }
 
 } // namespace
@@ -51,60 +47,14 @@ CONSTRUCT() {
   ShapePorts();
 
   ADD_DESCRIPTION(
-      "Routes a message by what its first item matches and takes that item off — Max's route, "
-      "whose 'the rest of the message is sent out the outlet that corresponds to that argument' is "
-      "the whole object. One outlet per creation argument plus a rightmost fall-through for "
-      "everything that matched none of them, and a bare .route has two outlets and matches the "
-      "single number 0, which is Max's no-argument case and the shape .sel already reproduces "
-      "(issue #679). Until then a bare .route had no outlets at all and silently swallowed "
-      "everything sent to it, so a patch that dropped one in before wiring its arguments lost "
-      "messages rather than passing them on; .routepass is the object that deliberately does not "
-      "invent a default selector, because Max documents one for route and select and none for "
-      "routepass. The stripping is what makes this a dispatcher rather than a splitter: 'note 60 "
-      "100' leaves the note branch as '60 100', so the branch works in bare values and never sees "
-      "the "
-      "word that got it there. Before issue #672 this object forwarded the whole message instead, "
-      "which is Max's routepass and not Max's route, and the engine's own .sel documentation had "
-      "described the stripping behaviour all along — the code was the odd one out. A patch that "
-      "wants the matched word to stay on the message has .routepass, whose contract guarantees "
-      "exactly that, and swapping the object is the migration. What leaves a matched outlet is "
-      "whatever is left, in the kind that remainder is: 'foo 1 2' through .route foo sends the "
-      "list '1 2'; 'foo 1' sends the int 1 rather than a one-element list, and 'foo 1.5' the float "
-      "1.5, decided by the spelling as .trigger and .match decide it; 'foo bar' sends the list "
-      "'bar', since a lone symbol has no type of its own here; and 'foo' alone sends a bang, Max's "
-      "'if the first item of a message matches one of the arguments, but the message has no "
-      "additional items, bang is sent out the specified outlet'. A bare number matched by a "
-      "numeric selector is that same case — the number was the whole message — so .route 5 bangs "
-      "for the int 5 and for the float 5.0 alike. Anything unmatched leaves the rightmost outlet "
-      "whole and in its own type, so a chain of .route objects strings together with each "
-      "fall-through feeding the next inlet. The matcher is .sel's and .routepass's: a selector is "
-      "a number or a symbol, decided once when the argument is read, and the two never match each "
-      "other — a number matches by value with an int widened to a float, a symbol by exact text, a "
-      "bang matches a selector spelled 'bang', and a list is matched on its first element alone, "
-      "which is a number if it reads as one and a symbol otherwise. That shared matcher is the "
-      "other half of #672: the object used to compare std::to_string(value) against the selector "
-      "text, and std::to_string(5.f) is '5.000000', a spelling no hand-written selector ever has, "
-      "so .route 5 could never match the float 5.0. The comparison is exact, so a computed float "
-      "may miss a selector it looks equal to — 0.1 + 0.2 is not 0.3 in binary floating point, and "
-      "a .round upstream is the fix — and a NaN matches nothing and leaves the rightmost outlet. A "
-      "selector repeated in the argument list uses the leftmost of its outlets only. Exactly one "
-      "outlet fires per input. Calculate() does nothing, and no message path allocates except for "
-      "a remainder of two or more items, which is one string — the cost stripping has and "
-      "pass-through does not.");
+      "Sends a message out the outlet whose selector matches its first item, with that item "
+      "removed. A message that matches no selector leaves the rightmost outlet unchanged.");
   ADD_CATEGORY(pCategory::ROUTING);
-  INLET_DOC(0, "in",
-            "Value inlet — accepts bang / int / float / list. The first item decides: a list's "
-            "leading token, a bare number itself, or the symbol 'bang'. What leaves the matching "
-            "outlet is the rest of the message, as a list, as an int or float when it is a single "
-            "number, or as a bang when the selector was the whole message. Anything matching no "
-            "selector leaves the fall-through outlet whole and in its own type.",
+  INLET_DOC(0, "in", "Bang, int, float or list. Its first item is matched against the selectors.",
             "");
   PARAM_DOC("list", "0",
-            "Space-separated list of match tokens; one outlet is created per token plus one "
-            "fall-through outlet. A token that reads as a finite number is a numeric selector and "
-            "matches by value, with an int widened to a float; anything else is a symbol and "
-            "matches by exact text. With no argument the object matches the single number 0, which "
-            "is Max's no-argument case.",
+            "The selectors, one outlet each. A number matches by value, anything else by exact "
+            "text. With no argument the object matches 0.",
             "any tokens");
 }
 
@@ -133,9 +83,8 @@ void gRoute::ShapePorts() {
   // together with each fall-through feeding the next inlet.
   ADD_OUT_ANY;
   outputs.back().SetDoc("rest",
-                        "The message, unchanged and in its own type, when its first item matched "
-                        "no selector. Nothing is taken off it, so chaining this into the next "
-                        ".route carries on testing the message the first one saw.",
+                        "The message, unchanged, when its first item matched no selector. Wire it "
+                        "into another .route to test further.",
                         "any");
 }
 

@@ -48,18 +48,8 @@ namespace {
   }
 
   constexpr char kTemplateDoc[] =
-      "The message to build, one token per byte. A number 0-255 is a constant byte; '$i1' to '$i9' "
-      "are placeholders filled from the inlets, '$i1' being the leftmost; 'sumstart' emits nothing "
-      "and marks where the checksum region begins; and 'sum' emits the Roland-style checksum of "
-      "that region, the byte that makes its total a multiple of 128. With no 'sumstart' the region "
-      "is everything so far apart from a leading 240. A well-formed system-exclusive message "
-      "starts "
-      "with 240 and ends with 247, which is not enforced — a patch may build a fragment and wrap "
-      "it "
-      "elsewhere. The object gets one inlet past the highest placeholder the template mentions, "
-      "and "
-      "a template longer than 256 tokens is cut there and reported to the log rather than being "
-      "truncated silently when it is sent.";
+      "The message, one token per byte: a number 0-255, a placeholder $i1 to $i9 filled from the "
+      "inlets, \"sumstart\" to start the checksum region, or \"sum\" for the checksum byte.";
 
 } // namespace
 
@@ -93,42 +83,16 @@ CONSTRUCT() {
   // wired: from here on a send only ever appends into storage that exists.
   scratch.reserve(static_cast<std::size_t>(MAX_BYTES) * (FORMAT_INT_WIDTH + 1));
 
-  ADD_DESCRIPTION(
-      "Builds a MIDI system-exclusive message from a template — Max's 'sxformat' (issue #531), and "
-      "the object a patch talks to a synthesiser's own parameters with. System exclusive is how a "
-      "voice is dumped, requested or poked one parameter at a time, and every such message is the "
-      "same bytes with two or three of them changed: the constants are the creation arguments and "
-      "the changing ones are placeholders fed from inlets. A number 0-255 in the template is a "
-      "constant byte, '$i1' to '$i9' are the inlets ('$i1' the leftmost and hot one), 'sumstart' "
-      "marks where a checksum region begins, and 'sum' emits the Roland-style checksum of that "
-      "region — the byte that makes its total a multiple of 128, which is what a Roland-protocol "
-      "device rejects a message for getting wrong. With no 'sumstart' the region is everything so "
-      "far apart from the leading 240. A value on the hot inlet, a list (which fills the "
-      "placeholders left to right) or a bang emits the whole message; the other inlets only store. "
-      "A negative value emits no byte at all, which is Max's rule and what makes one template "
-      "cover "
-      "both a short form and a long one, while a value above 127 is clamped rather than dropped, "
-      "because a byte with its top bit set inside a dump would be read as a status byte and would "
-      "end the message early at the device. The message leaves the outlet whole, as a list of byte "
-      "values in decimal, the shape '.midiformat' sends and '.midiparse', '.seq' and '.midiout' "
-      "read. The template is compiled once when the arguments are parsed, so sending walks a fixed "
-      "array and allocates nothing; a template longer than 256 tokens is cut there and reported to "
-      "the log rather than truncated silently at send time. The object opens no device and needs "
-      "none, so it runs on every platform — a dump can be built into a file where there is no MIDI "
-      "hardware at all.");
+  ADD_DESCRIPTION("Builds a system-exclusive message from a template of constant bytes, "
+                  "placeholders filled from the inlets, and an optional checksum.");
   ADD_CATEGORY(pCategory::MIDI);
 
   INLET_DOC(0, "$i1",
-            "Value for the '$i1' placeholder — stores it and sends the whole message. A list fills "
-            "'$i1', '$i2', ... left to right and then sends, and a bang sends with the values the "
-            "inlets are already holding. A negative value leaves its byte out of the message "
-            "entirely; anything above 127 is clamped.",
+            "Value for $i1; sends the message. A list fills $i1, $i2 and so on, then sends; a bang "
+            "sends with the stored values. A negative value leaves its byte out; above 127 is "
+            "clamped.",
             "-1 to 127");
-  OUTLET_DOC(0, "sysex",
-             "The complete message as a list of byte values in decimal — '240 67 0 1 247'. Send it "
-             "to '.midiout' or store it with '.seq' or '.coll'; '.midiparse' reads it back as the "
-             "same bytes on its rightmost outlet.",
-             "0-255");
+  OUTLET_DOC(0, "sysex", "The message as a list of byte values, such as 240 67 0 1 247.", "0-255");
   PARAM_DOC("sysex", "", kTemplateDoc, "0-255, $i1-$i9, sumstart, sum");
 }
 
@@ -202,9 +166,8 @@ PARM_PARSE() {
     REG_INT_IN(SetInt);
     REG_FLOAT_IN(SetFloat);
     inputs.back().SetDoc("$i" + std::to_string(index + 1),
-                         "Value for the placeholder with this index — stored until the next "
-                         "message is sent. A negative value leaves its byte out of the message; "
-                         "anything above 127 is clamped.",
+                         "Value for the placeholder with this number, stored for the next message. "
+                         "A negative value leaves its byte out; above 127 is clamped.",
                          "-1 to 127");
   }
 }
@@ -311,33 +274,12 @@ void mSxFormat::Leave() {
 mSysExIn::mSysExIn() : mMidiInBase() {
   ADD_OUT_INT;
 
-  ADD_DESCRIPTION(
-      "System-exclusive input — Max's 'sysexin' (issue #531), and the way a patch hears what a "
-      "synthesiser says about itself. Every byte of every system-exclusive message received on the "
-      "port leaves the outlet as an int, from the leading 240 to the closing 247, and nothing else "
-      "does: notes, controllers and clock traffic are filtered out, which is the whole difference "
-      "between this and '.midiin'. That is what makes it the receiving half of a voice dump — ask "
-      "a "
-      "device for its current patch with a '.sxformat' request and the answer arrives here, "
-      "byte-perfect and uninterrupted by whatever else the device happens to be sending. This "
-      "object holds none of a dump: bytes are forwarded as they arrive, and a patch that wants the "
-      "whole message collects it downstream, where allocating is allowed, and watches for the 247 "
-      "that ends it. The limit is the input transport's: a message of up to 8192 bytes arrives "
-      "whole (twice a DX7 32-voice bank), spread over a few audio blocks at 512 bytes per block. "
-      "A longer one, or one arriving while the patch is not draining, is dropped entirely and "
-      "logged — never passed on truncated, so a 240 on the outlet is always followed by the rest "
-      "of its message. A real-time byte (248-255) arriving inside a dump is dropped rather than "
-      "passed on, because it belongs to the clock and not to the message it interrupted, and it "
-      "does not end the dump; '.rtin' is where those go. Any other status byte does end it, "
-      "unterminated, because hardware interrupted mid-transfer simply stops sending and a state "
-      "machine waiting for an EOX that is never coming would read every later note as voice data. "
-      "Events cross from the device backend's thread on a bounded lock-free queue and are drained "
-      "once per audio block, so nothing allocates, locks or blocks on either side.");
+  ADD_DESCRIPTION("System-exclusive input. Every byte of every system-exclusive message received "
+                  "on a MIDI input port leaves as an int, from 240 to 247; other messages are "
+                  "filtered out.");
   OUTLET_DOC(0, "byte",
-             "Every byte of every system-exclusive message on the port, one int per byte and in "
-             "arrival order: 240, the manufacturer ID, the device and model bytes, the payload, "
-             "then 247. Nothing outside a message reaches this outlet. Collect a whole dump with a "
-             "'.zl group' or a '.coll' and use the 247 as the signal that it is complete.",
+             "Each byte of a system-exclusive message, in arrival order: 240, the manufacturer ID, "
+             "the data, then 247.",
              "0-247");
 }
 
