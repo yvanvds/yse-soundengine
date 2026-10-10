@@ -14399,9 +14399,10 @@
       {
         "accepts": [
           "BUFFER",
-          "FLOAT"
+          "FLOAT",
+          "INT"
         ],
-        "doc": "Audio signal, or a float used while no audio is connected.",
+        "doc": "Audio signal, or a number used while no audio is connected.",
         "index": 1,
         "label": "right",
         "range": "any float"
@@ -14444,9 +14445,10 @@
       {
         "accepts": [
           "BUFFER",
-          "FLOAT"
+          "FLOAT",
+          "INT"
         ],
-        "doc": "Audio signal, or a float used while no audio is connected.",
+        "doc": "Audio signal, or a number used while no audio is connected.",
         "index": 1,
         "label": "right",
         "range": "any float"
@@ -14489,9 +14491,10 @@
       {
         "accepts": [
           "BUFFER",
-          "FLOAT"
+          "FLOAT",
+          "INT"
         ],
-        "doc": "Audio signal, or a float used while no audio is connected.",
+        "doc": "Audio signal, or a number used while no audio is connected.",
         "index": 1,
         "label": "right",
         "range": "any float"
@@ -14534,9 +14537,10 @@
       {
         "accepts": [
           "BUFFER",
-          "FLOAT"
+          "FLOAT",
+          "INT"
         ],
-        "doc": "Audio signal, or a float used while no audio is connected. A float of 0 leaves the signal unchanged.",
+        "doc": "Audio signal, or a number used while no audio is connected. A number of 0 leaves the signal unchanged.",
         "index": 1,
         "label": "right",
         "range": "any non-zero float"
@@ -14662,18 +14666,20 @@
       },
       {
         "accepts": [
-          "FLOAT"
+          "FLOAT",
+          "INT"
         ],
-        "doc": "Lower limit, as a float.",
+        "doc": "Lower limit, as an int or a float.",
         "index": 1,
         "label": "low",
         "range": "any float"
       },
       {
         "accepts": [
-          "FLOAT"
+          "FLOAT",
+          "INT"
         ],
-        "doc": "Upper limit, as a float.",
+        "doc": "Upper limit, as an int or a float.",
         "index": 2,
         "label": "high",
         "range": "any float"

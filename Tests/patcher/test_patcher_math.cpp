@@ -1,5 +1,5 @@
 // Tests for patcher math nodes: gAdd, gSubstract, gDivide, gCounter, gRandom,
-// dAdd, dClip, dDivide, dSubstract.
+// dAdd, dClip, dDivide, dMultiply, dSubstract.
 // No audio device required.
 
 #include <doctest/doctest.h>
@@ -17,6 +17,7 @@
 #include "patcher/math/dAdd.h"
 #include "patcher/math/dClip.h"
 #include "patcher/math/dDivide.h"
+#include "patcher/math/dMultiply.h"
 #include "patcher/math/dSubstract.h"
 #include "dsp/buffer.hpp"
 #include "patcher/sinks.hpp"
@@ -24,6 +25,30 @@
 using TestHelpers::BufferSink;
 using TestHelpers::FloatSink;
 using TestHelpers::IntSink;
+
+namespace {
+  // #1016: sends the int `value` to control inlet `inlet` of `obj`, feeds a
+  // buffer of `input` through it, and checks every output sample equals
+  // `expected`.
+  template <typename T>
+  void CheckIntOnControlInlet(T& obj, int inlet, int value, float input, float expected) {
+    BufferSink sink;
+    obj.ConnectOutlet(sink.GetInlet(0), 0);
+    sink.ConnectInlet(obj.GetOutlet(0), 0);
+
+    obj.GetInlet(inlet)->SetInt(value, YSE::T_GUI);
+
+    YSE::DSP::buffer in(128);
+    in = input;
+    obj.GetInlet(0)->SetBuffer(&in, YSE::T_GUI);
+    obj.Calculate(YSE::T_DSP);
+
+    REQUIRE(sink.received != nullptr);
+    const float* out = sink.received->getPtr();
+    for (unsigned i = 0; i < 128; ++i)
+      CHECK(out[i] == doctest::Approx(expected));
+  }
+} // namespace
 
 TEST_SUITE("patcher") {
 
@@ -596,6 +621,44 @@ TEST_SUITE("patcher") {
     const float* out = sink.received->getPtr();
     for (unsigned i = 0; i < 128; ++i)
       CHECK(out[i] == doctest::Approx(3.0f));
+  }
+
+  // ─── int on the control inlets (#1016) ───────────────────────────────────────
+  // The audio-rate math objects registered only a float handler on their
+  // control inlets, so an int (from .counter, an int message, a MIDI value)
+  // was silently dropped. An int must act as the equivalent float.
+  // CheckIntOnControlInlet is defined above the suite.
+
+  TEST_CASE("dAdd: an int on the right inlet is used as a float (#1016)") {
+    YSE::PATCHER::dAdd add;
+    CheckIntOnControlInlet(add, 1, 2, 3.0f, 5.0f);
+  }
+
+  TEST_CASE("dSubstract: an int on the right inlet is used as a float (#1016)") {
+    YSE::PATCHER::dSubstract sub;
+    CheckIntOnControlInlet(sub, 1, 2, 3.0f, 1.0f);
+  }
+
+  TEST_CASE("dMultiply: an int on the right inlet is used as a float (#1016)") {
+    YSE::PATCHER::dMultiply mul;
+    CheckIntOnControlInlet(mul, 1, 2, 3.0f, 6.0f);
+  }
+
+  TEST_CASE("dDivide: an int on the right inlet is used as a float (#1016)") {
+    YSE::PATCHER::dDivide div;
+    CheckIntOnControlInlet(div, 1, 2, 3.0f, 1.5f);
+  }
+
+  TEST_CASE("dClip: an int on the low inlet is used as a float (#1016)") {
+    YSE::PATCHER::dClip clip;
+    clip.GetInlet(2)->SetFloat(5.0f, YSE::T_GUI);
+    CheckIntOnControlInlet(clip, 1, 2, 0.5f, 2.0f);
+  }
+
+  TEST_CASE("dClip: an int on the high inlet is used as a float (#1016)") {
+    YSE::PATCHER::dClip clip;
+    clip.GetInlet(1)->SetFloat(-5.0f, YSE::T_GUI);
+    CheckIntOnControlInlet(clip, 2, -2, 0.0f, -2.0f);
   }
 
 } // TEST_SUITE("patcher")

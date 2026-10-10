@@ -668,13 +668,11 @@ result is ``outLow``. The inlets work as described under ``.+``.
 
 - The left inlet takes the audio signal. Nothing comes out while no audio
   reaches it.
-- The right inlet takes an audio signal or a float. While audio is connected
-  there, it is used sample by sample; otherwise the last float is used, or
-  the argument until a float arrives.
-- A new float takes effect at the next audio block and is not smoothed, so a
+- The right inlet takes an audio signal or a number, int or float. While
+  audio is connected there, it is used sample by sample; otherwise the last
+  number is used, or the argument until a number arrives.
+- A new number takes effect at the next audio block and is not smoothed, so a
   large jump can click. Ramp it with ``~line`` instead.
-- The right inlet takes floats only; an int is ignored, so send ``2.`` rather
-  than ``2``.
 - When no argument is given, ``~+`` and ``~-`` use 0 and ``~*`` and ``~/``
   use 1, so a bare object passes the signal through unchanged.
 
@@ -684,12 +682,12 @@ result is ``outLow``. The inlets work as described under ``.+``.
 
 .. patcher-object:: ~/
 
-A float of 0 on the right inlet leaves the signal unchanged. An audio divisor
+A number of 0 on the right inlet leaves the signal unchanged. An audio divisor
 that reaches 0 produces infinite samples, so keep it away from 0. The other
 rules are described under ``~*``.
 
 .. patcher-object:: ~clip
 
-The limits are floats; an int on the low or high inlet is ignored. When low
+The low and high inlets take ints and floats. When low
 is above high, every sample becomes high. New limits take effect at the next
 audio block.

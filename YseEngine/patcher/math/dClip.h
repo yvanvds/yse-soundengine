@@ -15,6 +15,8 @@ namespace YSE {
     _BUFFER_IN(SetBuffer)
     _FLOAT_IN(SetLow)
     _FLOAT_IN(SetHigh)
+    _INT_IN(SetIntLow)
+    _INT_IN(SetIntHigh)
 
   private:
     DSP::buffer* buffer;
