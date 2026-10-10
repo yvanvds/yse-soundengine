@@ -25,28 +25,15 @@ CONSTRUCT() {
   // control thread for the longest text the cell can hold.
   emitScratch.reserve(TEXT_CAPACITY);
 
-  ADD_DESCRIPTION(
-      "An editable string. A list on the inlet becomes the text, verbatim and with no reserved "
-      "words, and goes straight back out; an int or a float becomes the text that spells it; a "
-      "bang re-sends what is held. The value a host polls and pushes back through GetGuiValue, so "
-      "a text field a user types into is one object. Text longer than 256 characters is refused "
-      "and what is stored is kept. Put a .tosymbol after it to collapse the text into a single "
-      "token, or a .fromsymbol to read it back as a number.");
+  ADD_DESCRIPTION("An editable text field. Text arriving on the inlet replaces the stored text and "
+                  "is sent on; a bang sends it again. It holds up to 256 characters.");
   ADD_CATEGORY(pCategory::GUI);
   INLET_DOC(0, "in",
-            "A list becomes the text and is sent on; an int or a float becomes the text that "
-            "spells it; a bang re-sends what is held. Nothing is a keyword — any word the object "
-            "reserved would be a word the field could not contain. An empty list clears it.",
+            "A list becomes the text, word for word, and is sent on; a number becomes its text; "
+            "a bang sends the text again. An empty list clears it.",
             "any text up to 256 characters");
-  OUTLET_DOC(0, "out",
-             "The text, on every message that arrives. Sent as a list and never re-typed: a field "
-             "holding \"440\" sends the text, not the number.",
-             "");
-  PARAM_DOC("text", "",
-            "The text the field starts at — every argument joined with single spaces, so no word "
-            "is a keyword here either. Live state is not saved with it; that is what GetGuiValue "
-            "and the inlet are for.",
-            "any text up to 256 characters");
+  OUTLET_DOC(0, "out", "The text, as a list, after every message.", "");
+  PARAM_DOC("text", "", "The text the field starts with.", "any text up to 256 characters");
 }
 
 // A re-parse must not leave the previous text standing: Parameters::Set() calls

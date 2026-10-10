@@ -67,19 +67,16 @@ CONSTRUCT() {
 
   value = 0;
 
-  ADD_DESCRIPTION("Float number box. Stores a float; inlet 0 sets-and-fires (bang re-emits the "
-                  "current value), inlet 1 sets silently. Settable per the GUI value protocol "
-                  "(issues #551/#846): a list of one number on inlet 0 is the whole state - the "
-                  "exact string GetGuiValue() produces - and 'set 0 <value>' writes the one cell, "
-                  "which is what lets .preset capture and restore the number box.");
+  ADD_DESCRIPTION("A float number box. A number on the left inlet stores it and sends it, a bang "
+                  "sends it again, and the right inlet stores a number without sending it.");
   ADD_CATEGORY(pCategory::GUI);
   INLET_DOC(0, "set/bang",
-            "Sets the value and emits it; bang re-emits the current value. A list of one number "
-            "is the whole state and 'set 0 <value>' the cell write.",
+            "A number sets the value and sends it; a bang sends it again. Also takes its GUI "
+            "value back, as a one-number list or 'set 0 <value>'.",
             "any float");
-  INLET_DOC(1, "silent set", "Silently updates the stored value without emitting.", "any float");
-  OUTLET_DOC(0, "out", "Current float value.", "any float");
-  PARAM_DOC("value", "0", "Initial value.", "any float");
+  INLET_DOC(1, "silent set", "Stores a number without sending it.", "any float");
+  OUTLET_DOC(0, "out", "The value.", "any float");
+  PARAM_DOC("value", "0", "The value the box starts with.", "any float");
 }
 
 FLOAT_IN(SetFloat) {

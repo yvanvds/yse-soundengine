@@ -60,42 +60,15 @@ namespace {
   }
 
   constexpr char kInDoc[] =
-      "The whole object, and the only inlet. An int or a float (truncated) recalls that slot: "
-      "every value captured in it is pushed back into its object as an ordinary list message on "
-      "inlet 0 - pHandle::SetListData, the same call a host makes - never by writing another "
-      "object's state directly, and outlet 0 announces the slot once the patch is in it. A bang "
-      "recalls the active slot again, the resync a patch wants after editing by hand; nothing "
-      "when no slot is active. 'store <n>' captures the patch into slot n - the headless "
-      "spelling of Max's shift-click - and announces it out outlet 1; 'recall <n>' is the int "
-      "spelled out; 'clear <n>' empties one slot, bare 'clear' the active one, 'clearall' every "
-      "slot - clearing the active slot clears the active marker with it. Participation is issue "
-      "#551's settable promise: exactly the objects answering true to GuiValueIsSettable() are "
-      "captured, checked before the value is read, so a consume-on-read object is never polled; "
-      "an object whose bulk read is empty at store time is left out and recall leaves it "
-      "untouched. Recalling an empty or out-of-range slot does nothing and announces nothing. A "
-      "slot entry is pushed only while its storage ID still names a live object of the captured "
-      "type - IDs are reused after a delete - and a stale entry is skipped silently. Everything "
-      "here is control-side work: store walks the patch and recall runs whole subgraphs, so a "
-      "message that physically arrives on the audio callback - a .pgmin or other MIDI input "
-      "object, a host PassData into a .r, a .delay or .pipe delivery - is parsed there without "
-      "allocating, queued, and run on the timer thread about a millisecond later, in arrival "
-      "order (issue #952); a bang or bare 'clear' reads the active slot when it runs, not when "
-      "it arrives. Not here: interpolated recall "
-      "(Max's preset is instant; interpolation is pattrstorage's, on the excluded pattr system) "
-      "and every mouse and drawing concern.";
+      "A number, or 'recall <n>', recalls that slot; a bang recalls the active slot again; "
+      "'store <n>' captures the patch into slot n; 'clear <n>', 'clear' and 'clearall' empty "
+      "slots.";
 
   constexpr char kRecalledOutDoc[] =
-      "The slot just recalled, as an int, sent after every captured value has been pushed back "
-      "into its object - so whatever this outlet triggers sees the patch already in the preset. "
-      "Max's 'preset number recalled' outlet. Silent for an empty or out-of-range slot, for a "
-      "bang with no active slot, and for a store: the family's rule that an object with no "
-      "answer stays quiet.";
+      "The slot just recalled, sent once every value is back in place. Nothing for an empty "
+      "slot.";
 
-  constexpr char kStoredOutDoc[] =
-      "The slot just stored, as an int - Max's 'preset number stored' outlet, and the hook a "
-      "patch hangs bookkeeping on (a .coll of slot names, a dirty flag for the host). Sent "
-      "after the capture has landed in the slot and the slot has become active. Silent for a "
-      "slot out of range.";
+  constexpr char kStoredOutDoc[] = "The slot just stored.";
 
 } // namespace
 
@@ -130,57 +103,17 @@ CONSTRUCT() {
   // one as dropped.
   timerSlot = TimerBridge().Claim(&gPreset::DeferTrampoline, this);
 
-  ADD_DESCRIPTION(
-      "Snapshot and recall of the patch's control values - Max's preset, 'store and recall the "
-      "values of the control objects in a patcher'. A bank of numbered slots: 'store <n>' "
-      "captures the current value of every participating control into slot n, an int (or "
-      "'recall <n>') pushes each captured value back into its object, a bang recalls the active "
-      "slot again, and 'clear <n>' / 'clear' / 'clearall' empty one, the active, or every slot. "
-      "Participation is the GUI value protocol's settable promise (issue #551): exactly the "
-      "objects answering true to GuiValueIsSettable() are captured - the promise is the round "
-      "trip a preset needs, so an object cannot be captured without also being restorable, by "
-      "construction. .preset itself is not settable, so no preset captures a preset; the scalar "
-      "controls .slider, .i, .f, .dial, .incdec and .t hold the round trip since their #846 "
-      "migration and are captured, while .b stays out - its value is a consume-on-read press, an "
-      "event no recall could meaningfully restore; objects nested in subpatchers participate "
-      "- a preset belongs to the patch, not to one level of it. Recall writes through the "
-      "ordinary control-thread message path - each object receives the exact string its "
-      "GetGuiValue() produced, as a list on inlet 0, so every clamp, side effect and outlet "
-      "send its own handler performs still happens - and announces the slot out outlet 0 only "
-      "after the patch is in it; a store announces out outlet 1. Entries are guarded against "
-      "storage-ID reuse: a slot value is pushed only while its ID still names a live object of "
-      "the captured type. The slots persist through DumpState / RestoreState unconditionally, "
-      "plus the active marker - Max's preset is a UI object whose contents save with the patch - "
-      "with each entry naming its object by the dump's record order (the rank of its ID among "
-      "the live objects), which is exactly the fresh numbering ParseJSON hands out, so a patch "
-      "whose IDs went sparse through deletes still recalls correctly after a save and a load. "
-      "Loading does not recall: a patch that wants to come up in slot 0 wires .loadbang into "
-      "the inlet. Everything the object does is control-side work - store walks the patch, "
-      "recall runs whole subgraphs - so a message that physically arrives on the audio callback "
-      "(a .pgmin program change, a host PassData into a .r, a .delay delivery) is handed off: "
-      "parsed in place, pushed onto a bounded lock-free queue and run on the timer thread a "
-      "tick later, in arrival order, with no allocation, lock or wait on the callback (issue "
-      "#952); Calculate() itself does nothing at all. The GUI value is the active slot number, -1 "
-      "when none - what "
-      "a host highlights in a row of preset dots - and is read-only. Not ported: interpolated "
-      "recall (Max's preset is instant; interpolation belongs to pattrstorage, on the excluded "
-      "pattr system - morphing between targets is already a patch, .xyslider into .nodes), the "
-      "pattrstorage client outlet, and every mouse, bubble and colour concern.");
+  ADD_DESCRIPTION("Stores and recalls snapshots of the patch's controls. 'store <n>' captures "
+                  "every control whose value can be restored into slot n, and a number recalls "
+                  "that slot. The slots are saved with the patch.");
   ADD_CATEGORY(pCategory::GUI);
   INLET_DOC(0, "control", kInDoc, "slot 0 to slots-1");
   OUTLET_DOC(0, "recalled", kRecalledOutDoc, "0 to slots-1");
   OUTLET_DOC(1, "stored", kStoredOutDoc, "0 to slots-1");
-  PARAM_DOC(
-      "slots", "32",
-      "How many numbered slots the bank holds, clamped to 1-1024 and 32 by default. A creation "
-      "parameter because the bank is shaped once, on the control thread, before the object is "
-      "wired or published: a live SetParams therefore replaces the object through the graph "
-      "swap - and the replacement starts with empty slots, exactly as a re-parsed .function "
-      "starts with no points. Max's preset holds as many presets as its box has room to draw; "
-      "headless, the room is this number. The slot contents are not parameters - they are "
-      "contents, and they ride the saved patch through the object's state instead, "
-      "unconditionally.",
-      "1-1024");
+  PARAM_DOC("slots", "32",
+            "How many slots the bank holds. Changing it replaces the object, and the new one "
+            "starts with empty slots.",
+            "1-1024");
 }
 
 // ─── the bank ─────────────────────────────────────────────────────────────────

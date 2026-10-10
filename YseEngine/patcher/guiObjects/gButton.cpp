@@ -15,16 +15,11 @@ CONSTRUCT() {
 
   on = false;
 
-  ADD_DESCRIPTION("Momentary button. Any input (bang/int/float) lights the button until the next "
-                  "GUI poll; emits a bang on every calculate tick. Deliberately left out of the "
-                  "settable GUI protocol when the other scalar controls migrated (issue #846): "
-                  "its GUI value reports and clears a pending press - an event, not a state - so "
-                  "there is nothing a .preset could meaningfully store or restore, and writing "
-                  "'on' back would replay a press rather than restore a value. It answers false "
-                  "to GuiValueIsSettable() and is never captured.");
+  ADD_DESCRIPTION("A button. Any bang or number sends a bang and lights the button until the host "
+                  "next reads it.");
   ADD_CATEGORY(pCategory::GUI);
-  INLET_DOC(0, "trigger", "Press — bang/int/float all light the button.", "");
-  OUTLET_DOC(0, "out", "Bang emitted on every calculate tick.", "");
+  INLET_DOC(0, "trigger", "A bang, int or float presses the button.", "");
+  OUTLET_DOC(0, "out", "A bang for every press.", "");
 }
 
 BANG_IN(Bang) {

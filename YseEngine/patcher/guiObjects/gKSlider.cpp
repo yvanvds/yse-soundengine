@@ -64,45 +64,19 @@ namespace {
   }
 
   constexpr char kPitchInletDoc[] =
-      "The pitch, and the half of the pair that acts - everything here emits. An int or a float "
-      "presses that key at the stored velocity and sends the pair; a float is truncated, as it is "
-      "in Max. A list of two numbers is Max's list method and '.flush''s inlet distribution "
-      "written on one cord: '60 100' presses key 60 at velocity 100 and '60 0' releases it, 0 "
-      "being how the whole MIDI world spells a release - which is also the shape '.midiparse''s "
-      "note outlet sends. A single-token numeric list is the number it spells, so a '.m 60' "
-      "reaches this inlet as a pitch. A list of exactly 128 numbers is the whole keyboard, issue "
-      "#551's round trip and the string GetGuiValue() produced; only the keys whose velocity "
-      "actually changed are sent, because a note controller's outlet drives events and only a "
-      "transition is one. 'set <index> <value>' is #551's cell write and on this object it is the "
-      "same message as the pair, the index being the pitch. 'clear' releases every key it is "
-      "holding, Max's message and '.flush''s bang. A bang re-sends every key still held, in "
-      "ascending pitch order. A pitch outside 0-127 is dropped rather than clamped or passed on: "
-      "unlike '.flush', which watches a cord and must not rewrite what crosses it, this object is "
-      "a source, so a pitch it cannot display is a key it cannot press.";
+      "A pitch presses that key at the stored velocity; '<pitch> <velocity>' plays it at that "
+      "velocity, and velocity 0 releases it. Also 128 numbers (the whole keyboard), "
+      "'set <pitch> <velocity>', 'clear' and bang.";
 
   constexpr char kVelocityInletDoc[] =
-      "Sets the velocity that pitches arriving *after* it will be played at, and outputs nothing "
-      "by itself - only a pitch completes a note. Max has no such inlet because its kslider is "
-      "played with a mouse, which supplies a velocity from where the key was clicked; headless "
-      "there is nothing else a bare pitch could be paired with, so this is '.flush''s and "
-      "'.stripnote''s right inlet. Ints, floats and a list whose leading token is a number all "
-      "set it, a float being truncated. Clamped into 0-127, unlike '.flush' which passes what it "
-      "is handed: this object *holds* the velocity in a cell a host draws, so it may not hold a "
-      "number a MIDI velocity could not be.";
+      "The velocity for pitches that arrive after it. Sends nothing. Clamped to 0-127; a float "
+      "is truncated.";
 
-  constexpr char kPitchOutletDoc[] =
-      "The pitch of the key that moved: once as it is pressed or released, again for every held "
-      "key a bang re-sends, and once more with velocity 0 for every key a 'clear' lets go. Sent "
-      "after the velocity, Max's outlets firing right to left. An int, and deliberately the same "
-      "pair-of-ints port shape '.noteon', '.makenote', '.stripnote' and '.flush' have, so the pair "
-      "is wired across rather than packed and unpacked again.";
+  constexpr char kPitchOutletDoc[] = "The pitch of the key that moved. Sent after the velocity.";
 
   constexpr char kVelocityOutletDoc[] =
-      "The velocity the key moved to - the played velocity for a press, and 0 for a release, "
-      "whether the release came from a '<pitch> 0' pair, from a 'clear' or from a whole-state "
-      "write that lifted the key. Sent before the pitch, which is not cosmetic: everything "
-      "downstream that takes a pair takes velocity on a cold inlet and pitch on a hot one, so a "
-      "pitch sent first would carry the previous note's velocity.";
+      "The key's new velocity: 0 for a release. Sent before the pitch, so it pairs with the "
+      "pitch in the next object.";
 
 } // namespace
 
@@ -135,67 +109,17 @@ CONSTRUCT() {
   velocity = DEFAULT_VELOCITY;
   ADD_PARAM(velocity);
 
-  ADD_DESCRIPTION(
-      "A piano keyboard as one control - Max's kslider, 'output pitch and velocity from a keyboard "
-      "display'. The patcher already has every way of expressing a number as a control (.slider a "
-      "position, .dial a value, .rslider a span, .multislider a bank) and none of expressing a "
-      "note, which is not a number that happens to run 0-127 but one of 128 named things, five of "
-      "every twelve of which are black. This is the surface a musician picks one from, and it "
-      "feeds the patcher's note objects - .noteon, .makenote, .flush, .midiformat - in the "
-      "pair-of-ints they already speak. The state is the keyboard itself: one GUI cell per MIDI "
-      "pitch holding that key's velocity, 0 meaning the key is up, so the cell count is always 128 "
-      "and a host draws key i held exactly when cell i is non-zero, with no decoding and no "
-      "separate 'how many are down' answer that could disagree with the cells. A velocity per key "
-      "rather than a bare bit, because the object's whole output is a pair: a bitmap could say "
-      "which keys are down but not what to re-send for one, so a bang could not replay what it "
-      "holds. Unlike .multislider the count is fixed - a keyboard is 128 keys because MIDI is - so "
-      "there is no size, no listresize and no live re-count, and every read is a plain indexed "
-      "load. Two inlets, .flush's and .stripnote's shape rather than Max's single one, because a "
-      "pitch/velocity pair is written that way everywhere in this patcher: the left inlet takes "
-      "the pitch and acts, the right one stores the velocity for pitches arriving after it and "
-      "sends nothing. Max needs no velocity inlet because its kslider is clicked and the click "
-      "supplies one. Every message that changes a key emits the pair for the key it changed, since "
-      "headless the outlet is the only way a change reaches anything; but the bulk messages emit "
-      "what actually *changed* rather than every cell - a whole-state write sends attacks for keys "
-      "that went down and releases for keys that came up, 'clear' sends a release per held key, "
-      "and a bang sends a pair per held key. Replaying all 128 the way .matrixctrl dumps its grid "
-      "would send 120-odd releases for keys nobody touched and re-attack the ones already "
-      "sounding, which downstream of a synth is a retrigger rather than a repaint. The single-key "
-      "forms emit even when the velocity is unchanged, because there the patch said 'play this' "
-      "and a repeated note-on at the same velocity is something a musician does on purpose. Pitch "
-      "goes out outlet 0 and velocity out outlet 1, right to left, which is load-bearing: "
-      "everything downstream that takes a pair takes velocity on a cold inlet and pitch on a hot "
-      "one, so a pitch sent first would carry the previous note's velocity. The bounds are MIDI's "
-      "and are not creation arguments - the family's minimum/maximum describe a range a patch "
-      "chooses, and nothing chooses how many keys a keyboard has - so a pitch outside 0-127 is "
-      "dropped rather than clamped or passed on: .flush passes an untrackable pitch through "
-      "because it watches a cord, while this object is a source, and filing a pitch under one that "
-      "is not its own would light the wrong key. Max's mode attribute (monophonic / polyphonic) is "
-      "not ported: monophony exists there because a kslider is clicked and a mouse can only be in "
-      "one place, a control whose entire state is a 128-key held set is not usefully restricted to "
-      "one key, and issue #551's 128-number restore could not be honoured in a mode that permits "
-      "one - a patch that wants monophony puts .poly or .flush in the cord. Nor is anything about "
-      "drawing, the patcher being headless. Only the velocity parameter persists; held keys are "
-      "run-time state, and the form a host stores them in is GetGuiValue(), which inlet 0 takes "
-      "straight back. Nothing on any path allocates, locks or blocks: the keyboard is a fixed "
-      "member array, the outlets carry ints so no send builds a string at all, and the list "
-      "handler compares its keywords and walks its numbers in place rather than into a 128-wide "
-      "stack buffer.");
+  ADD_DESCRIPTION("A piano keyboard. A pitch on the left inlet presses that key at the stored "
+                  "velocity and sends velocity and pitch; velocity 0 releases it. The state is "
+                  "the velocity held on each of the 128 keys.");
   ADD_CATEGORY(pCategory::GUI);
   INLET_DOC(0, "pitch", kPitchInletDoc, "0-127");
   INLET_DOC(1, "velocity", kVelocityInletDoc, "0-127");
   OUTLET_DOC(0, "pitch", kPitchOutletDoc, "0-127");
   OUTLET_DOC(1, "velocity", kVelocityOutletDoc, "0-127");
   PARAM_DOC("velocity", "100",
-            "The velocity a bare pitch is played at until something is sent to the right inlet, "
-            "which then changes it for the rest of the object's life - the same arrangement "
-            ".multislider's size has, a creation argument and live state being one store. Max "
-            "needs no such default because its kslider takes its velocity from where the key was "
-            "clicked; headless there is no click, and 0 - .flush's starting velocity - would make "
-            "every bare pitch a release, so the object has to start somewhere a key can actually "
-            "go down. 100 is what .makenote and the MIDI world use for 'played normally'. Clamped "
-            "into 0-127, a cell holding a MIDI velocity. Held keys are not parameters and do not "
-            "survive a save: GetGuiValue() is the form a host stores them in.",
+            "The velocity a bare pitch is played at, until the right inlet or a "
+            "'<pitch> <velocity>' list changes it.",
             "0-127");
 }
 

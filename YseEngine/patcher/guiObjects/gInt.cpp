@@ -50,20 +50,17 @@ CONSTRUCT() {
 
   value = 0;
 
-  ADD_DESCRIPTION("Integer number box. Stores an int; inlet 0 sets-and-fires (bang re-emits the "
-                  "current value), inlet 1 sets silently. Settable per the GUI value protocol "
-                  "(issues #551/#846): a list of one number on inlet 0 is the whole state - the "
-                  "exact string GetGuiValue() produces - and 'set 0 <value>' writes the one cell; "
-                  "both read a decimal integer, truncating a fractional part, which is what lets "
-                  ".preset capture and restore the number box.");
+  ADD_DESCRIPTION("An integer number box. A number on the left inlet stores it and sends it, a "
+                  "bang sends it again, and the right inlet stores a number without sending it. "
+                  "Floats are truncated.");
   ADD_CATEGORY(pCategory::GUI);
   INLET_DOC(0, "set/bang",
-            "Sets the value and emits it; bang re-emits the current value. A list of one number "
-            "is the whole state and 'set 0 <value>' the cell write.",
+            "A number sets the value and sends it; a bang sends it again. Also takes its GUI "
+            "value back, as a one-number list or 'set 0 <value>'.",
             "any int");
-  INLET_DOC(1, "silent set", "Silently updates the stored value without emitting.", "any int");
-  OUTLET_DOC(0, "out", "Current integer value.", "any int");
-  PARAM_DOC("value", "0", "Initial value.", "any int");
+  INLET_DOC(1, "silent set", "Stores a number without sending it.", "any int");
+  OUTLET_DOC(0, "out", "The value.", "any int");
+  PARAM_DOC("value", "0", "The value the box starts with.", "any int");
 }
 
 INT_IN(SetInt) {

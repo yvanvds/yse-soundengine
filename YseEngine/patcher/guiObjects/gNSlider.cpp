@@ -25,32 +25,15 @@ namespace {
   }
 
   constexpr char kInletDoc[] =
-      "The note, and the only inlet - everything here emits, which is what a hot inlet in this "
-      "patcher does. An int or a float is a pitch and resets the spelling to the 'spelling' "
-      "parameter's choice: a note arriving from elsewhere in the patch carries no opinion about "
-      "how to write it. A list is '<pitch> [<accidental>]' - the first number is the pitch and an "
-      "optional second is the accidental to spell it with, 1 for a sharp and -1 for a flat - so "
-      "two numbers is exactly the string GetGuiValue() produces, which is issue #551's round trip; "
-      "further numbers are ignored, as .rslider ignores them. 'set <index> <value>' writes one "
-      "cell, #551's cell write: 'set 0 <pitch>' moves the note and leaves the spelling alone, "
-      "unlike a bare int, because a cell write touches one cell by definition, and 'set 1 "
-      "<accidental>' re-spells the note without moving it. A bang re-sends. The pitch is clamped "
-      "into the minimum-maximum bounds, and an accidental on a white key is ignored - there is no "
-      "such thing as a sharpened E drawn as an E.";
+      "A number is a pitch, spelled the default way; '<pitch> <accidental>' chooses the "
+      "spelling; 'set 0 <pitch>' moves the note and 'set 1 <accidental>' re-spells it; a bang "
+      "sends again. Everything here sends.";
 
-  constexpr char kPitchOutletDoc[] =
-      "The pitch, as an int, clamped into the minimum-maximum bounds. Sent after the accidental, "
-      "the patcher's right-to-left ordering, so anything downstream that takes the two on a hot "
-      "and a cold inlet has the spelling in hand before the pitch arrives. Sampled once at the top "
-      "of the send together with the accidental, so a note re-spelled mid-send cannot make the two "
-      "outlets describe two different notes.";
+  constexpr char kPitchOutletDoc[] = "The pitch. Sent after the accidental.";
 
   constexpr char kAccidentalOutletDoc[] =
-      "How the pitch is spelled: 1 a sharp, -1 a flat, 0 a natural. Always 0 for a white key. For "
-      "one of the five black keys it is the per-note override the last message set, or the "
-      "'spelling' parameter when it set none. With this and the pitch a host has the whole note: "
-      "the sign to draw, and - by subtracting it from the pitch - the natural it attaches to, "
-      "which is the line or space to draw on. Sent first.";
+      "How the pitch is spelled: 1 sharp, -1 flat, 0 natural (always 0 for a white key). Sent "
+      "first.";
 
 } // namespace
 
@@ -78,62 +61,18 @@ CONSTRUCT() {
   ADD_PARAM(maximum);
   ADD_PARAM(spelling);
 
-  ADD_DESCRIPTION(
-      "A pitch on a staff - Max's nslider, 'display or output a pitch on a musical staff', and the "
-      "other half of the pair .kslider opens: one expresses a pitch as a key on a keyboard, this "
-      "one as a note on a stave, and both hand a host a musically meaningful surface instead of a "
-      "bare number box. It is not .i with a different name, and the accidental is why: a pitch "
-      "alone is what .i already holds, while what a staff needs is how to *spell* the pitch, "
-      "because MIDI pitch 61 is C sharp or D flat - the same key, two different notes, drawn on "
-      "two different lines with two different signs. Nothing in the pitch decides which; the key "
-      "the music is in does, and headless that has to come from somewhere the patch can set. So "
-      "the state is two cells under issue #551's protocol: cell 0 the pitch, cell 1 the accidental "
-      "(1 sharp, -1 flat, 0 natural). With those two a host has the whole note - the sign to draw, "
-      "and by subtracting it from the pitch the natural it attaches to, which fixes the line or "
-      "space. The accidental is derived and overridable: always 0 for a white key, since there is "
-      "no such thing as a sharpened E drawn as an E, and for one of the five black keys it is the "
-      "'spelling' parameter's choice unless the message that set the pitch said otherwise. That "
-      "override lasts until the next bare pitch arrives, so a patch in F minor sets 'spelling -1' "
-      "once and a single note re-spelled as a sharp does not change the key it is in. Black and "
-      "white are computed from the pitch class rather than looked up - classes 1, 3, 6, 8 and 10 "
-      "are the black keys - which is one compare chain and no table on either side: YSE::scale "
-      "answers 'is this pitch in the key', a different question, and MIDI::M_PITCH is a name enum "
-      "in which CSM1 and DFM1 are aliases of the same value, so by construction it cannot say how "
-      "a pitch should be spelled. The one inlet is hot and everything on it emits: an int or float "
-      "is a pitch and resets the spelling to the parameter's choice, a list is '<pitch> "
-      "[<accidental>]' which at two numbers is exactly what GetGuiValue() produces, 'set 0 "
-      "<pitch>' moves the note without touching the spelling and 'set 1 <accidental>' re-spells it "
-      "without moving it, and a bang re-sends. Pitch leaves outlet 0 and the accidental outlet 1, "
-      "firing right to left so the spelling is in hand before the pitch lands on a hot inlet "
-      "downstream, and both carry one sample of the state taken at the top of the send. The "
-      "minimum and maximum are the pitches the stave covers, the family's ordered parameter pair, "
-      "clamped on the way out as well as in and themselves confined to 0-127, a stave here drawing "
-      "MIDI pitches. Not ported: Max's 'clear', which would have to invent an empty state that "
-      "every reader of the two cells then had to handle, there being no pitch that means nothing - "
-      "0 is C minus one, a real note; everything about drawing, the patcher being headless; and "
-      "chords, which are a list of pitches, and the patcher's answer to a list of pitches is the "
-      "object that holds one. Nothing on any path allocates, locks or blocks: the state is two "
-      "atomic ints, the outlets carry ints so no send builds a string, and the list handler "
-      "compares its keyword in place.");
+  ADD_DESCRIPTION("A note on a staff: a pitch and how it is spelled. It sends the pitch and its "
+                  "accidental (1 sharp, -1 flat, 0 natural); a black key follows the 'spelling' "
+                  "argument unless a message chooses otherwise.");
   ADD_CATEGORY(pCategory::GUI);
   INLET_DOC(0, "note", kInletDoc, "minimum-maximum");
   OUTLET_DOC(0, "pitch", kPitchOutletDoc, "minimum-maximum");
   OUTLET_DOC(1, "accidental", kAccidentalOutletDoc, "-1, 0 or 1");
-  PARAM_DOC("minimum", "0",
-            "Lowest pitch the stave covers. Taken as an ordered pair with the maximum, so a "
-            "reversed argument pair still bounds against the right two numbers, and confined to "
-            "0-127 - a stave here draws MIDI pitches, and a pitch outside that range is not one. "
-            "Clamping happens on the way out as well as in, .incdec's rule, so a live re-range "
-            "shows immediately.",
-            "0-127");
-  PARAM_DOC("maximum", "127", "Highest pitch the stave covers. See the minimum.", "0-127");
+  PARAM_DOC("minimum", "0", "The lowest pitch the staff covers.", "0-127");
+  PARAM_DOC("maximum", "127", "The highest pitch the staff covers.", "0-127");
   PARAM_DOC("spelling", "1",
-            "How a black key is written when nothing overrides it: 1 or anything above it a sharp, "
-            "anything below 0 a flat. This is the key the music is in rather than a property of "
-            "any one note, which is why it is a creation argument and the per-note choice is a "
-            "message - a patch in F minor sets 'spelling -1' once and a single note re-spelled as "
-            "a sharp does not change it back. White keys are unaffected: their accidental is 0 "
-            "whatever this says.",
+            "How a black key is spelled when no message chooses: 0 or above for a sharp, below "
+            "0 for a flat.",
             "1 for sharps, -1 for flats");
 }
 

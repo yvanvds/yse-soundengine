@@ -38,59 +38,21 @@ namespace {
   }
 
   constexpr char kControlInletDoc[] =
-      "The value, and Max's grammar for it. A bang emits the stored value without moving it — the "
-      "arrows move it, so a bang is a read. An int or a float sets the value and emits nothing, "
-      "Max being explicit that the number arriving here 'is not output directly'; that is what "
-      "lets a '.loadmess' or a preset place the stepper without firing everything downstream. A "
-      "float is truncated, as it is everywhere in Max. Three words are commands rather than "
-      "numbers: 'inc' and 'dec' step up and down by the step size and emit the result, and "
-      "'set <n>' is the int message spelled out. With two numbers after the word, "
-      "'set <index> <value>' is the GUI value protocol's cell write instead (issues #551/#846), "
-      "addressed to the one cell there is - any other index is dropped. A list whose first token "
-      "is a number is that number, so a stepper can be set from anything that emits a list - and "
-      "that is also the protocol's whole-state write, which is what lets .preset capture and "
-      "restore the stepper. Whatever arrives, the value that ends up stored is inside the range.";
+      "A bang sends the value without moving it. A number, or 'set <n>', sets it without sending. "
+      "'inc' and 'dec' move one step up or down and send. Also takes its GUI value back, as a "
+      "one-number list or 'set 0 <value>'.";
 
   constexpr char kNudgeInletDoc[] =
-      "The two arrows on a cord. An int 'n' moves n steps — positive up, negative down — and emits "
-      "the result, so a MIDI encoder that sends +1 and -1 drives the stepper with one connection "
-      "and no message boxes. 0 moves nothing and still emits, which makes it a read exactly like a "
-      "bang on the left inlet. A float is truncated first, and a list whose first token is a "
-      "number is that number.";
+      "An int n moves n steps (negative moves down) and sends the result; 0 just sends the "
+      "value. A float is truncated.";
 
   constexpr char kStepInletDoc[] =
-      "Sets the step size live, as '.counter''s right inlet does — the coarse/fine pair a "
-      "performance surface wants. A negative step swaps the arrows: 'inc' then goes down. A step "
-      "of 0 leaves the value where it is, and the object still emits it. A float is truncated.";
+      "Sets the step size. A negative step makes 'inc' go down. A float is truncated.";
 
   constexpr char kDescription[] =
-      "Stepper: increments and decrements a stored whole number by a settable step, inside "
-      "settable bounds. Max's 'incdec', the pair of arrows over a number, and the control for "
-      "anything nudged rather than swept — transpose, octave, preset slot, bar count. It is "
-      "deliberately not '.counter' with more parameters, because a bang means the opposite thing "
-      "on the two objects: '.counter' steps on a bang, which is what makes it the thing behind a "
-      "'.metro', while this one emits the stored value on a bang and moves only when an arrow is "
-      "clicked. The left inlet is Max's: bang reads, an int or float sets without emitting, and "
-      "the words 'inc', 'dec' and 'set <n>' step up, step down and set. The middle inlet is those "
-      "arrows on a cord — an int moves that many steps, signed, and emits — and the right inlet "
-      "sets the step size live. The minimum and maximum are taken as an ordered pair, so limits "
-      "given the wrong way round still bound against the right two numbers, and 'wrap' chooses "
-      "what happens at the end of the range: 0 clamps against it, 1 carries around to the other "
-      "side. The wrapped range is inclusive at both ends — one past the maximum is the minimum — "
-      "because this is a stepper over whole numbers and 11 stepping to 0 is what a twelve-note "
-      "pitch class does. The default range is the whole int range, so an object with no arguments "
-      "is unbounded and saturates rather than overflowing at the ends. The value is bounded on the "
-      "way out as well as on the way in, so a re-range takes effect at once and a stepper created "
-      "over 60-72 reads back as 60 rather than as the 0 it was born with; with wrap on, that "
-      "untouched start lands wherever the wrap puts it, so place it with 'set' if the starting "
-      "point matters. All the arithmetic runs in 64 bits and is bounded back into an int before it "
-      "leaves, so no step, set or range can overflow. The GUI value is the stored value, and it "
-      "is settable per the GUI value protocol (issues #551/#846): a bare number on the left inlet "
-      "is already the whole-state write the round trip needs, and 'set 0 <value>' — two numbers "
-      "after the word, against Max's one-number 'set <n>' — is the protocol's cell write, which "
-      "is what lets .preset capture and restore the stepper. Nothing "
-      "on any message path allocates, locks or blocks on I/O, and Calculate() does nothing — this "
-      "object sends from its handlers, which is what lets a set stay silent while a bang emits.";
+      "A stepper over a whole number. 'inc' and 'dec', or a signed step count on the middle "
+      "inlet, move the value inside a range that clamps or wraps; a number sets it without "
+      "sending and a bang sends it.";
 
 } // namespace
 
@@ -133,15 +95,13 @@ CONSTRUCT() {
   INLET_DOC(0, "value", kControlInletDoc, "any int, 'inc', 'dec', 'set <n>'");
   INLET_DOC(1, "nudge", kNudgeInletDoc, "any int");
   INLET_DOC(2, "step", kStepInletDoc, "any int");
-  OUTLET_DOC(0, "out",
-             "The stored value, sent whenever the stepper moves or is read. Always inside the "
-             "minimum-maximum range.",
-             "minimum-maximum");
-  PARAM_DOC("step", "1", "Amount one step moves the value; a negative step swaps the arrows.",
+  OUTLET_DOC(0, "out", "The value, whenever it moves or is read.", "minimum-maximum");
+  PARAM_DOC("step", "1",
+            "How far one step moves the value; a negative step reverses 'inc' and 'dec'.",
             "any int");
-  PARAM_DOC("minimum", "-2147483648", "Bottom of the range.", "any int");
-  PARAM_DOC("maximum", "2147483647", "Top of the range.", "any int");
-  PARAM_DOC("wrap", "0", "0 clamps at the ends of the range, 1 wraps around to the other end.",
+  PARAM_DOC("minimum", "-2147483648", "The bottom of the range.", "any int");
+  PARAM_DOC("maximum", "2147483647", "The top of the range.", "any int");
+  PARAM_DOC("wrap", "0", "0 stops at the ends of the range; 1 wraps around to the other end.",
             "0 or 1");
 }
 
