@@ -43,31 +43,22 @@ CONSTRUCT() {
   outLow = 0.f;
   outHigh = 1.f;
 
-  ADD_DESCRIPTION(
-      "Control-rate clipped range mapping. Maps the value on inlet 0 from the input range onto the "
-      "output range and emits it as a float. Unlike .scale the mapping never extrapolates: a value "
-      "outside the input range is pinned to the matching output limit, which makes this the safe "
-      "choice for driving a parameter that must never leave its legal range. The mapping is always "
-      "linear — use .scale for an exponential curve or for extrapolation. A descending output "
-      "range "
-      "(low above high) clips against the correct limits, a degenerate input range (low equal to "
-      "high) emits the output low, and nothing non-finite can leave the object — the result is "
-      "always inside the output range.");
+  ADD_DESCRIPTION("Maps a number from the input range onto the output range, in a straight line, "
+                  "and sends it as a float. A number outside the input range gives the nearest "
+                  "output limit, so the result never leaves the output range.");
   ADD_CATEGORY(pCategory::MATH);
-  INLET_DOC(0, "value", "Value to map — fires the evaluation.", "any float");
-  INLET_DOC(1, "inLow", "Bottom of the input range — stored until the next evaluation.",
+  INLET_DOC(0, "value", "Number to map; sends the result.", "any float");
+  INLET_DOC(1, "inLow", "Input value that maps to outLow, stored for the next result.",
             "any float");
-  INLET_DOC(2, "inHigh", "Top of the input range — stored until the next evaluation.", "any float");
-  INLET_DOC(3, "outLow", "Bottom of the output range — stored until the next evaluation.",
+  INLET_DOC(2, "inHigh", "Input value that maps to outHigh, stored for the next result.",
             "any float");
-  INLET_DOC(4, "outHigh", "Top of the output range — stored until the next evaluation.",
-            "any float");
-  OUTLET_DOC(0, "out", "The input value mapped onto the output range and clipped to it.",
-             "any float");
-  PARAM_DOC("inLow", "0", "Bottom of the input range.", "any float");
-  PARAM_DOC("inHigh", "127", "Top of the input range.", "any float");
-  PARAM_DOC("outLow", "0", "Bottom of the output range.", "any float");
-  PARAM_DOC("outHigh", "1", "Top of the output range.", "any float");
+  INLET_DOC(3, "outLow", "Output for inLow, stored for the next result.", "any float");
+  INLET_DOC(4, "outHigh", "Output for inHigh, stored for the next result.", "any float");
+  OUTLET_DOC(0, "out", "The number mapped onto the output range, limited to it.", "any float");
+  PARAM_DOC("inLow", "0", "Input value that maps to outLow.", "any float");
+  PARAM_DOC("inHigh", "127", "Input value that maps to outHigh.", "any float");
+  PARAM_DOC("outLow", "0", "Output for inLow.", "any float");
+  PARAM_DOC("outHigh", "1", "Output for inHigh.", "any float");
 }
 
 void gZmap::Store(float value, int inlet) {

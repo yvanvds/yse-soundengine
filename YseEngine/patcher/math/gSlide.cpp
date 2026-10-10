@@ -48,39 +48,20 @@ CONSTRUCT() {
   slideDown = 1.f;
   current = 0.0;
 
-  ADD_DESCRIPTION(
-      "Logarithmic value smoothing — a one-pole filter on control values, following Max's "
-      "y[n] = y[n-1] + (x[n] - y[n-1]) / slide. Each number received moves the running value a "
-      "fraction of the way towards itself instead of replacing it, which is what turns stepped "
-      "MIDI controller or envelope-follower data into a curve and keeps the parameter it drives "
-      "from zippering. The two amounts are independent: slideUp applies when the incoming value "
-      "is above the running one and slideDown when it is below, so a fast rise with a slow fall "
-      "is one object rather than two. A slide of 1 passes the input straight through and larger "
-      "amounts change proportionally more slowly, so 10 moves a tenth as fast; the parameter "
-      "counts incoming values, not seconds, since the object is clocked by events rather than by "
-      "the sample rate (use ~line for a linear ramp over a stated duration). An amount below 1 "
-      "would make the recursion overshoot and ring, so anything below 1 — including 0 and "
-      "negatives — is treated as 1. Once the running value is within one part in a million of the "
-      "target it snaps onto it exactly, so the smoother settles on its input rather than stalling "
-      "a rounding error short of it. A bang re-runs the filter on the last value received, 'set "
-      "<n>' stages a value without emitting and 'reset' returns the running value to 0.");
+  ADD_DESCRIPTION("Smooths a stream of numbers. Each number moves the output part of the way "
+                  "towards it: 1/slideUp of the distance when rising, 1/slideDown when falling. A "
+                  "slide of 1 passes numbers straight through.");
   ADD_CATEGORY(pCategory::MATH);
   INLET_DOC(0, "value",
-            "Value to smooth — fires one filter step / bang repeats the step on the last value / "
-            "list 'set <n>' stages a value without emitting / list 'reset' zeroes the running "
-            "value.",
+            "Number: take one step towards it and send the output. Bang: take another step "
+            "towards the last number. 'set <n>': set the target without sending. 'reset': set "
+            "the output to 0 without sending.",
             "any float");
-  INLET_DOC(1, "slideUp", "Slide amount used while the input is above the running value.", "1+");
-  INLET_DOC(2, "slideDown", "Slide amount used while the input is below the running value.", "1+");
+  INLET_DOC(1, "slideUp", "Slide used while the output rises. Below 1 counts as 1.", "1+");
+  INLET_DOC(2, "slideDown", "Slide used while the output falls. Below 1 counts as 1.", "1+");
   OUTLET_DOC(0, "out", "The smoothed value.", "between the previous output and the input");
-  PARAM_DOC("slideUp", "1",
-            "Slide amount used while the input is above the running value; below 1 "
-            "reads as 1, which passes the input through.",
-            "1+");
-  PARAM_DOC("slideDown", "1",
-            "Slide amount used while the input is below the running value; below 1 "
-            "reads as 1, which passes the input through.",
-            "1+");
+  PARAM_DOC("slideUp", "1", "Starting slide while rising. Below 1 counts as 1.", "1+");
+  PARAM_DOC("slideDown", "1", "Starting slide while falling. Below 1 counts as 1.", "1+");
 }
 
 double gSlide::Effective(float slide) {

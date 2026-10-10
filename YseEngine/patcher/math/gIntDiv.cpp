@@ -50,15 +50,12 @@ gIntDivBase::gIntDivBase(operation op) : pObject(false), apply(op), leftIn(0), r
   ADD_PARAM(rightIn);
 
   ADD_CATEGORY(pCategory::MATH);
-  INLET_DOC(0, "left",
-            "Left operand — the dividend, and fires the evaluation. Floats truncate "
-            "towards zero.",
-            "any int");
+  INLET_DOC(0, "left", "Dividend; sends the result. Floats are truncated toward zero.", "any int");
   INLET_DOC(1, "right",
-            "Right operand — the divisor, stored until the next evaluation. Floats truncate "
-            "towards zero. Zero forces the output to 0.",
+            "Divisor, stored for the next result. Floats are truncated toward zero; 0 makes the "
+            "result 0.",
             "any int");
-  PARAM_DOC("right", "0", "Initial divisor.", "any int");
+  PARAM_DOC("right", "0", "Starting divisor.", "any int");
 }
 
 void gIntDivBase::Document(const char* summary, const char* outletDoc) {
@@ -91,15 +88,13 @@ CALC() {
 // ─── the two operators ────────────────────────────────────────────────────────
 
 gModulo::gModulo() : gIntDivBase(&ModuloOp) {
-  Document("Control-rate modulo. Emits the remainder of left / right whenever inlet 0 fires — the "
-           "usual way to wrap a counter. The remainder takes the sign of the left operand, floats "
-           "truncate towards zero on input, and a divisor of 0 emits 0.",
-           "The remainder of left / right (or 0 when right == 0).");
+  Document("Sends the remainder of dividing the left operand by the right one, as an int. The "
+           "remainder has the sign of the left operand, and a divisor of 0 sends 0.",
+           "The remainder of left / right, or 0 when right is 0.");
 }
 
 gIntDivide::gIntDivide() : gIntDivBase(&IntDivideOp) {
-  Document("Control-rate integer division. Emits left / right as an int whenever inlet 0 fires, "
-           "truncating towards zero instead of producing the float ./ would. Floats truncate "
-           "towards zero on input, and a divisor of 0 emits 0.",
-           "left / right truncated towards zero (or 0 when right == 0).");
+  Document("Integer division: divides the left operand by the right one and sends the whole "
+           "quotient as an int, truncated toward zero. A divisor of 0 sends 0.",
+           "left / right truncated toward zero, or 0 when right is 0.");
 }

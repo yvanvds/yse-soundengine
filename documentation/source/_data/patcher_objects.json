@@ -1,14 +1,14 @@
 {
   ".!-": {
     "category": "MATH",
-    "description": "Control-rate reverse subtract. Emits right - left as a float whenever inlet 0 fires — the operands of .- in the other order, without needing a swap in front of it.",
+    "description": "Subtracts the left operand from the right one and sends right - left as a float: .- with the operands the other way round.",
     "inlets": [
       {
         "accepts": [
           "FLOAT",
           "INT"
         ],
-        "doc": "Left operand — fires the subtraction and is the value subtracted.",
+        "doc": "Left operand, the value subtracted; sends the result.",
         "index": 0,
         "label": "left",
         "range": "any float"
@@ -18,7 +18,7 @@
           "FLOAT",
           "INT"
         ],
-        "doc": "Right operand — stored until the next evaluation. This is the operand the result is computed from.",
+        "doc": "Right operand, stored for the next result.",
         "index": 1,
         "label": "right",
         "range": "any float"
@@ -38,7 +38,7 @@
     "params": [
       {
         "default": "0",
-        "doc": "Initial right-operand value.",
+        "doc": "Starting right operand.",
         "name": "right",
         "range": "any float"
       }
@@ -47,14 +47,14 @@
   },
   ".!/": {
     "category": "MATH",
-    "description": "Control-rate reverse divide. Emits right / left as a float whenever inlet 0 fires — the operands of ./ in the other order. Division by zero emits 0.",
+    "description": "Divides the right operand by the left one and sends right / left as a float: ./ with the operands the other way round. A left operand of 0 sends 0.",
     "inlets": [
       {
         "accepts": [
           "FLOAT",
           "INT"
         ],
-        "doc": "Left operand — fires the division and is the divisor. Zero forces the output to 0.",
+        "doc": "Left operand, the divisor; sends the result. 0 makes the result 0.",
         "index": 0,
         "label": "left",
         "range": "any float"
@@ -64,7 +64,7 @@
           "FLOAT",
           "INT"
         ],
-        "doc": "Right operand — stored until the next evaluation. This is the operand the result is computed from.",
+        "doc": "Right operand, stored for the next result.",
         "index": 1,
         "label": "right",
         "range": "any float"
@@ -74,7 +74,7 @@
     "name": ".!/",
     "outlets": [
       {
-        "doc": "right / left (or 0 when left == 0).",
+        "doc": "right / left, or 0 when left is 0.",
         "index": 0,
         "label": "out",
         "range": "any float",
@@ -84,7 +84,7 @@
     "params": [
       {
         "default": "0",
-        "doc": "Initial right-operand value.",
+        "doc": "Starting right operand.",
         "name": "right",
         "range": "any float"
       }
@@ -93,14 +93,14 @@
   },
   ".!=": {
     "category": "MATH",
-    "description": "Control-rate inequality test. Emits 1 when left != right and 0 otherwise, whenever inlet 0 fires.",
+    "description": "Sends 1 when the left operand differs from the right one, otherwise 0.",
     "inlets": [
       {
         "accepts": [
           "FLOAT",
           "INT"
         ],
-        "doc": "Left operand — fires the evaluation.",
+        "doc": "Left operand; sends the result.",
         "index": 0,
         "label": "left",
         "range": "any float"
@@ -110,7 +110,7 @@
           "FLOAT",
           "INT"
         ],
-        "doc": "Right operand — stored until the next evaluation.",
+        "doc": "Right operand, stored for the next result.",
         "index": 1,
         "label": "right",
         "range": "any float"
@@ -130,7 +130,7 @@
     "params": [
       {
         "default": "0",
-        "doc": "Initial right-operand value.",
+        "doc": "Starting right operand.",
         "name": "right",
         "range": "any float"
       }
@@ -139,14 +139,14 @@
   },
   ".%": {
     "category": "MATH",
-    "description": "Control-rate modulo. Emits the remainder of left / right whenever inlet 0 fires — the usual way to wrap a counter. The remainder takes the sign of the left operand, floats truncate towards zero on input, and a divisor of 0 emits 0.",
+    "description": "Sends the remainder of dividing the left operand by the right one, as an int. The remainder has the sign of the left operand, and a divisor of 0 sends 0.",
     "inlets": [
       {
         "accepts": [
           "FLOAT",
           "INT"
         ],
-        "doc": "Left operand — the dividend, and fires the evaluation. Floats truncate towards zero.",
+        "doc": "Dividend; sends the result. Floats are truncated toward zero.",
         "index": 0,
         "label": "left",
         "range": "any int"
@@ -156,7 +156,7 @@
           "FLOAT",
           "INT"
         ],
-        "doc": "Right operand — the divisor, stored until the next evaluation. Floats truncate towards zero. Zero forces the output to 0.",
+        "doc": "Divisor, stored for the next result. Floats are truncated toward zero; 0 makes the result 0.",
         "index": 1,
         "label": "right",
         "range": "any int"
@@ -166,7 +166,7 @@
     "name": ".%",
     "outlets": [
       {
-        "doc": "The remainder of left / right (or 0 when right == 0).",
+        "doc": "The remainder of left / right, or 0 when right is 0.",
         "index": 0,
         "label": "out",
         "range": "any int",
@@ -176,7 +176,7 @@
     "params": [
       {
         "default": "0",
-        "doc": "Initial divisor.",
+        "doc": "Starting divisor.",
         "name": "right",
         "range": "any int"
       }
@@ -185,14 +185,14 @@
   },
   ".&": {
     "category": "MATH",
-    "description": "Control-rate bitwise AND. Emits left & right whenever inlet 0 fires. Floats truncate towards zero on input.",
+    "description": "Bitwise AND of two integers, sent as an int. Floats are truncated toward zero first.",
     "inlets": [
       {
         "accepts": [
           "FLOAT",
           "INT"
         ],
-        "doc": "Left operand — fires the evaluation. Floats truncate towards zero.",
+        "doc": "Left operand; sends the result. Floats are truncated toward zero.",
         "index": 0,
         "label": "left",
         "range": "any int"
@@ -202,7 +202,7 @@
           "FLOAT",
           "INT"
         ],
-        "doc": "Right operand — stored until the next evaluation. Floats truncate towards zero.",
+        "doc": "Right operand, stored for the next result. Floats are truncated toward zero.",
         "index": 1,
         "label": "right",
         "range": "any int"
@@ -222,7 +222,7 @@
     "params": [
       {
         "default": "0",
-        "doc": "Initial right-operand value.",
+        "doc": "Starting right operand.",
         "name": "right",
         "range": "any int"
       }
@@ -231,14 +231,14 @@
   },
   ".&&": {
     "category": "MATH",
-    "description": "Control-rate logical AND. Emits 1 when both operands are non-zero and 0 otherwise, whenever inlet 0 fires.",
+    "description": "Logical AND: sends 1 when both operands are non-zero, otherwise 0.",
     "inlets": [
       {
         "accepts": [
           "FLOAT",
           "INT"
         ],
-        "doc": "Left operand — fires the evaluation.",
+        "doc": "Left operand; sends the result.",
         "index": 0,
         "label": "left",
         "range": "any float"
@@ -248,7 +248,7 @@
           "FLOAT",
           "INT"
         ],
-        "doc": "Right operand — stored until the next evaluation.",
+        "doc": "Right operand, stored for the next result.",
         "index": 1,
         "label": "right",
         "range": "any float"
@@ -268,7 +268,7 @@
     "params": [
       {
         "default": "0",
-        "doc": "Initial right-operand value.",
+        "doc": "Starting right operand.",
         "name": "right",
         "range": "any float"
       }
@@ -277,14 +277,14 @@
   },
   ".*": {
     "category": "MATH",
-    "description": "Control-rate multiply. Emits left * right as a float whenever inlet 0 fires.",
+    "description": "Multiplies two numbers and sends the product as a float.",
     "inlets": [
       {
         "accepts": [
           "FLOAT",
           "INT"
         ],
-        "doc": "Left operand — fires the multiplication.",
+        "doc": "Left operand; sends the result.",
         "index": 0,
         "label": "left",
         "range": "any float"
@@ -294,7 +294,7 @@
           "FLOAT",
           "INT"
         ],
-        "doc": "Right operand — stored until next multiply.",
+        "doc": "Right operand, stored for the next result.",
         "index": 1,
         "label": "right",
         "range": "any float"
@@ -314,7 +314,7 @@
     "params": [
       {
         "default": "0",
-        "doc": "Initial right-operand value.",
+        "doc": "Starting right operand.",
         "name": "right",
         "range": "any float"
       }
@@ -323,14 +323,14 @@
   },
   ".+": {
     "category": "MATH",
-    "description": "Control-rate add. Emits left + right as a float whenever inlet 0 fires.",
+    "description": "Adds two numbers. A number on the left inlet is added to the stored right operand, and the sum is sent as a float.",
     "inlets": [
       {
         "accepts": [
           "FLOAT",
           "INT"
         ],
-        "doc": "Left operand — fires the addition.",
+        "doc": "Left operand; sends the result.",
         "index": 0,
         "label": "left",
         "range": "any float"
@@ -340,7 +340,7 @@
           "FLOAT",
           "INT"
         ],
-        "doc": "Right operand — stored until next add.",
+        "doc": "Right operand, stored for the next result.",
         "index": 1,
         "label": "right",
         "range": "any float"
@@ -360,7 +360,7 @@
     "params": [
       {
         "default": "0",
-        "doc": "Initial right-operand value.",
+        "doc": "Starting right operand.",
         "name": "right",
         "range": "any float"
       }
@@ -369,14 +369,14 @@
   },
   ".-": {
     "category": "MATH",
-    "description": "Control-rate subtract. Emits left - right as a float whenever inlet 0 fires.",
+    "description": "Subtracts the right operand from the left one and sends the difference as a float.",
     "inlets": [
       {
         "accepts": [
           "FLOAT",
           "INT"
         ],
-        "doc": "Left operand — fires the subtraction.",
+        "doc": "Left operand; sends the result.",
         "index": 0,
         "label": "left",
         "range": "any float"
@@ -386,7 +386,7 @@
           "FLOAT",
           "INT"
         ],
-        "doc": "Right operand — stored until next subtract.",
+        "doc": "Right operand, stored for the next result.",
         "index": 1,
         "label": "right",
         "range": "any float"
@@ -406,7 +406,7 @@
     "params": [
       {
         "default": "0",
-        "doc": "Initial right-operand value.",
+        "doc": "Starting right operand.",
         "name": "right",
         "range": "any float"
       }
@@ -415,14 +415,14 @@
   },
   "./": {
     "category": "MATH",
-    "description": "Control-rate divide. Emits left / right as a float whenever inlet 0 fires; division by zero emits 0.",
+    "description": "Divides the left operand by the right one and sends the quotient as a float. Dividing by 0 sends 0.",
     "inlets": [
       {
         "accepts": [
           "FLOAT",
           "INT"
         ],
-        "doc": "Left operand — fires the division.",
+        "doc": "Dividend; sends the result.",
         "index": 0,
         "label": "left",
         "range": "any float"
@@ -432,7 +432,7 @@
           "FLOAT",
           "INT"
         ],
-        "doc": "Right operand — stored until next divide. Zero forces output to 0.",
+        "doc": "Divisor, stored for the next result. 0 makes the result 0.",
         "index": 1,
         "label": "right",
         "range": "any float"
@@ -442,7 +442,7 @@
     "name": "./",
     "outlets": [
       {
-        "doc": "left / right (or 0 when right == 0).",
+        "doc": "left / right, or 0 when right is 0.",
         "index": 0,
         "label": "out",
         "range": "any float",
@@ -452,7 +452,7 @@
     "params": [
       {
         "default": "0",
-        "doc": "Initial right-operand value.",
+        "doc": "Starting divisor.",
         "name": "right",
         "range": "any float"
       }
@@ -461,14 +461,14 @@
   },
   ".<": {
     "category": "MATH",
-    "description": "Control-rate less-than test. Emits 1 when left < right and 0 otherwise, whenever inlet 0 fires.",
+    "description": "Sends 1 when the left operand is less than the right one, otherwise 0.",
     "inlets": [
       {
         "accepts": [
           "FLOAT",
           "INT"
         ],
-        "doc": "Left operand — fires the evaluation.",
+        "doc": "Left operand; sends the result.",
         "index": 0,
         "label": "left",
         "range": "any float"
@@ -478,7 +478,7 @@
           "FLOAT",
           "INT"
         ],
-        "doc": "Right operand — stored until the next evaluation.",
+        "doc": "Right operand, stored for the next result.",
         "index": 1,
         "label": "right",
         "range": "any float"
@@ -498,7 +498,7 @@
     "params": [
       {
         "default": "0",
-        "doc": "Initial right-operand value.",
+        "doc": "Starting right operand.",
         "name": "right",
         "range": "any float"
       }
@@ -507,14 +507,14 @@
   },
   ".<<": {
     "category": "MATH",
-    "description": "Control-rate bit shift left. Emits left << right whenever inlet 0 fires. Shift counts below 0 shift by nothing and counts of 32 or more shift every bit out.",
+    "description": "Shifts the bits of the left operand left by the right operand. A count below 0 shifts nothing, and a count of 32 or more gives 0.",
     "inlets": [
       {
         "accepts": [
           "FLOAT",
           "INT"
         ],
-        "doc": "Left operand — fires the evaluation. Floats truncate towards zero.",
+        "doc": "Left operand; sends the result. Floats are truncated toward zero.",
         "index": 0,
         "label": "left",
         "range": "any int"
@@ -524,7 +524,7 @@
           "FLOAT",
           "INT"
         ],
-        "doc": "Right operand — stored until the next evaluation. Floats truncate towards zero.",
+        "doc": "Right operand, stored for the next result. Floats are truncated toward zero.",
         "index": 1,
         "label": "right",
         "range": "any int"
@@ -544,7 +544,7 @@
     "params": [
       {
         "default": "0",
-        "doc": "Initial right-operand value.",
+        "doc": "Starting right operand.",
         "name": "right",
         "range": "any int"
       }
@@ -553,14 +553,14 @@
   },
   ".<=": {
     "category": "MATH",
-    "description": "Control-rate less-than-or-equal test. Emits 1 when left <= right and 0 otherwise, whenever inlet 0 fires.",
+    "description": "Sends 1 when the left operand is less than or equal to the right one, otherwise 0.",
     "inlets": [
       {
         "accepts": [
           "FLOAT",
           "INT"
         ],
-        "doc": "Left operand — fires the evaluation.",
+        "doc": "Left operand; sends the result.",
         "index": 0,
         "label": "left",
         "range": "any float"
@@ -570,7 +570,7 @@
           "FLOAT",
           "INT"
         ],
-        "doc": "Right operand — stored until the next evaluation.",
+        "doc": "Right operand, stored for the next result.",
         "index": 1,
         "label": "right",
         "range": "any float"
@@ -590,7 +590,7 @@
     "params": [
       {
         "default": "0",
-        "doc": "Initial right-operand value.",
+        "doc": "Starting right operand.",
         "name": "right",
         "range": "any float"
       }
@@ -599,14 +599,14 @@
   },
   ".==": {
     "category": "MATH",
-    "description": "Control-rate equality test. Emits 1 when left == right and 0 otherwise, whenever inlet 0 fires.",
+    "description": "Sends 1 when the left operand equals the right one, otherwise 0.",
     "inlets": [
       {
         "accepts": [
           "FLOAT",
           "INT"
         ],
-        "doc": "Left operand — fires the evaluation.",
+        "doc": "Left operand; sends the result.",
         "index": 0,
         "label": "left",
         "range": "any float"
@@ -616,7 +616,7 @@
           "FLOAT",
           "INT"
         ],
-        "doc": "Right operand — stored until the next evaluation.",
+        "doc": "Right operand, stored for the next result.",
         "index": 1,
         "label": "right",
         "range": "any float"
@@ -636,7 +636,7 @@
     "params": [
       {
         "default": "0",
-        "doc": "Initial right-operand value.",
+        "doc": "Starting right operand.",
         "name": "right",
         "range": "any float"
       }
@@ -645,14 +645,14 @@
   },
   ".>": {
     "category": "MATH",
-    "description": "Control-rate greater-than test. Emits 1 when left > right and 0 otherwise, whenever inlet 0 fires.",
+    "description": "Sends 1 when the left operand is greater than the right one, otherwise 0.",
     "inlets": [
       {
         "accepts": [
           "FLOAT",
           "INT"
         ],
-        "doc": "Left operand — fires the evaluation.",
+        "doc": "Left operand; sends the result.",
         "index": 0,
         "label": "left",
         "range": "any float"
@@ -662,7 +662,7 @@
           "FLOAT",
           "INT"
         ],
-        "doc": "Right operand — stored until the next evaluation.",
+        "doc": "Right operand, stored for the next result.",
         "index": 1,
         "label": "right",
         "range": "any float"
@@ -682,7 +682,7 @@
     "params": [
       {
         "default": "0",
-        "doc": "Initial right-operand value.",
+        "doc": "Starting right operand.",
         "name": "right",
         "range": "any float"
       }
@@ -691,14 +691,14 @@
   },
   ".>=": {
     "category": "MATH",
-    "description": "Control-rate greater-than-or-equal test. Emits 1 when left >= right and 0 otherwise, whenever inlet 0 fires.",
+    "description": "Sends 1 when the left operand is greater than or equal to the right one, otherwise 0.",
     "inlets": [
       {
         "accepts": [
           "FLOAT",
           "INT"
         ],
-        "doc": "Left operand — fires the evaluation.",
+        "doc": "Left operand; sends the result.",
         "index": 0,
         "label": "left",
         "range": "any float"
@@ -708,7 +708,7 @@
           "FLOAT",
           "INT"
         ],
-        "doc": "Right operand — stored until the next evaluation.",
+        "doc": "Right operand, stored for the next result.",
         "index": 1,
         "label": "right",
         "range": "any float"
@@ -728,7 +728,7 @@
     "params": [
       {
         "default": "0",
-        "doc": "Initial right-operand value.",
+        "doc": "Starting right operand.",
         "name": "right",
         "range": "any float"
       }
@@ -737,14 +737,14 @@
   },
   ".>>": {
     "category": "MATH",
-    "description": "Control-rate arithmetic bit shift right. Emits left >> right whenever inlet 0 fires. The sign bit is replicated, so negative values saturate at -1.",
+    "description": "Shifts the bits of the left operand right by the right operand, keeping the sign. A count below 0 shifts nothing; past 31, a negative number gives -1 and any other 0.",
     "inlets": [
       {
         "accepts": [
           "FLOAT",
           "INT"
         ],
-        "doc": "Left operand — fires the evaluation. Floats truncate towards zero.",
+        "doc": "Left operand; sends the result. Floats are truncated toward zero.",
         "index": 0,
         "label": "left",
         "range": "any int"
@@ -754,7 +754,7 @@
           "FLOAT",
           "INT"
         ],
-        "doc": "Right operand — stored until the next evaluation. Floats truncate towards zero.",
+        "doc": "Right operand, stored for the next result. Floats are truncated toward zero.",
         "index": 1,
         "label": "right",
         "range": "any int"
@@ -774,7 +774,7 @@
     "params": [
       {
         "default": "0",
-        "doc": "Initial right-operand value.",
+        "doc": "Starting right operand.",
         "name": "right",
         "range": "any int"
       }
@@ -783,14 +783,14 @@
   },
   ".abs": {
     "category": "MATH",
-    "description": "Control-rate absolute value. Emits |in| as a float whenever inlet 0 fires.",
+    "description": "Sends the absolute value of a number, as a float.",
     "inlets": [
       {
         "accepts": [
           "FLOAT",
           "INT"
         ],
-        "doc": "Value to take the absolute value of — fires the evaluation.",
+        "doc": "Number; sends the result.",
         "index": 0,
         "label": "in",
         "range": "any float"
@@ -812,7 +812,7 @@
   },
   ".accum": {
     "category": "MATH",
-    "description": "A stored number to add into and multiply in place — the general-purpose register that .counter only covers the increment-by-one case of, for running totals, scaling chains and stateful math without a feedback cord. Three inlets, as in Max: an int or float on inlet 0 replaces the stored value and sends it out, a number on inlet 1 is added to it and a number on inlet 2 multiplies it, both without triggering output. A bang sends the stored value out, and before any operation that is the 'initial' creation argument (0 by default) rather than silence. The same three operations are available as messages on inlet 0 for patches that would rather send one cord than wire three: 'set <n>' stores without emitting (Max's word), 'add <n>' adds without emitting (Max spells it 'ft1', accepted as a synonym) and 'mult <n>' multiplies without emitting. 'reset' restores the initial argument, also silently — as .counter's reset returns to startValue — which is not the same message as 'set 0' whenever the object was created with an argument. The register is a double while the outlet carries a float, because a multiply-accumulate feeds its own rounding back into itself: over a chain of k operations the relative error grows as about k*2^-53, still 29 bits below what the outlet can express after a billion of them. Max's int/float duality — where an integer argument makes every multiply round back to an integer — is deliberately not reproduced, since '.accum 5' and '.accum 5.0' parse identically here and guessing wrong would silently turn two 'mult 0.5' into 0 instead of a quarter; put a .round on the outlet instead. At the limits the register saturates at plus or minus 3.4028235e38 rather than becoming infinite: an infinity is absorbing, so one overflow would make the register permanently useless and an infinity minus an infinity would put a NaN on the outlet that poisons everything downstream, while a saturated register is still a number with the right sign that the next multiply brings back into range. That matters because a multiply-accumulate diverges fast — repeated 'mult 2' reaches the ceiling in 128 messages. Clamping after every operation is also what makes the double arithmetic itself unable to overflow, both operands then being bounded by the float maximum. The bottom of the range is not floored, so a chain that multiplies down by 1e-30 and back up by 1e30 recovers exactly even though the outlet reported 0 in between. A non-finite number is neutralised with the identity of the operation it drives — 0 for an add, 1 for a multiply — and with 0 where it would become the stored value.",
+    "description": "Stores a number you can replace, add to and multiply. A number on the left inlet replaces it and sends it; the middle inlet adds to it and the right inlet multiplies it, without sending.",
     "inlets": [
       {
         "accepts": [
@@ -821,7 +821,7 @@
           "BANG",
           "LIST"
         ],
-        "doc": "Int or float to store and send out / bang to send the stored value out / list 'set <n>' to store without emitting / list 'add <n>' (or 'ft1 <n>') to add without emitting / list 'mult <n>' to multiply without emitting / list 'reset' to return to the initial argument.",
+        "doc": "Number: replace the stored value and send it. Bang: send the stored value. 'set <n>', 'add <n>', 'mult <n>': replace, add or multiply without sending. 'reset': go back to the starting value.",
         "index": 0,
         "label": "value",
         "range": "any float"
@@ -831,7 +831,7 @@
           "FLOAT",
           "INT"
         ],
-        "doc": "Number added to the stored value, without triggering output.",
+        "doc": "Number added to the stored value, without sending.",
         "index": 1,
         "label": "add",
         "range": "any float"
@@ -841,7 +841,7 @@
           "FLOAT",
           "INT"
         ],
-        "doc": "The stored value is multiplied by this, without triggering output.",
+        "doc": "Number the stored value is multiplied by, without sending.",
         "index": 2,
         "label": "mult",
         "range": "any float"
@@ -854,14 +854,14 @@
         "doc": "The stored value.",
         "index": 0,
         "label": "out",
-        "range": "any float, saturating at +/-3.4028235e38 rather than becoming infinite",
+        "range": "any float",
         "type": "FLOAT"
       }
     ],
     "params": [
       {
         "default": "0",
-        "doc": "Starting value of the register, what a bang reports before any operation, and the value 'reset' returns to.",
+        "doc": "Starting value: what a bang sends before anything changes it, and what 'reset' returns to.",
         "name": "initial",
         "range": "any float"
       }
@@ -870,14 +870,14 @@
   },
   ".acos": {
     "category": "MATH",
-    "description": "Control-rate arc-cosine. Emits acos(in) in radians as a float whenever inlet 0 fires. Inputs outside -1 to 1 have no real arc-cosine and emit 0 rather than a NaN.",
+    "description": "Sends the arc-cosine of a number, in radians. Numbers outside -1 to 1 send 0.",
     "inlets": [
       {
         "accepts": [
           "FLOAT",
           "INT"
         ],
-        "doc": "Value to take the arc-cosine of — fires the evaluation. Values outside -1 to 1 force the output to 0.",
+        "doc": "Number; sends the result. Numbers outside -1 to 1 send 0.",
         "index": 0,
         "label": "in",
         "range": "-1.0 to 1.0"
@@ -899,14 +899,14 @@
   },
   ".acosh": {
     "category": "MATH",
-    "description": "Control-rate hyperbolic arc-cosine. Emits acosh(in) as a float whenever inlet 0 fires. Inputs below 1 have no real hyperbolic arc-cosine and emit 0 rather than a NaN.",
+    "description": "Sends the hyperbolic arc-cosine of a number. Numbers below 1 send 0.",
     "inlets": [
       {
         "accepts": [
           "FLOAT",
           "INT"
         ],
-        "doc": "Value to take the hyperbolic arc-cosine of — fires the evaluation. Values below 1 force the output to 0.",
+        "doc": "Number; sends the result. Numbers below 1 send 0.",
         "index": 0,
         "label": "in",
         "range": "1.0 or higher"
@@ -928,7 +928,7 @@
   },
   ".anal": {
     "category": "MATH",
-    "description": "Transition histogram — counts which number follows which. Every number received is counted as a pair with the number before it, and the running count of that pair comes out as the list '<previous> <current> <count>'. That is exactly the list .prob stores a transition from, so a patch cord from this outlet into a .prob is the whole integration: play a phrase in here and the .prob on the other end has learned its first-order style and will improvise in it. The two agree because .anal accumulates the count and .prob replaces the weight with it, so re-sending a growing pair never double-counts. The first number received has no predecessor and is only remembered. Inputs are clipped into [0, limit], which is why the limit defaults to 128 — a MIDI note number arrives unchanged. 'clear' forgets the counts but keeps the last number as the next pair's predecessor, 'reset' does the opposite, and 'dump' sends every stored pair out outlet 0 so a table learned earlier can be replayed into a .prob created later. The table holds 1024 distinct pairs: once it is full, pairs already in it keep counting and a new one is dropped with a bang on outlet 1 rather than evicting somebody else's statistics or reporting a count that no input produced.",
+    "description": "Counts how often each number follows the one before it, and sends '<previous> <current> <count>' for every pair it counts. Wire it into .prob to make .prob play in the style of what it heard.",
     "inlets": [
       {
         "accepts": [
@@ -936,7 +936,7 @@
           "INT",
           "LIST"
         ],
-        "doc": "Int or float to add the next number of the stream / list 'clear' to forget the counted pairs but keep the last number / list 'reset' to forget the last number but keep the counts / list 'dump' to send every stored pair out outlet 0.",
+        "doc": "Number: count it as following the previous number. 'clear': forget the counts. 'reset': forget the previous number. 'dump': send every stored pair.",
         "index": 0,
         "label": "in",
         "range": "0 to limit"
@@ -946,14 +946,14 @@
     "name": ".anal",
     "outlets": [
       {
-        "doc": "'<previous> <current> <count>' — how often this succession has been seen. Silent for the first number, and for a new pair that no longer fits the table.",
+        "doc": "'<previous> <current> <count>': how often this pair has been seen.",
         "index": 0,
         "label": "pair",
         "range": "",
         "type": "LIST"
       },
       {
-        "doc": "Bangs when a pair could not be counted because the table already holds its 1024 distinct pairs.",
+        "doc": "Bang when a new pair cannot be stored because 1024 different pairs already are.",
         "index": 1,
         "label": "full",
         "range": "",
@@ -963,7 +963,7 @@
     "params": [
       {
         "default": "128",
-        "doc": "Top of the input range; incoming numbers are clipped into [0, limit]. Clamped to 1-16384.",
+        "doc": "Highest number accepted; numbers are limited to 0 to limit. Clamped to 1-16384.",
         "name": "limit",
         "range": "1-16384"
       }
@@ -4320,14 +4320,14 @@
   },
   ".asin": {
     "category": "MATH",
-    "description": "Control-rate arc-sine. Emits asin(in) in radians as a float whenever inlet 0 fires. Inputs outside -1 to 1 have no real arc-sine and emit 0 rather than a NaN.",
+    "description": "Sends the arc-sine of a number, in radians. Numbers outside -1 to 1 send 0.",
     "inlets": [
       {
         "accepts": [
           "FLOAT",
           "INT"
         ],
-        "doc": "Value to take the arc-sine of — fires the evaluation. Values outside -1 to 1 force the output to 0.",
+        "doc": "Number; sends the result. Numbers outside -1 to 1 send 0.",
         "index": 0,
         "label": "in",
         "range": "-1.0 to 1.0"
@@ -4349,14 +4349,14 @@
   },
   ".asinh": {
     "category": "MATH",
-    "description": "Control-rate hyperbolic arc-sine. Emits asinh(in) as a float whenever inlet 0 fires. Defined for every input.",
+    "description": "Sends the hyperbolic arc-sine of a number.",
     "inlets": [
       {
         "accepts": [
           "FLOAT",
           "INT"
         ],
-        "doc": "Value to take the hyperbolic arc-sine of — fires the evaluation.",
+        "doc": "Number; sends the result.",
         "index": 0,
         "label": "in",
         "range": "any float"
@@ -4378,14 +4378,14 @@
   },
   ".atan": {
     "category": "MATH",
-    "description": "Control-rate arc-tangent. Emits atan(in) in radians as a float whenever inlet 0 fires. Use .atan2 when the quadrant of the angle matters.",
+    "description": "Sends the arc-tangent of a number, in radians. Use .atan2 for an angle around the full circle.",
     "inlets": [
       {
         "accepts": [
           "FLOAT",
           "INT"
         ],
-        "doc": "Value to take the arc-tangent of — fires the evaluation.",
+        "doc": "Number; sends the result.",
         "index": 0,
         "label": "in",
         "range": "any float"
@@ -4407,14 +4407,14 @@
   },
   ".atan2": {
     "category": "MATH",
-    "description": "Control-rate two-argument arc-tangent. Emits the angle in radians of the point (x, y) measured from the positive x axis, whenever inlet 0 fires. Unlike .atan it sees the signs of both operands, so it resolves the full circle rather than only the half plane — this is the angle half of a cartesian-to-polar conversion.",
+    "description": "Sends the angle of the point (x, y) in radians, measured from the positive x axis, from -pi to pi. The left inlet takes y and the right inlet x.",
     "inlets": [
       {
         "accepts": [
           "FLOAT",
           "INT"
         ],
-        "doc": "y coordinate — fires the evaluation.",
+        "doc": "y coordinate; sends the result.",
         "index": 0,
         "label": "y",
         "range": "any float"
@@ -4424,7 +4424,7 @@
           "FLOAT",
           "INT"
         ],
-        "doc": "x coordinate — stored until the next evaluation.",
+        "doc": "x coordinate, stored for the next result.",
         "index": 1,
         "label": "x",
         "range": "any float"
@@ -4444,7 +4444,7 @@
     "params": [
       {
         "default": "0",
-        "doc": "Initial x coordinate.",
+        "doc": "Starting x coordinate.",
         "name": "x",
         "range": "any float"
       }
@@ -4453,14 +4453,14 @@
   },
   ".atanh": {
     "category": "MATH",
-    "description": "Control-rate hyperbolic arc-tangent. Emits atanh(in) as a float whenever inlet 0 fires. The result is unbounded at ±1 and undefined beyond them, so inputs at or outside -1 to 1 emit 0 rather than an infinity or a NaN.",
+    "description": "Sends the hyperbolic arc-tangent of a number. Numbers at or beyond -1 and 1 send 0.",
     "inlets": [
       {
         "accepts": [
           "FLOAT",
           "INT"
         ],
-        "doc": "Value to take the hyperbolic arc-tangent of — fires the evaluation. Values at or outside -1 to 1 force the output to 0.",
+        "doc": "Number; sends the result. Numbers at or beyond -1 and 1 send 0.",
         "index": 0,
         "label": "in",
         "range": "greater than -1.0 and less than 1.0"
@@ -4482,14 +4482,14 @@
   },
   ".atodb": {
     "category": "MATH",
-    "description": "Control-rate linear amplitude to decibels. Emits the input amplitude expressed on the engine's decibel scale whenever inlet 0 fires. That scale is the one used by the rmsToDb DSP module and by the engine's own volume reporting: amplitude 1.0 is 100 dB, amplitude 0 is 0 dB, and the result never goes negative. Subtract 100 to read it as conventional dBFS.",
+    "description": "Converts a linear amplitude to decibels on the engine's scale, where an amplitude of 1 is 100 dB and nothing goes below 0 dB. Subtract 100 for decibels relative to full scale.",
     "inlets": [
       {
         "accepts": [
           "FLOAT",
           "INT"
         ],
-        "doc": "Linear amplitude to convert — fires the evaluation. Zero and negative values emit 0.",
+        "doc": "Linear amplitude; sends the result. 0 and below send 0.",
         "index": 0,
         "label": "in",
         "range": "0.0 and up"
@@ -4499,7 +4499,7 @@
     "name": ".atodb",
     "outlets": [
       {
-        "doc": "The amplitude in decibels, with 100 dB meaning an amplitude of 1.0.",
+        "doc": "The amplitude in decibels; 100 dB is an amplitude of 1.",
         "index": 0,
         "label": "out",
         "range": "0-485 dB",
@@ -5107,14 +5107,14 @@
   },
   ".cartopol": {
     "category": "MATH",
-    "description": "Control-rate cartesian to polar conversion. Whenever inlet 0 fires it emits the polar form of the point (x, y): its distance from the origin on outlet 0 and its angle in radians, measured from the positive x axis, on outlet 1. Both outlets fire on every evaluation, right one first.",
+    "description": "Converts the point (x, y) to polar form: its distance from the origin on the left outlet and its angle in radians on the right one.",
     "inlets": [
       {
         "accepts": [
           "FLOAT",
           "INT"
         ],
-        "doc": "x coordinate — fires the evaluation.",
+        "doc": "x coordinate; sends the result.",
         "index": 0,
         "label": "x",
         "range": "any float"
@@ -5124,7 +5124,7 @@
           "FLOAT",
           "INT"
         ],
-        "doc": "y coordinate — stored until the next evaluation.",
+        "doc": "y coordinate, stored for the next result.",
         "index": 1,
         "label": "y",
         "range": "any float"
@@ -5134,7 +5134,7 @@
     "name": ".cartopol",
     "outlets": [
       {
-        "doc": "Distance of (x, y) from the origin.",
+        "doc": "Distance of (x, y) from the origin. Sent after the angle.",
         "index": 0,
         "label": "amplitude",
         "range": "0 or higher",
@@ -5151,7 +5151,7 @@
     "params": [
       {
         "default": "0",
-        "doc": "Initial y coordinate.",
+        "doc": "Starting y coordinate.",
         "name": "y",
         "range": "any float"
       }
@@ -5160,7 +5160,7 @@
   },
   ".change": {
     "category": "MATH",
-    "description": "Passes a number on only when it differs from the last one, which is what keeps a control source that polls at frame rate from filling a bounded message queue with a value nothing downstream will act on. Max's change, and it looks trivial in a way it is not. The stored value starts at the 'initial' creation argument rather than at 'nothing received yet' — Max: 'If there is no argument, the initial value is 0' — so a bare .change sent 0 as its very first message emits nothing, because 0 is what it already held, while the same object sent 5 first emits 5. That is the point of the argument: .change 5 declares what the patch already believes the value to be, so loading a patch does not fire an event for a parameter that has not moved, and an object that always emitted its first input could not express it. The comparison is exact, with no tolerance, for the reason .sel gives from the other side: a tolerance in a matcher makes it match values it was not given, and a tolerance in a suppressor is worse, because swallowing a value that genuinely differs is invisible and leaves a patch whose parameter stopped updating at the fourth decimal place with no symptom to trace. Put a .round on the way in, where the patch's real tolerance is visible. Negative zero is not a change from zero, since they are the same number. A non-finite number is ignored outright — nothing is emitted, no outlet fires and the stored value is untouched — rather than read as 0 the way the rest of the patcher reads it: reading a NaN as 0 would emit a zero the patch never sent and then swallow the next genuine one, and storing it raw is worse, because a NaN compares unequal to everything including itself and a stream of them would emit on every single message, which is the exact repetition flood this object exists to stop. So the stored value is always finite, whether it came from the argument, from 'set' or from the inlet. Three outlets, as in Max: outlet 0 carries the number when it differs; outlet 1 sends 1 when the stored value was 0 and the input is not; outlet 2 sends 1 when the stored value was not 0 and the input is. The last two are .togedge built into the object and are ported because Max ships them, so a patch translated from Max does not silently lose two cords; neither can fire on a repetition, and both are evaluated against the value held before this input. The three fire right to left, so whatever the value triggers already sees the matching edge reports. Max's second argument and its 'mode' message turn the object from a difference detector into a direction detector: 'mode +' sends 1 when the number is greater than the previous one, 'mode -' sends -1 when it is less, and a bare 'mode' returns to the default. The stored value is replaced by every number received in every mode — it is the previously received number, not the last one emitted — so a .change + fed 5, 3, 4 emits nothing, nothing, then 1. A mode flag this object does not know leaves the mode alone. 'set <n>' replaces the stored value without emitting, which is the whole of what makes it useful: if it emitted it would just be a spelling of sending n at the inlet, whereas staying silent lets a patch re-synchronise the filter with a value that reached the parameter by another route. 'reset' is the patcher family's word rather than a Max message and returns both the stored value and the mode to what the object was created with, silently, since after a 'set' or a 'mode' there is otherwise no way back to the creation argument. A bang is not accepted, because outlet 0 means 'this number differs from the last one' and a bang would have to either fabricate a change or do nothing. A symbol is not accepted either: Max's change has no symbol method, two of its three outlets are numeric predicates and two of its three modes are orderings, none of which a symbol has, so suppressing repeated symbols is a different object rather than a mode of this one. A list is Max's single-inlet distribution — the first element is the number and the rest is dropped, so '5 6' is the number 5 — and a message that is neither a word this object knows nor a list beginning with a number is ignored. Everything is a float and outlet 0 is a float outlet, so Max's int-unless-the-argument-has-a-decimal-point duality is not reproduced: '.change 5' and '.change 5.0' are the same parameter string here, and guessing integral would turn a change filter into a change-and-quantise filter.",
+    "description": "Passes a number on only when it differs from the previous one. Two more outlets report when the value leaves 0 and when it returns to 0.",
     "inlets": [
       {
         "accepts": [
@@ -5168,7 +5168,7 @@
           "INT",
           "LIST"
         ],
-        "doc": "Int or float to compare against the stored value — sent out outlet 0 only when it differs, or in the '+' / '-' modes when it is greater / less. A non-finite number is ignored. Also accepts the messages 'set <n>' (replace the stored value without emitting), 'mode +' / 'mode -' / 'mode' (switch the comparison, or return to the default) and 'reset' (back to the creation argument and creation mode). All of them are silent. A list is reduced to its first number, as Max's single-inlet distribution does; a bang and a symbol are not accepted.",
+        "doc": "Number to compare with the previous one. 'set <n>': store n without sending. 'mode +', 'mode -', 'mode': choose what counts as a change. 'reset': go back to the creation arguments.",
         "index": 0,
         "label": "in",
         "range": "any float"
@@ -5178,21 +5178,21 @@
     "name": ".change",
     "outlets": [
       {
-        "doc": "The number received, when it differs from the stored value. In 'mode +' this carries 1 when the number is greater than the previous one and in 'mode -' it carries -1 when the number is less; it stays a float outlet in every mode. Silent otherwise, which is the whole point of the object.",
+        "doc": "The number, when it differs from the previous one. In mode + it sends 1 for a rise, and in mode - it sends -1 for a fall.",
         "index": 0,
         "label": "out",
         "range": "any float",
         "type": "FLOAT"
       },
       {
-        "doc": "1 when the stored value was 0 and the input is not 0. Silent otherwise.",
+        "doc": "1 when the value changes from 0 to anything else.",
         "index": 1,
         "label": "rising",
         "range": "1",
         "type": "INT"
       },
       {
-        "doc": "1 when the stored value was not 0 and the input is 0. Silent otherwise.",
+        "doc": "1 when the value changes from anything else to 0.",
         "index": 2,
         "label": "falling",
         "range": "1",
@@ -5202,7 +5202,7 @@
     "params": [
       {
         "default": "0",
-        "doc": "The value the first input is compared against, and optionally Max's mode flag. A bare .change starts at 0, so its first 0 is swallowed as a repetition and its first non-zero number comes out; '.change 5' declares that the patch already believes the value to be 5, so loading it fires nothing until the value actually moves. A second argument of '+' or '-' starts the object in the greater-than or less-than mode, as Max's does. A token that does not read as a whole finite number is not a value — '.change inf' therefore starts at 0 — and a token that is neither is ignored. 'reset' returns to both of these.",
+        "doc": "The value the first number is compared with, 0 by default, optionally followed by + or - to start in that mode.",
         "name": "initial mode",
         "range": "a float, optionally followed by + or -"
       }
@@ -5246,14 +5246,14 @@
   },
   ".clip": {
     "category": "MATH",
-    "description": "Control-rate range limiting. Passes the value on inlet 0 through unchanged when it lies inside the [low, high] range and pins it to the nearest limit when it does not, emitting the result as a float. The control-rate counterpart of ~clip, and the object to reach for when a value must never leave the legal bounds of the parameter it drives. Unlike .zmap it does not rescale — the range is a limit, not a mapping. Limits given the wrong way round (low above high) are treated as an ordered pair and still clip against the right two numbers, and nothing non-finite can leave the object: the result is always inside the range.",
+    "description": "Limits a number to the range low to high and sends it as a float. A number inside the range passes unchanged; any other becomes the nearest limit.",
     "inlets": [
       {
         "accepts": [
           "FLOAT",
           "INT"
         ],
-        "doc": "Value to limit — fires the evaluation.",
+        "doc": "Number to limit; sends the result.",
         "index": 0,
         "label": "value",
         "range": "any float"
@@ -5263,7 +5263,7 @@
           "FLOAT",
           "INT"
         ],
-        "doc": "Lower limit — stored until the next evaluation.",
+        "doc": "Lower limit, stored for the next result.",
         "index": 1,
         "label": "low",
         "range": "any float"
@@ -5273,7 +5273,7 @@
           "FLOAT",
           "INT"
         ],
-        "doc": "Upper limit — stored until the next evaluation.",
+        "doc": "Upper limit, stored for the next result.",
         "index": 2,
         "label": "high",
         "range": "any float"
@@ -5283,7 +5283,7 @@
     "name": ".clip",
     "outlets": [
       {
-        "doc": "The input value clipped to [low, high].",
+        "doc": "The number limited to the range.",
         "index": 0,
         "label": "out",
         "range": "low to high",
@@ -5514,14 +5514,14 @@
   },
   ".cos": {
     "category": "MATH",
-    "description": "Control-rate cosine. Emits cos(in) as a float whenever inlet 0 fires. The input is an angle in radians, as in Max.",
+    "description": "Sends the cosine of an angle in radians, as a float.",
     "inlets": [
       {
         "accepts": [
           "FLOAT",
           "INT"
         ],
-        "doc": "Angle in radians — fires the evaluation.",
+        "doc": "Angle in radians; sends the result.",
         "index": 0,
         "label": "in",
         "range": "any float (radians)"
@@ -5543,14 +5543,14 @@
   },
   ".cosh": {
     "category": "MATH",
-    "description": "Control-rate hyperbolic cosine. Emits cosh(in) as a float whenever inlet 0 fires. The result overflows for inputs beyond roughly ±89; 0 is emitted there rather than an infinity.",
+    "description": "Sends the hyperbolic cosine of a number. Beyond about -89 and 89 the result is too large for a float, and 0 is sent.",
     "inlets": [
       {
         "accepts": [
           "FLOAT",
           "INT"
         ],
-        "doc": "Value to take the hyperbolic cosine of — fires the evaluation.",
+        "doc": "Number; sends the result.",
         "index": 0,
         "label": "in",
         "range": "any float"
@@ -5572,7 +5572,7 @@
   },
   ".counter": {
     "category": "MATH",
-    "description": "Step counter. Bang increments the current value by 'step' and emits it. Send 'reset' as a list to return to startValue.",
+    "description": "Counts bangs. Each bang adds the step to the count and sends the new count as an int; an int on the left inlet sets the count and sends it.",
     "inlets": [
       {
         "accepts": [
@@ -5580,7 +5580,7 @@
           "BANG",
           "LIST"
         ],
-        "doc": "Bang to step / int to set the value / list 'reset' to return to startValue.",
+        "doc": "Bang: add the step and send the count. Int: set the count and send it. 'reset': go back to the start value without sending. Floats are ignored.",
         "index": 0,
         "label": "control",
         "range": "any int"
@@ -5589,7 +5589,7 @@
         "accepts": [
           "INT"
         ],
-        "doc": "Sets the increment used on each bang.",
+        "doc": "Step added on each bang. Floats are ignored.",
         "index": 1,
         "label": "step",
         "range": "any int"
@@ -5599,7 +5599,7 @@
     "name": ".counter",
     "outlets": [
       {
-        "doc": "Current counter value.",
+        "doc": "The count.",
         "index": 0,
         "label": "out",
         "range": "any int",
@@ -5609,13 +5609,13 @@
     "params": [
       {
         "default": "0",
-        "doc": "Initial counter value (and the value 'reset' returns to).",
+        "doc": "The count before the first bang, and the count 'reset' returns to. The first bang sends it plus the step.",
         "name": "startValue",
         "range": "any int"
       },
       {
         "default": "1",
-        "doc": "Increment applied on each bang.",
+        "doc": "Starting step; may be negative to count down.",
         "name": "step",
         "range": "any int"
       }
@@ -5713,14 +5713,14 @@
   },
   ".dbtoa": {
     "category": "MATH",
-    "description": "Control-rate decibels to linear amplitude. Emits the input decibel level expressed as a linear amplitude whenever inlet 0 fires — the exact inverse of .atodb, so 100 dB gives an amplitude of 1.0 and 0 dB gives 0. Input is clamped at 485 dB to keep the result finite.",
+    "description": "Converts decibels on the engine's scale to a linear amplitude: 100 dB is an amplitude of 1, and 0 dB or less gives 0. The inverse of .atodb.",
     "inlets": [
       {
         "accepts": [
           "FLOAT",
           "INT"
         ],
-        "doc": "Decibel level to convert — fires the evaluation. Zero and negative values emit 0.",
+        "doc": "Decibels; sends the result. 0 and below send 0; above 485 counts as 485.",
         "index": 0,
         "label": "in",
         "range": "0-485 dB"
@@ -5730,7 +5730,7 @@
     "name": ".dbtoa",
     "outlets": [
       {
-        "doc": "The linear amplitude, with an amplitude of 1.0 meaning 100 dB.",
+        "doc": "The linear amplitude; 1 means 100 dB.",
         "index": 0,
         "label": "out",
         "range": "0.0 and up",
@@ -6564,14 +6564,14 @@
   },
   ".div": {
     "category": "MATH",
-    "description": "Control-rate integer division. Emits left / right as an int whenever inlet 0 fires, truncating towards zero instead of producing the float ./ would. Floats truncate towards zero on input, and a divisor of 0 emits 0.",
+    "description": "Integer division: divides the left operand by the right one and sends the whole quotient as an int, truncated toward zero. A divisor of 0 sends 0.",
     "inlets": [
       {
         "accepts": [
           "FLOAT",
           "INT"
         ],
-        "doc": "Left operand — the dividend, and fires the evaluation. Floats truncate towards zero.",
+        "doc": "Dividend; sends the result. Floats are truncated toward zero.",
         "index": 0,
         "label": "left",
         "range": "any int"
@@ -6581,7 +6581,7 @@
           "FLOAT",
           "INT"
         ],
-        "doc": "Right operand — the divisor, stored until the next evaluation. Floats truncate towards zero. Zero forces the output to 0.",
+        "doc": "Divisor, stored for the next result. Floats are truncated toward zero; 0 makes the result 0.",
         "index": 1,
         "label": "right",
         "range": "any int"
@@ -6591,7 +6591,7 @@
     "name": ".div",
     "outlets": [
       {
-        "doc": "left / right truncated towards zero (or 0 when right == 0).",
+        "doc": "left / right truncated toward zero, or 0 when right is 0.",
         "index": 0,
         "label": "out",
         "range": "any int",
@@ -6601,7 +6601,7 @@
     "params": [
       {
         "default": "0",
-        "doc": "Initial divisor.",
+        "doc": "Starting divisor.",
         "name": "right",
         "range": "any int"
       }
@@ -6680,7 +6680,7 @@
   },
   ".expr": {
     "category": "MATH",
-    "description": "Evaluates a C-like mathematical expression, replacing a tangle of arithmetic objects with one line of text. The expression is the creation argument; its $i1-$i9 and $f1-$f9 placeholders name the inlets ($i reads the inlet as an int, $f as a float), and the object gets one inlet past the highest placeholder used. Inlet 0 is hot: it stores its value and evaluates, while the other inlets only store. A list on inlet 0 fills the inlets left to right and evaluates; a bang re-evaluates with the stored values. Operators are C's, with C's precedence and C's types: + - * / % on two ints give an int (so $i1/$i2 is integer division), the comparisons (< <= > >= == !=), the logic (&& || !) and the bitwise operators (& | ^ << >> ~) always give an int, and ^ is exclusive-or rather than a power - use pow(). Functions: min, max, abs, int, float, pow, sqrt, exp, ln, log, log10, sin, cos, tan, asin, acos, atan, atan2, sinh, cosh, tanh, fact, round, floor, ceil. Division by zero gives 0 and a non-finite result gives 0, the convention the rest of the math family uses. The expression is compiled once, when the parameter is set; evaluation only walks the compiled form, so it allocates nothing and takes no lock. A malformed expression is reported to the log at parse time and the object then evaluates to 0. Max's table access ($s placeholders, size/sum/avg/store) and its random/noise functions are not supported and are rejected when the expression is compiled.",
+    "description": "Evaluates a C-style expression such as '$f1 * 2 + $f2'. The placeholders $i1-$i9 and $f1-$f9 create the inlets; the left inlet calculates and sends the result.",
     "inlets": [
       {
         "accepts": [
@@ -6689,7 +6689,7 @@
           "BANG",
           "LIST"
         ],
-        "doc": "Value for the $i1 / $f1 placeholders — stores and fires the evaluation. Also accepts a bang (re-evaluate with the stored values) and a list (fill the inlets left to right, then evaluate).",
+        "doc": "Value for $i1 and $f1; sends the result. Bang: calculate again. List: fill the inlets from the left, then calculate.",
         "index": 0,
         "label": "$1",
         "range": "any float"
@@ -6699,7 +6699,7 @@
     "name": ".expr",
     "outlets": [
       {
-        "doc": "Result of the expression. An int when the expression's type is int, otherwise a float.",
+        "doc": "The result: an int when the expression's type is int, otherwise a float.",
         "index": 0,
         "label": "out",
         "range": "any float",
@@ -6709,7 +6709,7 @@
     "params": [
       {
         "default": "",
-        "doc": "The expression to evaluate, e.g. \"($f1 * 0.5) + pow($f2, 2)\". Placeholders $i1-$i9 and $f1-$f9 name the inlets and determine how many there are.",
+        "doc": "The expression, for example \"($f1 * 0.5) + pow($f2, 2)\". Its placeholders decide how many inlets there are.",
         "name": "expression",
         "range": "any expression"
       }
@@ -6910,14 +6910,14 @@
   },
   ".ftom": {
     "category": "MATH",
-    "description": "Converts a frequency in Hz to its MIDI note number (with A4 == 69, fractional output).",
+    "description": "Converts a frequency in Hz to a MIDI note number, with 440 Hz (A4) at note 69. The result is fractional, so a detuned pitch keeps its offset.",
     "inlets": [
       {
         "accepts": [
           "FLOAT",
           "INT"
         ],
-        "doc": "Frequency in Hz.",
+        "doc": "Frequency in Hz, above 0; sends the result.",
         "index": 0,
         "label": "freq",
         "range": "0-20000 Hz"
@@ -6927,7 +6927,7 @@
     "name": ".ftom",
     "outlets": [
       {
-        "doc": "MIDI note number — fractional.",
+        "doc": "MIDI note number, with a fractional part.",
         "index": 0,
         "label": "midi",
         "range": "any float",
@@ -7156,7 +7156,7 @@
   },
   ".histo": {
     "category": "MATH",
-    "description": "Histogram of the numbers received — one running count per value, reported as the list '<value> <count>'. Where .anal counts which number followed which, this counts how often each number appeared at all, so a patch can notice what it has already played and weight what it plays next towards or away from it. A number on inlet 0 is counted and its new count comes out; the same number on inlet 1 is only read, which is Max's right inlet. A bang re-reports the most recently counted number and its count without counting anything, and reports '0 0' before any number has arrived. The 'size' parameter names how many bins there are, so the accepted values are [0, size-1] — the default of 128 is why a MIDI note number arrives unchanged. A number outside that range is disregarded as it is in Max: not counted, nothing on outlet 0, and a bang on outlet 1 instead, since clipping it into range would pile every stray value onto the boundary bin and report a mode the stream never had. 'clear' zeroes every bin but keeps the last number, so a bang after it honestly reports a count of zero for that number, and 'dump' sends every non-empty bin out outlet 0 in ascending order. The bins are a fixed 4096-entry array, size is clamped into 1-4096, and a bin saturates rather than wrapping — nothing on any path allocates or runs unbounded.",
+    "description": "Counts how often each number arrives and sends '<number> <count>' each time. The right inlet reports a number's count without counting it.",
     "inlets": [
       {
         "accepts": [
@@ -7165,7 +7165,7 @@
           "BANG",
           "LIST"
         ],
-        "doc": "Int or float to count the next number of the stream / bang to re-report the most recently counted number without counting it / list 'clear' to zero every bin / list 'dump' to send every non-empty bin out outlet 0.",
+        "doc": "Number: count it and send its count. Bang: send the count of the last counted number again. 'clear': set every count to 0. 'dump': send every number counted so far.",
         "index": 0,
         "label": "in",
         "range": "0 to size-1"
@@ -7175,7 +7175,7 @@
           "FLOAT",
           "INT"
         ],
-        "doc": "Reads the count of a number without counting it.",
+        "doc": "Number: send its count without counting it.",
         "index": 1,
         "label": "query",
         "range": "0 to size-1"
@@ -7185,14 +7185,14 @@
     "name": ".histo",
     "outlets": [
       {
-        "doc": "'<value> <count>' — how often this number has been counted. Silent for a number outside the histogram's range.",
+        "doc": "'<number> <count>': how often this number has been counted.",
         "index": 0,
         "label": "count",
         "range": "",
         "type": "LIST"
       },
       {
-        "doc": "Bangs when a number is outside [0, size-1] and so was neither counted nor read.",
+        "doc": "Bang when a number is outside 0 to size-1; it is not counted.",
         "index": 1,
         "label": "reject",
         "range": "",
@@ -7202,7 +7202,7 @@
     "params": [
       {
         "default": "128",
-        "doc": "Number of bins, so the accepted values are [0, size-1]. Clamped to 1-4096.",
+        "doc": "How many numbers can be counted: 0 to size-1. Clamped to 1-4096.",
         "name": "size",
         "range": "1-4096"
       }
@@ -7756,14 +7756,14 @@
   },
   ".linedrive": {
     "category": "MATH",
-    "description": "Exponential scaling for control values. Maps the value on inlet 0 onto an exponential response curve and emits it as a float, following Max's formula: out = outputMax * curve^(input - inputMax). The input maximum is the anchor — feed it in and the output is exactly outputMax, whatever the curve — and below it the output falls away geometrically, one step of input always multiplying the output by curve. That is what makes a linear controller such as a MIDI CC or a slider feel even across its whole range when it drives a frequency or an amplitude, where .scale's linear mapping would bunch the audible change up at one end. Max requires a curve above 1; any positive curve is accepted here, one below 1 mirroring the response and 1 flattening it to the constant outputMax. A curve at or below 0 has no real exponential and emits 0, as does any result that would not be finite.",
+    "description": "Maps a number onto an exponential curve: inputMax gives outputMax, and each step below it divides the output by the curve. Lets a linear control, such as a MIDI controller, drive a frequency or a gain evenly.",
     "inlets": [
       {
         "accepts": [
           "FLOAT",
           "INT"
         ],
-        "doc": "Value to scale — fires the evaluation.",
+        "doc": "Number to map; sends the result.",
         "index": 0,
         "label": "value",
         "range": "any float"
@@ -7773,7 +7773,7 @@
           "FLOAT",
           "INT"
         ],
-        "doc": "Input value that maps onto the output maximum — stored until the next evaluation.",
+        "doc": "Input that gives outputMax, stored for the next result.",
         "index": 1,
         "label": "inputMax",
         "range": "any float"
@@ -7783,7 +7783,7 @@
           "FLOAT",
           "INT"
         ],
-        "doc": "Output value reached at the input maximum — stored until the next evaluation.",
+        "doc": "Output at inputMax, stored for the next result.",
         "index": 2,
         "label": "outputMax",
         "range": "any float"
@@ -7793,7 +7793,7 @@
           "FLOAT",
           "INT"
         ],
-        "doc": "Curve base; larger is more steeply exponential, 1 is a constant — stored until the next evaluation.",
+        "doc": "Curve base, stored for the next result. Larger is steeper; 1 gives a constant outputMax; 0 or below sends 0.",
         "index": 3,
         "label": "curve",
         "range": "greater than 0"
@@ -7803,7 +7803,7 @@
     "name": ".linedrive",
     "outlets": [
       {
-        "doc": "The input value scaled along the exponential curve.",
+        "doc": "The number mapped onto the curve.",
         "index": 0,
         "label": "out",
         "range": "any float",
@@ -7813,19 +7813,19 @@
     "params": [
       {
         "default": "127",
-        "doc": "Input value that maps onto the output maximum.",
+        "doc": "Input that gives outputMax.",
         "name": "inputMax",
         "range": "any float"
       },
       {
         "default": "1",
-        "doc": "Output value reached at the input maximum.",
+        "doc": "Output at inputMax.",
         "name": "outputMax",
         "range": "any float"
       },
       {
         "default": "1.06",
-        "doc": "Curve base; larger is more steeply exponential, 1 is a constant.",
+        "doc": "Curve base. Larger is steeper; 1 gives a constant outputMax.",
         "name": "curve",
         "range": "greater than 0"
       }
@@ -8196,7 +8196,7 @@
   },
   ".maximum": {
     "category": "MATH",
-    "description": "Sends out the larger of the number received on inlet 0 and a stored comparand, which makes it a .clip whose bound is itself a signal and the natural way to combine two control sources. Inlet 1 sets the comparand without emitting anything; a number on inlet 0 is compared and then forgotten, so the comparand is never moved by the input — that running reading of the idea is .peak, a different object. A bang re-sends the most recent output, and before there has been one that is the 'initial' creation argument (0 by default) rather than silence, since a patch that bangs its objects once on load has to get an answer. A list of two or more numbers is Max's reduction: the numbers are compared with each other and the greatest is sent out, the comparand taking no part, and afterwards the comparand is replaced by the next greatest value in the list — not by the greatest, which would make every later comparison a tie with the value just emitted. Up to 256 items are read; a one-element list is a plain number and compares against the comparand as one. A message with no numbers in it is ignored. Everything is a float and the outlet is a float outlet: Max's int-unless-the-argument-has-a-decimal-point duality is deliberately not reproduced, because '.maximum 5' and '.maximum 5.0' are the same parameter string here and guessing integral would silently round a comparison a patch is using to clamp a gain — put a .round on the outlet instead. A non-finite number is read as 0 wherever it arrives, the convention ./ , .sqrt, .zmap, .clip, .slide and .mean already use, and here it also keeps a stray NaN from losing every comparison while still being the value sent out, and a stray infinity from pinning the outlet for good.",
+    "description": "Sends the larger of a number and a stored value. The right inlet sets the stored value; a list sends its largest item.",
     "inlets": [
       {
         "accepts": [
@@ -8205,7 +8205,7 @@
           "BANG",
           "LIST"
         ],
-        "doc": "Int or float to compare against the stored comparand, sending the larger of the two out / bang to re-send the most recent output / a list of numbers to send out the greatest of them and store the next greatest as the new comparand.",
+        "doc": "Number: send the larger of it and the stored value. Bang: send the last result again. List: send its largest item, and store the second largest.",
         "index": 0,
         "label": "in",
         "range": "any float"
@@ -8215,7 +8215,7 @@
           "FLOAT",
           "INT"
         ],
-        "doc": "The value inlet-0 numbers are compared against. Stored without emitting anything.",
+        "doc": "Value to compare with, stored without sending.",
         "index": 1,
         "label": "compare",
         "range": "any float"
@@ -8225,7 +8225,7 @@
     "name": ".maximum",
     "outlets": [
       {
-        "doc": "The greater of the input and the stored comparand.",
+        "doc": "The larger of the input and the stored value.",
         "index": 0,
         "label": "out",
         "range": "any float",
@@ -8235,7 +8235,7 @@
     "params": [
       {
         "default": "0",
-        "doc": "Initial comparand, and what a bang reports before anything has been sent.",
+        "doc": "Starting value to compare with, and what a bang sends before the first result.",
         "name": "initial",
         "range": "any float"
       }
@@ -8244,7 +8244,7 @@
   },
   ".mean": {
     "category": "MATH",
-    "description": "Running average of every number received. Each int or float is added to a running sum and the new mean comes out of outlet 0, with the number of values it rests on out outlet 1; the count is sent first, so a patch triggering off the mean already holds the matching count. Unlike .slide, which forgets the past geometrically, this never forgets: the thousandth value counts exactly as much as the first. A bang re-sends the stored mean and count without adding anything, and before any number has arrived — or straight after a clear — that is 0 with a count of 0, since the mean of nothing has to be chosen rather than computed and 0/0 would put a NaN on the outlet. A list is Max's one-shot mean: the previously received numbers are cleared and the mean of the list items is sent, up to 256 items. 'clear' (or 'reset', accepted as a synonym) zeroes the sum and the count and emits nothing. The sum is kept in double and the count as an exact 64-bit integer, which is the point of the object: a float sum drifts, and worse, stagnates once it exceeds 2^24 times a new value — about seventeen million messages — after which further input contributes nothing at all while the count keeps climbing. In double the error stays within (n-1)*1.11e-16 relative to the average input magnitude, which is under one ulp of the float on the outlet even after a billion values, and the stagnation point moves to 9e15 messages. A non-finite input is folded in as 0 and still counted, the convention ./ , .sqrt, .zmap and .clip already use, which is also what keeps an infinity from pinning the mean forever.",
+    "description": "Sends the average of every number received so far, and how many numbers that is. A list sends the average of its own items and starts the average over.",
     "inlets": [
       {
         "accepts": [
@@ -8253,7 +8253,7 @@
           "BANG",
           "LIST"
         ],
-        "doc": "Int or float to fold into the running average / bang to re-send the stored mean and count without adding anything / a list of numbers to report their mean and forget everything before it / list 'clear' (or 'reset') to zero the sum and the count.",
+        "doc": "Number: add it to the average and send. Bang: send the average again. List: average its items, forgetting earlier numbers. 'clear' or 'reset': start over without sending.",
         "index": 0,
         "label": "in",
         "range": "any float"
@@ -8263,14 +8263,14 @@
     "name": ".mean",
     "outlets": [
       {
-        "doc": "The average of every number received so far; 0 when none have been.",
+        "doc": "The average; 0 before any number has arrived.",
         "index": 0,
         "label": "mean",
         "range": "between the smallest and largest input",
         "type": "FLOAT"
       },
       {
-        "doc": "How many numbers the mean rests on, sent before the mean. Saturates at 2147483647; the mean itself stays correct past that.",
+        "doc": "How many numbers the average includes. Sent before the average.",
         "index": 1,
         "label": "count",
         "range": "0 and up",
@@ -8652,7 +8652,7 @@
   },
   ".minimum": {
     "category": "MATH",
-    "description": "Sends out the smaller of the number received on inlet 0 and a stored comparand, which makes it a .clip whose bound is itself a signal and the natural way to combine two control sources. Inlet 1 sets the comparand without emitting anything; a number on inlet 0 is compared and then forgotten, so the comparand is never moved by the input — that running reading of the idea is .trough, a different object. A bang re-sends the most recent output, and before there has been one that is the 'initial' creation argument (0 by default) rather than silence, since a patch that bangs its objects once on load has to get an answer. A list of two or more numbers is Max's reduction: the numbers are compared with each other and the smallest is sent out, the comparand taking no part, and afterwards the comparand is replaced by the next smallest value in the list — not by the smallest, which would make every later comparison a tie with the value just emitted. Up to 256 items are read; a one-element list is a plain number and compares against the comparand as one. A message with no numbers in it is ignored. Everything is a float and the outlet is a float outlet: Max's int-unless-the-argument-has-a-decimal-point duality is deliberately not reproduced, because '.minimum 5' and '.minimum 5.0' are the same parameter string here and guessing integral would silently round a comparison a patch is using to clamp a gain — put a .round on the outlet instead. Note that the default comparand of 0 makes a bare .minimum report 0 for every positive input, so this object almost always wants an argument or a cord on inlet 1. A non-finite number is read as 0 wherever it arrives, the convention ./ , .sqrt, .zmap, .clip, .slide and .mean already use, and here it also keeps a stray NaN from losing every comparison while still being the value sent out, and a stray infinity from pinning the outlet for good.",
+    "description": "Sends the smaller of a number and a stored value. The right inlet sets the stored value; a list sends its smallest item.",
     "inlets": [
       {
         "accepts": [
@@ -8661,7 +8661,7 @@
           "BANG",
           "LIST"
         ],
-        "doc": "Int or float to compare against the stored comparand, sending the smaller of the two out / bang to re-send the most recent output / a list of numbers to send out the smallest of them and store the next smallest as the new comparand.",
+        "doc": "Number: send the smaller of it and the stored value. Bang: send the last result again. List: send its smallest item, and store the second smallest.",
         "index": 0,
         "label": "in",
         "range": "any float"
@@ -8671,7 +8671,7 @@
           "FLOAT",
           "INT"
         ],
-        "doc": "The value inlet-0 numbers are compared against. Stored without emitting anything.",
+        "doc": "Value to compare with, stored without sending.",
         "index": 1,
         "label": "compare",
         "range": "any float"
@@ -8681,7 +8681,7 @@
     "name": ".minimum",
     "outlets": [
       {
-        "doc": "The smaller of the input and the stored comparand.",
+        "doc": "The smaller of the input and the stored value.",
         "index": 0,
         "label": "out",
         "range": "any float",
@@ -8691,7 +8691,7 @@
     "params": [
       {
         "default": "0",
-        "doc": "Initial comparand, and what a bang reports before anything has been sent.",
+        "doc": "Starting value to compare with, and what a bang sends before the first result.",
         "name": "initial",
         "range": "any float"
       }
@@ -8883,14 +8883,14 @@
   },
   ".mtof": {
     "category": "MATH",
-    "description": "Converts a MIDI note number (with A4 == 69) to its frequency in Hz.",
+    "description": "Converts a MIDI note number to a frequency in Hz, with note 69 (A4) at 440 Hz. Fractional note numbers give the frequencies in between.",
     "inlets": [
       {
         "accepts": [
           "FLOAT",
           "INT"
         ],
-        "doc": "MIDI note number — fractional values are supported.",
+        "doc": "MIDI note number, fractional values included; sends the result.",
         "index": 0,
         "label": "midi",
         "range": "0-127"
@@ -9629,7 +9629,7 @@
   },
   ".past": {
     "category": "MATH",
-    "description": "Sends a bang the moment a value crosses a threshold, and then stays quiet until the value drops back below and crosses again — edge detection on continuous control data, where the interesting event is the crossing rather than the thousand messages that follow while the value stays up there. A .>= into a .sel 1 would fire on every one of them; this fires once. Max states the rule in two halves and only both together define the object: it bangs when every number is at or above its threshold having not been so before, and it re-arms only when a number goes back BELOW (strictly less than) its threshold. The two are exact complements, so the object is a plain latch on 'value >= threshold' rather than a hysteresis band, and two edges follow that a naive implementation gets wrong. A value exactly at the threshold has crossed it, so '.past 5' fed 5 bangs. And a value exactly at the threshold does not re-arm it, so 10, 5, 10 bangs once rather than twice: equality belongs to the 'past it' side of the line going up and coming down alike. A freshly created object is un-latched, so a value that is already above the threshold when the first message arrives bangs immediately — nothing has met the threshold yet, so the first thing that does is a crossing, which is also the state 'clear' restores. The creation argument is a list and so is the input: numbers are compared element-wise against the corresponding thresholds and the bang is the conjunction, so '.past 60 100' is an AND gate of two thresholds in one box. Each element keeps its own met/not-met flag, which is what Max's per-element re-arm wording describes, so a list shorter than the threshold list updates only the elements it supplies and a plain int or float is simply the one-element case; numbers past the last threshold are ignored, and at most 256 thresholds are held. 'clear' drops every flag so the next crossing bangs again, silently and without touching the thresholds. 'set <numbers>' replaces the thresholds and deliberately does NOT re-arm, because a patch that drives the threshold from elsewhere sends 'set' continuously and an object that re-armed on each one would bang for every message above the line, which is a .>= and not a .past; surviving elements keep their flags, elements the new list adds start un-met, and the latch is re-derived from the flags. 'reset' is the patcher family's word rather than a Max message and means both halves at once — back to the creation-argument thresholds with a cleared latch — since after a 'set' there is otherwise no way back to the creation argument. All three are silent, and a message that is neither a word this object knows nor a list containing a number is ignored. A bang is not accepted: a message carrying no number cannot cross anything. Everything is a float, so Max's int-unless-the-argument-has-a-decimal-point duality is not reproduced. A non-finite number is read as 0 wherever it arrives, in the input and in the thresholds alike. On the threshold side that is load-bearing rather than tidy: a NaN compares false against everything, so a NaN threshold could never be met and would make the object permanently mute — and in a multi-threshold object it would mute the conjunction while every other element carried on working. A +infinity threshold does the same, and a -infinity one is met by every number there is, including the ones a patch sends to bring the value back down, so its element could never re-arm. On the input side the substitution buys consistency rather than safety: it is simply the answer the rest of the patcher gives a NaN it was handed.",
+    "description": "Sends a bang when a number rises to or above a threshold, then stays silent until the number drops below it again. With several thresholds, each item of a list must reach its own.",
     "inlets": [
       {
         "accepts": [
@@ -9637,7 +9637,7 @@
           "INT",
           "LIST"
         ],
-        "doc": "Int, float or list to compare against the thresholds — a bang goes out the moment every element is at or above its own threshold, having not been so before. Also accepts the messages 'clear' (drop every met flag so the next crossing bangs again), 'set <numbers>' (replace the thresholds, keeping the latch) and 'reset' (back to the creation-argument thresholds with the latch cleared). All three are silent.",
+        "doc": "Number or list to compare with the thresholds. 'clear': let the next crossing bang again. 'set <thresholds>': change the thresholds. 'reset': go back to the creation thresholds.",
         "index": 0,
         "label": "in",
         "range": "any list of floats"
@@ -9647,7 +9647,7 @@
     "name": ".past",
     "outlets": [
       {
-        "doc": "Bang when every number is at or above its threshold, having not been so before. Silent until a number drops strictly below its threshold and the crossing happens again.",
+        "doc": "Bang when every item has reached its threshold, having not done so before.",
         "index": 0,
         "label": "cross",
         "range": "bang",
@@ -9657,7 +9657,7 @@
     "params": [
       {
         "default": "0",
-        "doc": "The thresholds to watch, as a list. A number must be at or above its threshold for the object to consider that element crossed, and all of them must be for the bang to go out. Defaults to a single threshold of 0; at most 256 are held.",
+        "doc": "The thresholds, one per list position. A single 0 by default; at most 256.",
         "name": "thresholds",
         "range": "any list of floats"
       }
@@ -9666,7 +9666,7 @@
   },
   ".peak": {
     "category": "MATH",
-    "description": "Keeps the largest number it has seen and sends it out only when a new one arrives, which is what peak-hold metering, envelope maxima and 'only react when this gets worse' logic are made of. This is the running reading of the idea .maximum deliberately does not have: .maximum compares an input against a sticky comparand and forgets it, answering every message and never moving, while .peak stores what it emits and stays silent until the record is broken. Two inlets and three outlets, as in Max: a number on inlet 0 is kept and sent out outlet 0 if it is greater than the stored peak and produces no value at all if it is not; outlet 1 carries 1 when the number was a new peak and 0 when it was not, and outlet 2 carries the inverse so that 'it was not a record' is one cord rather than a cord plus a .== 0. The three are sent right to left, so anything the value triggers already sees the matching flags. A number on inlet 1 reseeds the peak and sends it out — always a new peak, flags and all — which is the opposite of .maximum's silent cold inlet. A bang sends the stored peak out outlet 0 alone, and before any input that is the 'initial' creation argument (0 by default, as in Max) rather than silence, since a patch that bangs its objects once on load has to get an answer. Two silent messages on inlet 0 complete the object, because Max leaves a running extreme with no way back that does not announce itself: 'reset' returns to the initial argument and 'set <n>' stores n, both without emitting, so the next number received is the next peak event. 'clear' is deliberately absent, because on a '.peak 5' it could not be told whether it meant 0 or 5. A list is Max's two-element idiom — the second number becomes the new peak and is sent out, then the first is offered to it — with anything past the second ignored and a one-element list treated as a plain number. A message with no numbers in it is ignored. Everything is a float and outlet 0 is a float outlet: Max's int-unless-the-argument-has-a-decimal-point duality is not reproduced, because '.peak 5' and '.peak 5.0' are the same parameter string here and guessing integral would silently round a peak a patch is metering with — put a .round on the outlet instead. A non-finite number is read as 0 wherever it arrives, the convention ./ , .sqrt, .zmap, .clip, .slide and .mean already use, and it matters more here than anywhere else because this object keeps what it accepts: a stored NaN would lose every later comparison and be reported forever, and a stored -infinity would make every number a new peak while +infinity would silence the outlet for good.",
+    "description": "Keeps the largest number received so far and sends it only when a new number beats it. Two more outlets report whether each number set a new peak.",
     "inlets": [
       {
         "accepts": [
@@ -9675,7 +9675,7 @@
           "BANG",
           "LIST"
         ],
-        "doc": "Int or float to offer to the stored peak, sent out only if it is greater / bang to send the stored peak out / list '<input> <peak>' to reseed with the second number and then offer the first / list 'set <n>' to store n silently / list 'reset' to return to the initial argument.",
+        "doc": "Number: send it if it beats the peak. Bang: send the peak. List '<number> <peak>': set the peak, then offer the number. 'set <n>': set the peak without sending. 'reset': go back to the starting peak without sending.",
         "index": 0,
         "label": "in",
         "range": "any float"
@@ -9685,7 +9685,7 @@
           "FLOAT",
           "INT"
         ],
-        "doc": "The new peak value. Stored and sent out — a number received here is always a new peak.",
+        "doc": "Number that becomes the new peak and is sent, always reported as a new record.",
         "index": 1,
         "label": "seed",
         "range": "any float"
@@ -9695,21 +9695,21 @@
     "name": ".peak",
     "outlets": [
       {
-        "doc": "New peak values. Silent when the number received was not greater than the stored peak.",
+        "doc": "The new peak. Silent when a number does not beat it.",
         "index": 0,
         "label": "out",
         "range": "any float",
         "type": "FLOAT"
       },
       {
-        "doc": "1 when the number just received was a new extreme, 0 when it was not.",
+        "doc": "1 when the number just received set a new record, otherwise 0.",
         "index": 1,
         "label": "new",
         "range": "0 or 1",
         "type": "INT"
       },
       {
-        "doc": "The inverse of the 'new' outlet: 0 for a new extreme, 1 for a rejection.",
+        "doc": "The opposite of the 'new' outlet: 0 for a new record, otherwise 1.",
         "index": 2,
         "label": "same",
         "range": "0 or 1",
@@ -9719,7 +9719,7 @@
     "params": [
       {
         "default": "0",
-        "doc": "Starting peak, what a bang reports before any input, and the value 'reset' returns to. Max starts peak at 0.",
+        "doc": "Starting peak, and the peak 'reset' returns to.",
         "name": "initial",
         "range": "any float"
       }
@@ -9814,14 +9814,14 @@
   },
   ".poltocar": {
     "category": "MATH",
-    "description": "Control-rate polar to cartesian conversion. Whenever inlet 0 fires it emits the cartesian form of the polar point (amplitude, angle): the x coordinate on outlet 0 and the y coordinate on outlet 1. The inverse of .cartopol, so feeding one into the other returns the original pair. Both outlets fire on every evaluation, right one first.",
+    "description": "Converts a polar point, a distance from the origin and an angle in radians, to its x and y coordinates. The inverse of .cartopol.",
     "inlets": [
       {
         "accepts": [
           "FLOAT",
           "INT"
         ],
-        "doc": "Distance from the origin — fires the evaluation.",
+        "doc": "Distance from the origin; sends the result.",
         "index": 0,
         "label": "amplitude",
         "range": "any float"
@@ -9831,7 +9831,7 @@
           "FLOAT",
           "INT"
         ],
-        "doc": "Angle in radians, measured from the positive x axis — stored until the next evaluation.",
+        "doc": "Angle in radians from the positive x axis, stored for the next result.",
         "index": 1,
         "label": "angle",
         "range": "any float"
@@ -9841,7 +9841,7 @@
     "name": ".poltocar",
     "outlets": [
       {
-        "doc": "x coordinate of the point.",
+        "doc": "x coordinate of the point. Sent after y.",
         "index": 0,
         "label": "x",
         "range": "any float",
@@ -9858,7 +9858,7 @@
     "params": [
       {
         "default": "0",
-        "doc": "Initial angle in radians.",
+        "doc": "Starting angle in radians.",
         "name": "angle",
         "range": "any float"
       }
@@ -10031,14 +10031,14 @@
   },
   ".pong": {
     "category": "MATH",
-    "description": "Control-rate range limiting by folding or wrapping. Keeps the value on inlet 0 inside the [low, high] range and emits it as a float. Where .clip flattens an out-of-range value against the boundary, .pong reflects it back into the range (mode 3, fold, the default) or carries it around to the other side (mode 2, wrap) — the object to reach for when generative material has to stay in a register without collapsing onto the boundary, or when a counter has to behave like a phase. Mode 1 clips and mode 0 passes the value through unchanged. Limits given the wrong way round (low above high) are treated as an ordered pair and still fold against the right two numbers, and in every mode but 0 nothing non-finite can leave the object: the result is always inside the range.",
+    "description": "Keeps a number inside the range low to high by folding it back from the limits, the default, by wrapping it around to the other side, or by clipping it. Sends the result as a float.",
     "inlets": [
       {
         "accepts": [
           "FLOAT",
           "INT"
         ],
-        "doc": "Value to limit — fires the evaluation.",
+        "doc": "Number to keep in range; sends the result.",
         "index": 0,
         "label": "value",
         "range": "any float"
@@ -10048,7 +10048,7 @@
           "FLOAT",
           "INT"
         ],
-        "doc": "Lower limit — stored until the next evaluation.",
+        "doc": "Lower limit, stored for the next result.",
         "index": 1,
         "label": "low",
         "range": "any float"
@@ -10058,7 +10058,7 @@
           "FLOAT",
           "INT"
         ],
-        "doc": "Upper limit — stored until the next evaluation.",
+        "doc": "Upper limit, stored for the next result.",
         "index": 2,
         "label": "high",
         "range": "any float"
@@ -10068,7 +10068,7 @@
     "name": ".pong",
     "outlets": [
       {
-        "doc": "The input value folded, wrapped or clipped into [low, high].",
+        "doc": "The number folded, wrapped or clipped into the range.",
         "index": 0,
         "label": "out",
         "range": "low to high",
@@ -10090,7 +10090,7 @@
       },
       {
         "default": "3",
-        "doc": "0 none (pass through), 1 clip, 2 wrap, 3 fold.",
+        "doc": "0 passes numbers through, 1 clips, 2 wraps, 3 folds.",
         "name": "mode",
         "range": "0 to 3"
       }
@@ -10099,14 +10099,14 @@
   },
   ".pow": {
     "category": "MATH",
-    "description": "Control-rate power. Emits base ^ exponent as a float whenever inlet 0 fires. Inputs with no real result — a negative base with a fractional exponent, or a zero base with a negative exponent — emit 0 rather than a NaN or an infinity.",
+    "description": "Raises the left operand to the power of the right one and sends the result as a float. Combinations with no finite real result, such as a negative base with a fractional exponent, send 0.",
     "inlets": [
       {
         "accepts": [
           "FLOAT",
           "INT"
         ],
-        "doc": "Base — fires the evaluation.",
+        "doc": "Base; sends the result.",
         "index": 0,
         "label": "base",
         "range": "any float"
@@ -10116,7 +10116,7 @@
           "FLOAT",
           "INT"
         ],
-        "doc": "Exponent — stored until the next evaluation.",
+        "doc": "Exponent, stored for the next result.",
         "index": 1,
         "label": "exponent",
         "range": "any float"
@@ -10126,7 +10126,7 @@
     "name": ".pow",
     "outlets": [
       {
-        "doc": "base raised to the power of exponent (or 0 when that has no finite value).",
+        "doc": "base to the power of exponent, or 0 when that has no finite value.",
         "index": 0,
         "label": "out",
         "range": "any float",
@@ -10136,7 +10136,7 @@
     "params": [
       {
         "default": "0",
-        "doc": "Initial exponent.",
+        "doc": "Starting exponent.",
         "name": "exponent",
         "range": "any float"
       }
@@ -10782,14 +10782,14 @@
   },
   ".round": {
     "category": "MATH",
-    "description": "Control-rate rounding. Emits the input snapped to the nearest multiple of the step whenever inlet 0 fires — a step of 0.5 snaps to halves, the default step of 1 rounds to the nearest integer, and a step of 0 passes the input through unchanged. Halfway values round away from zero.",
+    "description": "Rounds a number to the nearest multiple of the step and sends it as a float: a step of 1, the default, rounds to whole numbers and 0.5 to halves. Halfway values round away from zero; a step of 0 passes the number unchanged.",
     "inlets": [
       {
         "accepts": [
           "FLOAT",
           "INT"
         ],
-        "doc": "Value to round — fires the evaluation.",
+        "doc": "Number to round; sends the result.",
         "index": 0,
         "label": "in",
         "range": "any float"
@@ -10799,7 +10799,7 @@
           "FLOAT",
           "INT"
         ],
-        "doc": "Step to round to a multiple of — stored until the next evaluation. Zero disables rounding.",
+        "doc": "Step to round to, stored for the next result. 0 turns rounding off.",
         "index": 1,
         "label": "step",
         "range": "any float"
@@ -10809,7 +10809,7 @@
     "name": ".round",
     "outlets": [
       {
-        "doc": "The input snapped to the nearest multiple of the step.",
+        "doc": "The input rounded to the nearest multiple of the step.",
         "index": 0,
         "label": "out",
         "range": "any float",
@@ -10819,7 +10819,7 @@
     "params": [
       {
         "default": "1",
-        "doc": "Initial step. 0 passes the input through unchanged.",
+        "doc": "Starting step. 0 passes numbers through unchanged.",
         "name": "step",
         "range": "any float"
       }
@@ -11202,14 +11202,14 @@
   },
   ".scale": {
     "category": "MATH",
-    "description": "Control-rate range mapping. Maps the value on inlet 0 from the input range onto the output range and emits it as a float. An exponent other than 1 bends the mapping into a curve, symmetrically around the bottom of the input range. Like Max's default the mapping extrapolates: an input outside the input range gives an output outside the output range. Set the clip parameter to 1 to clamp the result to the output range instead. A degenerate input range (low equal to high) emits the output low, and any result that would not be finite emits 0 rather than a NaN or an infinity.",
+    "description": "Maps a number from the input range onto the output range and sends it as a float. An exponent other than 1 bends the mapping into a curve; numbers outside the input range map past the output range unless clip is 1.",
     "inlets": [
       {
         "accepts": [
           "FLOAT",
           "INT"
         ],
-        "doc": "Value to map — fires the evaluation.",
+        "doc": "Number to map; sends the result.",
         "index": 0,
         "label": "value",
         "range": "any float"
@@ -11219,7 +11219,7 @@
           "FLOAT",
           "INT"
         ],
-        "doc": "Bottom of the input range — stored until the next evaluation.",
+        "doc": "Input value that maps to outLow, stored for the next result.",
         "index": 1,
         "label": "inLow",
         "range": "any float"
@@ -11229,7 +11229,7 @@
           "FLOAT",
           "INT"
         ],
-        "doc": "Top of the input range — stored until the next evaluation.",
+        "doc": "Input value that maps to outHigh, stored for the next result.",
         "index": 2,
         "label": "inHigh",
         "range": "any float"
@@ -11239,7 +11239,7 @@
           "FLOAT",
           "INT"
         ],
-        "doc": "Bottom of the output range — stored until the next evaluation.",
+        "doc": "Output for inLow, stored for the next result.",
         "index": 3,
         "label": "outLow",
         "range": "any float"
@@ -11249,7 +11249,7 @@
           "FLOAT",
           "INT"
         ],
-        "doc": "Top of the output range — stored until the next evaluation.",
+        "doc": "Output for inHigh, stored for the next result.",
         "index": 4,
         "label": "outHigh",
         "range": "any float"
@@ -11259,7 +11259,7 @@
           "FLOAT",
           "INT"
         ],
-        "doc": "Curve exponent, 1 for a linear mapping — stored until the next evaluation.",
+        "doc": "Curve exponent, stored for the next result. 1 is a straight line.",
         "index": 5,
         "label": "exponent",
         "range": "any float"
@@ -11269,7 +11269,7 @@
     "name": ".scale",
     "outlets": [
       {
-        "doc": "The input value mapped onto the output range.",
+        "doc": "The number mapped onto the output range.",
         "index": 0,
         "label": "out",
         "range": "any float",
@@ -11279,37 +11279,37 @@
     "params": [
       {
         "default": "0",
-        "doc": "Bottom of the input range.",
+        "doc": "Input value that maps to outLow.",
         "name": "inLow",
         "range": "any float"
       },
       {
         "default": "127",
-        "doc": "Top of the input range.",
+        "doc": "Input value that maps to outHigh.",
         "name": "inHigh",
         "range": "any float"
       },
       {
         "default": "0",
-        "doc": "Bottom of the output range.",
+        "doc": "Output for inLow.",
         "name": "outLow",
         "range": "any float"
       },
       {
         "default": "1",
-        "doc": "Top of the output range.",
+        "doc": "Output for inHigh.",
         "name": "outHigh",
         "range": "any float"
       },
       {
         "default": "1",
-        "doc": "Curve exponent; 1 is a linear mapping.",
+        "doc": "Curve exponent; 1 is a straight line.",
         "name": "exponent",
         "range": "any float"
       },
       {
         "default": "0",
-        "doc": "1 clamps the result to the output range, 0 lets it extrapolate (Max's default).",
+        "doc": "1 limits the result to the output range; 0 lets numbers outside the input range map past it.",
         "name": "clip",
         "range": "0 or 1"
       }
@@ -11482,14 +11482,14 @@
   },
   ".sin": {
     "category": "MATH",
-    "description": "Control-rate sine. Emits sin(in) as a float whenever inlet 0 fires. The input is an angle in radians, as in Max.",
+    "description": "Sends the sine of an angle in radians, as a float.",
     "inlets": [
       {
         "accepts": [
           "FLOAT",
           "INT"
         ],
-        "doc": "Angle in radians — fires the evaluation.",
+        "doc": "Angle in radians; sends the result.",
         "index": 0,
         "label": "in",
         "range": "any float (radians)"
@@ -11511,14 +11511,14 @@
   },
   ".sinh": {
     "category": "MATH",
-    "description": "Control-rate hyperbolic sine. Emits sinh(in) as a float whenever inlet 0 fires. The result overflows for inputs beyond roughly ±89; 0 is emitted there rather than an infinity.",
+    "description": "Sends the hyperbolic sine of a number. Beyond about -89 and 89 the result is too large for a float, and 0 is sent.",
     "inlets": [
       {
         "accepts": [
           "FLOAT",
           "INT"
         ],
-        "doc": "Value to take the hyperbolic sine of — fires the evaluation.",
+        "doc": "Number; sends the result.",
         "index": 0,
         "label": "in",
         "range": "any float"
@@ -11540,7 +11540,7 @@
   },
   ".slide": {
     "category": "MATH",
-    "description": "Logarithmic value smoothing — a one-pole filter on control values, following Max's y[n] = y[n-1] + (x[n] - y[n-1]) / slide. Each number received moves the running value a fraction of the way towards itself instead of replacing it, which is what turns stepped MIDI controller or envelope-follower data into a curve and keeps the parameter it drives from zippering. The two amounts are independent: slideUp applies when the incoming value is above the running one and slideDown when it is below, so a fast rise with a slow fall is one object rather than two. A slide of 1 passes the input straight through and larger amounts change proportionally more slowly, so 10 moves a tenth as fast; the parameter counts incoming values, not seconds, since the object is clocked by events rather than by the sample rate (use ~line for a linear ramp over a stated duration). An amount below 1 would make the recursion overshoot and ring, so anything below 1 — including 0 and negatives — is treated as 1. Once the running value is within one part in a million of the target it snaps onto it exactly, so the smoother settles on its input rather than stalling a rounding error short of it. A bang re-runs the filter on the last value received, 'set <n>' stages a value without emitting and 'reset' returns the running value to 0.",
+    "description": "Smooths a stream of numbers. Each number moves the output part of the way towards it: 1/slideUp of the distance when rising, 1/slideDown when falling. A slide of 1 passes numbers straight through.",
     "inlets": [
       {
         "accepts": [
@@ -11549,7 +11549,7 @@
           "BANG",
           "LIST"
         ],
-        "doc": "Value to smooth — fires one filter step / bang repeats the step on the last value / list 'set <n>' stages a value without emitting / list 'reset' zeroes the running value.",
+        "doc": "Number: take one step towards it and send the output. Bang: take another step towards the last number. 'set <n>': set the target without sending. 'reset': set the output to 0 without sending.",
         "index": 0,
         "label": "value",
         "range": "any float"
@@ -11559,7 +11559,7 @@
           "FLOAT",
           "INT"
         ],
-        "doc": "Slide amount used while the input is above the running value.",
+        "doc": "Slide used while the output rises. Below 1 counts as 1.",
         "index": 1,
         "label": "slideUp",
         "range": "1+"
@@ -11569,7 +11569,7 @@
           "FLOAT",
           "INT"
         ],
-        "doc": "Slide amount used while the input is below the running value.",
+        "doc": "Slide used while the output falls. Below 1 counts as 1.",
         "index": 2,
         "label": "slideDown",
         "range": "1+"
@@ -11589,13 +11589,13 @@
     "params": [
       {
         "default": "1",
-        "doc": "Slide amount used while the input is above the running value; below 1 reads as 1, which passes the input through.",
+        "doc": "Starting slide while rising. Below 1 counts as 1.",
         "name": "slideUp",
         "range": "1+"
       },
       {
         "default": "1",
-        "doc": "Slide amount used while the input is below the running value; below 1 reads as 1, which passes the input through.",
+        "doc": "Starting slide while falling. Below 1 counts as 1.",
         "name": "slideDown",
         "range": "1+"
       }
@@ -11900,14 +11900,14 @@
   },
   ".sqrt": {
     "category": "MATH",
-    "description": "Control-rate square root. Emits the square root of the input as a float whenever inlet 0 fires. A negative input emits 0 rather than a NaN.",
+    "description": "Sends the square root of a number, as a float. A negative number sends 0.",
     "inlets": [
       {
         "accepts": [
           "FLOAT",
           "INT"
         ],
-        "doc": "Value to take the square root of — fires the evaluation. Negative values force the output to 0.",
+        "doc": "Number; sends the result. A negative number sends 0.",
         "index": 0,
         "label": "in",
         "range": "any float"
@@ -11917,7 +11917,7 @@
     "name": ".sqrt",
     "outlets": [
       {
-        "doc": "The square root of the input (or 0 when the input is negative).",
+        "doc": "The square root of the input, or 0 when the input is negative.",
         "index": 0,
         "label": "out",
         "range": "0 or higher",
@@ -12115,7 +12115,7 @@
   },
   ".swap": {
     "category": "MATH",
-    "description": "Reverses the order of a pair of numbers — Max's swap, 'swaps the values of its inlets, preserving right-to-left ordering'. What arrives on inlet 0 leaves on outlet 1, and what was stored on inlet 1 leaves on outlet 0, so the pair crosses over on its way through. It earns a box because every two-inlet object in this patcher is hot on the left and cold on the right — .-, ./, .%, .pow, .atan2, .split and .past all fire on inlet 0 and merely store on inlet 1 — which fixes the operand order at the box; a patch whose values arrive the other way round would otherwise have to cross the two cords, an edit that is invisible once the patch is saved and hard to read back, or build the reordering by hand out of a .trigger and a cold inlet. .!- and .!/ are the fused form of the same idea for the two operators where reversal is common enough to be worth its own box, and cost one object where this costs two; .swap is the general answer, and the only one for the operators with no reversed twin. There is deliberately no .fswap: Max needs two boxes because a Max outlet carries one fixed atom type, and its reference says the only difference is that 'the second outlet's (and first inlet's) type is int or float depending on whether you use the name swap or fswap'. Here an outlet can be declared ANY and an inlet can take both, so this one object forwards each number as the kind it arrived as — an int in comes out an int, a float in comes out a float, on either side independently — which is swap's behaviour for swap's values and fswap's for fswap's, and a second box would differ in nothing. That is not the call .maximum and .minimum made when they became float-only: those objects compute, so the result's type would be a guess, while this one forwards, and widening an int to a float in transit would be a side effect visible to every downstream object that tells the two apart (.route 1, .sel, .i, .match) inflicted by a box whose only job was to change order. The creation argument pre-loads the right slot — Max: it 'sets the initial value sent from the left outlet' — and its spelling decides the kind, so .swap 5 starts holding int 5 and .swap 5. float 5, which is Max's 'a float argument causes float output from the left outlet' said the way this object can say it; the argument string is stored verbatim, so the distinction survives a save and reload. A bang on inlet 0 releases the current pair without moving either slot — a replay, so two bangs send the same thing twice rather than alternating — and before anything has arrived that is int 0 and the argument. A list on inlet 0 is Max's 'the numbers are stored in swap': the first number goes to the left slot and the second to the right one, and then the pair is released, which is the only way to set both in one message; each element keeps its own spelling, reading stops at the first token that is not a whole finite number, and a message with no number at the front is ignored rather than releasing the old pair. Outlet 1 is served first and outlet 0 last, each send completing in full (the whole subgraph behind it, depth first) before the next starts, which is Max's right-to-left rule and load-bearing here rather than decorative: the idiom is outlet 1 into the cold inlet of the arithmetic and outlet 0 into its hot one, so the right operand is in place before the left value fires the operation, and the reverse order would leave every result one input stale. The pair is snapshotted before the first send so a patch looping an outlet back into an inlet cannot change what the second outlet carries mid-release. Calculate() does nothing and no message path allocates, locks or blocks.",
+    "description": "Sends two numbers out in swapped order. A number on the left inlet leaves the right outlet, then the number stored on the right inlet leaves the left outlet.",
     "inlets": [
       {
         "accepts": [
@@ -12124,7 +12124,7 @@
           "BANG",
           "LIST"
         ],
-        "doc": "Hot. An int or float is stored and the pair is then released; a bang releases the pair without storing anything; a list of two numbers writes both slots and releases. Whatever arrives here leaves on outlet 1.",
+        "doc": "Number: store it and send the pair. Bang: send the pair again. List of two numbers: store both and send. Leaves on the right outlet.",
         "index": 0,
         "label": "left",
         "range": "any number"
@@ -12134,7 +12134,7 @@
           "FLOAT",
           "INT"
         ],
-        "doc": "Cold — the value is stored for the next release and nothing is sent. Whatever arrives here leaves on outlet 0.",
+        "doc": "Number for the left outlet, stored without sending.",
         "index": 1,
         "label": "right",
         "range": "any number"
@@ -12144,14 +12144,14 @@
     "name": ".swap",
     "outlets": [
       {
-        "doc": "The number stored from inlet 1 (or the creation argument), as the kind it was given in. Sent second, after outlet 1 has completed.",
+        "doc": "The number from the right inlet, as the int or float it arrived as. Sent second.",
         "index": 0,
         "label": "fromRight",
         "range": "any number",
         "type": "ANY"
       },
       {
-        "doc": "The number that arrived at inlet 0, as the kind it was given in. Sent first, before outlet 0.",
+        "doc": "The number from the left inlet, as the int or float it arrived as. Sent first.",
         "index": 1,
         "label": "fromLeft",
         "range": "any number",
@@ -12161,7 +12161,7 @@
     "params": [
       {
         "default": "0",
-        "doc": "Max's argument: the initial value of the right slot, which is what outlet 0 sends before inlet 1 has been written. Spelled as an int it is an int ('5'), spelled with a decimal point or an exponent it is a float ('5.', '5e0'). Anything that is not a whole finite number is ignored and leaves the default int 0 in place.",
+        "doc": "Starting number for the left outlet. Written as 5 it is an int; written as 5. or 5e0 it is a float.",
         "name": "right",
         "range": "any number"
       }
@@ -12422,14 +12422,14 @@
   },
   ".tan": {
     "category": "MATH",
-    "description": "Control-rate tangent. Emits tan(in) as a float whenever inlet 0 fires. The input is an angle in radians, as in Max. Near an odd multiple of pi/2 the result grows without bound; if it stops being finite, 0 is emitted rather than an infinity.",
+    "description": "Sends the tangent of an angle in radians, as a float. Where the result would be infinite, it sends 0.",
     "inlets": [
       {
         "accepts": [
           "FLOAT",
           "INT"
         ],
-        "doc": "Angle in radians — fires the evaluation.",
+        "doc": "Angle in radians; sends the result.",
         "index": 0,
         "label": "in",
         "range": "any float (radians)"
@@ -12451,14 +12451,14 @@
   },
   ".tanh": {
     "category": "MATH",
-    "description": "Control-rate hyperbolic tangent. Emits tanh(in) as a float whenever inlet 0 fires. The output saturates smoothly towards -1 and 1, which is what makes it the usual waveshaping curve.",
+    "description": "Sends the hyperbolic tangent of a number: a smooth S-curve between -1 and 1, often used for soft saturation.",
     "inlets": [
       {
         "accepts": [
           "FLOAT",
           "INT"
         ],
-        "doc": "Value to take the hyperbolic tangent of — fires the evaluation.",
+        "doc": "Number; sends the result.",
         "index": 0,
         "label": "in",
         "range": "any float"
@@ -12865,7 +12865,7 @@
   },
   ".togedge": {
     "category": "MATH",
-    "description": "Bangs the left outlet the moment a value becomes non-zero and the right outlet the moment it returns to zero, and says nothing in between — Max's togedge. It turns a continuous stream into the two moments a patch actually cares about, which is the clean way to derive note-on / note-off style gating from a threshold or an envelope, and in a patcher whose message queue is bounded the silence between the edges is the point rather than a nicety: an envelope sampled at frame rate would otherwise deliver a message per frame for the whole time the gate is open. Only transitions are reported, never levels — Max: 'Otherwise, togedge sends no output' — so 5 followed by 9 is not an event, because both are non-zero and no zero crossing happened, and 0 followed by 0 is not an event either. An implementation that reported 'the value changed' rather than 'the value crossed zero' would bang the left outlet on every message of a rising envelope. The two outlets are therefore mutually exclusive and strictly alternate over the object's whole life, which is the property a downstream note-on / note-off pairing depends on, since two note-ons with no note-off between them is a stuck note. The object starts holding 0 and takes no creation argument, as Max's does not: the first non-zero number it ever receives is a rising edge, while a first 0 is silent because 0 is what it already held. The .change object's 'initial' argument deliberately does not transfer, because that argument exists to keep a patch load from firing a value outlet for a parameter that has not moved and this object has no value outlet to fire — an edge that has not happened yet cannot be pre-declared. A bang is not a passthrough but the object's most surprising message: Max says it 'switches the value stored in togedge from 0 to non-zero, or vice versa, and reports the change by sending a bang out one of the outlets', so a bang toggles the stored value and then reports the transition it just made itself, and a stream of bangs comes out left, right, left, right. It composes with numeric input rather than living beside it, because both go through the same stored value, so a bang after the object was driven to 5 by a number bangs the right outlet and leaves the object holding 0. That is how a patch drives the same note-on / note-off pair from a single button. Both outlets carry a bang rather than the int 1 that .change's equivalent outlets send, which is what each Max reference page says and is defensible on its own terms: .change's edge outlets sit beside a value outlet where an int distinguishes an edge from nothing, whereas here the outlet's identity carries the whole meaning and a stray 1 would be a value nobody asked for on an outlet meant to drive a .trigger or a message box. The zero test itself is shared with .change rather than rewritten, because it has a corner two copies would drift apart on: -0.f == 0.f in IEEE-754, so a negative zero counts as zero on both sides. A non-finite number is ignored outright — no outlet fires and the stored value is untouched — rather than read as 0 the way the rest of the patcher reads it, because reading a NaN as 0 while the object holds 5 would bang the falling outlet and deliver a note-off for a note still being held, and storing it raw would leave the object in a state from which neither outlet could ever fire again. So the stored value is always finite, which is what guarantees the strict alternation cannot be broken by a value the patch did not choose. 'reset' is the patcher family's word rather than a Max message and returns the object to a stored 0 silently; the silence is its whole reason for existing, since a patch that wants the gate re-armed cannot just send 0 without banging the falling outlet and delivering a note-off it did not mean. There is no 'set', as Max documents none. A symbol is ignored, zero-ness being a numeric predicate that a symbol neither meets nor fails, and a list is Max's single-inlet distribution, so '5 6' is the number 5 and the 6 is dropped. Everything is a float and zero-ness is tested on the float as it arrived: Max's int-only method would truncate 0.5 to a zero, which would break this object's headline use outright, since an envelope between 0 and 1 would read as permanently zero except at full scale and the gate would never open.",
+    "description": "Bangs the left outlet when a value becomes non-zero and the right outlet when it returns to 0, and stays silent in between. A bang flips the value between zero and non-zero.",
     "inlets": [
       {
         "accepts": [
@@ -12874,7 +12874,7 @@
           "BANG",
           "LIST"
         ],
-        "doc": "Int or float to watch — the left outlet bangs when it becomes non-zero and the right when it returns to zero, and nothing comes out while it stays on one side. A non-finite number is ignored, leaving the stored value alone, rather than read as 0, which would report a transition the patch never sent. A bang toggles the stored value between zero and non-zero and reports the transition it just made, so a stream of bangs alternates the outlets. Also accepts 'reset' (back to a stored 0, silently — the only way to re-arm without banging the right outlet). A list is reduced to its first number, as Max's single-inlet distribution does; a symbol is ignored.",
+        "doc": "Number to watch. Bang: flip between zero and non-zero, and report it. 'reset': set the value to 0 without sending.",
         "index": 0,
         "label": "in",
         "range": "any float"
@@ -12884,14 +12884,14 @@
     "name": ".togedge",
     "outlets": [
       {
-        "doc": "Bang when the stored value was 0 and the input is not 0. Silent while the value stays non-zero, however much it changes.",
+        "doc": "Bang when the value changes from 0 to non-zero.",
         "index": 0,
         "label": "rising",
         "range": "bang",
         "type": "BANG"
       },
       {
-        "doc": "Bang when the stored value was not 0 and the input is 0. Silent while the value stays zero.",
+        "doc": "Bang when the value changes from non-zero to 0.",
         "index": 1,
         "label": "falling",
         "range": "bang",
@@ -13202,7 +13202,7 @@
   },
   ".trough": {
     "category": "MATH",
-    "description": "Keeps the smallest number it has seen and sends it out only when a new one arrives — the mirror of .peak, for tracking minima, best-case timings and 'only react when this improves' logic. This is the running reading of the idea .minimum deliberately does not have: .minimum compares an input against a sticky comparand and forgets it, answering every message and never moving, while .trough stores what it emits and stays silent until the record is broken. Two inlets and three outlets, as in Max: a number on inlet 0 is kept and sent out outlet 0 if it is less than the stored trough and produces no value at all if it is not; outlet 1 carries 1 when the number was a new minimum and 0 when it was not, and outlet 2 carries the inverse so that 'it was not a record' is one cord rather than a cord plus a .== 0. The three are sent right to left, so anything the value triggers already sees the matching flags. A number on inlet 1 reseeds the trough and sends it out — always a new minimum, flags and all — which is the opposite of .minimum's silent cold inlet. A bang sends the stored minimum out outlet 0 alone, and before any input that is the 'initial' creation argument rather than silence. That argument defaults to 128, Max's value and not an oversight next to .peak's 0: a running extreme is only useful if its starting value can lose, this family refuses to store an infinity because one that wins would pin the outlet for good, and a trough starting at 0 would reject every positive number it was ever sent. Two silent messages on inlet 0 complete the object, because Max leaves a running extreme with no way back that does not announce itself: 'reset' returns to the initial argument and 'set <n>' stores n, both without emitting, so the next number received is the next trough event. 'clear' is deliberately absent, because on a '.trough 5' it could not be told whether it meant 0 or 5. A list is Max's two-element idiom — the second number becomes the new trough and is sent out, then the first is offered to it — with anything past the second ignored and a one-element list treated as a plain number. A message with no numbers in it is ignored. Everything is a float and outlet 0 is a float outlet: Max's int-unless-the-argument-has-a-decimal-point duality is not reproduced, because '.trough 5' and '.trough 5.0' are the same parameter string here. A non-finite number is read as 0 wherever it arrives, the convention ./ , .sqrt, .zmap, .clip, .slide and .mean already use, and it matters more here than anywhere else because this object keeps what it accepts: a stored NaN would lose every later comparison and be reported forever, and a stored +infinity would make every number a new minimum while -infinity would silence the outlet for good.",
+    "description": "Keeps the smallest number received so far and sends it only when a new number goes below it. Two more outlets report whether each number set a new minimum.",
     "inlets": [
       {
         "accepts": [
@@ -13211,7 +13211,7 @@
           "BANG",
           "LIST"
         ],
-        "doc": "Int or float to offer to the stored minimum, sent out only if it is less / bang to send the stored minimum out / list '<input> <trough>' to reseed with the second number and then offer the first / list 'set <n>' to store n silently / list 'reset' to return to the initial argument.",
+        "doc": "Number: send it if it is below the minimum. Bang: send the minimum. List '<number> <minimum>': set the minimum, then offer the number. 'set <n>': set the minimum without sending. 'reset': go back to the starting minimum without sending.",
         "index": 0,
         "label": "in",
         "range": "any float"
@@ -13221,7 +13221,7 @@
           "FLOAT",
           "INT"
         ],
-        "doc": "The new minimum value. Stored and sent out — a number received here is always a new minimum.",
+        "doc": "Number that becomes the new minimum and is sent, always reported as a new record.",
         "index": 1,
         "label": "seed",
         "range": "any float"
@@ -13231,21 +13231,21 @@
     "name": ".trough",
     "outlets": [
       {
-        "doc": "New minimum values. Silent when the number received was not less than the stored minimum.",
+        "doc": "The new minimum. Silent when a number does not go below it.",
         "index": 0,
         "label": "out",
         "range": "any float",
         "type": "FLOAT"
       },
       {
-        "doc": "1 when the number just received was a new extreme, 0 when it was not.",
+        "doc": "1 when the number just received set a new record, otherwise 0.",
         "index": 1,
         "label": "new",
         "range": "0 or 1",
         "type": "INT"
       },
       {
-        "doc": "The inverse of the 'new' outlet: 0 for a new extreme, 1 for a rejection.",
+        "doc": "The opposite of the 'new' outlet: 0 for a new record, otherwise 1.",
         "index": 2,
         "label": "same",
         "range": "0 or 1",
@@ -13255,7 +13255,7 @@
     "params": [
       {
         "default": "128",
-        "doc": "Starting minimum, what a bang reports before any input, and the value 'reset' returns to. Max starts trough at 128, high enough that ordinary input can beat it — 0 could not be beaten by anything positive.",
+        "doc": "Starting minimum, and the minimum 'reset' returns to. 128 by default, so that ordinary numbers can go below it.",
         "name": "initial",
         "range": "any float"
       }
@@ -13583,7 +13583,7 @@
   },
   ".vexpr": {
     "category": "MATH",
-    "description": "Evaluates a C-like mathematical expression once for every element of a list, so one object replaces an iteration loop: scaling a chord, transposing a motif or bending a set of breakpoints becomes a single box. The expression is the creation argument and the language is exactly .expr's - its $i1-$i9 and $f1-$f9 placeholders name the inlets ($i reads as an int, $f as a float), the object gets one inlet past the highest placeholder used, and the operators, the functions and the C type rules are the same, so read .expr for the details. The difference is the data: every inlet holds a list rather than a single value, and an int or a float is simply a one-item list. An inlet holding one item is broadcast across all the elements (Max's scalarmode 1), so a list on one inlet and a number on another scales the list; otherwise the number of results is the length of the shortest list among the inlets the expression actually reads. Inlet 0 is hot: it stores its list and evaluates, while the other inlets only store. A bang on inlet 0 re-evaluates from the stored lists. A single result is sent as an int or a float, and a longer one as a list. Lists are held at up to 256 items per inlet (Max's default maxsize) and anything past that is dropped. The expression is compiled once, when the parameter is set; evaluation only walks the compiled form and writes into a buffer reserved up front, so it allocates nothing and takes no lock. A malformed expression is reported to the log at parse time and the object then sends 0.",
+    "description": "Evaluates an expression for every item of a list, as .expr does for single numbers, and sends the results as a list. A single number on an inlet is used for every item.",
     "inlets": [
       {
         "accepts": [
@@ -13592,7 +13592,7 @@
           "BANG",
           "LIST"
         ],
-        "doc": "List for the $i1 / $f1 placeholders — stores and fires the evaluation. An int or a float is stored as a one-item list, which is then broadcast across every element. Also accepts a bang, which re-evaluates from the stored lists.",
+        "doc": "List for $i1 and $f1; sends the results. A single number counts as a one-item list. Bang: calculate again.",
         "index": 0,
         "label": "$1",
         "range": "any list of floats"
@@ -13602,7 +13602,7 @@
     "name": ".vexpr",
     "outlets": [
       {
-        "doc": "One result per element. A single result is sent as an int or a float following the expression's type; two or more are sent as a list.",
+        "doc": "One result per item, as a list; a single result as an int or a float.",
         "index": 0,
         "label": "out",
         "range": "any list of floats",
@@ -13612,7 +13612,7 @@
     "params": [
       {
         "default": "",
-        "doc": "The expression to evaluate for every element, e.g. \"$f1 * $f2\". Placeholders $i1-$i9 and $f1-$f9 name the inlets and determine how many there are.",
+        "doc": "The expression to evaluate for every item, for example \"$f1 * $f2\". Its placeholders decide how many inlets there are.",
         "name": "expression",
         "range": "any expression"
       }
@@ -14189,14 +14189,14 @@
   },
   ".zmap": {
     "category": "MATH",
-    "description": "Control-rate clipped range mapping. Maps the value on inlet 0 from the input range onto the output range and emits it as a float. Unlike .scale the mapping never extrapolates: a value outside the input range is pinned to the matching output limit, which makes this the safe choice for driving a parameter that must never leave its legal range. The mapping is always linear — use .scale for an exponential curve or for extrapolation. A descending output range (low above high) clips against the correct limits, a degenerate input range (low equal to high) emits the output low, and nothing non-finite can leave the object — the result is always inside the output range.",
+    "description": "Maps a number from the input range onto the output range, in a straight line, and sends it as a float. A number outside the input range gives the nearest output limit, so the result never leaves the output range.",
     "inlets": [
       {
         "accepts": [
           "FLOAT",
           "INT"
         ],
-        "doc": "Value to map — fires the evaluation.",
+        "doc": "Number to map; sends the result.",
         "index": 0,
         "label": "value",
         "range": "any float"
@@ -14206,7 +14206,7 @@
           "FLOAT",
           "INT"
         ],
-        "doc": "Bottom of the input range — stored until the next evaluation.",
+        "doc": "Input value that maps to outLow, stored for the next result.",
         "index": 1,
         "label": "inLow",
         "range": "any float"
@@ -14216,7 +14216,7 @@
           "FLOAT",
           "INT"
         ],
-        "doc": "Top of the input range — stored until the next evaluation.",
+        "doc": "Input value that maps to outHigh, stored for the next result.",
         "index": 2,
         "label": "inHigh",
         "range": "any float"
@@ -14226,7 +14226,7 @@
           "FLOAT",
           "INT"
         ],
-        "doc": "Bottom of the output range — stored until the next evaluation.",
+        "doc": "Output for inLow, stored for the next result.",
         "index": 3,
         "label": "outLow",
         "range": "any float"
@@ -14236,7 +14236,7 @@
           "FLOAT",
           "INT"
         ],
-        "doc": "Top of the output range — stored until the next evaluation.",
+        "doc": "Output for inHigh, stored for the next result.",
         "index": 4,
         "label": "outHigh",
         "range": "any float"
@@ -14246,7 +14246,7 @@
     "name": ".zmap",
     "outlets": [
       {
-        "doc": "The input value mapped onto the output range and clipped to it.",
+        "doc": "The number mapped onto the output range, limited to it.",
         "index": 0,
         "label": "out",
         "range": "any float",
@@ -14256,25 +14256,25 @@
     "params": [
       {
         "default": "0",
-        "doc": "Bottom of the input range.",
+        "doc": "Input value that maps to outLow.",
         "name": "inLow",
         "range": "any float"
       },
       {
         "default": "127",
-        "doc": "Top of the input range.",
+        "doc": "Input value that maps to outHigh.",
         "name": "inHigh",
         "range": "any float"
       },
       {
         "default": "0",
-        "doc": "Bottom of the output range.",
+        "doc": "Output for inLow.",
         "name": "outLow",
         "range": "any float"
       },
       {
         "default": "1",
-        "doc": "Top of the output range.",
+        "doc": "Output for inHigh.",
         "name": "outHigh",
         "range": "any float"
       }
@@ -14283,14 +14283,14 @@
   },
   ".|": {
     "category": "MATH",
-    "description": "Control-rate bitwise OR. Emits left | right whenever inlet 0 fires. Floats truncate towards zero on input.",
+    "description": "Bitwise OR of two integers, sent as an int. Floats are truncated toward zero first.",
     "inlets": [
       {
         "accepts": [
           "FLOAT",
           "INT"
         ],
-        "doc": "Left operand — fires the evaluation. Floats truncate towards zero.",
+        "doc": "Left operand; sends the result. Floats are truncated toward zero.",
         "index": 0,
         "label": "left",
         "range": "any int"
@@ -14300,7 +14300,7 @@
           "FLOAT",
           "INT"
         ],
-        "doc": "Right operand — stored until the next evaluation. Floats truncate towards zero.",
+        "doc": "Right operand, stored for the next result. Floats are truncated toward zero.",
         "index": 1,
         "label": "right",
         "range": "any int"
@@ -14320,7 +14320,7 @@
     "params": [
       {
         "default": "0",
-        "doc": "Initial right-operand value.",
+        "doc": "Starting right operand.",
         "name": "right",
         "range": "any int"
       }
@@ -14329,14 +14329,14 @@
   },
   ".||": {
     "category": "MATH",
-    "description": "Control-rate logical OR. Emits 1 when either operand is non-zero and 0 otherwise, whenever inlet 0 fires.",
+    "description": "Logical OR: sends 1 when either operand is non-zero, otherwise 0.",
     "inlets": [
       {
         "accepts": [
           "FLOAT",
           "INT"
         ],
-        "doc": "Left operand — fires the evaluation.",
+        "doc": "Left operand; sends the result.",
         "index": 0,
         "label": "left",
         "range": "any float"
@@ -14346,7 +14346,7 @@
           "FLOAT",
           "INT"
         ],
-        "doc": "Right operand — stored until the next evaluation.",
+        "doc": "Right operand, stored for the next result.",
         "index": 1,
         "label": "right",
         "range": "any float"
@@ -14366,7 +14366,7 @@
     "params": [
       {
         "default": "0",
-        "doc": "Initial right-operand value.",
+        "doc": "Starting right operand.",
         "name": "right",
         "range": "any float"
       }
@@ -14385,13 +14385,13 @@
   },
   "~*": {
     "category": "MATH",
-    "description": "Audio-rate multiply. Multiplies the left buffer by either the right buffer (audio-rate) or the right float (control-rate). The canonical 'gain' / ring-mod node.",
+    "description": "Multiplies an audio signal by another audio signal or by a float: a gain stage, or a ring modulator.",
     "inlets": [
       {
         "accepts": [
           "BUFFER"
         ],
-        "doc": "Left operand — audio buffer.",
+        "doc": "Audio signal.",
         "index": 0,
         "label": "left",
         "range": "any float"
@@ -14401,7 +14401,7 @@
           "BUFFER",
           "FLOAT"
         ],
-        "doc": "Right operand — audio buffer or float (gain).",
+        "doc": "Audio signal, or a float used while no audio is connected.",
         "index": 1,
         "label": "right",
         "range": "any float"
@@ -14421,7 +14421,7 @@
     "params": [
       {
         "default": "1.0",
-        "doc": "Initial right-operand float (used until a buffer arrives on inlet 1).",
+        "doc": "Float used while no audio is connected to the right inlet.",
         "name": "right",
         "range": "any float"
       }
@@ -14430,13 +14430,13 @@
   },
   "~+": {
     "category": "MATH",
-    "description": "Audio-rate add. Sums the left buffer with either the right buffer (audio-rate) or the right float (control-rate).",
+    "description": "Adds two audio signals, or adds a float to an audio signal.",
     "inlets": [
       {
         "accepts": [
           "BUFFER"
         ],
-        "doc": "Left operand — audio buffer.",
+        "doc": "Audio signal.",
         "index": 0,
         "label": "left",
         "range": "any float"
@@ -14446,7 +14446,7 @@
           "BUFFER",
           "FLOAT"
         ],
-        "doc": "Right operand — audio buffer or float.",
+        "doc": "Audio signal, or a float used while no audio is connected.",
         "index": 1,
         "label": "right",
         "range": "any float"
@@ -14466,7 +14466,7 @@
     "params": [
       {
         "default": "1.0",
-        "doc": "Initial right-operand float (used until a buffer arrives on inlet 1).",
+        "doc": "Float used while no audio is connected to the right inlet.",
         "name": "right",
         "range": "any float"
       }
@@ -14475,13 +14475,13 @@
   },
   "~-": {
     "category": "MATH",
-    "description": "Audio-rate subtract. Subtracts either the right buffer (audio-rate) or the right float (control-rate) from the left buffer.",
+    "description": "Subtracts an audio signal, or a float, from an audio signal.",
     "inlets": [
       {
         "accepts": [
           "BUFFER"
         ],
-        "doc": "Left operand — audio buffer.",
+        "doc": "Audio signal.",
         "index": 0,
         "label": "left",
         "range": "any float"
@@ -14491,7 +14491,7 @@
           "BUFFER",
           "FLOAT"
         ],
-        "doc": "Right operand — audio buffer or float.",
+        "doc": "Audio signal, or a float used while no audio is connected.",
         "index": 1,
         "label": "right",
         "range": "any float"
@@ -14511,7 +14511,7 @@
     "params": [
       {
         "default": "1.0",
-        "doc": "Initial right-operand float (used until a buffer arrives on inlet 1).",
+        "doc": "Float used while no audio is connected to the right inlet.",
         "name": "right",
         "range": "any float"
       }
@@ -14520,13 +14520,13 @@
   },
   "~/": {
     "category": "MATH",
-    "description": "Audio-rate divide. Divides the left buffer by either the right buffer (audio-rate) or the right float (control-rate). A right-float of 0 is silently treated as a no-op.",
+    "description": "Divides an audio signal by another audio signal or by a float. A float of 0 leaves the signal unchanged.",
     "inlets": [
       {
         "accepts": [
           "BUFFER"
         ],
-        "doc": "Left operand — audio buffer.",
+        "doc": "Audio signal.",
         "index": 0,
         "label": "left",
         "range": "any float"
@@ -14536,7 +14536,7 @@
           "BUFFER",
           "FLOAT"
         ],
-        "doc": "Right operand — audio buffer or float (non-zero).",
+        "doc": "Audio signal, or a float used while no audio is connected. A float of 0 leaves the signal unchanged.",
         "index": 1,
         "label": "right",
         "range": "any non-zero float"
@@ -14556,7 +14556,7 @@
     "params": [
       {
         "default": "1.0",
-        "doc": "Initial right-operand float (used until a buffer arrives on inlet 1). 0 disables division.",
+        "doc": "Float used while no audio is connected to the right inlet. 0 leaves the signal unchanged.",
         "name": "right",
         "range": "any non-zero float"
       }
@@ -14649,13 +14649,13 @@
   },
   "~clip": {
     "category": "MATH",
-    "description": "Audio-rate hard clipper. Constrains every sample of the input buffer to the [low, high] range — use it to tame stray peaks or as a deliberate distortion stage.",
+    "description": "Hard clipper: limits every sample of an audio signal to the range low to high. Use it to tame stray peaks, or as a distortion stage.",
     "inlets": [
       {
         "accepts": [
           "BUFFER"
         ],
-        "doc": "Audio input buffer.",
+        "doc": "Audio signal.",
         "index": 0,
         "label": "in",
         "range": "any float"
@@ -14664,7 +14664,7 @@
         "accepts": [
           "FLOAT"
         ],
-        "doc": "Lower clipping threshold.",
+        "doc": "Lower limit, as a float.",
         "index": 1,
         "label": "low",
         "range": "any float"
@@ -14673,7 +14673,7 @@
         "accepts": [
           "FLOAT"
         ],
-        "doc": "Upper clipping threshold.",
+        "doc": "Upper limit, as a float.",
         "index": 2,
         "label": "high",
         "range": "any float"
@@ -14683,7 +14683,7 @@
     "name": "~clip",
     "outlets": [
       {
-        "doc": "Input clamped to [low, high].",
+        "doc": "The signal limited to low to high.",
         "index": 0,
         "label": "out",
         "range": "low to high",
@@ -14693,13 +14693,13 @@
     "params": [
       {
         "default": "-1.0",
-        "doc": "Initial lower clipping threshold.",
+        "doc": "Starting lower limit.",
         "name": "low",
         "range": "any float"
       },
       {
         "default": "1.0",
-        "doc": "Initial upper clipping threshold.",
+        "doc": "Starting upper limit.",
         "name": "high",
         "range": "any float"
       }

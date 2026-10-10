@@ -59,52 +59,21 @@ CONSTRUCT() {
   initial = 0.f;
   current = 0.0;
 
-  ADD_DESCRIPTION(
-      "A stored number to add into and multiply in place — the general-purpose register that "
-      ".counter only covers the increment-by-one case of, for running totals, scaling chains and "
-      "stateful math without a feedback cord. Three inlets, as in Max: an int or float on inlet 0 "
-      "replaces the stored value and sends it out, a number on inlet 1 is added to it and a number "
-      "on inlet 2 multiplies it, both without triggering output. A bang sends the stored value "
-      "out, and before any operation that is the 'initial' creation argument (0 by default) rather "
-      "than silence. The same three operations are available as messages on inlet 0 for patches "
-      "that would rather send one cord than wire three: 'set <n>' stores without emitting (Max's "
-      "word), 'add <n>' adds without emitting (Max spells it 'ft1', accepted as a synonym) and "
-      "'mult <n>' multiplies without emitting. 'reset' restores the initial argument, also "
-      "silently — as .counter's reset returns to startValue — which is not the same message as "
-      "'set 0' whenever the object was created with an argument. The register is a double while "
-      "the outlet carries a float, because a multiply-accumulate feeds its own rounding back into "
-      "itself: over a chain of k operations the relative error grows as about k*2^-53, still 29 "
-      "bits below what the outlet can express after a billion of them. Max's int/float duality — "
-      "where an integer argument makes every multiply round back to an integer — is deliberately "
-      "not reproduced, since '.accum 5' and '.accum 5.0' parse identically here and guessing wrong "
-      "would silently turn two 'mult 0.5' into 0 instead of a quarter; put a .round on the outlet "
-      "instead. At the limits the register saturates at plus or minus 3.4028235e38 rather than "
-      "becoming infinite: an infinity is absorbing, so one overflow would make the register "
-      "permanently useless and an infinity minus an infinity would put a NaN on the outlet that "
-      "poisons everything downstream, while a saturated register is still a number with the right "
-      "sign that the next multiply brings back into range. That matters because a "
-      "multiply-accumulate diverges fast — repeated 'mult 2' reaches the ceiling in 128 messages. "
-      "Clamping after every operation is also what makes the double arithmetic itself unable to "
-      "overflow, both operands then being bounded by the float maximum. The bottom of the range is "
-      "not floored, so a chain that multiplies down by 1e-30 and back up by 1e30 recovers exactly "
-      "even though the outlet reported 0 in between. A non-finite number is neutralised with the "
-      "identity of the operation it drives — 0 for an add, 1 for a multiply — and with 0 where it "
-      "would become the stored value.");
+  ADD_DESCRIPTION("Stores a number you can replace, add to and multiply. A number on the left "
+                  "inlet replaces it and sends it; the middle inlet adds to it and the right inlet "
+                  "multiplies it, without sending.");
   ADD_CATEGORY(pCategory::MATH);
   INLET_DOC(0, "value",
-            "Int or float to store and send out / bang to send the stored value out / list 'set "
-            "<n>' to store without emitting / list 'add <n>' (or 'ft1 <n>') to add without "
-            "emitting / list 'mult <n>' to multiply without emitting / list 'reset' to return to "
-            "the initial argument.",
+            "Number: replace the stored value and send it. Bang: send the stored value. 'set <n>', "
+            "'add <n>', 'mult <n>': replace, add or multiply without sending. 'reset': go back "
+            "to the starting value.",
             "any float");
-  INLET_DOC(1, "add", "Number added to the stored value, without triggering output.", "any float");
-  INLET_DOC(2, "mult", "The stored value is multiplied by this, without triggering output.",
-            "any float");
-  OUTLET_DOC(0, "out", "The stored value.",
-             "any float, saturating at +/-3.4028235e38 rather than becoming infinite");
+  INLET_DOC(1, "add", "Number added to the stored value, without sending.", "any float");
+  INLET_DOC(2, "mult", "Number the stored value is multiplied by, without sending.", "any float");
+  OUTLET_DOC(0, "out", "The stored value.", "any float");
   PARAM_DOC("initial", "0",
-            "Starting value of the register, what a bang reports before any operation, and the "
-            "value 'reset' returns to.",
+            "Starting value: what a bang sends before anything changes it, and what 'reset' "
+            "returns to.",
             "any float");
 }
 

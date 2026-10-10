@@ -71,106 +71,24 @@ CONSTRUCT() {
   mode = Mode::DIFFERENT;
   initialMode = Mode::DIFFERENT;
 
-  ADD_DESCRIPTION(
-      "Passes a number on only when it differs from the last one, which is what keeps a control "
-      "source that polls at frame rate from filling a bounded message queue with a value nothing "
-      "downstream will act on. Max's change, and it looks trivial in a way it is not. The stored "
-      "value starts at the 'initial' creation argument rather than at 'nothing received yet' — "
-      "Max: "
-      "'If there is no argument, the initial value is 0' — so a bare .change sent 0 as its very "
-      "first message emits nothing, because 0 is what it already held, while the same object sent "
-      "5 "
-      "first emits 5. That is the point of the argument: .change 5 declares what the patch already "
-      "believes the value to be, so loading a patch does not fire an event for a parameter that "
-      "has "
-      "not moved, and an object that always emitted its first input could not express it. The "
-      "comparison is exact, with no tolerance, for the reason .sel gives from the other side: a "
-      "tolerance in a matcher makes it match values it was not given, and a tolerance in a "
-      "suppressor is worse, because swallowing a value that genuinely differs is invisible and "
-      "leaves a patch whose parameter stopped updating at the fourth decimal place with no symptom "
-      "to trace. Put a .round on the way in, where the patch's real tolerance is visible. Negative "
-      "zero is not a change from zero, since they are the same number. A non-finite number is "
-      "ignored outright — nothing is emitted, no outlet fires and the stored value is untouched — "
-      "rather than read as 0 the way the rest of the patcher reads it: reading a NaN as 0 would "
-      "emit a zero the patch never sent and then swallow the next genuine one, and storing it raw "
-      "is worse, because a NaN compares unequal to everything including itself and a stream of "
-      "them "
-      "would emit on every single message, which is the exact repetition flood this object exists "
-      "to stop. So the stored value is always finite, whether it came from the argument, from "
-      "'set' "
-      "or from the inlet. Three outlets, as in Max: outlet 0 carries the number when it differs; "
-      "outlet 1 sends 1 when the stored value was 0 and the input is not; outlet 2 sends 1 when "
-      "the "
-      "stored value was not 0 and the input is. The last two are .togedge built into the object "
-      "and "
-      "are ported because Max ships them, so a patch translated from Max does not silently lose "
-      "two "
-      "cords; neither can fire on a repetition, and both are evaluated against the value held "
-      "before this input. The three fire right to left, so whatever the value triggers already "
-      "sees "
-      "the matching edge reports. Max's second argument and its 'mode' message turn the object "
-      "from "
-      "a difference detector into a direction detector: 'mode +' sends 1 when the number is "
-      "greater "
-      "than the previous one, 'mode -' sends -1 when it is less, and a bare 'mode' returns to the "
-      "default. The stored value is replaced by every number received in every mode — it is the "
-      "previously received number, not the last one emitted — so a .change + fed 5, 3, 4 emits "
-      "nothing, nothing, then 1. A mode flag this object does not know leaves the mode alone. 'set "
-      "<n>' replaces the stored value without emitting, which is the whole of what makes it "
-      "useful: "
-      "if it emitted it would just be a spelling of sending n at the inlet, whereas staying silent "
-      "lets a patch re-synchronise the filter with a value that reached the parameter by another "
-      "route. 'reset' is the patcher family's word rather than a Max message and returns both the "
-      "stored value and the mode to what the object was created with, silently, since after a "
-      "'set' "
-      "or a 'mode' there is otherwise no way back to the creation argument. A bang is not "
-      "accepted, "
-      "because outlet 0 means 'this number differs from the last one' and a bang would have to "
-      "either fabricate a change or do nothing. A symbol is not accepted either: Max's change has "
-      "no symbol method, two of its three outlets are numeric predicates and two of its three "
-      "modes "
-      "are orderings, none of which a symbol has, so suppressing repeated symbols is a different "
-      "object rather than a mode of this one. A list is Max's single-inlet distribution — the "
-      "first "
-      "element is the number and the rest is dropped, so '5 6' is the number 5 — and a message "
-      "that "
-      "is neither a word this object knows nor a list beginning with a number is ignored. "
-      "Everything is a float and outlet 0 is a float outlet, so Max's "
-      "int-unless-the-argument-has-a-decimal-point duality is not reproduced: '.change 5' and "
-      "'.change 5.0' are the same parameter string here, and guessing integral would turn a change "
-      "filter into a change-and-quantise filter.");
+  ADD_DESCRIPTION("Passes a number on only when it differs from the previous one. Two more "
+                  "outlets report when the value leaves 0 and when it returns to 0.");
   ADD_CATEGORY(pCategory::MATH);
   INLET_DOC(0, "in",
-            "Int or float to compare against the stored value — sent out outlet 0 only when it "
-            "differs, or in the '+' / '-' modes when it is greater / less. A non-finite number is "
-            "ignored. Also accepts the messages 'set <n>' (replace the stored value without "
-            "emitting), 'mode +' / 'mode -' / 'mode' (switch the comparison, or return to the "
-            "default) and 'reset' (back to the creation argument and creation mode). All of them "
-            "are silent. A list is reduced to its first number, as Max's single-inlet distribution "
-            "does; a bang and a symbol are not accepted.",
+            "Number to compare with the previous one. 'set <n>': store n without sending. "
+            "'mode +', 'mode -', 'mode': choose what counts as a change. 'reset': go back to the "
+            "creation arguments.",
             "any float");
-  OUTLET_DOC(
-      0, "out",
-      "The number received, when it differs from the stored value. In 'mode +' this carries "
-      "1 when the number is greater than the previous one and in 'mode -' it carries -1 when "
-      "the number is less; it stays a float outlet in every mode. Silent otherwise, which is "
-      "the whole point of the object.",
-      "any float");
-  OUTLET_DOC(1, "rising", "1 when the stored value was 0 and the input is not 0. Silent otherwise.",
-             "1");
-  OUTLET_DOC(2, "falling",
-             "1 when the stored value was not 0 and the input is 0. Silent otherwise.", "1");
-  PARAM_DOC(
-      "initial mode", "0",
-      "The value the first input is compared against, and optionally Max's mode flag. A bare "
-      ".change starts at 0, so its first 0 is swallowed as a repetition and its first non-zero "
-      "number comes out; '.change 5' declares that the patch already believes the value to be "
-      "5, so loading it fires nothing until the value actually moves. A second argument of "
-      "'+' or '-' starts the object in the greater-than or less-than mode, as Max's does. A "
-      "token that does not read as a whole finite number is not a value — '.change inf' "
-      "therefore starts at 0 — and a token that is neither is ignored. 'reset' returns to "
-      "both of these.",
-      "a float, optionally followed by + or -");
+  OUTLET_DOC(0, "out",
+             "The number, when it differs from the previous one. In mode + it sends 1 for a "
+             "rise, and in mode - it sends -1 for a fall.",
+             "any float");
+  OUTLET_DOC(1, "rising", "1 when the value changes from 0 to anything else.", "1");
+  OUTLET_DOC(2, "falling", "1 when the value changes from anything else to 0.", "1");
+  PARAM_DOC("initial mode", "0",
+            "The value the first number is compared with, 0 by default, optionally followed by "
+            "+ or - to start in that mode.",
+            "a float, optionally followed by + or -");
 }
 
 PARM_CLEAR() {

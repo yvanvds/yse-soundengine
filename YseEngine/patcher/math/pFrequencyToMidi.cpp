@@ -16,11 +16,11 @@ CONSTRUCT() {
 
   ADD_OUT_FLOAT;
 
-  ADD_DESCRIPTION(
-      "Converts a frequency in Hz to its MIDI note number (with A4 == 69, fractional output).");
+  ADD_DESCRIPTION("Converts a frequency in Hz to a MIDI note number, with 440 Hz (A4) at note 69. "
+                  "The result is fractional, so a detuned pitch keeps its offset.");
   ADD_CATEGORY(pCategory::MATH);
-  INLET_DOC(0, "freq", "Frequency in Hz.", "0-20000 Hz");
-  OUTLET_DOC(0, "midi", "MIDI note number — fractional.", "any float");
+  INLET_DOC(0, "freq", "Frequency in Hz, above 0; sends the result.", "0-20000 Hz");
+  OUTLET_DOC(0, "midi", "MIDI note number, with a fractional part.", "any float");
 }
 
 FLOAT_IN(SetFrequency) {

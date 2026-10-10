@@ -31,20 +31,13 @@ CONSTRUCT() {
   low = -1.f;
   high = 1.f;
 
-  ADD_DESCRIPTION(
-      "Control-rate range limiting. Passes the value on inlet 0 through unchanged when it lies "
-      "inside the [low, high] range and pins it to the nearest limit when it does not, emitting "
-      "the result as a float. The control-rate counterpart of ~clip, and the object to reach for "
-      "when a value must never leave the legal bounds of the parameter it drives. Unlike .zmap it "
-      "does not rescale — the range is a limit, not a mapping. Limits given the wrong way round "
-      "(low above high) are treated as an ordered pair and still clip against the right two "
-      "numbers, and nothing non-finite can leave the object: the result is always inside the "
-      "range.");
+  ADD_DESCRIPTION("Limits a number to the range low to high and sends it as a float. A number "
+                  "inside the range passes unchanged; any other becomes the nearest limit.");
   ADD_CATEGORY(pCategory::MATH);
-  INLET_DOC(0, "value", "Value to limit — fires the evaluation.", "any float");
-  INLET_DOC(1, "low", "Lower limit — stored until the next evaluation.", "any float");
-  INLET_DOC(2, "high", "Upper limit — stored until the next evaluation.", "any float");
-  OUTLET_DOC(0, "out", "The input value clipped to [low, high].", "low to high");
+  INLET_DOC(0, "value", "Number to limit; sends the result.", "any float");
+  INLET_DOC(1, "low", "Lower limit, stored for the next result.", "any float");
+  INLET_DOC(2, "high", "Upper limit, stored for the next result.", "any float");
+  OUTLET_DOC(0, "out", "The number limited to the range.", "low to high");
   PARAM_DOC("low", "-1", "Lower limit.", "any float");
   PARAM_DOC("high", "1", "Upper limit.", "any float");
 }

@@ -19,11 +19,8 @@ gReverseBase::gReverseBase(operation op) : pObject(false), apply(op), leftIn(0.f
   ADD_PARAM(rightIn);
 
   ADD_CATEGORY(pCategory::MATH);
-  INLET_DOC(1, "right",
-            "Right operand — stored until the next evaluation. This is the operand the "
-            "result is computed from.",
-            "any float");
-  PARAM_DOC("right", "0", "Initial right-operand value.", "any float");
+  INLET_DOC(1, "right", "Right operand, stored for the next result.", "any float");
+  PARAM_DOC("right", "0", "Starting right operand.", "any float");
 }
 
 void gReverseBase::Document(const char* summary, const char* leftDoc, const char* outletDoc) {
@@ -59,16 +56,16 @@ CALC() {
 
 gReverseSubstract::gReverseSubstract()
   : gReverseBase([](float left, float right) { return right - left; }) {
-  Document("Control-rate reverse subtract. Emits right - left as a float whenever inlet 0 fires — "
-           "the operands of .- in the other order, without needing a swap in front of it.",
-           "Left operand — fires the subtraction and is the value subtracted.", "right - left.");
+  Document("Subtracts the left operand from the right one and sends right - left as a float: "
+           ".- with the operands the other way round.",
+           "Left operand, the value subtracted; sends the result.", "right - left.");
 }
 
 // Division by zero emits 0, the convention ./ already uses.
 gReverseDivide::gReverseDivide()
   : gReverseBase([](float left, float right) { return left != 0.f ? right / left : 0.f; }) {
-  Document("Control-rate reverse divide. Emits right / left as a float whenever inlet 0 fires — "
-           "the operands of ./ in the other order. Division by zero emits 0.",
-           "Left operand — fires the division and is the divisor. Zero forces the output to 0.",
-           "right / left (or 0 when left == 0).");
+  Document("Divides the right operand by the left one and sends right / left as a float: ./ with "
+           "the operands the other way round. A left operand of 0 sends 0.",
+           "Left operand, the divisor; sends the result. 0 makes the result 0.",
+           "right / left, or 0 when left is 0.");
 }

@@ -11,23 +11,19 @@ using namespace YSE::PATCHER;
 // needed here. Both are a log/exp on a register: no allocation, no lock, no
 // I/O.
 
+// The engine's decibel scale puts an amplitude of 1.0 at 100 dB — the scale
+// rmsToDb() uses for the engine's own volume reporting — rather than at 0 dBFS.
 gAToDb::gAToDb() : gUnaryMathBase(&YSE::DSP::rmsToDb) {
-  Document("Control-rate linear amplitude to decibels. Emits the input amplitude expressed on the "
-           "engine's decibel scale whenever inlet 0 fires. That scale is the one used by the "
-           "rmsToDb DSP module and by the engine's own volume reporting: amplitude 1.0 is 100 dB, "
-           "amplitude 0 is 0 dB, and the result never goes negative. Subtract 100 to read it as "
-           "conventional dBFS.",
-           "Linear amplitude to convert — fires the evaluation. Zero and negative values emit 0.",
-           "0.0 and up", "The amplitude in decibels, with 100 dB meaning an amplitude of 1.0.",
-           "0-485 dB");
+  Document("Converts a linear amplitude to decibels on the engine's scale, where an amplitude of "
+           "1 is 100 dB and nothing goes below 0 dB. Subtract 100 for decibels relative to full "
+           "scale.",
+           "Linear amplitude; sends the result. 0 and below send 0.", "0.0 and up",
+           "The amplitude in decibels; 100 dB is an amplitude of 1.", "0-485 dB");
 }
 
 gDbToA::gDbToA() : gUnaryMathBase(&YSE::DSP::dbToRms) {
-  Document("Control-rate decibels to linear amplitude. Emits the input decibel level expressed as "
-           "a linear amplitude whenever inlet 0 fires — the exact inverse of .atodb, so 100 dB "
-           "gives an amplitude of 1.0 and 0 dB gives 0. Input is clamped at 485 dB to keep the "
-           "result finite.",
-           "Decibel level to convert — fires the evaluation. Zero and negative values emit 0.",
-           "0-485 dB", "The linear amplitude, with an amplitude of 1.0 meaning 100 dB.",
-           "0.0 and up");
+  Document("Converts decibels on the engine's scale to a linear amplitude: 100 dB is an "
+           "amplitude of 1, and 0 dB or less gives 0. The inverse of .atodb.",
+           "Decibels; sends the result. 0 and below send 0; above 485 counts as 485.", "0-485 dB",
+           "The linear amplitude; 1 means 100 dB.", "0.0 and up");
 }
