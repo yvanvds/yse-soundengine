@@ -10,7 +10,9 @@ The build flow is:
 Additionally, the ``builder-inited`` hook below renders the per-category
 patcher object reference under ``source/patcher/objects/`` from
 ``source/_data/patcher_objects.json`` via Jinja templates — see
-:func:`_render_patcher_objects` and issues #103 / #870.
+:func:`_render_patcher_objects` and issues #103 / #870. Each object's
+long-form notes come from ``source/_data/patcher_notes/<slug>.rst`` (#997,
+see :func:`_load_patcher_notes`).
 
 If the Doxygen XML directory is missing, Sphinx will emit empty API
 pages — run Doxygen first.
@@ -66,7 +68,9 @@ source_suffix = {
     ".md": "markdown",
 }
 
-exclude_patterns = ["_build", "_doxygen", "Thumbs.db", ".DS_Store"]
+# ``_data`` holds inputs to the patcher reference renderer (the JSON snapshot
+# and the per-category notes files under ``_data/patcher_notes/``), not pages.
+exclude_patterns = ["_build", "_doxygen", "_data", "Thumbs.db", ".DS_Store"]
 
 # Breathe re-emits the ``YSE`` namespace target from every header processed by
 # a ``doxygenfile`` directive. Sphinx then floods the build with duplicate-
@@ -219,6 +223,133 @@ _MIDI_DEVICE_NOTE = (
 )
 
 
+# Issue #997: an object's ``ADD_DESCRIPTION`` is a short summary (the C API
+# and editor tooltips show it too). Longer reference notes live in
+# ``_data/patcher_notes/<slug>.rst``, one file per category slug above. Each
+# object's notes start with a marker line naming the object, and run to the
+# next marker or the end of the file:
+#
+#     .. patcher-object:: .zl
+#
+#     Ordinary reStructuredText: paragraphs, lists, code blocks.
+#
+# The body is rendered under the object's summary, before its pin and
+# parameter tables. Notes are keyed by the marker text, never by a filename,
+# because object names hold characters such as ``~*``, ``.|`` and ``.!-``.
+# README.md in that directory documents the format for contributors.
+
+_NOTES_MARKER = ".. patcher-object::"
+# Case-sensitive on purpose: "max" (a maximum) and "Maximum" are fine.
+_NOTES_FORBIDDEN_WORD = re.compile(r"\bMax\b")
+
+
+def _is_rst_comment_line(line):
+    """True for a blank line or a line that can belong to an RST comment."""
+    return not line.strip() or line.startswith("..") or line[:1].isspace()
+
+
+def _split_notes_file(path, rel, logger):
+    """Split one notes file into ``[(name, marker line, body text)]``.
+
+    Anything before the first marker is the file header, which may only hold
+    comments so that no text is silently dropped. A marker must name exactly
+    one object; a malformed marker is reported and its section dropped.
+    """
+    sections = []
+    for lineno, line in enumerate(
+        path.read_text(encoding="utf-8").splitlines(), start=1
+    ):
+        loc = f"{rel}:{lineno}"
+        if line.startswith(_NOTES_MARKER):
+            words = line[len(_NOTES_MARKER):].split()
+            if len(words) != 1:
+                logger.warning(
+                    "a patcher-object marker names exactly one object.",
+                    location=loc,
+                )
+            sections.append([words[0] if len(words) == 1 else "", lineno, []])
+        elif sections:
+            if _NOTES_FORBIDDEN_WORD.search(line):
+                logger.warning(
+                    "patcher notes for %s name Max; describe YSE's behaviour "
+                    "on its own terms.",
+                    sections[-1][0],
+                    location=loc,
+                )
+            sections[-1][2].append(line)
+        elif not _is_rst_comment_line(line):
+            logger.warning(
+                "text before the first patcher-object marker is not "
+                "rendered; make it a comment or move it under a marker.",
+                location=loc,
+            )
+    return [
+        (name, lineno, "\n".join(body).strip("\n"))
+        for name, lineno, body in sections
+        if name
+    ]
+
+
+def _notes_problem(name, text, data, where):
+    """Why a notes section cannot be used, or ``None`` if it can."""
+    if not text.strip():
+        return f"patcher notes for {name} are empty."
+    if name not in data:
+        return (
+            f"patcher notes for {name}, which is not in the metadata "
+            f"snapshot (_data/patcher_objects.json)."
+        )
+    if name in where:
+        return f"duplicate patcher notes for {name}; the first is at {where[name]}."
+    return None
+
+
+def _load_patcher_notes(notes_dir, data, logger):
+    """Return ``{object name: notes body}`` from ``notes_dir/*.rst``.
+
+    Warns (which fails a ``-W`` build) on a note for an object that is not
+    in the snapshot, on a second note for the same object, on a note filed
+    under another category's file, on a file whose name is not a category
+    slug, on a malformed marker, on text before the first marker that is not
+    a comment, and on the word "Max" in a body.
+    """
+    slug_of = {key: slug for key, slug, *_ in _PATCHER_CATEGORIES}
+    notes = {}
+    where = {}
+    if not notes_dir.is_dir():
+        return notes
+
+    for path in sorted(notes_dir.glob("*.rst")):
+        rel = path.relative_to(notes_dir.parent.parent).as_posix()
+        if path.stem not in slug_of.values():
+            logger.warning(
+                "patcher notes file %s is not named after a category slug in "
+                "_PATCHER_CATEGORIES.",
+                rel,
+                location=f"{rel}:1",
+            )
+
+        for name, lineno, text in _split_notes_file(path, rel, logger):
+            loc = f"{rel}:{lineno}"
+            problem = _notes_problem(name, text, data, where)
+            if problem:
+                logger.warning(problem, location=loc)
+                continue
+            expected = slug_of.get(data[name].get("category", "UNSET"))
+            if expected is not None and expected != path.stem:
+                logger.warning(
+                    "patcher notes for %s belong in %s.rst, the file for its "
+                    "category.",
+                    name,
+                    expected,
+                    location=loc,
+                )
+            notes[name] = text
+            where[name] = loc
+
+    return notes
+
+
 def _render_patcher_objects(app):
     """Render ``patcher/objects/*.rst`` from the JSON snapshot."""
     import jinja2  # Sphinx already depends on Jinja2; no extra requirement.
@@ -228,6 +359,7 @@ def _render_patcher_objects(app):
 
     src_dir = Path(app.srcdir)
     data_path = src_dir / "_data" / "patcher_objects.json"
+    notes_dir = src_dir / "_data" / "patcher_notes"
     template_dir = src_dir / "_templates"
     out_dir = src_dir / "patcher" / "objects"
 
@@ -242,7 +374,11 @@ def _render_patcher_objects(app):
     with data_path.open(encoding="utf-8") as f:
         data = json.load(f)
 
-    known = {key for key, *_ in _PATCHER_CATEGORIES}
+    notes = _load_patcher_notes(notes_dir, data, logger)
+    for name, obj in data.items():
+        obj["notes"] = notes.get(name, "")
+
+    known ={key for key, *_ in _PATCHER_CATEGORIES}
     grouped = {key: [] for key in known}
     for name in sorted(data.keys()):
         obj = data[name]
