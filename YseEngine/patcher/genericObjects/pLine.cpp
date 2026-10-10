@@ -31,10 +31,10 @@ CONSTRUCT_DSP() {
   stop = false;
 
   ADD_DESCRIPTION("Linear-ramp generator. Ramps an audio-rate value toward a target over a given "
-                  "time in ms. The 'stop' message freezes the ramp at the current value.");
+                  "time in ms.");
   ADD_CATEGORY(pCategory::OSC);
-  INLET_DOC(0, "target", "Target value to ramp toward.", "any float");
-  INLET_DOC(1, "time", "Ramp duration in milliseconds.", "0+ ms");
+  INLET_DOC(0, "target", "Target value to ramp toward. Also takes 'stop'.", "any float");
+  INLET_DOC(1, "time", "Ramp duration in milliseconds, used from the next new target.", "0+ ms");
   OUTLET_DOC(0, "out", "Audio-rate ramp output.", "any float");
   PARAM_DOC("target", "0", "Initial target value.", "any float");
   PARAM_DOC("time", "0", "Initial ramp time in milliseconds.", "0+ ms");
@@ -56,6 +56,8 @@ FLOAT_IN(SetTime) {
 
 CALC() {
   if (stop) {
+    // Holds for this block only: `target` still has the old value, so the next
+    // setIfNew() restarts the ramp (#1019).
     ramp.stop();
     stop = false;
   } else {

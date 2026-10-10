@@ -22,20 +22,16 @@ CONSTRUCT() {
 
   ADD_OUT_ANY;
 
-  ADD_DESCRIPTION("Named receive endpoint. Forwards values arriving from any matching gSend (same "
-                  "dataName) in the patcher, and from any gSend in any patcher with the same name "
-                  "via the global bus (\"patcher.<patcherName>.<dataName>\").");
+  ADD_DESCRIPTION("Sends out whatever is sent to its name: by a .s or .forward in this patcher or "
+                  "in a patcher with the same name, by the host's PassData, or on the named bus.");
   ADD_CATEGORY(pCategory::IO);
-  INLET_DOC(0, "in", "Wired inlet (rarely used — receives typically pair with gSend by name).", "");
-  OUTLET_DOC(0, "out", "Forwarded value from matching gSend nodes.", "");
+  INLET_DOC(0, "in", "Bang, int, float or list, passed straight to the outlet.", "");
+  OUTLET_DOC(0, "out", "Every value sent to this name.", "");
   PARAM_DOC("dataName", "",
-            "Name to listen for; must match the dataName of one or more gSend nodes. A name "
-            "longer than 63 characters is refused and the object left unnamed.",
-            "any identifier, at most 63 characters");
-  PARAM_DOC("globalOnly", "0",
-            "Reserved for future receive-side filters; ignored today (the bus subscription is "
-            "always active).",
-            "0 or 1");
+            "The name to listen to. A name longer than 63 characters is refused and logged, and "
+            "the object receives nothing.",
+            "any name, at most 63 characters");
+  PARAM_DOC("globalOnly", "0", "Accepted for symmetry with .s, and ignored.", "0 or 1");
 }
 
 // gSend's refusal (issue #922), for the same reason: the subscription below is

@@ -37,48 +37,24 @@ CONSTRUCT() {
   REG_PARM_PARSE;
 
   ADD_DESCRIPTION(
-      "Weighted transition table — a first-order Markov chain. The list '<from> <to> <weight>' "
-      "records that going from one state to another carries that relative likelihood, and a bang "
-      "makes one weighted jump from the current state and emits where it landed, which becomes the "
-      "state the next bang departs from. For any one state the weights of its outgoing transitions "
-      "are summed and each one's share of that sum is its probability, so 3 4 1 means 37.5% / 50% "
-      "/ 12.5%; a state may transition to itself. A weight of 0 keeps the pair in the table but "
-      "makes it unreachable, which is how a transition is switched off, and negative weights clamp "
-      "to 0. A state with no reachable transition is a dead end: outlet 0 stays silent, outlet 1 "
-      "bangs, and the current state moves to the 'reset' fallback so the next bang can recover — "
-      "one bang is one attempt, never a search. 'clear' forgets the table, 'dump' sends every "
-      "entry "
-      "out outlet 2 in insertion order, and an int sets the current state without emitting "
-      "anything. The table is a fixed 1024-entry array and the weighted choice is a bounded "
-      "prefix-sum scan rather than a rejection loop, so nothing on any path allocates or runs "
-      "unbounded. A non-zero seed makes the whole walk reproducible across runs; exactly one "
-      "random "
-      "draw is taken per bang. Pairs with .anal, which builds the same table from an input "
-      "stream.");
+      "A Markov chain of weighted transitions between numbered states. Each bang jumps from the "
+      "current state to a next one, chosen by weight, and sends it.");
   ADD_CATEGORY(pCategory::RANDOM);
-  INLET_DOC(
-      0, "control",
-      "Bang to make a weighted transition / int or float to set the current state without "
-      "emitting / list '<from> <to> <weight>' to store a transition / list 'clear' to forget "
-      "the table / list 'dump' to send it out outlet 2 / list 'reset <n>' to set the dead-end "
-      "fallback state / list 'seed <n>' to restart the random sequence.",
-      "");
-  INLET_DOC(1, "seed", "Restarts the random sequence; 0 takes an arbitrary stream.", "any int");
-  OUTLET_DOC(0, "out", "The state jumped to. Silent when the current state is a dead end.",
-             "any int");
+  INLET_DOC(0, "control",
+            "A bang makes a jump. An int or float sets the current state without sending. A list "
+            "'<from> <to> <weight>' stores a transition; also 'clear', 'dump', 'reset <n>' and "
+            "'seed <n>'.",
+            "");
+  INLET_DOC(1, "seed", "Restarts the random sequence with this seed.", "any int");
+  OUTLET_DOC(0, "out", "The state jumped to.", "any int");
   OUTLET_DOC(1, "stuck",
-             "Bangs when the current state has no reachable transition; the walk then reverts to "
-             "the reset state.",
-             "");
-  OUTLET_DOC(2, "dump",
-             "One '<from> <to> <weight>' list per stored transition, in response to "
-             "'dump'.",
-             "");
-  PARAM_DOC("reset", "0",
-            "State the walk reverts to when it reaches a dead end, and the state it starts in.",
+             "A bang when the current state has no way out. The chain then goes back to the "
+             "reset state.",
+             "bang");
+  OUTLET_DOC(2, "dump", "One '<from> <to> <weight>' list per stored transition, on 'dump'.", "");
+  PARAM_DOC("reset", "0", "The state the chain starts in and returns to after a dead end.",
             "any int");
-  PARAM_DOC("seed", "0",
-            "Random seed; non-zero replays the same walk every run, 0 picks an arbitrary stream.",
+  PARAM_DOC("seed", "0", "Random seed. Any other value than 0 gives the same walk on every run.",
             "any int");
 }
 

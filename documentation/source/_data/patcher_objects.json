@@ -5742,7 +5742,7 @@
   },
   ".decide": {
     "category": "RANDOM",
-    "description": "Coin flip. Every bang emits a 0 or a 1, chosen with equal probability — the cheapest possible branch, for probabilistic patterns, drum-machine fills and stochastic gating. An int or a float on the left inlet does the same thing as a bang, so any value source can drive it directly. The draw is unbiased rather than merely nearly so, and successive flips are uncorrelated, so the object is a fair coin and not an alternation. A non-zero seed makes the whole sequence reproducible across runs, which is what lets a generative patch replay exactly; seed 0 takes an arbitrary stream. An int on the right inlet, or the message 'seed <n>' on the left, restarts the sequence at runtime. Exactly one random draw is taken per flip.",
+    "description": "A coin flip: each bang sends 0 or 1 with equal chance. Use it for random branching, fills and gating.",
     "inlets": [
       {
         "accepts": [
@@ -5751,7 +5751,7 @@
           "BANG",
           "LIST"
         ],
-        "doc": "Bang, int or float to flip the coin and emit the result / list 'seed <n>' to restart the random sequence.",
+        "doc": "A bang, int or float flips the coin. 'seed <n>' restarts the random sequence.",
         "index": 0,
         "label": "control",
         "range": ""
@@ -5761,7 +5761,7 @@
           "FLOAT",
           "INT"
         ],
-        "doc": "Restarts the random sequence; 0 takes an arbitrary stream.",
+        "doc": "Restarts the random sequence with this seed.",
         "index": 1,
         "label": "seed",
         "range": "any int"
@@ -5771,7 +5771,7 @@
     "name": ".decide",
     "outlets": [
       {
-        "doc": "0 or 1, chosen with equal probability.",
+        "doc": "0 or 1.",
         "index": 0,
         "label": "out",
         "range": "0 or 1",
@@ -5781,7 +5781,7 @@
     "params": [
       {
         "default": "0",
-        "doc": "Random seed; non-zero replays the same flips every run, 0 picks an arbitrary stream.",
+        "doc": "Random seed. Any other value than 0 gives the same flips on every run.",
         "name": "seed",
         "range": "any int"
       }
@@ -6610,7 +6610,7 @@
   },
   ".drunk": {
     "category": "RANDOM",
-    "description": "Bounded random walk. Each bang moves the stored value by a random step and emits the new position, clipped into [0, range). Unlike .random, successive values are related — the walk drifts rather than jumps — which is what makes it usable for generative pitch, filter and position material. The step size is an exclusive magnitude limit: |step| < |stepSize|, so the default of 2 draws from {-1, 0, +1}. A negative step size uses the same magnitudes with zero excluded, so the walk is guaranteed to move on every bang. The walk clips at the range boundaries the way Max's does and therefore lingers at an edge it reaches; send the output through .pong for a reflecting or wrapping boundary instead. A non-zero seed makes the whole sequence reproducible across runs; seed 0 takes an arbitrary stream. Exactly one random draw is taken per bang.",
+    "description": "A random walk: each bang moves the value up or down by a small random step and sends it, kept within 0 to range-1. Successive values drift rather than jump.",
     "inlets": [
       {
         "accepts": [
@@ -6619,7 +6619,7 @@
           "BANG",
           "LIST"
         ],
-        "doc": "Bang to take a step / int or float to set the position and emit it / list 'set <n>' to set it without emitting / list 'seed <n>' to restart the random sequence.",
+        "doc": "A bang takes a step. An int or float sets the position and sends it. 'set <n>' sets it without sending; 'seed <n>' restarts the random sequence.",
         "index": 0,
         "label": "control",
         "range": "0 to range-1"
@@ -6629,7 +6629,7 @@
           "FLOAT",
           "INT"
         ],
-        "doc": "Sets the exclusive upper bound of the walk.",
+        "doc": "The walk stays below this value.",
         "index": 1,
         "label": "range",
         "range": "1+"
@@ -6639,7 +6639,7 @@
           "FLOAT",
           "INT"
         ],
-        "doc": "Sets the exclusive step magnitude limit; negative forbids a zero step.",
+        "doc": "Steps are smaller than this value. A negative value also rules out a zero step.",
         "index": 2,
         "label": "stepSize",
         "range": "any int"
@@ -6649,7 +6649,7 @@
     "name": ".drunk",
     "outlets": [
       {
-        "doc": "Current position of the walk.",
+        "doc": "The position of the walk.",
         "index": 0,
         "label": "out",
         "range": "0 to range-1",
@@ -6659,19 +6659,19 @@
     "params": [
       {
         "default": "128",
-        "doc": "Exclusive upper bound of the walk.",
+        "doc": "The walk stays below this value.",
         "name": "range",
         "range": "1+"
       },
       {
         "default": "2",
-        "doc": "Exclusive step magnitude limit; negative forbids a zero step.",
+        "doc": "Steps are smaller than this value; negative rules out a zero step.",
         "name": "stepSize",
         "range": "any int"
       },
       {
         "default": "0",
-        "doc": "Random seed; non-zero replays the same walk every run, 0 picks a stream.",
+        "doc": "Random seed. Any other value than 0 gives the same walk on every run.",
         "name": "seed",
         "range": "any int"
       }
@@ -6815,7 +6815,7 @@
   },
   ".forward": {
     "category": "IO",
-    "description": "Named send endpoint whose destination is chosen at runtime. Delivers incoming values exactly as .s does — to every .r in the patcher whose dataName matches, and on the global bus as \"patcher.<patcherName>.<destination>\" — but takes the destination name from its right inlet, so a patch can re-aim it with a message instead of being rewired. Sends nothing until a destination is set.",
+    "description": "Sends what arrives to every .r with a given name, like .s, but the name can be changed with a message to the right inlet. Sends nothing until it has a destination.",
     "inlets": [
       {
         "accepts": [
@@ -6824,7 +6824,7 @@
           "BANG",
           "LIST"
         ],
-        "doc": "Value inlet — accepts bang / int / float / list. Forwarded verbatim to the current destination; no word in it is reserved.",
+        "doc": "Bang, int, float or list, sent unchanged to the current destination. No word is reserved.",
         "index": 0,
         "label": "in",
         "range": ""
@@ -6834,10 +6834,10 @@
           "INT",
           "LIST"
         ],
-        "doc": "Sets the destination for subsequent values. A list is read as a name (first token only); an int is read as the name it spells. A name longer than 63 characters is refused and the previous destination kept.",
+        "doc": "Sets the destination name: the first word of a list, or the digits of an int. A name longer than 63 characters is ignored.",
         "index": 1,
         "label": "destination",
-        "range": "any identifier, at most 63 characters"
+        "range": "any name, at most 63 characters"
       }
     ],
     "is_dsp": false,
@@ -6846,13 +6846,13 @@
     "params": [
       {
         "default": "",
-        "doc": "Destination name to start from. Empty means the object sends nothing until its right inlet supplies one.",
+        "doc": "The starting destination. Empty sends nothing until one is set.",
         "name": "destination",
-        "range": "any identifier, at most 63 characters"
+        "range": "any name, at most 63 characters"
       },
       {
         "default": "0",
-        "doc": "When 1, skip in-patcher delivery and publish only to the global bus.",
+        "doc": "1 sends only on the named bus, not inside the patcher.",
         "name": "globalOnly",
         "range": "0 or 1"
       }
@@ -7375,7 +7375,7 @@
   },
   ".inlet": {
     "category": "ENCAPSULATION",
-    "description": "One inlet of the subpatcher it lives in — Max's 'inlet'. A pass-through with a number: give it index N inside a 'patcher' object and inlet N of that subpatcher is this object, so whatever the parent patch sends there comes out of this outlet inside the subpatcher. There is no boundary at run time. patcherImplementation resolves Connect(source, 0, subpatcher, N) on the control thread by finding the .inlet with index N among the subpatcher's contents and recording an ordinary cord from the source's outlet straight to this object's inlet 0, so the compiled graph holds a plain edge between two plain objects and crossing a subpatcher costs exactly one pass-through object however deeply it is nested. That is also why this object has an inlet where Max's appears not to: Max hides it because a patcher window draws the boundary, and headless the cord has to land on something real for Disconnect, UnwireFromPeers and the serialiser to handle it as the ordinary edge it is. Bang, int, float and list cross here; a signal pin is a ~inlet instead, because IsDSPObject() decides start-point selection, T_GUI dispatch and what every palette is told an object is, and one object cannot answer both honestly. The two share one index space — a subpatcher has one set of inlet pins and inlet N is one pin whichever rate is behind it — so one subpatcher may have pins of both kinds, with distinct numbers. One creation argument, the boundary inlet number, default 0. Every handler is one send; nothing allocates, locks or blocks.",
+    "description": "A message inlet of the subpatcher it is in. With index N, whatever the parent sends to the subpatcher's inlet N comes out of this object, inside the subpatcher.",
     "inlets": [
       {
         "accepts": [
@@ -7384,7 +7384,7 @@
           "BANG",
           "LIST"
         ],
-        "doc": "Where the parent patch's cord lands. Max's inlet object appears to have no inlet because a patcher window draws the boundary for you; headless the cord has to attach to something, and attaching it to a real inlet is what lets the graph compiler, Disconnect, UnwireFromPeers and DumpJSON all treat a boundary cord as the ordinary edge it is. Nothing connects here from inside the subpatcher — patcherImplementation resolves Connect(source, n, subpatcher, N) to this object and records the edge directly, so what arrives is whatever the parent sent to the subpatcher's inlet N. Bang, int, float and list cross; audio signals arrive on a ~inlet instead, which shares this object's index space (issue #764).",
+        "doc": "Receives what the parent patch sends to the subpatcher's inlet with this index. A cord connected to that inlet lands here. Bang, int, float and list.",
         "index": 0,
         "label": "from parent",
         "range": ""
@@ -7394,7 +7394,7 @@
     "name": ".inlet",
     "outlets": [
       {
-        "doc": "The message that arrived at the subpatcher's boundary, sent on unchanged inside the subpatcher. Wire it to whatever the encapsulated graph starts with. Kind is preserved: an int arrives as an int, a list as a list, a bang as a bang — a boundary that normalised them would be a different object to everything downstream of it.",
+        "doc": "The incoming message, unchanged, inside the subpatcher. An int stays an int, a list a list.",
         "index": 0,
         "label": "out",
         "range": "",
@@ -7404,7 +7404,7 @@
     "params": [
       {
         "default": "0",
-        "doc": "Which inlet of the enclosing subpatcher this object is. Inlet numbers are the parent's view of the subpatcher: Connect(source, 0, subpatcher, 2) resolves to the .inlet whose index is 2. Changing it live re-points which boundary inlet future connections resolve to and does not move cords that already exist — those stay attached to this object, which is where they were recorded. Two .inlet objects claiming the same index in one subpatcher is not an error; the first one found wins and which that is is unspecified, so give them distinct numbers.",
+        "doc": "Which inlet of the enclosing subpatcher this object is, shared with ~inlet. Give every boundary object its own number.",
         "name": "index",
         "range": "0+"
       }
@@ -9492,7 +9492,7 @@
   },
   ".outlet": {
     "category": "ENCAPSULATION",
-    "description": "One outlet of the subpatcher it lives in — Max's 'outlet', and '.inlet' read the other way round. Give it index N inside a 'patcher' object, wire the encapsulated graph into its inlet, and outlet N of that subpatcher is this object: what arrives here leaves the subpatcher and reaches whatever the parent connected to outlet N. There is no boundary at run time. patcherImplementation resolves Connect(subpatcher, N, dest, n) on the control thread by finding the .outlet with index N among the subpatcher's contents and recording an ordinary cord from this object's outlet straight to the destination's inlet, so the compiled graph holds a plain edge between two plain objects and crossing a subpatcher costs exactly one pass-through object however deeply it is nested. That is also why this object has an outlet where Max's appears not to: Max hides it because a patcher window draws the boundary, and headless the cord has to leave from something real for Disconnect, UnwireFromPeers and the serialiser to handle it as the ordinary edge it is. Bang, int, float and list cross here; a signal pin is a ~outlet instead, because IsDSPObject() decides start-point selection, T_GUI dispatch and what every palette is told an object is, and one object cannot answer both honestly. The two share one index space — a subpatcher has one set of outlet pins and outlet N is one pin whichever rate is behind it. One creation argument, the boundary outlet number, default 0. Every handler is one send; nothing allocates, locks or blocks.",
+    "description": "A message outlet of the subpatcher it is in. With index N, whatever arrives here leaves the subpatcher through its outlet N.",
     "inlets": [
       {
         "accepts": [
@@ -9501,7 +9501,7 @@
           "BANG",
           "LIST"
         ],
-        "doc": "Where the encapsulated graph hands a message to the boundary. Wire whatever the subpatcher computes into here and it leaves the subpatcher through this object's outlet. Bang, int, float and list cross; audio signals leave through a ~outlet instead, which shares this object's index space (issue #764).",
+        "doc": "A message from inside the subpatcher, to send out of it. Bang, int, float and list.",
         "index": 0,
         "label": "from patch",
         "range": ""
@@ -9511,7 +9511,7 @@
     "name": ".outlet",
     "outlets": [
       {
-        "doc": "The subpatcher's outlet, seen from outside. Nothing inside the subpatcher connects here — patcherImplementation resolves Connect(subpatcher, N, dest, n) to this object and records the edge directly, so what leaves reaches whatever the parent patch connected to the subpatcher's outlet N. Max's outlet object appears to have no outlet because a patcher window draws the boundary; headless the cord has to leave from something real, which is what keeps a boundary edge indistinguishable from any other edge to the graph compiler, Disconnect, UnwireFromPeers and DumpJSON. Kind is preserved on the way out.",
+        "doc": "The subpatcher's outlet with this index, seen from the parent. A cord the parent connects to that outlet starts here. The message leaves unchanged.",
         "index": 0,
         "label": "to parent",
         "range": "",
@@ -9521,7 +9521,7 @@
     "params": [
       {
         "default": "0",
-        "doc": "Which outlet of the enclosing subpatcher this object is. Outlet numbers are the parent's view of the subpatcher: Connect(subpatcher, 1, dest, 0) resolves to the .outlet whose index is 1. Changing it live re-points which boundary outlet future connections resolve to and does not move cords that already exist — those stay attached to this object, which is where they were recorded. Two .outlet objects claiming the same index in one subpatcher is not an error; the first one found wins and which that is is unspecified, so give them distinct numbers.",
+        "doc": "Which outlet of the enclosing subpatcher this object is, shared with ~outlet. Give every boundary object its own number.",
         "name": "index",
         "range": "0+"
       }
@@ -10239,7 +10239,7 @@
   },
   ".print": {
     "category": "IO",
-    "description": "Writes whatever arrives at its inlet to the engine log, one line per message, with a settable name in front of it — Max's 'print', which prints 'any message in the Max window'. Max: 'the print object prints, in the Max window, any message it receives in its inlet.' This patcher is headless and there is no Max window, so the destination is the engine log: the thing a host already reads, already redirects with YSE::Log().setLogfile(), and already intercepts with YSE::Log().setHandler(), so every tool a host has for watching the engine talk watches this object too with no new plumbing at either end. It is the patcher's missing debugging affordance — until it existed there was no way to see what was happening inside a graph, and a patch that misbehaved had to be diagnosed from the audio coming out of it. It is not .capture, the other half of the same job: this says what is passing now, one line at a time, as it passes, while .capture keeps the last N values so a patch can be run, stopped, and only then asked what it saw. The first creation argument is the name — Max's 'the first argument sets the name that appears in the Max window', default 'print'. The second is this patcher's and not Max's: the most lines the object emits per drain tick, default 16, clamped to 1-256. A bang prints the word 'bang', an int its digits, a float its shortest round-tripping spelling with a decimal point so it stays visibly a float, and a list or a message box's text verbatim. There is no outlet, which is Max's shape and also the right one: an outlet would turn a probe into a participant. Nothing is ever logged from the message path. A handler runs on whichever thread dispatched the message and in-patcher delivery dispatches on the audio thread, where building a std::string and then writing a file or calling into a host handler is exactly what the engine's real-time rules forbid — so the line is formatted into a stack buffer and pushed onto a bounded lock-free queue whose control-thread drain, running from System::update(), hands it to the log. That is the named bus's audio-thread path with text in the record instead of a variant, and it means a line reaches the log on the host's next tick rather than instantly. Nothing on any message path allocates, locks or blocks, and Calculate() does nothing. Two bounds can refuse a message and both report: this object's per-tick budget, whose first refusal in a tick posts a notice and whose refusals are all counted, and the shared queue's capacity, whose overflow the next drain names as a single count. Dropping under flood is correct — the alternative is blocking the audio thread, which is not an answer — but a silent drop would make a debugging instrument lie about the patch it is being used to debug. A line longer than the record is cut and marked with '...', the opposite of .capture's refuse-whole rule and deliberately so: .capture stores a symbol, where half of one is a different symbol, while this produces a line to read, where the first 240 characters are almost all of the information and silence is none of it. Only the creation arguments persist across a save; the lines already sent belong to the log rather than to the patch.",
+    "description": "Writes every message that arrives to the engine log, one line each, with a name in front. Use it to watch values pass through a patch.",
     "inlets": [
       {
         "accepts": [
@@ -10248,7 +10248,7 @@
           "BANG",
           "LIST"
         ],
-        "doc": "Everything that arrives here is written to the engine log as one line, prefixed with this object's name — Max's 'the print object prints, in the Max window, any message it receives in its inlet'. There is no Max window here, so the destination is the log a host already reads, redirects with YSE::Log().setLogfile() and intercepts with YSE::Log().setHandler(). A bang prints the word 'bang'; an int prints its digits; a float prints its shortest spelling that reads back as the same float, always with a decimal point, so a float stays visibly a float; a list and a message box's text print verbatim, exactly as the cord carried them. Nothing is ever sent onward — this object has no outlet, which is Max's shape. Nothing is logged from here either: the line is formatted into a stack buffer and pushed onto a bounded lock-free queue, because a message handler runs on whichever thread dispatched the message and in-patcher delivery dispatches on the audio thread. The line reaches the log on the host's next System::update() tick. A line longer than the record is cut and marked with a trailing '...'. Two bounds can refuse a message and both say so: this object's own budget of lines per drain tick, which posts one notice the first time it bites in a tick, and the shared queue's capacity, whose overflow the next drain reports as a single count. Dropping under flood is the only alternative to blocking the audio thread, but a silent drop would make a debugging instrument lie about the patch it is being used to debug.",
+        "doc": "Any message. Each one is written to the engine log as one line, after this object's name.",
         "index": 0,
         "label": "in",
         "range": "any"
@@ -10260,7 +10260,7 @@
     "params": [
       {
         "default": "print 16",
-        "doc": "Max's argument list, in Max's order. The first token is the name printed in front of every line — Max's 'the first argument sets the name that appears in the Max window when the object prints something. The default name is print'. It is what makes two of these in one patch tellable apart. A name longer than 32 characters is cut, since the whole line has to fit a fixed record and a name that ate it would leave no room for the message it is labelling. The second token is the most lines this object emits between two drain ticks, default 16. This one is the YSE patcher's and not Max's: Max's print runs in Max's scheduler, while a .print wired into a per-block path here is driven by the audio callback, which at 44.1 kHz and 512-sample blocks is 86 lines a second from one object before a patch does anything unusual. The queue is shared, so without a budget the first such object fills it and every other .print in the patch goes dark; the limit is what keeps one noisy object from silencing the rest. Clamped to 1-256 — 256 being the queue's own capacity, past which asking for more cannot buy anything. A non-numeric second argument leaves the default of 16 standing rather than failing, since a creation argument arriving from a saved patch must never be able to break loading it. Refused messages are counted and the first refusal in a tick posts a notice, so a budget that bites is visible rather than silent. Tokens after the second are ignored.",
+        "doc": "The name printed before each line (default 'print', cut at 32 characters), then the most lines this object prints per update tick (default 16, clamped to 1-256).",
         "name": "name lines",
         "range": "name: any symbol, up to 32 characters; optional lines 1-256"
       }
@@ -10269,7 +10269,7 @@
   },
   ".prob": {
     "category": "RANDOM",
-    "description": "Weighted transition table — a first-order Markov chain. The list '<from> <to> <weight>' records that going from one state to another carries that relative likelihood, and a bang makes one weighted jump from the current state and emits where it landed, which becomes the state the next bang departs from. For any one state the weights of its outgoing transitions are summed and each one's share of that sum is its probability, so 3 4 1 means 37.5% / 50% / 12.5%; a state may transition to itself. A weight of 0 keeps the pair in the table but makes it unreachable, which is how a transition is switched off, and negative weights clamp to 0. A state with no reachable transition is a dead end: outlet 0 stays silent, outlet 1 bangs, and the current state moves to the 'reset' fallback so the next bang can recover — one bang is one attempt, never a search. 'clear' forgets the table, 'dump' sends every entry out outlet 2 in insertion order, and an int sets the current state without emitting anything. The table is a fixed 1024-entry array and the weighted choice is a bounded prefix-sum scan rather than a rejection loop, so nothing on any path allocates or runs unbounded. A non-zero seed makes the whole walk reproducible across runs; exactly one random draw is taken per bang. Pairs with .anal, which builds the same table from an input stream.",
+    "description": "A Markov chain of weighted transitions between numbered states. Each bang jumps from the current state to a next one, chosen by weight, and sends it.",
     "inlets": [
       {
         "accepts": [
@@ -10278,7 +10278,7 @@
           "BANG",
           "LIST"
         ],
-        "doc": "Bang to make a weighted transition / int or float to set the current state without emitting / list '<from> <to> <weight>' to store a transition / list 'clear' to forget the table / list 'dump' to send it out outlet 2 / list 'reset <n>' to set the dead-end fallback state / list 'seed <n>' to restart the random sequence.",
+        "doc": "A bang makes a jump. An int or float sets the current state without sending. A list '<from> <to> <weight>' stores a transition; also 'clear', 'dump', 'reset <n>' and 'seed <n>'.",
         "index": 0,
         "label": "control",
         "range": ""
@@ -10288,7 +10288,7 @@
           "FLOAT",
           "INT"
         ],
-        "doc": "Restarts the random sequence; 0 takes an arbitrary stream.",
+        "doc": "Restarts the random sequence with this seed.",
         "index": 1,
         "label": "seed",
         "range": "any int"
@@ -10298,21 +10298,21 @@
     "name": ".prob",
     "outlets": [
       {
-        "doc": "The state jumped to. Silent when the current state is a dead end.",
+        "doc": "The state jumped to.",
         "index": 0,
         "label": "out",
         "range": "any int",
         "type": "INT"
       },
       {
-        "doc": "Bangs when the current state has no reachable transition; the walk then reverts to the reset state.",
+        "doc": "A bang when the current state has no way out. The chain then goes back to the reset state.",
         "index": 1,
         "label": "stuck",
-        "range": "",
+        "range": "bang",
         "type": "BANG"
       },
       {
-        "doc": "One '<from> <to> <weight>' list per stored transition, in response to 'dump'.",
+        "doc": "One '<from> <to> <weight>' list per stored transition, on 'dump'.",
         "index": 2,
         "label": "dump",
         "range": "",
@@ -10322,13 +10322,13 @@
     "params": [
       {
         "default": "0",
-        "doc": "State the walk reverts to when it reaches a dead end, and the state it starts in.",
+        "doc": "The state the chain starts in and returns to after a dead end.",
         "name": "reset",
         "range": "any int"
       },
       {
         "default": "0",
-        "doc": "Random seed; non-zero replays the same walk every run, 0 picks an arbitrary stream.",
+        "doc": "Random seed. Any other value than 0 gives the same walk on every run.",
         "name": "seed",
         "range": "any int"
       }
@@ -10577,7 +10577,7 @@
   },
   ".r": {
     "category": "IO",
-    "description": "Named receive endpoint. Forwards values arriving from any matching gSend (same dataName) in the patcher, and from any gSend in any patcher with the same name via the global bus (\"patcher.<patcherName>.<dataName>\").",
+    "description": "Sends out whatever is sent to its name: by a .s or .forward in this patcher or in a patcher with the same name, by the host's PassData, or on the named bus.",
     "inlets": [
       {
         "accepts": [
@@ -10586,7 +10586,7 @@
           "BANG",
           "LIST"
         ],
-        "doc": "Wired inlet (rarely used — receives typically pair with gSend by name).",
+        "doc": "Bang, int, float or list, passed straight to the outlet.",
         "index": 0,
         "label": "in",
         "range": ""
@@ -10596,7 +10596,7 @@
     "name": ".r",
     "outlets": [
       {
-        "doc": "Forwarded value from matching gSend nodes.",
+        "doc": "Every value sent to this name.",
         "index": 0,
         "label": "out",
         "range": "",
@@ -10606,13 +10606,13 @@
     "params": [
       {
         "default": "",
-        "doc": "Name to listen for; must match the dataName of one or more gSend nodes. A name longer than 63 characters is refused and the object left unnamed.",
+        "doc": "The name to listen to. A name longer than 63 characters is refused and logged, and the object receives nothing.",
         "name": "dataName",
-        "range": "any identifier, at most 63 characters"
+        "range": "any name, at most 63 characters"
       },
       {
         "default": "0",
-        "doc": "Reserved for future receive-side filters; ignored today (the bus subscription is always active).",
+        "doc": "Accepted for symmetry with .s, and ignored.",
         "name": "globalOnly",
         "range": "0 or 1"
       }
@@ -10673,23 +10673,23 @@
   },
   ".random": {
     "category": "RANDOM",
-    "description": "Random integer generator. On bang, emits a uniformly distributed integer in [0, range).",
+    "description": "Sends a random integer from 0 to range-1 on each bang, every value equally likely.",
     "inlets": [
       {
         "accepts": [
           "BANG"
         ],
-        "doc": "Trigger — emits a fresh random integer.",
+        "doc": "A bang sends a new random number.",
         "index": 0,
         "label": "bang",
-        "range": ""
+        "range": "bang"
       },
       {
         "accepts": [
           "FLOAT",
           "INT"
         ],
-        "doc": "Sets the exclusive upper bound of the output range.",
+        "doc": "Sets the range for the next numbers. A float is truncated.",
         "index": 1,
         "label": "range",
         "range": "1+"
@@ -10699,7 +10699,7 @@
     "name": ".random",
     "outlets": [
       {
-        "doc": "Random integer in [0, range).",
+        "doc": "A random integer from 0 to range-1.",
         "index": 0,
         "label": "out",
         "range": "0 to range-1",
@@ -10709,7 +10709,7 @@
     "params": [
       {
         "default": "2",
-        "doc": "Initial exclusive upper bound.",
+        "doc": "How many different values can come out.",
         "name": "range",
         "range": "1+"
       }
@@ -11166,7 +11166,7 @@
   },
   ".s": {
     "category": "IO",
-    "description": "Named send endpoint. Broadcasts incoming values to every gReceive in the patcher whose dataName matches, and publishes them on the global bus as \"patcher.<patcherName>.<dataName>\" so cross-patcher routing works without explicit wiring.",
+    "description": "Sends what arrives to every .r with the same name, without a cord. It also publishes on the named bus as 'patcher.<patcherName>.<name>', so other patchers and the host can listen.",
     "inlets": [
       {
         "accepts": [
@@ -11175,7 +11175,7 @@
           "BANG",
           "LIST"
         ],
-        "doc": "Value inlet — accepts bang / int / float / list.",
+        "doc": "Bang, int, float or list to send.",
         "index": 0,
         "label": "in",
         "range": ""
@@ -11187,13 +11187,13 @@
     "params": [
       {
         "default": "",
-        "doc": "Name to broadcast on; matching gReceive nodes will emit the forwarded value. A name longer than 63 characters is refused and the object left unnamed.",
+        "doc": "The name to send to. A name longer than 63 characters is refused and logged, and the object sends nowhere.",
         "name": "dataName",
-        "range": "any identifier, at most 63 characters"
+        "range": "any name, at most 63 characters"
       },
       {
         "default": "0",
-        "doc": "When 1, skip in-patcher delivery and publish only to the global bus.",
+        "doc": "1 sends only on the named bus, not inside the patcher.",
         "name": "globalOnly",
         "range": "0 or 1"
       }
@@ -13412,14 +13412,14 @@
   },
   ".urn": {
     "category": "RANDOM",
-    "description": "Random numbers without repetition. Each bang emits a value from [0, limit) that has not been emitted yet, so every value appears exactly once before any of them repeats — a shuffled deck rather than a die, which is what keeps generative sample and pitch selection free of the immediate repeats that read as a mistake. Once every value has been handed out the urn is empty: further bangs emit nothing on outlet 0 and bang outlet 1 instead. 'clear' refills and reshuffles it, and an int on inlet 1 sets a new limit and refills. The bag holds a whole shuffled permutation and a bang is a cursor step through it, so a draw costs the same whether the urn is full or has one value left — no rejection sampling, no unbounded retry loop. A non-zero seed makes the order reproducible across runs; seed 0 takes an arbitrary stream. The limit is clamped to 1-4096.",
+    "description": "Random numbers without repeats: each bang sends a number from 0 to limit-1 that has not come out yet, like dealing from a shuffled deck. When all have been sent, the right outlet bangs.",
     "inlets": [
       {
         "accepts": [
           "BANG",
           "LIST"
         ],
-        "doc": "Bang to draw the next unused value / list 'clear' to refill and reshuffle the urn / list 'seed <n>' to restart the random sequence and reshuffle what is left.",
+        "doc": "A bang deals the next number. 'clear' refills and reshuffles; 'seed <n>' restarts the random sequence.",
         "index": 0,
         "label": "control",
         "range": ""
@@ -13429,7 +13429,7 @@
           "FLOAT",
           "INT"
         ],
-        "doc": "Sets the exclusive upper bound and refills the urn.",
+        "doc": "Sets how many numbers there are, and refills.",
         "index": 1,
         "label": "limit",
         "range": "1-4096"
@@ -13439,30 +13439,30 @@
     "name": ".urn",
     "outlets": [
       {
-        "doc": "Next value not yet drawn since the last refill. Silent once the urn is empty.",
+        "doc": "The next number. Nothing once all have been dealt.",
         "index": 0,
         "label": "out",
         "range": "0 to limit-1",
         "type": "INT"
       },
       {
-        "doc": "Bangs when a bang arrives and every value has already been drawn.",
+        "doc": "A bang for each bang that arrives after all numbers have been dealt.",
         "index": 1,
         "label": "empty",
-        "range": "",
+        "range": "bang",
         "type": "BANG"
       }
     ],
     "params": [
       {
         "default": "1",
-        "doc": "Exclusive upper bound of the drawn values; setting it refills the urn. Clamped to 1-4096.",
+        "doc": "How many numbers there are, clamped to 1-4096.",
         "name": "limit",
         "range": "1-4096"
       },
       {
         "default": "0",
-        "doc": "Random seed; non-zero replays the same orders every run, 0 picks an arbitrary stream.",
+        "doc": "Random seed. Any other value than 0 gives the same order on every run.",
         "name": "seed",
         "range": "any int"
       }
@@ -13539,7 +13539,7 @@
   },
   ".value": {
     "category": "IO",
-    "description": "Named cell shared by every .value with the same name. A value arriving on the inlet is stored for all of them and emitted by none; a bang emits what is stored. The cell is addressed as \"patcher.<patcherName>.<name>\", the same address form .s and .r use, so patchers sharing a name share their values. An unnamed .value keeps a cell of its own.",
+    "description": "Holds a value shared by every .value with the same name. A value at the inlet is stored for all of them without being sent; a bang sends out what is stored.",
     "inlets": [
       {
         "accepts": [
@@ -13548,7 +13548,7 @@
           "BANG",
           "LIST"
         ],
-        "doc": "Bang emits the stored value; int / float / list store one for every .value of this name without emitting anything. A list longer than 256 characters is refused and the stored value kept.",
+        "doc": "An int, float or list stores a new value. A bang sends out the stored value. A list longer than 256 characters is refused.",
         "index": 0,
         "label": "in",
         "range": ""
@@ -13558,7 +13558,7 @@
     "name": ".value",
     "outlets": [
       {
-        "doc": "The stored value, on a bang. Nothing at all until something has been stored.",
+        "doc": "The stored value, on a bang. Nothing until a value has been stored.",
         "index": 0,
         "label": "out",
         "range": "",
@@ -13568,13 +13568,13 @@
     "params": [
       {
         "default": "",
-        "doc": "Name of the shared cell. Empty gives this object a private cell rather than pooling it with every other unnamed .value.",
+        "doc": "The shared name. Without one the object has a private value.",
         "name": "valueName",
-        "range": "any identifier"
+        "range": "any name"
       },
       {
         "default": "",
-        "doc": "Value the cell starts at — the rest of the argument string, so \"0 0\" is a list. Applied only by the object that creates the cell; a later .value of the same name adopts what is already stored.",
+        "doc": "The starting value: the rest of the arguments, so '0 0' is a list. Only the first .value with this name applies it.",
         "name": "initial",
         "range": "any int, float or list"
       }
@@ -14375,7 +14375,7 @@
   },
   "patcher": {
     "category": "ENCAPSULATION",
-    "description": "Groups a region of a patch so the parent addresses it as one object — Max's 'patcher' (and its alias 'p'). Encapsulation is the point: without it every graph is flat, which caps how large a patch can get before it stops being readable and rules out reusable building blocks entirely. Contents are placed inside it with patcher::SetContainer and the boundary is made of boundary objects: connecting the parent to inlet N of a subpatcher records an ordinary cord straight to the object claiming inlet N inside it, and the outlet side mirrors that outward, so the graph the engine compiles contains no subpatchers at all. A pin is a message pin or a signal pin depending on which boundary object claims it — .inlet / .outlet carry bang, int, float and list, ~inlet / ~outlet carry audio by forwarding the buffer pointer without copying it — and the two rates share one index space per side, because a subpatcher has one set of pins and inlet N is one pin whichever rate is behind it. Storage is flat and only the addressing is nested — every object in a patch, however deep, lives in one object set, takes a graph id from one id space and is compiled into one GraphState. Three things follow. The audio thread's traversal cost does not grow with nesting depth, because depth is not a thing it can see. An edit inside a subpatcher is an ordinary edit and goes through the same single atomic GraphState swap as one at the top level. And nothing about nesting is read on the audio thread at all — membership is a control-thread annotation used by Connect, Disconnect, DeleteObject and DumpJSON. This object has no inlets and no outlets of its own, which is a correctness requirement rather than an economy: the boundary changes whenever a .inlet is added, and a real pin vector would have to be resized on an object the render is concurrently walking. Use patcher::SubpatcherInlets / SubpatcherOutlets to read the boundary shape. Deleting a subpatcher deletes its contents transitively, and every object in the subtree receives Teardown before any of them is unwired. On load, contents fire their loadbangs in the same undefined-order pass as the top level: the whole tree is published in one swap, so 'loading has finished' becomes true for every level at the same instant. No creation arguments. Calculate() does nothing and is never reached.",
+    "description": "A subpatcher: groups part of a patch into one object that the parent connects to by pin number. Its pins are the .inlet, .outlet, ~inlet and ~outlet objects placed inside it.",
     "inlets": [],
     "is_dsp": false,
     "name": "patcher",
@@ -14565,20 +14565,20 @@
   },
   "~adc": {
     "category": "IO",
-    "description": "Audio input into a patcher graph. When the patcher runs as a channel or sound insert, each outlet carries one channel of the host's incoming audio, so the graph can process external audio rather than only generating it.",
+    "description": "The patch's audio input. When the patcher runs as an insert effect, each outlet carries one channel of the audio it processes.",
     "inlets": [],
     "is_dsp": true,
     "name": "~adc",
     "outlets": [
       {
-        "doc": "One channel of the host's incoming audio, injected into the graph.",
+        "doc": "One channel of the host's incoming audio.",
         "index": 0,
         "label": "out",
         "range": "-1.0 to 1.0",
         "type": "BUFFER"
       },
       {
-        "doc": "One channel of the host's incoming audio, injected into the graph.",
+        "doc": "One channel of the host's incoming audio.",
         "index": 1,
         "label": "out",
         "range": "-1.0 to 1.0",
@@ -14708,13 +14708,13 @@
   },
   "~dac": {
     "category": "IO",
-    "description": "Audio output of a patcher graph. Each inlet takes one channel of audio and the patcher passes it on to whatever hosts it — a channel, a sound, or the engine's output. A patch is only audible once something reaches this object.",
+    "description": "The patch's audio output. Each inlet is one output channel, passed on to the sound or insert that hosts the patcher. A patch is silent until a signal reaches this object.",
     "inlets": [
       {
         "accepts": [
           "BUFFER"
         ],
-        "doc": "One channel of the graph's audio output, handed to the patcher's host.",
+        "doc": "One channel of the patch's audio output.",
         "index": 0,
         "label": "in",
         "range": "-1.0 to 1.0"
@@ -14723,7 +14723,7 @@
         "accepts": [
           "BUFFER"
         ],
-        "doc": "One channel of the graph's audio output, handed to the patcher's host.",
+        "doc": "One channel of the patch's audio output.",
         "index": 1,
         "label": "in",
         "range": "-1.0 to 1.0"
@@ -14781,13 +14781,13 @@
   },
   "~inlet": {
     "category": "ENCAPSULATION",
-    "description": "One audio-rate inlet of the subpatcher it lives in — the signal half of '.inlet' (Max's 'inlet' carrying a signal). Give it index N inside a 'patcher' object and inlet N of that subpatcher is this object, so the signal the parent wires there comes out of this outlet inside the subpatcher, and a ~adc outside can reach a filter inside. What the render does at the boundary is forward a pointer and nothing else: this patcher's signal path already passes buffers by address, so Calculate sends on the exact buffer that arrived rather than a copy of it. Crossing a subpatcher with a signal therefore costs one store, one Calculate and one send — no buffer copy, no extra buffer, no added indirection, and nothing that scales with block size or nesting depth. Boundary resolution is the control-rate one: patcherImplementation finds the boundary object claiming inlet N among the subpatcher's contents and records an ordinary cord to this object's inlet 0, so the compiled graph holds a plain DSP edge between two plain objects. The index space is shared with .inlet, since a subpatcher has one set of pins and inlet N is one pin whichever rate is behind it. This is a separate object rather than a signal-capable .inlet because IsDSPObject() decides start-point selection, T_GUI dispatch and what every palette is told the object is, and one object cannot answer both honestly — the same split as '.+' and '~+'. One creation argument, the boundary inlet number, default 0. Calculate is a null check and a send; nothing allocates, locks or blocks.",
+    "description": "A signal inlet of the subpatcher it is in. With index N, the signal the parent connects to the subpatcher's inlet N comes out of this object, inside the subpatcher.",
     "inlets": [
       {
         "accepts": [
           "BUFFER"
         ],
-        "doc": "Where the parent patch's signal cord lands. Nothing inside the subpatcher connects here — patcherImplementation resolves Connect(source, n, subpatcher, N) to this object and records the edge directly, so what arrives is whatever signal the parent wired to the subpatcher's inlet N. Audio only: this inlet registers a buffer handler and nothing else, so a float, an int, a bang or a list arriving here is dropped, exactly as it is on any other DSP object's signal inlet. Use .inlet for the pins that carry messages; a subpatcher may have some of each, numbered in one shared index space.",
+        "doc": "Receives the signal the parent patch connects to the subpatcher's inlet with this index. Audio only: a message arriving here is dropped.",
         "index": 0,
         "label": "from parent",
         "range": "-1.0 to 1.0"
@@ -14797,7 +14797,7 @@
     "name": "~inlet",
     "outlets": [
       {
-        "doc": "The signal that arrived at the subpatcher's boundary, sent on inside the subpatcher. The buffer is passed by pointer and not copied: what leaves here is the very buffer the upstream source computed into, so crossing the boundary adds no buffer, no copy and no indirection to the audio path — just one Calculate and one send, however deeply the subpatcher is nested.",
+        "doc": "The incoming signal, unchanged, inside the subpatcher.",
         "index": 0,
         "label": "out",
         "range": "-1.0 to 1.0",
@@ -14807,7 +14807,7 @@
     "params": [
       {
         "default": "0",
-        "doc": "Which inlet of the enclosing subpatcher this object is. Inlet numbers are the parent's view of the subpatcher: Connect(source, 0, subpatcher, 2) resolves to the boundary object whose index is 2. The index space is shared with .inlet, because a subpatcher has one set of pins and inlet 2 is one pin whether it carries a signal or a message; a ~inlet 2 and a .inlet 2 in the same subpatcher are therefore two objects claiming one pin, which is not an error but resolves to whichever is found first, so give them distinct numbers. Changing the index live re-points which boundary inlet future connections resolve to and does not move cords that already exist.",
+        "doc": "Which inlet of the enclosing subpatcher this object is, shared with .inlet. Give every boundary object its own number.",
         "name": "index",
         "range": "0+"
       }
@@ -14816,13 +14816,13 @@
   },
   "~line": {
     "category": "OSC",
-    "description": "Linear-ramp generator. Ramps an audio-rate value toward a target over a given time in ms. The 'stop' message freezes the ramp at the current value.",
+    "description": "Linear-ramp generator. Ramps an audio-rate value toward a target over a given time in ms.",
     "inlets": [
       {
         "accepts": [
           "FLOAT"
         ],
-        "doc": "Target value to ramp toward.",
+        "doc": "Target value to ramp toward. Also takes 'stop'.",
         "index": 0,
         "label": "target",
         "range": "any float"
@@ -14831,7 +14831,7 @@
         "accepts": [
           "FLOAT"
         ],
-        "doc": "Ramp duration in milliseconds.",
+        "doc": "Ramp duration in milliseconds, used from the next new target.",
         "index": 1,
         "label": "time",
         "range": "0+ ms"
@@ -14910,7 +14910,7 @@
   },
   "~noise": {
     "category": "OSC",
-    "description": "White-noise generator. Emits a fresh DSP buffer of pseudo-random samples on every audio frame.",
+    "description": "White-noise generator. Sends a new block of random samples on every audio block.",
     "inlets": [],
     "is_dsp": true,
     "name": "~noise",
@@ -14928,13 +14928,13 @@
   },
   "~outlet": {
     "category": "ENCAPSULATION",
-    "description": "One audio-rate outlet of the subpatcher it lives in — the signal half of '.outlet', and '~inlet' read the other way round. Give it index N inside a 'patcher' object, wire the encapsulated DSP graph into its inlet, and outlet N of that subpatcher is this object: the signal that arrives here leaves the subpatcher and reaches whatever the parent connected to outlet N, so a ~sine inside a subpatcher can reach a ~dac outside it. What the render does at the boundary is forward a pointer: Calculate sends on the exact buffer that arrived, so the object outside is handed the very buffer the object inside computed into — no copy, no buffer of this object's own, no added indirection, and a cost independent of nesting depth. Boundary resolution is the control-rate one: patcherImplementation finds the boundary object claiming outlet N among the subpatcher's contents and records an ordinary cord from this object's outlet, so the compiled graph holds a plain DSP edge between two plain objects. The index space is shared with .outlet, since a subpatcher has one set of pins and outlet N is one pin whichever rate is behind it. One creation argument, the boundary outlet number, default 0. Calculate is a null check and a send; nothing allocates, locks or blocks.",
+    "description": "A signal outlet of the subpatcher it is in. With index N, the signal that arrives here leaves the subpatcher through its outlet N.",
     "inlets": [
       {
         "accepts": [
           "BUFFER"
         ],
-        "doc": "Where the encapsulated DSP graph hands a signal to the boundary. Wire whatever the subpatcher computes into here and it leaves the subpatcher through this object's outlet. Audio only: a float, an int, a bang or a list arriving here is dropped, as on any other DSP object's signal inlet. Use .outlet for the pins that carry messages.",
+        "doc": "A signal from inside the subpatcher, to send out of it. Audio only: a message arriving here is dropped.",
         "index": 0,
         "label": "from patch",
         "range": "-1.0 to 1.0"
@@ -14944,7 +14944,7 @@
     "name": "~outlet",
     "outlets": [
       {
-        "doc": "The subpatcher's audio outlet, seen from outside. Nothing inside the subpatcher connects here — patcherImplementation resolves Connect(subpatcher, N, dest, n) to this object and records the edge directly, so what leaves reaches whatever the parent patch connected to the subpatcher's outlet N. The buffer is passed by pointer and not copied: the object outside is handed the very buffer the object inside computed into.",
+        "doc": "The subpatcher's outlet with this index, seen from the parent. The signal leaves unchanged.",
         "index": 0,
         "label": "to parent",
         "range": "-1.0 to 1.0",
@@ -14954,7 +14954,7 @@
     "params": [
       {
         "default": "0",
-        "doc": "Which outlet of the enclosing subpatcher this object is. Outlet numbers are the parent's view of the subpatcher: Connect(subpatcher, 1, dest, 0) resolves to the boundary object whose index is 1. The index space is shared with .outlet, because a subpatcher has one set of pins and outlet 1 is one pin whether it carries a signal or a message; a ~outlet 1 and a .outlet 1 in the same subpatcher are two objects claiming one pin, which is not an error but resolves to whichever is found first, so give them distinct numbers. Changing the index live re-points which boundary outlet future connections resolve to and does not move cords that already exist.",
+        "doc": "Which outlet of the enclosing subpatcher this object is, shared with .outlet. Give every boundary object its own number.",
         "name": "index",
         "range": "0+"
       }
@@ -15035,13 +15035,13 @@
   },
   "~vcf": {
     "category": "FILTER",
-    "description": "Voltage-controlled (heterodyne) filter. Mixes the input with a center-frequency buffer; sharpness controls resonance. Emits real and imaginary components on two buffer outlets.",
+    "description": "Resonant bandpass filter whose center frequency is a signal, so it can sweep at audio rate. Sharpness sets how narrow the band is.",
     "inlets": [
       {
         "accepts": [
           "BUFFER"
         ],
-        "doc": "Audio input buffer.",
+        "doc": "Audio input.",
         "index": 0,
         "label": "in",
         "range": "-1.0 to 1.0"
@@ -15050,33 +15050,33 @@
         "accepts": [
           "BUFFER"
         ],
-        "doc": "Center-frequency buffer (typically a sine at the target frequency).",
+        "doc": "Center frequency in Hz, as a signal. Both signal inlets must be connected for the filter to run.",
         "index": 1,
         "label": "center",
-        "range": "-1.0 to 1.0"
+        "range": "0-20000 Hz"
       },
       {
         "accepts": [
           "FLOAT"
         ],
-        "doc": "Resonance / sharpness control.",
+        "doc": "How narrow the band is: higher is narrower. 0 turns filtering off.",
         "index": 2,
         "label": "sharpness",
-        "range": "0.0-1.0"
+        "range": "0+"
       }
     ],
     "is_dsp": true,
     "name": "~vcf",
     "outlets": [
       {
-        "doc": "Real component of the filtered signal.",
+        "doc": "The bandpass output.",
         "index": 0,
         "label": "real",
         "range": "-1.0 to 1.0",
         "type": "BUFFER"
       },
       {
-        "doc": "Imaginary component of the filtered signal.",
+        "doc": "The imaginary part of the resonator, a lowpass-like response.",
         "index": 1,
         "label": "imag",
         "range": "-1.0 to 1.0",
@@ -15086,9 +15086,9 @@
     "params": [
       {
         "default": "0",
-        "doc": "Initial resonance / sharpness.",
+        "doc": "Initial sharpness.",
         "name": "sharpness",
-        "range": "0.0-1.0"
+        "range": "0+"
       }
     ],
     "requires_midi_device": false

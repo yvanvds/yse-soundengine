@@ -65,28 +65,20 @@ CONSTRUCT() {
   busAddress.reserve(MAX_NAME_LENGTH);
 
   ADD_DESCRIPTION(
-      "Named send endpoint whose destination is chosen at runtime. Delivers incoming values "
-      "exactly as .s does — to every .r in the patcher whose dataName matches, and on the global "
-      "bus as \"patcher.<patcherName>.<destination>\" — but takes the destination name from its "
-      "right "
-      "inlet, so a patch can re-aim it with a message instead of being rewired. Sends nothing "
-      "until a destination is set.");
+      "Sends what arrives to every .r with a given name, like .s, but the name can be changed "
+      "with a message to the right inlet. Sends nothing until it has a destination.");
   ADD_CATEGORY(pCategory::IO);
   INLET_DOC(0, "in",
-            "Value inlet — accepts bang / int / float / list. Forwarded verbatim to the current "
-            "destination; no word in it is reserved.",
+            "Bang, int, float or list, sent unchanged to the current destination. No word is "
+            "reserved.",
             "");
   INLET_DOC(1, "destination",
-            "Sets the destination for subsequent values. A list is read as a name (first token "
-            "only); an int is read as the name it spells. A name longer than 63 characters is "
-            "refused and the previous destination kept.",
-            "any identifier, at most 63 characters");
-  PARAM_DOC("destination", "",
-            "Destination name to start from. Empty means the object sends nothing until its right "
-            "inlet supplies one.",
-            "any identifier, at most 63 characters");
-  PARAM_DOC("globalOnly", "0",
-            "When 1, skip in-patcher delivery and publish only to the global bus.", "0 or 1");
+            "Sets the destination name: the first word of a list, or the digits of an int. A name "
+            "longer than 63 characters is ignored.",
+            "any name, at most 63 characters");
+  PARAM_DOC("destination", "", "The starting destination. Empty sends nothing until one is set.",
+            "any name, at most 63 characters");
+  PARAM_DOC("globalOnly", "0", "1 sends only on the named bus, not inside the patcher.", "0 or 1");
 }
 
 // A re-parse must not leave half of the previous configuration standing:

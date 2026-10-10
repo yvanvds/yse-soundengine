@@ -46,18 +46,6 @@ namespace {
   std::set<std::string> DocRuleExempt() {
     // clang-format off
     return {
-        ".decide",
-        ".drunk",
-        ".forward",
-        ".inlet",
-        ".outlet",
-        ".print",
-        ".prob",
-        ".urn",
-        ".value",
-        "patcher",
-        "~inlet",
-        "~outlet",
     };
     // clang-format on
   }

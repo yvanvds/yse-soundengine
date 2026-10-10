@@ -44,11 +44,9 @@ void pAdc::build(int chans) {
   channels.assign(static_cast<size_t>(chans < 0 ? 0 : chans), nullptr);
   for (int i = 0; i < chans; i++) {
     ADD_OUT_BUFFER;
-    OUTLET_DOC(i, "out", "One channel of the host's incoming audio, injected into the graph.",
-               "-1.0 to 1.0");
+    OUTLET_DOC(i, "out", "One channel of the host's incoming audio.", "-1.0 to 1.0");
   }
-  ADD_DESCRIPTION("Audio input into a patcher graph. When the patcher runs as a channel or sound "
-                  "insert, each outlet carries one channel of the host's incoming audio, so the "
-                  "graph can process external audio rather than only generating it.");
+  ADD_DESCRIPTION("The patch's audio input. When the patcher runs as an insert effect, each outlet "
+                  "carries one channel of the audio it processes.");
   ADD_CATEGORY(pCategory::IO);
 }

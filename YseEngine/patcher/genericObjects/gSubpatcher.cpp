@@ -21,33 +21,8 @@ CONSTRUCT() {
   // pointer every contained object names as its container.
 
   ADD_DESCRIPTION(
-      "Groups a region of a patch so the parent addresses it as one object — Max's 'patcher' (and "
-      "its alias 'p'). Encapsulation is the point: without it every graph is flat, which caps how "
-      "large a patch can get before it stops being readable and rules out reusable building blocks "
-      "entirely. Contents are placed inside it with patcher::SetContainer and the boundary is made "
-      "of boundary objects: connecting the parent to inlet N of a subpatcher records an ordinary "
-      "cord straight to the object claiming inlet N inside it, and the outlet side mirrors that "
-      "outward, so the graph the engine compiles contains no subpatchers at all. A pin is a "
-      "message pin or a signal pin depending on which boundary object claims it — .inlet / .outlet "
-      "carry bang, int, float and list, ~inlet / ~outlet carry audio by forwarding the buffer "
-      "pointer without copying it — and the two rates share one index space per side, because a "
-      "subpatcher has one set of pins and inlet N is one pin whichever rate is behind it. Storage "
-      "is flat "
-      "and only the addressing is nested — every object in a patch, however deep, lives in one "
-      "object set, takes a graph id from one id space and is compiled into one GraphState. Three "
-      "things follow. The audio thread's traversal cost does not grow with nesting depth, because "
-      "depth is not a thing it can see. An edit inside a subpatcher is an ordinary edit and goes "
-      "through the same single atomic GraphState swap as one at the top level. And nothing about "
-      "nesting is read on the audio thread at all — membership is a control-thread annotation used "
-      "by Connect, Disconnect, DeleteObject and DumpJSON. This object has no inlets and no outlets "
-      "of its own, which is a correctness requirement rather than an economy: the boundary changes "
-      "whenever a .inlet is added, and a real pin vector would have to be resized on an object the "
-      "render is concurrently walking. Use patcher::SubpatcherInlets / SubpatcherOutlets to read "
-      "the boundary shape. Deleting a subpatcher deletes its contents transitively, and every "
-      "object in the subtree receives Teardown before any of them is unwired. On load, contents "
-      "fire their loadbangs in the same undefined-order pass as the top level: the whole tree is "
-      "published in one swap, so 'loading has finished' becomes true for every level at the same "
-      "instant. No creation arguments. Calculate() does nothing and is never reached.");
+      "A subpatcher: groups part of a patch into one object that the parent connects to by pin "
+      "number. Its pins are the .inlet, .outlet, ~inlet and ~outlet objects placed inside it.");
   ADD_CATEGORY(pCategory::ENCAPSULATION);
 }
 

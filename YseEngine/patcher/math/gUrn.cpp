@@ -30,34 +30,20 @@ CONSTRUCT() {
   Refill();
 
   ADD_DESCRIPTION(
-      "Random numbers without repetition. Each bang emits a value from [0, limit) that has not "
-      "been emitted yet, so every value appears exactly once before any of them repeats — a "
-      "shuffled deck rather than a die, which is what keeps generative sample and pitch selection "
-      "free of the immediate repeats that read as a mistake. Once every value has been handed out "
-      "the urn is empty: further bangs emit nothing on outlet 0 and bang outlet 1 instead. 'clear' "
-      "refills and reshuffles it, and an int on inlet 1 sets a new limit and refills. The bag "
-      "holds "
-      "a whole shuffled permutation and a bang is a cursor step through it, so a draw costs the "
-      "same whether the urn is full or has one value left — no rejection sampling, no unbounded "
-      "retry loop. A non-zero seed makes the order reproducible across runs; seed 0 takes an "
-      "arbitrary stream. The limit is clamped to 1-4096.");
+      "Random numbers without repeats: each bang sends a number from 0 to limit-1 that has not "
+      "come out yet, like dealing from a shuffled deck. When all have been sent, the right "
+      "outlet bangs.");
   ADD_CATEGORY(pCategory::RANDOM);
   INLET_DOC(0, "control",
-            "Bang to draw the next unused value / list 'clear' to refill and reshuffle the urn / "
-            "list 'seed <n>' to restart the random sequence and reshuffle what is left.",
+            "A bang deals the next number. 'clear' refills and reshuffles; 'seed <n>' restarts "
+            "the random sequence.",
             "");
-  INLET_DOC(1, "limit", "Sets the exclusive upper bound and refills the urn.", "1-4096");
-  OUTLET_DOC(0, "out",
-             "Next value not yet drawn since the last refill. Silent once the urn is "
-             "empty.",
-             "0 to limit-1");
-  OUTLET_DOC(1, "empty", "Bangs when a bang arrives and every value has already been drawn.", "");
-  PARAM_DOC("limit", "1",
-            "Exclusive upper bound of the drawn values; setting it refills the urn. Clamped to "
-            "1-4096.",
-            "1-4096");
-  PARAM_DOC("seed", "0",
-            "Random seed; non-zero replays the same orders every run, 0 picks an arbitrary stream.",
+  INLET_DOC(1, "limit", "Sets how many numbers there are, and refills.", "1-4096");
+  OUTLET_DOC(0, "out", "The next number. Nothing once all have been dealt.", "0 to limit-1");
+  OUTLET_DOC(1, "empty", "A bang for each bang that arrives after all numbers have been dealt.",
+             "bang");
+  PARAM_DOC("limit", "1", "How many numbers there are, clamped to 1-4096.", "1-4096");
+  PARAM_DOC("seed", "0", "Random seed. Any other value than 0 gives the same order on every run.",
             "any int");
 }
 
