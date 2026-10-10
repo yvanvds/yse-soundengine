@@ -56,76 +56,38 @@ gArraySort::gArraySort() : gArrayPermuteBase() {
   AtomList::ReserveRender(orderRender);
 
   ADD_DESCRIPTION(
-      "Orders an array's elements — Max's array.sort on the name-addressed value model .array "
-      "settled: the array is bound from the creation argument, \".array.sort <name> "
-      "[<direction>]\", because an array is addressed by name and never passed down a cord. The "
-      "comparison is .zl sort's, applied to the store: each element is classified once per sort "
-      "by the patcher's own token reader, numbers come before symbols in both directions (a "
-      "type ordering, so ascending and descending stay one question asked two ways), numbers "
-      "compare by value — 7 and 7. are the same number here, spelling deciding how an element "
-      "leaves, never where it sorts — and symbols compare by their characters, the shorter "
-      "first when one is a prefix. The sort is stable, so equal elements keep their arrival "
-      "order, and it is a bounded merge sort under one hold of the store's guard through a "
-      "scratch table the object owns. Negative direction sorts descending, anything else "
-      "ascending; a bang sorts by the stored direction, seeded by the second creation argument "
-      "and moved silently by the direction inlet, and an int on the trigger sorts by that "
-      "direction at the moment it arrives, storing nothing. A sort that lands publishes the "
-      "applied order as zero-based indices out the order outlet, then emits the array's "
-      "reference: feed the order to an .array.indexmap's map inlet and the reference to its "
-      "trigger, and a parallel array lands in the same new order, .zl sort's idiom.");
+      "Sorts the elements of a named array, ascending or descending, with numbers before words. "
+      "Also sends the order it applied, so another array can be put in the same order.");
   ADD_CATEGORY(pCategory::ARRAY);
   INLET_DOC(0, "trigger",
-            "A bang sorts the bound array in place by the stored direction — the direction the "
-            "last int on the direction inlet stored, seeded by the second creation argument (0, "
-            "ascending, when absent). An int sorts by that direction at the moment it arrives "
-            "and stores nothing — a bang that replayed the last inline direction would be "
-            "hidden state — a float truncates to an int first, and a list spelling exactly one "
-            "signed int is the direction it spells, kept equivalent to the int. \"array "
-            "<name>\" sorts by the stored direction when it names the array bound by the "
-            "creation argument — the message an .array's reference outlet emits on a bang, the "
-            "family's gesture. An empty array sorts to itself and still announces. Anything "
-            "else is refused and counted rather than logged, since this inlet may be the audio "
-            "thread.",
+            "A bang sorts in the stored direction, and so does the bound array's reference. An "
+            "int sorts in that direction instead, without storing it: negative is descending, "
+            "anything else ascending. A float is truncated.",
             "any int");
   INLET_DOC(1, "direction",
-            "An int stores the direction the next bang sorts by, silently — the cold half of "
-            "the Max idiom, .zl sort's argument: negative sorts descending, anything else "
-            "ascending. A float truncates to an int first; a non-finite one is refused rather "
-            "than quietly becoming ascending.",
+            "Sets the direction for the next bang: negative sorts descending, anything else "
+            "ascending. A float is truncated.",
             "any int");
   INLET_DOC(2, "array reference",
-            "\"array <name>\" is accepted silently when it names the array bound by the first "
-            "creation argument, so a patch may wire the array's reference outlet across. It "
-            "sets nothing — the binding is the creation argument, resolved on the control "
-            "thread — and anything else is refused and counted.",
+            "Accepts the bound array's reference \"array <name>\" and ignores it, so the "
+            "array's reference outlet can be wired here. Anything else is refused.",
             "");
   OUTLET_DOC(0, "reference",
-             "The bound array's reference, \"array <name>\", sent after a sort that landed — "
-             "the way an array leaves an object on the value model, so wiring it onward chains "
-             "the family: into .array.at it fetches from the new order. A lost try-lock emits "
-             "nothing (one counted refusal, nothing changed), and an unnamed object stays "
-             "silent — the sort happens, but there is no name to pass on.",
+             "The array's reference \"array <name>\" after each sort, so further .array objects "
+             "can be chained. Nothing is sent when the object has no name.",
              "");
   OUTLET_DOC(1, "order",
-             "The applied order — the picks as zero-based indices into the array as it stood "
-             "at the trigger, Max's zl sort index map — sent before the reference, Max's "
-             "right-to-left rule: feed this to an .array.indexmap's map inlet and the "
-             "reference to its trigger, and a parallel array lands in the same new order. The "
-             "sort being stable, equal elements keep their arrival order in it. A one-element "
-             "order leaves as the int it spells, which .array.indexmap's map inlet accepts as "
-             "the one-entry map; an empty array publishes no order.",
+             "The order applied: for each new position, the position the element came from. "
+             "Sent before the reference. Send it to .array.indexmap to put another array in "
+             "the same order. Nothing is sent for an empty array.",
              "0-255 each");
-  PARAM_DOC(
-      "name", "",
-      "The array's shared name, addressed as \"patcher.<patcherName>.<name>\" — the sequence an "
-      ".array of the same name in this patcher holds. Resolved once, on the control "
-      "thread, which is why no message re-points it at run time. Empty sorts a private, "
-      "empty array: the trigger lands, but nothing shares it and no reference leaves.",
-      "any identifier");
+  PARAM_DOC("name", "",
+            "Name of the array to sort: the .array with this name in the same patcher. Empty "
+            "uses a private, empty array.",
+            "any identifier");
   PARAM_DOC("direction", "0",
-            "The initial stored direction — what a bang sorts by before any int has moved it. "
-            "Negative sorts descending, anything else ascending, so the absent argument is an "
-            "ascending sort.",
+            "The direction a bang sorts in: negative is descending, anything else (including "
+            "the default 0) ascending.",
             "any int");
 }
 

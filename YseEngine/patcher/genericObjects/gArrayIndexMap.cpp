@@ -37,34 +37,18 @@ namespace {
   // Doc strings, hoisted out of the constructor because they are long enough
   // that it stops being readable with them inline — gArray's arrangement.
   constexpr char kTriggerInletDoc[] =
-      "A bang applies the stored map — the map the last list on the map inlet stored, seeded by "
-      "the trailing creation arguments; a bang before any map exists is refused and counted, an "
-      "absent map being malformed rather than a reorder to nothing. A list of indices is applied "
-      "at the moment it arrives and stores nothing — a bang that replayed the last list would be "
-      "hidden state — a single int is the one-entry map it spells, and a float truncates to an "
-      "int first, Max's float method. \"array <name>\" applies the stored map when it names the "
-      "array bound by the first creation argument — the message an .array's reference outlet "
-      "emits on a bang, so wiring that outlet here gives the family's gesture. A negative index, "
-      "a reference naming anything else, or any other message is refused whole and counted "
-      "rather than logged, since this inlet may be the audio thread.";
+      "A bang applies the stored map, and so does the bound array's reference. A list of "
+      "positions, or a single int, is applied at once and not stored. A float is truncated; a "
+      "negative position refuses the whole list.";
   constexpr char kMapInletDoc[] =
-      "A list of zero-based indices stores the map the next bang applies, silently — the cold "
-      "half of the Max idiom, .zl indexmap's right inlet. A single int stores a one-entry map; a "
-      "float truncates to an int first. A map with anything in it that is not a non-negative "
-      "integer, or longer than 256 entries, is refused whole — one counted refusal and the "
-      "stored map does not move. \"array <name>\" is refused even naming the bound array: an "
-      "identity is not a map.";
+      "A list of positions, or a single int, to store for the next bang. A float is truncated. "
+      "A list with a negative position, or more than 256 entries, is refused.";
   constexpr char kReferenceInletDoc[] =
-      "\"array <name>\" is accepted silently when it names the array bound by the first creation "
-      "argument, so a patch may wire the array's reference outlet across. It sets nothing — the "
-      "binding is the creation argument, resolved on the control thread — and anything else is "
-      "refused and counted.";
+      "Accepts the bound array's reference \"array <name>\" and ignores it, so the array's "
+      "reference outlet can be wired here. Anything else is refused.";
   constexpr char kOutletDoc[] =
-      "The bound array's reference, \"array <name>\", sent after a reorder that landed — the way "
-      "an array leaves an object on the value model, so wiring it onward chains the family: into "
-      ".array.length it reports the new length, into .array.at it fetches from the new order. A "
-      "refused reorder emits nothing, and an unnamed object stays silent — the reorder happens, "
-      "but there is no name to pass on.";
+      "The array's reference \"array <name>\" after each reorder, so further .array objects can "
+      "be chained. Nothing is sent when the object has no name.";
 
 } // namespace
 
@@ -92,38 +76,20 @@ gArrayIndexMap::gArrayIndexMap() : gArrayEndsBase() {
   ADD_PARAM(seedMap);
 
   ADD_DESCRIPTION(
-      "Reorders an array by a list of indices — Max's array.indexmap on the name-addressed "
-      "value model .array settled: the array is bound from the creation argument, "
-      "\".array.indexmap <name> [<indices...>]\", because an array is addressed by name and "
-      "never passed down a cord. The shared reordering primitive applied to a stored array — "
-      "the object every custom permutation is built from, and the one .zl indexmap already "
-      "gives for a list, with the family's zero-based positions. A bang applies the stored "
-      "map, seeded by the trailing creation arguments and replaced by a list on the map inlet; "
-      "a list of indices on the trigger is applied at the moment it arrives and stores "
-      "nothing. Each map entry picks the element at that position, in map order: entries may "
-      "repeat, an index naming no element contributes nothing — AssignOrder's rule, so the "
-      "result is as long as what landed — and a negative index refuses the whole map, the "
-      "family's split between a miss and a refusal. The whole reorder is one hold of the "
-      "store's guard, through a scratch table the object owns, so the order applied is the "
-      "array as it stood at the trigger; a reorder that lands emits the array's reference, so "
-      "the family chains.");
+      "Reorders a named array by a list of positions: the new array holds the elements at "
+      "those positions, in that order. Positions may repeat or be left out.");
   ADD_CATEGORY(pCategory::ARRAY);
   INLET_DOC(0, "trigger", kTriggerInletDoc, "0-255 each");
   INLET_DOC(1, "index map", kMapInletDoc, "0-255 each");
   INLET_DOC(2, "array reference", kReferenceInletDoc, "");
   OUTLET_DOC(0, "reference", kOutletDoc, "");
-  PARAM_DOC(
-      "name", "",
-      "The array's shared name, addressed as \"patcher.<patcherName>.<name>\" — the sequence an "
-      ".array of the same name in this patcher holds. Resolved once, on the control "
-      "thread, which is why no message re-points it at run time. Empty reorders a "
-      "private, empty array: the picks all miss, and no reference leaves.",
-      "any identifier");
+  PARAM_DOC("name", "",
+            "Name of the array to reorder: the .array with this name in the same patcher. "
+            "Empty uses a private, empty array.",
+            "any identifier");
   PARAM_DOC("map", "",
-            "The initial stored map — the zero-based indices a bang applies before any list has "
-            "arrived on the map inlet, in pick order. Absent means no map, and a bang before "
-            "one arrives is refused; a token that is not a non-negative integer plants no map "
-            "at all, counted.",
+            "The positions a bang applies before a map arrives on the middle inlet. Without a "
+            "map, a bang is refused.",
             "0-255 each");
 }
 

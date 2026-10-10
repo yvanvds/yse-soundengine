@@ -36,29 +36,18 @@ namespace {
   // the constructor stops being readable with them inline — gArray's
   // arrangement.
   constexpr char kIndexInletDoc[] =
-      "An int fetches the element at that position and stores the index; a bang re-fetches at "
-      "the stored index; a float truncates to an int first — Max's float method. A list of "
-      "indices fetches them all as one list, in the order asked, and never moves the stored "
-      "index; any position the array does not have bangs the miss outlet instead, whole — no "
-      "partial reply. \"array <name>\" fetches at the stored index when it names the array bound "
-      "by the first creation argument — the message an .array's reference outlet emits on a "
-      "bang, so wiring that outlet here gives the family's gesture. A negative index, a "
-      "reference naming anything else, or any other message is refused and counted rather than "
-      "logged, since this inlet may be the audio thread.";
+      "An int fetches the element at that position and remembers the position; a bang fetches "
+      "at the remembered position, and so does the bound array's reference. A list of positions "
+      "fetches them all at once. A float is truncated; a negative position is refused.";
   constexpr char kReferenceInletDoc[] =
-      "\"array <name>\" is accepted silently when it names the array bound by the first "
-      "creation argument, so a patch may wire the array's reference outlet across. It sets "
-      "nothing — the binding is the creation argument, resolved on the control thread — and "
-      "anything else is refused and counted.";
+      "Accepts the bound array's reference \"array <name>\" and ignores it, so the array's "
+      "reference outlet can be wired here. Anything else is refused.";
   constexpr char kElementDoc[] =
-      "The fetched element, typed the way the patcher spells it: a numeric element leaves as an "
-      "int or a float by its spelling and anything else as a symbol. A list of indices leaves "
-      "as one list of the named elements, in the order asked — every position read under one "
-      "hold of the store's guard, so the reply is the array as it stood at the trigger.";
+      "The element, as an int, float or symbol by its spelling. A list of positions gives one "
+      "list, in the order asked.";
   constexpr char kMissDoc[] =
-      "Bang when a fetch names a position the array does not have — the miss, kept off the "
-      "element outlet so a patch can tell \"no such element\" from an element it received. A "
-      "list fetch with any position missing is one miss bang and no partial list.";
+      "Bang when a position is not in the array. For a list of positions, one bang if any of "
+      "them is missing, and nothing leaves outlet 0.";
 
 } // namespace
 
@@ -95,35 +84,19 @@ CONSTRUCT() {
   AtomList::ReserveRender(emitScratch);
 
   ADD_DESCRIPTION(
-      "Outputs the element at an index — Max's array.at on the name-addressed value model "
-      ".array settled: the array is bound from the creation argument, \".array.at <name> "
-      "[<index>]\", because an array is addressed by name and never passed down a cord. This is "
-      "the object a running patch wires an index into — .array's own \"get\" needs the index "
-      "inside the message text. An int fetches that position and stores it, a bang re-fetches "
-      "at the stored index, and a list of indices is answered whole, as one list in the order "
-      "asked. The element leaves typed the way the patcher spells it; a position the array does "
-      "not have bangs the miss outlet instead, and a list fetch with any position missing is "
-      "one miss bang and no partial reply. Indices are zero-based and a negative index is "
-      "refused rather than wrapped or clamped — the family's indexing rule. A fetch reads every "
-      "position under one hold of the store's guard, so the reply is the array as it stood at "
-      "the trigger, and the stored index is this object's own: two .array.at on one name fetch "
-      "independently.");
+      "Outputs the element at a position in a named array. Send a position to fetch it, or a "
+      "list of positions to fetch several at once; a bang fetches the last position again. A "
+      "position the array does not have bangs the miss outlet.");
   ADD_CATEGORY(pCategory::ARRAY);
   INLET_DOC(0, "index", kIndexInletDoc, "0-255");
   INLET_DOC(1, "array reference", kReferenceInletDoc, "");
   OUTLET_DOC(0, "element", kElementDoc, "");
   OUTLET_DOC(1, "miss", kMissDoc, "");
-  PARAM_DOC(
-      "name", "",
-      "The array's shared name, addressed as \"patcher.<patcherName>.<name>\" — the sequence an "
-      ".array of the same name in this patcher holds. Resolved once, on the control "
-      "thread, which is why no message re-points it at run time. Empty reads a private, "
-      "empty array: every fetch is a miss.",
-      "any identifier");
-  PARAM_DOC("index", "0",
-            "The initial stored index — the position a bang fetches before any int has moved "
-            "it. Zero-based, exactly as every index the inlet takes.",
-            "0-255");
+  PARAM_DOC("name", "",
+            "Name of the array to use: the .array with this name in the same patcher. Empty "
+            "uses a private, empty array.",
+            "any identifier");
+  PARAM_DOC("index", "0", "The position a bang fetches before any position arrives.", "0-255");
 }
 
 // A re-parse must not leave half of the previous configuration standing:

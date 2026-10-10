@@ -14,36 +14,15 @@ namespace {
   // that the constructor stops being readable with them inline — gArray's
   // arrangement.
   constexpr char kTriggerInletDoc[] =
-      "A bang groups the bound array: one send per distinct value out the group outlet — each "
-      "bucket whole, the value repeated as often as it occurs, buckets in order of their "
-      "value's first occurrence — then one bang out the done outlet. \"array <name>\" does the "
-      "same when it names the array bound by the creation argument — the message an .array's "
-      "reference outlet emits on a bang, so wiring that outlet here gives the family's "
-      "gesture. A reference naming anything else, any other message, or a trigger arriving "
-      "while a grouping is already running — a cord looped back from an outlet, or another "
-      "thread — is refused and counted rather than logged, since this inlet may be the audio "
-      "thread.";
+      "Bang, or the bound array's reference \"array <name>\": send the groups, then bang the "
+      "done outlet. A trigger that arrives while the groups are being sent is refused.";
   constexpr char kReferenceInletDoc[] =
-      "\"array <name>\" is accepted silently when it names the array bound by the creation "
-      "argument, so a patch may wire the array's reference outlet across without triggering a "
-      "grouping. It sets nothing — the binding is the creation argument, resolved on the "
-      "control thread — and anything else is refused and counted.";
+      "Accepts the bound array's reference \"array <name>\" and ignores it, so the array's "
+      "reference outlet can be wired here. Anything else is refused.";
   constexpr char kGroupOutletDoc[] =
-      "One bucket per send, in order of each value's first occurrence, equality by the "
-      "spelling — 7 and 7. are different values, .array.mode's rule. A bucket of one leaves "
-      "typed as the int, float or symbol it spells; a bucket of several as one list, the value "
-      "repeated, so its length is the value's frequency. The buckets are a snapshot of the "
-      "array as it stood at the trigger, so a write arriving mid-grouping — including from "
-      "this outlet's own subgraph — moves the array but not the buckets in flight. Each send "
-      "completes in full before the next bucket leaves — up to 256 sends per trigger, on "
-      "whichever thread sent it. A bucket that cannot leave whole (past what a cord carries) "
-      "refuses the whole grouping before anything is sent: a bucket that lost members would "
-      "lie about the value's frequency.";
-  constexpr char kDoneOutletDoc[] =
-      "Bang after the last bucket — 'all the groups have been sent', the exception to "
-      "right-to-left that Max states for uzi's carry. It fires even for an empty or unnamed "
-      "(private) array, so the 'and afterwards, do this' branch is never silently skipped; a "
-      "refused grouping emits no done bang.";
+      "One message per distinct value, in order of first appearance, holding the value as many "
+      "times as it occurs. A value that occurs once leaves as a single int, float or symbol.";
+  constexpr char kDoneOutletDoc[] = "Bang after the last group, also when the array is empty.";
 
 } // namespace
 
@@ -71,31 +50,17 @@ gArrayGroup::gArrayGroup() : gArrayEndsBase() {
   AtomList::ReserveRender(emitScratch);
 
   ADD_DESCRIPTION(
-      "Groups an array's elements by value — issue #801's reading of Max's array.group on the "
-      "name-addressed value model .array settled: the array is bound from the creation "
-      "argument, \".array.group <name>\", because an array is addressed by name and never "
-      "passed down a cord. A bang, or the array's reference message \"array <name>\", emits "
-      "one message per distinct value out the group outlet — each bucket whole, the value "
-      "repeated as often as it occurs, so its length is the value's frequency; buckets in "
-      "order of first occurrence, equality by the spelling, .array.mode's rule — then a bang "
-      "out the done outlet. An element is one atom, so a group of groups cannot leave as one "
-      "value; the per-bucket message is .array.iter's shape, and the buckets are a snapshot of "
-      "the array as it stood at the trigger, so a write arriving mid-grouping moves the array "
-      "but never the buckets in flight. A grouping any bucket of which cannot leave whole is "
-      "refused whole before anything is sent, and a trigger arriving mid-grouping is refused "
-      "and counted, as .uzi refuses a re-entrant start.");
+      "Groups the equal elements of a named array. A bang sends one list per distinct value, "
+      "holding that value as many times as it occurs, then bangs the done outlet.");
   ADD_CATEGORY(pCategory::ARRAY);
   INLET_DOC(0, "trigger", kTriggerInletDoc, "");
   INLET_DOC(1, "array reference", kReferenceInletDoc, "");
   OUTLET_DOC(0, "group", kGroupOutletDoc, "");
   OUTLET_DOC(1, "done", kDoneOutletDoc, "");
-  PARAM_DOC(
-      "name", "",
-      "The array's shared name, addressed as \"patcher.<patcherName>.<name>\" — the sequence an "
-      ".array of the same name in this patcher holds. Resolved once, on the control "
-      "thread, which is why no message re-points it at run time. Empty groups a "
-      "private, empty array: no buckets, just the done bang.",
-      "any identifier");
+  PARAM_DOC("name", "",
+            "Name of the array to use: the .array with this name in the same patcher. Empty "
+            "uses a private, empty array.",
+            "any identifier");
 }
 
 // ─── messages ─────────────────────────────────────────────────────────────────

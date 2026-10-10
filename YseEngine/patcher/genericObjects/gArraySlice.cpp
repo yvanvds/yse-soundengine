@@ -14,58 +14,31 @@ namespace {
   // them inline — gArray's arrangement. What differs per object stays with
   // that object below.
   constexpr char kRangeTriggerInletDoc[] =
-      "A bang asks for the piece — the range between the stored bounds, collected from the "
-      "array as it stood at the trigger under one hold of the store's guard and sent after it "
-      "is released. \"array <name>\" does the same when it names the array bound by the "
-      "creation argument — the message an .array's reference outlet emits on a bang, so wiring "
-      "that outlet here gives the family's gesture: bang the array, out comes the piece. A "
-      "reference naming anything else, or any other message, is refused and counted rather "
-      "than logged, since this inlet may be the audio thread.";
+      "Bang, or the bound array's reference \"array <name>\": send the elements in the range.";
   constexpr char kReferenceInletDoc[] =
-      "\"array <name>\" is accepted silently when it names the array bound by the creation "
-      "argument, so a patch may wire the array's reference outlet across. It sets nothing — "
-      "the binding is the creation argument, resolved on the control thread — and anything "
-      "else is refused and counted.";
+      "Accepts the bound array's reference \"array <name>\" and ignores it, so the array's "
+      "reference outlet can be wired here. Anything else is refused.";
   constexpr char kStartInletDoc[] =
-      "An int stores the start of the range, silently — the cold half of the Max idiom: "
-      "configuration on the right, the ask on the left. Zero-based; a start past the last "
-      "element selects nothing, so the next ask bangs the empty outlet. A float truncates to "
-      "an int first. A negative or non-finite value is refused and counted, and the stored "
-      "start does not move — the family's indexing rule: Max's negative from-the-end indexing "
-      "is the wrap the base type refuses.";
+      "Sets the first position of the range. A float is truncated; a negative value is "
+      "refused.";
   constexpr char kEmptyOutletDoc[] =
-      "Bang when the ask selected nothing — an empty or unnamed (private) array, a start past "
-      "the last element, or a crossed exclusive range. \"No data\" is a state a patch must be "
-      "able to route on, not an error, and an out-of-range fetch is a miss on an outlet — the "
-      "family's fetch rule. A lost try-lock is a counted refusal instead: the array's state is "
-      "unknown, so neither outlet fires.";
+      "Bang when the range holds no elements, for example when the array is empty or the start "
+      "is past its end.";
   constexpr char kNameParamDoc[] =
-      "The array's shared name, addressed as \"patcher.<patcherName>.<name>\" — the sequence an "
-      ".array "
-      "of the same name in this patcher holds. Resolved once, on the control thread, which is "
-      "why no message re-points it at run time. Empty reads a private, empty array: every ask "
-      "bangs the empty outlet.";
+      "Name of the array to read: the .array with this name in the same patcher. Empty uses a "
+      "private, empty array.";
   constexpr char kStartParamDoc[] =
-      "The initial stored start of the range — where the piece begins before any int has "
-      "moved it. Zero-based, exactly as every bound the inlets take.";
+      "The first position of the range before one arrives on the start inlet.";
   constexpr char kInclusiveEndInletDoc[] =
-      "An int stores the end of the range, silently — the inclusive bound, so the element at "
-      "this position is part of the piece. Any bound at or past the last element means to the "
-      "end of the array; an end before the start asks for the piece reversed — Max's "
-      "\"reverse slices are permitted\". A float truncates to an int first; a negative or "
-      "non-finite value is refused and counted, and the stored end does not move.";
+      "Sets the last position of the range, which is included. Past the end of the array "
+      "means the end; before the start sends the range reversed. A float is truncated; a "
+      "negative value is refused.";
   constexpr char kInclusiveEndParamDoc[] =
-      "The initial stored end of the range, inclusive. Absent means to the end of the array — "
-      "and so does any bound at or past the last element. An end before the start asks for "
-      "the piece reversed.";
+      "The last position of the range (included). Empty, or past the end of the array, means "
+      "the end. Before the start sends the range reversed.";
   constexpr char kInclusivePieceOutletDoc[] =
-      "The piece: the elements from start to end inclusive, as the list they spell — one "
-      "element as the int, float or symbol it is, several as list text, never as a new named "
-      "array (creating one would resolve a name on a message path). An end before the start "
-      "leaves the piece reversed, walking from start toward end. Collected under one hold of "
-      "the store's guard, sent after it is released; the intersection with the live elements, "
-      "so a bound past the end means the end. Silent when the range selects nothing: the "
-      "empty outlet carries that half of the answer.";
+      "The elements from start to end, both included, as one list; reversed when the end is "
+      "before the start. A single element leaves as an int, float or symbol.";
 
 } // namespace
 
@@ -258,45 +231,27 @@ bool gArraySliceBase::CollectLocked(std::size_t start, std::size_t end) {
 
 gArraySlice::gArraySlice() : gArraySliceBase(false) {
   ADD_DESCRIPTION(
-      "Outputs a run of elements of an array — Max's array.slice on the name-addressed value "
-      "model .array settled: the array is bound from the creation argument, \".array.slice "
-      "<name> [<start> [<end>]]\", because an array is addressed by name and never passed down "
-      "a cord. JavaScript's Array.slice(): the piece runs from start to end with the end "
-      "excluded, an absent end — or 0, Max's documented extra — extends to the end of the "
-      "array, and a crossed range selects nothing: reverse slices are not permitted, "
-      ".array.subarray is the form that permits them. The piece leaves as the list it spells, "
-      "never as a new named array — creating one would resolve a name on a message path — and "
-      "an ask that selects nothing bangs the empty outlet. Bounds are zero-based; past the end "
-      "they are bounds of a range, so the piece is the intersection with the live elements, "
-      "and negative is refused — the family's indexing rule. Collected under one hold of the "
-      "store's guard, so the piece is the array as it stood at the trigger.");
+      "Outputs a range of elements of a named array, from a start position up to but not "
+      "including an end position. The array itself is not changed.");
   ADD_CATEGORY(pCategory::ARRAY);
   INLET_DOC(0, "trigger", kRangeTriggerInletDoc, "");
   INLET_DOC(1, "start", kStartInletDoc, "0-255");
   INLET_DOC(2, "end",
-            "An int stores the end of the range, silently — the exclusive bound, JS's rule: "
-            "the element at this position is not part of the piece. 0 extends the piece to the "
-            "end of the array — Max's documented extra — and so does any bound past it. An end "
-            "at or before the start selects nothing: reverse slices are not permitted, "
-            ".array.subarray is the form that permits them. A float truncates to an int first; "
-            "a negative or non-finite value is refused and counted, and the stored end does "
-            "not move.",
+            "Sets the position where the range stops; that element is not included. 0, or past "
+            "the end of the array, means the end. A float is truncated; a negative value is "
+            "refused.",
             "0-256");
   INLET_DOC(3, "array reference", kReferenceInletDoc, "");
   OUTLET_DOC(0, "piece",
-             "The piece: the elements from start up to but not including end, as the list they "
-             "spell — one element as the int, float or symbol it is, several as list text, "
-             "never as a new named array. Collected under one hold of the store's guard, sent "
-             "after it is released; the intersection with the live elements, so a bound past "
-             "the end means the end. Silent when the range selects nothing: the empty outlet "
-             "carries that half of the answer.",
+             "The elements from start up to, but not including, end, as one list. A single "
+             "element leaves as an int, float or symbol.",
              "");
   OUTLET_DOC(1, "empty", kEmptyOutletDoc, "");
   PARAM_DOC("name", "", kNameParamDoc, "any identifier");
   PARAM_DOC("start", "0", kStartParamDoc, "0-255");
   PARAM_DOC("end", "",
-            "The initial stored end of the range, exclusive. Absent — or 0, Max's documented "
-            "extra — means to the end of the array, and so does any bound past it.",
+            "The position where the range stops (not included). Empty or 0 means the end of "
+            "the array.",
             "0-256");
 }
 
@@ -307,19 +262,8 @@ gArraySlice::gArraySlice() : gArraySliceBase(false) {
 
 gArraySubarray::gArraySubarray() : gArraySliceBase(true) {
   ADD_DESCRIPTION(
-      "Outputs a sub-range of an array, both ends inclusive — Max's array.subarray on the "
-      "name-addressed value model .array settled: the array is bound from the creation "
-      "argument, \".array.subarray <name> [<start> [<end>]]\", because an array is addressed "
-      "by name and never passed down a cord. The non-JS form of .array.slice, Max's own "
-      "distinction: the piece runs from start to end with the end included, an absent end — or "
-      "any bound at or past the last element — extends to the end of the array, and reverse "
-      "slices are permitted: an end before the start emits the piece reversed, walking from "
-      "start toward end. The piece leaves as the list it spells, never as a new named array, "
-      "and an ask that selects nothing bangs the empty outlet. Bounds are zero-based; past the "
-      "end they are bounds of a range, so the piece is the intersection with the live "
-      "elements, and negative is refused — the family's indexing rule. Collected under one "
-      "hold of the store's guard, so the piece is the array as it stood at the trigger. "
-      ".array.sub is this object under Max's second name for it.");
+      "Outputs a range of elements of a named array, both ends included; with the end before "
+      "the start, the range is sent in reverse. The same object as .array.sub.");
   ADD_CATEGORY(pCategory::ARRAY);
   INLET_DOC(0, "trigger", kRangeTriggerInletDoc, "");
   INLET_DOC(1, "start", kStartInletDoc, "0-255");
@@ -339,16 +283,8 @@ gArraySubarray::gArraySubarray() : gArraySliceBase(true) {
 
 gArraySub::gArraySub() : gArraySliceBase(true) {
   ADD_DESCRIPTION(
-      "Outputs a sub-range of an array, both ends inclusive — .array.subarray under Max's "
-      "second name for it: the array.sub reference page is array.subarray's verbatim, so the "
-      "port keeps both spellings over one implementation, .array.scramble / .array.shuffle's "
-      "arrangement. The array is bound from the creation argument, \".array.sub <name> "
-      "[<start> [<end>]]\"; the piece runs from start to end inclusive, an absent end extends "
-      "to the end of the array, an end before the start emits the piece reversed, and an ask "
-      "that selects nothing bangs the empty outlet. The piece leaves as the list it spells, "
-      "never as a new named array; bounds are zero-based, intersected with the live elements "
-      "past the end, and negative is refused — the family's indexing rule. Collected under one "
-      "hold of the store's guard, so the piece is the array as it stood at the trigger.");
+      "Outputs a range of elements of a named array, both ends included; with the end before "
+      "the start, the range is sent in reverse. The same object as .array.subarray.");
   ADD_CATEGORY(pCategory::ARRAY);
   INLET_DOC(0, "trigger", kRangeTriggerInletDoc, "");
   INLET_DOC(1, "start", kStartInletDoc, "0-255");
@@ -393,57 +329,31 @@ gArraySplit::gArraySplit() : gArrayEndsBase() {
   AtomList::ReserveRender(emitScratch);
 
   ADD_DESCRIPTION(
-      "Splits an array in two at a position — Max's array.split on the name-addressed value "
-      "model .array settled: the array is bound from the creation argument, \".array.split "
-      "<name> [<position>]\", because an array is addressed by name and never passed down a "
-      "cord. The head/tail split every recursive patch needs: elements before the split "
-      "position leave the head outlet, elements at and after it leave the tail outlet — the "
-      "element at the position goes to the tail, .zl slice's rule, so the position reads as "
-      "how many elements the head takes. Both pieces leave as the lists they spell, never as "
-      "new named arrays, collected under one hold of the store's guard so the two halves are "
-      "two views of one moment, and sent tail before head — right-to-left, the patcher's "
-      "outlet order. The position is a boundary, not an element position: 0 puts everything in "
-      "the tail, the length or past it puts everything in the head, and an empty half says "
-      "nothing at all, so a recursive patch terminates by absence. A negative position is "
-      "refused — the family's indexing rule. A bang splits at the stored position, seeded by "
-      "the second creation argument and moved silently by the position inlet.");
+      "Splits a named array in two at a position: the elements before it leave the left "
+      "outlet and the rest leave the right outlet, right first. The array itself is not "
+      "changed.");
   ADD_CATEGORY(pCategory::ARRAY);
   INLET_DOC(0, "trigger",
-            "A bang splits the array at the stored position — the position the last int on "
-            "the position inlet stored, seeded by the second creation argument (0 when "
-            "absent): the head leaves the head outlet, the tail the tail outlet, tail sent "
-            "first. \"array <name>\" does the same when it names the array bound by the "
-            "creation argument — the message an .array's reference outlet emits on a bang, "
-            "the family's gesture. A reference naming anything else, or any other message, is "
-            "refused and counted rather than logged, since this inlet may be the audio "
-            "thread.",
+            "Bang, or the bound array's reference \"array <name>\": split at the stored "
+            "position.",
             "");
   INLET_DOC(1, "position",
-            "An int stores the position the next split cuts at, silently — the cold half of "
-            "the Max idiom. A boundary, not an element position: zero-based, 0 puts "
-            "everything in the tail, the array's length or past it puts everything in the "
-            "head. A float truncates to an int first; a negative or non-finite value is "
-            "refused and counted, and the stored position does not move.",
+            "Sets the split position: the number of elements in the left half. A float is "
+            "truncated; a negative value is refused.",
             "0-256");
   INLET_DOC(2, "array reference", kReferenceInletDoc, "");
   OUTLET_DOC(0, "head",
-             "The elements before the split position, as the list they spell — one element as "
-             "the int, float or symbol it is, several as list text. Collected under the same "
-             "guard hold as the tail, so the two halves are two views of one moment, and sent "
-             "after the tail — right-to-left, the patcher's outlet order. An empty head — a "
-             "split at 0, or an empty array — says nothing at all.",
+             "The elements before the split position, sent after the right half. Nothing is "
+             "sent when this half is empty.",
              "");
   OUTLET_DOC(1, "tail",
-             "The elements at and after the split position, as the list they spell — the "
-             "element at the position goes here, .zl slice's rule. Sent before the head — "
-             "right-to-left, the patcher's outlet order. An empty tail — a split at or past "
-             "the array's length, or an empty array — says nothing at all, which is what lets "
-             "a recursive head/tail patch terminate by absence.",
+             "The elements from the split position on, sent first. Nothing is sent when this "
+             "half is empty.",
              "");
   PARAM_DOC("name", "", kNameParamDoc, "any identifier");
   PARAM_DOC("position", "0",
-            "The initial stored split position — where the cut falls before any int has moved "
-            "it. A boundary, not an element position: how many elements the head takes.",
+            "The split position before one arrives on the middle inlet: the number of elements "
+            "in the left half.",
             "0-256");
 }
 

@@ -13,27 +13,14 @@ namespace {
   // them inline — gArray's arrangement. What differs per object stays with
   // that object below.
   constexpr char kTriggerInletDoc[] =
-      "A bang asks for the conversion — every element in order, collected under one hold of the "
-      "store's guard and sent after it is released, so the answer is the array as it stood at "
-      "the trigger. \"array <name>\" does the same when it names the array bound by the creation "
-      "argument — the message an .array's reference outlet emits on a bang, the family's "
-      "gesture. A reference naming anything else, or any other message, is refused and counted "
-      "rather than logged, since this inlet may be the audio thread.";
+      "Bang, or the bound array's reference \"array <name>\": send the converted array.";
   constexpr char kReferenceInletDoc[] =
-      "\"array <name>\" is accepted silently when it names the array bound by the creation "
-      "argument, so a patch may wire the array's reference outlet across. It sets nothing — the "
-      "binding is the creation argument, resolved on the control thread — and anything else is "
-      "refused and counted.";
-  constexpr char kEmptyOutletDoc[] =
-      "Bang when the array holds nothing to convert — an empty or unnamed (private) array. \"No "
-      "data\" is a state a patch must be able to route on, not an error. A lost try-lock is a "
-      "counted refusal instead: the array's state is unknown, so neither outlet fires.";
+      "Accepts the bound array's reference \"array <name>\" and ignores it, so the array's "
+      "reference outlet can be wired here. Anything else is refused.";
+  constexpr char kEmptyOutletDoc[] = "Bang when the array is empty.";
   constexpr char kNameParamDoc[] =
-      "The array's shared name, addressed as \"patcher.<patcherName>.<name>\" — the sequence an "
-      ".array "
-      "of the same name in this patcher holds. Resolved once, on the control thread, which is "
-      "why no message re-points it at run time. Empty reads a private, empty array: every ask "
-      "bangs the empty outlet.";
+      "Name of the array to use: the .array with this name in the same patcher. Empty uses a "
+      "private, empty array.";
 
 } // namespace
 
@@ -122,27 +109,14 @@ void gArrayConvertBase::Ask(YSE::THREAD thread) {
 
 gArrayToList::gArrayToList() : gArrayConvertBase(true) {
   ADD_DESCRIPTION(
-      "Outputs an array as a list — Max's array.tolist on the name-addressed value model .array "
-      "settled: the array is bound from the creation argument, \".array.tolist <name>\", because "
-      "an array is addressed by name and never passed down a cord. A bang sends every element in "
-      "order as the message the array spells, typed the way the patcher spells it — an array of "
-      "one element sends that element as the int, float or symbol it is rather than as a list of "
-      "one, and several elements leave as one list message. The elements are collected under one "
-      "hold of the store's guard and sent after it is released, so the answer is the array as it "
-      "stood at the trigger; an empty or unnamed (private) array bangs the empty outlet instead. "
-      "An array whose elements together outrun what a cord carries loses its tail, every lost "
-      "element a counted refusal — .array's own getvalue rule, and this object is exactly that "
-      "message's patching form: it takes a reference, acts on a bang, and reports through "
-      "outlets of its own.");
+      "Outputs all elements of a named array as one list. An array of one element sends that "
+      "element as a single int, float or symbol.");
   ADD_CATEGORY(pCategory::ARRAY);
   INLET_DOC(0, "trigger", kTriggerInletDoc, "");
   INLET_DOC(1, "array reference", kReferenceInletDoc, "");
   OUTLET_DOC(0, "list",
-             "The array as the message it spells, typed: one element leaves as the int, float "
-             "or symbol its spelling reads as, several as one space-separated list message — "
-             "lossless into another .array by the store's one-atom-per-element rule. A longer "
-             "array than a cord carries loses its tail, every lost element a counted refusal. "
-             "Silent on an empty array: the empty outlet carries that half of the answer.",
+             "The elements in order, as a list; a single element leaves as an int, float or "
+             "symbol. Items past what a list can hold are dropped.",
              "");
   OUTLET_DOC(1, "empty", kEmptyOutletDoc, "");
   PARAM_DOC("name", "", kNameParamDoc, "any identifier");
@@ -170,29 +144,14 @@ void gArrayToList::Deliver(std::size_t lost, YSE::THREAD thread) {
 
 gArrayToString::gArrayToString() : gArrayConvertBase(false) {
   ADD_DESCRIPTION(
-      "Outputs an array as a string — Max's array.tostring on the name-addressed value model "
-      ".array settled: the array is bound from the creation argument, \".array.tostring "
-      "<name>\", because an array is addressed by name and never passed down a cord. This "
-      "patcher has no atom types — a message is text, and the serialized form of an array IS "
-      "its list text, an array and the list it spells being the same thing seen twice — so the "
-      "one honest reading of \"a string\" is the same space-separated characters .array.tolist "
-      "renders, sent always as text and never retyped: where .array.tolist's single numeric "
-      "element leaves as the int it is, this object's leaves as the characters that spell it, "
-      "which is what .sprintf, .substitute, .textedit and everything else that works on text "
-      "wants — .tosymbol's own send discipline, applied to an array. Collected under one hold "
-      "of the store's guard, sent after release; an empty or unnamed (private) array bangs the "
-      "empty outlet, and a longer array than a cord carries loses its tail, every lost element "
-      "a counted refusal — getvalue's rule.");
+      "Outputs all elements of a named array as one text message, separated by spaces. Unlike "
+      ".array.tolist, a single number is sent as text, ready for objects that work on text.");
   ADD_CATEGORY(pCategory::ARRAY);
   INLET_DOC(0, "trigger", kTriggerInletDoc, "");
   INLET_DOC(1, "array reference", kReferenceInletDoc, "");
   OUTLET_DOC(0, "string",
-             "The array as the characters it spells: every element in order, a single space "
-             "between each pair, always as text — a single numeric element leaves as the text "
-             "that spells it, never retyped to the int or float it reads as, because a string "
-             "is characters, not a value. A longer array than a cord carries loses its tail, "
-             "every lost element a counted refusal. Silent on an empty array: the empty outlet "
-             "carries that half of the answer.",
+             "The elements in order, separated by spaces, always as text. Items past what a "
+             "list can hold are dropped.",
              "");
   OUTLET_DOC(1, "empty", kEmptyOutletDoc, "");
   PARAM_DOC("name", "", kNameParamDoc, "any identifier");
@@ -220,30 +179,14 @@ void gArrayToString::Deliver(std::size_t lost, YSE::THREAD thread) {
 
 gArrayToSymbol::gArrayToSymbol() : gArrayConvertBase(false) {
   ADD_DESCRIPTION(
-      "Outputs an array as a single symbol — Max's array.tosymbol on the name-addressed value "
-      "model .array settled: the array is bound from the creation argument, \".array.tosymbol "
-      "<name>\", because an array is addressed by name and never passed down a cord. The only "
-      "reading of \"a single symbol\" this patcher can represent is a message that is a single "
-      "whitespace-free token — .tosymbol's rule, inherited whole — so the elements leave butted "
-      "together into one token: \"kick .wav\" becomes kick.wav, which is the file-name use the "
-      "issue names, and the token goes wherever a name goes — a .s, a .route, a .forward. Never "
-      "retyped: a symbol is a name, so \"1 2\" collapses to the characters 12, where "
-      ".array.join's empty-separator default deliberately leaves the int 12 — .array.join is "
-      "the object with a separator, and space-separated text is .array.tostring's answer. "
-      "Collected under one hold of the store's guard, sent after release; an empty or unnamed "
-      "(private) array bangs the empty outlet. A result that cannot leave whole is refused "
-      "whole and counted — a token that lost elements is a different name, so getvalue's "
-      "tail-loss rule deliberately does not apply here, .array.join's whole-reply rule instead.");
+      "Joins all elements of a named array, without spaces, into one symbol: kick and .wav "
+      "become kick.wav. The result is always a symbol, even when it looks like a number.");
   ADD_CATEGORY(pCategory::ARRAY);
   INLET_DOC(0, "trigger", kTriggerInletDoc, "");
   INLET_DOC(1, "array reference", kReferenceInletDoc, "");
   OUTLET_DOC(0, "symbol",
-             "The elements butted together into one whitespace-free token, always as text — "
-             "never retyped to the number the collapsed characters may spell, because a symbol "
-             "is a name, not a value. A single-element array answers that element's characters "
-             "alone. An array whose collected elements outrun what a cord carries is refused "
-             "whole and counted — a partial token would be a different name. Silent on an "
-             "empty array: the empty outlet carries that half of the answer.",
+             "The elements joined into one word, always a symbol. Nothing is sent when the "
+             "array is too long to fit in one message.",
              "");
   OUTLET_DOC(1, "empty", kEmptyOutletDoc, "");
   PARAM_DOC("name", "", kNameParamDoc, "any identifier");

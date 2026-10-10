@@ -14,22 +14,11 @@ namespace {
   // the constructor stops being readable with them inline — gArray's
   // arrangement.
   constexpr char kTriggerInletDoc[] =
-      "A bang emits the array's length — store->count as it stood at the trigger — as one int "
-      "out the length outlet. \"array <name>\" does the same when it names the array bound by "
-      "the creation argument — the message an .array's reference outlet emits on a bang, so "
-      "wiring that outlet here gives the family's gesture: bang the array, out comes its "
-      "length. A reference naming anything else, or any other message, is refused and counted "
-      "rather than logged, since this inlet may be the audio thread.";
+      "Bang, or the bound array's reference \"array <name>\": send the array's length.";
   constexpr char kReferenceInletDoc[] =
-      "\"array <name>\" is accepted silently when it names the array bound by the creation "
-      "argument, so a patch may wire the array's reference outlet across. It sets nothing — "
-      "the binding is the creation argument, resolved on the control thread — and anything "
-      "else is refused and counted.";
-  constexpr char kLengthDoc[] =
-      "The length: how many elements the array held at the moment the trigger arrived, read "
-      "under one hold of the store's guard. An empty array answers 0, and so does an unnamed "
-      "(private) one — zero is a length, not a miss, which is why there is no miss outlet. "
-      "Emitted only when asked, never on a write to the array.";
+      "Accepts the bound array's reference \"array <name>\" and ignores it, so the array's "
+      "reference outlet can be wired here. Anything else is refused.";
+  constexpr char kLengthDoc[] = "The number of elements in the array; 0 when it is empty.";
 
 } // namespace
 
@@ -57,28 +46,15 @@ CONSTRUCT() {
   // as soon as there is both a name and a patcher to prefix it with.
   Rebind();
 
-  ADD_DESCRIPTION(
-      "Outputs an array's length — Max's array.length on the name-addressed value model "
-      ".array settled: the array is bound from the creation argument, \".array.length "
-      "<name>\", because an array is addressed by name and never passed down a cord. A bang "
-      "emits the length as one int — store->count as it stood at the trigger — and the "
-      "message an .array's reference outlet emits on a bang does the same, so wiring that "
-      "outlet here gives the family's gesture: bang the array, out comes its length. An empty "
-      "array answers 0, and so does an unnamed one; zero is a length, not a miss, so there is "
-      "no miss outlet. The length leaves only when asked, never on a write to the array — "
-      "the number every .uzi-driven walk over an array needs before it can start, and the one "
-      ".zl len gives for a list.");
+  ADD_DESCRIPTION("Outputs the number of elements in a named array when it receives a bang.");
   ADD_CATEGORY(pCategory::ARRAY);
   INLET_DOC(0, "trigger", kTriggerInletDoc, "");
   INLET_DOC(1, "array reference", kReferenceInletDoc, "");
   OUTLET_DOC(0, "length", kLengthDoc, "0-256");
-  PARAM_DOC(
-      "name", "",
-      "The array's shared name, addressed as \"patcher.<patcherName>.<name>\" — the sequence an "
-      ".array of the same name in this patcher holds. Resolved once, on the control "
-      "thread, which is why no message re-points it at run time. Empty reads a private, "
-      "empty array: every ask answers 0.",
-      "any identifier");
+  PARAM_DOC("name", "",
+            "Name of the array to measure: the .array with this name in the same patcher. "
+            "Empty uses a private, empty array.",
+            "any identifier");
 }
 
 // A re-parse must not leave half of the previous configuration standing:

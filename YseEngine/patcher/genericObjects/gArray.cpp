@@ -103,26 +103,16 @@ namespace {
   // Doc strings, hoisted out of CONSTRUCT() because they are long enough that
   // the constructor stops being readable with them inline — .coll's arrangement.
   constexpr char kInletDoc[] =
-      "\"append <value...>\" adds elements at the end and \"insert <index> <value...>\" adds them "
-      "at a position; \"set <index> <value>\" replaces one; \"get <index>\" fetches one out outlet "
-      "0 or bangs outlet 2 when the index names no element; \"delete <index>\" removes one and "
-      "closes the gap; \"clear\" empties the array; \"getsize\" reports the length and "
-      "\"getvalue\" the whole array as list text, both out outlet 0. A bang emits this array's "
-      "reference out outlet 1. Every element is one atom, so \"append 0 4 7\" adds three elements. "
-      "Anything refused — an unknown message, an index out of range or negative, an element past "
-      "64 characters, or a push onto a full array — is counted rather than logged, since this "
-      "inlet may be the audio thread.";
+      "append, insert, set, get, delete, clear, getsize or getvalue (see the notes). A bang sends "
+      "the array's reference out of outlet 1. A refused message changes nothing.";
   constexpr char kDataDoc[] =
-      "The element fetched by \"get\", typed the way the patcher spells it: a numeric element "
-      "leaves as an int or a float by its spelling and anything else as a symbol. Also the int "
-      "\"getsize\" reports and the list \"getvalue\" reports.";
+      "The element \"get\" fetched, the length \"getsize\" reports, or the whole array for "
+      "\"getvalue\". Numbers leave as an int or a float by their spelling, anything else as a "
+      "symbol.";
   constexpr char kReferenceDoc[] =
-      "\"array <name>\" on a bang — the reference the array.* family binds. It carries the *local* "
-      "name, because the object receiving it prefixes that with its own patcher's name exactly as "
-      "this one does. Silent for an unnamed array, which has no name to pass on.";
-  constexpr char kMissDoc[] =
-      "Bang when a \"get\" names an index the array does not have — the miss, kept off outlet 0 so "
-      "a patch can tell \"no such element\" from an element it received.";
+      "\"array <name>\" on a bang: the reference the other .array objects accept. Nothing is sent "
+      "when the array has no name.";
+  constexpr char kMissDoc[] = "Bang when \"get\" names an index the array does not have.";
 
 } // namespace
 
@@ -239,30 +229,19 @@ CONSTRUCT() {
   AtomList::ReserveRender(emitScratch);
 
   ADD_DESCRIPTION(
-      "An ordered, index-addressed sequence shared by name — Max's array. Every element is one "
-      "atom, so an array and the list text it spells are the same thing seen twice: \"append 0 4 "
-      "7\" adds three elements and \"getvalue\" sends them back as the list \"0 4 7\". The array "
-      "is addressed as \"patcher.<patcherName>.<name>\", the same address form .s, .r, .value, "
-      ".coll and "
-      ".dict use, so every .array of one name shares one sequence and two patchers given one name "
-      "share theirs. A bang emits \"array <name>\" out outlet 1 — the reference the array.* family "
-      "binds. Arrays are addressed by name rather than passed down a cord: an outlet carries a "
-      "value, never an identity, so the name is what travels and the store is resolved once, on "
-      "the control thread. Indices are zero-based and an index out of range is refused rather than "
-      "wrapped or clamped. An unnamed .array keeps a sequence of its own.");
+      "An ordered list of values, shared by every .array with the same name in a patcher. "
+      "Messages add, change, fetch and remove elements by zero-based index; a bang sends the "
+      "array's reference, which the other .array objects accept.");
   ADD_CATEGORY(pCategory::ARRAY);
   INLET_DOC(0, "in", kInletDoc, "at most 256 elements");
   OUTLET_DOC(0, "data", kDataDoc, "");
   OUTLET_DOC(1, "reference", kReferenceDoc, "");
   OUTLET_DOC(2, "miss", kMissDoc, "");
-  PARAM_DOC(
-      "name", "",
-      "Max's shared context: all .array objects of this name share their contents, through a "
-      "store addressed as \"patcher.<patcherName>.<name>\". Empty gives this object a sequence of "
-      "its own rather than pooling it with every other unnamed .array in the patcher. The "
-      "name is resolved once, on the control thread, which is why there is no message that "
-      "re-points an .array at another name at run time.",
-      "any identifier");
+  PARAM_DOC("name", "",
+            "The shared name: every .array with this name in the patcher uses the same "
+            "contents. Fixed when the object is created. Empty gives this object a private "
+            "array.",
+            "any identifier");
 }
 
 // A re-parse must not leave half of the previous configuration standing:
