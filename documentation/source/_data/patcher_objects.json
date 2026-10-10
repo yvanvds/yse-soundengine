@@ -4760,7 +4760,7 @@
   },
   ".bline": {
     "category": "TIME",
-    "description": "Ramps a control value toward a target one step per bang, so the patch supplies the timebase. Max's bline, 'generates a linear ramp driven by incoming bang messages. It takes a list of breakpoint segments (and the number of events to span) and outputs a smooth ramp between values.' It is .line with the clock taken out: where .line emits a value every grain milliseconds of its own accord, this one emits a value each time it is banged and never otherwise, which is what a ramp needs when its step rate is not wall-clock time — locked to a .metro that a .tempo is bending, one value per note of a .seq, one value per frame of a render loop that takes as long as it takes. A breakpoint pair therefore counts bangs where .line's counts milliseconds: Max's 'an integer that specifies the number of bang messages that will have to be received before reaching the target value', so the list '1 10 0 10' climbs to 1 over ten bangs and comes back down over the next ten, banging the right outlet on the twentieth. Everything else is .line's and identical: four or more numbers are breakpoint pairs with an odd trailing element ignored, a three-element list is one pair with the third number ignored (there being no grain to set), each segment starts from the value the object currently stands at so there are no discontinuities, and a number arriving mid-ramp clears every segment still to come. The list holds 64 segments and reads 129 numbers, which is Max's maxpoints default; anything longer keeps its head, loses its tail and counts the refusal rather than allocating on the thread the message arrived on. A bare number is Max's 'the time is considered 0 and bline outputs the target value when it receives a bang' — one bang's worth of segment, landing on the target exactly — so nothing this object emits ever comes out on anything but a bang. 'stop' freezes it where it stands and forgets the queue without banging, and 'set <number>' moves the stored value silently and stops a ramp in progress, which is the one place this reads Max's page apart from itself: his set and int carry the same sentence, and telling them apart the way line does is what leaves a way to move the starting point without arming an output. Max's pause and resume are not here, bline having neither — on an object clocked by the patch, not banging it is the pause. The output is an int or a float by Max's rule: the creation argument's spelling makes the object one or the other, and an int object emits floats for a segment shorter than one unit whose steps are smaller than 0.4, which is his floatoutput 'auto' default. No scheduler, no timer and no clock are involved at any point, so a value comes out on the calling thread inside the caller's own dispatch frame; Calculate() does nothing and no message path allocates, locks or blocks.",
+    "description": "Ramps a number to a target one step per bang, so whatever bangs it sets the pace. A list of target/count pairs makes a ramp of several segments; the right outlet bangs when the last target is reached.",
     "inlets": [
       {
         "accepts": [
@@ -4769,7 +4769,7 @@
           "BANG",
           "LIST"
         ],
-        "doc": "The only inlet: the bang that advances the ramp, the numbers that define it, and the two message words. A bang emits the next step out the left outlet — Max's 'sends a new step in the breakpoint list out the left outlet' — and, on the step that reaches the last target, bangs the right outlet too; a bang with no ramp running does nothing at all. A list of two numbers is a target and the number of bangs to reach it over; four or more are breakpoint target/bangs pairs travelled one after another, with an odd trailing element ignored, and three are read as one pair with the third number ignored since there is no grain here to set. An int or a float is a target with no count, which Max makes 'the time is considered 0 and bline outputs the target value when it receives a bang': it is reached whole on the next bang rather than the moment it arrives. Whatever arrives clears the segments still queued and starts from the value the object stands at now, so a ramp redirected mid-flight has no jump in it. The word 'stop' freezes the ramp where it is and forgets the queue, without a bang on the right outlet; 'set' followed by a number moves the stored value silently, stops a ramp in progress and arms nothing, so the next bang emits nothing either. A count of zero or less is one bang, every segment costing at least the bang that travels it, and a fractional count arrives on the first bang at or past the target.",
+        "doc": "A bang sends the next step. A target, '<target> <bangs>', or target/bangs pairs set the ramp. 'stop' and 'set <value>' control it.",
         "index": 0,
         "label": "in",
         "range": "any"
@@ -4779,14 +4779,14 @@
     "name": ".bline",
     "outlets": [
       {
-        "doc": "The ramp, one value per bang from where the object stood to the target, ending on the target exactly. An int or a float by Max's typing rule: the object is a float one when its creation argument was spelled as a float, and an int object still emits floats for a segment that covers one unit or less in steps smaller than 0.4, since a ramp from 0 to 1 in ints is not a ramp.",
+        "doc": "The ramp, one value per bang, ending exactly on the target. An int or a float, as on .line.",
         "index": 0,
         "label": "out",
         "range": "any number",
         "type": "ANY"
       },
       {
-        "doc": "A bang the moment the last segment reaches its target — Max's 'when line has arrived at its target value, bang is sent out'. It is what chains ramps together: wire it to whatever should start once this one has finished. A ramp cut short by 'stop' does not bang, not having arrived; a target sent with no time does, having arrived immediately.",
+        "doc": "A bang when the last target is reached. A ramp cut short by 'stop' sends none.",
         "index": 1,
         "label": "done",
         "range": "",
@@ -4796,7 +4796,7 @@
     "params": [
       {
         "default": "0",
-        "doc": "The value the object starts at, and — by its spelling — the output type, which is Max's 'an argument may be used to set the initial value to be stored and the output type for the object: if the first argument is an int, the bline object outputs integer values, and a float will set the bline object to output floating point values'. An argument written as a float ('0.', '1.5') makes a float object that always emits floats; one written as an int, or no argument at all, makes an int object. An argument that is not a number leaves both at that default. The stored value moves as the object ramps and with every 'set'; it is run-time state and is not saved.",
+        "doc": "The starting value. Written as a float ('0.') it makes the object send floats.",
         "name": "initial",
         "range": "any number"
       }
@@ -5308,7 +5308,7 @@
   },
   ".clocker": {
     "category": "TIME",
-    "description": "Elapsed-time reporter — Max's clocker, 'a metronome that reports the time elapsed since it was started' (issues #505 and #725). Where '.metro' bangs at an interval, this sends a number, and the number is how long the run has been going. That is what takes an object out of the patch: an envelope, a ramp or a progress readout driven by a '.metro' needs a '.counter' behind it to turn ticks into a position, and that counter is wrong the moment a tick is late or dropped. The elapsed time here is measured rather than counted — each report reads the engine's monotonic clock (std::chrono::steady_clock, the same source the patcher's timer thread schedules on and the same one the engine times its own ticks with) and subtracts the instant the run started, so an OS timer that wakes late reports the time it really arrived at and the run never drifts. A non-zero int or float in the left inlet starts it and 0 stops it, 'stop' is Max's word for the same, and a bang starts a stopped clocker or resets a running one's count — Max gives bang a rule of its own here, so unlike '.metro' it is not the same method as int: a bang moves the baseline and leaves the tick alone, where a non-zero int re-starts the run and re-phases the tick with it. The message 'reset' spells that reset out. The right inlet sets the interval in milliseconds (5 by default, as in Max), or tempo-relative as a note value or a tick count, and retimes a running clocker without re-phasing it. Since issue #725 'clock <name>' binds a YSE domain clock — Max's own method, setclock naming the objects a 'clock' message controls — and the object then answers the question a millisecond clocker never had to: whether 'elapsed' is milliseconds or beats. It is both, spelled by two outlets, which is what '.timer' does with the same question: the first outlet is always milliseconds, so binding a clock changes no patch's meaning, and the second carries the beats the clock has moved since the run started. The two are genuinely two measurements — a domain that ramps or pauses makes them diverge, and neither could be got by dividing the other by a BPM figure. A beat run is on the clock's grid, its index read off the beat position rather than counted from the wakeups that deliver it, and a wakeup that covered several grid points reports once: this object's number is the time now, and copies of one reading are not the reports that were missed. It never creates a clock and never destroys one — '.transport' is the sole creator (issue #513) — so a name nothing has claimed simply has no beats until something claims it. quantize, autostart, autostarttime, defer and bars.beats.units stay out. Calculate() does nothing, and no message or delivery path allocates, locks or blocks when it turns out to be running on the audio callback: the millisecond timer is armed and disarmed through timerBridge, which takes a wait-free request there and does the locking work on the background pool, binding and arming are wait-free, reading a beat is two acquire loads, and the command words are matched against the message in place.",
+    "description": "While running, sends the time since it was started, in milliseconds, every interval (5 ms by default). With a clock bound, a second outlet sends the beats that clock has moved in the same time.",
     "inlets": [
       {
         "accepts": [
@@ -5317,7 +5317,7 @@
           "BANG",
           "LIST"
         ],
-        "doc": "Starts and stops the clocker, and carries its three messages. Max: 'any non-zero number starts the clocker object. The time elapsed since clocker was started is sent out the outlet at regular intervals. 0 stops the clocker object.' A float does the same — Max's 'same as int' — and is compared against zero rather than cast, so 0.5 starts it where a cast to int would stop it. The message 'stop' is 0 under Max's own name. A bang is deliberately not the same method: Max gives it a rule of its own — 'if the clocker object is not running, a bang message will start the count. If the clocker object is running, a bang message will reset the count' — so a bang into a running clocker moves the baseline and leaves the tick where it is, where a non-zero int re-starts the run and re-phases the tick with it. The message 'reset' is that same reset spelled out: Max's 'resets the elapsed time to 0 without stopping or restarting the clock; clocker continues to report the new elapsed time at the same regular interval'. It does nothing while the clocker is stopped, Max's 'meaningless when the clocker is not running, since it always resets to 0 anyway when stopped'. 'clock <name>' names the YSE domain clock the beats are counted on — the same message '.metro', '.timepoint' and '.tempo' take — and a bare 'clock' gives the millisecond clock back, Max's 'sets the object back to using Max's regular millisecond clock'. Binding a clock never starts or stops anything, and never changes the unit of a run already going: which engine a run uses is settled at the toggle. Everything else does nothing, deliberately, rather than being read as some command it is not.",
+        "doc": "A non-zero number starts or restarts the clocker; 0 or 'stop' stops it. A bang starts a stopped clocker and resets a running one to 0, as 'reset' does. 'clock <name>' sets the clock for the beats outlet and a beat interval.",
         "index": 0,
         "label": "on/off",
         "range": "0 or 1, bang, 'stop', 'reset', 'clock <name>'"
@@ -5328,7 +5328,7 @@
           "INT",
           "LIST"
         ],
-        "doc": "Sets the reporting interval, in milliseconds or in beats. A plain number is Max's milliseconds — the 'interval' attribute and the object's first creation argument — and an int, a float or a list with a leading number all set it. A note value ('4n', '4nd', '8nt') or a tick count ('1440 ticks') sets it in beats instead, counted on the domain clock a 'clock <name>' message names, and any plain number afterwards puts it back on milliseconds: Max's 'the number is the time interval, in milliseconds' is a statement about the unit. The tempo-relative form is read before the plain number, which is what stops '1440 ticks' from silently becoming 1440 milliseconds — a value wrong by whatever the tempo is, and looking like it worked. Setting the interval under a running clocker retimes without re-phasing, so the elapsed time the next report carries follows on from the last rather than jumping: the numbers are measured from the start of the run and nothing here moves that. A tempo-relative interval reaches a beat run by rebasing its grid at the current beat, keeping the phase; a millisecond one reaches a beat run only at the next start, the unit of a run being fixed at the toggle. bars.beats.units is not read at all — a bar needs a meter, and a domain clock is a bare beat accumulator.",
+        "doc": "Sets the reporting interval, in milliseconds or as a beat time. A running clocker keeps going at the new interval without restarting.",
         "index": 1,
         "label": "interval",
         "range": "1+ ms, or a note value / tick count"
@@ -5338,14 +5338,14 @@
     "name": ".clocker",
     "outlets": [
       {
-        "doc": "The elapsed time in milliseconds, sent once per interval while the clocker runs. It is *measured* rather than counted: each report reads the engine's monotonic clock and subtracts the instant the run started, so a tick the OS delivered late reports the time it actually arrived at and the run never drifts away from real time. Multiplying a tick count by the interval — the obvious implementation — would report the nominal time forever and diverge a little further on every tick. This outlet carries milliseconds whether or not a clock is bound, so binding one never changes what a patch downstream is reading; the beats are a second outlet rather than a second meaning for this one. Nothing is sent while the clocker is stopped, and the first report comes one interval after the start rather than immediately: Max documents an immediate output for 'metro' and documents none here.",
+        "doc": "The time since the start, in whole milliseconds, once per interval while running.",
         "index": 0,
         "label": "elapsed",
         "range": "0+ ms",
         "type": "INT"
       },
       {
-        "doc": "The same elapsed time in beats of the bound domain clock — issue #725's answer to what a '.clocker' on a clock reports, and the same two-outlet answer '.timer' gives (#506). The clock's beat position is read at the start of the run and at each report and subtracted, so a tempo change, a ramp or a pause is accounted for exactly; this is emphatically not the millisecond figure divided by a BPM number, and the two outlets are not two spellings of one value — on a domain that pauses, the milliseconds keep rising and the beats hold, and that difference is the information. Sent before the milliseconds, Max's outlets firing right to left. Nothing at all is emitted when there is no beat to report: no 'clock <name>' message, a clock nothing has created, or a standalone object with no patcher to bind through. A run that began before its clock existed starts measuring at the first report that finds one.",
+        "doc": "The beats the bound clock has moved since the start, sent just before the milliseconds. Silent without a clock.",
         "index": 1,
         "label": "beats",
         "range": "0+ beats",
@@ -5355,13 +5355,13 @@
     "params": [
       {
         "default": "5",
-        "doc": "The reporting interval in milliseconds — Max's 'interval' attribute and the object's first creation argument, whose default Max documents as 5 ms. Floored at 1, which is the finest interval the patcher's millisecond timer keeps. Re-editing it while the clocker runs retimes the tick without re-phasing it, so the elapsed time carries on rather than jumping. Ignored while the tempo-relative interval below is set, and restored the moment a plain number clears that back to 0. Whether the clocker is running, how long it has been running, and which clock it is bound to are run-time state and are not saved.",
+        "doc": "The reporting interval in milliseconds, at least 1.",
         "name": "interval",
         "range": "1+ ms"
       },
       {
         "default": "0",
-        "doc": "The reporting interval in beats, for the tempo-relative unit issue #725 added, and the second creation argument. 0 means the interval is the millisecond one above, which is what a Max clocker always is; any positive value makes it a beat count on the domain clock a 'clock <name>' message names, and a note value or tick count in the right inlet overwrites it afterwards. A plain number in the right inlet clears it back to 0. A tempo-relative interval with no clock bound does not run at all, rather than falling back to a millisecond grid nobody asked for. Re-editing it while the clocker runs on a clock rebases the grid at the current beat, keeping the phase. The clock binding itself is run-time state and is not saved.",
+        "doc": "The reporting interval in beats on the bound clock. 0 uses the millisecond interval instead. A plain number in the right inlet sets it back to 0.",
         "name": "intervalbeats",
         "range": "0+ beats"
       }
@@ -5844,7 +5844,7 @@
   },
   ".delay": {
     "category": "TIME",
-    "description": "Delays a bang. A bang in the left inlet comes back out the outlet a settable number of milliseconds later, which is the patcher's most basic scheduling primitive: .metro can only repeat, and until this object there was no way to defer anything at all. Only one bang is held at a time — a new one cancels the pending one and restarts the wait, Max's 'the first bang is forgotten' — and 'stop' cancels it outright. A number in the left inlet sets the time and starts the wait; a number in the right inlet sets the time for the next bang only, leaving a bang already in flight alone. The wait runs on the patcher's deferred-message scheduler (issue #628) rather than on the timer thread behind .metro, so arming allocates nothing and takes no lock, and the released bang arrives inside the patcher's own dispatch as one fresh logical event rather than as an unrelated stimulus. That clock is the block counter, so it stops when the engine does and a paused patch holds a delayed bang where it stands, and its resolution is one audio block. A delay of 0 still defers to the next block rather than firing immediately, which is Max's behaviour and the reason a delay wired back into itself is a fast metronome instead of a stack overflow. Since issue #705 the delay may also be tempo-relative: a note value ('4n', '4nd', '8nt') or a tick count ('1440 ticks') sets it in beats, and 'clock <name>' names the YSE domain clock those beats are counted on — Max's own method, delay and metro being two of the objects setclock names explicitly — so the wait then follows that domain's tempo changes and ramps, stays in step with every clip on it, and holds where it stands when the domain pauses. A bare 'clock' goes back to Max's millisecond clock and any plain number goes back to milliseconds, so an object never sent a beat time is Max's object exactly. A beat time with no clock bound arms nothing, this patcher having no transport to measure a beat against, and bars.beats.units, quantize and transport stay out because all three need a meter a domain clock does not have. Calculate() does nothing and no message path allocates, locks or blocks.",
+    "description": "Sends a bang a set time after it receives one: 5 ms by default, or a beat time on a domain clock. It holds one bang at a time; a new bang restarts the wait and 'stop' cancels it.",
     "inlets": [
       {
         "accepts": [
@@ -5853,7 +5853,7 @@
           "BANG",
           "LIST"
         ],
-        "doc": "The bang inlet. A bang starts the wait: Max's 'a bang is delayed a certain number of milliseconds before being sent out the outlet'. Only one bang is held at a time — a second one cancels the first and restarts the wait, Max's 'if a bang is already in delay when a new bang is received in the left inlet, the first bang is forgotten'. An int or a float sets the delay time and then starts the wait, which is Max's own wording: the number 'is stored as the number of milliseconds to delay a bang received in the left inlet. It then automatically sends a bang message to itself to start the delay.' The message 'stop' cancels the held bang without sending it. A list whose first item is a number sets the time and starts the wait, the same as a bare number; Max's list method exists to carry its time-format syntax, and since issue #705 the tempo-relative half of that syntax is read here: a note value ('4n', '4nd', '8nt') or a tick count ('1440 ticks') sets the delay in beats on the domain clock named by 'clock <name>', which is Max's own method — 'the word clock, followed by the name of an existing setclock object, sets the delay object to be controlled by that setclock object rather than by Max's internal millisecond clock' — and a bare 'clock' takes the clock away again. Any plain number puts the object back on milliseconds. A beat time with no clock bound arms nothing and bangs nothing, there being no transport here to measure a beat against; send the 'clock' message and the next bang works. bars.beats.units stays out, needing a meter no domain clock has. Anything else does nothing.",
+        "doc": "A bang starts the wait, forgetting a bang already waiting. A number or a beat time sets the time and starts the wait. 'stop' cancels the waiting bang; 'clock <name>' sets the clock for beat times.",
         "index": 0,
         "label": "bang",
         "range": "bang, int, float, list, 'stop', 'clock <name>'"
@@ -5864,7 +5864,7 @@
           "INT",
           "LIST"
         ],
-        "doc": "Sets the delay time without starting anything. Max: 'a number received in the right inlet changes the delay time of the next bang received -- it does not modify the time of a bang currently being delayed', so a bang already waiting still leaves at the time it was armed with. Ints, floats and a list whose first item is a number all set it in milliseconds; a negative time counts as 0. A note value ('4nd') or a tick count ('1440 ticks') sets it in beats instead (issue #705), to be measured on the clock 'clock <name>' named in the left inlet. There is no bang method here, as there is none in Max.",
+        "doc": "Sets the time for the next bang, in milliseconds or as a beat time. A bang already waiting keeps its time.",
         "index": 1,
         "label": "time",
         "range": "0+ ms, or a note value / tick count"
@@ -5874,7 +5874,7 @@
     "name": ".delay",
     "outlets": [
       {
-        "doc": "The delayed bang, one audio block or more after the bang that caused it.",
+        "doc": "The delayed bang.",
         "index": 0,
         "label": "out",
         "range": "",
@@ -5884,13 +5884,13 @@
     "params": [
       {
         "default": "5",
-        "doc": "The initial delay in milliseconds — Max's creation argument. Max's reference page disagrees with itself here: its Arguments section says 'if there is no argument, the initial time interval is 5 milliseconds' while its Attributes table lists delaytime as defaulting to 0 ms. The argument prose wins, being the statement about this object's constructor rather than about the attribute's declared default. Either inlet overwrites it afterwards. A negative value counts as 0.",
+        "doc": "The delay in milliseconds. A negative value counts as 0.",
         "name": "delaytime",
         "range": "0+ ms"
       },
       {
         "default": "0",
-        "doc": "The initial delay in beats, for the tempo-relative unit issue #705 added. 0 means the delay is the millisecond one above, which is what a Max delay always is; any positive value makes it a beat count on the domain clock a 'clock <name>' message names, and a note value or tick count in either inlet overwrites it afterwards. A plain number in either inlet clears it back to 0, Max's 'the number is stored as the number of milliseconds'. The clock binding itself is run-time state and is not saved. A negative value counts as 0.",
+        "doc": "The delay in beats on the bound clock. 0 uses the millisecond delay instead. A plain number in either inlet sets it back to 0.",
         "name": "delaybeats",
         "range": "0+ beats"
       }
@@ -7684,7 +7684,7 @@
   },
   ".line": {
     "category": "TIME",
-    "description": "Ramps a control value toward a target over a given time, emitting a number every 'grain' milliseconds and banging the right outlet on arrival. Max's line, 'generate ramps and line segments from one value to another within a specified amount of time' — and the control-rate counterpart of the audio-rate ~line this patcher already had. The difference is the whole point: ~line writes a DSP buffer and can only be read by an audio inlet, so anything that is a number rather than a waveform — a .metro interval, a MIDI velocity, a mix weight, a filter cutoff behind a .mtof — needs this one. A number in the left inlet is the target, the middle inlet is how long to take getting there, and the right inlet is the grain. The ramp time is consumed by the target that uses it, which is Max's rule and the one that surprises people: 'if no time has been specified since the last target value, the time is considered 0 and line immediately outputs the target value', so a patch that wants every target ramped sends the pair as a list, 'target time'. A three-element list adds the grain, which unlike the time persists once set. Four or more numbers are a breakpoint function of target/time pairs — '1 1000 0 1000' climbs to 1 over a second and comes back down over the next — with an odd trailing element ignored, as in Max; each segment starts from the value the object currently stands at, so there are no discontinuities, and a new target arriving mid-ramp clears every segment still to come. The list holds 64 segments and reads 129 numbers, which is Max's maxpoints default; anything longer keeps its head, loses its tail and counts the refusal rather than allocating on the thread the message arrived on. Max's four words are all here on the left inlet: 'stop' freezes at the current value and forgets the queue without banging, 'pause' and 'resume' hold and release a ramp with its queue intact, and 'set <number>' moves the stored value silently and stops a ramp in progress. The output is an int or a float by Max's rule — the creation argument's spelling makes the object one or the other, and an int object emits floats for a segment shorter than one unit whose steps are smaller than 0.4, which is his floatoutput 'auto' default. The wait runs on the patcher's deferred-message scheduler (issue #628) rather than on the timer thread behind .metro, so arming a step allocates nothing and takes no lock, and every emitted value arrives inside the patcher's own dispatch as one logical event caused by the message that started the ramp. That clock is the block counter, so it stops when the engine does — a paused patch holds a ramp where it stands — and its resolution is one audio block, so a grain shorter than a block emits one value per block; a grain below Max's 1 ms minimum reads as his default 20. Each value is computed from the time elapsed since the segment began rather than accumulated step by step, and each step is armed at the absolute next grain boundary, so a late wakeup skips a value instead of running the ramp long and a segment lands on its target on time. Milliseconds are the only unit — a note value or tick count in a time inlet is refused rather than misread as milliseconds — and Max's 'clock' message, which would hand the object to a setclock, is not ported. Calculate() does nothing and no message path allocates, locks or blocks.",
+    "description": "Ramps a number to a target over a given time, sending a value every grain (20 ms by default) and a bang from the right outlet on arrival. A list of target/time pairs makes a ramp of several segments.",
     "inlets": [
       {
         "accepts": [
@@ -7692,7 +7692,7 @@
           "INT",
           "LIST"
         ],
-        "doc": "The target inlet, and where every message word goes. An int or a float is a target value, reached over whatever ramp time the middle inlet was last given — and immediately, Max's 'time is considered 0', when none has been set since the previous target. A list of two numbers is a target and its time; three adds the grain; four or more are breakpoint target/time pairs travelled one after another, with an odd trailing element ignored. Whatever arrives clears the segments still queued and starts from the value the object stands at now, so a ramp redirected mid-flight has no jump in it. The word 'stop' freezes the ramp where it is and forgets the queue, without a bang on the right outlet; 'pause' holds it with the queue intact and 'resume' travels what was left of the segment; 'set' followed by a number moves the stored value without emitting anything and stops a ramp in progress. There is no bang method — Max's line has none, and the bang-driven ramp is the sibling object .bline.",
+        "doc": "A target, '<target> <time> [<grain>]', or target/time pairs. 'stop', 'pause', 'resume' and 'set <value>' control the ramp.",
         "index": 0,
         "label": "in",
         "range": "any"
@@ -7703,7 +7703,7 @@
           "INT",
           "LIST"
         ],
-        "doc": "Sets how long the next target takes to reach, in milliseconds — Max's 'the number is the time, in milliseconds, in which to arrive at the target value'. It is consumed by the target that uses it and falls back to 0 afterwards, so a single time followed by two targets ramps to the first and jumps to the second; send 'target time' as a list in the left inlet to ramp every one. Ints, floats and a list whose leading token is a number all set it; a negative or NaN time counts as 0, which arrives immediately. Max's tempo-relative time syntax is not read here — this object has no clock to measure a beat against — so a note value ('4nd') or tick count ('1440 ticks') is refused rather than misread as the milliseconds it is not. A ramp already running keeps the time it started with; this reaches the next target.",
+        "doc": "The time in milliseconds the next target takes. It is used by one target only, then goes back to 0.",
         "index": 1,
         "label": "time",
         "range": "0+ ms"
@@ -7714,7 +7714,7 @@
           "INT",
           "LIST"
         ],
-        "doc": "Sets the interval at which intermediate values are sent out, in milliseconds — Max's 'the number is the interval at which intermediary numbers are regularly sent out'. Unlike the ramp time this persists: 'once grains are set in a list, they will override the default until manually reset'. Max's minimum is 1 ms and anything below it reads as his default of 20, which is also what an object with no second creation argument has. The block clock is the floor in practice — a grain shorter than one audio block emits one value per block — and a grain longer than the ramp itself still gives the arrival value, the last step being clamped to the end of the segment. Ints, floats and a list whose leading token is a number all set it; a note value or tick count is refused rather than misread as milliseconds. A segment already being travelled keeps the grain it began with.",
+        "doc": "The time in milliseconds between values. Below 1 it counts as 20. It stays set.",
         "index": 2,
         "label": "grain",
         "range": "1+ ms"
@@ -7724,14 +7724,14 @@
     "name": ".line",
     "outlets": [
       {
-        "doc": "The ramp, one value every grain milliseconds from where the object stood to the target, ending on the target exactly. An int or a float by Max's typing rule: the object is a float one when its creation argument was spelled as a float, and an int object still emits floats for a segment that covers one unit or less in steps smaller than 0.4, since a ramp from 0 to 1 in ints is not a ramp.",
+        "doc": "The ramp, one value per grain, ending exactly on the target. An int or a float: see the notes.",
         "index": 0,
         "label": "out",
         "range": "any number",
         "type": "ANY"
       },
       {
-        "doc": "A bang the moment the last segment reaches its target — Max's 'when line has arrived at its target value, bang is sent out'. It is what chains ramps together: wire it to whatever should start once this one has finished. A ramp cut short by 'stop' does not bang, not having arrived; a target sent with no time does, having arrived immediately.",
+        "doc": "A bang when the last target is reached. A ramp cut short by 'stop' sends none.",
         "index": 1,
         "label": "done",
         "range": "",
@@ -7741,13 +7741,13 @@
     "params": [
       {
         "default": "0",
-        "doc": "The value the object starts at, and — by its spelling — the output type, which is Max's 'an argument may be used to set the initial value to be stored in line and the output type for the object'. An argument written as a float ('0.', '1.5') makes a float object that always emits floats; one written as an int, or no argument at all, makes an int object, which is Max's 'if there is no argument, the initial value is 0 and the output type is int'. An argument that is not a number leaves both at that default. The stored value moves as the object ramps and with every 'set'; it is run-time state and is not saved.",
+        "doc": "The starting value. Written as a float ('0.') it makes the object send floats.",
         "name": "initial",
         "range": "any number"
       },
       {
         "default": "20",
-        "doc": "The initial grain in milliseconds — Max's second creation argument, whose documented default is 20: 'if the grain is not specified, line outputs a number every 20 milliseconds'. Max's minimum is 1 ms and 'any number less than 1 will be set to 20', which is applied here on every read, so a saved 0 behaves as 20 rather than as a value per block. The right inlet and a three-element list overwrite it afterwards.",
+        "doc": "The time in milliseconds between values. Below 1 it counts as 20.",
         "name": "grain",
         "range": "1+ ms"
       }
@@ -8282,7 +8282,7 @@
   },
   ".metro": {
     "category": "TIME",
-    "description": "Periodic bang generator. Once toggled on, emits a bang every 'period' milliseconds (and immediately on start). Toggle off to stop. All four of Max's left-inlet ways to do that are here since issue #711: a non-zero int or float starts it, 0 stops it, a bang starts it — re-phasing it if it was already running, which is how one button puts several metros in sync — and 'stop' stops it. Since issue #705 the interval may be tempo-relative instead: a note value ('4n', '4nd', '8nt') or a tick count ('1440 ticks') in the right inlet sets it in beats, and 'clock <name>' names the YSE domain clock those beats are counted on — Max's own method, setclock naming metro as one of the objects a 'clock' message controls. The metro then follows that domain's tempo changes and ramps, stays in step with every clip on it, and holds where it stands when the domain pauses. Any plain number puts it back on milliseconds and a bare 'clock' gives the millisecond clock back, so a metro never sent a beat interval is Max's object exactly. The bang count of a beat run is read off the clock's beat position rather than counted from the wakeups that deliver it, which is load-bearing rather than fastidious: a beat deadline is armed relative to the beat it was armed at but delivered at the first audio block boundary past it, so counting deliveries would drop that overshoot every bang and run the metro slow — and once the interval is shorter than a block it would cap at one bang per block however fast the domain ran. quantize, transport and bars.beats.units stay out, all three needing a meter a domain clock does not have. Calculate() does nothing, and since issue #718 no message or delivery path allocates, locks or blocks when it turns out to be running on the audio callback — the millisecond timer is armed and disarmed through timerBridge, which takes a wait-free request there and does the locking work on the background pool, while a toggle from any other thread still arms it inline and still stops it with the handshake that guarantees no further bang.",
+    "description": "Sends a bang at a regular interval while it runs, starting with one bang the moment it starts. The interval is in milliseconds (1000 by default) or a beat time on a domain clock.",
     "inlets": [
       {
         "accepts": [
@@ -8291,7 +8291,7 @@
           "BANG",
           "LIST"
         ],
-        "doc": "Non-zero int starts the metronome; 0 stops it. Max: 'any number other than 0 starts the metro object. At regular intervals, metro sends a bang out the outlet. 0 stops metro.' A float does the same — Max's 'performs the same function as int' — and is compared against zero rather than cast, so 0.5 starts the metro where a cast to int would stop it. A bang also starts it, Max's 'in left inlet: starts the metro object', and starts a metro that is already running by re-phasing it: Max Basic Tutorial 4 has 'when a metro receives a bang, the metro will re-start itself and begin scheduling subsequent bang messages from the moment we triggered it', which is how one button puts several metros in sync. The message 'stop' is int 0 under another name — Max's 'in left inlet: stops metro' (issue #711). The message 'clock <name>' names the YSE domain clock a tempo-relative interval is counted on and a bare 'clock' takes it away again, which is Max's own method for this object — setclock names metro explicitly as one of the objects a 'clock' message controls (issue #705). Whether a run uses that clock or the millisecond timer is decided when the metro is started, so a 'clock' message reaches the next start rather than the run in progress.",
+        "doc": "A non-zero number or a bang starts the metro (a bang restarts a running one from now); 0 or 'stop' stops it. 'clock <name>' sets the clock for a beat interval.",
         "index": 0,
         "label": "on/off",
         "range": "0 or 1, bang, 'stop', 'clock <name>'"
@@ -8302,7 +8302,7 @@
           "INT",
           "LIST"
         ],
-        "doc": "Sets the bang interval. An int or a float sets it in milliseconds — Max: 'the number is the time interval, in milliseconds, at which metro sends out a bang' — and retimes a running millisecond metro immediately, without restarting it. A list may carry one of Max's time formats instead, and since issue #705 the tempo-relative ones are read here: a note value ('4n', '4nd', '8nt') or a tick count ('1440 ticks') sets the interval in beats on the clock named by 'clock <name>', which retimes a running beat metro by rebasing the grid at the current beat, keeping the phase rather than re-triggering. Any plain number puts the interval back on milliseconds. bars.beats.units stays out, needing a meter no domain clock has. There is no bang, no toggle and no 'stop' here: Max documents all three as left-inlet methods, so a 'stop' arriving here is only a word that is not a time value, and does nothing.",
+        "doc": "Sets the interval, in milliseconds or as a beat time. A running metro keeps going at the new interval without restarting.",
         "index": 1,
         "label": "period",
         "range": "1+ ms, or a note value / tick count"
@@ -8312,7 +8312,7 @@
     "name": ".metro",
     "outlets": [
       {
-        "doc": "Periodic bang.",
+        "doc": "A bang on every tick, and one when the metro starts.",
         "index": 0,
         "label": "out",
         "range": "",
@@ -8322,13 +8322,13 @@
     "params": [
       {
         "default": "1000",
-        "doc": "Interval in milliseconds. Re-editing it while the metronome runs takes effect from the next bang.",
+        "doc": "The interval in milliseconds. A change reaches a running metro one tick later.",
         "name": "period",
         "range": "1+ ms"
       },
       {
         "default": "0",
-        "doc": "Interval in beats, for the tempo-relative unit issue #705 added. 0 means the interval is the millisecond one above, which is what a Max metro always is; any positive value makes it a beat count on the domain clock a 'clock <name>' message names, and a note value or tick count in the right inlet overwrites it afterwards. A plain number in the right inlet clears it back to 0. Re-editing it while the metronome runs on a clock rebases the grid at the current beat, keeping the phase. The clock binding itself is run-time state and is not saved.",
+        "doc": "The interval in beats on the bound clock. 0 uses the millisecond interval instead. A plain number in the right inlet sets it back to 0.",
         "name": "periodbeats",
         "range": "0+ beats"
       }
@@ -9766,7 +9766,7 @@
   },
   ".pipe": {
     "category": "TIME",
-    "description": "Delays numbers, lists and symbols. A value in the left inlet comes back out the outlet a settable number of milliseconds later, as the same kind of message it went in as. This is .delay for data, and the difference that matters is the queue: Max's delay holds one bang and 'the first bang is forgotten' when a second arrives, while a .pipe holds many values at once and each one keeps its own deadline. Ten numbers into a .pipe 500 are ten numbers out 500 ms later in the order they went in, which is what makes echoes, delayed parameter changes and every 'do this to that value in N ms' pattern one object instead of one .delay per value. A number in the right inlet sets the delay for values arriving after it and leaves values already waiting alone. 'clear' drops everything pending without sending it and 'flush' sends it all immediately in arrival order, which are Max's two commands. The wait runs on the patcher's deferred-message scheduler (issue #628) rather than on the timer thread behind .metro, so queueing a value allocates nothing and takes no lock, and a released value arrives inside the patcher's own dispatch as one fresh logical event rather than as an unrelated stimulus. That clock is the block counter, so it stops when the engine does and a paused patch holds every pending value where it stands, and its resolution is one audio block: a delay of 0 still defers to the next block rather than firing now, which is Max's behaviour and the reason a pipe wired back into itself is a fast delay line instead of a stack overflow. The pending set is bounded and pre-allocated at 64 values per object, each holding up to 256 characters of text, and beyond it sits the patcher-wide limit of 128 pending messages shared with .delay, .qlist, .mtr and .seq. A value that does not fit is dropped and counted rather than sent early or written to the log: sending it early would break the object's one guarantee at exactly the moment the patch is at its resource limit and would let a self-feeding delay line recurse on the audio thread, and logging would allocate on whichever thread the value arrived on, which is routinely the audio callback. The count is the report, and it is readable at any time. Unlike Max's pipe there is one data inlet rather than one per creation argument: a list is already a single value here and travels whole, so it is delayed whole and spread with .spray, .bondo or .route afterwards if a patch wants it spread. Milliseconds are the only unit — a note value or tick count in the time inlet is refused rather than misread as milliseconds, there being no clock here to measure a beat against. Calculate() does nothing and no message path allocates, locks or blocks.",
+    "description": "Delays ints, floats and lists by a set time (0 ms by default). It holds up to 64 values at once, and each one keeps the delay it arrived with.",
     "inlets": [
       {
         "accepts": [
@@ -9774,7 +9774,7 @@
           "INT",
           "LIST"
         ],
-        "doc": "The value inlet. An int, a float or a list arriving here is queued and comes back out the outlet a delay later, as the same kind of message it went in as — Max's 'pipe delays a number, list, or symbol by a specified amount of time'. Unlike .delay, values queue rather than replace each other: a second value does not cancel the first, so ten numbers in are ten numbers out, each one its own delay after it arrived. A list whose whole text is one number arrives as that number, an int or a float by its spelling, so a .m 5 reaches an int inlet downstream; anything else is carried whole as text. The message 'clear' drops every value waiting, sending none of them, and 'flush' sends them all immediately in the order they arrived — Max's two commands. Those two words are therefore commands rather than delayable text, as they are in Max. There is no bang method here, as Max's pipe has none. A value refused because the pending set is full is dropped and counted rather than sent early or logged; see the object description.",
+        "doc": "An int, float or list to delay; each value waits on its own. 'clear' drops every waiting value and 'flush' sends them all now.",
         "index": 0,
         "label": "value",
         "range": "int, float, list, 'clear', 'flush'"
@@ -9785,7 +9785,7 @@
           "INT",
           "LIST"
         ],
-        "doc": "Sets the delay in milliseconds for values arriving *after* it. Values already waiting keep the delay they were queued with, which is what makes the queue a queue rather than a set of deadlines that all move together. Ints, floats and a list whose leading token is a number all set it; a negative or NaN time counts as 0, which still defers by one audio block rather than sending immediately. Max's tempo-relative time syntax is not read here — this object has no clock to measure a beat against — and a note value ('4nd') or tick count ('1440 ticks') is refused outright rather than misread as the milliseconds it is not, leaving the delay where it was.",
+        "doc": "Sets the delay in milliseconds for values that arrive after it. Values already waiting keep their delay.",
         "index": 1,
         "label": "time",
         "range": "0+ ms"
@@ -9795,7 +9795,7 @@
     "name": ".pipe",
     "outlets": [
       {
-        "doc": "The delayed value, one audio block or more after the value that caused it.",
+        "doc": "Each value, unchanged, once its delay is up.",
         "index": 0,
         "label": "out",
         "range": "any",
@@ -9805,7 +9805,7 @@
     "params": [
       {
         "default": "0",
-        "doc": "The initial delay in milliseconds — Max's creation argument and its delaytime attribute, whose documented default is 0. A delay of 0 is not the same as no delay: the value still comes back on the next audio block, as its own event, which is what Max's pipe 0 is for. The right inlet overwrites it afterwards, for values arriving after that. A negative value counts as 0. Values pending when the parameter changes keep the delay they were queued with.",
+        "doc": "The delay in milliseconds. 0 still waits one audio block. A negative value counts as 0.",
         "name": "delaytime",
         "range": "0+ ms"
       }
@@ -10372,7 +10372,7 @@
   },
   ".qlim": {
     "category": "TIME",
-    "description": "Limits the rate of message throughput by **holding** what arrives too soon and sending it when the window opens. A message in the left inlet goes straight out the outlet if at least the interval has elapsed since the last one this object let out; if it has not, the message is kept and sent the moment the interval is up. What happens to a *second* message arriving while the first waits is Max's usurp attribute, and it is this object's one real switch. With 'usurp 1', the default, 'the most recently received message replaces any currently queued message', so what comes out of a burst is its *last* message, one interval after the previous output — which is what makes this the right object for anything whose value matters: a fader driving a filter cutoff ends up where the fader stopped rather than wherever the message that happened to fit the window left it. With 'usurp 0' (issue #728) 'all messages received will be sent out': the object becomes a queue and every message leaves in turn, one per window, which is the right shape when the messages are events rather than samples of one value — notes to space out, cues to pace, a burst to replay at a rate something downstream can take. Up to 32 messages may wait; a queue that is full drops the newest and counts it rather than growing or discarding history a patch is relying on. Its sibling .speedlim is the other answer and drops what arrives too soon instead — cheaper, since it never defers anything, and correct whenever a skipped message costs nothing. Everything passes through as the kind of message it went in as: a bang out for a bang in, an int for an int, text for text. A number in the right inlet sets the interval in milliseconds; 0, the Max default, is no limiting at all and every message passes straight through without ever being held. The first message after creation always passes, there being no previous output to measure against. The wait runs on the patcher's deferred-message scheduler (issue #628) rather than on the timer thread behind .metro, so holding a message allocates nothing and takes no lock, and the released message arrives inside the patcher's own dispatch as one fresh logical event rather than as an unrelated stimulus. However long the queue is it costs one slot of that patcher-wide scheduler, because the release re-arms itself rather than arming a deadline per message. That clock is the block counter, so it stops when the engine does — a paused patch holds the waiting message where it stands — and its resolution is one audio block. Since issue #728 the interval may instead be tempo-relative: a note value ('4n', '4nd', '8nt') or a tick count ('1440 ticks') in the right inlet sets it in beats on the YSE domain clock named by 'clock <name>' in the left inlet, and the wait then follows that domain's tempo changes and ramps. Max's other two time attributes came with it: 'threshold <time>' is his 'time threshold under which only one message may pass', a second window inside which a message is dropped outright rather than held — which is also what keeps a usurp 0 queue from filling on a flood — and 'quantize <time>' is his 'send output only on the specified time-boundary if appropriate', a beat grid the release lands on. Both default to 0, which is off. A beat time with no clock bound is inert rather than fatal, the window still opening, and bars.beats.units stays out because it needs a meter no domain clock has. A message that cannot be held — over-long text, a full queue, a full patcher-wide scheduler, or the narrow race with a delivery already in progress — is dropped and counted rather than sent early or written to the log. A standalone object outside any patcher has no clock at all and passes everything. Note that this is deliberately not a reproduction of Max's own speedlim/qlim split: Max documents this same holding behaviour for both names and separates them by scheduler priority — qlim being 'an interrupt safe replacement' for Jitter traffic — which a headless patcher with one dispatch model cannot express and which would leave the two objects identical. Issue #508 gives the two names the two overflow policies instead, and this one is Max's. Calculate() does nothing and no message path allocates, locks or blocks.",
+    "description": "Limits how often messages pass. A message that arrives before the interval since the last output is up is held and sent when it is up; a newer message replaces it, or with 'usurp 0' joins a queue.",
     "inlets": [
       {
         "accepts": [
@@ -10381,7 +10381,7 @@
           "BANG",
           "LIST"
         ],
-        "doc": "The message inlet. A bang, int, float or list arriving here goes straight out the outlet when the interval has elapsed since the last output, and is held until it has when it has not — Max's 'otherwise, the message is held until that amount of time has passed (or until it is overwritten by another incoming message)'. With usurp on, only the newest waiting message survives; a message replaced that way is not counted as dropped, that being usurp working rather than a refusal. With 'usurp 0' every message joins a queue and leaves in turn, one per window. A list whose whole text is one number is carried as that number, an int or a float by its spelling, so a .m 5 reaches an int inlet downstream; anything else is carried whole as text, up to 256 characters, beyond which it cannot be held and is refused. Four command words are matched here rather than carried (issue #728), which is where Max puts the same four as attribute messages: 'clock <name>' binds the domain clock a tempo-relative time is measured on and a bare 'clock' takes it away, 'threshold <time>' sets Max's threshold window, 'quantize <time>' sets the beat grid a release lands on ('quantize 0' clears it), and 'usurp 0' / 'usurp 1' choose between the queue and the replace. Everything else is data.",
+        "doc": "Any message, passed or held. 'clock <name>', 'threshold <time>', 'quantize <time>' and 'usurp <0|1>' are settings, not data.",
         "index": 0,
         "label": "in",
         "range": "bang, int, float, list, 'clock <name>', 'threshold <time>', 'quantize <time>'"
@@ -10392,7 +10392,7 @@
           "INT",
           "LIST"
         ],
-        "doc": "Sets the minimum time between outputs — Max's 'the number is stored as the minimum amount of time, in milliseconds, between successive outputs'. Ints, floats and a list whose leading token is a number all set it in milliseconds; a negative or NaN time counts as 0, which means no limiting at all rather than a one-block wait. Since issue #728 the interval may also be tempo-relative, Max's 'the time can be specified in milliseconds or using a tempo-relative interval': a note value ('4n', '4nd', '8nt') or a tick count ('1440 ticks') sets it in beats on the domain clock named by the left inlet's 'clock <name>' message, and any plain number puts it back on milliseconds — the unit travels with the value, which is Max's model. A beat interval with no clock bound limits nothing rather than closing the window for good; bind a clock and it starts limiting. bars.beats.units is not read, needing a meter no domain clock has. The new interval applies to the next message to arrive and is measured from the last output, so shortening it can open the window immediately. There is no bang method on this inlet.",
+        "doc": "Sets the minimum time between outputs, in milliseconds or as a beat time. 0 lets everything through.",
         "index": 1,
         "label": "interval",
         "range": "0+ ms, or a note value / tick count"
@@ -10402,7 +10402,7 @@
     "name": ".qlim",
     "outlets": [
       {
-        "doc": "The messages that got through, unchanged and as the kind of message they went in as. A held message arrives one interval after the previous output, inside the patcher's own dispatch.",
+        "doc": "The messages that got through, unchanged. A held message goes out one interval after the previous output.",
         "index": 0,
         "label": "out",
         "range": "any",
@@ -10412,37 +10412,37 @@
     "params": [
       {
         "default": "0",
-        "doc": "The initial minimum time between outputs in milliseconds — Max's creation argument, whose documented default is 0: 'if there is no argument, the minimum time is 0 milliseconds', which limits nothing and holds nothing. The right inlet overwrites it afterwards. A negative value counts as 0. A message already waiting keeps the deadline it was held with.",
+        "doc": "The minimum time between outputs in milliseconds. 0 lets everything through.",
         "name": "interval",
         "range": "0+ ms"
       },
       {
         "default": "0",
-        "doc": "The initial interval in beats, for the tempo-relative unit issue #728 added. 0 means the interval is the millisecond one above, which is what a Max limiter is until it is given a tempo-relative time; any positive value makes it a beat count on the domain clock a 'clock <name>' message names, and a note value or tick count in the right inlet overwrites it afterwards. A plain number in the right inlet clears it back to 0. A beat interval with no clock bound limits nothing, rather than closing the window for good the way an unmeasurable wait would. The clock binding itself is run-time state and is not saved. A negative value counts as 0.",
+        "doc": "The interval in beats on the bound clock. 0 uses the millisecond interval instead. A plain number in the right inlet sets it back to 0.",
         "name": "intervalbeats",
         "range": "0+ beats"
       },
       {
         "default": "0",
-        "doc": "The initial threshold in milliseconds — Max's 'time threshold under which only one message may pass' (issue #728), and 0, the default, is off. It is a second window measured from the same output as the interval, and a message arriving inside it is dropped outright on both objects: not passed, not held, not queued. Turned on it composes with the interval rather than replacing it, so the effective floor on the output rate is the longer of the two. The 'threshold <time>' message in the left inlet overwrites it afterwards. A negative value counts as 0.",
+        "doc": "A window in milliseconds after each output in which every message is dropped. 0 is off.",
         "name": "threshold",
         "range": "0+ ms"
       },
       {
         "default": "0",
-        "doc": "The initial threshold in beats, the tempo-relative spelling of the threshold above (issue #728). 0 means the threshold is the millisecond one; any positive value makes it a beat count on the bound domain clock, and 'threshold <time>' with a plain number clears it back to 0. A beat threshold with no clock bound does not bite. A negative value counts as 0.",
+        "doc": "The threshold in beats on the bound clock. 0 uses the millisecond threshold instead.",
         "name": "thresholdbeats",
         "range": "0+ beats"
       },
       {
         "default": "0",
-        "doc": "The initial output grid in beats — Max's 'send output only on the specified time-boundary if appropriate' (issue #728). 0, the default, is no quantizing. Beats only, and inert until a clock is bound: a grid is a musical grid, and Max's other spelling for it, bars.beats.units, needs a meter no domain clock has. With a grid set, a held message is released on the first grid line at or after the moment its interval is up, and an arriving message may pass only once the grid has moved past the line the last output sat on — at most one output per line, and never one before it. The 'quantize <time>' message in the left inlet overwrites it afterwards, taking a note value or a tick count; 'quantize 0' clears the grid. A negative value counts as 0.",
+        "doc": "A beat grid that output lands on, at most one message per grid line. 0 is off. Needs a bound clock.",
         "name": "quantize",
         "range": "0+ beats"
       },
       {
         "default": "1",
-        "doc": "Max's usurp attribute, and this object's one real switch (issue #728). 1, the default, is Max's 'the most recently received message replaces any currently queued message': exactly one message ever waits, and what comes out of a burst is its last value. 0 is Max's 'when usurp is disabled, all messages received will be sent out': the object becomes a queue of up to 32 messages that leave in arrival order, one per window, so nothing is lost until the queue itself is full. Anything non-zero counts as 1. The 'usurp <0|1>' message in the left inlet overwrites it afterwards; switching it does not disturb whatever is already waiting.",
+        "doc": "1: a new message replaces the one waiting. 0: messages queue, up to 32, and go out one per interval.",
         "name": "usurp",
         "range": "0 or 1"
       }
@@ -10494,7 +10494,7 @@
   },
   ".quickthresh": {
     "category": "TIME",
-    "description": "Fast chord detection: collects the values that arrive close together into one list on a fixed window that starts at the first of them. Max's 'combines numbers when they are received close together; quickthresh is a faster, low-latency alternative to thresh that is optimized for chord detection'. The window is the whole difference from the sibling .thresh, whose clock is restarted by every value and which therefore only sends a group once the input has gone quiet. Here the group is sent a known time after it started however many values arrive inside it, which is what a chord needs: three notes struck together arrive as three ints milliseconds apart, and nothing downstream can treat them as a chord until they have been put back together — soon, and at a predictable moment, not whenever the player next lifts their hands. Sloppy playing is what the other two times are for: if a value lands in the last 'fudge' milliseconds of the window, the window is extended by the extension time to catch the note that was nearly in time — Max's 'if any notes are played within this amount of time at the end of the base thresh time, the threshold is extended'. That happens at most once per group, so a group lasts at most threshold plus extension and a continuous stream cannot push the list out indefinitely, which is the bound that makes this object predictable. Max's defaults are the defaults here: 40 ms base, 10 ms fudge, 20 ms extension, set by the three creation arguments, by the second, third and fourth inlets, or all at once by the message 'set threshold fudge extension'. A bang closes the group and sends it immediately — Max's 'bang will reset quickthresh and output the notes in its buffer'. A group of a single number comes out as that number, an int or a float by its spelling, so it still reaches an int inlet downstream; anything longer comes out as list text. The wait runs on the patcher's deferred-message scheduler (issue #628) rather than on the timer thread behind .metro, so collecting a value allocates nothing and takes no lock, and the emitted list arrives inside the patcher's own dispatch as one logical event caused by the values that went into it. That clock is the block counter, so it stops when the engine does — a paused patch holds an open group where it stands — and its resolution is one audio block, which is also the resolution of the fudge test: at the default 10 ms and a 128-sample block only the last few blocks of the window count. The accumulation buffer is bounded and pre-allocated at 256 characters; a value that would take a group past it is dropped and counted rather than logged, an over-long group losing its tail and keeping everything collected so far. Milliseconds are the only unit — a note value or tick count in a time inlet is refused rather than misread as milliseconds, there being no clock here to measure a beat against. Calculate() does nothing and no message path allocates, locks or blocks.",
+    "description": "Collects values that arrive close together into one list, sent a fixed time (40 ms by default) after the first of them. Made for grouping the notes of a chord.",
     "inlets": [
       {
         "accepts": [
@@ -10503,7 +10503,7 @@
           "BANG",
           "LIST"
         ],
-        "doc": "The value inlet. An int, a float or a list arriving here joins the list this object is building; the first one opens a window that runs for the base threshold whatever arrives inside it, and a value landing in the last 'fudge' milliseconds of that window extends it once by the extension time. A whole list is appended whole. A bang closes the group and sends it now, whatever the window had left — Max's 'bang will reset quickthresh and output the notes in its buffer'. The message 'set', followed by up to three millisecond values, writes the base threshold, the fudge time and the extension at once; like Max's it is a command word rather than data, so it cannot be collected as text. A group of one numeric token leaves as that number rather than as a list of one.",
+        "doc": "An int, float or list to add to the group. A bang sends the group now; 'set <threshold> [<fudge> [<extension>]]' sets the times.",
         "index": 0,
         "label": "in",
         "range": ""
@@ -10514,7 +10514,7 @@
           "INT",
           "LIST"
         ],
-        "doc": "Sets the base threshold in milliseconds — Max's 'all values received in the left inlet within this time period are collected into a list'. Ints, floats and a list whose leading token is a number all set it; a negative or NaN time counts as 0, which still groups everything arriving in the same audio block, that being the scheduler's deadline floor. A window already running keeps the deadline it opened with. Max's tempo-relative time syntax is not read here — this object has no clock to measure a beat against — and a note value ('4nd') or tick count ('1440 ticks') is refused outright rather than misread as the milliseconds it is not, leaving the threshold where it was. There is no bang method on this inlet.",
+        "doc": "The window length in milliseconds, counted from the first value of a group.",
         "index": 1,
         "label": "threshold",
         "range": "0+ ms"
@@ -10525,7 +10525,7 @@
           "INT",
           "LIST"
         ],
-        "doc": "Sets the fudge time in milliseconds — Max's 'if there are any incoming values within this amount of time at the end of the base thresh time, the threshold is extended to allow more values to be added to the list'. It is the grace zone at the *end* of the window, not an addition to it: what it buys is the extension time, and only when a value actually lands inside it. A fudge of 0 disables the extension entirely, and one shorter than an audio block means 'a value arriving in the same dispatch the deadline fell in', that being the resolution of the block clock this is measured on. Ints, floats and a list whose leading token is a number all set it; a negative or NaN time counts as 0, and a note value or tick count is refused rather than misread as milliseconds.",
+        "doc": "The last part of the window, in milliseconds, in which a value extends the window. 0 turns the extension off.",
         "index": 2,
         "label": "fudge",
         "range": "0+ ms"
@@ -10536,7 +10536,7 @@
           "INT",
           "LIST"
         ],
-        "doc": "Sets the extension in milliseconds — Max's 'an extension of the base thresh time, which is used if values arrive in the object's inlet in the fudge time zone'. It is applied at most once per group, which is what keeps a group to at most threshold plus extension however long the stream goes on; a continuous stream cannot postpone the list the way it can with .thresh. An extension of 0 leaves the window at the base threshold whatever lands in the fudge zone. Ints, floats and a list whose leading token is a number all set it; a negative or NaN time counts as 0, and a note value or tick count is refused rather than misread as milliseconds.",
+        "doc": "How much longer the window runs, in milliseconds, when a value lands in the fudge time. It happens once per group.",
         "index": 3,
         "label": "extension",
         "range": "0+ ms"
@@ -10546,7 +10546,7 @@
     "name": ".quickthresh",
     "outlets": [
       {
-        "doc": "The collected group, sent when its window closes or when a bang cuts it short: list text for a group of more than one atom, and the number itself for a group of one numeric token.",
+        "doc": "The group: a list, or a single number when only one number was collected.",
         "index": 0,
         "label": "out",
         "range": "any",
@@ -10556,19 +10556,19 @@
     "params": [
       {
         "default": "40",
-        "doc": "The initial base threshold in milliseconds — Max's first creation argument, whose documented default is 40: 'the default value for the base threshold is 40 ms'. The second inlet overwrites it afterwards. A negative value counts as 0.",
+        "doc": "The window length in milliseconds. A negative value counts as 0.",
         "name": "threshold",
         "range": "0+ ms"
       },
       {
         "default": "10",
-        "doc": "The initial fudge time in milliseconds — Max's second creation argument, whose documented default is 10: 'if not provided, the default value is 10 ms'. The third inlet and the 'set' message overwrite it afterwards. A negative value counts as 0, which disables the extension.",
+        "doc": "The last part of the window, in milliseconds, in which a value extends the window. 0 turns the extension off.",
         "name": "fudge",
         "range": "0+ ms"
       },
       {
         "default": "20",
-        "doc": "The initial extension in milliseconds — Max's third creation argument, whose documented default is 20: 'the default value is 20 ms'. The fourth inlet and the 'set' message overwrite it afterwards. A negative value counts as 0, which leaves the window at the base threshold.",
+        "doc": "How much longer the window runs, in milliseconds, when a value lands in the fudge time.",
         "name": "extension",
         "range": "0+ ms"
       }
@@ -11432,7 +11432,7 @@
   },
   ".setclock": {
     "category": "TIME",
-    "description": "Creates one of YSE's named domain clocks and sets its speed — Max's setclock, the object that gives part of a patch a tempo of its own (issue #515). '.setclock fast 240' brings a clock called 'fast' into being, already running at 240 BPM, and every object that names it — a '.metro clock fast', a '.timepoint', a '.tempo', a '.qlist' — counts on that clock instead of the default one, which is what lets two halves of a patch move at independent tempi. It is the same clock the host addresses through yse_system_create_clock / setTempo / beatPosition, so a patch and its host share it by name. The patcher's other two clock objects differ from this one by exactly one thing each: a '.when' only reads and creates nothing, and a '.transport' creates its clock *stopped* and spends its int and float on start and stop, so it is a play button rather than a time source. Here the number you send is the speed, in BPM, which is the wire you actually want a slider on; 0 stops the clock, because tempo 0 is what 'stopped' means to a domain clock, and 'tempo <bpm> <ramp>' glides there over the given seconds. Creation is first-registration-wins and happens on the control thread when the object joins a patcher: a name the host or another object already claimed is left exactly as it is rather than re-tempoed. Destruction is deliberately not here — the clock outlives the object, as '.transport''s does, because a patcher clock binding owns a share of its clock and is never released, so destroying the clock would freeze every object bound to it rather than hand them back the default one; teardown belongs to the host's destroyClock or System::close. Max's modes ('pass', 'add', 'mul', 'interp'), its settable time and its reporting interval are all absent, because a domain clock is a bare beat accumulator with no origin and no position to set and the engine advances it once per audio block rather than polling it. Calculate() does nothing, and no message handler allocates, locks or blocks when it turns out to be running on the audio callback: the clock is written through the patcher's clock bridge there, which is three atomic stores, and by name off it.",
+    "description": "Creates a named domain clock that runs from the start, and sets its tempo: every number it receives is the new tempo in BPM. A bang sends the clock's beat position.",
     "inlets": [
       {
         "accepts": [
@@ -11441,7 +11441,7 @@
           "BANG",
           "LIST"
         ],
-        "doc": "Sets how fast the clock runs, and reports where it has got to. An int or a float is the tempo in BPM — this is the inlet a slider or a '.line' goes into, and the difference that makes this object rather than a '.transport', where the same wire would toggle the clock on and off with every value it sent. Tempo is not clamped, a domain clock's not being clamped either: 0 stops the clock (tempo 0 is what 'stopped' means to a domain clock, so there is no separate start and stop here and nothing remembers a tempo to come back to) and a negative tempo runs it backwards. 'tempo <bpm>' is the same setting under Max's word, and an optional second number makes it a glide in seconds — 'tempo 140 2' reaches 140 over two seconds, which is the one thing the bare number cannot say and the one thing Max's setclock cannot do at all. A bang sends the clock's current beat position out the outlet; a bang with no clock to read emits nothing at all rather than a zero that would look like a real position. Max's modes ('pass', 'add', 'mul', 'interp') and its int-sets-the-time behaviour are absent: all four derive one millisecond time from another, and a YSE domain clock is a bare beat accumulator with no origin and no settable position. There is no 'clock <name>' either — this object *is* the clock, and its name is its creation argument.",
+        "doc": "A number sets the tempo in BPM; 0 stops the clock. 'tempo <bpm> [<ramp>]' does the same and can set a glide time. A bang sends the beat position.",
         "index": 0,
         "label": "speed",
         "range": "BPM, bang, 'tempo <bpm> [<ramp>]'"
@@ -11451,7 +11451,7 @@
     "name": ".setclock",
     "outlets": [
       {
-        "doc": "The clock's current beat position, on bang. Beats are the running integral of tempo, so this only ever moves forward while the tempo is positive, holds while it is 0 and runs backwards while it is negative. Nothing is emitted when there is no clock to read — not a zero, which would be indistinguishable from a real clock sitting at beat 0. The tempo is not reported beside it, as '.transport' and '.when' report the pair, because on this object the tempo is the thing you just set; '.when <name>' reads one back.",
+        "doc": "The clock's beat position, on bang.",
         "index": 0,
         "label": "beat",
         "range": "",
@@ -11461,19 +11461,19 @@
     "params": [
       {
         "default": "",
-        "doc": "The domain clock this object creates and is. Clocks are addressed by name across the whole engine, so this is the same string the host passes to createClock and the same one a '.metro clock <name>' runs on. Empty (the default) means the object is nothing: it creates no clock, binds nothing, ignores every command and emits nothing. The clock is made when the object is added to a patcher, first registration winning — a name someone already claimed is left exactly as it is, tempo included — and it is never destroyed, not on delete and not on a rename, because the bindings other objects hold on it are never released. There is no 'clock <name>' message: this object is the clock, so re-pointing it is a re-create, which is also what keeps clock creation on the control thread.",
+        "doc": "The domain clock to create, when the object is added to a patcher. Empty does nothing.",
         "name": "clockname",
         "range": ""
       },
       {
         "default": "120",
-        "doc": "The tempo in BPM the clock runs at. Unlike '.transport', which creates its clock stopped and waits to be started, this is the clock's *initial* tempo as well as its current one: a '.setclock' is turning as soon as the patch loads, which is what makes it a time source rather than a transport. Written to the clock again on every number the object receives. Not clamped, a domain clock's tempo not being clamped either — 0 stops it and a negative value runs it backwards.",
+        "doc": "The tempo in BPM, used when the clock is created and replaced by every number received. Not clamped: 0 stops the clock, a negative tempo runs it backwards.",
         "name": "tempo",
         "range": "BPM"
       },
       {
         "default": "0",
-        "doc": "Seconds every tempo change glides over, 0 being instant. This is domainClock's rampable tempo, which is what lets a patch accelerando rather than jump, and it is the one thing this object has that Max's setclock does not. It applies to every number sent to the inlet; the clock's initial tempo is always instant, there being nothing to glide from.",
+        "doc": "Seconds each tempo change glides over. 0 is instant. The starting tempo is always instant.",
         "name": "ramp",
         "range": "0+ seconds"
       }
@@ -11635,7 +11635,7 @@
   },
   ".speedlim": {
     "category": "TIME",
-    "description": "Limits the rate of message throughput by **dropping** what arrives too soon. A message in the left inlet goes straight out the outlet if at least the interval has elapsed since the last one this object let out, and is discarded if it has not — nothing is stored and nothing is deferred, so what comes out of a burst is its *first* message, at the moment it arrived. That is the leading-edge throttle: 'redraw at most 20 times a second', 'one trigger per beat however hard the pad is hit', 'stop this sensor from flooding the patch'. Its sibling .qlim is the other answer to the same problem and holds the newest value instead of dropping it — reach for .qlim whenever losing the last value of a gesture would leave something set to the wrong number, and for this object whenever a skipped message costs nothing. Everything passes through as the kind of message it went in as: a bang out for a bang in, an int for an int, text for text, so the limiter can sit anywhere in a chain without retyping what flows through it. A number in the right inlet sets the interval in milliseconds; 0, the Max default, is no limiting at all and every message passes. The first message after creation always passes, there being no previous output to measure against. Elapsed time is measured on the patcher's block counter, the same clock the deferred-message scheduler waits on, so it stops when the engine does and its resolution is one audio block: two messages arriving in the same dispatch are zero milliseconds apart however far apart they really were. Since issue #728 the interval may instead be tempo-relative, Max's 'the time can be specified in milliseconds or using a tempo-relative interval': a note value ('4n', '4nd', '8nt') or a tick count ('1440 ticks') in the right inlet sets it in beats on the YSE domain clock named by 'clock <name>' in the left inlet, so the window then follows that domain's tempo changes and ramps and holds where it stands when the domain pauses. Max's other two time attributes came with it: 'threshold <time>' is his 'time threshold under which only one message may pass', a second window measured from the same output inside which a message is dropped outright, and 'quantize <time>' is his 'send output only on the specified time-boundary if appropriate', a beat grid that limits this object to at most one message per grid line. Both default to 0, which is off, so an object never sent either message behaves exactly as it did before. A beat time with no clock bound is inert rather than fatal — the window still opens, because a limiter that stopped opening would swallow the whole stream — and bars.beats.units stays out, needing a meter no domain clock has. Dropped messages are counted rather than logged, a log line being an allocation on whichever thread the message arrived on and that thread routinely being the audio callback. A standalone object outside any patcher has no clock at all and passes everything. Note that this is deliberately *not* Max's own speedlim/qlim split: Max documents the same holding behaviour for both names and separates them by scheduler priority — qlim being 'an interrupt safe replacement' for Jitter traffic — which is a distinction a headless patcher with one dispatch model cannot express and which would leave the two objects identical. Issue #508 gives the two names the two overflow policies instead, and Max's usurp attribute lives on .qlim alone because it says what happens to a message that is *waiting* and this object never has one. Calculate() does nothing and no message path allocates, locks or blocks.",
+    "description": "Limits how often messages pass. A message that arrives before the interval since the last output is up is dropped, so a burst comes out as its first message.",
     "inlets": [
       {
         "accepts": [
@@ -11644,7 +11644,7 @@
           "BANG",
           "LIST"
         ],
-        "doc": "The message inlet. A bang, int, float or list arriving here goes straight out the outlet when the interval has elapsed since the last output, and is dropped and counted when it has not. Max's 'the message is passed out the outlet, provided that a certain minimum time has elapsed since the previous output' — with this object's answer to the other case, which is to discard it rather than hold it. A list whose whole text is one number passes as that number, an int or a float by its spelling, so a .m 5 reaches an int inlet downstream; anything else is carried whole as text. Three command words are matched here rather than carried (issue #728), which is where Max puts the same three as attribute messages: 'clock <name>' binds the domain clock a tempo-relative time is measured on and a bare 'clock' takes it away, 'threshold <time>' sets Max's threshold window, and 'quantize <time>' sets the beat grid output lands on ('quantize 0' clears it). Everything else is data.",
+        "doc": "Any message, passed or dropped. 'clock <name>', 'threshold <time>' and 'quantize <time>' are settings, not data.",
         "index": 0,
         "label": "in",
         "range": "bang, int, float, list, 'clock <name>', 'threshold <time>', 'quantize <time>'"
@@ -11655,7 +11655,7 @@
           "INT",
           "LIST"
         ],
-        "doc": "Sets the minimum time between outputs — Max's 'the number is stored as the minimum amount of time, in milliseconds, between successive outputs'. Ints, floats and a list whose leading token is a number all set it in milliseconds; a negative or NaN time counts as 0, which means no limiting at all rather than a one-block wait. Since issue #728 the interval may also be tempo-relative, Max's 'the time can be specified in milliseconds or using a tempo-relative interval': a note value ('4n', '4nd', '8nt') or a tick count ('1440 ticks') sets it in beats on the domain clock named by the left inlet's 'clock <name>' message, and any plain number puts it back on milliseconds — the unit travels with the value, which is Max's model. A beat interval with no clock bound limits nothing rather than closing the window for good; bind a clock and it starts limiting. bars.beats.units is not read, needing a meter no domain clock has. The new interval applies to the next message to arrive and is measured from the last output, so shortening it can open the window immediately. There is no bang method on this inlet.",
+        "doc": "Sets the minimum time between outputs, in milliseconds or as a beat time. 0 lets everything through.",
         "index": 1,
         "label": "interval",
         "range": "0+ ms, or a note value / tick count"
@@ -11665,7 +11665,7 @@
     "name": ".speedlim",
     "outlets": [
       {
-        "doc": "The messages that got through, unchanged and as the kind of message they went in as. Silent for anything dropped.",
+        "doc": "The messages that got through, unchanged.",
         "index": 0,
         "label": "out",
         "range": "any",
@@ -11675,31 +11675,31 @@
     "params": [
       {
         "default": "0",
-        "doc": "The initial minimum time between outputs in milliseconds — Max's creation argument, whose documented default is 0: 'if there is no argument, the minimum time is 0 milliseconds', which limits nothing. The right inlet overwrites it afterwards. A negative value counts as 0.",
+        "doc": "The minimum time between outputs in milliseconds. 0 lets everything through.",
         "name": "interval",
         "range": "0+ ms"
       },
       {
         "default": "0",
-        "doc": "The initial interval in beats, for the tempo-relative unit issue #728 added. 0 means the interval is the millisecond one above, which is what a Max limiter is until it is given a tempo-relative time; any positive value makes it a beat count on the domain clock a 'clock <name>' message names, and a note value or tick count in the right inlet overwrites it afterwards. A plain number in the right inlet clears it back to 0. A beat interval with no clock bound limits nothing, rather than closing the window for good the way an unmeasurable wait would. The clock binding itself is run-time state and is not saved. A negative value counts as 0.",
+        "doc": "The interval in beats on the bound clock. 0 uses the millisecond interval instead. A plain number in the right inlet sets it back to 0.",
         "name": "intervalbeats",
         "range": "0+ beats"
       },
       {
         "default": "0",
-        "doc": "The initial threshold in milliseconds — Max's 'time threshold under which only one message may pass' (issue #728), and 0, the default, is off. It is a second window measured from the same output as the interval, and a message arriving inside it is dropped outright on both objects: not passed, not held, not queued. Turned on it composes with the interval rather than replacing it, so the effective floor on the output rate is the longer of the two. The 'threshold <time>' message in the left inlet overwrites it afterwards. A negative value counts as 0.",
+        "doc": "A window in milliseconds after each output in which every message is dropped. 0 is off.",
         "name": "threshold",
         "range": "0+ ms"
       },
       {
         "default": "0",
-        "doc": "The initial threshold in beats, the tempo-relative spelling of the threshold above (issue #728). 0 means the threshold is the millisecond one; any positive value makes it a beat count on the bound domain clock, and 'threshold <time>' with a plain number clears it back to 0. A beat threshold with no clock bound does not bite. A negative value counts as 0.",
+        "doc": "The threshold in beats on the bound clock. 0 uses the millisecond threshold instead.",
         "name": "thresholdbeats",
         "range": "0+ beats"
       },
       {
         "default": "0",
-        "doc": "The initial output grid in beats — Max's 'send output only on the specified time-boundary if appropriate' (issue #728). 0, the default, is no quantizing. Beats only, and inert until a clock is bound: a grid is a musical grid, and Max's other spelling for it, bars.beats.units, needs a meter no domain clock has. With a grid set, a held message is released on the first grid line at or after the moment its interval is up, and an arriving message may pass only once the grid has moved past the line the last output sat on — at most one output per line, and never one before it. The 'quantize <time>' message in the left inlet overwrites it afterwards, taking a note value or a tick count; 'quantize 0' clears the grid. A negative value counts as 0.",
+        "doc": "A beat grid that output lands on, at most one message per grid line. 0 is off. Needs a bound clock.",
         "name": "quantize",
         "range": "0+ beats"
       }
@@ -12480,7 +12480,7 @@
   },
   ".tempo": {
     "category": "TIME",
-    "description": "Counting metronome on a named YSE domain clock — Max's tempo, and the patcher's rhythmic backbone (issue #512). '.tempo main 120 1 16' counts sixteenth notes at 120 BPM on the clock called 'main', sending 0, 1, 2 ... 15, 0, 1 ... out its outlet. Where '.metro' bangs at an interval, this emits a number, and the number is where in the cycle the tick is — which is what a '.sel', a '.route' or a '.coll' downstream needs to make a pattern rather than a pulse. The interval is Max's 4 x multiplier / division beats, division being a fraction of a whole note, and the count cycles from 0 to division - 1. There is no millisecond engine in here at all: a tempo in BPM and a note value are meaningless without a beat, and the engine's named domain clocks are the only thing in the process that has one. So the timing is read off the clock's beat position — inheriting its tempo changes, its ramps and its pauses for free, and keeping two '.tempo' objects on one clock in exact relation to each other and to every clip on that domain — and the tempo is written onto that clock rather than implemented here, which makes it rampable and, unlike Max's 5-300, never clamped. Starting the metronome asserts its tempo on the clock and begins the count at 0; stopping retires the grid and never writes the clock, because a metronome switching off must not stop every clip on the domain with it. It never creates a clock and never destroys one: '.transport' is the sole creator (issue #513), so a name nothing has claimed simply never ticks, and the run begins the moment the clock starts existing. The tick count is read off the clock's beat position rather than counted from the wakeups that deliver it — a beat deadline is armed relative to the beat it was armed at but delivered at the first audio block boundary past it, so counting deliveries would drop that overshoot every tick and run the metronome slow. bars.beats.units, quantize and Max's transport attribute stay out, all three needing a meter a bare beat accumulator does not have. Calculate() does nothing, and no message or delivery path allocates, locks or blocks when it turns out to be running on the audio callback: binding and arming are wait-free, reading a beat is two acquire loads, and the tempo is written through the patcher's clock bridge there — three atomic stores — and by name off it.",
+    "description": "Counts notes on a named domain clock: '.tempo main 120 1 16' sends 0 to 15 in sixteenth notes, over and over. Starting it sets the clock's tempo.",
     "inlets": [
       {
         "accepts": [
@@ -12489,7 +12489,7 @@
           "BANG",
           "LIST"
         ],
-        "doc": "Starts, restarts and stops the metronome, and carries its three messages. Max: 'bang starts or restarts the metronome', and a float is 'non-zero acts as bang; 0 acts as stop' — compared against zero rather than cast, so 0.5 starts it where a cast to int would stop it. An int does the same, and the message 'stop' is 0 under Max's own name. Starting a metronome that is already running re-phases it: the grid is taken afresh from the beat the message landed on and the count restarts at 0, which is how one button puts several of them in step. A start also writes the object's tempo onto its clock; a stop never does, because a metronome switching off must not stop every clip on the domain with it. 'tempo <bpm>' sets the tempo, and an optional second number makes it a glide in seconds ('tempo 140 2' reaches 140 over two seconds) — YSE's domain clocks ramp, which is the one thing here Max's tempo cannot do. 'clock <name>' names the YSE domain clock the beats are counted on, the same message '.metro' and '.timepoint' take, and a bare 'clock' unbinds and stops the metronome counting: there is no millisecond fallback here, a tempo and a note value having no meaning without a beat. Everything else does nothing, deliberately, rather than being read as some command it is not.",
+        "doc": "A bang or a non-zero number starts or restarts the count from 0; 0 or 'stop' stops it. 'tempo <bpm> [<ramp>]' sets the clock's tempo; 'clock <name>' changes the clock.",
         "index": 0,
         "label": "on/off",
         "range": "0 or 1, bang, 'stop', 'tempo <bpm> [<ramp>]', 'clock <name>'"
@@ -12499,7 +12499,7 @@
           "FLOAT",
           "INT"
         ],
-        "doc": "Sets the tempo in BPM — Max's 'sets tempo in quarter notes per minute' — which is the same value 'tempo <bpm>' sets in the left inlet, and the inlet a slider goes into. It is written onto the bound domain clock at once, so it retempos everything counting on that clock and not only this object: the tempo is the clock's, which is what binding to a domain clock rather than reimplementing tempo means. Not clamped, because a domain clock's tempo is not — Max's 5-300 range is gone; 0 pauses the clock and a negative tempo runs it backwards. With no clock bound nothing is written at all, a tempo at a clock that does not exist not being a tempo.",
+        "doc": "The tempo in BPM, written to the clock at once. It changes the tempo for everything on that clock.",
         "index": 1,
         "label": "tempo",
         "range": "BPM"
@@ -12509,7 +12509,7 @@
           "FLOAT",
           "INT"
         ],
-        "doc": "Sets Max's beat multiplier, which slows the output proportionally: the interval between outputs is 4 x multiplier / division beats, so a multiplier of 2 halves the rate without touching the length of the count's cycle. Floored at 1. Changing it under a running metronome rebases the grid at the current beat, keeping the phase rather than re-triggering, and the count carries on from where it stood.",
+        "doc": "Multiplies the time between counts, at least 1. A running count keeps its place.",
         "index": 2,
         "label": "multiplier",
         "range": "1+"
@@ -12519,7 +12519,7 @@
           "FLOAT",
           "INT"
         ],
-        "doc": "Sets Max's rhythmic value — the division of a whole note the metronome ticks at, and the length of the count's cycle. 4 is a quarter note (one beat), 16 the default sixteenth, 8 an eighth. Clamped to Max's documented 1-96: unlike the tempo, a division is a shape of the grid rather than a tempo, so the range stays. Changing it under a running metronome rebases the grid at the current beat, keeping the phase, and the count carries on, wrapped into the new cycle if that shrank under it.",
+        "doc": "The note value to count in, as a division of a whole note (16 is a sixteenth), and the length of the cycle. 1 to 96.",
         "index": 3,
         "label": "division",
         "range": "1-96"
@@ -12529,7 +12529,7 @@
     "name": ".tempo",
     "outlets": [
       {
-        "doc": "The tick number, cycling continuously from 0 to division - 1 — Max's 'cycles continuously from 0 to (rhythmic value - 1)'. 0 is sent the moment the metronome is started, as Max's metronomes emit on start, and one number follows every 4 x multiplier / division beats of the bound clock after that. The count is a position in the cycle rather than a tally of outputs: a domain that jumps many units in one block advances it over every unit it skipped and emits only the last few, so the number that arrives is always the right step even when the ones before it were dropped. Nothing is emitted while no clock is bound, while the clock does not exist yet, or while it is paused.",
+        "doc": "The count, from 0 to division - 1 and round again. 0 goes out when the count starts.",
         "index": 0,
         "label": "count",
         "range": "0 to division - 1",
@@ -12539,25 +12539,25 @@
     "params": [
       {
         "default": "",
-        "doc": "The domain clock the metronome counts on. Clocks are addressed by name across the whole engine, so this is the same string the host passes to createClock and the same one a '.transport <name>' drives. Empty (the default) means the object counts nothing and emits nothing. The name is bound when the object is added to a patcher — bound, not created: a clock nobody has made yet leaves the metronome waiting, and it starts when the clock appears. A 'clock <name>' message re-points the object without rewriting this, so the patch file keeps the name its author typed.",
+        "doc": "The domain clock to count on. Empty counts nothing. A 'clock <name>' message does not change it.",
         "name": "clockname",
         "range": ""
       },
       {
         "default": "120",
-        "doc": "The tempo in BPM the metronome asserts on its clock. Written when the metronome is started and whenever it is set through the left inlet's 'tempo' message or the tempo inlet; never written at creation, and never on a stop. Not clamped, a domain clock's tempo not being clamped either — Max's 5-300 range is gone, 0 pauses the clock and a negative value runs it backwards. On a clock something else also drives, the last write wins: a '.tempo' meant only to subdivide a pulse a '.transport' sets should be left alone rather than started with a tempo of its own.",
+        "doc": "The tempo in BPM written to the clock on every start. Not clamped: 0 pauses the clock, a negative tempo runs it backwards.",
         "name": "tempo",
         "range": "BPM"
       },
       {
         "default": "1",
-        "doc": "Max's beat multiplier. The interval between outputs is 4 x multiplier / division beats, so a higher multiplier slows the output proportionally without changing the length of the count's cycle. Floored at 1.",
+        "doc": "Multiplies the time between counts. The cycle length stays the same.",
         "name": "multiplier",
         "range": "1+"
       },
       {
         "default": "16",
-        "doc": "Max's rhythmic value: the division of a whole note the metronome ticks at, and the length of the count's cycle. 4 is a quarter note — one beat on a domain clock — 8 an eighth and 16 the default sixteenth. Clamped to Max's documented 1-96, a division being a shape of the grid rather than a tempo.",
+        "doc": "The note value to count in, as a division of a whole note, and the length of the cycle.",
         "name": "division",
         "range": "1-96"
       }
@@ -12717,7 +12717,7 @@
   },
   ".thresh": {
     "category": "TIME",
-    "description": "Combines the values that arrive close together into one list, sending the group as soon as the input goes quiet. Every int, float or list in the left inlet is appended to a list this object is building, and every one of them restarts the clock — Max's 'collects items into a list if they appear within a certain specifiable amount of time; each time an item arrives, the time is reset'. When nothing has arrived for the threshold, the list goes out the outlet and the next value starts a fresh one. That makes this the object for 'wait until they have stopped, then tell me what they sent': a burst of controller values becomes one list, a handful of note numbers becomes one chord, a scattering of symbols becomes one message. A stream that never pauses never closes a group, which is not a fault but what 'received close together' means when everything is close together — reach for the sibling .quickthresh when the list has to come out at a moment the patch can predict, since its window runs from the first value of a group rather than from the last. The threshold is a number in the right inlet or the creation argument, in milliseconds; Max's default is 10. A group of a single number comes out as that number, an int or a float by its spelling, so it still reaches an int inlet downstream; anything longer comes out as list text, which is what a list is here. A whole list arriving in the left inlet is appended whole, as Max's is. The wait runs on the patcher's deferred-message scheduler (issue #628) rather than on the timer thread behind .metro, so collecting a value allocates nothing and takes no lock, and the emitted list arrives inside the patcher's own dispatch as one logical event caused by the values that went into it. That clock is the block counter, so it stops when the engine does — a paused patch holds an open group where it stands — and its resolution is one audio block: values arriving in the same dispatch are zero milliseconds apart however far apart they really were, and a threshold of 0 still groups everything that arrived in the same block. The accumulation buffer is bounded and pre-allocated at 256 characters; a value that would take a group past it is dropped and counted rather than logged, an over-long group losing its tail and keeping everything collected so far. Milliseconds are the only unit — a note value or tick count in the threshold inlet is refused rather than misread as milliseconds, there being no clock here to measure a beat against. Calculate() does nothing and no message path allocates, locks or blocks.",
+    "description": "Collects values that arrive close together into one list, and sends the list once no new value has arrived for the threshold (10 ms by default).",
     "inlets": [
       {
         "accepts": [
@@ -12725,7 +12725,7 @@
           "INT",
           "LIST"
         ],
-        "doc": "The value inlet. An int, a float or a list arriving here joins the list this object is building and restarts the gap timer; a whole list is appended whole, as Max's 'the entire list is appended to the list stored in thresh'. When the threshold passes with nothing new, the collected list goes out and the next value starts a fresh group. A group of one numeric token leaves as that number rather than as a list of one, so it reaches the inlets an uncollected value would have reached. There are no command words: every message is data, and there is no bang method, as Max's thresh has none.",
+        "doc": "An int, float or list to add to the group. Each one restarts the wait.",
         "index": 0,
         "label": "in",
         "range": ""
@@ -12736,7 +12736,7 @@
           "INT",
           "LIST"
         ],
-        "doc": "Sets the gap that ends a group, in milliseconds — Max's 'the number is stored as the time, in milliseconds, to wait before sending out the compiled list of numbers'. Ints, floats and a list whose leading token is a number all set it; a negative or NaN time counts as 0, which still groups everything arriving in the same audio block, that being the scheduler's deadline floor. The new threshold is measured against the group's most recent value, so shortening it can close an open group at its next deadline. Max's tempo-relative time syntax is not read here — this object has no clock to measure a beat against — and a note value ('4nd') or tick count ('1440 ticks') is refused outright rather than misread as the milliseconds it is not, leaving the threshold where it was. There is no bang method on this inlet.",
+        "doc": "The quiet time in milliseconds that ends a group.",
         "index": 1,
         "label": "threshold",
         "range": "0+ ms"
@@ -12746,7 +12746,7 @@
     "name": ".thresh",
     "outlets": [
       {
-        "doc": "The collected group, sent when the input has been quiet for the threshold: list text for a group of more than one atom, and the number itself for a group of one numeric token.",
+        "doc": "The group: a list, or a single number when only one number was collected.",
         "index": 0,
         "label": "out",
         "range": "any",
@@ -12756,7 +12756,7 @@
     "params": [
       {
         "default": "10",
-        "doc": "The initial gap that ends a group, in milliseconds — Max's creation argument, whose documented default is 10: 'if no argument is present, the initial value is 10 milliseconds'. The right inlet overwrites it afterwards. A negative value counts as 0.",
+        "doc": "The quiet time in milliseconds that ends a group. A negative value counts as 0.",
         "name": "threshold",
         "range": "0+ ms"
       }
@@ -12765,7 +12765,7 @@
   },
   ".timepoint": {
     "category": "TIME",
-    "description": "Bangs when a named YSE domain clock reaches a beat position — Max's timepoint, and the patcher's first absolute point on a musical timeline (issue #507). '.timepoint main 128' watches the clock called 'main' and bangs when it reads 128. Where '.delay' and '.metro' measure time from now, this object names a moment: 'at beat 128, change the patch' is arranged, score-like behaviour, and it is what lets a generative patch have a form rather than only a texture. The clock is one of the engine's named domain clocks — the same ones the host addresses through yse_system_create_clock / beatPosition, the same one a clip transport plays on, and the same one a '.transport main' drives — so the position is measured on the tempo the whole domain shares, and a tempo change, a ramp or a pause is inherited for free: the target arrives sooner, later, smoothly, or never. The name is the creation argument and 'clock <name>' re-points it. This object never creates a clock and never destroys one: '.transport' is the sole creator (issue #513), so a name nothing has claimed simply never comes due until something claims it, and the object starts watching the moment its clock starts existing. Reaching the time is a crossing and not a condition — the object bangs on the way past its target and is then spent, and a target already in the past when the object is armed never bangs at all, because a patch loaded while the clock stands at bar 40 must not fire its whole score in one block. A new time value, 'active 1' or a new clock arms it again. The position is in beats: a domain clock is a bare beat accumulator with no origin and no meter, so bars.beats.units and quantize stay out, as they do on '.metro' and '.transport'. Calculate() does nothing, and no path allocates, locks or blocks when it turns out to be running on the audio callback — binding and arming are wait-free, reading a beat is two acquire loads, and the object never touches the clock manager's mutex at all, creating no clock being the reason it never has to.",
+    "description": "Sends a bang once when a named domain clock passes a beat position, as in '.timepoint main 128'.",
     "inlets": [
       {
         "accepts": [
@@ -12773,7 +12773,7 @@
           "INT",
           "LIST"
         ],
-        "doc": "Sets the beat position to bang at, and carries the object's two messages. An int or a float is a new time value — Max's 'sets the time value at which timepoint will send a bang' — and always re-arms, so handing a spent timepoint a number puts it back to work. 'clock <name>' names the YSE domain clock the position is measured on, the same message '.metro' takes, and a bare 'clock' unbinds and stops the object watching. 'active 0' disarms the object and 'active 1' arms it again from wherever the clock now stands, which is Max's active attribute. Everything else does nothing, deliberately, rather than being read as some command it is not: there is no 'seek', no bars.beats.units and no quantize, all three needing an origin or a meter a YSE domain clock does not have.",
+        "doc": "A number sets the beat position and arms the object. 'active 0|1' disarms or re-arms it; 'clock <name>' changes the clock.",
         "index": 0,
         "label": "time",
         "range": "beats, 'clock <name>', 'active 0|1'"
@@ -12783,7 +12783,7 @@
     "name": ".timepoint",
     "outlets": [
       {
-        "doc": "Bang, once, when the clock reaches the time. Reaching it is a crossing rather than a condition: the object bangs on the way past its target and is then spent, and a target that is already in the past when the object is armed never bangs at all — the moment happened before anything was watching, and a domain clock has no rewind to bring it round again. A new time value, 'active 1' or a new clock arms it afresh. Nothing is emitted while the named clock does not exist, while it is paused short of the target, or while the object is inactive.",
+        "doc": "A bang, once, when the clock passes the beat position.",
         "index": 0,
         "label": "out",
         "range": "",
@@ -12793,19 +12793,19 @@
     "params": [
       {
         "default": "",
-        "doc": "The domain clock the beat position is measured on. Clocks are addressed by name across the whole engine, so this is the same string the host passes to createClock and the same one a '.transport <name>' drives. Empty (the default) means the object watches nothing and bangs never. The name is bound when the object is added to a patcher — bound, not created: a clock nobody has made yet leaves the object waiting, and it starts watching when the clock appears. A 'clock <name>' message re-points the object without rewriting this, so the patch file keeps the name its author typed.",
+        "doc": "The domain clock to watch. Empty watches nothing. A 'clock <name>' message does not change it.",
         "name": "clockname",
         "range": ""
       },
       {
         "default": "0",
-        "doc": "The beat position to bang at, on the clock named above. Beats and not bars.beats.units: a domain clock is a bare beat accumulator with no meter to name a bar in and no origin to count one from. Setting it — here or through the inlet — always re-arms the object, and a value the clock has already passed leaves it spent rather than banging at once.",
+        "doc": "The beat position to bang at.",
         "name": "time",
         "range": "beats"
       },
       {
         "default": "1",
-        "doc": "Whether the object is watching at all — Max's active attribute. 0 arms nothing and bangs never; 1 is the default. 'active 1' on a spent or disarmed object arms it afresh from wherever the clock now stands, which is the supported way to re-use a timepoint that has already fired.",
+        "doc": "1 watches the clock, 0 does not.",
         "name": "active",
         "range": "0 or 1"
       }
@@ -12814,13 +12814,13 @@
   },
   ".timer": {
     "category": "TIME",
-    "description": "Reports the elapsed time between two events — Max's timer, and the first patcher object that consumes time rather than producing it (issue #506). A bang in the left inlet marks the start, a bang in the right sends the interval since that mark: the tempo of a tapped-in beat, the length of a gesture, how long a note was held. The right inlet measures rather than stops — the mark stays put, so banging it repeatedly gives split times from the one start — and a report before any start emits nothing, there being no interval between one event and no event. The milliseconds are measured, never counted: both events read the engine's monotonic clock (std::chrono::steady_clock, the same source the patcher's timer thread schedules on), so a '.metro' tick that the OS delivered late is timed at the instant it really arrived. The second outlet reports the same interval in beats of a YSE domain clock named by the creation argument ('.timer main'), which is what Max's own right outlet does against his transport: the beat position is read at each event and subtracted, so a tempo change or a ramp between them is accounted for exactly rather than being papered over by dividing milliseconds by a BPM figure. The beats outlet stays silent when there is no clock to read. This object never creates a clock and never destroys one — '.transport' is the sole creator (issue #513) — so a name nobody has claimed simply has no beats until something claims it. Max's 'clock <name>' message stays out because it names a setclock, an alternative millisecond clock YSE does not have, and reusing the word for the beat domain would give a Max message a different meaning in a patch that looks like Max's; the format attribute stays out with it, the two units this object has being spelled by its two outlets. Calculate() does nothing, and neither inlet allocates, locks or blocks when it turns out to be running on the audio callback: the clock is read through the patcher's bridge there, which is two acquire loads, and by name only off it.",
+    "description": "Measures the time between a bang in the left inlet and a bang in the right inlet, in milliseconds and, with a clock name as argument, in beats.",
     "inlets": [
       {
         "accepts": [
           "BANG"
         ],
-        "doc": "A bang marks the first of the two events — Max's 'in left inlet: starts or restarts the timer'. It takes the instant it arrived at and the bound clock's beat position at that same instant, and everything the right inlet later reports is measured from there. Banging it again simply moves the mark, so a timer is re-used by re-starting it rather than by being cleared. Nothing is emitted here: an interval needs two events and this is one of them.",
+        "doc": "A bang marks the start. Another bang moves the start to now.",
         "index": 0,
         "label": "start",
         "range": "bang"
@@ -12829,7 +12829,7 @@
         "accepts": [
           "BANG"
         ],
-        "doc": "A bang marks the second event and sends the interval — Max's 'in right inlet: sends out the time elapsed since the timer was started'. It *measures* rather than stops: the mark stays where the left inlet put it, so banging this inlet again reports a larger interval from the same start, which is how split times are taken. A bang before the timer has ever been started emits nothing at all, there being no interval between one event and no event.",
+        "doc": "A bang sends the time since the start. The start stays where it is.",
         "index": 1,
         "label": "report",
         "range": "bang"
@@ -12839,14 +12839,14 @@
     "name": ".timer",
     "outlets": [
       {
-        "doc": "The interval between the two events, in milliseconds. It is measured rather than counted: both events read the engine's monotonic clock (std::chrono::steady_clock, the same source the patcher's timer thread schedules on and the same one the engine times its own ticks with) and the reading is their difference, so a bang that the OS delivered late is timed at the instant it really arrived and the figure never disagrees with the events that produced it. Sent after the beats outlet, which is Max's right-to-left outlet order.",
+        "doc": "The time since the start, in milliseconds.",
         "index": 0,
         "label": "ms",
         "range": "0+ ms",
         "type": "FLOAT"
       },
       {
-        "doc": "The same interval expressed in beats of the domain clock named by the creation argument — issue #506's 'second outlet reporting the interval in beats against a bound domain clock', and what Max's own right outlet does against his transport. The clock's beat position is read at each of the two events and subtracted, so a tempo change, a ramp or a pause between them is accounted for exactly; this is emphatically not the millisecond figure divided by a BPM number, and the two outlets are not two spellings of one value. Sent first, Max's outlets firing right to left. Nothing at all is emitted when there is no beat to report: no creation argument, a clock nothing has created, or a clock that only appeared after the timer was started and so has no baseline in this interval.",
+        "doc": "The beats the named clock moved in the same time, sent just before the milliseconds. Silent without a clock.",
         "index": 1,
         "label": "beats",
         "range": "beats",
@@ -12856,7 +12856,7 @@
     "params": [
       {
         "default": "",
-        "doc": "The domain clock the beats outlet measures against — YSE's answer to Max's transport attribute. Clocks are addressed by name across the whole engine, so this is the same string the host passes to createClock and the same one a '.transport <name>' drives. Empty (the default) leaves the beats outlet silent and the object a pure millisecond timer. The name is bound when the object is added to a patcher — bound, not created: a clock nobody has made yet leaves the beats outlet quiet, and it starts reporting once the clock exists and a fresh start has a beat position to measure from. There is no message to re-point it, deliberately: Max's 'clock' word names a setclock and not a transport, and '.transport' sets the same precedent of reading its clock name once.",
+        "doc": "The domain clock to measure beats on. Empty measures milliseconds only.",
         "name": "clockname",
         "range": ""
       }
@@ -13052,7 +13052,7 @@
   },
   ".translate": {
     "category": "TIME",
-    "description": "Converts a time value from one time format to another — Max's translate, and the exchange rate between the patcher's two kinds of time (issue #516). Since the patcher gained named domain clocks it speaks both wall-clock time (a '.delay 500' waits half a second) and musical time (a '.timepoint main 4' waits for a beat), and a patch that has both eventually needs to ask how long a sixteenth is at the tempo it is running at now. '.translate ms beats main' answers that: send it 500 and it sends back how many beats of the clock called 'main' fit in half a second. Five formats, in two families — 'ms', 'hz' (a repetition rate: 2 Hz is 500 ms) and 'samples' at the live sample rate are fixed wall-clock times, while 'beats' and 'ticks' (Max's 1/480th of a quarter note) are relative to a tempo. A conversion within one family needs no clock at all; a conversion across them reads the tempo from the bound clock at the moment it converts, never from a number cached when the object was built, so a tempo ramp cannot silently invalidate the answer. Note values are accepted wherever a value is — '4n', '8nt', '4nd' — through the same reader '.delay' and '.metro' use, so the input format only ever decides what a *bare number* means. Max's 'bars.beats.units' and 'hh:mm:ss' are absent, the first because a bar needs a meter and a domain clock is a bare beat accumulator with none, the second because it is a spelling of milliseconds that would have to be written out as a symbol; 'beats' takes the first one's place as the default relative format. Bang converts the last value again at the current tempo, which is how a patch tracks a ramp. With no clock, a clock at tempo 0 or a rate of 0 Hz nothing at all is emitted, not a zero. The object never creates a clock and never destroys one — '.when''s reader contract — and no handler allocates, locks or blocks when it turns out to be running on the audio callback: the message words are matched in place, the conversion is arithmetic, and the tempo is two acquire loads through the patcher's clock bridge.",
+    "description": "Converts a time value between milliseconds, hertz, samples, beats and ticks. Converting between real time and beats uses the current tempo of a named domain clock.",
     "inlets": [
       {
         "accepts": [
@@ -13061,7 +13061,7 @@
           "BANG",
           "LIST"
         ],
-        "doc": "Takes a time value and sends it back out in the other format. A bare int or float is read in the input format — milliseconds unless the object was told otherwise — and a value that spells its own unit overrides that: '4n', '8nt' and '4nd' are Max's note values, and '1440 ticks' is Max's tick count, both read through the same reader '.delay' and '.metro' use, so the three objects agree on what a note value is. A bang converts the *last* value again, at the tempo of the moment rather than the one it arrived at, which is what makes a '.metro' into this inlet a patch that tracks a tempo ramp. 'in <format>' and 'out <format>' are Max's two attributes under their own names, 'clock <name>' re-points the object at another domain clock and a bare 'clock' unbinds it. The formats are 'ms', 'beats', 'ticks', 'hz' and 'samples'; a word that is not one of those leaves the setting exactly where it was, including Max's 'bars.beats.units' and 'hh:mm:ss', which a domain clock cannot express, and 'notevalues', which is read as an input spelling rather than selected as a format. Nothing at all is emitted when the conversion cannot be made: no clock, a clock at tempo 0 or a rate of 0 Hz all produce silence rather than a zero that would be indistinguishable from a real answer.",
+        "doc": "A number in the input format, or a note value or tick count, to convert. A bang converts the last value again. 'in <format>', 'out <format>' and 'clock <name>' change the settings.",
         "index": 0,
         "label": "value",
         "range": "a number, a note value, '<n> ticks', bang, 'in|out <format>', 'clock <name>'"
@@ -13071,7 +13071,7 @@
     "name": ".translate",
     "outlets": [
       {
-        "doc": "The value in the output format, sent as soon as it arrives and again on every bang. Ticks by default, as in Max. Nothing is emitted when the conversion cannot be made — across the two families with no clock bound, or on a clock sitting at tempo 0, where there is no exchange rate in either direction and a zero would be indistinguishable from a real answer. A negative tempo is not refused: a domain clock running backwards converts at a negative rate, which is the honest reading of how far it gets in a given number of milliseconds.",
+        "doc": "The value in the output format. Nothing when the conversion cannot be made.",
         "index": 0,
         "label": "converted",
         "range": "",
@@ -13081,7 +13081,7 @@
     "params": [
       {
         "default": "ms ticks",
-        "doc": "The input format, the output format, and the clock whose tempo bridges them. The first two tokens that name a format are the input and the output, in that order, and the first token that names no format is the clock name — so '.translate ms beats main' and '.translate main ms beats' are the same object. The formats are 'ms', 'beats', 'ticks', 'hz' and 'samples'. The defaults are 'ms' in and 'ticks' out: Max defaults its input to 'bars.beats.units', which needs a meter a domain clock does not have, and a bare number already means milliseconds everywhere else in the patcher. Max's absent format words are recognised and refused rather than mistaken for a clock name. Without a clock the object still converts within a family — milliseconds to samples, beats to ticks — and stays silent across them; the clock is bound, never created, so naming one the host has not made yet leaves the object quiet until it appears.",
+        "doc": "The input format, the output format and the clock name, in any order: the first two format words are input and output, any other word is the clock.",
         "name": "in out clock",
         "range": "[<format>] [<format>] [<clock name>]"
       }
@@ -13090,7 +13090,7 @@
   },
   ".transport": {
     "category": "TIME",
-    "description": "Controls one of YSE's named domain clocks from inside the patcher — Max's transport, and the object that connects a patch to the engine's polytemporal clock system (issue #513). The creation argument names the clock: '.transport main 120' controls the clock called 'main' and runs it at 120 BPM when started. That is the same clock yse_system_create_clock / setTempo / beatPosition address from the host, the same one a clip transport plays on, and the same one a '.metro clock main' counts its beats on — so a patch and its host are two hands on one lever, and every object bound to that name follows both. There is no tempo implementation here: start and stop are tempo writes onto the engine's clock (a domain clock has no run flag — tempo 0 is what 'paused' means), and the reported position is the clock's own beat count. Ownership is deliberate and narrow: the object creates the named clock if nobody has yet, on the control thread when it is added to a patcher, and creates it *stopped* so that dropping a transport into a patch never starts anything; a clock the host already made is left exactly as it is, first registration winning. It never destroys a clock — not on delete, not on a rename — because a remote control that unplugged the studio clock would take every other object bound to that name with it; teardown belongs to the host's destroyClock or System::close. A transport with no creation argument controls nothing at all and says so by doing nothing — a bang with no clock to read emits nothing rather than a zero that would look like a real position — and one that is not in a patcher creates and binds nothing. Calculate() does nothing, and no message handler allocates, locks or blocks when it turns out to be running on the audio callback: the clock is written through the patcher's clock bridge there, which is three atomic stores, and by name off it.",
+    "description": "Starts, stops and sets the tempo of a named domain clock, creating the clock (stopped) if it does not exist yet. A bang sends the clock's beat position and tempo.",
     "inlets": [
       {
         "accepts": [
@@ -13099,7 +13099,7 @@
           "BANG",
           "LIST"
         ],
-        "doc": "Starts and stops the clock, and reports where it stands. A non-zero int or float starts it, 0 stops it, and the messages 'start' and 'stop' are the same two under Max's own names. 'tempo <bpm>' sets the tempo the transport runs at, and an optional second number makes it a glide in seconds ('tempo 140 2' reaches 140 over two seconds) — YSE's domain clocks ramp, which is the one thing here Max's transport cannot do. A tempo sent while the transport is stopped is remembered for the next start rather than obeyed, so setting a tempo never starts anything. A bang reports the clock's current beat position out the left outlet and its current tempo out the right one, right outlet first; a bang with no clock to read emits nothing at all rather than a zero that would look like a real position. There is no 'seek' and no bars.beats.units: a YSE domain clock is a bare beat accumulator, so 'stop' is a pause that holds the beat where it stands and 'start' carries on from there.",
+        "doc": "A non-zero number or 'start' starts the clock; 0 or 'stop' stops it. 'tempo <bpm> [<ramp>]' sets the tempo. A bang sends the tempo and the beat position.",
         "index": 0,
         "label": "control",
         "range": "0 or 1, bang, 'start', 'stop', 'tempo <bpm> [<ramp>]'"
@@ -13109,7 +13109,7 @@
           "FLOAT",
           "INT"
         ],
-        "doc": "Sets the tempo in BPM, which is the same value 'tempo <bpm>' sets in the left inlet — the inlet a slider goes into. It takes effect at once while the transport is running and is remembered for the next start while it is stopped. The glide set by 'tempo <bpm> <ramp>' applies here too, so a transport given a ramp keeps gliding to every tempo it is handed. Tempo is not clamped, because a domain clock's is not: 0 pauses the clock and a negative tempo runs it backwards.",
+        "doc": "The tempo in BPM. Applied at once while running, kept for the next start while stopped.",
         "index": 1,
         "label": "tempo",
         "range": "BPM"
@@ -13119,14 +13119,14 @@
     "name": ".transport",
     "outlets": [
       {
-        "doc": "The clock's current beat position, on bang. Beats are the running integral of tempo, so this only ever moves forward while the tempo is positive and holds while the clock is stopped. Nothing is emitted when there is no clock to read.",
+        "doc": "The clock's beat position, on bang.",
         "index": 0,
         "label": "beat",
         "range": "",
         "type": "FLOAT"
       },
       {
-        "doc": "The clock's current tempo in BPM, on bang, sent before the beat position so the pair arrives right to left as Max orders outlets. This is the clock's tempo and not the transport's wanted one, so it shows a ramp in progress and it shows a tempo the host changed behind the transport's back.",
+        "doc": "The clock's tempo in BPM, on bang, sent just before the beat position. It shows a glide in progress and changes made by the host.",
         "index": 1,
         "label": "tempo",
         "range": "BPM",
@@ -13136,19 +13136,19 @@
     "params": [
       {
         "default": "",
-        "doc": "The domain clock this transport controls. Clocks are addressed by name across the whole engine, so this is the same string the host passes to createClock and the same one a '.metro clock <name>' binds. Empty (the default) means the object controls nothing: it creates no clock, binds nothing, and every command is a no-op. The name is read once when the object is added to a patcher; re-pointing a transport at another clock is a re-create, which is what keeps clock creation on the control thread.",
+        "doc": "The domain clock to control, created when the object is added to a patcher. Empty controls nothing.",
         "name": "clockname",
         "range": ""
       },
       {
         "default": "120",
-        "doc": "The tempo in BPM the transport runs its clock at. Written to the clock on every start and on every change while running; remembered rather than applied while stopped. Not clamped, a domain clock's tempo not being clamped either — 0 pauses and a negative value runs the clock backwards.",
+        "doc": "The tempo in BPM the clock runs at while started. Not clamped: a negative tempo runs the clock backwards.",
         "name": "tempo",
         "range": "BPM"
       },
       {
         "default": "0",
-        "doc": "Seconds every tempo write glides over, 0 being instant. This is domainClock's rampable tempo, which is what lets a patch accelerando rather than jump; it applies to a start and to any tempo change while running. A stop is always instant whatever this says — a stop that glided to a halt would be a fade-out nobody asked for.",
+        "doc": "Seconds each start or tempo change glides over. 0 is instant. A stop is always instant.",
         "name": "ramp",
         "range": "0+ seconds"
       }
@@ -13621,7 +13621,7 @@
   },
   ".when": {
     "category": "TIME",
-    "description": "Reports the current position of one of YSE's named domain clocks, on demand — Max's 'when', and the read-only half of '.transport' (issue #514). '.when main' answers for the clock called 'main': the beat position out the left outlet and the tempo in BPM out the right, sent right to left, on any input at all. That is the same clock yse_system_create_clock / beatPosition address from the host, the same one a clip transport plays on, and the same one a '.metro clock main' counts its beats on. A '.transport' can already report this, so the reason to reach for a '.when' instead is that a '.transport' *creates* the clock it names when it joins a patcher: asking what beat 'main' is on by dropping a transport into the patch would conjure a stopped 'main' that every other object bound to that name would then be waiting on. A '.when' creates nothing and destroys nothing — it binds a name and reads it — which is '.timepoint''s and '.tempo''s contract, and a name nothing has claimed simply reports nothing until a '.transport' or the host brings the clock into being. The second difference is the inlet: a '.transport''s int and float start and stop the clock, while every input to a '.when' is a query, so this is the object that goes on the end of whatever already fires at the moments you want to sample musical time at. Max's bars.beats.units and ticks are not reported because a domain clock has neither — it is a bare beat accumulator with no origin and no meter, the same fact that costs '.transport' its 'seek'. Calculate() does nothing, and the report does not allocate, lock or block when it turns out to be running on the audio callback: the clock is read through the patcher's clock bridge there, which is two acquire loads per value, and by name off it.",
+    "description": "On any input, sends the beat position and tempo of a named domain clock. It only reads the clock and never creates one.",
     "inlets": [
       {
         "accepts": [
@@ -13630,7 +13630,7 @@
           "BANG",
           "LIST"
         ],
-        "doc": "Reports where the named clock stands. Any input at all does it — a bang, an int, a float or any list — which is Max's own reading of 'when' and what makes the object safe on the end of something that is already firing: a '.metro' into a '.when' samples the clock every tick, where the same wiring into a '.transport' would toggle it. The value sent in is ignored; its arrival is the whole message. The beat position goes out the left outlet and the tempo out the right, right outlet first. With no clock to read, nothing at all is emitted — not a zero, which would be indistinguishable from a real clock sitting at beat 0. There is no 'clock <name>': Max's 'when' has no such method (a 'clock main' sent to one reports the time like any other message), and the clock a '.when' reads is its creation argument.",
+        "doc": "Any message sends the clock's tempo and beat position. What the message says is ignored.",
         "index": 0,
         "label": "query",
         "range": "bang, int, float or any list"
@@ -13640,14 +13640,14 @@
     "name": ".when",
     "outlets": [
       {
-        "doc": "The clock's current beat position, on any input. Beats are the running integral of tempo, so this only ever moves forward while the tempo is positive and holds while the clock is stopped. Nothing is emitted when there is no clock to read.",
+        "doc": "The clock's beat position.",
         "index": 0,
         "label": "beat",
         "range": "",
         "type": "FLOAT"
       },
       {
-        "doc": "The clock's current tempo in BPM, on any input, sent before the beat position so the pair arrives right to left as Max orders outlets. A clock paused by a '.transport' stop reads 0 here, tempo 0 being how the engine spells 'stopped', and a ramp in progress reads the tempo it has reached rather than the one it is heading for.",
+        "doc": "The clock's tempo in BPM, sent just before the beat position. 0 while the clock is stopped; during a glide, the tempo reached so far.",
         "index": 1,
         "label": "tempo",
         "range": "BPM",
@@ -13657,7 +13657,7 @@
     "params": [
       {
         "default": "",
-        "doc": "The domain clock this object reports on. Clocks are addressed by name across the whole engine, so this is the same string the host passes to createClock and the same one a '.transport <name>' drives. Empty (the default) means the object reads nothing and emits nothing. The name is bound when the object is added to a patcher — bound, not created: a clock nobody has made yet leaves the object silent, and it starts answering when the clock appears. There is no 'clock <name>' message, so re-pointing a '.when' at another clock is a re-create — '.transport''s rule, and Max's, where 'when' takes its transport as a creation argument and treats every message as a query.",
+        "doc": "The domain clock to read. Empty reads nothing.",
         "name": "clockname",
         "range": ""
       }

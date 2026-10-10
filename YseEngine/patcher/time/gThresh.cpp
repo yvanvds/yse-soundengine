@@ -370,65 +370,12 @@ gThresh::gThresh() : gThreshBase() {
   threshold = DEFAULT_THRESHOLD;
 
   Document(
-      "Combines the values that arrive close together into one list, sending the group as soon as "
-      "the input goes quiet. Every int, float or list in the left inlet is appended to a list this "
-      "object is building, and every one of them restarts the clock — Max's 'collects items into a "
-      "list if they appear within a certain specifiable amount of time; each time an item arrives, "
-      "the time is reset'. When nothing has arrived for the threshold, the list goes out the "
-      "outlet "
-      "and the next value starts a fresh one. That makes this the object for 'wait until they have "
-      "stopped, then tell me what they sent': a burst of controller values becomes one list, a "
-      "handful of note numbers becomes one chord, a scattering of symbols becomes one message. A "
-      "stream that never pauses never closes a group, which is not a fault but what 'received "
-      "close "
-      "together' means when everything is close together — reach for the sibling .quickthresh when "
-      "the list has to come out at a moment the patch can predict, since its window runs from the "
-      "first value of a group rather than from the last. The threshold is a number in the right "
-      "inlet or the creation argument, in milliseconds; Max's default is 10. A group of a single "
-      "number comes out as that number, an int or a float by its spelling, so it still reaches an "
-      "int inlet downstream; anything longer comes out as list text, which is what a list is here. "
-      "A whole list arriving in the left inlet is appended whole, as Max's is. The wait runs on "
-      "the "
-      "patcher's deferred-message scheduler (issue #628) rather than on the timer thread behind "
-      ".metro, so collecting a value allocates nothing and takes no lock, and the emitted list "
-      "arrives inside the patcher's own dispatch as one logical event caused by the values that "
-      "went into it. That clock is the block counter, so it stops when the engine does — a paused "
-      "patch holds an open group where it stands — and its resolution is one audio block: values "
-      "arriving in the same dispatch are zero milliseconds apart however far apart they really "
-      "were, and a threshold of 0 still groups everything that arrived in the same block. The "
-      "accumulation buffer is bounded and pre-allocated at 256 characters; a value that would take "
-      "a group past it is dropped and counted rather than logged, an over-long group losing its "
-      "tail and keeping everything collected so far. Milliseconds are the only unit — a note value "
-      "or tick count in the threshold inlet is refused rather than misread as milliseconds, there "
-      "being no clock here to measure a beat against. Calculate() does nothing and no message path "
-      "allocates, locks or blocks.",
-      "The value inlet. An int, a float or a list arriving here joins the list this object is "
-      "building and restarts the gap timer; a whole list is appended whole, as Max's 'the entire "
-      "list is appended to the list stored in thresh'. When the threshold passes with nothing new, "
-      "the collected list goes out and the next value starts a fresh group. A group of one numeric "
-      "token leaves as that number rather than as a list of one, so it reaches the inlets an "
-      "uncollected value would have reached. There are no command words: every message is data, "
-      "and "
-      "there is no bang method, as Max's thresh has none.",
-      "Sets the gap that ends a group, in milliseconds — Max's 'the number is stored as the time, "
-      "in milliseconds, to wait before sending out the compiled list of numbers'. Ints, floats and "
-      "a list whose leading token is a number all set it; a negative or NaN time counts as 0, "
-      "which "
-      "still groups everything arriving in the same audio block, that being the scheduler's "
-      "deadline floor. The new threshold is measured against the group's most recent value, so "
-      "shortening it can close an open group at its next deadline. Max's tempo-relative time "
-      "syntax "
-      "is not read here — this object has no clock to measure a beat against — and a note value "
-      "('4nd') or tick count ('1440 ticks') is refused outright rather than misread as the "
-      "milliseconds it is not, leaving the threshold where it was. There is no bang method on this "
-      "inlet.",
-      "The collected group, sent when the input has been quiet for the threshold: list text for a "
-      "group of more than one atom, and the number itself for a group of one numeric token.",
-      "10",
-      "The initial gap that ends a group, in milliseconds — Max's creation argument, whose "
-      "documented default is 10: 'if no argument is present, the initial value is 10 "
-      "milliseconds'. "
-      "The right inlet overwrites it afterwards. A negative value counts as 0.");
+      "Collects values that arrive close together into one list, and sends the list once no new "
+      "value has arrived for the threshold (10 ms by default).",
+      "An int, float or list to add to the group. Each one restarts the wait.",
+      "The quiet time in milliseconds that ends a group.",
+      "The group: a list, or a single number when only one number was collected.", "10",
+      "The quiet time in milliseconds that ends a group. A negative value counts as 0.");
 }
 
 void gThresh::OnDeadline(YSE::THREAD thread) {
@@ -480,108 +427,31 @@ gQuickthresh::gQuickthresh() : gThreshBase() {
   extension = DEFAULT_EXTENSION;
 
   Document(
-      "Fast chord detection: collects the values that arrive close together into one list on a "
-      "fixed window that starts at the first of them. Max's 'combines numbers when they are "
-      "received close together; quickthresh is a faster, low-latency alternative to thresh that is "
-      "optimized for chord detection'. The window is the whole difference from the sibling "
-      ".thresh, "
-      "whose clock is restarted by every value and which therefore only sends a group once the "
-      "input has gone quiet. Here the group is sent a known time after it started however many "
-      "values arrive inside it, which is what a chord needs: three notes struck together arrive as "
-      "three ints milliseconds apart, and nothing downstream can treat them as a chord until they "
-      "have been put back together — soon, and at a predictable moment, not whenever the player "
-      "next lifts their hands. Sloppy playing is what the other two times are for: if a value "
-      "lands "
-      "in the last 'fudge' milliseconds of the window, the window is extended by the extension "
-      "time "
-      "to catch the note that was nearly in time — Max's 'if any notes are played within this "
-      "amount of time at the end of the base thresh time, the threshold is extended'. That happens "
-      "at most once per group, so a group lasts at most threshold plus extension and a continuous "
-      "stream cannot push the list out indefinitely, which is the bound that makes this object "
-      "predictable. Max's defaults are the defaults here: 40 ms base, 10 ms fudge, 20 ms "
-      "extension, "
-      "set by the three creation arguments, by the second, third and fourth inlets, or all at once "
-      "by the message 'set threshold fudge extension'. A bang closes the group and sends it "
-      "immediately — Max's 'bang will reset quickthresh and output the notes in its buffer'. A "
-      "group of a single number comes out as that number, an int or a float by its spelling, so it "
-      "still reaches an int inlet downstream; anything longer comes out as list text. The wait "
-      "runs "
-      "on the patcher's deferred-message scheduler (issue #628) rather than on the timer thread "
-      "behind .metro, so collecting a value allocates nothing and takes no lock, and the emitted "
-      "list arrives inside the patcher's own dispatch as one logical event caused by the values "
-      "that went into it. That clock is the block counter, so it stops when the engine does — a "
-      "paused patch holds an open group where it stands — and its resolution is one audio block, "
-      "which is also the resolution of the fudge test: at the default 10 ms and a 128-sample block "
-      "only the last few blocks of the window count. The accumulation buffer is bounded and "
-      "pre-allocated at 256 characters; a value that would take a group past it is dropped and "
-      "counted rather than logged, an over-long group losing its tail and keeping everything "
-      "collected so far. Milliseconds are the only unit — a note value or tick count in a time "
-      "inlet is refused rather than misread as milliseconds, there being no clock here to measure "
-      "a "
-      "beat against. Calculate() does nothing and no message path allocates, locks or blocks.",
-      "The value inlet. An int, a float or a list arriving here joins the list this object is "
-      "building; the first one opens a window that runs for the base threshold whatever arrives "
-      "inside it, and a value landing in the last 'fudge' milliseconds of that window extends it "
-      "once by the extension time. A whole list is appended whole. A bang closes the group and "
-      "sends it now, whatever the window had left — Max's 'bang will reset quickthresh and output "
-      "the notes in its buffer'. The message 'set', followed by up to three millisecond values, "
-      "writes the base threshold, the fudge time and the extension at once; like Max's it is a "
-      "command word rather than data, so it cannot be collected as text. A group of one numeric "
-      "token leaves as that number rather than as a list of one.",
-      "Sets the base threshold in milliseconds — Max's 'all values received in the left inlet "
-      "within this time period are collected into a list'. Ints, floats and a list whose leading "
-      "token is a number all set it; a negative or NaN time counts as 0, which still groups "
-      "everything arriving in the same audio block, that being the scheduler's deadline floor. A "
-      "window already running keeps the deadline it opened with. Max's tempo-relative time syntax "
-      "is not read here — this object has no clock to measure a beat against — and a note value "
-      "('4nd') or tick count ('1440 ticks') is refused outright rather than misread as the "
-      "milliseconds it is not, leaving the threshold where it was. There is no bang method on this "
-      "inlet.",
-      "The collected group, sent when its window closes or when a bang cuts it short: list text "
-      "for "
-      "a group of more than one atom, and the number itself for a group of one numeric token.",
-      "40",
-      "The initial base threshold in milliseconds — Max's first creation argument, whose "
-      "documented "
-      "default is 40: 'the default value for the base threshold is 40 ms'. The second inlet "
-      "overwrites it afterwards. A negative value counts as 0.");
+      "Collects values that arrive close together into one list, sent a fixed time (40 ms by "
+      "default) after the first of them. Made for grouping the notes of a chord.",
+      "An int, float or list to add to the group. A bang sends the group now; 'set <threshold> "
+      "[<fudge> [<extension>]]' sets the times.",
+      "The window length in milliseconds, counted from the first value of a group.",
+      "The group: a list, or a single number when only one number was collected.", "40",
+      "The window length in milliseconds. A negative value counts as 0.");
 
   INLET_DOC(2, "fudge",
-            "Sets the fudge time in milliseconds — Max's 'if there are any incoming values within "
-            "this amount of time at the end of the base thresh time, the threshold is extended to "
-            "allow more values to be added to the list'. It is the grace zone at the *end* of the "
-            "window, not an addition to it: what it buys is the extension time, and only when a "
-            "value actually lands inside it. A fudge of 0 disables the extension entirely, and one "
-            "shorter than an audio block means 'a value arriving in the same dispatch the deadline "
-            "fell in', that being the resolution of the block clock this is measured on. Ints, "
-            "floats and a list whose leading token is a number all set it; a negative or NaN time "
-            "counts as 0, and a note value or tick count is refused rather than misread as "
-            "milliseconds.",
+            "The last part of the window, in milliseconds, in which a value extends the window. 0 "
+            "turns the extension off.",
             "0+ ms");
   INLET_DOC(3, "extension",
-            "Sets the extension in milliseconds — Max's 'an extension of the base thresh time, "
-            "which is used if values arrive in the object's inlet in the fudge time zone'. It is "
-            "applied at most once per group, which is what keeps a group to at most threshold plus "
-            "extension however long the stream goes on; a continuous stream cannot postpone the "
-            "list the way it can with .thresh. An extension of 0 leaves the window at the base "
-            "threshold whatever lands in the fudge zone. Ints, floats and a list whose leading "
-            "token is a number all set it; a negative or NaN time counts as 0, and a note value or "
-            "tick count is refused rather than misread as milliseconds.",
+            "How much longer the window runs, in milliseconds, when a value lands in the fudge "
+            "time. It happens once per group.",
             "0+ ms");
 
   PARAM_DOC("fudge", "10",
-            "The initial fudge time in milliseconds — Max's second creation argument, whose "
-            "documented default is 10: 'if not provided, the default value is 10 ms'. The third "
-            "inlet and the 'set' message overwrite it afterwards. A negative value counts as 0, "
-            "which disables the extension.",
+            "The last part of the window, in milliseconds, in which a value extends the window. 0 "
+            "turns the extension off.",
             "0+ ms");
-  PARAM_DOC(
-      "extension", "20",
-      "The initial extension in milliseconds — Max's third creation argument, whose "
-      "documented default is 20: 'the default value is 20 ms'. The fourth inlet and the 'set' "
-      "message overwrite it afterwards. A negative value counts as 0, which leaves the window "
-      "at the base threshold.",
-      "0+ ms");
+  PARAM_DOC("extension", "20",
+            "How much longer the window runs, in milliseconds, when a value lands in the fudge "
+            "time.",
+            "0+ ms");
 }
 
 int gQuickthresh::Fudge() const {

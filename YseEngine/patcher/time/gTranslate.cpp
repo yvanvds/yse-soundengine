@@ -80,21 +80,9 @@ namespace {
   }
 
   constexpr char kInletDoc[] =
-      "Takes a time value and sends it back out in the other format. A bare int or float is read "
-      "in the input format — milliseconds unless the object was told otherwise — and a value that "
-      "spells its own unit overrides that: '4n', '8nt' and '4nd' are Max's note values, and '1440 "
-      "ticks' is Max's tick count, both read through the same reader '.delay' and '.metro' use, so "
-      "the three objects agree on what a note value is. A bang converts the *last* value again, at "
-      "the tempo of the moment rather than the one it arrived at, which is what makes a '.metro' "
-      "into this inlet a patch that tracks a tempo ramp. 'in <format>' and 'out <format>' are "
-      "Max's two attributes under their own names, 'clock <name>' re-points the object at another "
-      "domain clock and a bare 'clock' unbinds it. The formats are 'ms', 'beats', 'ticks', 'hz' "
-      "and 'samples'; a word that is not one of those leaves the setting exactly where it was, "
-      "including Max's 'bars.beats.units' and 'hh:mm:ss', which a domain clock cannot express, and "
-      "'notevalues', which is read as an input spelling rather than selected as a format. Nothing "
-      "at all is emitted when the conversion cannot be made: no clock, a clock at tempo 0 or a "
-      "rate of 0 Hz all produce silence rather than a zero that would be indistinguishable from a "
-      "real answer.";
+      "A number in the input format, or a note value or tick count, to convert. A bang converts "
+      "the last value again. 'in <format>', 'out <format>' and 'clock <name>' change the "
+      "settings.";
 
 } // namespace
 
@@ -116,55 +104,16 @@ CONSTRUCT() {
   REG_PARM_PARSE;
 
   ADD_DESCRIPTION(
-      "Converts a time value from one time format to another — Max's translate, and the exchange "
-      "rate between the patcher's two kinds of time (issue #516). Since the patcher gained named "
-      "domain clocks it speaks both wall-clock time (a '.delay 500' waits half a second) and "
-      "musical time (a '.timepoint main 4' waits for a beat), and a patch that has both eventually "
-      "needs to ask how long a sixteenth is at the tempo it is running at now. '.translate ms "
-      "beats main' answers that: send it 500 and it sends back how many beats of the clock called "
-      "'main' fit in half a second. Five formats, in two families — 'ms', 'hz' (a repetition rate: "
-      "2 Hz is 500 ms) and 'samples' at the live sample rate are fixed wall-clock times, while "
-      "'beats' and 'ticks' (Max's 1/480th of a quarter note) are relative to a tempo. A conversion "
-      "within one family needs no clock at all; a conversion across them reads the tempo from the "
-      "bound clock at the moment it converts, never from a number cached when the object was "
-      "built, so a tempo ramp cannot silently invalidate the answer. Note values are accepted "
-      "wherever a value is — '4n', '8nt', '4nd' — through the same reader '.delay' and '.metro' "
-      "use, so the input format only ever decides what a *bare number* means. Max's "
-      "'bars.beats.units' and 'hh:mm:ss' are absent, the first because a bar needs a meter and a "
-      "domain clock is a bare beat accumulator with none, the second because it is a spelling of "
-      "milliseconds that would have to be written out as a symbol; 'beats' takes the first one's "
-      "place as the default relative format. Bang converts the last value again at the current "
-      "tempo, which is how a patch tracks a ramp. With no clock, a clock at tempo 0 or a rate of 0 "
-      "Hz nothing at all is emitted, not a zero. The object never creates a clock and never "
-      "destroys one — '.when''s reader contract — and no handler allocates, locks or blocks when "
-      "it turns out to be running on the audio callback: the message words are matched in place, "
-      "the conversion is arithmetic, and the tempo is two acquire loads through the patcher's "
-      "clock bridge.");
+      "Converts a time value between milliseconds, hertz, samples, beats and ticks. Converting "
+      "between real time and beats uses the current tempo of a named domain clock.");
   ADD_CATEGORY(pCategory::TIME);
   INLET_DOC(0, "value", kInletDoc,
             "a number, a note value, '<n> ticks', bang, 'in|out <format>', 'clock <name>'");
   OUTLET_DOC(0, "converted",
-             "The value in the output format, sent as soon as it arrives and again on every "
-             "bang. Ticks by default, as in Max. Nothing is emitted when the conversion "
-             "cannot be made — across the two families with no clock bound, or on a clock "
-             "sitting at tempo 0, where there is no exchange rate in either direction and a "
-             "zero would be indistinguishable from a real answer. A negative tempo is not "
-             "refused: a domain clock running backwards converts at a negative rate, which "
-             "is the honest reading of how far it gets in a given number of milliseconds.",
-             "");
+             "The value in the output format. Nothing when the conversion cannot be made.", "");
   PARAM_DOC("in out clock", "ms ticks",
-            "The input format, the output format, and the clock whose tempo bridges them. The "
-            "first two tokens that name a format are the input and the output, in that order, and "
-            "the first token that names no format is the clock name — so '.translate ms beats "
-            "main' and '.translate main ms beats' are the same object. The formats are 'ms', "
-            "'beats', 'ticks', 'hz' and 'samples'. The defaults are 'ms' in and 'ticks' out: Max "
-            "defaults its input to 'bars.beats.units', which needs a meter a domain clock does not "
-            "have, and a bare number already means milliseconds everywhere else in the patcher. "
-            "Max's absent format words are recognised and refused rather than mistaken for a clock "
-            "name. Without a clock the object still converts within a family — milliseconds to "
-            "samples, beats to ticks — and stays silent across them; the clock is bound, never "
-            "created, so naming one the host has not made yet leaves the object quiet until it "
-            "appears.",
+            "The input format, the output format and the clock name, in any order: the first two "
+            "format words are input and output, any other word is the clock.",
             "[<format>] [<format>] [<clock name>]");
 }
 
