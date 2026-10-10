@@ -47,6 +47,13 @@ namespace YSE {
    *  data is reused. Buffers without any remaining sound reference are flagged for
    *  deletion automatically.
    *
+   *  A sound only reaches the engine once one of the ``create`` overloads has
+   *  succeeded. Before that — and after a ``create`` that failed — every other
+   *  method is a safe no-op: setters and transport calls do nothing and leave
+   *  the cached values untouched, and queries backed by the implementation
+   *  (``isPlaying``, ``isPaused``, ``isStopped``, ``isStreaming``, ``time``,
+   *  ``length``) return ``false`` / ``0`` (issue #579).
+   *
    *  @see YSE::channel For grouping sounds.
    *  @see YSE::DSP::dspSourceObject For procedural audio sources.
    *  @see YSE::patcher For modular-graph sources.
@@ -160,8 +167,10 @@ namespace YSE {
      *  @brief Whether this interface has a live implementation.
      *
      *  Returns ``true`` for the entire lifetime of a successfully ``create``-d
-     *  sound. Primarily useful for debugging — callers don't need to gate other
-     *  methods on this.
+     *  sound, and ``false`` before the first ``create`` or after one that
+     *  failed. Callers don't need to gate other methods on this — they are all
+     *  no-ops while it reports ``false`` — but it is the way to tell a failed
+     *  load from a successful one.
      */
     bool isValid();
 
@@ -248,7 +257,12 @@ namespace YSE {
     /** @brief Set whether the sound loops continuously. */
     void looping(bool value);
 
-    /** @brief Whether the sound is currently set to loop. */
+    /** @brief Whether the sound is currently set to loop.
+     *
+     *  Reports the ``loop`` argument a successful ``create`` was given until
+     *  ``looping(bool)`` overrides it, and ``false`` for a sound that has not
+     *  been created yet (issue #583).
+     */
     bool looping();
 
     /**
@@ -263,7 +277,9 @@ namespace YSE {
     /** @brief Current volume.
      *
      *  May differ from the most recently requested target volume if a non-zero
-     *  fade time was supplied and the fade is still in progress.
+     *  fade time was supplied and the fade is still in progress. Starts at the
+     *  ``volume`` argument a successful ``create`` was given (issue #583); a
+     *  sound that has not been created yet reports ``0``.
      */
     float volume();
 
@@ -407,6 +423,12 @@ namespace YSE {
 
     UInt _fadeAndStopTime;
     DSP::dspObject* _dsp;
+    // Channel this sound was last moved to, or nullptr while it still sits on
+    // whatever channel create() attached it to. moveTo() compares against this
+    // to skip redundant MOVE messages, so it must start at a value no live
+    // channel can have — see #656, where it was left uninitialised and the
+    // first moveTo() could read back the target's own address and silently
+    // drop the move.
     channel* _parent;
 
     // Bus addressing state. Empty name = anonymous = not on the bus.

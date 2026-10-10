@@ -56,12 +56,17 @@ YSE::io& YSE::io::seek(long long (*funcPtr)(long long offset, int whence, void* 
 }
 
 YSE::io& YSE::io::setActive(bool value) {
-  active.store(value);
-
-  if (value)
+  // Ordered so `active` is the conservative gate: on activation the callback
+  // snapshot is published before the flag flips, on deactivation the flag
+  // flips before the snapshot is withdrawn. A reader that sees active==true
+  // therefore always finds a snapshot in place (#837).
+  if (value) {
     INTERNAL::customFileReader::UpdateVIO();
-  else
+    active.store(value);
+  } else {
+    active.store(value);
     INTERNAL::customFileReader::ResetVIO();
+  }
 
   return *this;
 }

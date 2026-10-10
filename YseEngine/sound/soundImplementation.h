@@ -22,6 +22,10 @@
 #include "../utils/lfQueue.hpp"
 
 namespace YSE {
+  namespace CHANNEL {
+    class voiceSlice;
+  }
+
   namespace SOUND {
 
     /**
@@ -107,11 +111,12 @@ namespace YSE {
       */
       Bool dsp();
 
-      /** After all channels, subchannels and soundImplementations are done with their
-          dsp functions, the toChannels() method is called recursively from the main
-          mix, as to gather all calculated buffers into a single main buffer.
+      /** Pan this sound's block into @p dest, its voice slice's buffers (issue
+          #860): the parent channel's `out` for slice 0, the slice's private
+          buffers otherwise. Called from the slice's render task right after
+          dsp(). @p dest has the parent's output count.
       */
-      void toChannels();
+      void toChannels(std::vector<DSP::buffer>& dest);
 
       /** This function is called from soundManager::setup and checks if the soundfile
           connected to this sound is ready. If so, it will setup the buffers needed for this
@@ -168,6 +173,24 @@ namespace YSE {
           unit-testable and mirrors the pan term's parenthesization. See #207.
       */
       static Flt computeSpeakerOverlap(Flt angleA, Flt angleB);
+
+      /** Source velocity over one update tick, in units per second.
+
+          ``delta`` is the tick length ``INTERNAL::Time().delta()``, which is 0
+          for a tick that measured no time — the clock's seeding tick, or two
+          update ticks inside one clock period (routine on the millisecond-
+          quantised ``std::clock()`` this used to be derived from, rare but not
+          impossible on the monotonic clock of #667). Dividing by that gives
+          ``+inf``, and a *stationary* source (``newPos == lastPos``) computes ``0 * inf``
+          = NaN, which no downstream comparison rejects: the playback rate goes
+          NaN and the playhead freezes there for the rest of playback. A tick
+          that measured no time carries no velocity information, so ``previous``
+          — the last velocity actually measured — is held instead. Kept as a
+          pure static helper so the guard stays unit-testable in isolation.
+          See issue #660.
+      */
+      static Pos computeVelocity(const Pos& newPos, const Pos& lastPos, Flt delta,
+                                 const Pos& previous);
 
       /** Doppler playback-rate multiplier for a moving source/listener pair.
 
@@ -312,6 +335,10 @@ namespace YSE {
       // std::forward_list<T*> nodes they replace — but without heap churn.
       implementationObject* _mgrNext = nullptr;
       implementationObject* _channelNext = nullptr;
+      // The voice slice of `parent` whose `sounds` list `_channelNext` threads
+      // this impl through (issue #860), or nullptr while it is in none.
+      // Audio-thread-owned, like the link itself.
+      CHANNEL::voiceSlice* slice = nullptr;
 
       void dspFunc_parseIntent();
 
@@ -428,8 +455,17 @@ namespace YSE {
 
       Bool _setPostDSP;
       std::atomic<DSP::dspObject*> _postDspPtr;
+      // Attached post-DSP plugin. Touched only on the update/audio thread:
+      // written by addDSP() (parseMessage / doThisWhenReady) and nulled again
+      // — together with the plugin's `calledfrom` back-reference — at the
+      // OBJECT_RELEASE→OBJECT_DELETE transition in SOUND::Manager, so the
+      // slow-pool destructor never dereferences the dspObject on the normal
+      // delete path (issue #838; teardown fallback in ~implementationObject).
       DSP::dspObject* post_dsp;
-      void addDSP(DSP::dspObject& ptr);
+      // Attach `ptr` to this sound's post-DSP slot, replacing whatever was
+      // there. A null `ptr` detaches instead of crashing (issue #578) — the
+      // same contract as CHANNEL::implementationObject::addDSP.
+      void addDSP(DSP::dspObject* ptr);
 
       CHANNEL::implementationObject* parent;
       // True once the audio thread has called parent->connect(this) and the
@@ -480,6 +516,7 @@ namespace YSE {
 
       friend class YSE::SOUND::managerObject;
       friend class YSE::CHANNEL::implementationObject;
+      friend class YSE::CHANNEL::voiceSlice;
     };
   } // namespace SOUND
 

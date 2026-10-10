@@ -190,7 +190,7 @@ YSE::channel& YSE::channel::moveTo(channel& parent) {
 YSE::channel& YSE::channel::setVirtual(Bool value) {
   CHANNEL::messageObject m;
   m.ID = CHANNEL::VIRTUAL;
-  m.boolValue = true;
+  m.boolValue = value;
   pimpl->sendMessage(m);
   allowVirtual = value;
   return (*this);

@@ -13,6 +13,10 @@ pushd %~dp0
 if "%SPHINXBUILD%" == "" (
     set SPHINXBUILD=sphinx-build
 )
+REM Same flags as CI (documentation.yml): warnings are errors, all reported.
+if "%SPHINXOPTS%" == "" (
+    set "SPHINXOPTS=-W --keep-going"
+)
 set SOURCEDIR=source
 set BUILDDIR=build
 
@@ -30,13 +34,13 @@ doxygen Doxyfile
 goto end
 
 :sphinx
-%SPHINXBUILD% -b html "%SOURCEDIR%" "%BUILDDIR%\html"
+%SPHINXBUILD% %SPHINXOPTS% -b html "%SOURCEDIR%" "%BUILDDIR%\html"
 goto end
 
 :html
 doxygen Doxyfile
 if errorlevel 1 goto end
-%SPHINXBUILD% -b html "%SOURCEDIR%" "%BUILDDIR%\html"
+%SPHINXBUILD% %SPHINXOPTS% -b html "%SOURCEDIR%" "%BUILDDIR%\html"
 goto end
 
 :serve

@@ -65,7 +65,7 @@ namespace YSE {
        *  ### Trajectory note (design record, issue #326)
        *
        *  With zone-bound return buses
-       *  ([send_return_buses.md §12b](../../../docs/design/send_return_buses.md)),
+       *  (``docs/design/send_return_buses.md`` §12b in the repository),
        *  a reverb *zone* can instead be a return bus tied to a region of
        *  space, with proximity modulating the *send levels* into it — distinct
        *  spaces crossfading as real wet signals. The two tools coexist:
@@ -87,7 +87,7 @@ namespace YSE {
         /** Slots default to A = ``REVERB_GENERIC``, B = ``REVERB_HALL``,
          *  ``morph() == 0`` (pure A). */
         morphingReverb();
-        virtual ~morphingReverb() {}
+        ~morphingReverb() override {}
 
         /** @brief Set morph endpoint A from a named preset. */
         morphingReverb& presetA(REVERB_PRESET value);
@@ -119,10 +119,10 @@ namespace YSE {
 
         /** @brief dspObject lifecycle hook. Per-channel state is sized in
          *  ``process`` (the channel count is only known there). */
-        virtual void create();
+        void create() override;
 
         /** @brief dspObject audio-thread entry point. */
-        virtual void process(MULTICHANNELBUFFER& buffer);
+        void process(MULTICHANNELBUFFER& buffer) override;
 
       private:
         // One morph endpoint. Control threads write, the audio thread reads;

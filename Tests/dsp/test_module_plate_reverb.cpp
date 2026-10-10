@@ -14,8 +14,8 @@
 //   - no allocation in process(); output stays bounded
 //
 // No audio device required — SAMPLERATE is initialised by the
-// portaudioDeviceManager translation unit at static-initialisation time (44100
-// by default; CI also forces 48000 via YSE_TEST_FORCED_RATE). Every tone,
+// portaudioDeviceManager translation unit at static-initialisation time (48000
+// by default; CI also forces 44100 via YSE_TEST_FORCED_RATE). Every tone,
 // window, and sample count below is derived from the *actual* SAMPLERATE so the
 // tests hold at any rate.
 

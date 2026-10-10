@@ -289,9 +289,16 @@ namespace YSE {
 #ifdef AE_VCPP
 #pragma warning(disable : 4100) // Get rid of (erroneous) 'unreferenced formal parameter' warning
 #endif
+    // The copy and move constructors are declared explicitly on the next two
+    // lines, and when this template does win overload resolution for a
+    // non-const `weak_atomic&` it still does the right thing -- `value` is
+    // initialised from the source through `operator T()`, i.e. a load. Removing
+    // it would break every `weak_atomic<T> x(someT);` initialisation in the
+    // queues (issue #573).
+    // NOLINTNEXTLINE(bugprone-forwarding-reference-overload)
     template <typename U> weak_atomic(U&& x) : value(std::forward<U>(x)) {}
     weak_atomic(weak_atomic const& other) : value(other.value) {}
-    weak_atomic(weak_atomic&& other) : value(std::move(other.value)) {}
+    weak_atomic(weak_atomic&& other) noexcept : value(std::move(other.value)) {}
 #ifdef AE_VCPP
 #pragma warning(default : 4100)
 #endif
@@ -324,6 +331,11 @@ namespace YSE {
       return *this;
     }
 
+    // T is constrained to types with hardware atomic load/store (see the class
+    // comment) -- there is no resource to release, so self-assignment stores
+    // back the value it just loaded. A `this != &other` guard would only add a
+    // branch to a primitive that sits on the audio-thread queue path (#573).
+    // NOLINTNEXTLINE(cert-oop54-cpp)
     AE_FORCEINLINE weak_atomic const& operator=(weak_atomic const& other) {
       value.store(other.value.load(weak_order), weak_order);
       return *this;

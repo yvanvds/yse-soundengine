@@ -1,5 +1,6 @@
 #pragma once
 #include "../headers/defines.hpp"
+#include <atomic>
 #include <string>
 #include "../headers/enums.hpp"
 #include "../utils/vector.hpp"
@@ -22,6 +23,17 @@ namespace YSE {
    *
    *  The patcher owns the underlying object — do not delete the handle
    *  directly; call ``patcher::DeleteObject`` instead.
+   *
+   *  Every call is for control threads, and every call is safe while another
+   *  control thread edits the patch — including a ``SetParams`` on this same
+   *  object that rebuilds it and swaps the rebuilt one in behind the handle
+   *  (issue #968). ``GetParams``, ``GetGuiProperty``, ``SetGuiProperty`` and
+   *  the three connection queries take the patcher's lock. ``Type``,
+   *  ``GetName``, ``GetID``, ``GetInputs``, ``GetOutputs`` and the
+   *  ``GetGuiValue`` family take none, so GUI polling never waits on an edit.
+   *  A call that races such a swap answers for the object before it or the
+   *  one after it. Using a handle after ``DeleteObject`` has removed it is
+   *  still the caller's error.
    */
   class API pHandle {
   public:
@@ -61,7 +73,13 @@ namespace YSE {
     /** @brief Whether inlet ``inlet`` accepts an audio signal. */
     bool IsDSPInput(unsigned int inlet);
 
-    /** @brief Data type produced by outlet ``pin``. */
+    /** @brief Data type produced by outlet ``pin``.
+     *
+     *  On a subpatcher this answers for the ``.outlet`` / ``~outlet`` claiming
+     *  index ``pin`` (``ANY`` / ``BUFFER``), and ``OUT_TYPE::INVALID`` when no
+     *  boundary object claims it — the same resolution ``IsDSPInput`` makes on
+     *  the inlet side.
+     */
     YSE::OUT_TYPE OutputDataType(unsigned int pin);
 
     /** @brief Display name of this object (set in the patcher source). */
@@ -70,23 +88,125 @@ namespace YSE {
     /** @brief Original creation argument string. */
     std::string GetParams();
 
-    /** @brief Unique patcher-assigned ID. */
+    /** @brief Storage ID, unique among the owning patcher's live objects.
+     *
+     *  Assigned by the patcher when the object is created and stable for the
+     *  object's lifetime. This is the number ``patcher::DumpJSON`` writes for
+     *  the object and that ``GetConnectionTarget`` reports for edges pointing
+     *  at it. IDs are *not* unique across patchers — two patchers each number
+     *  their own objects from 0 (issue #730) — so use
+     *  ``patcher::GetHandleFromID`` on the patcher the object belongs to.
+     *
+     *  IDs are kept dense: the patcher issues the smallest number no live
+     *  object holds, so a deleted object's ID goes to the next object created
+     *  and a long editing session does not push a small patch's numbering up
+     *  (issue #733). The consequence for a caller is that an ID names an object
+     *  only while that object is alive — an ID cached across a delete may
+     *  resolve to the object that inherited the number rather than to nothing.
+     *  Hold the ``pHandle*`` for a lasting reference; use the ID for storage
+     *  and for talking about a patch.
+     */
     unsigned int GetID();
 
-    /** @brief Number of connections leaving outlet ``outlet``. */
+    /** @brief Number of connections leaving outlet ``outlet``.
+     *
+     *  0 when the object has no such outlet — ``SetParams`` can shrink an
+     *  object's outlet count, so an outlet number cached across a re-parse may
+     *  no longer name anything (issue #737). Compare against ``GetOutputs()``
+     *  to tell an absent outlet from an unconnected one.
+     *
+     *  This and the two queries below take the patcher's lock (issue #966),
+     *  so they are safe while another control thread edits the patch, but
+     *  each answers on its own: a connection counted here can be gone by the
+     *  next call, which then answers ``UINT_MAX``. Control threads only.
+     */
     unsigned int GetConnections(unsigned int outlet);
 
-    /** @brief ID of the target object of one connection from outlet ``outlet``. */
+    /** @brief ID of the target object of one connection from outlet ``outlet``.
+     *
+     *  ``UINT_MAX`` when there is no such outlet or no such connection on it.
+     *  Not 0: IDs start at 0 (issue #730), so 0 is a real target.
+     */
     unsigned int GetConnectionTarget(unsigned int outlet, unsigned int connection);
 
-    /** @brief Inlet on the target that this connection reaches. */
+    /** @brief Inlet on the target that this connection reaches.
+     *
+     *  ``UINT_MAX`` (``pObject::kNoInletIndex``) when there is no such outlet
+     *  or no such connection on it. Not 0: inlet 0 is the leftmost inlet and
+     *  the one most edges arrive at (issue #736).
+     */
     unsigned int GetConnectionTargetInlet(unsigned int outlet, unsigned int connection);
 
-    /** @brief Current GUI display value for objects that have one (sliders, toggles, ...). */
+    /** @brief Current GUI state of this object, as one string.
+     *
+     *  For a scalar control (``.slider``, ``.t``, ``.i``, ...) this is the
+     *  value; for a structured one (``.rslider``, ``.multislider``,
+     *  ``.matrixctrl``) it is every cell, space separated, in index order.
+     *  Empty for an object with no GUI state.
+     *
+     *  Host thread, and it may be *destructive*: ``.b`` reports the press it
+     *  is clearing. Poll an object through this call or through
+     *  ``GetGuiValueAt`` once per frame, never both. See the GUI value
+     *  protocol block in ``patcher/pObject.h`` for the full contract.
+     */
     std::string GetGuiValue();
 
+    /** @brief How many cells this object's GUI state has. 1 for a scalar control. */
+    unsigned int GetGuiValueCount();
+
+    /** @brief One cell of the GUI state, or "" past the end.
+     *
+     *  Cell 0 of a scalar control is exactly what ``GetGuiValue`` returns.
+     *  Cells are sampled one call at a time and the read is not atomic across
+     *  them — use ``GetGuiValue`` when a coherent snapshot matters.
+     */
+    std::string GetGuiValueAt(unsigned int index);
+
+    /** @brief Whether this object accepts its own GUI state back on inlet 0.
+     *
+     *  True means the round trip holds: ``SetListData(0, GetGuiValue())``
+     *  restores the state that was read, and ``SetListData(0, "set <index>
+     *  <value>")`` writes a single cell. That is how a preset is restored —
+     *  as ordinary messages on the control thread, never by writing another
+     *  object's state directly.
+     *
+     *  The round trip is the half a preset needs and it holds unconditionally.
+     *  The cell form has one carve-out, stated in the protocol block: a
+     *  one-cell control whose cell is free text (``.textedit``) takes its whole
+     *  inlet verbatim, because a text cell can hold the word ``set``. With one
+     *  cell the two forms are the same write anyway.
+     *
+     *  True for every GUI control that holds state, including the scalar
+     *  controls ``.slider``, ``.i``, ``.f``, ``.dial``, ``.incdec`` and ``.t``
+     *  (issue #846). False for ``.b``, whose value is a consume-on-read press
+     *  report that a restore could only replay; for ``.preset``, whose value
+     *  is its read-only active slot; for the message boxes ``.m`` and ``.l``;
+     *  and for the non-GUI objects that report a read-only value
+     *  (``.counter``, ``.accum``, ...).
+     */
+    bool GuiValueIsSettable();
+
   private:
-    PATCHER::pObject* object;
+    // The object this handle stands for. Not fixed: a SetParams that changes
+    // the object's shape builds a replacement and swaps it in here, under the
+    // owning patcher's lock, retiring the old one (issue #234). So a reader on
+    // another thread loads it atomically, and a getter pins the patcher before
+    // the load so the reclaimer cannot free the object it loaded (issue #968).
+    std::atomic<PATCHER::pObject*> object;
+    // The patcher that owns the object, or null for a standalone one (unit
+    // tests). Fixed at construction: a replacement joins the same patcher, so
+    // finding the patcher never has to go through `object`.
+    PATCHER::patcherImplementation* const owner;
+
+    // The object, for the owning patcher when it holds its own lock — the
+    // lock every write to `object` is made under.
+    PATCHER::pObject* ObjectUnderLock() const {
+      return object.load(std::memory_order_relaxed);
+    }
+
+    // A getter's read of `object`: pins the owner, then loads (pHandle.cpp).
+    class pinnedRead;
+
     friend class YSE::PATCHER::patcherImplementation;
   };
 

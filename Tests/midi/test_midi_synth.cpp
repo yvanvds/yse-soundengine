@@ -29,6 +29,7 @@
 #include "synth/synthInterface.hpp"
 #include "midi/midifile.hpp"
 #include "internal/time.h"
+#include "support/timer_pacing.hpp"
 
 // The MIDI file C API (yse_midi_file_*) is platform-agnostic — unlike MIDI
 // device I/O it is not RtMidi-gated — so its C headers are included
@@ -68,26 +69,30 @@ namespace {
   }
 
   // Bring a synth attached to a sound up to OBJECT_READY (voice cloning is
-  // async on the slow pool). Returns true once its voices are allocated.
+  // async on the slow pool). Returns true once its voices are allocated. The
+  // budget is counted in deliveries of the suite's reference timer rather than
+  // in milliseconds, so it stretches with machine load (issue #753).
   bool bringReady(YSE::synth& syn, int expectedVoices) {
-    const auto deadline = std::chrono::steady_clock::now() + 2s;
-    while (std::chrono::steady_clock::now() < deadline) {
-      YSE::System().update();
-      YSE::System().renderOffline(1);
-      if (syn.getNumVoices() == expectedVoices) return true;
-      std::this_thread::sleep_for(5ms);
-    }
-    return syn.getNumVoices() == expectedVoices;
+    return TestHelpers::pacedPump(
+        2000, [&] { return syn.getNumVoices() == expectedVoices; },
+        [] {
+          YSE::System().update();
+          YSE::System().renderOffline(1);
+        },
+        5);
   }
 
-  // Drain the engine so released impls are fully deleted before teardown.
-  void drain(std::chrono::milliseconds budget = 500ms) {
-    const auto deadline = std::chrono::steady_clock::now() + budget;
-    while (std::chrono::steady_clock::now() < deadline) {
-      YSE::System().update();
-      YSE::System().renderOffline(1);
-      std::this_thread::sleep_for(2ms);
-    }
+  // Drain the engine so released impls are fully deleted before teardown. The
+  // window is counted in reference ticks rather than in milliseconds, for the
+  // same reason (issue #753).
+  void drain(int budget = 500) {
+    TestHelpers::pacedPump(
+        budget, [] { return false; },
+        [] {
+          YSE::System().update();
+          YSE::System().renderOffline(1);
+        },
+        2);
   }
 
 } // namespace
@@ -168,12 +173,13 @@ TEST_SUITE("midisynth") {
 
     // Setup pool clones the voices asynchronously; pump until the pool is ready.
     {
-      const auto deadline = std::chrono::steady_clock::now() + 2s;
-      while (yse_synth_get_num_voices(syn) < 8 && std::chrono::steady_clock::now() < deadline) {
-        YSE::System().update();
-        YSE::System().renderOffline(1);
-        std::this_thread::sleep_for(5ms);
-      }
+      TestHelpers::pacedPump(
+          2000, [&] { return yse_synth_get_num_voices(syn) >= 8; },
+          [] {
+            YSE::System().update();
+            YSE::System().renderOffline(1);
+          },
+          5);
       REQUIRE(yse_synth_get_num_voices(syn) == 8);
     }
 

@@ -1,4 +1,5 @@
-/*
+/**
+  @file
   yse_all.h — umbrella header for the C ABI surface.
   Single entry-point consumed by Dart ffigen and any other C ABI client.
 */

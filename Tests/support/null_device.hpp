@@ -48,27 +48,102 @@ namespace TestHelpers {
 
   // Initialise the full engine state and pause the audio stream so the test
   // thread is the sole driver of `Manager().update()`. Returns true on
-  // success, false if init failed (typically CI without a default audio
-  // device — addCallback() is a no-op there).
+  // success, false if the engine could not be brought up at all.
+  //
+  // A host with no default audio output device (headless CI) falls back to an
+  // offline session. init() fails there since issue #973 — it used to return
+  // true over a session with no stream — and these suites exercise the engine,
+  // not the device, so they ran against a deviceless session all along. An
+  // offline session is that same state, declared: channels, managers and pools
+  // up, no audio thread. The cases that need a live device already ask for one
+  // (audioIsFlowing(), getNumDevices()) rather than assume it.
   inline bool engineInit() {
     if (engineInitialized()) return true;
-    if (!YSE::System().init()) return false;
+    if (!YSE::System().init()) return YSE::System().initOffline();
     YSE::System().pause();
     return true;
+  }
+
+  // True when the device is delivering audio right now. missedCallbacks()
+  // counts consecutive update() ticks that saw no audio callback, so it drops
+  // to 0 on the first tick after a callback lands and rises again the moment
+  // one stops. Deliberately *not* one of the getters the system suite asserts
+  // on (active sample rate / buffer size / output latency) — using one of those
+  // as the precondition for the cases that measure them would make them
+  // vacuous.
+  //
+  // Retried a few times before concluding the device is dead: two update()
+  // ticks closer together than one callback period legitimately see no callback
+  // in between, which would read as "stopped" on a perfectly healthy stream.
+  inline bool audioIsFlowing(int attempts = 5, unsigned int sleepMs = 20) {
+    for (int i = 0; i < attempts; ++i) {
+      YSE::System().update();
+      if (YSE::System().missedCallbacks() == 0) return true;
+      YSE::System().sleep(sleepMs);
+    }
+    return false;
   }
 
   // Like engineInit() but resumes the audio stream afterwards. Use only in
   // integration tests that exercise the live audio callback path, and pump
   // the engine via `YSE::System().update()` + `System().sleep()` rather than
   // `Manager().update()` to avoid double-driving the manager update from two
-  // threads. The local-static gate keeps resume() idempotent across multiple
-  // test cases.
+  // threads.
+  //
+  // resume() only *starts* the stream: Pa_StartStream() returns before the
+  // device has delivered its first callback, and until it does
+  // System().missedCallbacks() is non-zero — a state indistinguishable from a
+  // stalled device. So the helper used to hand back a stream that was started
+  // but not yet running, and whichever case called it first paid the whole
+  // start-up window inside its own assertions. That is issue #675: the first
+  // caller in the integration suite is the #661 case, whose opening
+  // `REQUIRE(audioStreamRunning())` samples a single 50 ms window. On an idle
+  // Windows host the first callback lands inside it (60/60 runs); with the
+  // machine under CPU load it was measured at 55-70 ms, so the REQUIRE tipped
+  // over (43/60 runs), aborted the case, and turned the suite's 162 assertions
+  // into 157 with a single failure — the exact signature reported in #675.
+  //
+  // Waiting here — in the setup, once per process — means every caller's
+  // assertions measure the running device instead of the start-up gap, and
+  // they keep their original strictness. The ceiling is ~2 s, orders of
+  // magnitude beyond any real device start-up, and deliberately does not
+  // report failure: a device that never starts must still trip the caller's
+  // own liveness assertion rather than being swallowed here.
+  //
+  // The `audioResumed` gate below starts the stream once per process, and it
+  // deliberately does *not* re-check whether that stream is still open. That is
+  // a decision, and issue #717 is where it was made rather than assumed.
+  //
+  // In a shared process something does close the device underneath it:
+  // `devicelayer`'s ensureOffline() runs System().close() + initOffline(), and
+  // doctest orders cases by *file*, so test_device_layer.cpp lands between
+  // system/test_api_doc_coverage.cpp and system/test_system_active_state.cpp —
+  // inside the `system` suite's own files. The obvious repair, ask
+  // audioIsFlowing() and resume() when it says no, was implemented and measured,
+  // and it is worse than the problem: it puts a live PortAudio callback thread
+  // back into a process where the unit suites drive `Manager().update()` from
+  // the test thread, which is the exact race this header opens by explaining.
+  // The unfiltered run then stops merely failing three assertions and *aborts*
+  // on lfQueue.hpp's `!inSection` reentrancy assertion.
+  //
+  // So the stream is started once and never re-established, and the cases that
+  // need a live one ask audioIsFlowing() themselves and skip when it is not —
+  // the mirror of the guard `devicelayer` carries for the opposite state. The
+  // two suites need opposite device state and cannot share a process; that is
+  // what the isolated ctest entries are for.
   inline bool engineInitWithAudio() {
     if (!engineInit()) return false;
     static bool audioResumed = false;
     if (!audioResumed) {
       YSE::System().resume();
       audioResumed = true;
+      // missedCallbacks() returns to 0 on the first update() that sees a
+      // callback, which is exactly "the device is delivering audio now".
+      for (int i = 0; i < 100; ++i) {
+        YSE::System().sleep(20);
+        YSE::System().update();
+        if (YSE::System().missedCallbacks() == 0) break;
+      }
     }
     return true;
   }

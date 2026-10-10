@@ -66,6 +66,7 @@
 
 #include "internal/global.h"
 #include "internal/namedBus.h"
+#include "internal/rtLogQueue.h"
 
 #if YSE_ENABLE_PYTHON
 #include "python/scriptRuntime.h"

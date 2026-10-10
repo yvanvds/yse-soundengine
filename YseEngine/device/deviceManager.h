@@ -41,6 +41,24 @@ namespace YSE {
       virtual void resume() = 0;
       virtual unsigned int GetCallbacksSinceLastUpdate() = 0;
 
+      /* Monotonic count of audio streams this manager has successfully started
+         (issue #681). Bumped by the backends right after the stream is running
+         — Pa_StartStream / Oboe requestStart returned OK — on every path that
+         can start one: addCallback(), openDevice(), resume(), and the
+         backend-side rebuild in serviceReconnect().
+
+         Starting a stream is not the same as delivering audio: the start call
+         returns before the device produces its first callback (measured 15-70 ms
+         on Windows, load-dependent). system::update() watches this counter to
+         tell "started, coming up" from "stalled", so the missed-callback
+         watchdog does not tear down a device that is still starting.
+
+         Written and read on the control thread only — never from an audio
+         callback. Wraps harmlessly: callers compare for inequality, not order. */
+      unsigned int getStreamStartCount() const {
+        return streamStartCount;
+      }
+
       /* If the audio backend provides a method to retrieve
          the cpu load, use it. Otherwise just return a number.
          YSE does not depend on this method, but it can be useful
@@ -74,8 +92,42 @@ namespace YSE {
        */
       virtual void updateDeviceList() {};
 
-      virtual void openDevice(const YSE::deviceSetup&) {};
-      virtual void addCallback() {};
+      /* Open the stream described by the setup and report whether a stream is
+         actually running afterwards. False means the request was refused or
+         failed and the audio path is unchanged: a malformed setup, a device ID
+         no host API resolves, a backend that was never initialised (the
+         offline engine), or a backend error. system::openDevice() applies the
+         requested speaker layout only on true — a mixer configured for a
+         device that is not playing is silently wrong, because
+         doOnCallback() resizes the master to getNumberOfOutputs() and the
+         still-running stream then gets the wrong channel count (issue #665).
+         The base implementation opens nothing, so it reports false. */
+      virtual Bool openDevice(const YSE::deviceSetup&) {
+        return false;
+      };
+      /* Open and start a stream on the platform default output device, and
+         report whether one is running afterwards (issue #973). False means no
+         default device, or the backend refused to open or start the stream;
+         nothing is left open in that case. system::init() fails on false, the
+         way openDevice() reports its own refusals. The base implementation
+         opens nothing, so it reports false. */
+      virtual Bool addCallback() {
+        return false;
+      };
+
+      /* Application-requested sample rate in Hz for the next stream open
+         (issue #646). 0 = no request: the backend opens at the device default.
+         The request is an application setting consumed on the init path — the
+         backend's negotiated rate stays authoritative (it is what SAMPLERATE
+         is written with inside the session-lock window) and the request
+         deliberately survives close() so a host can set it once for repeated
+         init()/close() cycles. */
+      void requestSampleRate(UInt rate) {
+        requestedSampleRate = rate;
+      }
+      UInt getRequestedSampleRate() const {
+        return requestedSampleRate;
+      }
 
       /* Service a device rebuild requested from a backend error thread (e.g.
          Oboe's onErrorAfterClose flags a disconnect). Called once per
@@ -87,10 +139,12 @@ namespace YSE {
       bool doOnCallback(int numSamples);
 
       /* Render one STANDARD_BUFFERSIZE-sample block through the channel
-         tree (master->dsp() + master->buffersToParent()).  Extracted from
+         tree on the render scheduler (CHANNEL::Manager().render()).  Extracted from
          the audio backends' callbacks so the same path can be driven from
          a benchmark via renderOffline().  Caller must have run
-         doOnCallback() first.
+         doOnCallback() first.  Advances the domain clocks and clip
+         transports by one block before rendering it (issue #944), so beat
+         time moves per block whatever the device buffer size.
       */
       void renderOneBlock();
 
@@ -111,12 +165,33 @@ namespace YSE {
       const std::string& getDefaultDeviceName();
 
     protected:
+      /* Audio thread. Advance every domain clock by numSamples, then the clip
+         transports that read them. Called per rendered block from
+         renderOneBlock(), or per callback from doOnCallback() when nothing
+         renders (issue #944). */
+      void advanceDomainClocks(int numSamples);
+
+      /* Backends call this once per successfully started stream. See
+         getStreamStartCount(). */
+      void notifyStreamStarted() {
+        ++streamStartCount;
+      }
+
       std::vector<device> devices;
       std::string defaultTypeName;
       std::string defaultDeviceName;
 
       CHANNEL::implementationObject* master;
       int currentInputChannels, currentOutputChannels;
+
+      // See requestSampleRate() above. Written on the control thread before
+      // init(); read by the backends on their stream-open (init/negotiation)
+      // path — never on the audio callback.
+      UInt requestedSampleRate = 0;
+
+      // See getStreamStartCount(). Control thread only, so a plain int is
+      // enough — no audio callback ever touches it.
+      unsigned int streamStartCount = 0;
     };
 
   } // namespace DEVICE

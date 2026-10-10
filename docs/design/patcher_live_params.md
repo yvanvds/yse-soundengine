@@ -9,6 +9,12 @@ This document settles the design gate in issue [#234][gh-234]: how a live
 `pHandle::SetParams` re-parse becomes RT-safe without bypassing the
 GraphState swap and without mutating a published object.
 
+> **User-facing pages.** What a host sees of this — which `SetParams`
+> calls are queued and which rebuild the object, and where the param
+> drain sits among everything else the start of a block runs — is in the
+> manual's [Real-time model][doc-realtime] page; the C API side is
+> [Embedding through the C API][doc-capi].
+
 ## Table of contents
 
 1. [The bug](#the-bug)
@@ -83,11 +89,15 @@ in-place write left them stale).
 The epic's target architecture already assigns "live param changes to
 existing objects" to the value-command regime. Concretely:
 
-- **Control thread (under `mtx`):** tokenize `args` exactly as
-  `Parameters::Set` does, but write the values into a POD
+- **Control thread (under `mtx`):** parse `args` with `Parameters::Set`
+  into a fresh, unpublished object of the same type, then write *every*
+  registered param's staged value into a POD
   `ParamMsg { pObject* target; count; ops[kParamOpsCap] }` where each op
   is `{PARM_TYPE, void* dest, int|float value}` — no live field is
-  touched. `parms.current` *is* updated eagerly (control-side state, read
+  touched. Params `args` leaves out therefore take their defaults, exactly
+  as on the structural path and on a reload of the stored string, and `""`
+  resets them all ([#935][gh-935]; the first version planned only the
+  tokens given, so the live object kept values its dump did not record). `parms.current` *is* updated eagerly (control-side state, read
   by `GetParams`/`DumpJSON` under the same regime as today), so dumps and
   round-trips reflect the new args immediately. Parse errors
   (`std::stof` on garbage) throw on the control thread, exactly as
@@ -100,7 +110,12 @@ existing objects" to the value-command regime. Concretely:
   snapshot's object list**. That membership check makes delivery safe
   across a concurrent `DeleteObject`, exactly like the by-name
   re-resolution of value messages: a deleted object is simply absent and
-  the msg is dropped.
+  the msg is dropped. The param drain is still the first thing a block
+  does; since this was settled, the clock-binding poll, the deferred
+  scheduler, file-I/O completions and the block pollers
+  ([#529][gh-529], see [patcher_graphstate.md](patcher_graphstate.md))
+  run after the value drain and before the DSP traversal, so every one of
+  them already sees this block's params.
 
 Why the dangling-`target` ABA cannot happen: the queue is drained in
 full at the top of *every* block, so a msg never survives past the first
@@ -110,8 +125,8 @@ audio epoch advancing **two further blocks** past retirement
 live `pHandle`), so the pointer is compared — never dereferenced — while
 the allocation is still parked in the retire list.
 
-Ops per msg are capped (`kParamOpsCap = 8`; today's richest scalar
-object registers 2). An object that ever exceeds the cap falls back to
+Ops per msg are capped (`kParamOpsCap = 8`; one op per registered
+param). An object that ever exceeds the cap falls back to
 the structural path, which is correct for any object — the cap is a
 fallback trigger, not a correctness boundary.
 
@@ -208,5 +223,9 @@ replaced/deleted `gReceive` instances.
 [gh-229]: https://github.com/yvanvds/yse-soundengine/issues/229
 [gh-234]: https://github.com/yvanvds/yse-soundengine/issues/234
 [gh-237]: https://github.com/yvanvds/yse-soundengine/issues/237
+[gh-935]: https://github.com/yvanvds/yse-soundengine/issues/935
+[gh-529]: https://github.com/yvanvds/yse-soundengine/issues/529
+[doc-realtime]: ../../documentation/source/patcher/realtime.rst
+[doc-capi]: ../../documentation/source/patcher/c_api.rst
 [src-parameters]: ../../YseEngine/patcher/parameters.cpp
 [src-ggate]: ../../YseEngine/patcher/genericObjects/gGate.cpp

@@ -36,7 +36,7 @@ namespace YSE {
       class API phaser : public dspObject {
       public:
         phaser();
-        virtual ~phaser() {};
+        ~phaser() override {};
 
         /** @brief Set the sweep LFO frequency. Typically very low; default 0.3 Hz. Must be > 0. */
         phaser& frequency(Flt value);
@@ -51,10 +51,10 @@ namespace YSE {
         Flt range();
 
         /** @brief dspObject lifecycle hook — allocates buffers. */
-        virtual void create();
+        void create() override;
 
         /** @brief dspObject audio-thread entry point. */
-        virtual void process(MULTICHANNELBUFFER& buffer);
+        void process(MULTICHANNELBUFFER& buffer) override;
 
         /** @brief One channel's four-stage all-pass cascade state. */
         struct allpassChain {

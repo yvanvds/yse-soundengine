@@ -8,8 +8,8 @@
 */
 
 #include "feedbackDelay.hpp"
+#include "../../smoother.hpp"
 #include <algorithm>
-#include <cmath>
 
 namespace {
   // Maximum delay time the line can address, in milliseconds. Delay lines are
@@ -33,6 +33,7 @@ YSE::DSP::MODULES::feedbackDelay::feedbackDelay()
     parmCrossfeed(0.0f),
     currentTime(250.0f),
     timeSmoothCoef(0.0f),
+    builtRate(0),
     primed(false),
     blockLength(0) {}
 
@@ -74,11 +75,10 @@ Flt YSE::DSP::MODULES::feedbackDelay::crossfeed() {
 }
 
 void YSE::DSP::MODULES::feedbackDelay::create() {
-  // One-pole coefficient for the per-sample delay-time smoother. Computed once
-  // here (off the audio thread) from the engine sample rate.
-  Flt tauSamples = TIME_SMOOTH_TAU * static_cast<Flt>(SAMPLERATE);
-  if (tauSamples < 1.0f) tauSamples = 1.0f;
-  timeSmoothCoef = 1.0f - std::exp(-1.0f / tauSamples);
+  // One-pole coefficient for the per-sample delay-time smoother. Computed here
+  // (off the audio thread) from the engine sample rate.
+  timeSmoothCoef = YSE::DSP::onePoleCoef(TIME_SMOOTH_TAU, static_cast<Flt>(SAMPLERATE));
+  builtRate = SAMPLERATE;
   // Per-channel delay lines are sized on the first process() call once the
   // channel count is known, matching the other delay modules.
 }
@@ -87,6 +87,15 @@ void YSE::DSP::MODULES::feedbackDelay::process(MULTICHANNELBUFFER& buffer) {
   createIfNeeded();
 
   if (buffer.empty()) return;
+
+  // create() runs once per instance, so the smoother coefficient would keep
+  // the rate it was built at across a close()/init() cycle (issue #637).
+  // Re-derive it when the session rate changed; steady state pays one integer
+  // compare (the accepted per-block guard, cf. plateReverb/parametricEQ).
+  if (builtRate != SAMPLERATE) {
+    timeSmoothCoef = YSE::DSP::onePoleCoef(TIME_SMOOTH_TAU, static_cast<Flt>(SAMPLERATE));
+    builtRate = SAMPLERATE;
+  }
 
   // Grow/shrink per-channel state to match the channel count. Allocation-free
   // once the count is stable.
@@ -123,7 +132,7 @@ void YSE::DSP::MODULES::feedbackDelay::process(MULTICHANNELBUFFER& buffer) {
     Flt cur = currentTime;
     Flt* t = timeBuffer.getPtr();
     for (std::size_t i = 0; i < length; ++i) {
-      cur += (target - cur) * timeSmoothCoef;
+      cur = YSE::DSP::onePoleSmooth(cur, target, timeSmoothCoef);
       t[i] = cur;
     }
     currentTime = cur;

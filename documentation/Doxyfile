@@ -4,7 +4,8 @@
 # to that location.
 
 PROJECT_NAME           = "libYSE"
-PROJECT_NUMBER         = 2.0
+# No PROJECT_NUMBER: only the XML output is used, and the rendered version
+# banner comes from YseEngine/system.hpp via conf.py (#868).
 PROJECT_BRIEF          = "Cross-platform C++ sound engine"
 
 # Source roots (relative to this Doxyfile's directory).
@@ -16,7 +17,6 @@ FILE_PATTERNS          = *.hpp *.h *.cpp *.md
 EXCLUDE                = ../YseEngine/utils/json.hpp
 EXCLUDE_PATTERNS       = */internal/* \
                          */implementations/* \
-                         */json/* \
                          *Implementation.h \
                          *Implementation.hpp \
                          *Implementation.cpp \
@@ -27,7 +27,11 @@ EXCLUDE_PATTERNS       = */internal/* \
 EXCLUDE_SYMBOLS        = INTERNAL::* *::INTERNAL \
                          nlohmann::* detail::* \
                          SOUND::* CHANNEL::* REVERB::* DEVICE::* \
-                         PATCHER::* SCALE::* PLAYER::* MOTIF::*
+                         PATCHER::* SCALE::* PLAYER::* MOTIF::* \
+                         YSE_C_HANDLE_*
+# YSE_C_HANDLE_* are the C API's handle-typedef guards (#976). Several headers
+# define the same guard, so documenting them makes Breathe emit duplicate C
+# declarations.
 
 # Output: XML only — Sphinx/Breathe consumes it. No HTML/LaTeX from Doxygen.
 # Doxygen auto-creates OUTPUT_DIRECTORY; XML_OUTPUT is then a sub-directory
@@ -45,10 +49,14 @@ ENABLE_PREPROCESSING   = YES
 MACRO_EXPANSION        = YES
 EXPAND_ONLY_PREDEF     = NO
 SKIP_FUNCTION_MACROS   = NO
+# PLATFORM picks the portable <cstdint> spelling for the types.hpp aliases:
+# the MSVC-style `signed __int8` it expands to under _WIN32 is not valid C++
+# for Sphinx's parser.
 PREDEFINED             = YSE_API= \
                          YSE_BUILD_DLL= \
                          YSE_C_CALLBACK= \
-                         _WIN32
+                         _WIN32 \
+                         "PLATFORM(windows,unix)=unix"
 
 # Only documented symbols are exposed. Undocumented entities disappear from
 # the rendered docs — this turns the build into a punch-list for missing
@@ -69,10 +77,12 @@ SORT_MEMBER_DOCS       = NO
 SORT_BRIEF_DOCS        = NO
 
 # Quiet by default; warnings still print. WARN_IF_UNDOCUMENTED surfaces every
-# public symbol that still needs a Doxygen comment — once Phase 2 of the
-# documentation overhaul is complete, also set WARN_AS_ERROR=FAIL_ON_WARNINGS
-# so CI catches regressions.
+# public symbol that still needs a Doxygen comment. FAIL_ON_WARNINGS prints
+# every warning and then exits non-zero, so the documentation.yml CI job fails
+# on a regression (#868). CI pins the Doxygen version it runs; match it
+# locally to see the same warning set.
 QUIET                  = YES
 WARN_IF_UNDOCUMENTED   = YES
 WARN_IF_DOC_ERROR      = YES
 WARN_NO_PARAMDOC       = NO
+WARN_AS_ERROR          = FAIL_ON_WARNINGS

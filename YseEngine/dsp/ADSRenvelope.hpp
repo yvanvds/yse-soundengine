@@ -86,6 +86,7 @@ namespace YSE {
       Flt* envelopeEnd = nullptr;
       Bool looping = false;
       Bool endReached = false;
+      UInt builtRate = 0; // SAMPLERATE the envelope was rendered for (#637)
     };
 
   } // namespace DSP

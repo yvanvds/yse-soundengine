@@ -1,5 +1,3 @@
-#include "headers/defines.hpp"
-#if YSE_WINDOWS
 #include "mMidiProgramChange.h"
 #include "../pObjectList.hpp"
 
@@ -38,4 +36,3 @@ CALC() {
   message[2] = 0;
   outputs[0].SendList(message, thread);
 }
-#endif

@@ -18,6 +18,9 @@ namespace {
   inline YSE::deviceSetup* to_cpp(YseDeviceSetup* s) {
     return reinterpret_cast<YSE::deviceSetup*>(s);
   }
+  inline const YSE::deviceSetup* to_cpp(const YseDeviceSetup* s) {
+    return reinterpret_cast<const YSE::deviceSetup*>(s);
+  }
 
   // snprintf-style string copy: writes at most cap-1 bytes plus terminator
   // into buf, returns the full source length (excluding terminator).
@@ -40,7 +43,8 @@ YSE_C_API size_t yse_device_get_name(YseDevice* dev, char* buf, size_t cap) {
     if (buf && cap > 0) buf[0] = '\0';
     return 0;
   }
-  return copy_string(to_cpp(dev)->getName(), buf, cap);
+  return yse_c::guard_string("yse_device_get_name", buf, cap,
+                             [&] { return copy_string(to_cpp(dev)->getName(), buf, cap); });
 }
 
 YSE_C_API size_t yse_device_get_type_name(YseDevice* dev, char* buf, size_t cap) {
@@ -48,7 +52,8 @@ YSE_C_API size_t yse_device_get_type_name(YseDevice* dev, char* buf, size_t cap)
     if (buf && cap > 0) buf[0] = '\0';
     return 0;
   }
-  return copy_string(to_cpp(dev)->getTypeName(), buf, cap);
+  return yse_c::guard_string("yse_device_get_type_name", buf, cap,
+                             [&] { return copy_string(to_cpp(dev)->getTypeName(), buf, cap); });
 }
 
 YSE_C_API unsigned int yse_device_num_output_channels(YseDevice* dev) {
@@ -61,12 +66,12 @@ YSE_C_API size_t yse_device_get_output_channel_name(YseDevice* dev, unsigned int
     if (buf && cap > 0) buf[0] = '\0';
     return 0;
   }
-  try {
+  // The engine getter bound-checks with .at(), so an out-of-range index throws
+  // and the barrier reports an empty string instead of reading past the end
+  // (issue #565).
+  return yse_c::guard_string("yse_device_get_output_channel_name", buf, cap, [&] {
     return copy_string(to_cpp(dev)->getOutputChannelName(idx), buf, cap);
-  } catch (const std::exception&) {
-    if (buf && cap > 0) buf[0] = '\0';
-    return 0;
-  }
+  });
 }
 
 YSE_C_API unsigned int yse_device_num_input_channels(YseDevice* dev) {
@@ -79,26 +84,31 @@ YSE_C_API size_t yse_device_get_input_channel_name(YseDevice* dev, unsigned int 
     if (buf && cap > 0) buf[0] = '\0';
     return 0;
   }
-  try {
+  // Out-of-range index — see yse_device_get_output_channel_name.
+  return yse_c::guard_string("yse_device_get_input_channel_name", buf, cap, [&] {
     return copy_string(to_cpp(dev)->getInputChannelName(idx), buf, cap);
-  } catch (const std::exception&) {
-    if (buf && cap > 0) buf[0] = '\0';
-    return 0;
-  }
+  });
 }
 
 YSE_C_API unsigned int yse_device_num_sample_rates(YseDevice* dev) {
   return dev ? to_cpp(dev)->getNumAvailableSampleRates() : 0;
 }
 YSE_C_API double yse_device_get_sample_rate(YseDevice* dev, unsigned int idx) {
-  return dev ? to_cpp(dev)->getAvailableSampleRate(idx) : 0.0;
+  if (!dev) return 0.0;
+  // Out-of-range index: report 0.0 rather than letting the engine's
+  // std::out_of_range escape across the C ABI.
+  return yse_c::guard("yse_device_get_sample_rate", 0.0,
+                      [&] { return to_cpp(dev)->getAvailableSampleRate(idx); });
 }
 
 YSE_C_API unsigned int yse_device_num_buffer_sizes(YseDevice* dev) {
   return dev ? to_cpp(dev)->getNumAvailableBufferSizes() : 0;
 }
 YSE_C_API int yse_device_get_buffer_size(YseDevice* dev, unsigned int idx) {
-  return dev ? to_cpp(dev)->getAvailableBufferSize(idx) : 0;
+  if (!dev) return 0;
+  // Out-of-range index — same contract as yse_device_get_sample_rate.
+  return yse_c::guard("yse_device_get_buffer_size", 0,
+                      [&] { return to_cpp(dev)->getAvailableBufferSize(idx); });
 }
 
 YSE_C_API int yse_device_default_buffer_size(YseDevice* dev) {
@@ -111,7 +121,11 @@ YSE_C_API int yse_device_input_latency(YseDevice* dev) {
   return dev ? to_cpp(dev)->getInputLatency() : 0;
 }
 YSE_C_API int yse_device_get_id(YseDevice* dev) {
-  return dev ? to_cpp(dev)->getID() : 0;
+  // -1, not the 0 the other scalar getters report for a NULL handle: 0 is a
+  // valid device index and this getter's "nothing here" value is paNoDevice
+  // (issue #666). A NULL handle is the same "no device" as an unpopulated
+  // descriptor, so it answers the same way.
+  return dev ? to_cpp(dev)->getID() : -1;
 }
 
 // ─── device setup ──────────────────────────────────────────────────────────
@@ -149,6 +163,10 @@ YSE_C_API void yse_device_setup_set_sample_rate(YseDeviceSetup* setup, double va
 
 YSE_C_API void yse_device_setup_set_buffer_size(YseDeviceSetup* setup, int value) {
   if (setup) to_cpp(setup)->setBufferSize(value);
+}
+
+YSE_C_API int yse_device_setup_get_output_channels(const YseDeviceSetup* setup) {
+  return setup ? to_cpp(setup)->getOutputChannels() : 0;
 }
 
 } // extern "C"

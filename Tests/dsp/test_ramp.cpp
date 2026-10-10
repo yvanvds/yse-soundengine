@@ -101,6 +101,32 @@ TEST_SUITE("dsp") {
     CHECK(r.getValue() == doctest::Approx(stopped_at).epsilon(1e-5f));
   }
 
+  TEST_CASE("ramp: fade time follows the live rate after a sample-rate change (issue #637)") {
+    // A ramp constructed in one session used to keep its ms->tick factor
+    // (derived from SAMPLERATE in the constructor) forever, so gain fades on
+    // long-lived channels skewed by the rate ratio after a close()/init()
+    // cycle. The factor is now re-derived on every retarget.
+    const UInt constructRate = 44100;
+    const UInt runRate = 88200;
+
+    TestHelpers::ScopedSampleRate atConstruct(constructRate);
+    YSE::DSP::ramp r; // ms->tick factor would be baked for 44100 here
+
+    TestHelpers::ScopedSampleRate atRun(runRate);
+    r.set(1.0f, 100); // 100 ms fade, now at 88200 Hz
+    int ticks = 0;
+    while (r.getValue() < 1.0f - 1e-4f && ticks < 1000) {
+      r.update();
+      ++ticks;
+    }
+    // 100 ms at the *run* rate: 100 * 88200 / (1000 * 128) ≈ 69 ticks. The
+    // stale factor would finish in ~34 ticks (the construction-rate count).
+    const int expected = rampTicks(100.0f); // computed at runRate via SAMPLERATE
+    CHECK(ticks >= expected - 1);
+    CHECK(ticks <= expected + 1);
+    CHECK(ticks > 50); // far above the stale-rate count
+  }
+
   // ─── lint ────────────────────────────────────────────────────────────────────
 
   TEST_CASE("lint: default construction starts at zero") {
@@ -138,6 +164,31 @@ TEST_SUITE("dsp") {
     l.stop();
     l.update();
     CHECK(l() == doctest::Approx(mid).epsilon(1e-6f));
+  }
+
+  TEST_CASE("lint: ramp time follows the live rate after a sample-rate change (issue #637)") {
+    // Same lifecycle bug as ramp above: stepSecond (updates per second) was
+    // derived once in the constructor. It is now re-derived on every set().
+    const UInt constructRate = 44100;
+    const UInt runRate = 88200;
+
+    TestHelpers::ScopedSampleRate atConstruct(constructRate);
+    YSE::DSP::lint l; // stepSecond would be baked for 44100 here
+
+    TestHelpers::ScopedSampleRate atRun(runRate);
+    l.set(1.0f, 100); // 100 ms ramp, now at 88200 Hz
+    int steps = 0;
+    while (l() < 1.0f - 1e-4f && steps < 1000) {
+      l.update();
+      ++steps;
+    }
+    // 100 ms at the *run* rate: 88200 / 128 * 0.1 ≈ 69 update steps (lint may
+    // overshoot by one). The stale factor would finish in ~34.
+    const int expected = static_cast<int>(static_cast<float>(YSE::SAMPLERATE) /
+                                          static_cast<float>(YSE::STANDARD_BUFFERSIZE) * 0.1f);
+    CHECK(steps >= expected - 2);
+    CHECK(steps <= expected + 2);
+    CHECK(steps > 50); // far above the stale-rate count
   }
 
   // ─── drawableBuffer ──────────────────────────────────────────────────────────

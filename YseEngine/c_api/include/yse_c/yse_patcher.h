@@ -1,20 +1,25 @@
-/*
+/**
+  @file
   yse_patcher.h — Max/MSP-style modular DSP/event graph.
   C ABI mirror of YseEngine/patcher/{patcher,pHandle,pObjectList}.hpp.
 
   A YsePatcher owns its YsePHandle objects — never destroy handles
   directly, use yse_patcher_delete_object().
 
-  oscHandler (outbound message callback) is not yet wrapped — audio-
-  thread callback plumbing lands in M8 alongside the io / log
-  callbacks.
+  Outgoing messages reach the host through yse_patcher_set_send_callback
+  (the C mirror of patcher::SetOscHandler), besides the bus.
 
   Object type identifiers are the same strings YSE::OBJ exposes
   ("~sine", ".+", "~lp", etc.). See patcher/pObjectList.hpp upstream.
 
   Convention: every void-returning function in this header is a null-safe
   no-op when called with a NULL handle (patcher or phandle). Status
-  queries return 0 / false / NULL on NULL.
+  queries return 0 / false / NULL on NULL — except the handful where 0 is
+  itself a valid answer and would be indistinguishable from the failure:
+  yse_phandle_output_data_type answers YSE_OUT_INVALID, the two
+  object-ID queries (yse_phandle_get_id,
+  yse_phandle_get_connection_target) answer YSE_PATCHER_ID_NONE, and
+  yse_phandle_get_connection_target_inlet answers YSE_PATCHER_INLET_NONE.
 */
 
 #ifndef YSE_C_PATCHER_H_INCLUDED
@@ -27,19 +32,80 @@
 extern "C" {
 #endif
 
-/* Owned — release with yse_patcher_destroy. */
+#ifndef YSE_C_HANDLE_YsePatcher
+#define YSE_C_HANDLE_YsePatcher
+/** Owned — release with yse_patcher_destroy. */
 typedef struct YsePatcher YsePatcher;
-/* Borrowed — owned by the parent YsePatcher. Release with
+#endif
+#ifndef YSE_C_HANDLE_YsePHandle
+#define YSE_C_HANDLE_YsePHandle
+/** Borrowed — owned by the parent YsePatcher. Release with
    yse_patcher_delete_object(patcher, handle); never call a destroy on
    the handle directly. */
 typedef struct YsePHandle YsePHandle;
+#endif
+
+/** "No such object" — the answer from every function in this header that
+   returns a patcher object ID but has nothing to report.
+
+   Object IDs are per-patcher and start at 0 (issue #730), so 0 is the ID
+   of the first object in every patch and cannot double as a failure
+   marker. This value matches the engine's pObject::kNoStorageID, which is
+   what an object belonging to no patcher reports, and it is never a real
+   object's ID: a patcher issues the smallest number none of its live
+   objects holds (issue #733), so the largest ID it can hand out is its
+   live object count — 2^32 objects would have to fit in memory at once.
+
+   yse_patcher_get_handle_from_id(p, YSE_PATCHER_ID_NONE) is NULL. */
+#define YSE_PATCHER_ID_NONE 0xFFFFFFFFu
+
+/** "No such inlet" — the answer from yse_phandle_get_connection_target_inlet
+   when it has no edge to report an inlet for (issue #736).
+
+   Inlet 0 is the leftmost inlet and the one most connections in a patch
+   arrive at, so it cannot double as a failure marker any more than object
+   ID 0 can. This value matches the engine's pObject::kNoInletIndex and is
+   never a real inlet: an object would have to declare 2^32 of them.
+
+   A separate name from YSE_PATCHER_ID_NONE on purpose, though the two hold
+   the same number. An inlet index is not an object ID; comparing an inlet
+   against the ID sentinel should read wrong at the call site even while it
+   happens to work. Bindings should mirror both names rather than collapse
+   them. */
+#define YSE_PATCHER_INLET_NONE 0xFFFFFFFFu
 
 /* ─── patcher lifecycle ────────────────────────────────────────────── */
 
 YSE_C_API YsePatcher* yse_patcher_create(void);
 YSE_C_API void yse_patcher_destroy(YsePatcher* p);
 
-YSE_C_API void yse_patcher_init(YsePatcher* p, int main_outputs);
+/** Give the patcher `main_outputs` audio outputs. YSE_OK on success (and on
+   a repeat call, which the engine ignores: the first count stays);
+   YSE_ERR_INVALID_HANDLE on a NULL patcher, YSE_ERR_INVALID_ARGUMENT on a
+   negative count, YSE_ERR_EXCEPTION if the engine threw. Every failure
+   leaves its reason in yse_last_error(). Control thread only. */
+YSE_C_API YseStatus yse_patcher_init(YsePatcher* p, int main_outputs);
+
+/* ─── naming ──────────────────────────────────────────────────────── */
+
+/** Name the patcher (issue #896). The name scopes every bus slot and shared
+   store inside it: they are addressed as "patcher.<name>.<slot>". Two
+   patchers with the same name share those slots; uniqueness is not
+   enforced. Renaming re-anchors every name-scoped object transparently.
+
+   NULL or "" restores the auto-generated "patcher_<N>" name. Called before
+   yse_patcher_init, the name is stashed and applied at init; NULL / ""
+   there drops a stashed name so init keeps the auto-name.
+
+   A name longer than 55 characters is refused: YSE_ERR_INVALID_ARGUMENT,
+   the reason in yse_last_error(), and the current name kept.
+   YSE_ERR_INVALID_HANDLE on a NULL patcher. Control thread only. */
+YSE_C_API YseStatus yse_patcher_set_name(YsePatcher* p, const char* name);
+
+/** The current name, snprintf style — returns the full length and accepts a
+   NULL buffer as a size query. Before yse_patcher_init this is the stashed
+   name, or "" when there is none: the auto-name is assigned at init. */
+YSE_C_API size_t yse_patcher_get_name(YsePatcher* p, char* buf, size_t cap);
 
 /* ─── object management ───────────────────────────────────────────── */
 
@@ -47,6 +113,9 @@ YSE_C_API YsePHandle* yse_patcher_create_object(YsePatcher* p, const char* type,
 YSE_C_API void yse_patcher_delete_object(YsePatcher* p, YsePHandle* obj);
 YSE_C_API void yse_patcher_clear(YsePatcher* p);
 
+/** Draw / remove a cord. Both handles must be objects of `p`: a NULL handle,
+   or one created by another patcher, is ignored (the engine logs the
+   refusal) and the graph is left unchanged. */
 YSE_C_API void yse_patcher_connect(YsePatcher* p, YsePHandle* from, int outlet, YsePHandle* to,
                                    int inlet);
 YSE_C_API void yse_patcher_disconnect(YsePatcher* p, YsePHandle* from, int outlet, YsePHandle* to,
@@ -54,10 +123,66 @@ YSE_C_API void yse_patcher_disconnect(YsePatcher* p, YsePHandle* from, int outle
 
 YSE_C_API int yse_patcher_is_valid_object(const char* type);
 
+/* ─── subpatchers ─────────────────────────────────────────────────── */
+
+/** A subpatcher is an object of type "patcher" that other objects are
+   placed *inside*, so the parent patch addresses the group as one object
+   (issue #545). Its boundary is made of ".inlet" / ".outlet" objects for
+   message pins and "~inlet" / "~outlet" objects for signal pins (issue
+   #764). Both rates share ONE index space: inlet N of a subpatcher is the
+   ".inlet" or "~inlet" inside it whose index is N — a ".inlet 0" beside a
+   "~inlet 1" presents two inlets, and one index cannot be claimed at both
+   rates. yse_patcher_connect resolves that for you — connecting to a
+   subpatcher records an ordinary edge straight to the boundary object.
+
+   Containment is addressing, not storage. A nested object is an ordinary
+   object in the patcher's one flat graph: it takes part in the same
+   single atomic graph swap on every edit, and the audio thread's cost
+   does not grow with nesting depth. */
+
+/** Put obj inside the subpatcher `container`, or pass NULL for `container`
+   to move obj back out to the top level. Refused (logged, no change) when
+   container is not a "patcher" object in this patcher, when either handle
+   belongs elsewhere, or when the move would put a subpatcher inside
+   itself or one of its own descendants.
+
+   Publishes no new graph — containment changes no edge and no pin. What
+   it changes is what yse_patcher_connect / _disconnect mean when handed
+   the subpatcher, and what yse_patcher_delete_object takes with it: a
+   deleted subpatcher takes its contents, transitively. */
+YSE_C_API void yse_patcher_set_container(YsePatcher* p, YsePHandle* obj, YsePHandle* container);
+
+/** The subpatcher obj is inside, or NULL when it is at the top level (and
+   NULL on a NULL argument). Borrowed, like every other handle here. */
+YSE_C_API YsePHandle* yse_patcher_get_container(YsePatcher* p, YsePHandle* obj);
+
+/** How many inlets / outlets a subpatcher presents to its parent: one past
+   the highest index claimed by a boundary object among its contents —
+   ".inlet" and "~inlet" (resp. ".outlet" and "~outlet") alike, counted in
+   their one shared numbering — so a sparsely numbered boundary reports the range a parent
+   can address rather than the number of boundary objects. 0 when the
+   handle is not a subpatcher.
+
+   A "patcher" object owns no pins of its own, so yse_phandle_get_inputs
+   answers 0 for one — these are the questions to ask instead. */
+YSE_C_API int yse_patcher_subpatcher_inlets(YsePatcher* p, YsePHandle* container);
+YSE_C_API int yse_patcher_subpatcher_outlets(YsePatcher* p, YsePHandle* container);
+
 /* ─── persistence ─────────────────────────────────────────────────── */
 
 YSE_C_API size_t yse_patcher_dump_json(YsePatcher* p, char* buf, size_t cap);
-YSE_C_API void yse_patcher_parse_json(YsePatcher* p, const char* content);
+
+/** Load a patch previously produced by yse_patcher_dump_json. Loading adds
+   to the patcher: objects already in it are kept, and the loaded ones are
+   created next to them. Call yse_patcher_clear first to replace the patch
+   (issue #939). YSE_OK on
+   success; YSE_ERR_INVALID_HANDLE on a NULL patcher,
+   YSE_ERR_INVALID_ARGUMENT on NULL content, YSE_ERR_NOT_INITIALIZED before
+   yse_patcher_init, and YSE_ERR_EXCEPTION when the content is malformed
+   JSON or not a patch. Every failure leaves its reason in
+   yse_last_error() and the patcher exactly as it was: nothing of the file
+   is loaded (issue #938). Control thread only. */
+YSE_C_API YseStatus yse_patcher_parse_json(YsePatcher* p, const char* content);
 
 /* ─── enumeration ─────────────────────────────────────────────────── */
 
@@ -67,17 +192,127 @@ YSE_C_API YsePHandle* yse_patcher_get_handle_from_id(YsePatcher* p, unsigned int
 
 /* ─── message I/O ─────────────────────────────────────────────────── */
 
+/** Deliver a value to the ".r <to>" receivers in this patcher. 1 when one
+   exists — or when a send callback is installed (see below): a message no
+   receiver answers is then handed to the callback instead, and still
+   reports 1. 0 when neither takes it, and on a NULL argument. */
 YSE_C_API int yse_patcher_pass_bang(YsePatcher* p, const char* to);
 YSE_C_API int yse_patcher_pass_int(YsePatcher* p, int value, const char* to);
 YSE_C_API int yse_patcher_pass_float(YsePatcher* p, float value, const char* to);
 YSE_C_API int yse_patcher_pass_string(YsePatcher* p, const char* value, const char* to);
+
+/* ─── send callback (issue #907) ──────────────────────────────────── */
+
+/** A message the patcher sends to a name no ".r" in it receives: a ".s"
+   inside the patch, or a yse_patcher_pass_* call, with nothing listening.
+
+   `address` is the name it was sent to — the ".s" argument or the pass_*
+   `to`, not the "patcher.<name>.<slot>" bus address. `kind` says which
+   value it carries: YSE_OUT_BANG (none), YSE_OUT_INT (`i`), YSE_OUT_FLOAT
+   (`f`) or YSE_OUT_LIST (`s`). The fields a kind does not use are 0 and
+   NULL.
+
+   The receiver OWNS the strings: `address` and `s` are one malloc'd block,
+   released with yse_patcher_free_message(address), which frees `s` with it —
+   never free `s` on its own. They stay valid after the callback returns, so
+   an asynchronous host (a Dart NativeCallable.listener) can read them later.
+
+   Threading: called synchronously on whichever thread emitted the message —
+   the host's own for a pass_* or a yse_phandle_set_* that drives a ".s", an
+   engine worker for a timer-driven one (a millisecond ".metro"). Never the
+   audio callback: a ".s" fired while the patch renders stays inside it. Keep
+   it cheap and thread-safe. */
+typedef void(YSE_C_CALLBACK* YsePatcherSendCallback)(void* user_data, char* address,
+                                                     YseOutType kind, int i, float f, char* s);
+
+/** Install the send callback; NULL for cb clears it. user_data is opaque and
+   forwarded to every call. Replaces any previous callback, but a message
+   already being dispatched on another thread may still reach the previous
+   (cb, user_data) pair — always as a pair, never one install's cb with
+   another's user_data. yse_patcher_destroy is the point after which no
+   callback runs: it returns only once every call in progress on another
+   thread has finished. Called before yse_patcher_init, the callback is kept
+   and takes effect at init.
+
+   While a callback is installed, pass_* answers 1 for a name nothing
+   receives; once cleared, 0 again.
+
+   May be called from inside the callback. Do not destroy the patcher from
+   inside its own callback, and do not install, clear or destroy while
+   holding a lock the callback itself takes: both wait for calls in progress
+   on other threads. YSE_ERR_INVALID_HANDLE on a NULL patcher,
+   YSE_ERR_EXCEPTION (reason in yse_last_error()) if the install could not
+   allocate — the previous callback is then kept. */
+YSE_C_API YseStatus yse_patcher_set_send_callback(YsePatcher* p, YsePatcherSendCallback cb,
+                                                  void* user_data);
+
+/** Release a message delivered to a YsePatcherSendCallback: pass its
+   `address`. NULL is a no-op. */
+YSE_C_API void yse_patcher_free_message(char* address);
 
 /* ─── handle accessors ───────────────────────────────────────────── */
 
 YSE_C_API size_t yse_phandle_get_type(YsePHandle* h, char* buf, size_t cap);
 YSE_C_API size_t yse_phandle_get_name(YsePHandle* h, char* buf, size_t cap);
 YSE_C_API size_t yse_phandle_get_params(YsePHandle* h, char* buf, size_t cap);
+
+/* ─── GUI value protocol ──────────────────────────────────────────── */
+
+/** What a host polls to draw an object (issue #551). GUI state is a list
+   of string cells: a scalar control (".slider", ".t", ".i", ...) has one
+   cell, a structured one (".rslider", ".multislider", ".matrixctrl") has
+   several. The engine-side contract lives in patcher/pObject.h; these
+   three functions are its ABI mirror.
+
+   Host thread only, and a poll may be *destructive*: ".b" reports the
+   press it is clearing. Poll a given object through the whole-state read
+   or through the per-cell reads once per frame, never both, or a
+   consume-on-read object reports its event to one and not the other. The
+   per-cell reads are also not atomic across cells — a repaint may see one
+   cell from before an edit and the next from after it. Use the
+   whole-state read when a coherent snapshot matters. */
+
+/** The whole state as one string: the value for a scalar control, or every
+   cell space separated in index order for a structured one. Empty for an
+   object with no GUI state. snprintf style — returns the full length and
+   accepts a NULL buffer as a size query. */
 YSE_C_API size_t yse_phandle_get_gui_value(YsePHandle* h, char* buf, size_t cap);
+
+/** How many cells this object's GUI state has; 1 for a scalar control, 0
+   on NULL. */
+YSE_C_API unsigned int yse_phandle_get_gui_value_count(YsePHandle* h);
+
+/** One cell, and the empty string for an index at or past the count.
+   Cell 0 of a scalar control is exactly yse_phandle_get_gui_value. */
+YSE_C_API size_t yse_phandle_get_gui_value_at(YsePHandle* h, unsigned int index, char* buf,
+                                              size_t cap);
+
+/** Whether this object accepts its own GUI state back on inlet 0 — 1 when
+   the round trip holds, 0 otherwise and on NULL.
+
+   1 means yse_phandle_set_list(h, 0, <what get_gui_value returned>)
+   restores the state that was read, and yse_phandle_set_list(h, 0,
+   "set <index> <value>") writes one cell — except on a one-cell control
+   whose cell is free text (".textedit"), which drops the "set" form so it
+   can hold the text "set 0 hello"; there the whole-state write is the
+   cell write, and the round trip still holds. That is the write half of the
+   protocol, and the whole of it: there is no GUI-value setter. State goes
+   into an object as an ordinary message on the control thread, so it
+   passes through the object's own clamps and outlet sends and never races
+   the audio thread.
+
+   The scalar controls (".slider", ".i", ".f", ".dial", ".incdec", ".t")
+   hold the round trip since their #846 migration. 0 for the objects that
+   still predate the protocol — and for ".b" deliberately: its value is a
+   consume-on-read press report, an event a restore could only replay. */
+YSE_C_API int yse_phandle_gui_value_is_settable(YsePHandle* h);
+
+/* ─── GUI properties ──────────────────────────────────────────────── */
+
+/** Editor decoration — geometry, colour, anything the host wants persisted
+   with the patch. Opaque to the engine and serialised under the "gui" key
+   by yse_patcher_dump_json. Not live control state: that is the GUI value
+   protocol above. */
 YSE_C_API size_t yse_phandle_get_gui_property(YsePHandle* h, const char* key, char* buf,
                                               size_t cap);
 YSE_C_API void yse_phandle_set_gui_property(YsePHandle* h, const char* key, const char* value);
@@ -92,11 +327,29 @@ YSE_C_API int yse_phandle_get_inputs(YsePHandle* h);
 YSE_C_API int yse_phandle_get_outputs(YsePHandle* h);
 YSE_C_API int yse_phandle_is_dsp_input(YsePHandle* h, unsigned int inlet);
 YSE_C_API YseOutType yse_phandle_output_data_type(YsePHandle* h, unsigned int pin);
+/** Storage ID of this object within its patcher — the number the object is
+   written as by yse_patcher_dump_json, and the key
+   yse_patcher_get_handle_from_id takes. YSE_PATCHER_ID_NONE on NULL.
+   IDs are dense and are reused: deleting an object frees its number for
+   the next object created, so an ID identifies an object only while that
+   object is alive. An ID cached across a yse_patcher_delete_object may
+   resolve to a different object, not to NULL — keep the YsePHandle* if
+   you need a reference that outlives the number. */
 YSE_C_API unsigned int yse_phandle_get_id(YsePHandle* h);
 
+/** Number of edges leaving `outlet`. 0 on NULL and 0 for an outlet past the
+   object's outlet count — yse_phandle_set_params can shrink that count, so an
+   outlet number cached across a re-parse may name nothing; compare against
+   yse_phandle_get_outputs to tell an absent outlet from an idle one. */
 YSE_C_API unsigned int yse_phandle_get_connections(YsePHandle* h, unsigned int outlet);
+/** ID of the object one edge leaving `outlet` arrives at.
+   YSE_PATCHER_ID_NONE on NULL, on an outlet past the object's outlet
+   count, or on a connection past that outlet's edge count. */
 YSE_C_API unsigned int yse_phandle_get_connection_target(YsePHandle* h, unsigned int outlet,
                                                          unsigned int connection);
+/** Inlet on the target object that this edge arrives at.
+   YSE_PATCHER_INLET_NONE on NULL, on an outlet past the object's outlet
+   count, or on a connection past that outlet's edge count. */
 YSE_C_API unsigned int yse_phandle_get_connection_target_inlet(YsePHandle* h, unsigned int outlet,
                                                                unsigned int connection);
 
@@ -145,13 +398,20 @@ YSE_C_API void yse_patcher_get_param_info(const char* type_name, int idx, const 
                                           const char** doc, const char** default_value,
                                           const char** range);
 
-/* Returns a fresh malloc'd JSON snapshot of every registered object's
+/** Returns a fresh malloc'd JSON snapshot of every registered object's
    metadata. One-stop shop for bindings that want to cache the metadata
    or regenerate their own reference at build time. The caller must
-   release the buffer with yse_free_string(); returns NULL on
-   allocation failure. */
+   release the buffer with yse_free_string() (declared in yse_common.h);
+   returns NULL on allocation failure.
+
+   Each object entry carries "name", "category" (the YsePCategory name
+   without its YSE_PCAT_ prefix, e.g. "ROUTING"), "is_dsp",
+   "requires_midi_device", "description", "inlets", "outlets" and
+   "params". "requires_midi_device" is true for the objects that hold a
+   MIDI device port; those exist only in builds with
+   YSE_ENABLE_MIDI_DEVICE (not macOS or Android), so a palette built from
+   one platform's metadata can mark them as non-portable. */
 YSE_C_API char* yse_patcher_get_metadata_json(void);
-YSE_C_API void yse_free_string(char* s);
 
 #ifdef __cplusplus
 }

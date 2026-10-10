@@ -28,6 +28,10 @@ void patcher::create(int mainOutputs) {
       pimpl->SetName(pendingName);
       pendingName.clear();
     }
+    if (pendingHandler != nullptr) {
+      pimpl->SetHandler(pendingHandler);
+      pendingHandler = nullptr;
+    }
   } else {
     INTERNAL::LogImpl().emit(E_ERROR, "Patcher could not be Created.");
   }
@@ -36,6 +40,13 @@ void patcher::create(int mainOutputs) {
 patcher& patcher::name(const std::string& n) {
   if (pimpl != nullptr) {
     pimpl->SetName(n);
+  } else if (n.size() > PATCHER::patcherImplementation::MAX_PATCHER_NAME_LENGTH) {
+    // The same refusal SetName() applies (issue #921), made here so name()
+    // never reports a name create() is then going to drop.
+    INTERNAL::LogImpl().emit(
+        E_ERROR, "patcher: name \"" + n + "\" is longer than " +
+                     std::to_string(PATCHER::patcherImplementation::MAX_PATCHER_NAME_LENGTH) +
+                     " characters; ignored");
   } else {
     // Stash until create() runs. The impl is what owns the canonical name.
     pendingName = n;
@@ -74,6 +85,26 @@ void patcher::Connect(pHandle* from, int outlet, pHandle* to, int inlet) {
 void patcher::Disconnect(pHandle* from, int outlet, pHandle* to, int inlet) {
   if (pimpl == nullptr) return;
   pimpl->Disconnect(from, outlet, to, inlet);
+}
+
+void patcher::SetContainer(pHandle* obj, pHandle* container) {
+  if (pimpl == nullptr) return;
+  pimpl->SetObjectContainer(obj, container);
+}
+
+YSE::pHandle* patcher::GetContainer(pHandle* obj) {
+  if (pimpl == nullptr) return nullptr;
+  return pimpl->GetObjectContainer(obj);
+}
+
+int patcher::SubpatcherInlets(pHandle* container) {
+  if (pimpl == nullptr) return 0;
+  return pimpl->SubpatcherInlets(container);
+}
+
+int patcher::SubpatcherOutlets(pHandle* container) {
+  if (pimpl == nullptr) return 0;
+  return pimpl->SubpatcherOutlets(container);
 }
 
 bool patcher::IsValidObject(const char* type) {
@@ -140,7 +171,8 @@ bool patcher::PassData(const std::string& value, const std::string& to) {
 
 void patcher::SetOscHandler(oscHandler* handler) {
   if (pimpl == nullptr) {
-    INTERNAL::LogImpl().emit(E_ERROR, "SetOscHandler called on nullptr");
+    // Before create(): nothing can dispatch yet, so keeping it is enough.
+    pendingHandler = handler;
     return;
   }
   pimpl->SetHandler(handler);

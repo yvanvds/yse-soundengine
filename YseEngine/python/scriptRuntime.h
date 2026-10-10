@@ -61,6 +61,13 @@ namespace YSE {
       ScriptRuntime(const ScriptRuntime&) = delete;
       ScriptRuntime& operator=(const ScriptRuntime&) = delete;
 
+      // start()/stop() intentionally shadow the non-virtual thread::start() and
+      // thread::stop(): each does its interpreter-lifecycle work and then calls
+      // the base version explicitly. A ScriptRuntime is only ever held as a
+      // ScriptRuntime (INTERNAL::global owns a unique_ptr<ScriptRuntime>), never
+      // through an INTERNAL::thread*, so there is no dispatch to get wrong.
+      // NOLINTBEGIN(bugprone-derived-method-shadowing-base-method)
+
       // Boot the interpreter (if this is the first runtime in the process)
       // and launch the worker thread. Safe to call once; a second call while
       // already started is a no-op.
@@ -69,6 +76,7 @@ namespace YSE {
       // Join the worker (after a final drain of pending requests) and, if this
       // runtime booted the interpreter, finalize it. Idempotent.
       void stop();
+      // NOLINTEND(bugprone-derived-method-shadowing-base-method)
 
       // Producer = main thread. Enqueue `source` to be exec'd in the __main__
       // namespace on the script thread. Wakes the worker.

@@ -24,6 +24,7 @@ namespace YSE {
       enum compressorDetector {
         DETECT_PEAK, ///< Track the instantaneous linked peak — fast, hits transients.
         DETECT_RMS, ///< Track a short mean-square window — smoother, loudness-like.
+        DETECT_COUNT_, ///< Sentinel: number of detectors, not a valid value. Keep last.
       };
 
       /**
@@ -59,7 +60,7 @@ namespace YSE {
       class API compressor : public dspObject {
       public:
         compressor();
-        virtual ~compressor() {};
+        ~compressor() override {};
 
         /** @brief Select the peak or RMS level detector. */
         compressor& detector(compressorDetector value);
@@ -107,10 +108,10 @@ namespace YSE {
         Flt gainReductionDb();
 
         /** @brief dspObject lifecycle hook. */
-        virtual void create();
+        void create() override;
 
         /** @brief dspObject audio-thread entry point. */
-        virtual void process(MULTICHANNELBUFFER& buffer);
+        void process(MULTICHANNELBUFFER& buffer) override;
 
       private:
         aFlt parmThreshold; // dBFS

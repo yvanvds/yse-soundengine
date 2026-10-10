@@ -21,6 +21,7 @@
 #include <doctest/doctest.h>
 #include <cmath>
 #include "dsp/modules/morphingReverb.hpp"
+#include "internal/reverbDSP.h"
 #include "reverb/reverbPresets.hpp"
 #include "headers/defines.hpp"
 #include "support/alloc_probe.hpp"
@@ -298,6 +299,56 @@ TEST_SUITE("dsp") {
     for (unsigned i = 0; i < backToMono[0].getLength(); ++i)
       if (!std::isfinite(ptr[i])) finite = false;
     CHECK(finite);
+  }
+
+  // ─── reverb core retunes across a sample-rate change (issue #637) ─────────────
+
+  TEST_CASE("reverbDSP: comb/allpass tunings re-derive after a rate change (issue #637)") {
+    // The comb/allpass tunings (and their buffer sizes) scale the reference
+    // 44.1 kHz values by SAMPLERATE, but used to be computed only in the
+    // reverbChannel constructor. A reverbDSP that survives a close()/init()
+    // cycle (the manager's global instance, or a host-owned morphingReverb's
+    // core) then kept the old session's tail length and timbre. process() now
+    // retunes any channel whose builtRate no longer matches.
+    TestHelpers::ScopedSampleRate at44(44100);
+    YSE::INTERNAL::reverbDSP verb;
+    verb.channels(2);
+    REQUIRE(verb.channel.size() == 2);
+
+    // Constructed at 44.1 kHz: tunings are the reference values plus the
+    // per-channel random spread of [0, 50).
+    const Int comb0At44 = verb.channel[0].combTuning[0];
+    const Int all0At44 = verb.channel[0].allTuning[0];
+    CHECK(comb0At44 >= 1116);
+    CHECK(comb0At44 < 1166);
+    CHECK(verb.channel[0].bufComb[0].size() == static_cast<size_t>(comb0At44));
+
+    {
+      // Reopen at 88.2 kHz: the first processed block must rebuild every
+      // channel's tunings and buffers for the doubled rate.
+      TestHelpers::ScopedSampleRate at88(88200);
+      MULTICHANNELBUFFER buf(2);
+      buf[0].resize(128);
+      buf[1].resize(128);
+      buf[0] = 0.1f;
+      buf[1] = 0.1f;
+      verb.process(buf);
+
+      for (unsigned ch = 0; ch < 2; ++ch) {
+        const Int comb0 = verb.channel[ch].combTuning[0];
+        const Int all0 = verb.channel[ch].allTuning[0];
+        // (1116 + rnd) * 2 with rnd in [0, 50): the doubled reference window.
+        CHECK(comb0 >= 2 * 1116);
+        CHECK(comb0 < 2 * 1166);
+        CHECK(all0 >= 2 * 556);
+        CHECK(all0 < 2 * 606);
+        // Buffers were resized to match the new tunings.
+        CHECK(verb.channel[ch].bufComb[0].size() == static_cast<size_t>(comb0));
+        CHECK(verb.channel[ch].bufAll[0].size() == static_cast<size_t>(all0));
+      }
+      (void)comb0At44;
+      (void)all0At44;
+    }
   }
 
 } // TEST_SUITE("dsp")

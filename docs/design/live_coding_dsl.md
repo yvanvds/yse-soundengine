@@ -98,14 +98,47 @@ for these addresses.
 |------------------------------|----------|------------------------------------|
 | `sound.<name>.<prop>`        | engine   | [`YSE::sound`][gh-123] properties  |
 | `channel.<name>.<prop>`      | engine   | [`YSE::channel`][gh-123] props     |
-| `patcher.<name>.<slot>`      | engine   | `gSend` / `gReceive` ([#122][gh-122]) |
+| `patcher.<name>.<slot>`      | engine   | `gSend` / `gReceive` and shared stores ([#122][gh-122], [#894][gh-894]) |
 | `synth.<name>.<event>`       | engine   | [`YSE::synth`][gh-388] note/controller events |
 
 `<name>` is the name assigned via the engine API (`sound.name(...)`,
-`channel.name(...)`, `patcher.name(...)`, `synth.name(...)`). `<prop>`,
+`channel.name(...)`, `patcher.name(...)` / `yse_patcher_set_name`,
+`synth.name(...)`). `<prop>`,
 `<slot>` and `<event>` are the property, routing slot or event exposed
 by that object. All are matched exact-string — case-sensitive, no
 globbing, no wildcards.
+
+#### The `patcher.` scope
+
+Every name-scoped object inside a patcher speaks under
+`patcher.<patcherName>.<slot>` ([#894][gh-894]). A `.s` / `.r`
+(`gSend` / `gReceive`) with slot `cutoff` in a patcher named `lead`
+publishes to and subscribes on `patcher.lead.cutoff`, so a script
+reaches it with `yse.send("patcher.lead.cutoff", v)` /
+`yse.on("patcher.lead.cutoff", ...)`. The `send <slot>` messages of
+`.forward`, `.bag` and `.table` publish into the same scope.
+
+The same scope also keys the patcher's **shared stores** —
+`.array`, `.dict`, `.coll`, `.value` and the objects that read them by
+name. Two such objects with one name in one patcher (or in two
+patchers with the same name) share one store under the key
+`patcher.<patcherName>.<name>`. The stores are not bus traffic: a script
+cannot `yse.on()` a store's contents, only the `.s` / `.r` / `send`
+publishes above.
+
+- Renaming a patcher re-anchors every bus object and shared store on
+  the new name ([#893][gh-893]); an old-name subscriber stops hearing it.
+- Dotted patcher names are allowed (`"voice.lead"` →
+  `patcher.voice.lead.<slot>`); as everywhere on the bus, the dots are
+  not parsed.
+- A patcher name is at most 55 characters; a longer name is refused
+  (logged, previous name kept). A slot name is at most 63 characters; a
+  longer `.s` / `.r` name is logged and cleared ([#921][gh-921],
+  [#922][gh-922]). Together they keep every `patcher.<name>.<slot>`
+  address inside the bus's fixed audio-thread name slot.
+- A patch file may carry its patcher name as an optional top-level
+  `"name"` key. Loading applies it only to a patcher that still has its
+  auto-name, so a name the host set first wins ([#897][gh-897]).
 
 > **Host tap.** The exact-match rule governs the *script-facing*
 > subscribe surface (`yse.on()`). The **host** additionally has a C API
@@ -114,7 +147,10 @@ globbing, no wildcards.
 > receives every publish whose address starts with it (e.g. a
 > `phi.ctl.` tap for the live-coding control plane). That is host-only
 > plumbing, matched on the control thread; it does not add globbing or
-> wildcards to the DSL.
+> wildcards to the DSL. The same header also lets a host publish
+> (`yse_bus_publish_*`, attributed like a script's `yse.send()`) and
+> subscribe to one exact address (`yse_bus_subscribe`) ([#904][gh-904]),
+> so an FFI host reaches every address a script can.
 
 The set of valid `<prop>`, `<slot>` and `<event>` names is fixed by
 the engine (see [#123][gh-123] for the initial sound/channel
@@ -133,6 +169,8 @@ exists purely for script-to-script communication. By convention:
 - A bare word — `"cutoff"`, `"lfo_phase"` — is fine.
 - A dotted path — `"synth1.cutoff"`, `"section_a.gate"` — is the
   recommended idiom for namespacing inside a script or between scripts.
+  It stays freeform: `"synth1.cutoff"` does **not** reach a patcher
+  named `synth1` — that is `"patcher.synth1.cutoff"`.
 
 The bus does not parse dotted paths. They are opaque strings; the dot
 is purely a human-readable separator.
@@ -149,6 +187,14 @@ The one exception is engine-owned names: registering a duplicate
 is rejected at registration time and logged via the engine's existing
 error path ([#123][gh-123]). The bus is not involved in that rejection.
 
+**Patchers are the exception to that exception.** Two patchers given
+the same name are not rejected: they share one `patcher.<name>.*`
+scope on purpose. A `.s` in one reaches a `.r` in the other, and their
+same-named shared stores are one store. That is the direct way to route
+between patchers (see [Example 3](#example-3--cross-patcher-routing)).
+Patchers with different names stay isolated even when their slot names
+collide.
+
 ### Empty / anonymous instances
 
 Engine objects with no name set are not addressable. Scripts cannot
@@ -156,12 +202,26 @@ reach an anonymous sound. There is no fallback identity (no auto-name,
 no UUID exposure). This is deliberate: anonymity is the opt-out from
 the bus.
 
+Patchers are the exception. Their name scopes their shared stores and
+in-patcher `.s` / `.r` routing, so an unnamed patcher is auto-named
+`patcher_<N>` from a process-wide counter. That keeps two anonymous
+patchers apart instead of silently sharing one scope. Setting an empty
+name (`patcher.name("")`, `yse_patcher_set_name(p, NULL)` or `""`)
+restores the auto-name ([#896][gh-896]). The auto-name is **not** a
+script-facing address: `<N>` depends on how many patchers the process
+has created, so it differs across runs and load orders, and it is never
+written into a saved patch. A script that wants to reach a patcher
+needs the host to name it.
+
 ### Reserved characters and length
 
 - Names are UTF-8. The bus enforces no character restrictions
   ([#121][gh-121]).
 - Names must be non-empty. `yse.send("", v)` raises `ValueError`.
-- No length cap. (Composers are trusted to write short names.)
+- No length cap on script-facing names. (Composers are trusted to
+  write short names.) The engine bounds the patcher side: see the
+  [`patcher.` scope](#the-patcher-scope) for the 55 / 63-character
+  patcher and slot limits.
 
 ---
 
@@ -424,7 +484,7 @@ The monotonic engine tick counter. Increments by 1 each
 
 - **Type:** `int`.
 - **Reset:** reset to 0 on `System::init`. Survives across
-  `yse_run_script` calls.
+  `yse_python_run_script` calls.
 - **Not a function.** Reading `yse.tick` is a cheap attribute access.
 
 ```python
@@ -460,18 +520,18 @@ yse.cancel_all()  # wipe everything from the previous evaluation
 ## Error model
 
 There is exactly one error sink: the C API error callback installed
-via `yse_set_script_error_callback` ([#125][gh-125]). All error paths
+via `yse_python_set_script_error_callback` ([#125][gh-125]). All error paths
 funnel there.
 
 ### What triggers the callback
 
-1. **Syntax error** in the script source passed to `yse_run_script`.
+1. **Syntax error** in the script source passed to `yse_python_run_script`.
    `SyntaxError` traceback, including line and caret.
 2. **Uncaught exception** during top-level script execution.
 3. **Uncaught exception** inside a `yse.on` callback.
 4. **Uncaught exception** inside a `yse.schedule` callback.
 5. **Compile-time off-state:** when libYSE is built without
-   `YSE_ENABLE_PYTHON`, *every* call to `yse_run_script` invokes the
+   `YSE_ENABLE_PYTHON`, *every* call to `yse_python_run_script` invokes the
    callback synchronously with the fixed string
    `"YSE compiled without YSE_ENABLE_PYTHON"`. See [#125][gh-125] for
    the OFF stub contract.
@@ -483,7 +543,7 @@ The runtime calls Python's
 result. The string the host receives is exactly what `traceback`
 produces — no engine-side prefix, no JSON wrapper, no escaping.
 
-The script source passed to `yse_run_script` is compiled with the
+The script source passed to `yse_python_run_script` is compiled with the
 filename `"<script>"`, so traceback lines read:
 
 ```
@@ -532,7 +592,7 @@ This is intentional:
 
 After an exception is captured and the callback dispatched, the
 interpreter state is cleared (`PyErr_Clear`) and the script thread
-remains alive. Subsequent `yse_run_script` calls work normally.
+remains alive. Subsequent `yse_python_run_script` calls work normally.
 Subscriptions installed *before* the failing line remain active;
 subscriptions the failing script intended to install *after* the
 failing line are not installed.
@@ -560,7 +620,7 @@ The script thread wakes:
 
 - When `system::update()` finishes its bus drain — exactly one wake per
   tick.
-- When `yse_run_script` enqueues new source.
+- When `yse_python_run_script` enqueues new source.
 
 On wake, the script thread:
 
@@ -597,7 +657,7 @@ drain).
 ### GIL discipline
 
 - The script thread holds the GIL only while running script code.
-- `yse_run_script` does **not** acquire the GIL — it enqueues a copy
+- `yse_python_run_script` does **not** acquire the GIL — it enqueues a copy
   of the source onto the inbound queue and returns.
 - The error-callback dispatch (from `system::update`) runs on the main
   thread, with the GIL released. The traceback string is already
@@ -608,7 +668,7 @@ drain).
 
 ## Hot-reload semantics
 
-A *script evaluation* is one call to `yse_run_script`. The DSL is
+A *script evaluation* is one call to `yse_python_run_script`. The DSL is
 designed around the assumption that performers re-evaluate scripts
 constantly while playing.
 
@@ -651,7 +711,7 @@ That is the *only* thing it clears. It does **not** touch:
   `cancel_all` is called after they were installed in the same
   evaluation.
 
-The generation counter increments once per `yse_run_script`
+The generation counter increments once per `yse_python_run_script`
 ([#127][gh-127]). Every `yse.on` / `yse.schedule` handle is tagged
 with the generation at creation. `cancel_all` walks the registries and
 removes anything with `generation < currentGeneration`.
@@ -741,10 +801,29 @@ sweep()
 
 ### Example 3 — cross-patcher routing
 
-Assumes patcher `lead` has a `gReceive("trigger")`, patcher `bass`
-has a `gSend("trigger")`. With [#122][gh-122] in place, a `gSend` in
-`bass` publishes to `patcher.bass.trigger`; a `gReceive` in `lead`
-subscribes to `patcher.lead.trigger`. To bridge them from script:
+**Direct: give both patchers the same name.** No script is needed.
+Two patchers named `groove` share the `patcher.groove.*` scope, so a
+`.s trigger` in one reaches a `.r trigger` in the other, and a
+`.coll notes` in each is one collection
+([collision policy](#collision-policy)):
+
+```cpp
+YSE::patcher bass;  bass.name("groove").create(2);  // holds .s trigger
+YSE::patcher lead;  lead.name("groove").create(2);  // holds .r trigger
+```
+
+A script can still watch or drive that shared slot:
+
+```python
+yse.on("patcher.groove.trigger", lambda v: yse.send("groove_seen", v))
+yse.send("patcher.groove.trigger", 1)  # fires the .r in lead
+```
+
+**Bridge: differently-named patchers.** When the patchers must keep
+separate scopes (separate stores, no other shared slots), bridge the
+one slot from script. Patcher `bass` has a `.s trigger`, which
+publishes to `patcher.bass.trigger`; patcher `lead` has a `.r trigger`,
+which subscribes to `patcher.lead.trigger`:
 
 ```python
 yse.cancel_all()
@@ -752,6 +831,10 @@ yse.cancel_all()
 # When bass fires, also fire lead.
 yse.on("patcher.bass.trigger", lambda v: yse.send("patcher.lead.trigger", v))
 ```
+
+The bridge hops through the script thread, so it inherits the
+[threading model](#threading-model)'s batched, once-per-tick delivery;
+the direct route stays inside the engine.
 
 ### Example 4 — error handling
 
@@ -776,7 +859,7 @@ silently, per the [engine-property mapping](#mapping-to-engine-properties). The
 example above uses a `dict`, which is genuinely outside the
 [value type table](#value-types).)
 
-The interpreter state is cleared; subsequent `yse_run_script` calls
+The interpreter state is cleared; subsequent `yse_python_run_script` calls
 work normally.
 
 ### Example 5 — generation tagging across reloads
@@ -824,13 +907,20 @@ issues each cite it:
   `sound.<name>.<prop>` and `channel.<name>.<prop>` prefixes).
 - [#124][gh-124] — CPython embedding infrastructure (script thread,
   GIL, queues, frozen stdlib).
-- [#125][gh-125] — C API (`yse_run_script`, error callback).
+- [#125][gh-125] — C API (`yse_python_run_script`, error callback).
 - [#126][gh-126] — `yse` Python module + DSL implementation (the
   primitives in this document).
 - [#127][gh-127] — Hot-reload cleanup + scheduling lifecycle
   (generation counter, `cancel_all`, `fresh_scope`).
 - [#388][gh-388] — Synth note/controller events on the bus (the
   `synth.<name>.<event>` prefix).
+- [#893][gh-893], [#894][gh-894] — One scoped-address helper for every
+  patcher object; bus and shared stores moved under
+  `patcher.<name>.<slot>`; a rename re-anchors them.
+- [#896][gh-896], [#897][gh-897] — Patcher name over the C API
+  (auto-name restore) and in the patch JSON.
+- [#921][gh-921], [#922][gh-922] — Patcher-name and slot-name length
+  bounds.
 
 When implementing any of the above, treat this document as the
 authority on user-visible shape. If implementation makes one of these
@@ -847,3 +937,10 @@ sections wrong, update this document in the same PR.
 [gh-127]: https://github.com/yvanvds/yse-soundengine/issues/127
 [gh-388]: https://github.com/yvanvds/yse-soundengine/issues/388
 [gh-389]: https://github.com/yvanvds/yse-soundengine/issues/389
+[gh-893]: https://github.com/yvanvds/yse-soundengine/issues/893
+[gh-894]: https://github.com/yvanvds/yse-soundengine/issues/894
+[gh-896]: https://github.com/yvanvds/yse-soundengine/issues/896
+[gh-897]: https://github.com/yvanvds/yse-soundengine/issues/897
+[gh-904]: https://github.com/yvanvds/yse-soundengine/issues/904
+[gh-921]: https://github.com/yvanvds/yse-soundengine/issues/921
+[gh-922]: https://github.com/yvanvds/yse-soundengine/issues/922

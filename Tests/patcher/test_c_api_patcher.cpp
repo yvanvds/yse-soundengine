@@ -1,0 +1,1784 @@
+// C-API boundary tests for YseEngine/c_api/yse_patcher.cpp (issue #568, the
+// follow-up half of #417 / epic #420).
+//
+// The registry-metadata half of this TU already has a suite
+// (Tests/patcher/test_c_api_metadata.cpp, issue #105) and is not repeated here.
+// What had no C-level coverage was the graph half: object create / delete /
+// connect / disconnect, the JSON dump + parse round-trip, the PassBang /
+// PassData value path, and the whole pHandle accessor surface — that is what
+// this file adds.
+//
+// Two contracts get the most attention because they are what a binding breaks
+// on silently:
+//
+//   * The snprintf-style string convention shared by every yse_phandle_get_*
+//     and yse_patcher_dump_json: the return value is always the FULL length,
+//     the buffer is always NUL-terminated, and a NULL buffer or cap == 0 is a
+//     size query. A NULL handle clears the caller's buffer and returns 0.
+//   * NULL-handle safety on every entry point, including the pairs where only
+//     one of two handles is NULL.
+//
+// The graph surface needs no audio hardware. The suite's shared offline engine
+// is brought up anyway because the gReceive value path routes through the
+// patcher bus, so everything here runs on headless CI.
+
+#include <doctest/doctest.h>
+
+#include <atomic>
+#include <chrono>
+#include <cstdlib>
+#include <cstring>
+#include <mutex>
+#include <stdexcept>
+#include <string>
+#include <thread>
+#include <utility>
+#include <vector>
+
+#include "support/capilowcov_offline.hpp"
+
+// Engine-side only for #953's test: a C++ oscHandler that throws, installed on
+// the engine patcher behind a C handle. No C host can write one.
+#include "c_api/yse_c_internal.hpp"
+#include "patcher/patcher.hpp"
+
+#include "yse_c/yse_common.h"
+#include "yse_c/yse_enums.h"
+#include "yse_c/yse_patcher.h"
+#include "yse_c/yse_system.h"
+
+namespace {
+
+  // Patcher object type names, as the flat C ABI sees them (the engine's
+  // YSE::OBJ:: constants are C++ and deliberately not used here — a binding
+  // only ever has the strings).
+  constexpr const char* kSine = "~sine";
+  constexpr const char* kMultiply = ".*";
+  constexpr const char* kReceive = ".r";
+  constexpr const char* kInt = ".i";
+  // Subpatchers (issue #545): the façade and its two boundary objects.
+  constexpr const char* kPatcher = "patcher";
+  constexpr const char* kInlet = ".inlet";
+  constexpr const char* kOutlet = ".outlet";
+  constexpr const char* kAdd = ".+";
+  // The bang chain of issue #626: a button, the metronome its bang has to
+  // start, and a counter turning each emitted bang into a number the .i sink
+  // holds — so the whole flow is readable back over this same ABI.
+  constexpr const char* kButton = ".b";
+  constexpr const char* kMetro = ".metro";
+  constexpr const char* kCounter = ".counter";
+  // Multi-cell GUI controls (issue #551) and the signal-rate subpatcher
+  // boundary (issue #764), both reached through the ABI by #913.
+  constexpr const char* kRSlider = ".rslider";
+  constexpr const char* kMultiSlider = ".multislider";
+  constexpr const char* kMatrixCtrl = ".matrixctrl";
+  constexpr const char* kSigInlet = "~inlet";
+  constexpr const char* kSigOutlet = "~outlet";
+  // A structural re-parse target (issue #968): its argument is its outlet
+  // count, so a set_params rebuilds it rather than patching it in place.
+  constexpr const char* kGate = ".gate";
+
+  // Read a snprintf-convention getter into a std::string, using the two-call
+  // size-then-fill pattern a binding would use.
+  template <typename Fn> std::string readString(Fn&& get) {
+    const size_t need = get(nullptr, size_t{0});
+    std::vector<char> buf(need + 1, '\0');
+    get(buf.data(), buf.size());
+    return std::string(buf.data());
+  }
+
+  // Every cell of a GUI control as a number, read one at a time through
+  // yse_phandle_get_gui_value_at up to the count the ABI reports — the loop a
+  // host repainting a structured control runs. Cells render as the engine's
+  // float text ("30." and the like), so they are compared as numbers.
+  std::vector<float> readCells(YsePHandle* h) {
+    std::vector<float> out;
+    const unsigned int count = yse_phandle_get_gui_value_count(h);
+    for (unsigned int i = 0; i < count; ++i) {
+      const std::string cell = readString(
+          [h, i](char* b, size_t c) { return yse_phandle_get_gui_value_at(h, i, b, c); });
+      out.push_back(std::strtof(cell.c_str(), nullptr));
+    }
+    return out;
+  }
+
+  // The whole-state read split on spaces, for comparing against the cells.
+  std::vector<float> readWhole(YsePHandle* h) {
+    const std::string whole =
+        readString([h](char* b, size_t c) { return yse_phandle_get_gui_value(h, b, c); });
+    std::vector<float> out;
+    const char* cursor = whole.c_str();
+    for (;;) {
+      char* end = nullptr;
+      const float v = std::strtof(cursor, &end);
+      if (end == cursor) break;
+      out.push_back(v);
+      cursor = end;
+    }
+    return out;
+  }
+
+  // ─── send-callback recorders (issue #907)──────────────────────────────────
+
+  struct SendMsg {
+    std::string address;
+    YseOutType kind;
+    int i;
+    float f;
+    bool hasS;
+    std::string s;
+  };
+
+  // Copies each delivery out and frees it the documented way — one
+  // yse_patcher_free_message on the address, which releases `s` too.
+  struct SendLog {
+    std::mutex mtx;
+    std::vector<SendMsg> msgs;
+
+    static void YSE_C_CALLBACK record(void* ud, char* address, YseOutType kind, int i, float f,
+                                      char* s) {
+      auto* self = static_cast<SendLog*>(ud);
+      SendMsg m{address != nullptr ? address : "", kind, i, f, s != nullptr, s != nullptr ? s : ""};
+      yse_patcher_free_message(address);
+      const std::lock_guard<std::mutex> lk(self->mtx);
+      self->msgs.push_back(std::move(m));
+    }
+
+    std::vector<SendMsg> take() {
+      const std::lock_guard<std::mutex> lk(mtx);
+      std::vector<SendMsg> out;
+      out.swap(msgs);
+      return out;
+    }
+  };
+
+  // Two distinct callbacks, each of which knows the tag its own user_data must
+  // carry: a call that pairs one install's function with another's user_data
+  // shows up as a mismatch.
+  struct PairCheck {
+    YsePatcherSendCallback cb;
+    char tag;
+    std::thread::id host{};
+    std::atomic<int> calls{0};
+    std::atomic<int> offHost{0};
+    std::atomic<int> mismatched{0};
+
+    static void check(void* ud, char* address, char expected) {
+      auto* self = static_cast<PairCheck*>(ud);
+      if (self->tag != expected) self->mismatched.fetch_add(1);
+      self->calls.fetch_add(1);
+      if (std::this_thread::get_id() != self->host) self->offHost.fetch_add(1);
+      yse_patcher_free_message(address);
+    }
+    static void YSE_C_CALLBACK recordA(void* ud, char* address, YseOutType, int, float, char*) {
+      check(ud, address, 'A');
+    }
+    static void YSE_C_CALLBACK recordB(void* ud, char* address, YseOutType, int, float, char*) {
+      check(ud, address, 'B');
+    }
+  };
+
+} // namespace
+
+TEST_SUITE("capilowcov") {
+
+  // ─── patcher lifecycle and graph editing ───────────────────────────────────
+
+  TEST_CASE("c-api patcher: create / init / object count / clear / destroy") {
+    YsePatcher* p = yse_patcher_create();
+    REQUIRE(p != nullptr);
+    yse_patcher_init(p, 2);
+    CHECK(yse_patcher_objects(p) == 0u);
+
+    YsePHandle* sine = yse_patcher_create_object(p, kSine, nullptr);
+    REQUIRE(sine != nullptr);
+    CHECK(yse_patcher_objects(p) == 1u);
+
+    YsePHandle* mul = yse_patcher_create_object(p, kMultiply, "2");
+    REQUIRE(mul != nullptr);
+    CHECK(yse_patcher_objects(p) == 2u);
+
+    // An unknown type is refused without disturbing the graph.
+    CHECK(yse_patcher_create_object(p, "not_a_real_object", nullptr) == nullptr);
+    CHECK(yse_patcher_objects(p) == 2u);
+
+    yse_patcher_delete_object(p, sine);
+    CHECK(yse_patcher_objects(p) == 1u);
+
+    yse_patcher_clear(p);
+    CHECK(yse_patcher_objects(p) == 0u);
+
+    yse_patcher_destroy(p);
+  }
+
+  // ─── naming (issue #896) ───────────────────────────────────────────────────
+
+  TEST_CASE("c-api patcher: set_name / get_name round-trip, refusal and auto-name restore "
+            "(#896)") {
+    auto getName = [](YsePatcher* p) {
+      return readString([p](char* b, size_t c) { return yse_patcher_get_name(p, b, c); });
+    };
+
+    YsePatcher* p = yse_patcher_create();
+    REQUIRE(p != nullptr);
+
+    // Before init there is no auto-name yet; a name set now is stashed.
+    CHECK(getName(p).empty());
+    CHECK(yse_patcher_set_name(p, "capi896early") == YSE_OK);
+    CHECK(getName(p) == "capi896early");
+    yse_patcher_init(p, 2);
+    CHECK(getName(p) == "capi896early");
+
+    // "" restores the auto-name: the patcher_<N> form the engine assigned.
+    CHECK(yse_patcher_set_name(p, "") == YSE_OK);
+    const std::string autoName = getName(p);
+    CHECK(autoName.rfind("patcher_", 0) == 0);
+    CHECK(autoName.size() > std::strlen("patcher_"));
+
+    CHECK(yse_patcher_set_name(p, "capi896") == YSE_OK);
+    CHECK(getName(p) == "capi896");
+    // NULL is "" — the same auto-name comes back, not a fresh one.
+    CHECK(yse_patcher_set_name(p, nullptr) == YSE_OK);
+    CHECK(getName(p) == autoName);
+
+    // The name budget is 55 characters (issue #921): 55 is accepted, 56 is
+    // refused through the C error channel and the current name is kept.
+    const std::string longest(55, 'n');
+    CHECK(yse_patcher_set_name(p, longest.c_str()) == YSE_OK);
+    CHECK(getName(p) == longest);
+    yse_clear_last_error();
+    const std::string tooLong(56, 'n');
+    CHECK(yse_patcher_set_name(p, tooLong.c_str()) == YSE_ERR_INVALID_ARGUMENT);
+    CHECK(std::string(yse_last_error()).find("refused") != std::string::npos);
+    CHECK(getName(p) == longest);
+    yse_clear_last_error();
+
+    // snprintf contract: full length returned, truncated buffer NUL-terminated.
+    REQUIRE(yse_patcher_set_name(p, "capi896") == YSE_OK);
+    char small[4] = {'x', 'x', 'x', 'x'};
+    CHECK(yse_patcher_get_name(p, small, sizeof(small)) == std::strlen("capi896"));
+    CHECK(std::string(small) == "cap");
+    CHECK(yse_patcher_get_name(p, nullptr, 0) == std::strlen("capi896"));
+
+    // NULL patcher: INVALID_HANDLE, and the getter clears the buffer.
+    CHECK(yse_patcher_set_name(nullptr, "x") == YSE_ERR_INVALID_HANDLE);
+    char buf[8] = {'x', 'x', 'x', 'x', 'x', 'x', 'x', '\0'};
+    CHECK(yse_patcher_get_name(nullptr, buf, sizeof(buf)) == 0u);
+    CHECK(buf[0] == '\0');
+    CHECK(yse_patcher_get_name(nullptr, nullptr, 0) == 0u);
+
+    yse_patcher_destroy(p);
+  }
+
+  TEST_CASE("c-api patcher: a name set over the C API scopes shared stores across patchers "
+            "(#896)") {
+    // The end-to-end reason for the entry point: two patchers a C host names
+    // alike share their name-scoped stores, and un-naming one isolates it again.
+    YsePatcher* a = yse_patcher_create();
+    YsePatcher* b = yse_patcher_create();
+    REQUIRE(a != nullptr);
+    REQUIRE(b != nullptr);
+    yse_patcher_init(a, 2);
+    yse_patcher_init(b, 2);
+    REQUIRE(yse_patcher_set_name(a, "capi896shared") == YSE_OK);
+
+    YsePHandle* writer = yse_patcher_create_object(a, ".array", "steps");
+    YsePHandle* reader = yse_patcher_create_object(b, ".array", "steps");
+    YsePHandle* sink = yse_patcher_create_object(b, kInt, nullptr);
+    REQUIRE(writer != nullptr);
+    REQUIRE(reader != nullptr);
+    REQUIRE(sink != nullptr);
+    yse_patcher_connect(b, reader, 0, sink, 0);
+
+    yse_phandle_set_list(writer, 0, "append 5");
+    yse_phandle_set_list(writer, 0, "append 6");
+    auto readerSize = [&] {
+      yse_phandle_set_list(reader, 0, "getsize");
+      return readString(
+          [sink](char* s, size_t c) { return yse_phandle_get_gui_value(sink, s, c); });
+    };
+
+    // Still auto-named: b has an array of its own.
+    CHECK(readerSize() == "0");
+
+    // Named alike after the objects exist: the rename re-anchors the reader.
+    REQUIRE(yse_patcher_set_name(b, "capi896shared") == YSE_OK);
+    CHECK(readerSize() == "2");
+
+    // Back to the auto-name: isolated again.
+    REQUIRE(yse_patcher_set_name(b, nullptr) == YSE_OK);
+    CHECK(readerSize() == "0");
+
+    yse_patcher_destroy(b);
+    yse_patcher_destroy(a);
+  }
+
+  TEST_CASE("c-api patcher: handles are retrievable by list index and by ID") {
+    YsePatcher* p = yse_patcher_create();
+    REQUIRE(p != nullptr);
+    yse_patcher_init(p, 2);
+
+    YsePHandle* sine = yse_patcher_create_object(p, kSine, nullptr);
+    REQUIRE(sine != nullptr);
+    // The first object in a fresh patcher is ID 0. This used to read `id != 0u`,
+    // which only ever held because the ID came from a process-wide counter that
+    // had already run past 0 by the time any test looked — exactly the property
+    // issue #730 removed. What the case is actually about is the round trip:
+    // the ID a handle reports finds that same handle again.
+    const unsigned int id = yse_phandle_get_id(sine);
+    CHECK(id == 0u);
+
+    CHECK(yse_patcher_get_handle_from_id(p, id) == sine);
+    CHECK(yse_patcher_get_handle_from_list(p, 0) == sine);
+
+    // Out-of-range lookups answer with NULL rather than a stale handle.
+    CHECK(yse_patcher_get_handle_from_id(p, id + 9999) == nullptr);
+    CHECK(yse_patcher_get_handle_from_list(p, 99) == nullptr);
+
+    yse_patcher_destroy(p);
+  }
+
+  TEST_CASE("c-api patcher: connect / disconnect are visible through the handle") {
+    YsePatcher* p = yse_patcher_create();
+    REQUIRE(p != nullptr);
+    yse_patcher_init(p, 2);
+
+    YsePHandle* sine = yse_patcher_create_object(p, kSine, nullptr);
+    YsePHandle* mul = yse_patcher_create_object(p, kMultiply, "2");
+    REQUIRE(sine != nullptr);
+    REQUIRE(mul != nullptr);
+
+    CHECK(yse_phandle_get_connections(sine, 0) == 0u);
+
+    yse_patcher_connect(p, sine, 0, mul, 0);
+    REQUIRE(yse_phandle_get_connections(sine, 0) == 1u);
+    CHECK(yse_phandle_get_connection_target(sine, 0, 0) == yse_phandle_get_id(mul));
+    CHECK(yse_phandle_get_connection_target_inlet(sine, 0, 0) == 0u);
+
+    yse_patcher_disconnect(p, sine, 0, mul, 0);
+    CHECK(yse_phandle_get_connections(sine, 0) == 0u);
+
+    yse_patcher_destroy(p);
+  }
+
+  // Issue #966 at the C boundary: a binding's editor thread reading the cords
+  // while another thread edits the patch. The three queries read the outlet's
+  // live wiring, which delete / create / connect rewrite on the editing thread;
+  // they now read it under the patcher mutex, so TSan and ASan stay quiet and
+  // the answers are always either a real edge or the documented sentinels.
+  TEST_CASE("c-api patcher: connection queries race no edit on another thread (#966)") {
+    YsePatcher* p = yse_patcher_create();
+    REQUIRE(p != nullptr);
+    yse_patcher_init(p, 2);
+
+    YsePHandle* from = yse_patcher_create_object(p, kInt, nullptr);
+    REQUIRE(from != nullptr);
+    constexpr int kChurned = 4;
+    std::vector<YsePHandle*> churned;
+    churned.reserve(kChurned);
+    auto wireNew = [&] {
+      YsePHandle* h = yse_patcher_create_object(p, kInt, nullptr);
+      yse_patcher_connect(p, from, 0, h, 0);
+      return h;
+    };
+    for (int i = 0; i < kChurned; i++)
+      churned.push_back(wireNew());
+
+    std::atomic<bool> stop{false};
+    std::atomic<unsigned int> reads{0};
+    std::atomic<unsigned int> wrong{0};
+    std::thread reader([&] {
+      while (!stop.load(std::memory_order_relaxed)) {
+        const unsigned int count = yse_phandle_get_connections(from, 0);
+        if (count > static_cast<unsigned int>(kChurned)) wrong.fetch_add(1);
+        for (unsigned int i = 0; i <= count; i++) {
+          const unsigned int inlet = yse_phandle_get_connection_target_inlet(from, 0, i);
+          if (inlet != 0u && inlet != YSE_PATCHER_INLET_NONE) wrong.fetch_add(1);
+          (void)yse_phandle_get_connection_target(from, 0, i);
+        }
+        reads.fetch_add(1, std::memory_order_relaxed);
+      }
+    });
+
+    for (int round = 0; round < 150; round++) {
+      for (int i = 0; i < kChurned; i++) {
+        yse_patcher_delete_object(p, churned[i]);
+        churned[i] = wireNew();
+      }
+    }
+
+    stop.store(true, std::memory_order_relaxed);
+    reader.join();
+
+    CHECK(reads.load() > 0u);
+    CHECK(wrong.load() == 0u);
+    REQUIRE(yse_phandle_get_connections(from, 0) == static_cast<unsigned int>(kChurned));
+    for (unsigned int i = 0; i < static_cast<unsigned int>(kChurned); i++)
+      CHECK(yse_phandle_get_connection_target(from, 0, i) == yse_phandle_get_id(churned[i]));
+
+    yse_patcher_destroy(p);
+  }
+
+  // Issue #968 at the C boundary: a binding's GUI thread polling a handle while
+  // another thread re-parses the same object into a different shape. Every
+  // yse_phandle_* getter read the handle's object pointer unlocked, and the
+  // structural yse_phandle_set_params writes it (TSan: data race on
+  // `pHandle::object`). The getters now pin the patcher and load the pointer
+  // atomically, or read it under the patcher mutex.
+  TEST_CASE("c-api patcher: handle getters race no structural set_params (#968)") {
+    YsePatcher* p = yse_patcher_create();
+    REQUIRE(p != nullptr);
+    yse_patcher_init(p, 2);
+
+    YsePHandle* gate = yse_patcher_create_object(p, kGate, "2");
+    YsePHandle* sink = yse_patcher_create_object(p, kInt, nullptr);
+    REQUIRE(gate != nullptr);
+    REQUIRE(sink != nullptr);
+    yse_patcher_connect(p, gate, 0, sink, 0);
+
+    std::atomic<bool> stop{false};
+    std::atomic<unsigned int> reads{0};
+    std::atomic<unsigned int> wrong{0};
+    std::thread reader([&] {
+      char buf[64];
+      while (!stop.load(std::memory_order_relaxed)) {
+        const int outs = yse_phandle_get_outputs(gate);
+        if (outs != 2 && outs != 5) wrong.fetch_add(1);
+        if (yse_phandle_get_inputs(gate) != 2) wrong.fetch_add(1);
+        (void)yse_phandle_get_type(gate, buf, sizeof(buf));
+        if (std::string(buf) != kGate) wrong.fetch_add(1);
+        (void)yse_phandle_get_name(gate, buf, sizeof(buf));
+        (void)yse_phandle_get_params(gate, buf, sizeof(buf));
+        (void)yse_phandle_get_gui_property(gate, "x", buf, sizeof(buf));
+        (void)yse_phandle_get_gui_value(gate, buf, sizeof(buf));
+        (void)yse_phandle_get_id(gate);
+        (void)yse_phandle_output_data_type(gate, 0);
+        if (yse_phandle_get_connections(gate, 0) != 1u) wrong.fetch_add(1);
+        reads.fetch_add(1, std::memory_order_relaxed);
+      }
+    });
+
+    for (int round = 0; round < 200; round++)
+      yse_phandle_set_params(gate, round % 2 == 0 ? "5" : "2");
+
+    stop.store(true, std::memory_order_relaxed);
+    reader.join();
+
+    CHECK(reads.load() > 0u);
+    CHECK(wrong.load() == 0u);
+    CHECK(yse_phandle_get_outputs(gate) == 2);
+
+    yse_patcher_destroy(p);
+  }
+
+  TEST_CASE("c-api patcher: connect / disconnect refuse another patcher's handles (#934)") {
+    YsePatcher* p = yse_patcher_create();
+    YsePatcher* q = yse_patcher_create();
+    REQUIRE(p != nullptr);
+    REQUIRE(q != nullptr);
+    yse_patcher_init(p, 2);
+    yse_patcher_init(q, 2);
+
+    YsePHandle* sine = yse_patcher_create_object(p, kSine, nullptr);
+    YsePHandle* mul = yse_patcher_create_object(p, kMultiply, "2");
+    YsePHandle* foreign = yse_patcher_create_object(q, kMultiply, "2");
+    REQUIRE(sine != nullptr);
+    REQUIRE(mul != nullptr);
+    REQUIRE(foreign != nullptr);
+
+    yse_patcher_connect(p, sine, 0, foreign, 0);
+    CHECK(yse_phandle_get_connections(sine, 0) == 0u);
+    yse_patcher_connect(q, sine, 0, mul, 0);
+    CHECK(yse_phandle_get_connections(sine, 0) == 0u);
+
+    yse_patcher_connect(p, sine, 0, mul, 0);
+    REQUIRE(yse_phandle_get_connections(sine, 0) == 1u);
+    yse_patcher_disconnect(q, sine, 0, mul, 0);
+    CHECK(yse_phandle_get_connections(sine, 0) == 1u);
+
+    yse_patcher_destroy(q);
+    yse_patcher_destroy(p);
+  }
+
+  TEST_CASE("c-api phandle: object-ID queries answer NONE, not 0, when there is no object") {
+    // Issue #732. Object IDs are per-patcher and start at 0 since #730, so the
+    // first object in every patch owns ID 0 — the value the blanket
+    // "0 on NULL" convention used to hand back for a NULL handle and for an
+    // out-of-range query. Both now answer YSE_PATCHER_ID_NONE, so a binding can
+    // tell "object 0" from "no object".
+    YsePatcher* p = yse_patcher_create();
+    REQUIRE(p != nullptr);
+    yse_patcher_init(p, 2);
+
+    // mul is created first, so it is the object that owns ID 0 and the edge
+    // below is an ordinary connection whose target ID is 0.
+    YsePHandle* mul = yse_patcher_create_object(p, kMultiply, "2");
+    YsePHandle* sine = yse_patcher_create_object(p, kSine, nullptr);
+    REQUIRE(mul != nullptr);
+    REQUIRE(sine != nullptr);
+    REQUIRE(yse_phandle_get_id(mul) == 0u);
+
+    CHECK(yse_phandle_get_id(nullptr) == YSE_PATCHER_ID_NONE);
+    CHECK(yse_phandle_get_id(mul) != yse_phandle_get_id(nullptr));
+    // The sentinel is never a real object, so looking it up finds nothing.
+    CHECK(yse_patcher_get_handle_from_id(p, YSE_PATCHER_ID_NONE) == nullptr);
+
+    yse_patcher_connect(p, sine, 0, mul, 0);
+    REQUIRE(yse_phandle_get_connections(sine, 0) == 1u);
+
+    // A genuine edge pointing at object 0 still reports 0 ...
+    CHECK(yse_phandle_get_connection_target(sine, 0, 0) == 0u);
+    // ... while every query that cannot name an object says so.
+    CHECK(yse_phandle_get_connection_target(nullptr, 0, 0) == YSE_PATCHER_ID_NONE);
+    CHECK(yse_phandle_get_connection_target(sine, 0, 1) == YSE_PATCHER_ID_NONE);
+    CHECK(yse_phandle_get_connection_target(sine, 99, 0) == YSE_PATCHER_ID_NONE);
+
+    // Issue #737: the other two edge queries pass the caller's outlet number
+    // straight to the engine, which used to index outputs[] with it unchecked.
+    // They now answer instead of reading past the end.
+    CHECK(yse_phandle_get_connections(sine, 99) == 0u);
+    CHECK(yse_phandle_get_connection_target_inlet(sine, 99, 0) == YSE_PATCHER_INLET_NONE);
+
+    yse_patcher_destroy(p);
+  }
+
+  TEST_CASE(
+      "c-api phandle: an inlet query answers INLET_NONE, not inlet 0, when there is no edge") {
+    // Issue #736, the inlet-side twin of #732. Inlet 0 is the leftmost inlet
+    // and the one most edges in a patch arrive at, so the blanket "0 on NULL"
+    // convention made the commonest real answer indistinguishable from every
+    // kind of failure. YSE_PATCHER_INLET_NONE is now the failure answer.
+    YsePatcher* p = yse_patcher_create();
+    REQUIRE(p != nullptr);
+    yse_patcher_init(p, 2);
+
+    YsePHandle* sine = yse_patcher_create_object(p, kSine, nullptr);
+    YsePHandle* mul = yse_patcher_create_object(p, kMultiply, "2");
+    REQUIRE(sine != nullptr);
+    REQUIRE(mul != nullptr);
+    REQUIRE(yse_phandle_get_inputs(mul) == 2);
+
+    // Two edges off the same outlet, landing on inlet 0 and inlet 1.
+    yse_patcher_connect(p, sine, 0, mul, 0);
+    yse_patcher_connect(p, sine, 0, mul, 1);
+    REQUIRE(yse_phandle_get_connections(sine, 0) == 2u);
+
+    // A genuine edge into the leftmost inlet still reports 0 ...
+    const unsigned int inlet0 = yse_phandle_get_connection_target_inlet(sine, 0, 0);
+    CHECK(inlet0 == 0u);
+    CHECK(yse_phandle_get_connection_target_inlet(sine, 0, 1) == 1u);
+
+    // ... while every query that cannot name an inlet says so, and says
+    // something the real inlet 0 above can never be. That distinctness is the
+    // issue: before the fix all four of these were 0.
+    CHECK(yse_phandle_get_connection_target_inlet(nullptr, 0, 0) == YSE_PATCHER_INLET_NONE);
+    CHECK(yse_phandle_get_connection_target_inlet(sine, 0, 2) == YSE_PATCHER_INLET_NONE);
+    CHECK(yse_phandle_get_connection_target_inlet(sine, 99, 0) == YSE_PATCHER_INLET_NONE);
+    CHECK(yse_phandle_get_connection_target_inlet(nullptr, 0, 0) != inlet0);
+    CHECK(yse_phandle_get_connection_target_inlet(sine, 0, 2) != inlet0);
+    CHECK(yse_phandle_get_connection_target_inlet(sine, 99, 0) != inlet0);
+
+    // The inlet sentinel carries the ID sentinel's number on purpose — it is
+    // the one value neither an inlet index nor an object ID can reach — but it
+    // is published under a name of its own so a binding does not compare an
+    // inlet against an object-ID constant.
+    CHECK(YSE_PATCHER_INLET_NONE == YSE_PATCHER_ID_NONE);
+
+    yse_patcher_destroy(p);
+  }
+
+  TEST_CASE("c-api patcher: is_valid_object mirrors the registry") {
+    CHECK(yse_patcher_is_valid_object(kSine) == 1);
+    CHECK(yse_patcher_is_valid_object(kMultiply) == 1);
+    CHECK(yse_patcher_is_valid_object("not_a_real_object") == 0);
+    CHECK(yse_patcher_is_valid_object(nullptr) == 0);
+  }
+
+  // ─── JSON round-trip ───────────────────────────────────────────────────────
+
+  TEST_CASE("c-api patcher: dump_json follows the snprintf convention") {
+    YsePatcher* p = yse_patcher_create();
+    REQUIRE(p != nullptr);
+    yse_patcher_init(p, 2);
+    REQUIRE(yse_patcher_create_object(p, kSine, nullptr) != nullptr);
+
+    // Size query: NULL buffer, and cap == 0 with a real buffer.
+    const size_t need = yse_patcher_dump_json(p, nullptr, 0);
+    CHECK(need > 0u);
+    char one = 'x';
+    CHECK(yse_patcher_dump_json(p, &one, 0) == need);
+    CHECK(one == 'x'); // cap == 0 must not write
+
+    // Exact fit: need + 1 bytes hold the string plus its terminator.
+    std::vector<char> exact(need + 1, '\1');
+    CHECK(yse_patcher_dump_json(p, exact.data(), exact.size()) == need);
+    CHECK(std::strlen(exact.data()) == need);
+
+    // Truncation still returns the full length and still NUL-terminates.
+    char small[8];
+    std::memset(small, '\1', sizeof(small));
+    CHECK(yse_patcher_dump_json(p, small, sizeof(small)) == need);
+    CHECK(std::strlen(small) == sizeof(small) - 1);
+
+    // NULL handle clears the buffer and reports nothing to copy.
+    char scratch[4] = {'a', 'b', 'c', '\0'};
+    CHECK(yse_patcher_dump_json(nullptr, scratch, sizeof(scratch)) == 0u);
+    CHECK(scratch[0] == '\0');
+    CHECK(yse_patcher_dump_json(nullptr, nullptr, 0) == 0u);
+
+    yse_patcher_destroy(p);
+  }
+
+  TEST_CASE("c-api patcher: parse_json restores a dumped graph") {
+    YsePatcher* src = yse_patcher_create();
+    REQUIRE(src != nullptr);
+    yse_patcher_init(src, 2);
+    YsePHandle* sine = yse_patcher_create_object(src, kSine, nullptr);
+    YsePHandle* mul = yse_patcher_create_object(src, kMultiply, "2");
+    REQUIRE(sine != nullptr);
+    REQUIRE(mul != nullptr);
+    yse_patcher_connect(src, sine, 0, mul, 0);
+
+    const std::string json =
+        readString([src](char* b, size_t c) { return yse_patcher_dump_json(src, b, c); });
+    REQUIRE(!json.empty());
+
+    YsePatcher* dst = yse_patcher_create();
+    REQUIRE(dst != nullptr);
+
+    // Before init there is nothing to load into: refused, not a silent success
+    // (issue #910).
+    yse_clear_last_error();
+    CHECK(yse_patcher_parse_json(dst, json.c_str()) == YSE_ERR_NOT_INITIALIZED);
+    CHECK_FALSE(std::string(yse_last_error()).empty());
+    CHECK(yse_patcher_objects(dst) == 0u);
+
+    REQUIRE(yse_patcher_init(dst, 2) == YSE_OK);
+    CHECK(yse_patcher_parse_json(dst, json.c_str()) == YSE_OK);
+    CHECK(yse_patcher_objects(dst) == yse_patcher_objects(src));
+
+    // Malformed input is told apart from success by its status and reported
+    // through last_error, not thrown across the ABI (issue #910).
+    const unsigned int before = yse_patcher_objects(dst);
+    yse_clear_last_error();
+    CHECK(yse_patcher_parse_json(dst, "{ this is not json") == YSE_ERR_EXCEPTION);
+    CHECK_FALSE(std::string(yse_last_error()).empty());
+    CHECK(yse_patcher_objects(dst) == before);
+
+    // NULL handle / NULL content are refused with a status and a reason.
+    yse_clear_last_error();
+    CHECK(yse_patcher_parse_json(nullptr, json.c_str()) == YSE_ERR_INVALID_HANDLE);
+    CHECK_FALSE(std::string(yse_last_error()).empty());
+    yse_clear_last_error();
+    CHECK(yse_patcher_parse_json(dst, nullptr) == YSE_ERR_INVALID_ARGUMENT);
+    CHECK_FALSE(std::string(yse_last_error()).empty());
+    yse_clear_last_error();
+
+    yse_patcher_destroy(dst);
+    yse_patcher_destroy(src);
+  }
+
+  TEST_CASE("c-api patcher: parse_json adds to the patch; clear first replaces it (#939)") {
+    YsePatcher* src = yse_patcher_create();
+    REQUIRE(src != nullptr);
+    REQUIRE(yse_patcher_init(src, 2) == YSE_OK);
+    REQUIRE(yse_patcher_create_object(src, kSine, nullptr) != nullptr);
+    REQUIRE(yse_patcher_create_object(src, kMultiply, "2") != nullptr);
+    const std::string json =
+        readString([src](char* b, size_t c) { return yse_patcher_dump_json(src, b, c); });
+    REQUIRE(!json.empty());
+
+    YsePatcher* dst = yse_patcher_create();
+    REQUIRE(dst != nullptr);
+    REQUIRE(yse_patcher_init(dst, 2) == YSE_OK);
+    YsePHandle* existing = yse_patcher_create_object(dst, kMultiply, "3");
+    REQUIRE(existing != nullptr);
+
+    // Additive: the object already there is kept, the file's two join it.
+    CHECK(yse_patcher_parse_json(dst, json.c_str()) == YSE_OK);
+    CHECK(yse_patcher_objects(dst) == 3u);
+    CHECK(yse_patcher_get_handle_from_id(dst, 0) == existing);
+
+    // Replace is clear + parse.
+    yse_patcher_clear(dst);
+    CHECK(yse_patcher_parse_json(dst, json.c_str()) == YSE_OK);
+    CHECK(yse_patcher_objects(dst) == 2u);
+
+    yse_patcher_destroy(dst);
+    yse_patcher_destroy(src);
+  }
+
+  TEST_CASE("c-api patcher: a parse_json that fails mid-load loads nothing (#938)") {
+    YsePatcher* p = yse_patcher_create();
+    REQUIRE(p != nullptr);
+    REQUIRE(yse_patcher_init(p, 2) == YSE_OK);
+    YsePHandle* existing = yse_patcher_create_object(p, kMultiply, "3");
+    REQUIRE(existing != nullptr);
+
+    // The first record creates an object; the second cannot be built. The
+    // status says nothing was loaded, and nothing was.
+    yse_clear_last_error();
+    CHECK(yse_patcher_parse_json(p, R"({"object 0":{"ID":0,"type":".mtof","parms":""},
+                                        "object 1":{"ID":1,"type":"~sine","parms":"abc"}})") ==
+          YSE_ERR_EXCEPTION);
+    CHECK_FALSE(std::string(yse_last_error()).empty());
+    CHECK(yse_patcher_objects(p) == 1u);
+    CHECK(yse_patcher_get_handle_from_id(p, 0) == existing);
+    CHECK(yse_patcher_get_handle_from_id(p, 1) == nullptr);
+    yse_clear_last_error();
+
+    yse_patcher_destroy(p);
+  }
+
+  TEST_CASE("c-api patcher: init reports its outcome as a YseStatus (#910)") {
+    YsePatcher* p = yse_patcher_create();
+    REQUIRE(p != nullptr);
+
+    yse_clear_last_error();
+    CHECK(yse_patcher_init(p, -1) == YSE_ERR_INVALID_ARGUMENT);
+    CHECK_FALSE(std::string(yse_last_error()).empty());
+    // The refused call left the patcher uninitialized.
+    CHECK(yse_patcher_create_object(p, kSine, nullptr) == nullptr);
+
+    CHECK(yse_patcher_init(p, 2) == YSE_OK);
+    CHECK(yse_patcher_create_object(p, kSine, nullptr) != nullptr);
+    // A repeat init is accepted and changes nothing, as the engine ignores it.
+    CHECK(yse_patcher_init(p, 4) == YSE_OK);
+    CHECK(yse_patcher_objects(p) == 1u);
+
+    yse_clear_last_error();
+    CHECK(yse_patcher_init(nullptr, 2) == YSE_ERR_INVALID_HANDLE);
+    CHECK_FALSE(std::string(yse_last_error()).empty());
+    yse_clear_last_error();
+
+    yse_patcher_destroy(p);
+  }
+
+  // ─── value path (PassBang / PassData) ──────────────────────────────────────
+
+  TEST_CASE("c-api patcher: pass_* reports whether a receiver exists") {
+    if (!capilowcov::ensureOffline()) return; // engine unavailable → skip
+
+    YsePatcher* p = yse_patcher_create();
+    REQUIRE(p != nullptr);
+    yse_patcher_init(p, 2);
+
+    // The gReceive's dataName comes from the object's argument string.
+    REQUIRE(yse_patcher_create_object(p, kReceive, "cutoff") != nullptr);
+
+    CHECK(yse_patcher_pass_bang(p, "cutoff") == 1);
+    CHECK(yse_patcher_pass_int(p, 42, "cutoff") == 1);
+    CHECK(yse_patcher_pass_float(p, 0.5f, "cutoff") == 1);
+    CHECK(yse_patcher_pass_string(p, "open sesame", "cutoff") == 1);
+
+    // No such receiver → the call reports failure rather than silently dropping.
+    CHECK(yse_patcher_pass_bang(p, "nosuchtarget") == 0);
+    CHECK(yse_patcher_pass_int(p, 1, "nosuchtarget") == 0);
+    CHECK(yse_patcher_pass_float(p, 1.f, "nosuchtarget") == 0);
+    CHECK(yse_patcher_pass_string(p, "v", "nosuchtarget") == 0);
+
+    // NULL patcher / NULL target / NULL value all report failure.
+    CHECK(yse_patcher_pass_bang(nullptr, "cutoff") == 0);
+    CHECK(yse_patcher_pass_bang(p, nullptr) == 0);
+    CHECK(yse_patcher_pass_int(nullptr, 1, "cutoff") == 0);
+    CHECK(yse_patcher_pass_int(p, 1, nullptr) == 0);
+    CHECK(yse_patcher_pass_float(nullptr, 1.f, "cutoff") == 0);
+    CHECK(yse_patcher_pass_float(p, 1.f, nullptr) == 0);
+    CHECK(yse_patcher_pass_string(nullptr, "v", "cutoff") == 0);
+    CHECK(yse_patcher_pass_string(p, nullptr, "cutoff") == 0);
+    CHECK(yse_patcher_pass_string(p, "v", nullptr) == 0);
+
+    yse_patcher_destroy(p);
+  }
+
+  // ─── send callback (issue #907) ────────────────────────────────────────────
+
+  TEST_CASE("c-api patcher: the send callback receives every unmatched pass_* kind (#907)") {
+    if (!capilowcov::ensureOffline()) return; // engine unavailable → skip
+
+    YsePatcher* p = yse_patcher_create();
+    REQUIRE(p != nullptr);
+    yse_patcher_init(p, 2);
+    REQUIRE(yse_patcher_create_object(p, kReceive, "inside") != nullptr);
+
+    SendLog log;
+    REQUIRE(yse_patcher_set_send_callback(p, &SendLog::record, &log) == YSE_OK);
+
+    // Nothing receives "out": each kind reaches the host and reports 1.
+    CHECK(yse_patcher_pass_bang(p, "out") == 1);
+    CHECK(yse_patcher_pass_int(p, 42, "out") == 1);
+    CHECK(yse_patcher_pass_float(p, 0.25f, "out") == 1);
+    CHECK(yse_patcher_pass_string(p, "open sesame", "out") == 1);
+
+    const std::vector<SendMsg> got = log.take();
+    REQUIRE(got.size() == 4u);
+    for (const SendMsg& m : got)
+      CHECK(m.address == "out");
+    CHECK(got[0].kind == YSE_OUT_BANG);
+    CHECK((got[0].i == 0 && got[0].f == 0.f && !got[0].hasS));
+    CHECK(got[1].kind == YSE_OUT_INT);
+    CHECK((got[1].i == 42 && got[1].f == 0.f && !got[1].hasS));
+    CHECK(got[2].kind == YSE_OUT_FLOAT);
+    CHECK((got[2].i == 0 && got[2].f == 0.25f && !got[2].hasS));
+    CHECK(got[3].kind == YSE_OUT_LIST);
+    CHECK(got[3].hasS);
+    CHECK(got[3].s == "open sesame");
+
+    // A name the patch does receive stays inside it.
+    CHECK(yse_patcher_pass_int(p, 7, "inside") == 1);
+    CHECK(log.take().empty());
+
+    // Cleared: back to "no receiver" answering 0, and nothing is delivered.
+    REQUIRE(yse_patcher_set_send_callback(p, nullptr, nullptr) == YSE_OK);
+    CHECK(yse_patcher_pass_bang(p, "out") == 0);
+    CHECK(yse_patcher_pass_string(p, "v", "out") == 0);
+    CHECK(log.take().empty());
+
+    yse_patcher_destroy(p);
+  }
+
+  TEST_CASE("c-api patcher: a .s inside the patch reaches the send callback (#907)") {
+    if (!capilowcov::ensureOffline()) return; // engine unavailable → skip
+
+    YsePatcher* p = yse_patcher_create();
+    REQUIRE(p != nullptr);
+    yse_patcher_init(p, 2);
+    YsePHandle* send = yse_patcher_create_object(p, ".s", "toHost");
+    REQUIRE(send != nullptr);
+
+    SendLog log;
+    REQUIRE(yse_patcher_set_send_callback(p, &SendLog::record, &log) == YSE_OK);
+
+    // The host drives the patch; the patch talks back by the .s's own name.
+    yse_phandle_set_bang(send, 0);
+    yse_phandle_set_int(send, 0, 3);
+    yse_phandle_set_float(send, 0, 1.5f);
+    yse_phandle_set_list(send, 0, "a b c");
+
+    const std::vector<SendMsg> got = log.take();
+    REQUIRE(got.size() == 4u);
+    for (const SendMsg& m : got)
+      CHECK(m.address == "toHost");
+    CHECK(got[0].kind == YSE_OUT_BANG);
+    CHECK(got[1].kind == YSE_OUT_INT);
+    CHECK(got[1].i == 3);
+    CHECK(got[2].kind == YSE_OUT_FLOAT);
+    CHECK(got[2].f == 1.5f);
+    CHECK(got[3].kind == YSE_OUT_LIST);
+    CHECK(got[3].s == "a b c");
+
+    // Once a .r in the patch answers the name, the message stays inside.
+    REQUIRE(yse_patcher_create_object(p, kReceive, "toHost") != nullptr);
+    yse_phandle_set_int(send, 0, 4);
+    CHECK(log.take().empty());
+
+    yse_patcher_destroy(p);
+  }
+
+  TEST_CASE("c-api patcher: send callback install before init, replace, and NULL safety (#907)") {
+    if (!capilowcov::ensureOffline()) return; // engine unavailable → skip
+
+    CHECK(yse_patcher_set_send_callback(nullptr, &SendLog::record, nullptr) ==
+          YSE_ERR_INVALID_HANDLE);
+    yse_patcher_free_message(nullptr); // documented no-op
+
+    YsePatcher* p = yse_patcher_create();
+    REQUIRE(p != nullptr);
+    SendLog first;
+    SendLog second;
+    // Installed before init: kept and applied by init, like a stashed name.
+    REQUIRE(yse_patcher_set_send_callback(p, &SendLog::record, &first) == YSE_OK);
+    yse_patcher_init(p, 2);
+    CHECK(yse_patcher_pass_bang(p, "x") == 1);
+    CHECK(first.take().size() == 1u);
+
+    // A re-install replaces: the new pair gets the message, the old one not.
+    REQUIRE(yse_patcher_set_send_callback(p, &SendLog::record, &second) == YSE_OK);
+    CHECK(yse_patcher_pass_bang(p, "x") == 1);
+    CHECK(first.take().empty());
+    CHECK(second.take().size() == 1u);
+
+    // Cleared before init on a fresh patcher: init installs nothing.
+    YsePatcher* q = yse_patcher_create();
+    REQUIRE(q != nullptr);
+    REQUIRE(yse_patcher_set_send_callback(q, &SendLog::record, &first) == YSE_OK);
+    REQUIRE(yse_patcher_set_send_callback(q, nullptr, nullptr) == YSE_OK);
+    yse_patcher_init(q, 2);
+    CHECK(yse_patcher_pass_bang(q, "x") == 0);
+    CHECK(first.take().empty());
+
+    yse_patcher_destroy(q);
+    yse_patcher_destroy(p);
+  }
+
+  TEST_CASE("c-api patcher: a timer-driven .s calls back off the host thread while it "
+            "re-installs, and destroy is the last word (#907)") {
+    // The callback's second thread: a millisecond .metro ticks on its timer
+    // worker, and each tick's bang runs the .s — and so the callback — there.
+    // The host meanwhile flips between two (cb, user_data) pairs; every call
+    // must see a matched pair. Once destroy returns, nothing calls back.
+    if (!capilowcov::ensureOffline()) return; // engine unavailable → skip
+
+    YsePatcher* p = yse_patcher_create();
+    REQUIRE(p != nullptr);
+    yse_patcher_init(p, 2);
+    YsePHandle* metro = yse_patcher_create_object(p, kMetro, nullptr);
+    YsePHandle* send = yse_patcher_create_object(p, ".s", "tick");
+    REQUIRE(metro != nullptr);
+    REQUIRE(send != nullptr);
+    yse_patcher_connect(p, metro, 0, send, 0);
+
+    PairCheck a{&PairCheck::recordA, 'A'};
+    PairCheck b{&PairCheck::recordB, 'B'};
+    REQUIRE(yse_patcher_set_send_callback(p, a.cb, &a) == YSE_OK);
+
+    const std::thread::id host = std::this_thread::get_id();
+    a.host = host;
+    b.host = host;
+    yse_phandle_set_int(metro, 1, 1); // 1 ms period
+    yse_phandle_set_int(metro, 0, 1); // start
+
+    // Re-install until the timer thread has called back a fair number of
+    // times, bounded so a stalled timer fails rather than hangs.
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(10);
+    for (int n = 0; (a.offHost.load() + b.offHost.load()) < 50; ++n) {
+      if (std::chrono::steady_clock::now() > deadline) break;
+      PairCheck& next = (n % 2 == 0) ? b : a;
+      REQUIRE(yse_patcher_set_send_callback(p, next.cb, &next) == YSE_OK);
+      std::this_thread::sleep_for(std::chrono::microseconds(200));
+    }
+    CHECK(a.offHost.load() + b.offHost.load() >= 50);
+    CHECK(a.mismatched.load() == 0);
+    CHECK(b.mismatched.load() == 0);
+
+    // Metro still running: destroy must wait out any call in progress and
+    // leave nothing to call back afterwards.
+    yse_patcher_destroy(p);
+    const int after = a.calls.load() + b.calls.load();
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    CHECK(a.calls.load() + b.calls.load() == after);
+  }
+
+  // ─── engine RNG seeding (issue #908) ───────────────────────────────────────
+
+  TEST_CASE("c-api patcher: yse_random_seed makes a .random patch replay, yse_randomize "
+            "moves it (#908)") {
+    // The user-visible contract: a host seeds the engine generator through the
+    // C ABI and a patch's .random draws replay. Drawn on this thread, which has
+    // already drawn before — so the replay also proves a seed reaches a thread
+    // whose stream was already running, not only fresh ones.
+    if (!capilowcov::ensureOffline()) return; // engine unavailable → skip
+
+    YsePatcher* p = yse_patcher_create();
+    REQUIRE(p != nullptr);
+    yse_patcher_init(p, 2);
+    YsePHandle* random = yse_patcher_create_object(p, ".random", "1000000");
+    YsePHandle* send = yse_patcher_create_object(p, ".s", "rng");
+    REQUIRE(random != nullptr);
+    REQUIRE(send != nullptr);
+    yse_patcher_connect(p, random, 0, send, 0);
+
+    SendLog log;
+    REQUIRE(yse_patcher_set_send_callback(p, &SendLog::record, &log) == YSE_OK);
+
+    auto draw = [&](int n) {
+      for (int i = 0; i < n; ++i)
+        yse_phandle_set_bang(random, 0);
+      std::vector<int> values;
+      for (const SendMsg& m : log.take()) {
+        CHECK(m.kind == YSE_OUT_INT);
+        values.push_back(m.i);
+      }
+      return values;
+    };
+
+    const int kN = 16;
+    CHECK(draw(3).size() == 3u); // this thread's stream is running before the seed
+
+    yse_random_seed(4242);
+    const std::vector<int> first = draw(kN);
+    REQUIRE(first.size() == static_cast<size_t>(kN));
+
+    draw(5); // advance, then publish the same seed again
+    yse_random_seed(4242);
+    CHECK(draw(kN) == first);
+
+    yse_random_seed(4243);
+    CHECK(draw(kN) != first);
+
+    yse_randomize();
+    CHECK(draw(kN) != first);
+
+    yse_patcher_destroy(p);
+  }
+
+  // ─── pHandle accessors ─────────────────────────────────────────────────────
+
+  TEST_CASE("c-api phandle: type / name / params / gui strings round-trip") {
+    YsePatcher* p = yse_patcher_create();
+    REQUIRE(p != nullptr);
+    yse_patcher_init(p, 2);
+
+    YsePHandle* h = yse_patcher_create_object(p, kInt, "7");
+    REQUIRE(h != nullptr);
+
+    CHECK(readString([h](char* b, size_t c) { return yse_phandle_get_type(h, b, c); }) == kInt);
+    // Name and params are whatever the object reports; the contract under test
+    // is that the size query and the fill agree.
+    const std::string name =
+        readString([h](char* b, size_t c) { return yse_phandle_get_name(h, b, c); });
+    CHECK(name.size() == yse_phandle_get_name(h, nullptr, 0));
+    const std::string params =
+        readString([h](char* b, size_t c) { return yse_phandle_get_params(h, b, c); });
+    CHECK(params.size() == yse_phandle_get_params(h, nullptr, 0));
+
+    yse_phandle_set_params(h, "9");
+    CHECK(yse_phandle_get_params(h, nullptr, 0) > 0u);
+
+    // GUI properties are a free-form key/value store on the handle.
+    yse_phandle_set_gui_property(h, "x", "120");
+    CHECK(readString([h](char* b, size_t c) {
+            return yse_phandle_get_gui_property(h, "x", b, c);
+          }) == "120");
+    // A NULL value clears rather than crashing.
+    yse_phandle_set_gui_property(h, "x", nullptr);
+    CHECK(readString([h](char* b, size_t c) {
+            return yse_phandle_get_gui_property(h, "x", b, c);
+          }).empty());
+    // An unknown key reads back empty.
+    CHECK(yse_phandle_get_gui_property(h, "never_set", nullptr, 0) == 0u);
+
+    const std::string guiValue =
+        readString([h](char* b, size_t c) { return yse_phandle_get_gui_value(h, b, c); });
+    CHECK(guiValue.size() == yse_phandle_get_gui_value(h, nullptr, 0));
+
+    yse_patcher_destroy(p);
+  }
+
+  TEST_CASE("c-api phandle: a malformed set_params is reported, not thrown across the ABI (#901)") {
+    // `.i`'s param is an int, so a non-number makes the re-parse's std::stoi
+    // throw. Before #901 that exception escaped the extern "C" function and
+    // terminated the host; now the barrier reports it through yse_last_error()
+    // and the object keeps the params it had.
+    YsePatcher* p = yse_patcher_create();
+    REQUIRE(p != nullptr);
+    yse_patcher_init(p, 2);
+
+    YsePHandle* h = yse_patcher_create_object(p, kInt, "7");
+    REQUIRE(h != nullptr);
+    const std::string before =
+        readString([h](char* b, size_t c) { return yse_phandle_get_params(h, b, c); });
+
+    yse_clear_last_error();
+    yse_phandle_set_params(h, "not_a_number");
+    CHECK(std::strlen(yse_last_error()) > 0u);
+    CHECK(readString([h](char* b, size_t c) { return yse_phandle_get_params(h, b, c); }) == before);
+
+    // The handle is still usable afterwards: a well-formed re-parse lands.
+    yse_clear_last_error();
+    yse_phandle_set_params(h, "9");
+    CHECK(std::strlen(yse_last_error()) == 0u);
+    CHECK(readString([h](char* b, size_t c) { return yse_phandle_get_params(h, b, c); }) == "9");
+
+    yse_patcher_destroy(p);
+  }
+
+  TEST_CASE("c-api phandle: a throw in a set_bang / int / float cascade is reported, not "
+            "thrown across the ABI (#953)") {
+    if (!capilowcov::ensureOffline()) return; // engine unavailable → skip
+
+    // The setters run the handler cascade on this thread: a .s whose name no
+    // .r answers hands the value to the patcher's oscHandler. A C++ handler
+    // may throw — it is ordinary C++ API — and before #953 only the list
+    // setter stopped that at the ABI; the other three let it escape the
+    // extern "C" function and terminate the host.
+    struct ThrowingHandler final : YSE::oscHandler {
+      void Send(const std::string&) override {
+        throw std::runtime_error("handler refused bang");
+      }
+      void Send(const std::string&, int) override {
+        throw std::runtime_error("handler refused int");
+      }
+      void Send(const std::string&, float) override {
+        throw std::runtime_error("handler refused float");
+      }
+      void Send(const std::string&, const std::string&) override {
+        throw std::runtime_error("handler refused list");
+      }
+    };
+    ThrowingHandler handler; // outlives p: destroy detaches it first
+
+    YsePatcher* p = yse_patcher_create();
+    REQUIRE(p != nullptr);
+    REQUIRE(yse_patcher_init(p, 2) == YSE_OK);
+    YsePHandle* send = yse_patcher_create_object(p, ".s", "nowhere");
+    REQUIRE(send != nullptr);
+    yse_c::patcher_from_handle(p)->SetOscHandler(&handler);
+
+    yse_clear_last_error();
+    yse_phandle_set_bang(send, 0);
+    CHECK(std::string(yse_last_error()) == "handler refused bang");
+
+    yse_clear_last_error();
+    yse_phandle_set_int(send, 0, 3);
+    CHECK(std::string(yse_last_error()) == "handler refused int");
+
+    yse_clear_last_error();
+    yse_phandle_set_float(send, 0, 1.5f);
+    CHECK(std::string(yse_last_error()) == "handler refused float");
+
+    yse_clear_last_error();
+    yse_phandle_set_list(send, 0, "a b");
+    CHECK(std::string(yse_last_error()) == "handler refused list");
+
+    // The patcher is still usable: once a .r answers the name, the value stays
+    // inside and never reaches the throwing handler.
+    REQUIRE(yse_patcher_create_object(p, kReceive, "nowhere") != nullptr);
+    yse_clear_last_error();
+    yse_phandle_set_float(send, 0, 2.5f);
+    CHECK(std::strlen(yse_last_error()) == 0u);
+
+    yse_patcher_destroy(p);
+  }
+
+  TEST_CASE("c-api phandle: a malformed set_params on a rebuilt object keeps the old one (#915)") {
+    // `.i` above re-parses through the scalar plan, which throws before
+    // anything is allocated. `.gate` registers parse/clear callbacks, so a
+    // live set_params takes the structural rebuild instead: the patcher builds
+    // a replacement and re-parses *that*, and its int param makes std::stoi
+    // throw there. Before #915 the half-built replacement was leaked (ASan's
+    // leak checker names it); now it is freed and the published object —
+    // params, outlets and wiring — is untouched and still rebuildable.
+    YsePatcher* p = yse_patcher_create();
+    REQUIRE(p != nullptr);
+    yse_patcher_init(p, 2);
+
+    YsePHandle* gate = yse_patcher_create_object(p, ".gate", "3");
+    YsePHandle* sink = yse_patcher_create_object(p, kInt, "");
+    REQUIRE(gate != nullptr);
+    REQUIRE(sink != nullptr);
+    yse_patcher_connect(p, gate, 2, sink, 0);
+    REQUIRE(yse_phandle_get_outputs(gate) == 3);
+    REQUIRE(yse_phandle_get_connections(gate, 2) == 1u);
+
+    yse_clear_last_error();
+    yse_phandle_set_params(gate, "not_a_number");
+    CHECK(std::strlen(yse_last_error()) > 0u);
+    CHECK(readString([gate](char* b, size_t c) { return yse_phandle_get_params(gate, b, c); }) ==
+          "3");
+    CHECK(yse_phandle_get_outputs(gate) == 3);
+    CHECK(yse_phandle_get_connections(gate, 2) == 1u);
+
+    // A well-formed rebuild still lands on the same handle and keeps the cord.
+    yse_clear_last_error();
+    yse_phandle_set_params(gate, "4");
+    CHECK(std::strlen(yse_last_error()) == 0u);
+    CHECK(yse_phandle_get_outputs(gate) == 4);
+    CHECK(yse_phandle_get_connections(gate, 2) == 1u);
+
+    yse_patcher_destroy(p);
+  }
+
+  TEST_CASE("c-api patcher: a create whose args fail to parse leaves nothing behind (#919)") {
+    // `.gate`'s int param makes std::stoi throw on a malformed creation arg.
+    // Before #919 the freshly built object was held in a raw pointer across
+    // that parse and leaked (ASan's leak checker names the gGate); now it is
+    // freed, the create reports the error and returns NULL, and the patcher is
+    // left exactly as it was — no extra object, no change to the saved patch —
+    // so later creates still work.
+    YsePatcher* p = yse_patcher_create();
+    REQUIRE(p != nullptr);
+    yse_patcher_init(p, 2);
+
+    YsePHandle* first = yse_patcher_create_object(p, ".gate", "2");
+    REQUIRE(first != nullptr);
+    const unsigned int objectsBefore = yse_patcher_objects(p);
+    const std::string jsonBefore =
+        readString([p](char* b, size_t c) { return yse_patcher_dump_json(p, b, c); });
+
+    yse_clear_last_error();
+    CHECK(yse_patcher_create_object(p, ".gate", "not_a_number") == nullptr);
+    CHECK(std::strlen(yse_last_error()) > 0u);
+    CHECK(yse_patcher_objects(p) == objectsBefore);
+    CHECK(readString([p](char* b, size_t c) { return yse_patcher_dump_json(p, b, c); }) ==
+          jsonBefore);
+
+    // A well-formed create afterwards lands and can be wired as usual.
+    yse_clear_last_error();
+    YsePHandle* second = yse_patcher_create_object(p, ".gate", "3");
+    REQUIRE(second != nullptr);
+    CHECK(std::strlen(yse_last_error()) == 0u);
+    CHECK(yse_patcher_objects(p) == objectsBefore + 1u);
+    CHECK(yse_phandle_get_outputs(second) == 3);
+    yse_patcher_connect(p, first, 1, second, 0);
+    CHECK(yse_phandle_get_connections(first, 1) == 1u);
+
+    yse_patcher_destroy(p);
+  }
+
+  TEST_CASE("c-api patcher: creation arguments split on runs of whitespace (#936)") {
+    // Two spaces in a row, or a leading one, used to hand std::stof an empty
+    // token: create returned NULL with std::invalid_argument's text in
+    // yse_last_error(). A tab was no separator at all.
+    YsePatcher* p = yse_patcher_create();
+    REQUIRE(p != nullptr);
+    yse_patcher_init(p, 2);
+
+    for (const char* args : {"0  10", " 0 10", "0\t10"}) {
+      CAPTURE(args);
+      yse_clear_last_error();
+      YsePHandle* clip = yse_patcher_create_object(p, ".clip", args);
+      REQUIRE(clip != nullptr);
+      CHECK(std::strlen(yse_last_error()) == 0u);
+      CHECK(readString([clip](char* b, size_t c) { return yse_phandle_get_params(clip, b, c); }) ==
+            args);
+    }
+
+    yse_clear_last_error();
+    YsePHandle* gate = yse_patcher_create_object(p, ".gate", "  3  ");
+    REQUIRE(gate != nullptr);
+    CHECK(std::strlen(yse_last_error()) == 0u);
+    CHECK(yse_phandle_get_outputs(gate) == 3);
+
+    yse_patcher_destroy(p);
+  }
+
+  TEST_CASE("c-api phandle: the GUI value protocol's cell form mirrors the engine") {
+    // Issue #551. `.i` is a scalar control, so it is the one-cell case: it
+    // reports one cell, cell 0 is exactly the whole-state read, and
+    // everything past the end is empty. Since the #846 migration it also
+    // claims the write round trip — the string the read produces goes back
+    // through set_list, and "set 0 <value>" writes the one cell.
+    YsePatcher* p = yse_patcher_create();
+    REQUIRE(p != nullptr);
+    yse_patcher_init(p, 2);
+
+    YsePHandle* h = yse_patcher_create_object(p, kInt, "7");
+    REQUIRE(h != nullptr);
+    yse_phandle_set_int(h, 0, 42);
+
+    CHECK(yse_phandle_get_gui_value_count(h) == 1u);
+    CHECK(yse_phandle_gui_value_is_settable(h) == 1);
+
+    const std::string whole =
+        readString([h](char* b, size_t c) { return yse_phandle_get_gui_value(h, b, c); });
+    const std::string cell0 =
+        readString([h](char* b, size_t c) { return yse_phandle_get_gui_value_at(h, 0, b, c); });
+    CHECK(cell0 == whole);
+    CHECK(cell0 == "42");
+    CHECK(cell0.size() == yse_phandle_get_gui_value_at(h, 0, nullptr, 0));
+
+    // The write half the settable answer promises, driven through the ABI:
+    // the cell form writes the one cell, and the whole-state form is the
+    // exact string the read produced.
+    yse_phandle_set_list(h, 0, "set 0 7");
+    CHECK(readString([h](char* b, size_t c) { return yse_phandle_get_gui_value(h, b, c); }) == "7");
+    yse_phandle_set_list(h, 0, whole.c_str());
+    CHECK(readString([h](char* b, size_t c) { return yse_phandle_get_gui_value(h, b, c); }) ==
+          whole);
+
+    // Past the end is empty rather than the value again — the count can shrink
+    // under a live set_params between a host's count read and its cell reads.
+    char buf[16];
+    buf[0] = 'x';
+    CHECK(yse_phandle_get_gui_value_at(h, 1, buf, sizeof(buf)) == 0u);
+    CHECK(buf[0] == '\0');
+    CHECK(yse_phandle_get_gui_value_at(h, 4000000u, nullptr, 0) == 0u);
+
+    // NULL is a no-object answer, not a one-cell one: a host looping to the
+    // count must be handed nothing to read.
+    CHECK(yse_phandle_get_gui_value_count(nullptr) == 0u);
+    CHECK(yse_phandle_gui_value_is_settable(nullptr) == 0);
+    buf[0] = 'x';
+    CHECK(yse_phandle_get_gui_value_at(nullptr, 0, buf, sizeof(buf)) == 0u);
+    CHECK(buf[0] == '\0');
+    CHECK(yse_phandle_get_gui_value_at(nullptr, 0, nullptr, 0) == 0u);
+
+    yse_patcher_destroy(p);
+  }
+
+  TEST_CASE("c-api phandle: multi-cell GUI controls report every cell through the ABI (#913)") {
+    // The structured half of the protocol, which the one-cell .i above cannot
+    // reach: a count above one, cells that differ from each other and from the
+    // whole-state string, and the "set <index> <value>" cell write landing on
+    // the one cell it names.
+    YsePatcher* p = yse_patcher_create();
+    REQUIRE(p != nullptr);
+    yse_patcher_init(p, 2);
+
+    SUBCASE(".rslider: two cells, low end first") {
+      YsePHandle* h = yse_patcher_create_object(p, kRSlider, "0 127");
+      REQUIRE(h != nullptr);
+      CHECK(yse_phandle_gui_value_is_settable(h) == 1);
+      CHECK(yse_phandle_get_gui_value_count(h) == 2u);
+
+      yse_phandle_set_list(h, 0, "30 60");
+      CHECK(readCells(h) == std::vector<float>{30.f, 60.f});
+      CHECK(readWhole(h) == readCells(h));
+
+      yse_phandle_set_list(h, 0, "set 1 90");
+      CHECK(readCells(h) == std::vector<float>{30.f, 90.f});
+
+      // Written high-then-low, the cells still present the range ordered.
+      yse_phandle_set_list(h, 0, "80 20");
+      CHECK(readCells(h) == std::vector<float>{20.f, 80.f});
+
+      // Cell 0 is one end, not the whole state as on a scalar control.
+      const std::string cell0 =
+          readString([h](char* b, size_t c) { return yse_phandle_get_gui_value_at(h, 0, b, c); });
+      const std::string whole =
+          readString([h](char* b, size_t c) { return yse_phandle_get_gui_value(h, b, c); });
+      CHECK(cell0 != whole);
+      CHECK(yse_phandle_get_gui_value_at(h, 2, nullptr, 0) == 0u);
+    }
+
+    SUBCASE(".multislider: the count follows the bank") {
+      YsePHandle* h = yse_patcher_create_object(p, kMultiSlider, "4 0 127");
+      REQUIRE(h != nullptr);
+      CHECK(yse_phandle_gui_value_is_settable(h) == 1);
+      CHECK(yse_phandle_get_gui_value_count(h) == 4u);
+
+      yse_phandle_set_list(h, 0, "10 20 30 40");
+      CHECK(readCells(h) == std::vector<float>{10.f, 20.f, 30.f, 40.f});
+      yse_phandle_set_list(h, 0, "set 2 99");
+      CHECK(readCells(h) == std::vector<float>{10.f, 20.f, 99.f, 40.f});
+      CHECK(readWhole(h) == readCells(h));
+
+      // A longer list reshapes the bank, and the count a host loops to follows.
+      yse_phandle_set_list(h, 0, "9 8 7 6 5 4");
+      CHECK(yse_phandle_get_gui_value_count(h) == 6u);
+      CHECK(readCells(h) == std::vector<float>{9.f, 8.f, 7.f, 6.f, 5.f, 4.f});
+      CHECK(yse_phandle_get_gui_value_at(h, 6, nullptr, 0) == 0u);
+    }
+
+    SUBCASE(".matrixctrl: columns x rows cells, column-major") {
+      YsePHandle* h = yse_patcher_create_object(p, kMatrixCtrl, "3 2 0 1");
+      REQUIRE(h != nullptr);
+      CHECK(yse_phandle_gui_value_is_settable(h) == 1);
+      CHECK(yse_phandle_get_gui_value_count(h) == 6u);
+      CHECK(readCells(h) == std::vector<float>(6, 0.f));
+
+      // Max's <column> <row> <value>: cell (1, 0) of a two-row grid is index 2.
+      yse_phandle_set_list(h, 0, "1 0 1");
+      CHECK(readCells(h) == std::vector<float>{0.f, 0.f, 1.f, 0.f, 0.f, 0.f});
+      // The protocol's flat-index write lands on the last cell.
+      yse_phandle_set_list(h, 0, "set 5 1");
+      CHECK(readCells(h) == std::vector<float>{0.f, 0.f, 1.f, 0.f, 0.f, 1.f});
+      CHECK(readWhole(h) == readCells(h));
+    }
+
+    yse_patcher_destroy(p);
+  }
+
+  // #928: the cell write addresses the presented cell, not the storage slot
+  // the end was written to, so "set 1" still moves the high end once the ends
+  // are stored inverted.
+  TEST_CASE("c-api phandle: .rslider \"set 1\" moves the high end of an inverted range (#928)") {
+    YsePatcher* p = yse_patcher_create();
+    REQUIRE(p != nullptr);
+    yse_patcher_init(p, 2);
+    YsePHandle* h = yse_patcher_create_object(p, kRSlider, "0 127");
+    REQUIRE(h != nullptr);
+
+    yse_phandle_set_list(h, 0, "60 30");
+    REQUIRE(readCells(h) == std::vector<float>{30.f, 60.f});
+    yse_phandle_set_list(h, 0, "set 1 90");
+    CHECK(readCells(h) == std::vector<float>{30.f, 90.f});
+
+    yse_patcher_destroy(p);
+  }
+
+  TEST_CASE("c-api phandle: .b and a GUI-less object are not settable (#913)") {
+    // The 0 answer on real objects rather than on NULL. `.b`'s value is a
+    // consume-on-read press report, which a restore could only replay; `~sine`
+    // has no GUI state at all.
+    YsePatcher* p = yse_patcher_create();
+    REQUIRE(p != nullptr);
+    yse_patcher_init(p, 2);
+
+    YsePHandle* button = yse_patcher_create_object(p, kButton, nullptr);
+    YsePHandle* sine = yse_patcher_create_object(p, kSine, nullptr);
+    YsePHandle* number = yse_patcher_create_object(p, kInt, nullptr);
+    REQUIRE(button != nullptr);
+    REQUIRE(sine != nullptr);
+    REQUIRE(number != nullptr);
+
+    CHECK(yse_phandle_gui_value_is_settable(button) == 0);
+    CHECK(yse_phandle_gui_value_is_settable(sine) == 0);
+    // ...next to a control in the same patch that does make the promise, so a
+    // stuck-at-0 answer would not pass.
+    CHECK(yse_phandle_gui_value_is_settable(number) == 1);
+
+    yse_patcher_destroy(p);
+  }
+
+  TEST_CASE("c-api phandle: truncation still NUL-terminates and reports the full length") {
+    YsePatcher* p = yse_patcher_create();
+    REQUIRE(p != nullptr);
+    yse_patcher_init(p, 2);
+    YsePHandle* h = yse_patcher_create_object(p, kSine, nullptr);
+    REQUIRE(h != nullptr);
+
+    const size_t need = yse_phandle_get_type(h, nullptr, 0);
+    REQUIRE(need >= 2u); // "~sine"
+
+    char two[2];
+    std::memset(two, '\1', sizeof(two));
+    CHECK(yse_phandle_get_type(h, two, sizeof(two)) == need);
+    CHECK(std::strlen(two) == 1u); // one char plus the terminator
+
+    yse_patcher_destroy(p);
+  }
+
+  TEST_CASE("c-api phandle: port introspection and value setters") {
+    YsePatcher* p = yse_patcher_create();
+    REQUIRE(p != nullptr);
+    yse_patcher_init(p, 2);
+
+    YsePHandle* sine = yse_patcher_create_object(p, kSine, nullptr);
+    YsePHandle* mul = yse_patcher_create_object(p, kMultiply, "2");
+    REQUIRE(sine != nullptr);
+    REQUIRE(mul != nullptr);
+
+    CHECK(yse_phandle_get_inputs(sine) > 0);
+    CHECK(yse_phandle_get_outputs(sine) > 0);
+    // A DSP generator's first outlet carries a signal buffer.
+    CHECK(yse_phandle_output_data_type(sine, 0) == YSE_OUT_BUFFER);
+    // ... and the object reports which of its inlets are DSP inlets (#913):
+    // ~sine's frequency inlet takes a signal, .*'s left inlet a number, and a
+    // pin the object does not have names nothing and is no DSP inlet.
+    CHECK(yse_phandle_is_dsp_input(sine, 0) == 1);
+    CHECK(yse_phandle_is_dsp_input(mul, 0) == 0);
+    CHECK(yse_phandle_is_dsp_input(mul, 1) == 0);
+    CHECK(yse_phandle_is_dsp_input(sine, 99) == 0);
+
+    // An out-of-range pin is reported as INVALID rather than read past the end.
+    CHECK(yse_phandle_output_data_type(sine, 99) == YSE_OUT_INVALID);
+
+    // The inlet setters are messages into the graph — they must be callable on
+    // a live handle without an audio thread running.
+    yse_phandle_set_bang(mul, 0);
+    yse_phandle_set_int(mul, 1, 3);
+    yse_phandle_set_float(mul, 1, 0.5f);
+    yse_phandle_set_list(mul, 0, "1 2 3");
+
+    yse_patcher_destroy(p);
+  }
+
+  // ─── .metro's left inlet, as a host meets it (issue #626) ──────────────────
+
+  TEST_CASE("c-api patcher: a button starts .metro through inlet 0 (#626)") {
+    // The engine half of this landed with #711 and is covered object-side in
+    // Tests/patcher/test_generic_objects.cpp. What issue #626 is about is
+    // whether it reaches a *host*, and that is a different question with its
+    // own way of failing: phi gates a cord on the accepts mask this C API
+    // reports (phi#439), so a bang method the mask does not advertise is a cord
+    // the user cannot draw — engine behaviour nobody can trigger. Both halves
+    // are asserted here, over the flat ABI a binding actually has: the mask a
+    // palette reads, and the bang a drawn cord delivers.
+    const char* label = nullptr;
+    const char* doc = nullptr;
+    const char* range = nullptr;
+    unsigned int accepts = 0;
+    yse_patcher_get_inlet_info(kMetro, 0, &label, &doc, &range, &accepts);
+    CHECK((accepts & YSE_IN_ACCEPTS_BANG) != 0u);
+    CHECK((accepts & YSE_IN_ACCEPTS_FLOAT) != 0u);
+    CHECK((accepts & YSE_IN_ACCEPTS_INT) != 0u);
+
+    YsePatcher* p = yse_patcher_create();
+    REQUIRE(p != nullptr);
+    yse_patcher_init(p, 2);
+
+    YsePHandle* button = yse_patcher_create_object(p, kButton, nullptr);
+    YsePHandle* metro = yse_patcher_create_object(p, kMetro, nullptr);
+    YsePHandle* counter = yse_patcher_create_object(p, kCounter, nullptr);
+    YsePHandle* sink = yse_patcher_create_object(p, kInt, nullptr);
+    REQUIRE(button != nullptr);
+    REQUIRE(metro != nullptr);
+    REQUIRE(counter != nullptr);
+    REQUIRE(sink != nullptr);
+
+    // The patch of phi#439: .b ─▶ .metro ─▶ .counter ─▶ .i.
+    yse_patcher_connect(p, button, 0, metro, 0);
+    yse_patcher_connect(p, metro, 0, counter, 0);
+    yse_patcher_connect(p, counter, 0, sink, 0);
+
+    // An interval far longer than this test can run, set before anything starts
+    // the metro, so every bang counted below is one the left inlet asked for
+    // rather than one the timer worker delivered.
+    yse_phandle_set_int(metro, 1, 1'000'000);
+
+    const auto bangs = [&] {
+      const std::string held =
+          readString([&](char* b, size_t c) { return yse_phandle_get_gui_value(sink, b, c); });
+      return std::strtol(held.c_str(), nullptr, 10);
+    };
+    CHECK(bangs() == 0);
+
+    // Max, left inlet: "starts the metro object", plus "bang is sent
+    // immediately when metro is started" — so one press, one bang out.
+    yse_phandle_set_bang(button, 0);
+    CHECK(bangs() == 1);
+
+    // A second press re-starts a metro that is already running rather than
+    // being swallowed: Max Basic Tutorial 4's "the button forces the metro
+    // objects to restart in sync", which is what the method is for.
+    yse_phandle_set_bang(button, 0);
+    CHECK(bangs() == 2);
+
+    // The float half of the same mask — Max's "performs the same function as
+    // int" — driven straight at the inlet the way a .slider or .f wired in
+    // would. 0 stops and emits nothing; 0.5 is "a number other than 0" and
+    // starts, which a cast to int would not.
+    yse_phandle_set_float(metro, 0, 0.f);
+    CHECK(bangs() == 2);
+    yse_phandle_set_float(metro, 0, 0.5f);
+    CHECK(bangs() == 3);
+
+    // Stopped before it is torn down, so no timer callback outlives the graph.
+    yse_phandle_set_int(metro, 0, 0);
+    yse_patcher_destroy(p);
+  }
+
+  // ─── subpatchers ───────────────────────────────────────────────────────────
+
+  TEST_CASE("c-api patcher: a subpatcher is addressed as one object (#545)") {
+    // The whole subpatcher surface as a binding meets it: create the façade,
+    // put objects inside it, and then connect and drive the *group* by pin
+    // number without ever naming what is inside. The 15 read at the end could
+    // only have been produced by the `.+ 10` behind the boundary.
+    YsePatcher* p = yse_patcher_create();
+    REQUIRE(p != nullptr);
+    yse_patcher_init(p, 2);
+
+    YsePHandle* sub = yse_patcher_create_object(p, kPatcher, nullptr);
+    YsePHandle* in = yse_patcher_create_object(p, kInlet, "0");
+    YsePHandle* add = yse_patcher_create_object(p, kAdd, "10");
+    YsePHandle* out = yse_patcher_create_object(p, kOutlet, "0");
+    YsePHandle* sink = yse_patcher_create_object(p, kInt, nullptr);
+    REQUIRE(sub != nullptr);
+    REQUIRE(in != nullptr);
+    REQUIRE(add != nullptr);
+    REQUIRE(out != nullptr);
+    REQUIRE(sink != nullptr);
+
+    yse_patcher_set_container(p, in, sub);
+    yse_patcher_set_container(p, add, sub);
+    yse_patcher_set_container(p, out, sub);
+    CHECK(yse_patcher_get_container(p, add) == sub);
+    CHECK(yse_patcher_get_container(p, sink) == nullptr);
+
+    // A "patcher" object owns no pins of its own, so the pin queries answer 0
+    // for one and the two subpatcher queries are what report the boundary.
+    CHECK(yse_phandle_get_inputs(sub) == 0);
+    CHECK(yse_phandle_get_outputs(sub) == 0);
+    CHECK(yse_patcher_subpatcher_inlets(p, sub) == 1);
+    CHECK(yse_patcher_subpatcher_outlets(p, sub) == 1);
+    CHECK(yse_patcher_subpatcher_inlets(p, sink) == 0); // not a subpatcher
+
+    yse_patcher_connect(p, in, 0, add, 0);
+    yse_patcher_connect(p, add, 0, out, 0);
+    yse_patcher_connect(p, sub, 0, sink, 0);
+
+    yse_phandle_set_int(sub, 0, 5);
+    CHECK(readString([&](char* b, size_t c) { return yse_phandle_get_gui_value(sink, b, c); }) ==
+          "15");
+
+    // Deleting the façade takes its contents with it, transitively; the object
+    // that was never inside it survives.
+    yse_patcher_delete_object(p, sub);
+    CHECK(yse_patcher_objects(p) == 1u);
+
+    yse_patcher_destroy(p);
+  }
+
+  TEST_CASE("c-api patcher: subpatcher pins count ~inlet / ~outlet boundaries (#764, #913)") {
+    // Both rates share one index space: `.inlet 0` beside `~inlet 1` is two
+    // inlets, and a sparse `~outlet 2` beside `.outlet 0` is three outlets —
+    // the range a parent can address, not the number of boundary objects.
+    YsePatcher* p = yse_patcher_create();
+    REQUIRE(p != nullptr);
+    yse_patcher_init(p, 2);
+
+    YsePHandle* sub = yse_patcher_create_object(p, kPatcher, nullptr);
+    REQUIRE(sub != nullptr);
+    CHECK(yse_patcher_subpatcher_inlets(p, sub) == 0); // empty: no boundary yet
+    CHECK(yse_patcher_subpatcher_outlets(p, sub) == 0);
+
+    YsePHandle* cIn = yse_patcher_create_object(p, kInlet, "0");
+    YsePHandle* sIn = yse_patcher_create_object(p, kSigInlet, "1");
+    YsePHandle* cOut = yse_patcher_create_object(p, kOutlet, "0");
+    YsePHandle* sOut = yse_patcher_create_object(p, kSigOutlet, "2");
+    REQUIRE(cIn != nullptr);
+    REQUIRE(sIn != nullptr);
+    REQUIRE(cOut != nullptr);
+    REQUIRE(sOut != nullptr);
+
+    // A signal boundary alone is enough to give the subpatcher pins.
+    yse_patcher_set_container(p, sIn, sub);
+    yse_patcher_set_container(p, sOut, sub);
+    CHECK(yse_patcher_subpatcher_inlets(p, sub) == 2);
+    CHECK(yse_patcher_subpatcher_outlets(p, sub) == 3);
+
+    // Adding the message boundary at index 0 fills the range, not extends it.
+    yse_patcher_set_container(p, cIn, sub);
+    yse_patcher_set_container(p, cOut, sub);
+    CHECK(yse_patcher_subpatcher_inlets(p, sub) == 2);
+    CHECK(yse_patcher_subpatcher_outlets(p, sub) == 3);
+
+    // Each pin resolves to the boundary object claiming it, whatever its rate:
+    // pin 1 is the signal inlet, pin 0 the message one.
+    CHECK(yse_phandle_is_dsp_input(sub, 1) == 1);
+    CHECK(yse_phandle_is_dsp_input(sub, 0) == 0);
+    CHECK(yse_phandle_is_dsp_input(sub, 2) == 0); // past the boundary
+    // The outlet side resolves the same way (#942): pin 0 the message outlet,
+    // pin 2 the signal one, pin 1 claimed by nothing.
+    CHECK(yse_phandle_output_data_type(sub, 0) == YSE_OUT_ANY);
+    CHECK(yse_phandle_output_data_type(sub, 2) == YSE_OUT_BUFFER);
+    CHECK(yse_phandle_output_data_type(sub, 1) == YSE_OUT_INVALID);
+    CHECK(yse_phandle_output_data_type(sub, 3) == YSE_OUT_INVALID);
+
+    // Taking the signal boundary back out shrinks the range to what is left.
+    yse_patcher_set_container(p, sIn, nullptr);
+    yse_patcher_set_container(p, sOut, nullptr);
+    CHECK(yse_patcher_subpatcher_inlets(p, sub) == 1);
+    CHECK(yse_patcher_subpatcher_outlets(p, sub) == 1);
+    CHECK(yse_phandle_is_dsp_input(sub, 1) == 0);
+    CHECK(yse_phandle_output_data_type(sub, 2) == YSE_OUT_INVALID);
+
+    yse_patcher_destroy(p);
+  }
+
+  TEST_CASE("c-api patcher: the subpatcher entry points are NULL-safe (#545)") {
+    YsePatcher* p = yse_patcher_create();
+    REQUIRE(p != nullptr);
+    yse_patcher_init(p, 2);
+    YsePHandle* sub = yse_patcher_create_object(p, kPatcher, nullptr);
+    YsePHandle* h = yse_patcher_create_object(p, kInt, nullptr);
+    REQUIRE(sub != nullptr);
+    REQUIRE(h != nullptr);
+
+    yse_patcher_set_container(nullptr, h, sub);
+    yse_patcher_set_container(p, nullptr, sub);
+    // A NULL container is *meaningful* rather than a no-op — it is how an
+    // object is moved back out to the top level — so this one has to take
+    // effect, not be ignored.
+    yse_patcher_set_container(p, h, sub);
+    CHECK(yse_patcher_get_container(p, h) == sub);
+    yse_patcher_set_container(p, h, nullptr);
+    CHECK(yse_patcher_get_container(p, h) == nullptr);
+
+    CHECK(yse_patcher_get_container(nullptr, h) == nullptr);
+    CHECK(yse_patcher_get_container(p, nullptr) == nullptr);
+    CHECK(yse_patcher_subpatcher_inlets(nullptr, sub) == 0);
+    CHECK(yse_patcher_subpatcher_inlets(p, nullptr) == 0);
+    CHECK(yse_patcher_subpatcher_outlets(nullptr, sub) == 0);
+    CHECK(yse_patcher_subpatcher_outlets(p, nullptr) == 0);
+    CHECK(yse_patcher_objects(p) == 2u); // none of the above changed the graph
+
+    yse_patcher_destroy(p);
+  }
+
+  // ─── NULL contracts ────────────────────────────────────────────────────────
+
+  TEST_CASE("c-api patcher: every entry point is NULL-safe") {
+    YsePatcher* p = yse_patcher_create();
+    REQUIRE(p != nullptr);
+    yse_patcher_init(p, 2);
+    YsePHandle* h = yse_patcher_create_object(p, kSine, nullptr);
+    REQUIRE(h != nullptr);
+
+    CHECK(yse_patcher_init(nullptr, 2) == YSE_ERR_INVALID_HANDLE);
+    CHECK(yse_patcher_create_object(nullptr, kSine, nullptr) == nullptr);
+    CHECK(yse_patcher_create_object(p, nullptr, nullptr) == nullptr);
+    yse_patcher_delete_object(nullptr, h);
+    yse_patcher_delete_object(p, nullptr);
+    yse_patcher_clear(nullptr);
+    yse_patcher_connect(nullptr, h, 0, h, 0);
+    yse_patcher_connect(p, nullptr, 0, h, 0);
+    yse_patcher_connect(p, h, 0, nullptr, 0);
+    yse_patcher_disconnect(nullptr, h, 0, h, 0);
+    yse_patcher_disconnect(p, nullptr, 0, h, 0);
+    yse_patcher_disconnect(p, h, 0, nullptr, 0);
+    CHECK(yse_patcher_objects(nullptr) == 0u);
+    CHECK(yse_patcher_get_handle_from_list(nullptr, 0) == nullptr);
+    CHECK(yse_patcher_get_handle_from_id(nullptr, 0) == nullptr);
+    CHECK(yse_patcher_objects(p) == 1u); // none of the above changed the graph
+
+    yse_patcher_destroy(p);
+    yse_patcher_destroy(nullptr);
+  }
+
+  TEST_CASE("c-api phandle: every accessor is NULL-safe and clears its out buffer") {
+    char buf[8];
+    const auto dirty = [&buf] { std::memset(buf, 'x', sizeof(buf)); };
+
+    dirty();
+    CHECK(yse_phandle_get_type(nullptr, buf, sizeof(buf)) == 0u);
+    CHECK(buf[0] == '\0');
+    dirty();
+    CHECK(yse_phandle_get_name(nullptr, buf, sizeof(buf)) == 0u);
+    CHECK(buf[0] == '\0');
+    dirty();
+    CHECK(yse_phandle_get_params(nullptr, buf, sizeof(buf)) == 0u);
+    CHECK(buf[0] == '\0');
+    dirty();
+    CHECK(yse_phandle_get_gui_value(nullptr, buf, sizeof(buf)) == 0u);
+    CHECK(buf[0] == '\0');
+    dirty();
+    CHECK(yse_phandle_get_gui_property(nullptr, "k", buf, sizeof(buf)) == 0u);
+    CHECK(buf[0] == '\0');
+
+    // A live-but-keyless call takes the same early-out path.
+    YsePatcher* p = yse_patcher_create();
+    REQUIRE(p != nullptr);
+    yse_patcher_init(p, 2);
+    YsePHandle* h = yse_patcher_create_object(p, kSine, nullptr);
+    REQUIRE(h != nullptr);
+    dirty();
+    CHECK(yse_phandle_get_gui_property(h, nullptr, buf, sizeof(buf)) == 0u);
+    CHECK(buf[0] == '\0');
+
+    // NULL buffers are accepted everywhere as size queries.
+    CHECK(yse_phandle_get_type(nullptr, nullptr, 0) == 0u);
+    CHECK(yse_phandle_get_name(nullptr, nullptr, 0) == 0u);
+    CHECK(yse_phandle_get_params(nullptr, nullptr, 0) == 0u);
+    CHECK(yse_phandle_get_gui_value(nullptr, nullptr, 0) == 0u);
+    CHECK(yse_phandle_get_gui_property(nullptr, "k", nullptr, 0) == 0u);
+
+    yse_phandle_set_gui_property(nullptr, "k", "v");
+    yse_phandle_set_gui_property(h, nullptr, "v");
+    yse_phandle_set_bang(nullptr, 0);
+    yse_phandle_set_int(nullptr, 0, 1);
+    yse_phandle_set_float(nullptr, 0, 1.f);
+    yse_phandle_set_list(nullptr, 0, "1");
+    yse_phandle_set_list(h, 0, nullptr);
+    yse_phandle_set_params(nullptr, "1");
+    yse_phandle_set_params(h, nullptr);
+
+    CHECK(yse_phandle_get_inputs(nullptr) == 0);
+    CHECK(yse_phandle_get_outputs(nullptr) == 0);
+    CHECK(yse_phandle_is_dsp_input(nullptr, 0) == 0);
+    CHECK(yse_phandle_output_data_type(nullptr, 0) == YSE_OUT_INVALID);
+    // The two object-ID queries opt out of the 0-on-NULL convention — 0 is a
+    // real object's ID (issue #732) — and so does the inlet query, because 0
+    // is a real inlet (issue #736).
+    CHECK(yse_phandle_get_id(nullptr) == YSE_PATCHER_ID_NONE);
+    CHECK(yse_phandle_get_connections(nullptr, 0) == 0u);
+    CHECK(yse_phandle_get_connection_target(nullptr, 0, 0) == YSE_PATCHER_ID_NONE);
+    CHECK(yse_phandle_get_connection_target_inlet(nullptr, 0, 0) == YSE_PATCHER_INLET_NONE);
+
+    yse_patcher_destroy(p);
+  }
+
+  // ─── metadata JSON string ownership ────────────────────────────────────────
+
+  TEST_CASE("c-api patcher: metadata json is heap-owned and freed by yse_free_string") {
+    char* json = yse_patcher_get_metadata_json();
+    REQUIRE(json != nullptr);
+    CHECK(std::strlen(json) > 0u);
+    yse_free_string(json);
+    yse_free_string(nullptr); // documented as NULL-tolerant
+  }
+
+} // TEST_SUITE("capilowcov")

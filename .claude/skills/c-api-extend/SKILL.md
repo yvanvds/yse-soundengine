@@ -33,15 +33,15 @@ The `gh` CLI is authenticated in the project environment.
 Yes:
 - A new engine class / method / enum was added and needs C-ABI exposure.
 - The user asks to audit the C API for drift from the engine.
-- The user is starting a new C-API milestone (M3 buffer overloads,
-  M5 patcher sources, etc. — see `yse_sound.h`'s top-of-file note).
+- The user is starting a new C-API wrapping pass (e.g. a sub-issue of
+  a C API audit epic such as #898).
 
 No:
 - Modifying behaviour of an *existing* C-API function without adding
   surface — that's a regular fix, use the normal workflow.
 - Internal engine refactors that don't change the public C++ surface.
-- Adding audio-thread-reachable callbacks (occlusion,
-  `dspSourceObject` user callback, `customFileReader`) on a casual
+- Adding audio-thread-reachable callbacks (`dspSourceObject` user
+  callback, `customFileReader`) on a casual
   wrapping pass. Those need design work — see the "Callback bridge
   rules" block in [yse_c_internal.hpp](../../../YseEngine/c_api/yse_c_internal.hpp).
 
@@ -88,6 +88,26 @@ typedef struct YseChannel YseChannel;
 typedef struct YseDspBuffer YseDspBuffer;
 ```
 
+Every handle typedef — home header and forward declaration alike — sits
+behind its own `YSE_C_HANDLE_<Type>` guard (#976), because repeating a
+typedef is a C11 feature and the headers must stay C99-clean:
+
+```c
+#ifndef YSE_C_HANDLE_YseFoo
+#define YSE_C_HANDLE_YseFoo
+/** Owned — release with yse_foo_destroy. */
+typedef struct YseFoo YseFoo;
+#endif
+```
+
+Keep the comment *inside* the guard, directly above the typedef: placed
+above the `#ifndef`, Doxygen attaches it to the `#define` instead, and the
+Sphinx build fails on the duplicated macro.
+
+The `yse_c99_header_check` object library in `Tests/CMakeLists.txt` compiles
+every public header as `-std=c99 -pedantic-errors`, so an unguarded typedef
+fails the test build.
+
 Canonical examples: [yse_patcher.h](../../../YseEngine/c_api/include/yse_c/yse_patcher.h)
 (owned + borrowed pair), [yse_reverb.h](../../../YseEngine/c_api/include/yse_c/yse_reverb.h)
 (dual-shape).
@@ -103,7 +123,15 @@ Every `include/yse_c/yse_<module>.h`:
   engine C++ header.
 - `#ifdef __cplusplus / extern "C" { ... } / #endif` wraps the body.
 - `YSE_C_API` on every exported function declaration.
-- `YSE_C_CALLBACK` on every callback typedef.
+- `YSE_C_CALLBACK` on every callback typedef, named
+  `Yse<Module><What>Callback` in PascalCase (`YseBusTapCallback`,
+  `YseScriptErrorCallback`, `YsePatcherSendCallback`) — never a
+  lowercase `yse_*_cb` (#911 renamed the last of those).
+- Functions carry their header's module prefix: `yse_<module>_...`
+  (`yse_python_run_script`, not `yse_run_script`).
+- General-purpose helpers live in `yse_common.h` (`yse_last_error`,
+  `yse_free_string` for library-allocated strings), not in whichever
+  module first needed them.
 - All booleans as `int` (0/1), never `bool`. All sizes as `size_t` or
   `unsigned int`. Strings as `const char*` (in) or `char* + size_t`
   (snprintf-style out).
@@ -167,14 +195,26 @@ Canonical example for the snprintf pattern: [yse_device.cpp](../../../YseEngine/
 ### 4. Callback bridges — RT-safe shape
 
 When the engine invokes a user-provided callback on a **non-host thread**
-(audio callback, RtMidi input thread, file streaming worker, future
-occlusion / `dspSourceObject` / `customFileReader` paths), the bridge:
+(audio callback, RtMidi input thread, file streaming worker, the
+control-thread occlusion driver, future `dspSourceObject` /
+`customFileReader` paths), the bridge:
 
-1. Holds the callback + user_data pair as `std::atomic<>`. **Never
-   `std::mutex` or `std::lock_guard`.**
-2. Installs with `memory_order_release` stores (user_data first, then cb).
-3. Dispatches with `memory_order_acquire` loads (cb first; return if null;
-   then user_data).
+1. Holds the callback + user_data as **one immutable pair node behind a
+   single `std::atomic<Pair*>`** — never two separate atomics, which let a
+   dispatch between the two stores of a re-install pair one install's cb
+   with another's user_data (#902, #916). **Never `std::mutex` or
+   `std::lock_guard` on the dispatch path.**
+2. Installs by allocating the new pair (inside the ABI exception barrier)
+   and publishing it with one atomic `exchange`.
+3. Dispatches by loading the pointer once (return if null) and reading cb
+   and user_data from that same node. The replaced node is freed only after
+   a named grace period proves no dispatch still reads it: the log bridge
+   waits for the sink mutex every dispatch runs under; the MIDI raw bridge
+   uses a seq_cst reader-count handshake around the pointer load, with no
+   user code inside the window the installer waits on. A straight
+   passthrough to an engine setter is fine only when that setter keeps the
+   pair as one node itself (`YSE::midiIn`'s raw / parsed setters do since
+   #917); still wrap the install in the exception barrier.
 4. **Does not `malloc` / `new` / construct `std::string` on dispatch when
    the bridge can fire from the audio callback.** For raw byte buffers
    needed by an async-Dart host, preallocate a per-handle pool keyed by
@@ -187,10 +227,11 @@ occlusion / `dspSourceObject` / `customFileReader` paths), the bridge:
 
 Canonical examples:
 - [yse_midi.cpp](../../../YseEngine/c_api/yse_midi.cpp) — `c_raw_bridge`,
-  atomic-swap, malloc per call is acceptable because the RtMidi input
-  thread is not the audio callback.
+  pair-pointer swap reclaimed by a reader-count handshake; malloc per call
+  is acceptable because the RtMidi input thread is not the audio callback.
 - [yse_log.cpp](../../../YseEngine/c_api/yse_log.cpp) — `CallbackBridge`,
-  same atomic-swap shape, same Dart-ownership malloc.
+  same pair-pointer swap reclaimed behind the log sink mutex, same
+  Dart-ownership malloc.
 
 The "Callback bridge rules" block at the head of
 [yse_c_internal.hpp](../../../YseEngine/c_api/yse_c_internal.hpp) restates
@@ -210,7 +251,7 @@ When the engine adds an enum value that should be visible from the C API:
 
 If the engine adds a brand-new enum, add the full mirror block + a full
 set of `YSE_ASSERT_ENUM` lines. The drift guard is the only safety net
-until a generator replaces the hand-mirrored file.
+for the hand-mirrored file.
 
 ### 6. Build + test integration
 
@@ -222,7 +263,19 @@ until a generator replaces the hand-mirrored file.
   null device use [`TestHelpers::engineInit()`](../../../Tests/support/null_device.hpp).
 - **Build with the project wrapper**, never raw cmake invocations:
   `python yse.py build && python yse.py test`. CTest must stay green
-  across all 14 entries.
+  across all 44 entries (count them with
+  `ctest --test-dir build-tests -N`; the number grows as suites are
+  isolated).
+- **C API mirror suites run per process.** capilowcov, capilowcovlife,
+  capisurface, close_interleaving, buscapi and the other C-API suites are
+  registered as their own ctest entries and are *not* all exercised by
+  the monolithic `yse_unit_tests` binary. When touching the registry,
+  metadata, protocols or lifecycle, run the relevant entries
+  individually (`ctest --test-dir build-tests -R <name>`), not just the
+  monolithic binary.
+- **Python-gated surface** (`yse_python.h`, `yse_module`) only builds
+  its live half under `python yse.py build --python` /
+  `python yse.py test --python` — run those when touching it.
 
 ## Workflow
 
@@ -254,6 +307,15 @@ Stop and surface a design note rather than emit code that:
 
 - Contains `std::mutex` or `std::lock_guard` in any callback bridge body.
   (PR #63 had to remove these from `yse_log.cpp`; do not put them back.)
+  The rule is about bridge dispatch paths and anything the audio thread
+  can reach. The one allowed exception today is the live-handle registry
+  in [yse_instrument.cpp](../../../YseEngine/c_api/yse_instrument.cpp)
+  (`registryMutex()`): SFZ-instrument / DX7-bank handles are validated
+  against it to turn double-free and use-after-destroy into logged
+  no-ops (#178), and every caller is a control / setup-thread entry
+  point that already allocates and reads files. Nothing on the audio
+  thread or in a callback touches it. A new mutex needs the same
+  argument, written beside it in a comment, or it is refused.
 - Allocates memory (`malloc`, `new`, `std::string` construction) in a
   callback that fires on the audio thread. If the host genuinely needs
   byte ownership, design a preallocated pool.
@@ -276,11 +338,14 @@ issue describing the conflict and wait for a decision before proceeding.
 - Add new public methods, classes, or enums to the engine. Engine changes
   go through the engine's own workflow first; this skill mirrors them.
 - Refactor existing C-API surface unless the engine change requires it.
-- Wrap callbacks that fire on the audio thread (occlusion,
-  `dspSourceObject`, `customFileReader`) — those need additional design
+- Wrap callbacks that fire on the audio thread (`dspSourceObject`,
+  `customFileReader`) — those need additional design
   work (preallocated pools, stack-only return paths) per
   [yse_c_internal.hpp](../../../YseEngine/c_api/yse_c_internal.hpp)'s
-  rules block. Surface a design proposal first.
+  rules block. Surface a design proposal first. (Occlusion is no longer
+  deferred: since #209 it runs on the control thread inside
+  `System().update()`, and #906 bridged it as
+  `yse_system_set_occlusion_callback` in `yse_system.cpp`.)
 - Modify CLAUDE.md or PROJECT_OVERVIEW.md unless the wrapping pass
   introduces a structural change worth documenting at the project root.
 
@@ -289,11 +354,12 @@ issue describing the conflict and wait for a decision before proceeding.
 Before reporting the wrapping task complete:
 
 - `python yse.py build` succeeds with **no new warnings**.
-- `python yse.py test` passes **14/14 CTest entries** (the project's
-  full suite, not just the new test).
+- `python yse.py test` passes **all 44 CTest entries** (the
+  project's full suite, not just the new test), plus the per-process
+  C-API entries you touched run individually.
 - `grep "std::mutex\|std::lock_guard" YseEngine/c_api/` returns
-  **nothing** beyond pre-existing lines (there should be none after
-  PR #63).
+  **nothing** beyond the documented `yse_instrument.cpp` handle-registry
+  exception (see Hard refusals).
 - Every new public function in `include/yse_c/*.h` is either covered by
   the header-top void-no-op convention or carries its own explanatory
   comment.

@@ -1,4 +1,5 @@
 #include "gSend.h"
+#include "../../implementations/logImplementation.h"
 #include "../pObjectList.hpp"
 #include "../patcherImplementation.h"
 #include "../../internal/namedBus.h"
@@ -16,24 +17,66 @@ CONSTRUCT() {
 
   ADD_PARAM(dataName);
   ADD_PARAM(globalOnly);
+  REG_PARM_PARSE;
 
   ADD_DESCRIPTION(
       "Named send endpoint. Broadcasts incoming values to every gReceive in the patcher whose "
-      "dataName matches, and publishes them on the global bus as \"<patcherName>.<dataName>\" so "
+      "dataName matches, and publishes them on the global bus as "
+      "\"patcher.<patcherName>.<dataName>\" so "
       "cross-patcher routing works without explicit wiring.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::IO);
   INLET_DOC(0, "in", "Value inlet — accepts bang / int / float / list.", "");
   PARAM_DOC("dataName", "",
-            "Name to broadcast on; matching gReceive nodes will emit the forwarded value.",
-            "any identifier");
+            "Name to broadcast on; matching gReceive nodes will emit the forwarded value. A name "
+            "longer than 63 characters is refused and the object left unnamed.",
+            "any identifier, at most 63 characters");
   PARAM_DOC("globalOnly", "0",
             "When 1, skip in-patcher delivery and publish only to the global bus.", "0 or 1");
+}
+
+// Control thread only (Parameters::Set), and before SetParent caches the bus
+// address from dataName — CreateObject and the live-SetParams rebuild both
+// parse first. The bus copies a T_DSP publish's name into a fixed slot and
+// truncates past it, while PassData uses the whole dataName, so an over-long
+// name would reach one receiver locally and another on the bus. It is refused
+// rather than truncated, bounded by the slot share of the address budget that
+// patcherImplementation.cpp asserts fits the bus (issue #922; .forward's rule).
+PARM_PARSE() {
+  if (dataName.size() > patcherImplementation::MAX_SLOT_NAME_LENGTH) {
+    INTERNAL::LogImpl().emit(E_ERROR,
+                             "patcher: .s dataName \"" + dataName + "\" is longer than " +
+                                 std::to_string(patcherImplementation::MAX_SLOT_NAME_LENGTH) +
+                                 " characters; ignored");
+    dataName.clear();
+  }
 }
 
 // RT-safety: on T_DSP the bus publish path is allocation-free and lock-free
 // for int/float; bang and list payloads silently drop on T_DSP per the bus
 // contract. The address is precomputed off the audio thread (SetParent /
 // RefreshBusAddress) into busAddress_ so no std::string is built here.
+//
+// The tag alone does not say which thread we are on, so every publish below
+// goes through `patcherImplementation::CallingThread` (issue #690). Two things
+// were wrong without it, both on a `.s` reached from a deferred delivery — a
+// T_GUI tag on the audio callback:
+//
+//   - `NamedBus::publish` sends a non-control-thread T_GUI publish to its
+//     parked-message list, which takes `pendingMutex_` and grows a
+//     `std::vector<std::pair<std::string, BusValue>>`. A lock and two
+//     allocations on the audio thread; the comment there stating the audio
+//     callback "only ever publishes on T_DSP" is the invariant this restores.
+//   - `BusValue{value}` copy-constructs the payload into the variant *before*
+//     publish can decide anything, so a list allocated past the small-string
+//     buffer even on the T_DSP path where the bus drops it. The list and bang
+//     publishes are therefore skipped outright when the answer is T_DSP,
+//     rather than built and thrown away.
+//
+// Dropping bang/list on the audio thread is the bus's documented contract
+// (namedBus.h), not a new limitation: non-trivial payloads are routed through
+// main-thread bridges. What changes is that a deferred `.s` is now honestly
+// treated as the audio thread it runs on. int and float still reach every
+// subscriber, through the lock-free per-thread queue.
 namespace {
   using YSE::INTERNAL::Bus;
   using YSE::INTERNAL::BusValue;
@@ -43,6 +86,17 @@ namespace {
   // first calling `System::init()` keep working through the local path.
   inline bool busAvailable() {
     return YSE::INTERNAL::Global().isActive();
+  }
+
+  // Unless globalOnly, PassData has already handed the value to every matching
+  // .r in this patcher, and those .r objects are subscribed to the very address
+  // published here — so without a tag each of them fired twice per value
+  // (issue #943). The publish carries the patcher's origin, which its own .r
+  // subscriptions ignore; a .r in another patcher with the same name, a host
+  // subscriber and a tap all still see it. Under globalOnly the bus is the only
+  // path, so the publish goes untagged and reaches the local .r too.
+  inline YSE::INTERNAL::BusOrigin OriginFor(int globalOnly, const patcherImplementation* p) {
+    return globalOnly ? 0 : p->BusOrigin();
   }
 } // namespace
 
@@ -60,7 +114,7 @@ void gSend::RefreshBusAddress() {
     return;
   }
   auto* p = static_cast<patcherImplementation*>(parent);
-  busAddress_ = p->Name() + "." + dataName;
+  busAddress_ = p->ScopedAddress(dataName);
 }
 
 BANG_IN(SetBangValue) {
@@ -69,9 +123,9 @@ BANG_IN(SetBangValue) {
   if (!globalOnly) {
     p->PassBang(dataName, thread);
   }
-  if (busAvailable()) {
+  if (busAvailable() && p->CallingThread(thread) == YSE::T_GUI) {
     // Bang on the bus is a monostate publish — only delivered on T_GUI.
-    Bus().publish(busAddress_, BusValue{}, thread);
+    Bus().publish(busAddress_, BusValue{}, thread, OriginFor(globalOnly, p));
   }
 }
 
@@ -82,7 +136,7 @@ INT_IN(SetIntValue) {
     p->PassData(value, dataName, thread);
   }
   if (busAvailable()) {
-    Bus().publish(busAddress_, BusValue{value}, thread);
+    Bus().publish(busAddress_, BusValue{value}, p->CallingThread(thread), OriginFor(globalOnly, p));
   }
 }
 
@@ -93,7 +147,7 @@ FLOAT_IN(SetFloatValue) {
     p->PassData(value, dataName, thread);
   }
   if (busAvailable()) {
-    Bus().publish(busAddress_, BusValue{value}, thread);
+    Bus().publish(busAddress_, BusValue{value}, p->CallingThread(thread), OriginFor(globalOnly, p));
   }
 }
 
@@ -103,7 +157,8 @@ LIST_IN(SetListValue) {
   if (!globalOnly) {
     p->PassData(value, dataName, thread);
   }
-  if (busAvailable()) {
-    Bus().publish(busAddress_, BusValue{value}, thread);
+  // Built only when it can be delivered: the variant copy is the allocation.
+  if (busAvailable() && p->CallingThread(thread) == YSE::T_GUI) {
+    Bus().publish(busAddress_, BusValue{value}, thread, OriginFor(globalOnly, p));
   }
 }

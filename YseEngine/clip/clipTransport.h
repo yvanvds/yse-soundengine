@@ -15,6 +15,7 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -93,11 +94,21 @@ namespace YSE {
           events (and note-offs) that fall inside it. */
       void advance();
 
+      /** Last block of an orphaned transport (interface destroyed, issue #975):
+          release every note still sounding, as a processed stop() does.
+          Called by the manager on the audio thread just before it retires the
+          transport. Synth note-offs go to the implementations snapshotted in
+          removeInterface(), never through the synth interfaces: the caller may
+          destroy a synth right after the clip, before this block runs. */
+      void retire();
+
       // ---- lifecycle (mirrors MIDI::fileImpl) ------------------------------
 
-      void removeInterface() {
-        head.store(nullptr);
-      }
+      /** Orphan the transport (control thread, from ~clip). Snapshots the
+          connected synths' implementations for retire() first; the head store
+          that follows publishes the snapshot to the audio thread, which only
+          reads it after seeing the null head. */
+      void removeInterface();
       bool hasInterface() const {
         return head.load() != nullptr;
       }
@@ -213,8 +224,24 @@ namespace YSE {
       std::atomic<OBJECT_IMPLEMENTATION_STATE> objectStatus;
 
       // Bound domain clock. Resolved on the control thread in bind(); read
-      // (beatPosition) on the audio thread. Caller guarantees it outlives us.
+      // (beatPosition) on the audio thread, which is why the read path stays a
+      // plain pointer.
       CLOCK::domainClock* clock = nullptr;
+
+      // The transport's share of the lifetime of every clock it has bound
+      // (issue #707). Holding a share is what stops `destroyClock` freeing the
+      // clock `clock` points at; a destroyed clock stops advancing, so
+      // advance() reads a frozen beat instead of freed memory.
+      //
+      // Append-only, and released as a whole in the destructor rather than per
+      // rebind: bind() publishes the new pointer without any handshake, so the
+      // audio thread may still read a displaced one for a block, and dropping
+      // that share here is precisely the free this member exists to prevent.
+      // The destructor runs on the slow pool after the audio thread has retired
+      // the transport, which is the one moment nobody can still be reading.
+      // Growth is bounded by the number of *distinct* clocks one transport ever
+      // binds — rebinding the same clock adds nothing. Control thread only.
+      std::vector<std::shared_ptr<CLOCK::domainClock>> boundClocks;
 
       // Play intent (control -> audio), same handshake as MIDI::fileImpl.
       std::atomic<SOUND_STATUS> intent;
@@ -237,6 +264,15 @@ namespace YSE {
       static constexpr std::size_t kMaxSynths = 8;
       std::array<std::atomic<SYNTH::interfaceObject*>, kMaxSynths> synths;
 
+      // The connected synths' implementations, captured by removeInterface()
+      // while the synth interfaces are still alive, for retire()'s note-offs
+      // (issue #975). A synth's implementation outlives its interface: the
+      // synth manager retires it no earlier than the callback in which it
+      // first sees the interface gone, and frees it on the slow pool later
+      // still. The clip was destroyed first, so this transport's retire()
+      // runs in that callback at the latest, while the implementation lives.
+      std::array<std::atomic<SYNTH::implementationObject*>, kMaxSynths> retireSynths;
+
 #if YSE_ENABLE_MIDI_DEVICE
       // Connected external MIDI-out ports (issue #350). Device-manager-owned
       // RtMidi ports; same fixed atomic table pattern as `synths`.
@@ -248,9 +284,10 @@ namespace YSE {
       // the same granularity as the internal synth sink, and it preserves the
       // note-off-before-note-on ordering evaluateWindow guarantees (per-event
       // sub-block stamps could reorder same-pitch off/on pairs in the sender
-      // and hang notes). Paced forward one block per callback, resynced to
-      // `now` when the callback fell behind, so a burst of catch-up callbacks
-      // does not bunch messages on the wire.
+      // and hang notes). Paced forward one block per rendered block (#944),
+      // resynced to `now` when the audio thread fell behind, so the blocks of
+      // one large callback, or a burst of catch-up callbacks, do not bunch
+      // messages on the wire.
       std::int64_t nextDueNs = 0;
 #endif
     };

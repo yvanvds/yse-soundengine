@@ -16,6 +16,7 @@
 
 using TestHelpers::BufferSink;
 using TestHelpers::FloatSink;
+using TestHelpers::Wire;
 
 TEST_SUITE("patcher") {
 
@@ -35,8 +36,7 @@ TEST_SUITE("patcher") {
   TEST_CASE("pFrequencyToMidi: 440 Hz maps to MIDI note 69") {
     YSE::PATCHER::pFrequencyToMidi node;
     FloatSink sink;
-    node.ConnectOutlet(sink.GetInlet(0), 0);
-    sink.ConnectInlet(node.GetOutlet(0), 0);
+    Wire(node, 0, sink);
 
     node.GetInlet(0)->SetFloat(440.0f, YSE::T_GUI);
 
@@ -47,8 +47,7 @@ TEST_SUITE("patcher") {
   TEST_CASE("pFrequencyToMidi: int input is converted to float") {
     YSE::PATCHER::pFrequencyToMidi node;
     FloatSink sink;
-    node.ConnectOutlet(sink.GetInlet(0), 0);
-    sink.ConnectInlet(node.GetOutlet(0), 0);
+    Wire(node, 0, sink);
 
     node.GetInlet(0)->SetInt(440, YSE::T_GUI);
 
@@ -59,10 +58,8 @@ TEST_SUITE("patcher") {
   TEST_CASE("pFrequencyToMidi: 880 Hz maps roughly one octave above 440 Hz") {
     YSE::PATCHER::pFrequencyToMidi a, b;
     FloatSink sa, sb;
-    a.ConnectOutlet(sa.GetInlet(0), 0);
-    sa.ConnectInlet(a.GetOutlet(0), 0);
-    b.ConnectOutlet(sb.GetInlet(0), 0);
-    sb.ConnectInlet(b.GetOutlet(0), 0);
+    Wire(a, 0, sa);
+    Wire(b, 0, sb);
 
     a.GetInlet(0)->SetFloat(440.0f, YSE::T_GUI);
     b.GetInlet(0)->SetFloat(880.0f, YSE::T_GUI);
@@ -86,8 +83,7 @@ TEST_SUITE("patcher") {
   TEST_CASE("pMidiToFrequency: MIDI note 69 maps to 440 Hz") {
     YSE::PATCHER::pMidiToFrequency node;
     FloatSink sink;
-    node.ConnectOutlet(sink.GetInlet(0), 0);
-    sink.ConnectInlet(node.GetOutlet(0), 0);
+    Wire(node, 0, sink);
 
     node.GetInlet(0)->SetFloat(69.0f, YSE::T_GUI);
 
@@ -98,8 +94,7 @@ TEST_SUITE("patcher") {
   TEST_CASE("pMidiToFrequency: int note input is converted to float") {
     YSE::PATCHER::pMidiToFrequency node;
     FloatSink sink;
-    node.ConnectOutlet(sink.GetInlet(0), 0);
-    sink.ConnectInlet(node.GetOutlet(0), 0);
+    Wire(node, 0, sink);
 
     node.GetInlet(0)->SetInt(69, YSE::T_GUI);
 
@@ -112,11 +107,9 @@ TEST_SUITE("patcher") {
     YSE::PATCHER::pFrequencyToMidi ftom;
     FloatSink sink;
 
-    mtof.ConnectOutlet(ftom.GetInlet(0), 0);
-    ftom.GetInlet(0)->Connect(mtof.GetOutlet(0));
+    Wire(mtof, 0, ftom);
 
-    ftom.ConnectOutlet(sink.GetInlet(0), 0);
-    sink.ConnectInlet(ftom.GetOutlet(0), 0);
+    Wire(ftom, 0, sink);
 
     mtof.GetInlet(0)->SetFloat(60.0f, YSE::T_GUI);
 
@@ -139,8 +132,7 @@ TEST_SUITE("patcher") {
   TEST_CASE("dMultiply: null left buffer produces no output") {
     YSE::PATCHER::dMultiply mul;
     BufferSink sink;
-    mul.ConnectOutlet(sink.GetInlet(0), 0);
-    sink.ConnectInlet(mul.GetOutlet(0), 0);
+    Wire(mul, 0, sink);
 
     mul.Calculate(YSE::T_DSP);
 
@@ -150,8 +142,7 @@ TEST_SUITE("patcher") {
   TEST_CASE("dMultiply: multiplies buffer by scalar") {
     YSE::PATCHER::dMultiply mul;
     BufferSink sink;
-    mul.ConnectOutlet(sink.GetInlet(0), 0);
-    sink.ConnectInlet(mul.GetOutlet(0), 0);
+    Wire(mul, 0, sink);
 
     mul.GetInlet(1)->SetFloat(2.5f, YSE::T_GUI);
 
@@ -170,8 +161,7 @@ TEST_SUITE("patcher") {
   TEST_CASE("dMultiply: multiplies buffer by buffer sample-by-sample") {
     YSE::PATCHER::dMultiply mul;
     BufferSink sink;
-    mul.ConnectOutlet(sink.GetInlet(0), 0);
-    sink.ConnectInlet(mul.GetOutlet(0), 0);
+    Wire(mul, 0, sink);
 
     YSE::DSP::buffer left(128), right(128);
     left = 3.0f;
@@ -190,8 +180,7 @@ TEST_SUITE("patcher") {
   TEST_CASE("dMultiply: scalar of 1 leaves the buffer unchanged") {
     YSE::PATCHER::dMultiply mul;
     BufferSink sink;
-    mul.ConnectOutlet(sink.GetInlet(0), 0);
-    sink.ConnectInlet(mul.GetOutlet(0), 0);
+    Wire(mul, 0, sink);
 
     YSE::DSP::buffer in(128);
     float* p = in.getPtr();
@@ -212,8 +201,7 @@ TEST_SUITE("patcher") {
   TEST_CASE("dMultiply: ResetDSP restores null-buffer early-return behaviour") {
     YSE::PATCHER::dMultiply mul;
     BufferSink sink;
-    mul.ConnectOutlet(sink.GetInlet(0), 0);
-    sink.ConnectInlet(mul.GetOutlet(0), 0);
+    Wire(mul, 0, sink);
 
     YSE::DSP::buffer in(128);
     in = 4.0f;

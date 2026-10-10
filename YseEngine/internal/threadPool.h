@@ -13,7 +13,6 @@
 
 #include "../headers/types.hpp"
 #include "../utils/mpmcQueue.hpp"
-#include <atomic>
 #include <forward_list>
 #include "thread.h"
 
@@ -21,18 +20,9 @@ namespace YSE {
   namespace INTERNAL {
     class threadPool;
 
-    // How a pool behaves on the audio-callback path (issue #188).
-    enum class poolClass {
-      // Render fan-out: workers run at raised priority and, if the job ring is
-      // ever full, the producer runs the job inline rather than dropping it.
-      render,
-      // Background work (manager setup/delete, file loading, stream refill):
-      // default-priority workers; a fire-and-forget queue that must never run
-      // inline on the caller (the caller may be the audio thread and the work
-      // touches disk).
-      background,
-    };
-
+    // A fire-and-forget background job (manager setup/delete, file loading,
+    // stream refill, patcher I/O). Rendering does not go through this pool:
+    // it runs on the task-graph renderScheduler (issue #859).
     class threadPoolJob {
     public:
       threadPoolJob();
@@ -40,6 +30,8 @@ namespace YSE {
 
       virtual void run() = 0;
 
+      // Wait until the job is no longer queued or running. Spins, then
+      // yields; never called from the audio callback.
       void join();
       void stop() {
         shouldStop = true;
@@ -58,54 +50,46 @@ namespace YSE {
       aBool shouldStop;
       aBool inQueue;
       aBool isDone;
-      // The render pool this job was last queued on, set by threadPool::addJob
-      // so join() can help-run sibling jobs from the same ring instead of
-      // spinning while it waits (issue #284). Stays nullptr for background
-      // pools: help-running there would put disk-touching work on the joining
-      // thread. Atomic only to keep the cross-thread publish TSan-clean; the
-      // pool (a process-lifetime singleton in engine use) always outlives any
-      // join() that observes inQueue == true.
-      std::atomic<threadPool*> pool;
       friend class threadPool;
     };
 
     class threadPoolThread : public thread {
     public:
       explicit threadPoolThread(threadPool* pool);
-      virtual void run();
+      void run() override;
 
     private:
       threadPool* pool;
     };
 
+    // Background worker pool: default-priority workers draining a lock-free
+    // job ring. A fire-and-forget queue that never runs a job inline on the
+    // caller — the caller may be the audio thread and the work touches disk.
     class threadPool {
     public:
-      // numThreads: -1 means hardware_concurrency. cls selects the RT behaviour
-      // (see poolClass).
-      explicit threadPool(Int numThreads = -1, poolClass cls = poolClass::render);
+      // numThreads is clamped to at least one: nothing else ever runs a
+      // background job, so a pool without workers would silently drop work.
+      explicit threadPool(Int numThreads = 1);
       ~threadPool();
+
+      // Resolved worker count.
+      Int workerCount() const {
+        return poolSize;
+      }
 
       // Wait-free on the producer side: pushes the job into the lock-free ring
       // and lets a worker pick it up. Never locks, allocates, or blocks — safe
-      // to call from the audio callback. For a render pool, a full ring falls
-      // back to running the job inline on the caller so no DSP work is dropped.
+      // to call from the audio callback. A full ring (unreachable at the chosen
+      // capacity) drops the job with its queued flag cleared; the manager and
+      // refill schedulers re-enqueue on their next tick.
       void addJob(threadPoolJob* job);
 
       // only used by threadPoolThread, returns nullptr when the pool shuts down
       threadPoolJob* getJob();
 
-      // Pop one queued job and run it on the calling thread; returns whether a
-      // job was run. Used by threadPoolJob::join() to help-run sibling jobs
-      // while it waits (issue #284): instead of burning its budget spinning on
-      // a possibly-preempted worker, the audio callback drains runnable work
-      // from the same render ring itself. Never locks, allocates, or blocks —
-      // safe on the audio callback, same as the inline fallback in addJob().
-      bool tryRunOne();
-
       // (Re)spawn the worker threads and mark the pool active. Called by the
       // constructor and, after a shutdown(), by global::init() to revive the
-      // pool for a fresh engine session (issue #140). Idempotent: a no-op while
-      // the pool is already active.
+      // pool for a fresh engine session (issue #140). Idempotent.
       void startup();
 
       // shutdown this pool: mark inactive, drain the ring, join every worker,
@@ -114,17 +98,13 @@ namespace YSE {
       void shutdown();
 
     private:
-      // Ring capacity. Render must hold one job per channel dispatched in a
-      // render pass; background holds the handful of manager/setup/refill jobs.
-      // Both are far above any realistic live count, and a full render ring
-      // degrades gracefully to inline execution rather than dropping work.
-      static constexpr std::size_t RENDER_CAPACITY = 4096;
-      static constexpr std::size_t BACKGROUND_CAPACITY = 1024;
+      // Holds the handful of manager/setup/refill jobs in flight; far above
+      // any realistic live count.
+      static constexpr std::size_t CAPACITY = 1024;
 
       mpmcQueue<threadPoolJob*> jobs;
       std::forward_list<threadPoolThread> threads;
       Int poolSize; // resolved worker count, reused when startup() re-spawns
-      poolClass classOf; // render vs background behaviour
       aBool active;
     };
 

@@ -172,4 +172,37 @@ TEST_SUITE("midi") {
     CHECK_FALSE(YSE::MIDI::isChannelVoiceStatus(0xF0)); // system / meta
   }
 
+  // ─── the wire byte tables ─────────────────────────────────────────────────
+  //
+  // midiOut (device.cpp) builds every outgoing message out of these two tables,
+  // so their values *are* the bytes that reach the port. Nothing else can
+  // catch a typo there: midiOut needs a real MIDI device to send anything, so
+  // there is no test that can observe what it emits. Pin the numbers against
+  // the spec instead — a swapped entry here is a swapped byte on the wire.
+  // Issue #708.
+
+  TEST_CASE("bytes: channel-voice status nibbles match the MIDI spec") {
+    CHECK(YSE::MIDI::MSG_NOTE_OFF == 0x80);
+    CHECK(YSE::MIDI::MSG_NOTE_ON == 0x90);
+    CHECK(YSE::MIDI::MSG_POLY_AFTERTOUCH == 0xA0);
+    CHECK(YSE::MIDI::MSG_CONTROL_CHANGE == 0xB0);
+    CHECK(YSE::MIDI::MSG_PROGRAM_CHANGE == 0xC0);
+    CHECK(YSE::MIDI::MSG_CHANNEL_AFTERTOUCH == 0xD0);
+    CHECK(YSE::MIDI::MSG_PITCH_BEND == 0xE0);
+  }
+
+  TEST_CASE("bytes: channel-mode controller numbers match the MIDI spec") {
+    CHECK(YSE::MIDI::CC_RESET_ALL_CONTROLLERS == 0x79);
+    CHECK(YSE::MIDI::CC_LOCAL_CONTROL == 0x7A);
+    CHECK(YSE::MIDI::CC_ALL_NOTES_OFF == 0x7B);
+    CHECK(YSE::MIDI::CC_OMNI_MODE_OFF == 0x7C);
+    CHECK(YSE::MIDI::CC_OMNI_MODE_ON == 0x7D);
+    CHECK(YSE::MIDI::CC_MONO_MODE_ON == 0x7E);
+    CHECK(YSE::MIDI::CC_POLY_MODE_ON == 0x7F);
+    // The pairs midiOut selects between with a ternary — the ones a typo would
+    // silently swap, since both are valid channel-mode numbers.
+    CHECK(YSE::MIDI::CC_OMNI_MODE_ON != YSE::MIDI::CC_OMNI_MODE_OFF);
+    CHECK(YSE::MIDI::CC_POLY_MODE_ON != YSE::MIDI::CC_MONO_MODE_ON);
+  }
+
 } // TEST_SUITE("midi")

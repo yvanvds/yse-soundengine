@@ -39,10 +39,11 @@ namespace YSE {
           FIRST,
           SECOND,
           THIRD,
+          DELAY_NR_COUNT_, // sentinel: number of taps, not a valid value; keep last
         };
 
         basicDelay();
-        virtual ~basicDelay() {};
+        ~basicDelay() override {};
 
         /** @brief Configure one of the three taps.
          *  @param nr   Tap to configure.
@@ -58,10 +59,10 @@ namespace YSE {
         Flt gain(DELAY_NR nr);
 
         /** @brief dspObject lifecycle hook — allocates buffers. */
-        virtual void create();
+        void create() override;
 
         /** @brief dspObject audio-thread entry point. */
-        virtual void process(MULTICHANNELBUFFER& buffer);
+        void process(MULTICHANNELBUFFER& buffer) override;
 
       protected:
         /** @brief Hook for subclasses to size their per-channel pre-filter state
@@ -86,6 +87,7 @@ namespace YSE {
         DSP::buffer result; // per-block scratch, shared across channels
         DSP::buffer reader; // per-block scratch, shared across channels
         perChannel<delayChannel> channels;
+        UInt builtRate = 0; // SAMPLERATE the line capacities were sized for (#637)
       };
 
     } // namespace MODULES

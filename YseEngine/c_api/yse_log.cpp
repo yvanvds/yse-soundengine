@@ -27,43 +27,86 @@ namespace {
 
   // Bridge from YSE's virtual logHandler to a C function pointer.
   // Only one bridge instance exists for the singleton Log(); installing
-  // a new callback replaces the slot. The callback + user_data pair lives
-  // as atomics so AddMessage (called from whichever thread emitted the
-  // log) never blocks on installer state — mirrors the pattern used by
-  // the midiIn raw bridge in yse_midi.cpp. See issue #58.
+  // a new callback replaces the slot. See issues #58 and #902.
+  //
+  // ### One pair, one pointer (issue #902)
+  //
+  // cb and user_data used to be two separate atomics, stored one after the
+  // other. A message dispatched between the two stores of a re-install could
+  // load the old cb with the new user_data (or, by the load order, the new
+  // user_data with the old cb) — a callback handed a pointer that belongs to
+  // somebody else. Each install now builds an immutable Pair and publishes it
+  // with one atomic exchange, so a dispatch sees either the whole old pair or
+  // the whole new one.
+  //
+  // ### Reclaiming the old pair
+  //
+  // The engine only ever calls AddMessage() from logImplementation::logMessage()
+  // with the sink's mutex held (#820), and yse_log_set_callback() follows every
+  // install with Log().setHandler(), which takes that same mutex. Once
+  // setHandler() has acquired it, every dispatch that could have loaded the
+  // old pair has finished, and every later one synchronises with our exchange
+  // and loads the new pair — so the installer frees the pair it swapped out
+  // right after setHandler() returns. That grace period is the contract
+  // retire() documents; nothing here takes a lock of its own.
+  //
+  // ### The malloc per message
+  //
+  // Re-checked under #820's multi-thread logging: the copy below is allocated
+  // on whichever engine thread emitted the line, never on the audio callback.
+  // The bridge is reachable only through logImplementation, which has already
+  // built a std::string for the line and taken a mutex before calling in — so
+  // a thread that may not allocate cannot get here without having broken the
+  // rule upstream of the bridge. Render-thread producers go through
+  // internal/rtLogQueue instead, whose drain() runs on the control thread
+  // (#546). The bridge's own allocation adds no new constraint.
   class CallbackBridge : public YSE::logHandler {
   public:
-    void install(YseLogCallback cb, void* user_data) {
-      // Publish user_data first; AddMessage gates on a non-null cb, so
-      // any reader that observes the new cb is guaranteed to also see
-      // the matching user_data via the acquire/release pair.
-      this->user_data.store(user_data, std::memory_order_release);
-      this->cb.store(cb, std::memory_order_release);
+    struct Pair {
+      YseLogCallback cb;
+      void* user_data;
+    };
+
+    // Publishes (cb, user_data) as one unit and returns the pair it replaced
+    // (possibly nullptr). The caller must pass that pair to retire() once no
+    // dispatch can still be reading it — see the class notes. Allocates, so it
+    // may throw std::bad_alloc; the caller runs it inside the ABI guard.
+    Pair* install(YseLogCallback cb, void* user_data) {
+      Pair* next = cb != nullptr ? new Pair{cb, user_data} : nullptr;
+      return current.exchange(next, std::memory_order_acq_rel);
     }
+
+    // Frees a pair returned by install(). Only call it after the log sink's
+    // mutex has been taken and released since the install — which
+    // Log().setHandler() does.
+    static void retire(Pair* old) noexcept {
+      delete old;
+    }
+
     void AddMessage(const std::string& msg) override {
-      auto fn = cb.load(std::memory_order_acquire);
-      if (!fn) return;
-      auto ud = user_data.load(std::memory_order_acquire);
+      const Pair* pair = current.load(std::memory_order_acquire);
+      if (pair == nullptr) return;
       // Strings passed across NativeCallable.listener bridges to Dart
       // are marshalled by pointer value, not deep copy — by the time
       // the Dart handler runs, the std::string backing this pointer
       // has long been destroyed. Allocate a fresh malloc'd copy that
       // the receiver is contractually obliged to release via
       // yse_log_free_message.
-      //
-      // malloc on this path is acceptable today because log emits never
-      // originate on the audio callback. If that ever changes, this
-      // bridge needs a preallocated message pool — see issue #62.
       char* copy = static_cast<char*>(std::malloc(msg.size() + 1));
       if (!copy) return;
       std::memcpy(copy, msg.c_str(), msg.size());
       copy[msg.size()] = '\0';
-      fn(copy, ud);
+      pair->cb(copy, pair->user_data);
     }
 
+    // The last installed pair is deliberately not freed here: this bridge is
+    // a function-local static whose destruction order relative to the log
+    // implementation is unspecified, and a line logged during static teardown
+    // may still dispatch through it. The pointer stays reachable from static
+    // storage, so leak checkers do not report it.
+
   private:
-    std::atomic<YseLogCallback> cb{nullptr};
-    std::atomic<void*> user_data{nullptr};
+    std::atomic<Pair*> current{nullptr};
   };
 
   CallbackBridge& bridge() {
@@ -79,7 +122,8 @@ YSE_C_API YseLog* yse_log_get(void) {
 }
 
 YSE_C_API void yse_log_send_message(YseLog* log, const char* msg) {
-  if (log && msg) to_cpp(log)->sendMessage(msg);
+  if (!log || !msg) return;
+  yse_c::guard_void("yse_log_send_message", [&] { to_cpp(log)->sendMessage(msg); });
 }
 
 YSE_C_API void yse_log_set_level(YseLog* log, YseErrorLevel level) {
@@ -91,7 +135,8 @@ YSE_C_API YseErrorLevel yse_log_get_level(YseLog* log) {
 }
 
 YSE_C_API void yse_log_set_logfile(YseLog* log, const char* path) {
-  if (log && path) to_cpp(log)->setLogfile(path);
+  if (!log || !path) return;
+  yse_c::guard_void("yse_log_set_logfile", [&] { to_cpp(log)->setLogfile(path); });
 }
 
 YSE_C_API size_t yse_log_get_logfile(YseLog* log, char* buf, size_t cap) {
@@ -108,12 +153,15 @@ YSE_C_API void yse_log_free_message(char* msg) {
 
 YSE_C_API void yse_log_set_callback(YseLog* log, YseLogCallback cb, void* user_data) {
   if (!log) return;
-  bridge().install(cb, user_data);
-  // Installing the bridge unconditionally lets the user swap the callback
-  // pointer freely without re-installing on the YSE side. Passing nullptr
-  // for cb keeps the bridge installed but makes it a no-op; pass a real
-  // callback to start receiving messages.
-  to_cpp(log)->setHandler(cb ? &bridge() : nullptr);
+  yse_c::guard_void("yse_log_set_callback", [&] {
+    CallbackBridge::Pair* old = bridge().install(cb, user_data);
+    // Passing nullptr for cb detaches the bridge and restores the default file
+    // sink; a real callback routes every line through the bridge. Either way
+    // setHandler() takes the sink's mutex, which is the grace period that makes
+    // freeing the replaced pair below safe (issue #902).
+    to_cpp(log)->setHandler(cb ? &bridge() : nullptr);
+    CallbackBridge::retire(old);
+  });
 }
 
 } // extern "C"

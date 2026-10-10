@@ -25,7 +25,7 @@ namespace {
   constexpr double kCpuLoadTau = 1.0;
 } // namespace
 
-UInt YSE::SAMPLERATE = 44100;
+UInt YSE::SAMPLERATE = 48000;
 
 YSE::DEVICE::managerObject& YSE::DEVICE::Manager() {
   static managerObject d;
@@ -154,13 +154,18 @@ Bool YSE::DEVICE::managerObject::init(bool openDevice) {
   return true;
 }
 
-void YSE::DEVICE::managerObject::addCallback() {
+Bool YSE::DEVICE::managerObject::addCallback() {
+  // Every failure below reports false and leaves no stream open (issue #973).
+  // system::init() used to ignore this path's outcome entirely, so a host with
+  // no output device — or one held exclusively by another application — got a
+  // successful init() and silence.
+  //
   // setup with default device
   PaStreamParameters params;
   params.device = Pa_GetDefaultOutputDevice();
   if (params.device == paNoDevice) {
     INTERNAL::LogImpl().emit(E_WARNING, "No default audio output device found.");
-    return;
+    return false;
   }
   const PaDeviceInfo* info = Pa_GetDeviceInfo(params.device);
   params.channelCount = info->maxOutputChannels;
@@ -175,25 +180,37 @@ void YSE::DEVICE::managerObject::addCallback() {
 #endif
   params.hostApiSpecificStreamInfo = nullptr;
   // Session-locked: once the lock is set at the end of system::initShared(),
-  // SAMPLERATE can only be re-written to its current value (e.g. by
-  // pause()/resume() cycles which reopen the stream against the same device).
-  // A debug assert catches genuine mid-session rate-change attempts; the
-  // write itself is skipped so SAMPLERATE-derived caches (LFO tables, reverb
-  // tunings, ADSR breakpoints) stay coherent.
-  {
-    const UInt newRate = (UInt)info->defaultSampleRate;
-    assert(!INTERNAL::Global().isSampleRateLocked() || newRate == SAMPLERATE);
-    if (!INTERNAL::Global().isSampleRateLocked()) {
-      SAMPLERATE = newRate;
-    }
+  // SAMPLERATE cannot change (pause()/resume() cycles reopen the stream at
+  // the already-negotiated rate below). The write is skipped while locked so
+  // SAMPLERATE-derived caches (LFO tables, reverb tunings, ADSR breakpoints)
+  // stay coherent. Before the lock, an application-requested rate (issue
+  // #646) takes precedence over the device default; the negotiated result
+  // stays authoritative via the refusal fallback after Pa_OpenStream.
+  const UInt deviceDefault = (UInt)info->defaultSampleRate;
+  if (!INTERNAL::Global().isSampleRateLocked()) {
+    const UInt requested = getRequestedSampleRate();
+    SAMPLERATE = requested != 0 ? requested : deviceDefault;
   }
 
   err = Pa_OpenStream(&stream, NULL, &params, SAMPLERATE, paFramesPerBufferUnspecified, paNoFlag,
                       paCallback, this);
 
+  // A refused requested rate is a log line plus the negotiated fallback, not
+  // an error (issue #646). Only before the session lock: a locked SAMPLERATE
+  // must not change, so a resume()-time failure falls through to the error
+  // path below as before.
+  if (err != paNoError && !INTERNAL::Global().isSampleRateLocked() && SAMPLERATE != deviceDefault) {
+    INTERNAL::LogImpl().emit(E_WARNING, "Requested sample rate " + std::to_string(SAMPLERATE) +
+                                            " Hz refused by the audio device; falling back to " +
+                                            std::to_string(deviceDefault) + " Hz");
+    SAMPLERATE = deviceDefault;
+    err = Pa_OpenStream(&stream, NULL, &params, SAMPLERATE, paFramesPerBufferUnspecified, paNoFlag,
+                        paCallback, this);
+  }
+
   if (err != paNoError) {
     audioDeviceError(err);
-    return;
+    return false;
   } else
     open = true;
 
@@ -206,9 +223,19 @@ void YSE::DEVICE::managerObject::addCallback() {
   err = Pa_StartStream(stream);
   if (err != paNoError) {
     audioDeviceError(err);
-    return;
+    // Opened but never started: no callback will ever run, so do not leave
+    // the live getters reporting a rate and latency for it. close() releases
+    // the stream and zeroes them.
+    close();
+    return false;
   } else
     started = true;
+
+  // The stream is running but has not delivered a callback yet — that takes
+  // another 15-70 ms on Windows (issue #681). Tell the watchdog in
+  // system::update() a new stream came up so it does not read the start-up
+  // window as a stalled device.
+  notifyStreamStarted();
 
   {
     std::string hostName = Pa_GetHostApiInfo(Pa_GetDeviceInfo(params.device)->hostApi)->name;
@@ -217,6 +244,7 @@ void YSE::DEVICE::managerObject::addCallback() {
                                  " Hz" + ", suggested latency " +
                                  std::to_string((int)(params.suggestedLatency * 1000)) + " ms");
   }
+  return true;
 }
 
 void YSE::DEVICE::managerObject::close() {
@@ -240,6 +268,23 @@ void YSE::DEVICE::managerObject::close() {
   activeBufferSize.store(0, std::memory_order_release);
   activeOutputLatencySamples.store(0, std::memory_order_release);
   cpuLoadEma.store(0.f, std::memory_order_relaxed);
+
+  // The stream is very unlikely to have stopped on a block boundary, so
+  // bufferPos is left pointing part-way into the last block paCallback
+  // rendered. It is process-global manager state and survives close(), and the
+  // next stream's first callback resumes from it: it copies the tail of that
+  // stale block — up to STANDARD_BUFFERSIZE-1 samples of pre-close audio —
+  // before rendering anything for the new session. Resetting it to
+  // STANDARD_BUFFERSIZE makes the first callback after every open render a
+  // fresh block, which is what the Oboe backend already does explicitly
+  // (oboeImplementation.cpp's openStream) and what the constructor's initial
+  // value means. Part of the same "no active device" reset as the atomics
+  // above; it was simply missed (issue #717).
+  //
+  // Safe to write here: close() runs on the control thread and only after
+  // Pa_StopStream/Pa_CloseStream have returned, so no callback can be in
+  // flight — the same reason the stores above are unsynchronised with it.
+  bufferPos = STANDARD_BUFFERSIZE;
 }
 
 void YSE::DEVICE::managerObject::terminate() {
@@ -310,13 +355,57 @@ void YSE::DEVICE::managerObject::updateDeviceList() {
   }
 }
 
-void YSE::DEVICE::managerObject::openDevice(const YSE::deviceSetup& object) {
-  if (!initDone) return;
+Bool YSE::DEVICE::managerObject::openDevice(const YSE::deviceSetup& object) {
+  // Every early return below reports false: nothing was opened, so the caller
+  // must not reconfigure the mixer for this setup (issue #665).
+  //
+  // Fail closed on a setup that names no output device (issue #661).
+  // deviceSetup's constructor leaves `out` null and nothing forces setOutput(),
+  // so a host that only sets a sample rate and a buffer size reaches here with
+  // nothing to open — getOutputChannels() one line below already guards the
+  // same pointer. Checked ahead of the initDone gate because a malformed
+  // request is a caller error whatever state the backend is in, and ahead of
+  // close() because refusing a request must not tear down a stream that is
+  // currently running fine.
+  if (object.out == nullptr) {
+    INTERNAL::LogImpl().emit(E_WARNING,
+                             "Cannot open a device: the device setup has no output device.");
+    return false;
+  }
+
+  // Nothing to open on the offline engine either — init(false) skips
+  // Pa_Initialize on purpose, so there is no stream and no layout to follow.
+  // The backend is deliberately not brought up on demand here (issue #972):
+  // the device list a caller picks from is only enumerated by init(), so a
+  // process that has only run offline sessions has no device to name anyway,
+  // and initOffline() stays free of Pa_Initialize, which hangs bare headless
+  // runners. Say so rather than failing silently.
+  if (!initDone) {
+    INTERNAL::LogImpl().emit(E_WARNING,
+                             "Cannot open a device: the audio backend is not running. An "
+                             "initOffline() session can only open a device in a "
+                             "process where an earlier init() started it.");
+    return false;
+  }
+
+  // Pa_GetDeviceInfo() returns NULL for any index outside
+  // [0, Pa_GetDeviceCount()) — paNoDevice (-1) included, and equally an ID from
+  // a device list that has been re-enumerated since (a device unplugged between
+  // updateDeviceList() and here). addCallback() already refuses the same way on
+  // Pa_GetDefaultOutputDevice() == paNoDevice; this is the same convention.
+  // Queried before close() so a refusal leaves the running stream alone.
+  const int deviceID = object.out->getID();
+  const PaDeviceInfo* info = Pa_GetDeviceInfo(deviceID);
+  if (info == nullptr) {
+    INTERNAL::LogImpl().emit(E_AUDIODEVICE, "no device with index " + std::to_string(deviceID) +
+                                                " on this system, no stream opened.");
+    return false;
+  }
+
   close();
 
   PaStreamParameters params;
-  params.device = object.out->getID();
-  const PaDeviceInfo* info = Pa_GetDeviceInfo(params.device);
+  params.device = deviceID;
   params.channelCount = object.getOutputChannels();
   params.sampleFormat = paFloat32 | paNonInterleaved;
   params.suggestedLatency = info->defaultHighOutputLatency;
@@ -329,21 +418,61 @@ void YSE::DEVICE::managerObject::openDevice(const YSE::deviceSetup& object) {
 #endif
   params.hostApiSpecificStreamInfo = nullptr;
   // See note at the addCallback() writer above.
-  {
-    const UInt newRate = (UInt)info->defaultSampleRate;
-    assert(!INTERNAL::Global().isSampleRateLocked() || newRate == SAMPLERATE);
-    if (!INTERNAL::Global().isSampleRateLocked()) {
-      SAMPLERATE = newRate;
+  //
+  // The rate the setup asks for (deviceSetup::setSampleRate, 0 = no request)
+  // used to be dropped on the floor here (issue #971). It follows the same
+  // session-lock rules as requestSampleRate() (#646): a running session keeps
+  // its rate, so a differing request is refused with a log line and the stream
+  // opens at the session rate; with no session rate locked, the request takes
+  // precedence over the device default, and a device that refuses it falls
+  // back to its default rate, as in addCallback().
+  //
+  // The locked session rate need not be the device's default rate (issue
+  // #972): an initOffline() session runs at the requested rate or 48 kHz, and
+  // a device session at whatever the first device agreed to. The stream is
+  // asked for the session rate; a device that refuses it is reported below
+  // and nothing opens. This used to be a debug assert that the two matched.
+  const UInt deviceDefault = (UInt)info->defaultSampleRate;
+  const UInt requested = object.sampleRate > 0.0 ? (UInt)std::lround(object.sampleRate) : 0u;
+  if (INTERNAL::Global().isSampleRateLocked()) {
+    if (requested != 0 && requested != SAMPLERATE) {
+      INTERNAL::LogImpl().emit(
+          E_WARNING, "Requested device sample rate " + std::to_string(requested) +
+                         " Hz ignored: the session runs at " + std::to_string(SAMPLERATE) +
+                         " Hz. Call System().requestSampleRate() before init() "
+                         "to change it.");
     }
+  } else {
+    SAMPLERATE = requested != 0 ? requested : deviceDefault;
   }
 
-  err = Pa_OpenStream(&stream, NULL, &params, SAMPLERATE,
-                      object.bufferSize == 0 ? paFramesPerBufferUnspecified : object.bufferSize,
-                      paNoFlag, paCallback, this);
+  const unsigned long framesPerBuffer = object.bufferSize == 0
+                                            ? paFramesPerBufferUnspecified
+                                            : static_cast<unsigned long>(object.bufferSize);
+  err = Pa_OpenStream(&stream, NULL, &params, SAMPLERATE, framesPerBuffer, paNoFlag, paCallback,
+                      this);
+
+  if (err != paNoError && !INTERNAL::Global().isSampleRateLocked() && SAMPLERATE != deviceDefault) {
+    INTERNAL::LogImpl().emit(E_WARNING, "Requested sample rate " + std::to_string(SAMPLERATE) +
+                                            " Hz refused by the audio device; falling back to " +
+                                            std::to_string(deviceDefault) + " Hz");
+    SAMPLERATE = deviceDefault;
+    err = Pa_OpenStream(&stream, NULL, &params, SAMPLERATE, framesPerBuffer, paNoFlag, paCallback,
+                        this);
+  }
+
+  if (err != paNoError && INTERNAL::Global().isSampleRateLocked() && SAMPLERATE != deviceDefault) {
+    INTERNAL::LogImpl().emit(E_WARNING, "The audio device refused the session sample rate of " +
+                                            std::to_string(SAMPLERATE) + " Hz (its default is " +
+                                            std::to_string(deviceDefault) +
+                                            " Hz). Call System().requestSampleRate() before "
+                                            "init() or initOffline() to run the session at a "
+                                            "rate the device accepts.");
+  }
 
   if (err != paNoError) {
     audioDeviceError(err);
-    return;
+    return false;
   } else
     open = true;
 
@@ -360,13 +489,24 @@ void YSE::DEVICE::managerObject::openDevice(const YSE::deviceSetup& object) {
   err = Pa_StartStream(stream);
   if (err != paNoError) {
     audioDeviceError(err);
-    return;
+    // The stream exists but never started, so no callback will consume the
+    // requested layout: report failure like any other refusal.
+    return false;
   } else
     started = true;
+
+  // Same start-up window as in addCallback() (issue #681).
+  notifyStreamStarted();
+
+  return true;
 }
 
-void YSE::DEVICE::managerObject::audioDeviceError(PaError /*error*/) {
-  INTERNAL::LogImpl().emit(E_AUDIODEVICE, Pa_GetErrorText(err));
+void YSE::DEVICE::managerObject::audioDeviceError(PaError error) const {
+  // Report the code that was passed in, not the `err` member. Every caller but
+  // one passes `err` anyway, so this is a no-op for them; updateDeviceList()
+  // passes Pa_GetDeviceCount()'s negative return, which used to be reported as
+  // whatever `err` happened to hold at the time (issue #418).
+  INTERNAL::LogImpl().emit(E_AUDIODEVICE, Pa_GetErrorText(error));
 }
 
 Flt YSE::DEVICE::managerObject::cpuLoad() {

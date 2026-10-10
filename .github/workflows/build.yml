@@ -21,11 +21,39 @@ jobs:
     if: github.event_name == 'push' || (github.head_ref != 'dev' && github.head_ref != 'master')
     name: Build and analyze
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # Cap sizing rule for every job in this repo's workflows (see #621):
+    # timeout-minutes >= 3x the observed p90 AND >= 2x the worst observed run,
+    # rounded up to a multiple of 5, and never lowered. The cap exists to kill a
+    # hung job, not a merely slow one -- a job cancelled by its own cap reports
+    # as a red check and is indistinguishable from a real regression until the
+    # log is read.
+    #
+    # This job is the heaviest in the repo: full Debug build with coverage
+    # instrumentation, two full ctest passes (native + forced 48 kHz), gcovr,
+    # then the CFamily scan re-parsing every translation unit. Measured over the
+    # 97 runs of 2026-08-03..06: p50 8.6 min, p90 11.3, p95 12.1, longest
+    # completed run 14.9. The daily median is climbing as the patcher object
+    # batch adds a translation unit per issue (7.2 -> 8.3 -> 10.4 over those
+    # three days), so the distribution is not stationary.
+    #
+    # At 20 the cap sat roughly one bad runner above p90 and duly fired: PR #620
+    # was cancelled at 20m07s mid-scan (compilation unit 21 of 224); its re-run
+    # of the identical commit passed in 14m53s. That observation is censored --
+    # we never learned how long it actually needed -- so the 2x-worst term is
+    # taken against 20.1, giving 40. That is still 1/9 of GitHub's 360-minute
+    # default, so a genuinely hung scan is killed inside the hour.
+    #
+    # One more reason the margin has to be wide: the clock includes runner
+    # acquisition, not just execution. Observed directly during the Actions
+    # incident of 2026-08-06 -- a run of this job reported started_at 16:59:04
+    # but did not execute step 1 until 17:07:26, so 8m22s of the budget was
+    # spent queueing before a single command ran. Sizing the cap against step
+    # durations alone therefore understates what it actually has to cover.
+    timeout-minutes: 40
     env:
       BUILD_WRAPPER_OUT_DIR: build_wrapper_output_directory # Directory where build-wrapper output will be placed
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           fetch-depth: 0  # Shallow clones should be disabled for a better relevancy of analysis
       - name: Install Build Wrapper
@@ -62,31 +90,143 @@ jobs:
           build-wrapper-linux-x86-64 --out-dir "$BUILD_WRAPPER_OUT_DIR" cmake --build build
       - name: Run tests
         run: ctest --test-dir build --output-on-failure
-      - name: Run tests at forced 48 kHz
+      - name: Run tests at forced 44.1 kHz
         # Cross-checks that DSP code and tests are rate-agnostic. Honoured by
         # Tests/main.cpp:applyForcedSampleRateFromEnv() which writes
         # YSE::SAMPLERATE before any DSP object is constructed. See #72.
+        # 44100 since the default became 48000 (#646) — forcing the default
+        # would no longer cross-check anything.
         env:
-          YSE_TEST_FORCED_RATE: "48000"
+          YSE_TEST_FORCED_RATE: "44100"
         run: ctest --test-dir build --output-on-failure
       - name: Generate coverage report
+        # --exclude-throw-branches / --exclude-unreachable-branches drop the
+        # implicit exception-unwind and never-entered edges GCC emits around
+        # anything that can throw.  gcov records them as real conditions, so
+        # without these flags trivial headers report 4 conditions with 3
+        # uncovered and Sonar's blended coverage is dominated by branches no
+        # test can ever reach.  See #416.  Keep in sync with the gcovr call in
+        # yse.py (_cmd_coverage_linux) so local and CI numbers agree.
+        #
+        # --filter 'Tests/' stays: Tests is declared as sonar.tests, so Sonar
+        # discards those entries on import (verified — test files report
+        # 0 coverable lines in the analysis) and they cannot skew the totals.
         run: |
           gcovr \
             --root . \
             --filter 'YseEngine/' \
             --filter 'Tests/' \
+            --exclude-throw-branches \
+            --exclude-unreachable-branches \
             --gcov-ignore-parse-errors \
             --sonarqube \
             --output coverage.xml \
             build
           echo "=== coverage.xml preview ===" && head -20 coverage.xml
+      - name: Resolve project version for Sonar
+        id: version
+        # The New Code period is set to "Previous version", which only advances
+        # when sonar.projectVersion changes between analyses. It used to be
+        # hardcoded in sonar-project.properties and was never bumped: it sat at
+        # 1.0.77 from the day SonarCloud was wired up while the project shipped
+        # through v2.4.0. With no version change there is no baseline, so every
+        # line ever written counted as "new code" -- which is why new_coverage
+        # tracked overall coverage to within 0.1 points and 2018-era findings
+        # gated the rating. See #408.
+        #
+        # YseEngine/system.hpp is the authoritative version source (the release
+        # skill bumps it; Sphinx conf.py already reads it the same way, per
+        # PR #89). Deriving it here means it can never drift again.
+        run: |
+          VER=$(sed -n 's/.*VERSION[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' YseEngine/system.hpp | head -1)
+          if [ -z "$VER" ]; then
+            echo "::error file=YseEngine/system.hpp::could not parse VERSION -- sonar.projectVersion would silently fall back and break the New Code baseline"
+            exit 1
+          fi
+          echo "version=$VER" >> "$GITHUB_OUTPUT"
+          echo "Resolved sonar.projectVersion=$VER"
       - name: SonarQube Scan
+        # Skipped on pushes to master. SonarCloud's main branch is `dev` (renamed
+        # from `master` — it captures the DevOps default branch once at project
+        # import and never revisits it, so it had drifted). On the free plan only
+        # the main branch can be analysed: non-main branches report "Not analyzed"
+        # behind an Upgrade badge. Submitting a master analysis would therefore
+        # burn the full scan to produce nothing. See #429.
+        #
+        # Everything above this step — build, both ctest runs, the coverage
+        # report — still runs on master, and the android/python/sanitizer jobs
+        # keep their release gate. Only the upload has nowhere to go.
+        #
+        # PR events need no guard here: the job-level `if` already skips PRs
+        # whose head is `dev` or `master`, covering both the dev -> master
+        # release PR and the master -> dev sync PR.
+        if: ${{ !(github.event_name == 'push' && github.ref_name == 'master') }}
         uses: SonarSource/sonarqube-scan-action@22918119ff8e1ca75a623e15c8296b6ea4fbe28f # v8.2.1
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         with:
           args: >
+            --define "sonar.projectVersion=${{ steps.version.outputs.version }}"
             --define "sonar.cfamily.compile-commands=${{ env.BUILD_WRAPPER_OUT_DIR }}/compile_commands.json"
+
+  android-gate:
+    # Decides whether build-android runs and with which ABI matrix (#630).
+    # A separate job because the decision needs changed-file detection on
+    # dev-targeted PRs, and a matrix cannot be shaped by a job-level `if`
+    # (the matrix context is not available there) — so build-android takes
+    # its matrix from this job's `abis` output via fromJSON instead.
+    name: Android trigger gate
+    runs-on: ubuntu-latest
+    # Trivial job (one API-backed filter step, no checkout), but the clock
+    # includes runner acquisition — see the sizing comment on the `build`
+    # job — and a cap-killed gate would silently skip the Android builds.
+    timeout-minutes: 10
+    permissions:
+      # dorny/paths-filter lists the PR's changed files via the pulls API.
+      pull-requests: read
+      contents: read
+    outputs:
+      run: ${{ steps.decide.outputs.run }}
+      abis: ${{ steps.decide.outputs.abis }}
+    steps:
+      - name: Detect Android-relevant changes (dev-targeted PRs only)
+        # pull_request events are resolved through the GitHub API, so no
+        # checkout is needed. The path set is everything the NDK
+        # cross-compile consumes: engine + test sources (the Android device
+        # backend and the test APK scaffolding both live under those two
+        # trees), the vendored deps (doctest), the CMake build files, and
+        # this workflow itself. CMakePresets.json is deliberately absent:
+        # the Android job invokes cmake directly, not through a preset.
+        if: github.event_name == 'pull_request' && github.base_ref == 'dev' && github.head_ref != 'master'
+        id: filter
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        with:
+          filters: |
+            android:
+              - 'YseEngine/**'
+              - 'Tests/**'
+              - 'dependencies/**'
+              - 'CMakeLists.txt'
+              - 'cmake/**'
+              - '.github/workflows/build.yml'
+      - name: Decide ABI set
+        id: decide
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE: ${{ github.base_ref }}
+          HEAD: ${{ github.head_ref }}
+          ANDROID_RELEVANT: ${{ steps.filter.outputs.android }}
+        run: |
+          if [ "$EVENT" = "push" ] || { [ "$BASE" = "master" ] && [ "$HEAD" != "dev" ]; }; then
+            echo 'run=true' >> "$GITHUB_OUTPUT"
+            echo 'abis=["arm64-v8a", "x86_64"]' >> "$GITHUB_OUTPUT"
+          elif [ "$BASE" = "dev" ] && [ "$HEAD" != "master" ] && [ "$ANDROID_RELEVANT" = "true" ]; then
+            echo 'run=true' >> "$GITHUB_OUTPUT"
+            echo 'abis=["x86_64"]' >> "$GITHUB_OUTPUT"
+          else
+            echo 'run=false' >> "$GITHUB_OUTPUT"
+            echo 'abis=[]' >> "$GITHUB_OUTPUT"
+          fi
 
   build-android:
     # Cross-compile libyse.so + libyse_tests.so for each target ABI using the
@@ -94,22 +234,29 @@ jobs:
     # emulator (KVM unavailable on GitHub-hosted runners) or a physical device,
     # both of which are deferred to a follow-up.
     #
-    # Trigger gate: run on every push to master/dev (continuous coverage) and
-    # on PRs that target master (release gate). Skip on PRs that target dev so
-    # day-to-day feature work doesn't burn ~5 min of NDK cross-compile per push
-    # — Android-specific regressions get caught at the dev → master step.
-    # Additionally skip when the PR's head is `dev` (release PRs): the push
-    # to dev that brought the SHA in has already run this workflow.
-    if: github.event_name == 'push' || (github.base_ref == 'master' && github.head_ref != 'dev')
+    # Trigger gate (computed by the android-gate job above; see #630):
+    # - Push to master/dev: both ABIs (continuous coverage).
+    # - PR targeting master (head != dev): both ABIs (release gate).
+    # - PR targeting dev: x86_64 only, and only when the changed files could
+    #   plausibly affect the Android build (android-gate's path set). This
+    #   replaces the old unconditional skip on dev-targeted PRs, which let
+    #   the #622 compile break land invisibly and sit red on dev for two
+    #   days. One ABI is enough as a PR gate: compile breaks are almost
+    #   always ABI-independent (#622 failed identically on both), and
+    #   doc/infra-only PRs still pay nothing.
+    # - Release/sync PRs (head is dev or master): skip — the push that
+    #   brought those SHAs in has already run this workflow.
+    needs: android-gate
+    if: needs.android-gate.outputs.run == 'true'
     name: Android build (${{ matrix.abi }})
     runs-on: ubuntu-latest
     timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:
-        abi: [arm64-v8a, x86_64]
+        abi: ${{ fromJSON(needs.android-gate.outputs.abis) }}
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
       - name: Install host build tools
         run: |
           sudo apt-get update -y
@@ -171,7 +318,7 @@ jobs:
       CC: clang
       CXX: clang++
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
       - name: Install dependencies
         # python3-dev: the libpython we embed (find_package Python3 Development.Embed).
         # libclang-rt-dev: clang's compiler-rt, which ships libclang_rt.asan — not
@@ -204,13 +351,39 @@ jobs:
         run: ctest --test-dir ${{ matrix.bdir }} -L python --output-on-failure
 
   build-sanitizers:
-    # Patcher concurrency acceptance gate (issue #229, epic #189): drive
-    # concurrent live-edit + render of a patcher under Thread- and
-    # AddressSanitizer so a regression in the wait-free graph model (a data race
-    # or a use-after-free of a retired GraphState/object on the audio thread) is
-    # caught. Both legs build only the tests-<san> preset and run just the
-    # patcher concurrency test (the preset filters by name). Local repro:
-    # tools/ci-linux/Dockerfile.sanitizers.
+    # Memory-safety and data-race gate. Started life as the patcher concurrency
+    # acceptance gate (issue #229, epic #189) — concurrent live-edit + render of
+    # a patcher under Thread- and AddressSanitizer, so a regression in the
+    # wait-free graph model (a data race, or a use-after-free of a retired
+    # GraphState/object on the audio thread) is caught. Both legs build only the
+    # tests-<san> preset and run what that preset's test filter selects. Local
+    # repro: tools/ci-linux/Dockerfile.sanitizers.
+    #
+    # Both filters have since been widened past the patcher, each time because a
+    # narrow one had hidden something real:
+    #
+    #   ASan (issue #727) runs the *whole* patcher suite, not just
+    #   `concurrency:*`. Narrowing it to the concurrency case is what let ~22
+    #   test files sit on a one-sided outlet->inlet edge — a teardown
+    #   use-after-free that ASan aborts on the moment the case actually runs —
+    #   stay green for months.
+    #
+    #   TSan (issue #824) now runs the whole ctest set bar a documented exclude
+    #   list, instead of the two entries it ran before. That two-entry filter is
+    #   why #819 (soundFile::channels() racing loadStreaming()) and #820 (the
+    #   unsynchronised log sink) survived until somebody ran TSan by hand. It is
+    #   an exclude list now so a newly added suite is gated by default rather
+    #   than silently ungated.
+    #
+    # What the TSan widening costs, measured serially on the Dockerfile.sanitizers
+    # image: the whole 42-entry set is 860 s, but yse_unit_tests (393 s) and
+    # yse_tests_contentpack (303 s) are 81% of that. The per-PR `tests-tsan`
+    # preset skips exactly those two and runs the other 40 entries in ~170 s;
+    # the `tests-tsan-full` preset adds them back for all 42 and runs on pushes
+    # to dev only (see the two run steps below). Runtime is now the only reason
+    # an entry is off the PR gate: the four synth suites that were carved out
+    # for #828 came back with its fix. timeout-minutes is sized for the sweep
+    # leg, not for the PR leg.
     #
     # Same trigger gate as the `build` job: continuous on push to dev/master,
     # plus feature-branch PRs; skipped on release/sync PRs whose head is dev or
@@ -218,16 +391,22 @@ jobs:
     if: github.event_name == 'push' || (github.head_ref != 'dev' && github.head_ref != 'master')
     name: Sanitizers (${{ matrix.san }})
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 40
     strategy:
       fail-fast: false
       matrix:
         san: [tsan, asan]
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
       - name: Install dependencies
         # libclang-rt-dev ships libclang_rt.{asan,tsan}; not pulled in by the base
         # clang package, so the sanitizer legs fail to link without it.
+        #
+        # llvm ships llvm-symbolizer, which the sanitizer runtimes exec to turn a
+        # report into file:line. Without it every frame prints as a bare
+        # `yse_tests+0x3e1d05` and a red gate tells you nothing you can act on —
+        # which matters more now that TSan covers suites nobody has read a report
+        # from before (#824).
         run: |
           sudo apt-get update -y
           sudo apt-get install -y \
@@ -236,6 +415,7 @@ jobs:
             pkg-config \
             clang \
             libclang-rt-dev \
+            llvm \
             portaudio19-dev \
             libsndfile1-dev \
             librtmidi-dev
@@ -248,11 +428,35 @@ jobs:
         run: cmake --preset tests-${{ matrix.san }}
       - name: Build
         run: cmake --build --preset tests-${{ matrix.san }}
-      - name: Run patcher concurrency gate
-        # The tests-${san} test preset filters to yse_tests_patcher_concurrency
-        # and sets ASAN_OPTIONS=detect_leaks=0 on the asan leg (the process-global
-        # thread pools / named bus are intentionally never torn down).
+      - name: Run sanitizer gate
+        # The tests-${san} test preset picks what runs: the full yse_tests_patcher
+        # suite plus yse_tests_sendstress on asan (issue #727), and on tsan the
+        # whole ctest set minus the two slow entries, yse_unit_tests and
+        # yse_tests_contentpack (issue #824). The asan preset also sets
+        # ASAN_OPTIONS=detect_leaks=0 (the process-global thread pools / named bus
+        # are intentionally never torn down).
+        #
+        # Skipped on the tsan leg of a push to dev, where the sweep step below
+        # runs the superset instead — running both would pay for the same 163 s
+        # twice.
+        if: ${{ !(matrix.san == 'tsan' && github.event_name == 'push' && github.ref_name == 'dev') }}
         run: ctest --preset tests-${{ matrix.san }} --output-on-failure
+      - name: Run the full TSan sweep (push to dev)
+        # The slow half of the #824 split. yse_unit_tests and
+        # yse_tests_contentpack cost 696 s of the 860 s a full sweep takes, which
+        # is too much to spend on every PR push but not too much to spend once
+        # per merge into the integration branch. yse_unit_tests is the entry that
+        # earns it: the crowded, warm-heap, thread-churning shared process is a
+        # set of cross-suite interleavings no per-suite entry reproduces (it is
+        # where #336 turned up).
+        #
+        # A failure here lands after the merge, so treat it as a bug report on
+        # the merge rather than a broken PR: file the race, and if it will not be
+        # fixed immediately, exclude the entry in CMakePresets.json with the
+        # issue number — but treat that as a loan, not a fix: #828's four suites
+        # sat excluded until the race under them was actually fixed.
+        if: matrix.san == 'tsan' && github.event_name == 'push' && github.ref_name == 'dev'
+        run: ctest --preset tests-tsan-full --output-on-failure
       - name: Run static-teardown UAF gate (lifecycle suite, issue #298)
         # The lifecycle suite deliberately leaves a SOUND::implementationObject
         # alive at engine teardown; its destructor used to read a freed parent
@@ -262,7 +466,12 @@ jobs:
         # use-after-free is caught deterministically. Asan leg only.
         # detect_leaks=0 for the same reason as the patcher gate above (the
         # process-global pools/bus are never torn down); this gate is about UAF.
+        #
+        # yse_tests_logsafety rides along (issue #433): INTERNAL::EmitNoThrow is
+        # what destructors report through during that same static teardown, and
+        # its lifetime guard against a already-destroyed logger belongs under the
+        # same UAF detector.
         if: matrix.san == 'asan'
         env:
           ASAN_OPTIONS: detect_leaks=0
-        run: ctest --test-dir build-tests-asan -R yse_tests_lifecycle --output-on-failure
+        run: ctest --test-dir build-tests-asan -R "yse_tests_lifecycle|yse_tests_logsafety" --output-on-failure

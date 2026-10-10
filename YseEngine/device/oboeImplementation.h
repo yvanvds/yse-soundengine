@@ -18,10 +18,17 @@ public:
   ~OboeImplementation() override;
 
   bool Setup();
-  bool Start(int channels);
+  // `requestedRate` is the application-requested sample rate in Hz (issue
+  // #646); 0 means no request and Oboe negotiates the device rate. The
+  // request is only applied while the session sample-rate lock is released —
+  // reconnect / resume reopens keep the already-negotiated rate.
+  bool Start(int channels, int32_t requestedRate = 0);
   void Stop();
   void Suspend();
-  void Resume();
+  // Restarts a stream that Suspend() paused. Reports whether a stream was
+  // actually started, so the manager can bump its stream-start count: a
+  // restarted stream is not delivering callbacks yet either (issue #681).
+  bool Resume();
   unsigned int GetCallbacksSinceLastUpdate();
 
   int32_t getNegotiatedSampleRate() const {
@@ -51,8 +58,9 @@ public:
   // called from the main-thread update path (never the audio or error thread)
   // so the reopen — which allocates and rewrites members the audio callback
   // reads — is serialised with close()/pause()/resume() (issue #200). No-op
-  // when no reconnect has been requested.
-  void serviceReconnect();
+  // when no reconnect has been requested. Reports whether a stream was rebuilt
+  // and started, which the manager counts as a stream start (issue #681).
+  bool serviceReconnect();
 
 private:
   bool openStream(int channels);
@@ -64,7 +72,11 @@ private:
 
   std::shared_ptr<oboe::AudioStream> mStream;
   int numChannels = 2;
-  int32_t negotiatedSampleRate = 44100;
+  int32_t negotiatedSampleRate = 48000;
+  // Application-requested rate for the next open (issue #646); 0 = none.
+  // Set by Start() on the control thread, read by openStream() on the
+  // init / reconnect path — never on the audio callback.
+  int32_t requestedSampleRate = 0;
   UInt bufferPos = 0;
   float** sourceChannels = nullptr;
 

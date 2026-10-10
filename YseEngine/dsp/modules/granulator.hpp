@@ -45,13 +45,13 @@ namespace YSE {
          *  @param maxGrains Maximum number of grains alive simultaneously.
          */
         granulator(UInt poolSize = SAMPLERATE * 5, UInt maxGrains = 16);
-        virtual ~granulator() {};
+        ~granulator() override {};
 
         /** @brief dspObject lifecycle hook — allocates buffers. */
-        virtual void create();
+        void create() override;
 
         /** @brief dspObject audio-thread entry point. */
-        virtual void process(MULTICHANNELBUFFER& buffer);
+        void process(MULTICHANNELBUFFER& buffer) override;
 
         /** @brief Set the spawn rate in grains per second. */
         granulator& grainFrequency(UInt value);

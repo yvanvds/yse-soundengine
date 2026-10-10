@@ -9,6 +9,7 @@
 */
 
 #include "midifileManager.h"
+#include <iterator>
 #include "../internalHeaders.h"
 
 YSE::MIDI::managerObject& YSE::MIDI::Manager() {
@@ -33,7 +34,7 @@ YSE::MIDI::managerObject::~managerObject() noexcept {
     inUse.clear();
     implementations.clear();
   } catch (...) {
-    INTERNAL::LogImpl().emit(E_ERROR, "MIDI::Manager destructor swallowed exception");
+    INTERNAL::EmitNoThrow(E_ERROR, "MIDI::Manager destructor swallowed exception");
   }
 }
 
@@ -51,6 +52,11 @@ YSE::MIDI::fileImpl* YSE::MIDI::managerObject::addImplementation(YSE::MIDI::file
   return impl;
 }
 
+std::size_t YSE::MIDI::managerObject::implementationCount() {
+  std::scoped_lock lk(implementationsMutex);
+  return static_cast<std::size_t>(std::distance(implementations.begin(), implementations.end()));
+}
+
 void YSE::MIDI::managerObject::update() {
   ///////////////////////////////////////////
   // drain the main→audio inbox of newly-created impls into the working list
@@ -65,11 +71,17 @@ void YSE::MIDI::managerObject::update() {
   // enqueue the slow-pool delete job for impls retired on the previous tick.
   // Deferring by a tick guarantees the orphan is already out of `inUse` before
   // the slow pool can free it — no audio-thread free, no dangling `inUse` entry.
+  //
+  // The request is cleared only once a job has actually been enqueued for it
+  // (issue #992). isQueued() stays true while the previous delete job is still
+  // *running*, and that job may already have walked past an impl retired on
+  // the last tick; clearing the flag regardless stranded it in
+  // `implementations`. Same fix as CHANNEL (#990) and SOUND (#817).
   ///////////////////////////////////////////
   if (runDelete && !mgrDelete.isQueued()) {
     INTERNAL::Global().addSlowJob(&mgrDelete);
+    runDelete = false;
   }
-  runDelete = false;
 
   ///////////////////////////////////////////
   // retire orphaned impls (interface destroyed) from the working list. The

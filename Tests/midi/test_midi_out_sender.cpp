@@ -21,6 +21,7 @@
 #include <vector>
 
 #include "midi/midiOutSender.h"
+#include "support/timer_pacing.hpp"
 
 namespace {
 
@@ -51,14 +52,12 @@ namespace {
     }
   };
 
-  // Poll until `recorder` holds at least `n` entries (generous CI timeout).
-  bool awaitCount(HookRecorder& recorder, std::size_t n, int timeoutMs = 5000) {
-    const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeoutMs);
-    while (std::chrono::steady_clock::now() < deadline) {
-      if (recorder.count() >= n) return true;
-      std::this_thread::sleep_for(std::chrono::milliseconds(2));
-    }
-    return recorder.count() >= n;
+  // Poll until `recorder` holds at least `n` entries. The budget is counted in
+  // deliveries of the suite's reference timer rather than in milliseconds, so it
+  // stretches with machine load while a wedged sender thread still fails
+  // (issue #753).
+  bool awaitCount(HookRecorder& recorder, std::size_t n, int ticks = 5000) {
+    return TestHelpers::pacedUntil(ticks, [&] { return recorder.count() >= n; });
   }
 
 } // namespace

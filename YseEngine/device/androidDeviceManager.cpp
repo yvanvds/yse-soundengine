@@ -2,11 +2,13 @@
 
 #include "androidDeviceManager.h"
 #include "../internalHeaders.h"
+#include <cmath>
+#include <string>
 
 // Initial value before the Oboe stream opens. OboeImplementation::openStream
 // overwrites this with stream->getSampleRate() (typically 48 kHz on modern
 // Android devices) so the rest of the engine sees the negotiated rate.
-UInt YSE::SAMPLERATE = 44100;
+UInt YSE::SAMPLERATE = 48000;
 
 YSE::DEVICE::managerObject& YSE::DEVICE::Manager() {
   static managerObject d;
@@ -40,10 +42,11 @@ void YSE::DEVICE::managerObject::updateDeviceList() {
   d.addOutputChannelName("Right");
   d.setOutputLatency(100);
   // Reflect the actual rate Oboe negotiated with the device, if the stream is
-  // already open; otherwise fall back to the conservative 44.1 kHz default.
+  // already open; otherwise fall back to the 48 kHz default (the native rate
+  // on effectively all modern Android devices).
   const UInt rate = implementation.getNegotiatedSampleRate() > 0
                         ? (UInt)implementation.getNegotiatedSampleRate()
-                        : 44100u;
+                        : 48000u;
   d.addAvailableSampleRate(rate);
   devices.push_back(d);
 }
@@ -58,13 +61,22 @@ void YSE::DEVICE::managerObject::pause() {
 }
 
 void YSE::DEVICE::managerObject::resume() {
-  implementation.Resume();
+  // A restarted stream needs time before its first callback arrives, exactly
+  // like a freshly opened one, so it counts as a stream start (issue #681).
+  if (implementation.Resume()) notifyStreamStarted();
   open = true;
 }
 
-void YSE::DEVICE::managerObject::addCallback() {
-  implementation.Start(YSE::DEVICE::Manager().getMaster().GetBuffers().size());
-  // YSE::Log().sendMessage("androidDeviceManager: Callback Added");
+Bool YSE::DEVICE::managerObject::addCallback() {
+  // Hand the application-requested rate (issue #646) to the Oboe stream
+  // builder; 0 means no request and Oboe negotiates the device rate.
+  if (implementation.Start(YSE::DEVICE::Manager().getMaster().GetBuffers().size(),
+                           (int32_t)getRequestedSampleRate())) {
+    notifyStreamStarted();
+    return true;
+  }
+  // No stream is running: system::init() reports that (issue #973).
+  return false;
 }
 
 unsigned int YSE::DEVICE::managerObject::GetCallbacksSinceLastUpdate() {
@@ -74,13 +86,27 @@ unsigned int YSE::DEVICE::managerObject::GetCallbacksSinceLastUpdate() {
 void YSE::DEVICE::managerObject::serviceReconnect() {
   // Runs on the control thread (system::update). Hands the pending reopen to the
   // Oboe implementation, which rebuilds a disconnected stream off the error
-  // thread (issue #200).
-  implementation.serviceReconnect();
+  // thread (issue #200). A rebuilt stream is a stream start (issue #681).
+  if (implementation.serviceReconnect()) notifyStreamStarted();
 }
 
-void YSE::DEVICE::managerObject::openDevice(const YSE::deviceSetup& object) {
-  // android only has one device for now
-  return;
+Bool YSE::DEVICE::managerObject::openDevice(const YSE::deviceSetup& object) {
+  // android only has one device for now, so there is nothing to switch to and
+  // the request cannot fail. Reported as success so system::openDevice() keeps
+  // applying the requested speaker layout here, which is what this backend has
+  // always done (issue #665).
+  //
+  // The stream keeps the session rate, so a setup rate that differs from it is
+  // reported rather than silently dropped, as on PortAudio (issue #971).
+  const UInt requested = object.sampleRate > 0.0 ? (UInt)std::lround(object.sampleRate) : 0u;
+  if (requested != 0 && requested != SAMPLERATE) {
+    INTERNAL::LogImpl().emit(E_WARNING,
+                             "Requested device sample rate " + std::to_string(requested) +
+                                 " Hz ignored: the session runs at " + std::to_string(SAMPLERATE) +
+                                 " Hz. Call System().requestSampleRate() before init() "
+                                 "to change it.");
+  }
+  return true;
 }
 
 void YSE::DEVICE::managerObject::close() {

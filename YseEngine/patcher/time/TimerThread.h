@@ -46,7 +46,57 @@ namespace YSE {
       template <typename... Args>
       timerID setTimeout(boundHandlerType<Args...> handler, millisec period, Args&&... args);
 
+      // Change the interval of an already-scheduled periodic timer (issue
+      // #625). Without this a caller can only restart the timer, which loses
+      // the phase of the cycle it is in and — for `.metro` — was impossible
+      // from inside the callback at all.
+      //
+      // Rescheduling rule: the next expiry moves to *previous expiry +
+      // msPeriod*. When the period shrinks past the part of the current cycle
+      // that has already elapsed, that instant is in the past; the timer then
+      // fires as soon as the worker wakes rather than skipping the beat. A
+      // period that grows simply pushes the pending expiry out.
+      //
+      // Callable from any thread, *including from inside the timer's own
+      // callback* — the worker releases the lock across the callback, so there
+      // is no self-deadlock. In that case the timer is not queued and only the
+      // stored period is updated; the worker's own `next += period` reschedule
+      // then applies the same rule.
+      //
+      // Returns false for an unknown id or a non-positive period (a periodic
+      // timer is never silently degraded into a one-shot), true otherwise.
+      bool SetPeriod(timerID id, millisec msPeriod);
+
+      // Retire a timer, and the one guarantee that holds however it is called:
+      // **no callback for this id begins after this returns**.
+      //
+      // What it costs depends on where the caller stands, and the class works
+      // that out itself rather than asking the caller to know (issue #722):
+      //
+      //  - **Off the timer worker**, with the callback in flight, it *blocks*
+      //    until the worker has finished that callback and dropped the timer —
+      //    the stop-means-stopped handshake that lets an owner be destroyed
+      //    while its timer is firing. Any number of threads may ask at once;
+      //    they all wait out the same retirement.
+      //  - **From inside the timer's own callback** it records the retirement
+      //    and returns. There is nothing to wait for: the completion a wait
+      //    would block on is the calling thread's, and until #722 that wait was
+      //    a permanent park of the one worker in the process (issue #721).
+      //    The timer is retired by the worker the moment the callback returns,
+      //    so no further tick comes out; what the caller does *not* get is a
+      //    promise that no callback is running, since one is — its own.
+      //
+      // Still not for the audio callback: it takes a mutex, and off the worker
+      // it blocks. `timerBridge` (#718) is what a real-time caller uses.
+      //
+      // Returns false only for an id no live timer has.
       bool ClearTimer(timerID id);
+
+      // Retire every timer. Blocks out in-flight callbacks exactly as
+      // ClearTimer does, and is callable from inside a callback for the same
+      // reason: the timer running the caller is retired on return rather than
+      // waited for, so the sweep cannot spin on a map only this thread can
+      // empty (issue #722).
       void Clear();
 
       std::size_t size() const noexcept;
@@ -76,15 +126,16 @@ namespace YSE {
         Duration period;
         timerFunc func;
 
-        // you must be holding the sync lock to assign wait cond
-        std::unique_ptr<ConditionVar> waitCond;
-
+        // The worker is inside `func()` right now. Set and cleared by the
+        // worker only, under `sync`.
         bool running = false;
-        // Set by the worker before notify_all() on the cancellation path; the
-        // destroyImpl predicate checks this to guard against spurious wakeup
-        // (cpp:S5404). The worker no longer erases from `active` itself —
-        // destroyImpl does, so this Timer is alive across the predicate read.
-        bool destroyed = false;
+        // Retirement has been asked for while `func()` was in flight. The node
+        // then belongs to the worker until the callback returns — it holds the
+        // `std::function` that is executing — so nothing else may erase it, and
+        // a second or third request for the same id has nothing left to do but
+        // wait for (or, on the worker, hand over) the same retirement. Written
+        // under `sync` (issue #722).
+        bool cancelled = false;
       };
 
       // comparison functor to sort the timer queue
@@ -102,12 +153,40 @@ namespace YSE {
       void timerThreadWorker();
       bool destroyImpl(ScopedLock& lock, TimerMap::iterator i, bool notify);
 
+      // Whether the caller is the thread that runs this object's callbacks —
+      // the question `ClearTimer` could previously only answer by asking the
+      // caller to know (issue #722). Combined with `Timer::running` it is
+      // exact: the worker is a single thread this object spawned and it runs
+      // one callback at a time, so a running timer seen *from* the worker is by
+      // construction the one whose callback is on this stack.
+      //
+      // A member rather than a thread_local, unlike
+      // `patcherImplementation::CallingThread` (#690) and `.metro`'s bang frame
+      // (#721): the question is per *instance* — the tests build their own
+      // timers, and a callback on one object's worker may legitimately block on
+      // another's — so a thread_local would have to carry the instance anyway.
+      // `sync` must be held: `worker` is assigned under it.
+      bool onWorkerThread() const noexcept;
+
+      // Drop `timer`'s entry from the queue, matched on identity. Returns false
+      // when it was not queued (its callback is running, or it is retiring).
+      // `queue.erase(timer)` is the by-key overload and would take *every*
+      // entry with an equivalent deadline — the multiset is keyed on `next`, so
+      // two timers due at the same instant are equivalent keys and clearing one
+      // would silently unschedule the other. `sync` held.
+      bool unqueue(Timer& timer);
+
       timerID nextId;
       TimerMap active;
       Queue queue;
 
       mutable Lock sync;
       ConditionVar wakeUp;
+      // Signalled by the worker when it retires a cancelled timer. One per
+      // object rather than one per timer: waiters name the *id* they are
+      // waiting for and re-check `active`, so nothing dereferences a Timer node
+      // it does not own and any number of them may wait on one retirement.
+      ConditionVar retired;
       std::thread worker;
       bool done;
     };

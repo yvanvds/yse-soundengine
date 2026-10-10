@@ -1,4 +1,5 @@
-/*
+/**
+  @file
   yse_music.h — music-theory primitives (note, positioned note, scale,
   motif) + the generative player sequencer.
   C ABI mirror of YseEngine/music/ + YseEngine/player/playerInterface.hpp.
@@ -22,21 +23,39 @@
 extern "C" {
 #endif
 
-/* Owned — release with yse_note_destroy. */
+#ifndef YSE_C_HANDLE_YseNote
+#define YSE_C_HANDLE_YseNote
+/** Owned — release with yse_note_destroy. */
 typedef struct YseNote YseNote;
-/* Owned — release with yse_pnote_destroy. */
+#endif
+#ifndef YSE_C_HANDLE_YsePNote
+#define YSE_C_HANDLE_YsePNote
+/** Owned — release with yse_pnote_destroy. */
 typedef struct YsePNote YsePNote;
-/* Owned — release with yse_scale_destroy. */
+#endif
+#ifndef YSE_C_HANDLE_YseScale
+#define YSE_C_HANDLE_YseScale
+/** Owned — release with yse_scale_destroy. */
 typedef struct YseScale YseScale;
-/* Owned — release with yse_motif_destroy. */
+#endif
+#ifndef YSE_C_HANDLE_YseMotif
+#define YSE_C_HANDLE_YseMotif
+/** Owned — release with yse_motif_destroy. */
 typedef struct YseMotif YseMotif;
-/* Owned — release with yse_player_destroy. */
+#endif
+#ifndef YSE_C_HANDLE_YsePlayer
+#define YSE_C_HANDLE_YsePlayer
+/** Owned — release with yse_player_destroy. */
 typedef struct YsePlayer YsePlayer;
+#endif
 
-/* Forward declaration — the synth a player drives. Owned by the caller and
+#ifndef YSE_C_HANDLE_YseSynth
+#define YSE_C_HANDLE_YseSynth
+/** Forward declaration — the synth a player drives. Owned by the caller and
    created via yse_synth_create (see yse_synth.h); it must outlive the player.
    The player feeds every note it generates into this synth's lock-free inbox. */
 typedef struct YseSynth YseSynth;
+#endif
 
 /* ─── note ────────────────────────────────────────────────────────── */
 
@@ -60,13 +79,15 @@ YSE_C_API YsePNote* yse_pnote_create(float position, float pitch, float volume, 
 YSE_C_API void yse_pnote_destroy(YsePNote* n);
 YSE_C_API void yse_pnote_set_position(YsePNote* n, float position);
 YSE_C_API float yse_pnote_get_position(YsePNote* n);
-/* Inherited from note: */
+/** Inherited from note: */
 YSE_C_API void yse_pnote_set_pitch(YsePNote* n, float pitch);
 YSE_C_API void yse_pnote_set_volume(YsePNote* n, float volume);
 YSE_C_API void yse_pnote_set_length(YsePNote* n, float length);
 YSE_C_API float yse_pnote_get_pitch(YsePNote* n);
 YSE_C_API float yse_pnote_get_volume(YsePNote* n);
 YSE_C_API float yse_pnote_get_length(YsePNote* n);
+YSE_C_API void yse_pnote_set_channel(YsePNote* n, int channel);
+YSE_C_API int yse_pnote_get_channel(YsePNote* n);
 
 /* ─── scale — set of allowed pitches ──────────────────────────────── */
 
@@ -95,7 +116,7 @@ YSE_C_API unsigned int yse_motif_size(YseMotif* m);
 
 /* ─── player — generative sequencer ───────────────────────────────── */
 
-/* Create a generative player bound to `synth` and register it with the engine.
+/** Create a generative player bound to `synth` and register it with the engine.
    `synth` must be a live handle from yse_synth_create and must outlive the
    player — every note the player generates is delivered to it. Returns NULL
    (with yse_last_error() set) when `synth` is NULL or on allocation failure.

@@ -46,9 +46,11 @@ Channel
 
 :cpp:class:`YSE::channel` is a node in a mixing tree. Every sound is attached
 to a channel; channels can themselves be attached to a parent channel,
-forming a tree rooted at ``MainMix``. Child channels dispatch their DSP work
-to a thread pool, so spreading sounds across channels lets the engine
-parallelise mixing across cores.
+forming a tree rooted at ``MainMix``. Channels are there for mixing: shared
+volume, inserts and sends. They are not threads. The engine renders the
+whole tree as one set of tasks that the audio thread shares with a pool of
+render workers, and it splits a busy channel into several tasks by itself,
+so you never add channels to use more cores. See :doc:`threading`.
 
 A small set of pre-built channels (``ChannelMaster``, ``ChannelMusic``,
 ``ChannelAmbient``, ``ChannelVoice``, ``ChannelGui``, ``ChannelFX``) is
@@ -98,8 +100,9 @@ presets as plain text.
 
 The full set of registered object types — every inlet, outlet,
 parameter, and accepted message type — is listed on the
-:doc:`../api/patcher_objects` reference page, generated directly from
-the engine source so it can never drift.
+:doc:`/patcher/objects/index` reference page, generated directly from
+the engine source so it can never drift. The :doc:`/patcher/index`
+section covers the patcher in depth.
 
 Putting it together
 -------------------

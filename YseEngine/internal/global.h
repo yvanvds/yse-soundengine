@@ -16,6 +16,7 @@
 #include "../headers/types.hpp"
 #include "../classes.hpp"
 #include "threadPool.h"
+#include "renderScheduler.h"
 
 namespace YSE {
 
@@ -39,8 +40,60 @@ namespace YSE {
         return sampleRateLocked;
       }
 
+      // Which *kind* of session is up: true between init() and close(), false
+      // between initOffline() and close(), and false whenever no session is
+      // active at all (issue #719).
+      //
+      // The engine used to record only *that* a session was active, never
+      // whether the host asked for a device, so nothing downstream could tell
+      // the two apart. That is invisible in a fresh process — initOffline()
+      // skips Pa_Initialize, and every PortAudio call then fails closed — but
+      // Pa_Initialize runs once per process and the only call that undoes it
+      // (managerObject::terminate()) is private and destructor-only. So in any
+      // process that ever called init(), an offline session's resume() found a
+      // real default output device and opened a stream on it, which breaks
+      // renderOffline()'s single-threaded contract (deviceManager.h) by putting
+      // a live callback thread beside the caller's own render loop.
+      //
+      // Control thread only (system::initShared / close / openDevice write it,
+      // system::resume reads it); atomic to match `active` next to it.
+      bool isDeviceSession() {
+        return sessionHasDevice;
+      }
+
       void addSlowJob(threadPoolJob* job);
-      void addFastJob(threadPoolJob* job);
+
+      // The task-graph render scheduler (issue #859). The audio thread builds
+      // the channel graph into it and runs one block per callback (see
+      // CHANNEL::managerObject::render()).
+      renderScheduler& renderer() {
+        return render;
+      }
+
+      // Render worker count, applied now (issue #857). Internal hook for the
+      // render golden test and the render benchmarks; the public knob is
+      // requestRenderWorkers() below. -1 restores the auto-sized default
+      // (renderScheduler::autoWorkerCount()); 0 means no render workers at all
+      // — the rendering thread runs the whole task graph itself. Also becomes
+      // the request, so it persists across System::close()/init().
+      //
+      // Control thread only, and only while nothing renders: an offline session
+      // between renderOffline() calls, or no live audio callback. It joins and
+      // re-spawns the render workers (see renderScheduler::setWorkerCount).
+      void setRenderWorkerCount(Int numThreads);
+      // Resolved worker count currently in effect.
+      Int renderWorkerCount() const;
+
+      // The render thread-count setting (issue #861, System().renderThreads()).
+      // Any negative value means auto. Applied at once when that is safe — no
+      // session, or an offline session, whose renderOffline() runs on the
+      // calling thread — and otherwise stored for the next init(): a live
+      // device callback may be rendering, and re-sizing joins the workers.
+      // Persists across close()/init(). Control thread.
+      void requestRenderWorkers(Int numThreads);
+      Int requestedRenderWorkers() const {
+        return renderWorkersRequest.load();
+      }
 
       void flagForUpdate() {
         update++;
@@ -53,9 +106,12 @@ namespace YSE {
       }
 
       // Global named bus (issue #121). Constructed lazily in init() and
-      // destroyed in close() so subscribers, the SPSC queue, and the next
-      // handle counter do not persist across an init/close cycle. Calling
-      // namedBus() before init() or after close() is a programming error.
+      // destroyed in close() so no subscriber and no queued message persists
+      // across an init/close cycle. The handle counters are the deliberate
+      // exception: they are process-global (issues #389, #716) precisely so
+      // the next session cannot reissue a value a surviving subscriber still
+      // holds. Calling namedBus() before init() or after close() is a
+      // programming error.
       NamedBus& namedBus();
 
       // Embedded-CPython lifecycle (issue #124). These are no-ops unless the
@@ -99,13 +155,19 @@ namespace YSE {
       void close();
 
       threadPool slowThreads;
-      threadPool fastThreads;
+      renderScheduler render;
 
       std::unique_ptr<NamedBus> bus;
+
+      // See requestRenderWorkers(); -1 = auto.
+      aInt renderWorkersRequest{-1};
 
       aInt update;
       aBool active; // set true after System().init(), false at System().close()
       aBool sampleRateLocked;
+      // See isDeviceSession(). Set from initShared()'s openDevice argument,
+      // promoted by a successful system::openDevice(), cleared at close().
+      aBool sessionHasDevice;
 
       friend class YSE::system; // system needs access to the init and close method
     };

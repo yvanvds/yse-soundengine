@@ -4,7 +4,7 @@
 //
 // Two layers:
 //   * DSP / allocator tests drive a SYNTH::implementationObject directly (no
-//     engine, no audio device needed — SAMPLERATE is initialised to 44100 by
+//     engine, no audio device needed — SAMPLERATE is initialised to 48000 by
 //     the device translation unit at static-init time). They exercise the
 //     allocator, stealing, click-free declick and mixing by pushing note
 //     messages and calling the aggregate outputSource's process().
@@ -15,6 +15,8 @@
 #include <doctest/doctest.h>
 #include <chrono>
 #include <cmath>
+#include <cstddef>
+#include <memory>
 #include <thread>
 #include <vector>
 
@@ -30,7 +32,9 @@
 #include "internal/time.h"
 #include "support/audio_helpers.hpp"
 #include "support/alloc_probe.hpp"
+#include "support/inflight_delete.hpp"
 #include "support/null_device.hpp"
+#include "support/timer_pacing.hpp"
 
 using namespace std::chrono_literals;
 
@@ -255,6 +259,53 @@ TEST_SUITE("synth") {
     CHECK(maxDelta < 0.5f);
   }
 
+  TEST_CASE("synth stealing: the steal fade follows the live rate (issue #637)") {
+    // stealFadeSamples was computed once in setup(), but a synth impl survives
+    // a system::close()/init() cycle and the next session can negotiate a
+    // different rate — the ~5 ms declick then lasted the wrong wall-clock
+    // time. renderBlock() now re-derives it per block from the live rate.
+    TestHelpers::ScopedSampleRate atBuild(44100);
+    implementationObject impl(nullptr);
+    sineVoice proto;
+    proto.attack(0.001f).decay(0.001f).sustain(1.f).release(0.5f);
+    impl.addVoiceGroup(&proto, 1, 0, 0, 127); // single voice -> next note steals
+    impl.setup(); // stealFadeSamples baked for 44100 here (pre-fix)
+
+    // "Reopen" at 96 kHz: the fade must last 5 ms of 96 kHz clock (480
+    // samples), not the 220 samples the 44.1 kHz session derived.
+    TestHelpers::ScopedSampleRate atRun(96000);
+    impl.sendMessage(noteOnMsg(1, 60, 1.f));
+    SOUND_STATUS intent = YSE::SS_WANTSTOPLAY;
+    renderBlock(impl, intent);
+    for (int i = 0; i < 30; ++i)
+      renderBlock(impl, intent); // note 60 sustains at full level
+
+    // Steal with a nearly-silent new note, so the stream after the trigger is
+    // dominated by the OLD note's forced fade.
+    impl.sendMessage(noteOnMsg(1, 67, 0.01f));
+    std::vector<float> stream;
+    for (int b = 0; b < 10; ++b) {
+      YSE::DSP::buffer& out = renderBlock(impl, intent);
+      float* p = out.getPtr();
+      for (unsigned s = 0; s < out.getLength(); ++s)
+        stream.push_back(p[s]);
+    }
+
+    auto windowMax = [&](size_t lo, size_t hi) {
+      float m = 0.f;
+      for (size_t i = lo; i < hi && i < stream.size(); ++i)
+        m = std::max(m, std::fabs(stream[i]));
+      return m;
+    };
+
+    // 240..400 samples into the fade the old note is still audible at a
+    // 96 kHz-derived window (gain 0.17..0.5); the stale 220-sample window has
+    // already cut it to silence there.
+    CHECK(windowMax(240, 400) > 0.05f);
+    // ...and by 700+ samples the (correct) 480-sample fade has finished.
+    CHECK(windowMax(700, 1024) < 0.02f);
+  }
+
   // ─── all notes off ────────────────────────────────────────────────────────
 
   TEST_CASE("synth: allNotesOff releases every held voice") {
@@ -346,6 +397,9 @@ TEST_SUITE("synth") {
     impl.sendMessage(noteOnMsg(1, 70, 1.f)); // steal
     for (int i = 0; i < 40; ++i)
       renderBlock(impl, intent);
+    // Construct the suite's pacing reference before the probe is armed: its
+    // first use allocates on the calling thread (issue #753).
+    TestHelpers::paceTicks();
 
     {
       TestHelpers::ProbeScope probe;
@@ -363,13 +417,19 @@ TEST_SUITE("synth") {
   // ─── manager / lifecycle (needs a live engine) ────────────────────────────
 
   namespace {
+    // Pump the managers over a window of `n` * 5 deliveries of the suite's
+    // reference timer rather than of `n` * 5 milliseconds (issue #753): the
+    // drain stretches with machine load exactly as the managers' own workers
+    // do, while a wedged worker still fails the caller's check.
     void drainSynth(int n = 16) {
-      for (int i = 0; i < n; ++i) {
-        YSE::INTERNAL::Time().update();
-        YSE::SOUND::Manager().update();
-        YSE::SYNTH::Manager().update();
-        std::this_thread::sleep_for(5ms);
-      }
+      TestHelpers::pacedPump(
+          n * 5, [] { return false; },
+          [] {
+            YSE::INTERNAL::Time().update();
+            YSE::SOUND::Manager().update();
+            YSE::SYNTH::Manager().update();
+          },
+          5);
     }
   } // namespace
 
@@ -419,6 +479,53 @@ TEST_SUITE("synth") {
     }
     drainSynth(8);
     CHECK(true);
+  }
+
+  TEST_CASE("synth lifecycle: a release marked during an in-flight delete job is still "
+            "reclaimed (issue #992)") {
+    if (!TestHelpers::engineInit()) return;
+
+    // SYNTH::Manager().update() cleared its delete request even when the
+    // previous delete job was still running, and that job may already have
+    // walked past the impl the request was for — which then stayed in the
+    // canonical list, so the settle below could not succeed. Staging: see
+    // support/inflight_delete.hpp.
+    constexpr int kBulk = 2000;
+    constexpr int kRounds = 5;
+    auto& mgr = YSE::SYNTH::Manager();
+    auto tick = [&mgr] { mgr.update(); };
+
+    for (int round = 0; round < kRounds; ++round) {
+      const std::size_t before = mgr.implementationCount();
+
+      std::vector<std::unique_ptr<YSE::synth>> bulk;
+      bulk.reserve(kBulk);
+      for (int i = 0; i < kBulk; ++i) {
+        bulk.push_back(std::make_unique<YSE::synth>());
+        bulk.back()->create();
+      }
+      auto x = std::make_unique<YSE::synth>(); // last: heads the canonical list
+      x->create();
+      // Bring every impl to OBJECT_READY in the working list. Setup runs on the
+      // slow pool, and parking + unparking the pool's one worker is a FIFO
+      // barrier behind whatever a tick queued: tick one drains the inbox and
+      // queues setup, tick two re-queues it if an earlier, already-running
+      // setup job missed these impls, and tick three promotes them.
+      for (int i = 0; i < 3; ++i) {
+        tick();
+        TestHelpers::PoolBlocker barrier;
+        REQUIRE(barrier.Park());
+        barrier.Unpark();
+      }
+
+      REQUIRE(TestHelpers::releaseDuringInFlightDelete(
+          tick, [&] { bulk.clear(); }, [&] { x.reset(); }));
+
+      const bool reclaimed = TestHelpers::pacedPump(
+          5000, [&mgr, before] { return mgr.implementationCount() <= before; }, tick, 2);
+      CHECK_MESSAGE(reclaimed, "round " << round << " stranded a released synth impl");
+      if (!reclaimed) break;
+    }
   }
 
 } // TEST_SUITE("synth")

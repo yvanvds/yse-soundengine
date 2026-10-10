@@ -31,7 +31,7 @@ namespace YSE {
       class API bandPassFilter : public dspObject {
       public:
         bandPassFilter();
-        virtual ~bandPassFilter() {};
+        ~bandPassFilter() override {};
 
         /** @brief Set the centre frequency in Hz. */
         bandPassFilter& frequency(Flt value);
@@ -46,10 +46,10 @@ namespace YSE {
         Flt getQ();
 
         /** @brief dspObject lifecycle hook — allocates buffers. */
-        virtual void create();
+        void create() override;
 
         /** @brief dspObject audio-thread entry point. */
-        virtual void process(MULTICHANNELBUFFER& buffer);
+        void process(MULTICHANNELBUFFER& buffer) override;
 
       private:
         aFlt parmFrequency;

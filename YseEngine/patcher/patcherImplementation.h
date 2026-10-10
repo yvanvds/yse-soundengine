@@ -5,9 +5,12 @@
 #include "../dsp/buffer.hpp"
 #include "patcher.hpp"
 #include "graphState.h"
+#include "time/messageScheduler.h"
+#include "io/fileScheduler.h"
 #include "../utils/mpmcQueue.hpp"
 #include "../internal/threadPool.h"
 #include <atomic>
+#include <cstddef>
 #include <cstdint>
 #include <map>
 #include <mutex>
@@ -21,7 +24,7 @@ namespace YSE {
     class patcherImplementation : public pObject {
     public:
       patcherImplementation(int mainOutputs, patcher* head);
-      virtual ~patcherImplementation();
+      ~patcherImplementation() override;
 
       // Patcher name used as the bus prefix for inner gSend / gReceive
       // routing (issue #122). Default is an auto-generated "patcher_<N>"
@@ -30,11 +33,57 @@ namespace YSE {
       const std::string& Name() const {
         return patcherName;
       }
-      void SetName(const std::string& n);
+      // Refuses — logs and keeps the current name — a name longer than
+      // MAX_PATCHER_NAME_LENGTH, so every scoped address stays within
+      // MAX_SCOPED_ADDRESS_LENGTH (issue #921). An empty name restores the
+      // auto-generated "patcher_<N>" name (issue #896) rather than producing
+      // a "patcher..<slot>" address. Control thread only.
+      void SetName(const std::string& requested);
 
-      virtual const char* Type() const;
-      virtual void ResetDSP();
-      virtual void Calculate(THREAD thread);
+      // Address budget (issue #921). NamedBus copies a T_DSP publish's name
+      // into a fixed kNameCapacity-byte slot and truncates anything longer,
+      // while the in-patcher PassData path never truncates — so an address
+      // that does not fit would name one receiver locally and another on the
+      // bus. The limit that matters is the *whole* "patcher.<name>.<slot>"
+      // address, so it is split here into a patcher-name bound (enforced by
+      // SetName) and a slot-name bound (enforced by .forward / .bag / .table
+      // on their runtime names), and patcherImplementation.cpp asserts the sum
+      // fits the bus. The new check is SetName's, on the control thread; the
+      // slot bound stays the same constant compare it always was, independent
+      // of the patcher's name, so a rename can never invalidate a name an
+      // object already accepted.
+      static constexpr std::size_t SCOPED_ADDRESS_PREFIX_OVERHEAD = sizeof("patcher.") - 1 + 1;
+      static constexpr std::size_t MAX_PATCHER_NAME_LENGTH = 55;
+      static constexpr std::size_t MAX_SLOT_NAME_LENGTH = 63;
+      static constexpr std::size_t MAX_SCOPED_ADDRESS_LENGTH =
+          SCOPED_ADDRESS_PREFIX_OVERHEAD + MAX_PATCHER_NAME_LENGTH + MAX_SLOT_NAME_LENGTH;
+
+      // The one place a name-scoped object's address is spelled (issue #893).
+      // Every bus / shared-store address an object inside this patcher uses is
+      // ScopedAddress(name); objects that append a runtime name on the audio
+      // thread (gBag, gForward, gTable) cache ScopedAddressPrefix() instead and
+      // reserve prefix.size() + MAX_SLOT_NAME_LENGTH up front so the append never
+      // allocates. Both allocate, so they are control thread only — reached
+      // from SetParams / SetParent / OnPatcherRenamed, never from Calculate.
+      // Form: "patcher.<patcherName>.<name>" (issue #894). Patchers with the
+      // same name share one scope; the auto-name keeps anonymous ones apart.
+      std::string ScopedAddressPrefix() const;
+      std::string ScopedAddress(const std::string& name) const;
+
+      // This patcher's bus origin (issue #943): a process-unique, non-zero tag
+      // its .s / .forward put on every bus publish, and its .r subscribes with as
+      // the origin to ignore. The in-patcher path already delivered the value to
+      // those .r objects, so the bus echo would be a second copy; a .r in another
+      // patcher with the same name has a different origin and still takes it.
+      // Never reused, so a publish still queued from a destroyed patcher cannot
+      // be mistaken for a newer one's.
+      std::uint64_t BusOrigin() const {
+        return busOrigin_;
+      }
+
+      const char* Type() const override;
+      void ResetDSP() override;
+      void Calculate(THREAD thread) override;
 
       // Run the patcher as an in-place insert effect over a host buffer
       // (issue #167): feed the incoming audio to the graph's ~adc objects,
@@ -42,14 +91,13 @@ namespace YSE {
       // See the definition for the host/graph channel-count contract.
       void ProcessAsInsert(MULTICHANNELBUFFER& io);
 
-      // The GraphState pinned for the block currently being rendered, or null
-      // between blocks. Read by inlets/outlets to resolve topology without a
-      // lock (issue #226).
-      const GraphState* CurrentBlockGraph() const {
-        return currentBlockGraph_.load(std::memory_order_acquire);
-      }
+      // Inlets and outlets resolve topology through a graphReadScope
+      // (graphState.h): the block's pinned snapshot on the thread rendering
+      // it (issues #226, #962), the pinned published snapshot on any other
+      // thread (issue #963). It reads the members below directly.
+      friend class graphReadScope;
 
-      virtual void SetMessage(const std::string&, float) {}
+      void SetMessage(const std::string&, float) override {}
 
       pHandle* CreateObject(const std::string& type, const std::string& args);
       void DeleteObject(pHandle* obj);
@@ -62,15 +110,172 @@ namespace YSE {
       // path and publish it with the usual GraphState swap. Control thread.
       void SetObjectParams(YSE::pHandle* handle, const std::string& args);
 
+      // Both refuse, with a log and without publishing, a null handle or one
+      // whose object another patcher owns (issue #934).
       void Connect(pHandle* from, int outlet, pHandle* to, int inlet);
       void Disconnect(pHandle* from, int outlet, pHandle* to, int inlet);
+
+      // ---- Subpatchers (issue #545) ----
+      //
+      // Nesting is storage-flat and address-nested: every object a patcher owns
+      // lives in `objects`, takes a graph id from the one id space and is
+      // compiled into the one GraphState, whatever subpatcher it is written
+      // inside. The whole of "nesting" is the `pObject::Container()` annotation
+      // these four maintain and read. Nothing here is reachable from the audio
+      // thread — see gSubpatcher.h for why that is the design rather than an
+      // accident of it.
+
+      // Put `obj` inside the subpatcher `container`, or at the top level when
+      // `container` is null. Control thread.
+      //
+      // Rejects, with a log and no change: a container that is not a `patcher`
+      // object, moving a subpatcher into itself or into one of its own
+      // descendants (which would make the containment graph cyclic and
+      // `DeleteObject`'s subtree walk non-terminating), and either handle not
+      // belonging to this patcher.
+      //
+      // Deliberately does **not** rebuild the graph: membership changes no
+      // edge, no pin and no id, so there is nothing for a new GraphState to
+      // say. What it does change is how a *later* Connect resolves a subpatcher
+      // façade, which is control-thread work either way.
+      void SetObjectContainer(YSE::pHandle* obj, YSE::pHandle* container);
+
+      // The subpatcher `obj` lives in, or null when it is at the top level.
+      YSE::pHandle* GetObjectContainer(YSE::pHandle* obj);
+
+      // How many inlets / outlets a subpatcher presents to its parent: one past
+      // the highest index claimed by a `.inlet` / `.outlet` object among its
+      // contents, or 0 when it has none. Sparse numbering therefore reports the
+      // shape the parent can address rather than the count of boundary objects
+      // — a subpatcher whose only `.inlet` is index 2 has three inlets, two of
+      // which go nowhere, which is what `Connect` will also tell you.
+      //
+      // These exist because a `patcher` object owns no pins of its own, so
+      // `NumInputs()` / `NumOutputs()` answer 0 for it. gSubpatcher.h has the
+      // reason that is a correctness requirement rather than an omission.
+      // 0 for a handle that is not a subpatcher.
+      int SubpatcherInlets(YSE::pHandle* container);
+      int SubpatcherOutlets(YSE::pHandle* container);
+
+      // The inlet a value addressed to `obj`'s inlet `pin` has to be delivered
+      // to: the object's own inlet, or — when `obj` is a subpatcher, which owns
+      // no pins — the inlet of the `.inlet` object standing for that pin. Null
+      // when there is no such pin at all.
+      //
+      // This is `pHandle::SetBang` / `SetIntData` / ... reaching the same
+      // answer `Connect` does, so that pushing a value into a subpatcher from
+      // the host and sending one down a cord into it mean the same thing. It
+      // returns the inlet rather than delivering into it because delivery must
+      // happen outside mtx: an ordinary send runs the whole subgraph behind the
+      // object, which may reach a `.forward` or a `.s` and take mtx on the
+      // control thread — the deadlock LoadbangObjects and TeardownObjects are
+      // shaped around. Only the lookup is locked, so a caller holds an
+      // objectPin (below) across the lookup and the delivery (issue #961).
+      PATCHER::inlet* ResolveInlet(pObject* obj, int pin);
+
+      // The outlet-side twin, for `pHandle::OutputDataType` (issue #942): the
+      // type `obj`'s outlet `pin` produces, resolved through a subpatcher's
+      // boundary the way `Connect` resolves a cord leaving it — the type of
+      // the `.outlet` / `~outlet` claiming that index. INVALID when no
+      // boundary object claims it. It returns a value rather than a pointer,
+      // so unlike ResolveInlet the whole read stays under mtx.
+      YSE::OUT_TYPE ResolveOutputType(pObject* obj, int pin);
+
+      // `pHandle::GetConnections` / `GetConnectionTarget` /
+      // `GetConnectionTargetInlet` for an object this patcher owns (issue
+      // #966). They read the outlet's live wiring, which Connect, Disconnect,
+      // DeleteObject and a structural SetParams rewrite under mtx, so they
+      // read it under mtx too — the #937 answer for the object-set enumeration.
+      // Not the published snapshot a send walks (#963): a send needs the pin
+      // because it cannot hold mtx across a fan-out that may take it again,
+      // while a query calls nothing that takes mtx, so it can simply hold the
+      // lock and answer from the wiring every edit writes — no ownership check,
+      // no fallback. Each returns a value, never a pointer into the wiring, so
+      // nothing outlives the lock. Control-thread only and never from under
+      // mtx (it is not recursive). `handle` must be one this patcher owns;
+      // its object is read under the lock, since a structural SetParams
+      // swaps it.
+      unsigned int OutletConnections(YSE::pHandle* handle, unsigned int outlet);
+      unsigned int OutletTarget(YSE::pHandle* handle, unsigned int outlet, unsigned int connection);
+      unsigned int OutletTargetInlet(YSE::pHandle* handle, unsigned int outlet,
+                                     unsigned int connection);
+
+      // `pHandle::GetGuiProperty` / `SetGuiProperty` / `GetParams` for an
+      // object this patcher owns (issue #968). GUI properties and the
+      // parameter string are plain strings that SetGuiProperty, a scalar
+      // SetParams and a structural SetParams's CopyStorageIdentity touch under
+      // mtx, so these read and write them under mtx, with the handle's object
+      // read under it as well. Same contract as the cord queries above.
+      std::string ObjectGuiProperty(YSE::pHandle* handle, const std::string& key);
+      void SetObjectGuiProperty(YSE::pHandle* handle, const std::string& key,
+                                const std::string& value);
+      std::string ObjectParams(YSE::pHandle* handle);
 
       std::string DumpJSON();
       void ParseJSON(const std::string& content);
 
+      // Take mtx (issue #937), so control-thread only and never from under mtx.
       unsigned int Objects();
       YSE::pHandle* GetHandleFromList(unsigned int obj);
       YSE::pHandle* GetHandleFromID(unsigned int objID);
+      // The same reads for a caller that already holds mtx — an object's
+      // DumpState, which DumpJSON runs under the lock.
+      unsigned int ObjectsUnlocked() const;
+      YSE::pHandle* GetHandleFromListUnlocked(unsigned int obj) const;
+      YSE::pHandle* GetHandleFromIDUnlocked(unsigned int objID) const;
+
+      // ---- Control-side object pins (issue #961) ----
+      //
+      // A control thread that looks an object up under mtx and uses it after
+      // mtx is released — `.preset`'s store and recall, a host `Set*` into a
+      // subpatcher's boundary — must not have the object freed under it by a
+      // DeleteObject / Clear / structural SetParams on another control thread.
+      // mtx cannot be held across the use: the use is an ordinary send that
+      // may reach PassData and take mtx again. So the caller holds an
+      // objectPin across lookup *and* use, taking it before the lookup. While
+      // any pin is held the reclaimer frees nothing retired, so an object
+      // found live under mtx stays allocated until the pin is dropped; the
+      // pass that runs after the last pin goes frees it as usual.
+      //
+      // The same counter is the control-side pin every control-thread send
+      // holds (graphReadScope, issue #963), which is why graphs are held back
+      // too: such a send walks a published snapshot, and the objects it
+      // names, for as long as its fan-out runs. The lock-free pHandle getters
+      // hold one too, taken before they load the handle's object, so an
+      // object a structural SetParams has just swapped out stays allocated
+      // under them (issue #968).
+      //
+      // Lock-free — one atomic add, one atomic sub — and it never waits. The
+      // audio thread never pins while rendering its own patcher and is never
+      // made to wait by a pin. Handles are not covered: DeleteObject frees a
+      // pHandle at once, so a pinned caller keeps the pObject*, never the
+      // pHandle*.
+      class objectPin {
+      public:
+        explicit objectPin(patcherImplementation& owner) : owner_(owner) {
+          owner_.objectPins_.fetch_add(1, std::memory_order_seq_cst);
+        }
+        ~objectPin() {
+          // Every use made under the pin happens-before the reclaimer's load
+          // that lets the object go.
+          owner_.objectPins_.fetch_sub(1, std::memory_order_seq_cst);
+        }
+        objectPin(const objectPin&) = delete;
+        objectPin& operator=(const objectPin&) = delete;
+        objectPin(objectPin&&) = delete;
+        objectPin& operator=(objectPin&&) = delete;
+
+      private:
+        patcherImplementation& owner_;
+      };
+
+      // The live object with storage ID `objID`, or null. Takes mtx, so
+      // control-thread only and never from under mtx; the result is only
+      // safe to use while an objectPin taken *before* this call is held.
+      pObject* GetObjectFromID(unsigned int objID);
+      // Every live object, appended to `out` (cleared first). Same contract
+      // as GetObjectFromID.
+      void CollectObjects(std::vector<pObject*>& out);
 
       // Number of retired GraphStates + objects still awaiting background
       // reclamation (issue #227). Diagnostics / tests only: takes reclaimMtx_,
@@ -113,7 +318,80 @@ namespace YSE {
       bool PassData(float value, const std::string& to, THREAD thread);
       bool PassData(const std::string& value, const std::string& to, THREAD thread);
 
+      // Which thread the caller is physically on, which is not always what its
+      // dispatch tag says (issue #690).
+      //
+      // `THREAD` answers "what should this delivery mean" — T_DSP is "we are
+      // mid-traversal, render it now", T_GUI is "set the state and let the
+      // block's own traversal render what you caused". A handler runs on
+      // whichever thread dispatched it and has no other way to tell the two
+      // apart, so it forwards the tag it was given. That is correct for
+      // *semantics* and wrong for *thread identity*: the three drains at the
+      // top of Calculate — the #225 value queue, the #628 deferred-message
+      // scheduler and the #683 file scheduler — all dispatch T_GUI **from the
+      // audio callback**. A T_GUI-tagged handler is therefore not necessarily
+      // on the control thread, and anything that reads the tag as a thread
+      // identity (a mutex, an allocation, a log string, a socket) breaks the
+      // audio thread when it is wrong.
+      //
+      // This is the missing predicate. It returns T_DSP when the calling
+      // thread is inside *this* patcher's Calculate(), whatever the tag says,
+      // and never downgrades a tag that already says T_DSP. Callers use it to
+      // pick a mechanism (lock-free vs. control-thread) while still forwarding
+      // the original tag for semantics. Wait-free: one thread_local load.
+      THREAD CallingThread(THREAD tag) const;
+
+      // Install (or clear, with nullptr) the outgoing-message handler. Returns
+      // once no other thread is still inside the handler it replaced (issue
+      // #907). Never call from the audio callback: it may wait.
       void SetHandler(oscHandler* handler);
+
+      // The patcher's deferred-message scheduler (issue #628). Objects reach it
+      // through pObject::Scheduler() to arm "send this, but later" from a
+      // message handler on any thread; Calculate drains what has come due at
+      // the top of every block, right after the #225 value queue.
+      messageScheduler* Scheduler() {
+        return &scheduler_;
+      }
+
+      // The patcher's bridge to the engine's named domain clocks (issue #688).
+      // Objects reach it through pObject::Clocks() to bind a clock by name from
+      // a message handler on any thread, and the scheduler reads beat positions
+      // through it when a deadline was armed on a clock rather than on the
+      // block counter. Built with the patcher — the table is a few hundred
+      // bytes, unlike the file scheduler's half megabyte, so there is nothing
+      // to defer. Non-const for the reason Scheduler() is: it is
+      // pObject::Clocks()'s destination, not an override of it.
+      clockBridge* Clocks() {
+        return &clocks_;
+      }
+
+      // The patcher's file-I/O scheduler (issue #683), or null until an object
+      // that can read or write files has joined. Objects reach it through
+      // pObject::FileIO() to ask for a file from a message handler on any
+      // thread; Calculate hands out what has finished at the top of every
+      // block, right after the deferred-message drain.
+      //
+      // Non-const to keep it out of pObject::FileIO()'s signature, exactly as
+      // Scheduler() sits beside pObject::Scheduler(): the two are a forwarder
+      // and its destination, not an override, and letting them collide would
+      // put this in clang-tidy's derived-method-shadowing bucket (issue #573).
+      fileScheduler* FileIO() {
+        return fileIO_.load(std::memory_order_acquire);
+      }
+
+      // Build the file scheduler if this patcher does not have one yet.
+      // Control thread only, and in practice always under mtx: every
+      // pObject::SetParent call site (CreateObjectUnlocked, ParseJSON,
+      // ReplaceObjectUnlocked) holds it, which is what makes the check-then-set
+      // below safe without one of its own. Built on demand rather than with the
+      // patcher because the slot table is half a megabyte and a patch with no
+      // file-capable object should not pay for it.
+      //
+      // Named apart from pObject::EnableFileIO (the forwarder objects call) for
+      // the same reason FileIO() is non-const: same-name, same-signature would
+      // read as an override of something that is not virtual.
+      void EnsureFileIO();
 
     private:
       // Kinds of deferred value message carried on the SPSC command queue
@@ -186,11 +464,44 @@ namespace YSE {
       // Plain/atomic stores only — no allocation, no locks.
       void ApplyPendingParams(const GraphState* g);
 
+      // The stores of one scalar plan. Called by ApplyPendingParams on the
+      // audio thread, and by SetObjectParams on the control thread for an
+      // object whose parameters are control-side (issue #941). No allocation,
+      // no locks.
+      static void ApplyParamOps(const ParamOp* ops, int count);
+
       // Structural re-parse: build a replacement object with the new params
       // off the live path, transfer identity (storage ID, GUI properties, the
       // pHandle), rewire surviving pin indices, publish, and retire the old
       // object through the epoch reclaimer. Caller holds mtx.
       void ReplaceObjectUnlocked(YSE::pHandle* handle, const std::string& args);
+
+      // The last pass of a load (issue #547): tell every object this ParseJSON
+      // created that the patch it is in has finished loading. Called by
+      // ParseJSON after the parsed graph has been published and after mtx has
+      // been released. See the definition for why it is the last thing a load
+      // does, why it is outside the lock, and why `CreateObject` has no
+      // counterpart.
+      void LoadbangObjects(const std::vector<pObject*>& loaded);
+
+      // Undo a ParseJSON that threw part-way through its build (issue #938):
+      // remove every object in `created` from the patcher again, unpublished,
+      // so the patcher is left exactly as it was before the load. Caller holds
+      // mtx and has not published any of them.
+      void DiscardLoadedUnlocked(const std::vector<pHandle*>& created);
+
+      // ParseJSON's build: create, nest and wire every record of `j` under
+      // mtx, then publish once. Appends each object it created to `loaded`
+      // for the loadbang pass. On a throw it has already rolled the objects
+      // back (DiscardLoadedUnlocked) and left `loaded` empty.
+      void BuildParsedGraph(nlohmann::json& j, std::vector<pObject*>& loaded);
+
+      // Pass one of teardown (issue #758): tell every object in this patcher
+      // that it is about to go away, while the patch is still whole. Called by
+      // Clear() before it takes mtx and starts unwiring. See the definition for
+      // the three orderings that make it correct — before any unwiring, outside
+      // mtx, and with a T_GUI tag.
+      void TeardownObjects();
 
       // Unlocked cores of CreateObject / Connect: do the structural mutation
       // assuming mtx is already held and publish nothing. The public wrappers
@@ -199,6 +510,70 @@ namespace YSE {
       // publish (this is why no per-op re-entrancy flag is needed — issue #228).
       pHandle* CreateObjectUnlocked(const std::string& type, const std::string& args);
       void ConnectUnlocked(pHandle* from, int outlet, pHandle* to, int inlet);
+
+      // Connect / Disconnect guard (issue #934), caller holds mtx: false, with
+      // a log naming `what`, when a handle is null or its object belongs to
+      // another patcher.
+      bool AcceptsHandlesUnlocked(pHandle* from, pHandle* to, const char* what) const;
+
+      // ---- Subpatcher boundary resolution (issues #545, #764), caller holds mtx ----
+      //
+      // A subpatcher object carries no pins, so an edge to or from one is
+      // always really an edge to or from the boundary object that stands for
+      // the pin — `.inlet` / `.outlet` for a message pin, `~inlet` / `~outlet`
+      // for a signal one. Connect and Disconnect resolve the façade *before*
+      // touching any wiring, so everything downstream of them — the graph
+      // compiler, DumpJSON, UnwireFromPeers, the reclaimer — only ever sees
+      // ordinary edges between ordinary objects and needs to know nothing about
+      // subpatchers.
+      //
+      // Adding the audio-rate pair changed nothing below the resolution: a
+      // signal boundary cord compiles to a plain DSP edge, `IsDSPStartPoint`
+      // and `HasActiveDSPConnection` place the boundary objects in the
+      // traversal with no help, and BuildGraph needed no change at all.
+
+      static bool IsSubpatcher(pObject* obj);
+      // Whether putting `obj` inside `container` would make the containment
+      // graph cyclic — i.e. whether `obj` is `container` or one of its
+      // ancestors. Both the live edit and the loader ask, because both can be
+      // handed a bad pairing and the consequence is the same: CollectSubtree's
+      // walk would never terminate. Caller holds mtx.
+      static bool ContainmentWouldCycle(pObject* obj, pObject* container);
+      // Which end of a subpatcher's boundary a lookup is about. Deliberately a
+      // *side* rather than an object type, because since issue #764 each side
+      // has two object types — the control-rate `.inlet` / `.outlet` and the
+      // audio-rate `~inlet` / `~outlet` — sharing one index space. They have to
+      // share it: a subpatcher has one set of inlet pins, numbered by the
+      // parent, and "inlet 2" is a single pin whose *rate* is a property of
+      // what sits behind it, not a second numbering. Two index spaces would
+      // leave `Connect(source, 0, sub, 2)` ambiguous and `SubpatcherInlets`
+      // unanswerable.
+      enum class BoundarySide { INLETS, OUTLETS };
+      // The index a boundary object claims, or -1 when `obj` is not a boundary
+      // object of that side. The one place the four boundary types are mapped
+      // to their `Index()`, so the two lookups below cannot come to disagree
+      // about which types belong to which side.
+      static int BoundaryIndexOf(pObject* obj, BoundarySide side);
+      // The boundary object claiming `index` on that side among the direct
+      // contents of `container`, or null. Linear over the object set, which is
+      // the right cost here: it runs on the control thread beside a full graph
+      // rebuild that is linear anyway, and re-deriving the boundary from the
+      // objects each time is what makes it impossible for a cached boundary
+      // table to go stale behind a create, a delete or a re-parse.
+      pObject* BoundaryChild(pObject* container, BoundarySide side, int index) const;
+      // One past the highest index claimed on that side among `container`'s
+      // contents; 0 when it has none.
+      int BoundaryPinCount(pObject* container, BoundarySide side) const;
+      // Rewrite (obj, pin) from a subpatcher façade to the boundary object that
+      // carries the pin, leaving anything else alone. False means the façade
+      // has no such boundary object, and the caller must not wire anything.
+      bool ResolveInletPin(pObject*& obj, int& pin) const;
+      bool ResolveOutletPin(pObject*& obj, int& pin) const;
+      // Every handle in the containment subtree rooted at `root`, `root`
+      // included, deepest-last. Iterative rather than recursive: the depth is
+      // whatever a patch author wrote, and SetObjectContainer's cycle check is
+      // what keeps this terminating.
+      void CollectSubtree(YSE::pHandle* root, std::vector<YSE::pHandle*>& out) const;
 
       // Compile the current object wiring into a fresh immutable GraphState.
       // Control-thread only (allocates). See graphState.h.
@@ -222,6 +597,27 @@ namespace YSE {
       // generation and drops the free-list, so ids from the old numbering are not
       // recycled into the reset space (issue #364). Caller holds mtx.
       void CompactGraphIdsIfEmpty();
+      // The storage ID a newly created object should carry (issue #730): the
+      // smallest non-negative number no live object in this patcher holds.
+      //
+      // Not a counter. A counter is what #730 left behind, and it only ever
+      // advanced, because the storage ID was also the impersonation guard the
+      // message and file schedulers compared and reusing it would have let a
+      // dead object's deferred message land on a live one. #733 moved that job
+      // to pObject::InstanceTag, which frees this number to be nothing but a
+      // storage key — and a storage key only has to be unique among the objects
+      // that are actually stored. Recomputing it from the live set keeps a
+      // patcher's numbering as small as the patch (a patcher that churns
+      // objects for hours still writes single digits) *and* keeps it
+      // deterministic, which a free-list could not: this patcher's free-list is
+      // refilled by the background reclaimer, so whether a freed number were
+      // available at the next create would depend on thread timing, and two
+      // identically-built patchers could serialise differently — the exact
+      // regression #730 was filed for.
+      //
+      // O(live objects) per create, on the control thread, next to a `new` and
+      // a full graph rebuild. Caller holds mtx.
+      int ClaimStorageID() const;
       // Build the next GraphState, publish it with one atomic swap, retire the
       // previous one, and schedule background reclamation.
       void RebuildAndPublish();
@@ -270,17 +666,46 @@ namespace YSE {
 
       std::mutex mtx;
       std::map<pHandle*, pObject*> objects;
-      oscHandler* oscHandle = nullptr;
+      // Outgoing-message handler (issue #907). Atomic because it is read on
+      // whichever non-audio thread emits an unmatched send — the host's, or the
+      // `.metro` timer worker's — while the host may install or clear it from
+      // another. Each dispatch loads it once, inside SendToHandler.
+      std::atomic<oscHandler*> oscHandle{nullptr};
+      // Dispatches currently between their load of oscHandle and the return of
+      // the handler call — what SetHandler's grace period waits on.
+      std::atomic<unsigned int> oscInFlight_{0};
+      // Deliver an unmatched message to oscHandle, if one is installed; false
+      // when none is. Control / timer threads only, never the audio callback.
+      template <typename F> bool SendToHandler(F&& send);
 
-      // Published topology snapshot the audio thread reads (issue #226). Only
-      // the control thread writes it, under mtx.
+      // Published topology snapshot the audio thread reads (issue #226), and
+      // control-thread sends read under a pin (issue #963). Only the control
+      // thread writes it, under mtx.
       std::atomic<const GraphState*> active_{nullptr};
       // Snapshot pinned for the duration of the block being rendered. Written
-      // by the audio thread at the start/end of Calculate.
+      // by the audio thread at the start/end of Calculate, and read only from
+      // inside that frame (graphReadScope and the T_DSP dispatch in
+      // PassBang/PassData both check the thread first — issue #962).
       std::atomic<const GraphState*> currentBlockGraph_{nullptr};
       // Monotonic count of rendered blocks; the reclaimer reads it (acquire) to
       // tell when the audio thread has advanced past a retired snapshot.
       std::atomic<std::uint64_t> audioBlock_{0};
+
+      // Domain-clock bindings (issue #688). Declared before the scheduler on
+      // purpose, for the same reason audioBlock_ is: the scheduler holds a
+      // pointer to it and must be constructed after and destroyed before it.
+      clockBridge clocks_;
+
+      // Deferred-message pending set (issue #628). Declared after audioBlock_
+      // on purpose: the scheduler holds a reference to it as its block clock,
+      // so it must be constructed after and destroyed before the counter.
+      messageScheduler scheduler_{audioBlock_, &clocks_};
+
+      // File-request table (issue #683), built on demand by EnableFileIO and
+      // owned until the patcher dies. Published atomically because Calculate
+      // reads it on the audio thread while the control thread may be adding the
+      // first file-capable object; once non-null it never changes again.
+      std::atomic<fileScheduler*> fileIO_{nullptr};
 
       // A deleted object awaiting reclamation. `epoch` is the block count at
       // retirement (the +2 grace is measured from it). `idGen` is the id-space
@@ -312,6 +737,10 @@ namespace YSE {
       // Set once at teardown to stop scheduling and re-arming reclaim passes so
       // the destructor's joins terminate. Read on the background pool.
       std::atomic<bool> shuttingDown_{false};
+      // Held objectPins (issue #961) and control-thread graphReadScopes (issue
+      // #963). Non-zero keeps ReclaimElapsed from freeing anything retired;
+      // read on the background pool.
+      std::atomic<unsigned int> objectPins_{0};
       // Per-patcher dense id counters for inlets / outlets. An id is fixed for a
       // live object's lifetime (the audio thread reads it unsynchronised to
       // index the pinned snapshot), so ids are never re-stamped while an object
@@ -352,9 +781,15 @@ namespace YSE {
       // handing inlet::SetList the const std::string& it expects.
       std::string listScratch_;
 
+      // The "patcher_<N>" identifier this patcher was born with. Kept so that
+      // SetName("") can hand it back (issue #896); declared before patcherName,
+      // which is initialised from it.
+      const std::string autoName_;
       // Bus-prefix for inner gSend/gReceive routing (issue #122). Defaulted
-      // to "patcher_<N>" in the ctor; mutated by SetName().
+      // to autoName_ in the ctor; mutated by SetName().
       std::string patcherName;
+      // See BusOrigin(). Set once in the ctor.
+      const std::uint64_t busOrigin_;
 
       std::string GetRecieveObjectsAsString();
     };

@@ -6,18 +6,27 @@ set(YSE_TEST_SOURCES
   main.cpp
   test_sanity.cpp
   support/alloc_probe.cpp
+  support/test_alloc_probe.cpp
   dsp/test_buffer.cpp
+  dsp/test_file_buffer.cpp
   dsp/test_ramp.cpp
   dsp/test_math_scalars.cpp
   dsp/test_math_converters.cpp
   dsp/test_oscillators.cpp
+  dsp/test_smoother.cpp
   utils/test_atomic.cpp
   utils/test_vector.cpp
   utils/test_lfqueue.cpp
   utils/test_mpmcqueue.cpp
   utils/test_interpolators.cpp
   utils/test_intrusive_list.cpp
+  utils/test_random.cpp
   internal/test_threadpool.cpp
+  internal/test_render_scheduler.cpp
+  internal/test_cpu_topology.cpp
+  internal/test_log_nothrow.cpp
+  internal/test_log_sink_concurrency.cpp
+  internal/test_time.cpp
   dsp/test_filters.cpp
   dsp/test_delay.cpp
   dsp/test_envelope.cpp
@@ -44,10 +53,185 @@ set(YSE_TEST_SOURCES
   patcher/test_graph.cpp
   patcher/test_nodes.cpp
   patcher/test_patcher_math.cpp
+  patcher/test_patcher_compare.cpp
+  patcher/test_patcher_bitwise.cpp
+  patcher/test_patcher_arithmetic_ops.cpp
+  patcher/test_patcher_elementary_math.cpp
+  patcher/test_patcher_trig.cpp
+  patcher/test_patcher_unit_conversions.cpp
+  patcher/test_patcher_drunk.cpp
+  patcher/test_patcher_urn.cpp
+  patcher/test_patcher_decide.cpp
+  patcher/test_patcher_prob.cpp
+  patcher/test_patcher_affix.cpp
+  patcher/test_patcher_sprintf.cpp
+  patcher/test_patcher_substitute.cpp
+  patcher/test_patcher_symbol.cpp
+  patcher/test_patcher_combine.cpp
+  patcher/test_patcher_spell.cpp
+  patcher/test_patcher_case.cpp
+  patcher/test_patcher_coll.cpp
+  patcher/test_patcher_dict.cpp
+  patcher/test_patcher_dict_compare.cpp
+  patcher/test_patcher_dict_deserialize.cpp
+  patcher/test_patcher_dict_group.cpp
+  patcher/test_patcher_dict_iter.cpp
+  patcher/test_patcher_dict_join.cpp
+  patcher/test_patcher_dict_pack.cpp
+  patcher/test_patcher_dict_print.cpp
+  patcher/test_patcher_dict_route.cpp
+  patcher/test_patcher_dict_serialize.cpp
+  patcher/test_patcher_dict_slice.cpp
+  patcher/test_patcher_dict_strip.cpp
+  patcher/test_patcher_dict_unpack.cpp
+  patcher/test_patcher_array.cpp
+  patcher/test_patcher_array_at.cpp
+  patcher/test_patcher_array_length.cpp
+  patcher/test_patcher_array_ends.cpp
+  patcher/test_patcher_array_position.cpp
+  patcher/test_patcher_array_find.cpp
+  patcher/test_patcher_array_indexmap.cpp
+  patcher/test_patcher_array_permute.cpp
+  patcher/test_patcher_array_sort.cpp
+  patcher/test_patcher_array_stats.cpp
+  patcher/test_patcher_array_slice.cpp
+  patcher/test_patcher_array_setops.cpp
+  patcher/test_patcher_array_concat.cpp
+  patcher/test_patcher_array_fill.cpp
+  patcher/test_patcher_array_flatten.cpp
+  patcher/test_patcher_array_convert.cpp
+  patcher/test_patcher_array_deserialize.cpp
+  patcher/test_patcher_array_iter.cpp
+  patcher/test_patcher_array_expr.cpp
+  patcher/test_patcher_array_compare.cpp
+  patcher/test_patcher_array_group.cpp
+  patcher/test_patcher_array_replace.cpp
+  patcher/test_patcher_array_regexp.cpp
+  patcher/test_patcher_array_routepass.cpp
+  patcher/test_patcher_array_random.cpp
+  patcher/test_patcher_array_stream.cpp
+  patcher/test_patcher_array_thin.cpp
+  patcher/test_patcher_array_tuplewise.cpp
+  patcher/test_patcher_array_wrap.cpp
+  patcher/test_patcher_bag.cpp
+  patcher/test_patcher_capture.cpp
+  patcher/test_patcher_funbuff.cpp
+  patcher/test_patcher_table.cpp
+  patcher/test_patcher_textfile.cpp
+  patcher/test_patcher_qlist.cpp
+  patcher/test_patcher_mtr.cpp
+  patcher/test_patcher_seq.cpp
+  patcher/test_patcher_file_io.cpp
+  patcher/test_patcher_delay.cpp
+  patcher/test_patcher_pipe.cpp
+  patcher/test_patcher_ratelimit.cpp
+  patcher/test_patcher_thresh.cpp
+  patcher/test_patcher_line.cpp
+  patcher/test_patcher_bline.cpp
+  patcher/test_patcher_charcode.cpp
+  patcher/test_patcher_anal.cpp
+  patcher/test_patcher_histo.cpp
+  patcher/test_patcher_mean.cpp
+  patcher/test_patcher_accum.cpp
+  patcher/test_patcher_extremum.cpp
+  patcher/test_patcher_running_extremum.cpp
+  patcher/test_patcher_past.cpp
+  patcher/test_patcher_change.cpp
+  patcher/test_patcher_togedge.cpp
+  patcher/test_patcher_scale.cpp
+  patcher/test_patcher_zmap.cpp
+  patcher/test_patcher_clip.cpp
+  patcher/test_patcher_pong.cpp
+  patcher/test_patcher_split.cpp
+  patcher/test_patcher_sel.cpp
+  patcher/test_patcher_trigger.cpp
+  patcher/test_patcher_bangbang.cpp
+  patcher/test_patcher_onebang.cpp
+  patcher/test_patcher_next.cpp
+  patcher/test_patcher_match.cpp
+  patcher/test_patcher_uzi.cpp
+  patcher/test_patcher_bondo.cpp
+  patcher/test_patcher_buddy.cpp
+  patcher/test_patcher_swap.cpp
+  patcher/test_patcher_cycle.cpp
+  patcher/test_patcher_bucket.cpp
+  patcher/test_patcher_spray.cpp
+  patcher/test_patcher_pack.cpp
+  patcher/test_patcher_pak.cpp
+  patcher/test_patcher_unpack.cpp
+  patcher/test_patcher_zl.cpp
+  patcher/test_patcher_join.cpp
+  patcher/test_patcher_unjoin.cpp
+  patcher/test_patcher_iter.cpp
+  patcher/test_patcher_listfunnel.cpp
+  patcher/test_patcher_forward.cpp
+  patcher/test_patcher_funnel.cpp
+  patcher/test_patcher_decode.cpp
+  patcher/test_patcher_router.cpp
+  patcher/test_patcher_matrix.cpp
+  patcher/test_patcher_routepass.cpp
+  patcher/test_patcher_route.cpp
+  patcher/test_patcher_value.cpp
+  patcher/test_message_scheduler.cpp
+  patcher/test_patcher_clock_bridge.cpp
+  patcher/test_patcher_transport.cpp
+  patcher/test_patcher_setclock.cpp
+  patcher/test_patcher_when.cpp
+  patcher/test_patcher_translate.cpp
+  patcher/test_patcher_timepoint.cpp
+  patcher/test_patcher_tempo.cpp
+  patcher/test_patcher_clocker.cpp
+  patcher/test_patcher_timer.cpp
+  patcher/test_patcher_slide.cpp
+  patcher/test_patcher_expr.cpp
+  patcher/test_patcher_vexpr.cpp
+  patcher/test_patcher_if.cpp
+  patcher/test_patcher_regexp.cpp
+  patcher/test_patcher_linedrive.cpp
+  patcher/test_patcher_midiin.cpp
+  patcher/test_patcher_midicodec.cpp
+  patcher/test_patcher_midiout.cpp
+  patcher/test_patcher_sysex.cpp
+  patcher/test_patcher_bendout.cpp
+  patcher/test_patcher_polypressure.cpp
+  patcher/test_patcher_xmidi.cpp
+  patcher/test_patcher_rpn.cpp
+  patcher/test_patcher_mpe.cpp
+  patcher/test_patcher_midiinfo.cpp
+  patcher/test_patcher_midiflush.cpp
+  patcher/test_patcher_makenote.cpp
+  patcher/test_patcher_stripnote.cpp
+  patcher/test_patcher_flush.cpp
+  patcher/test_patcher_sustain.cpp
+  patcher/test_patcher_poly.cpp
+  patcher/test_patcher_borax.cpp
+  patcher/test_patcher_offer.cpp
+  patcher/test_patcher_dial.cpp
+  patcher/test_patcher_incdec.cpp
+  patcher/test_patcher_print.cpp
+  patcher/test_patcher_loadbang.cpp
+  patcher/test_patcher_subpatcher.cpp
+  patcher/test_patcher_subpatcher_signal.cpp
+  patcher/test_patcher_teardown.cpp
+  patcher/test_patcher_tutorials.cpp
   patcher/test_math_wrappers.cpp
   patcher/test_dsp_objects.cpp
+  patcher/test_patcher_fresh_state.cpp
   patcher/test_generic_objects.cpp
   patcher/test_gui_objects.cpp
+  patcher/test_patcher_gui_protocol.cpp
+  patcher/test_patcher_rslider.cpp
+  patcher/test_patcher_xyslider.cpp
+  patcher/test_patcher_multislider.cpp
+  patcher/test_patcher_matrixctrl.cpp
+  patcher/test_patcher_function.cpp
+  patcher/test_patcher_kslider.cpp
+  patcher/test_patcher_nslider.cpp
+  patcher/test_patcher_nodes.cpp
+  patcher/test_patcher_itemlist.cpp
+  patcher/test_patcher_labelswitch.cpp
+  patcher/test_patcher_textedit.cpp
+  patcher/test_patcher_preset.cpp
   patcher/test_doc_coverage.cpp
   patcher/test_c_api_metadata.cpp
   patcher/test_patcher_bus.cpp
@@ -66,11 +250,15 @@ set(YSE_TEST_SOURCES
   channel/test_channel_layout.cpp
   channel/test_channel_dsp.cpp
   channel/test_channel_sends.cpp
+  channel/test_render_golden.cpp
+  channel/test_voice_slices.cpp
   channel/test_channel_underwater.cpp
   channel/test_c_api_channel.cpp
   sound/test_sound_state.cpp
   sound/test_sound_streaming.cpp
   sound/test_sound_bufferrace.cpp
+  sound/test_sound_multichannel_buffer.cpp
+  sound/test_sound_doppler.cpp
   sound/test_sound_impl.cpp
   sound/test_sound_concurrency.cpp
   sound/test_sound_bufferIO.cpp
@@ -90,6 +278,7 @@ set(YSE_TEST_SOURCES
   dsp/test_panner.cpp
   reverb/test_reverb_dsp.cpp
   reverb/test_reverb_concurrency.cpp
+  midi/test_midi_bytes.cpp
   midi/test_midifile.cpp
   midi/test_midifile_concurrency.cpp
   midi/test_midifile_alloc.cpp
@@ -110,10 +299,22 @@ set(YSE_TEST_SOURCES
   io/test_callback_counter.cpp
   system/test_named_bus.cpp
   system/test_c_api_bus.cpp
+  system/test_c_api_surface.cpp
+  system/test_device_layer.cpp
   system/test_system_active_state.cpp
+  system/test_offline_session.cpp
   system/test_lifecycle.cpp
+  system/test_render_placement.cpp
   clock/test_domain_clocks.cpp
   clip/test_clip_transport.cpp
+  clip/test_c_api_clip.cpp
+  # Low-coverage c_api surface (issue #568) — one `capilowcov` suite spread
+  # across the subsystem directories the wrapped TUs belong to.
+  dsp/test_c_api_dsp.cpp
+  music/test_c_api_music.cpp
+  midi/test_c_api_midi.cpp
+  patcher/test_c_api_patcher.cpp
+  system/test_c_api_lowcov.cpp
   integration/test_device.cpp
   integration/test_content_pack.cpp
   integration/test_synth_demos.cpp
@@ -135,6 +336,12 @@ endif()
 if(NOT ANDROID)
   list(APPEND YSE_TEST_SOURCES system/test_api_doc_coverage.cpp)
   set_source_files_properties(system/test_api_doc_coverage.cpp PROPERTIES
+    COMPILE_DEFINITIONS "YSE_REPO_ROOT=\"${CMAKE_SOURCE_DIR}\""
+  )
+  # The patcher tutorials' test (issue #883) loads the patch file tutorial 05
+  # walks through from TestResources/. Its other cases need no files and also
+  # run on Android.
+  set_source_files_properties(patcher/test_patcher_tutorials.cpp PROPERTIES
     COMPILE_DEFINITIONS "YSE_REPO_ROOT=\"${CMAKE_SOURCE_DIR}\""
   )
 endif()
@@ -189,7 +396,50 @@ set_source_files_properties(sound/test_sound_bufferrace.cpp PROPERTIES
   COMPILE_DEFINITIONS LIBSOUNDFILE_BACKEND
 )
 
+# test_sound_multichannel_buffer.cpp drives INTERNAL::soundFile directly too
+# (the MULTICHANNELBUFFER-backed create/read path, issue #658), so it needs the
+# same gate. Its public-API half compiles either way; only the white-box cases
+# are behind #if LIBSOUNDFILE_BACKEND.
+set_source_files_properties(sound/test_sound_multichannel_buffer.cpp PROPERTIES
+  COMPILE_DEFINITIONS LIBSOUNDFILE_BACKEND
+)
+
+# test_device_layer.cpp drives DEVICE::Manager() and its static paCallback
+# directly (issue #418). Both are declared in device/portaudioDeviceManager.h,
+# which is gated behind PORTAUDIO_BACKEND — defined PRIVATE on yse_objects, so
+# it does not reach test sources. Enable the gate for just this TU, same
+# treatment as LIBSOUNDFILE_BACKEND above, and add PortAudio's include path
+# since the header pulls in portaudio.h. Desktop only: Android builds the Oboe
+# backend instead, and the TU's PortAudio cases compile out there, leaving the
+# descriptor / setup / AudioTest cases which need no backend.
+if(NOT ANDROID)
+  set_source_files_properties(system/test_device_layer.cpp PROPERTIES
+    COMPILE_DEFINITIONS PORTAUDIO_BACKEND
+  )
+  target_include_directories(yse_tests PRIVATE ${PortAudio_INCLUDE_DIRS})
+endif()
+
 target_compile_features(yse_tests PRIVATE cxx_std_17)
+
+# Link the C++ runtime statically on MinGW (issue #697).
+#
+# support/alloc_probe replaces the global operator new to count allocations on
+# the paths that must not make any. PE/COFF has no cross-image symbol
+# interposition, so with a dynamically linked libc++ the explicitly
+# instantiated std::basic_string<char> stayed inside libc++.dll, where its
+# allocations resolve to that DLL's own operator new — past the replacement.
+# Every "this audio path allocates nothing" assertion aimed at a string build
+# (a log message above all) then passed by construction. Pulling the runtime
+# into the binary puts those instantiations back under the replacement;
+# support/test_alloc_probe.cpp measures that it worked, so losing it again
+# fails the suite instead of going quiet.
+#
+# ELF targets (Linux, Android) preempt across shared objects already and are
+# left on their normal dynamic runtime, which is also what the sanitizer legs
+# and the shipped library use.
+if(MINGW)
+  target_link_options(yse_tests PRIVATE -static-libstdc++)
+endif()
 
 # doctest uses __COUNTER__, which Clang warns about as a C2y extension.
 # Suppress it here rather than editing the vendored header. The NDK's bundled
@@ -244,10 +494,60 @@ add_test(
   # c-api lifecycle suites: it drives yse_system_init_offline()/close() —
   # the tap-invalidation-at-close contract is part of the surface under
   # test — so it runs in its own process (yse_tests_buscapi).
-  COMMAND yse_tests --test-suite-exclude=integration,lifecycle,synthlifecycle,synthpositioning,synthhandlers,synthbus,synthcapi,instrumentcapi,midisynth,playersynth,playercapi,sendstress,channelcapi,synthdemos,clock,clip,buscapi --duration=true
+  # `capisurface` (issue #417 device/reverb/log/listener/buffer-io C API) is
+  # excluded for the same family of reasons: it drives
+  # yse_system_init_offline(), swaps the process-global log sink, and installs
+  # the process-global BufferIO VFS hooks. It runs in its own process
+  # (yse_tests_capisurface).
+  # `logsafety` (issue #433 noexcept destructor logging, issue #820 sink
+  # threading) is excluded for the log-sink half of that same reason: it
+  # installs a sink that throws on every message, and then one that four
+  # threads emit into at once, neither of which any other suite logging
+  # concurrently in this process — a live audio thread above all — would
+  # survive. It runs in its own process (yse_tests_logsafety).
+  # `devicelayer` (issue #418 device / audio-IO layer) is excluded for the same
+  # family of reasons: it drives System::initOffline(), mutates the global
+  # DEVICE::Manager() singleton (updateDeviceList / close / pause / resume) and
+  # calls paCallback on the test thread. It runs in its own process
+  # (yse_tests_devicelayer).
+  # `capilowcov` / `capilowcovlife` (issue #568 low-coverage c_api surface) are
+  # excluded for the same family of reasons as `capisurface`: the suite drives
+  # yse_system_init_offline() and mutates process-global engine state (channels,
+  # sounds, clocks, the device manager), and its teardown half calls
+  # yse_system_close_current_device() / yse_system_close(). They run in
+  # yse_tests_capilowcov and yse_tests_capilowcovlife.
+  # `offlinesession` (issue #719 offline-session device contract) is excluded
+  # for two reasons at once: it drives System::init()/close() cycles, and it
+  # needs a process where PortAudio is up — the exact opposite of what
+  # `devicelayer` needs. It runs in yse_tests_offlinesession.
+  COMMAND yse_tests --test-suite-exclude=integration,lifecycle,synthlifecycle,synthpositioning,synthhandlers,synthbus,synthcapi,instrumentcapi,midisynth,playersynth,playercapi,sendstress,channelcapi,synthdemos,clock,clip,buscapi,capisurface,logsafety,devicelayer,offlinesession,capilowcov,capilowcovlife --duration=true
   WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
 set_tests_properties(yse_unit_tests PROPERTIES TIMEOUT 600)
+
+# The refusal that keeps the entry above from being bypassed (issue #712).
+#
+# Running `yse_tests` with no filter puts every suite the entry above excludes
+# back into one process, and that run does not merely fail — it faults with an
+# access violation after ~168 s, which is how a half-dead yse_tests.exe ends up
+# holding bin/yse_tests.exe against the next link. main() refuses instead.
+#
+# Both properties are load-bearing. PASS_REGULAR_EXPRESSION checks it is the
+# refusal talking (and, by superseding the exit code, tolerates the deliberate
+# non-zero status); TIMEOUT is what makes the case fail without the fix, where
+# the bare run neither prints this nor returns for those ~168 s. Deliberately
+# generous: an unrefused run is three orders of magnitude over it, so the
+# margin costs nothing and cannot flake on a loaded machine.
+add_test(
+  NAME    yse_tests_monolithic_refused
+  COMMAND yse_tests
+  WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+)
+set_tests_properties(yse_tests_monolithic_refused PROPERTIES
+  PASS_REGULAR_EXPRESSION "refusing to run the whole suite in one process"
+  TIMEOUT 30
+  LABELS tests
+)
 
 # Engine init/close lifecycle (issue #132). Isolated in its own process because
 # System::close() tears down process-global state (thread pools, named bus) that
@@ -295,6 +595,21 @@ add_test(
 )
 set_tests_properties(yse_tests_utils PROPERTIES LABELS utils)
 
+# Self-test for support/alloc_probe (issues #697, #701). Registered on its own
+# rather than folded into another suite because of what a failure means: not
+# that an engine path regressed, but that the probe stopped measuring what it
+# claims to — that it went blind to a shape of allocation, at which point every
+# "this audio path allocates nothing" assertion resting on it is vacuous, or
+# that it stopped being scoped to the thread that armed it, at which point those
+# same assertions can fail on unrelated background-pool work. Worth reading as
+# its own line in the ctest output. Needs no engine session.
+add_test(
+  NAME    yse_tests_probe
+  COMMAND yse_tests --test-suite=probe
+  WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+)
+set_tests_properties(yse_tests_probe PROPERTIES LABELS tests)
+
 add_test(
   NAME    yse_tests_patcher
   COMMAND yse_tests --test-suite=patcher --duration=true
@@ -303,10 +618,13 @@ add_test(
 set_tests_properties(yse_tests_patcher PROPERTIES LABELS patcher TIMEOUT 300)
 
 # Patcher concurrency stress test (issue #229), registered on its own so the
-# sanitizer CI legs can target just it (`ctest -R yse_tests_patcher_concurrency`)
-# under TSan/ASan without paying for the whole suite — the `concurrency` label
-# is shared with the channel/sound/reverb concurrency tests, so the sanitizer
-# presets match by name, not by label. It also runs as part of yse_tests_patcher.
+# TSan CI leg can target just it (`ctest -R yse_tests_patcher_concurrency`)
+# without paying for the whole suite under a 20-30x slowdown — the `concurrency`
+# label is shared with the channel/sound/reverb concurrency tests, so the
+# sanitizer presets match by name, not by label. It also runs as part of
+# yse_tests_patcher, which is what the ASan leg runs in full since issue #727:
+# every `concurrency:*` case lives in TEST_SUITE("patcher"), so the wide ASan
+# gate strictly subsumes this one and the two are not run twice.
 add_test(
   NAME    yse_tests_patcher_concurrency
   COMMAND yse_tests --test-case=concurrency:* --duration=true
@@ -320,6 +638,19 @@ add_test(
   WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
 set_tests_properties(yse_tests_channel PROPERTIES LABELS channel)
+
+# Render golden test (issue #857): the mix must be bit-identical for 0, 1, 2
+# and N render workers — the correctness oracle for the render-scheduler work
+# (epic #856). Also part of the monolithic yse_unit_tests entry, and so of the
+# dev-push TSan sweep; this entry is what the per-PR TSan gate runs. In its own
+# process it is always the only renderer; in the shared one it skips if an
+# earlier suite left a live audio stream running (never on headless CI).
+add_test(
+  NAME    yse_tests_rendergolden
+  COMMAND yse_tests --test-suite=rendergolden
+  WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+)
+set_tests_properties(yse_tests_rendergolden PROPERTIES LABELS "channel;concurrency" TIMEOUT 300)
 
 add_test(
   NAME    yse_tests_sound
@@ -429,6 +760,168 @@ add_test(
   WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
 set_tests_properties(yse_tests_buscapi PROPERTIES LABELS "system;c-api;lifecycle")
+
+# C-API device / reverb / log / listener / buffer-io surface (issue #417).
+# Drives the five previously untested c_api translation units through the flat
+# C ABI under an offline engine. Isolated in its own process for three reasons
+# that each apply on their own: it calls yse_system_init_offline() (process-
+# global engine state), it swaps the process-global log sink while asserting on
+# the callback bridge, and it installs the process-global BufferIO VFS hooks.
+# initOffline() needs no audio hardware, so it runs in CI.
+add_test(
+  NAME    yse_tests_capisurface
+  COMMAND yse_tests --test-suite=capisurface
+  WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+)
+set_tests_properties(yse_tests_capisurface PROPERTIES LABELS "system;c-api;lifecycle")
+
+# Destructor-safe logging (issue #433) and the log sink's threading contract
+# (issue #820). The first half verifies INTERNAL::EmitNoThrow absorbs a log sink
+# that throws, where the plain emit() call it replaced propagated straight out
+# of an implicitly-noexcept destructor. The second drives several threads
+# through the sink at once and pins that a host handler is entered one call at a
+# time, which is what lets an embedder keep unsynchronised state behind
+# AddMessage(). Isolated in its own process because both halves swap the
+# process-global log sink — one for a handler that throws on every message, the
+# other for one four threads hammer; no engine session and no audio device, so
+# it runs on headless CI.
+add_test(
+  NAME    yse_tests_logsafety
+  COMMAND yse_tests --test-suite=logsafety
+  WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+)
+set_tests_properties(yse_tests_logsafety PROPERTIES LABELS internal)
+
+# Device / audio-IO layer (issue #418). Covers the descriptor and setup
+# plumbing, the PortAudio manager's error / enumeration paths, the audio
+# callback's clamp + partial-block copy, and the built-in diagnostic tone.
+# Everything runs against an offline engine with PortAudio deliberately never
+# initialised, which is what makes the "no devices" / "no default device"
+# branches deterministic — so it needs no audio hardware and runs on headless
+# CI. Isolated in its own process because it drives yse_system_init_offline()
+# and mutates the process-global DEVICE::Manager() singleton.
+#
+# This entry is load-bearing in a way the other isolated entries are not, and
+# issue #717 is about saying so out loud. "PortAudio never initialised" is a
+# property of the *process*: Pa_Initialize runs once, on the first init() that
+# opens a device, and the only call that undoes it — managerObject::terminate()
+# — is private and runs from the singleton's destructor at process exit. No
+# test can re-establish it; System::close() + initOffline() takes the stream
+# away, which is all initOffline() promises, and leaves PortAudio up. So this
+# suite and every suite that opens a device are mutually exclusive by
+# construction, in both directions:
+#
+#   * devicelayer needs no device to be reachable, and asserts branches that
+#     only exist in that state;
+#   * `system` (Tests/system/test_system_active_state.cpp) needs a live stream,
+#     and devicelayer's own setup legitimately closes it.
+#
+# Running them together is therefore not a bug to be fixed but a configuration
+# that cannot hold, and this separation is the design rather than a workaround.
+# Repairing the second direction was tried and measured: a helper that noticed
+# the closed stream and re-opened it puts a live PortAudio callback thread back
+# into a process whose unit suites drive Manager().update() from the test
+# thread, and the unfiltered run then aborts on lfQueue's reentrancy assertion
+# instead of failing three checks (see Tests/support/null_device.hpp).
+#
+# It is stated in the code too, once per direction: each suite carries a
+# contract case — "devicelayer: the suite has a process with no reachable audio
+# device" and "system: the live-device cases have a stream delivering audio" —
+# which fails, deliberately and by name, in any process that violates it, while
+# the cases depending on it skip with a message. Folding either suite in with
+# the other would trip those rather than pass silently.
+add_test(
+  NAME    yse_tests_devicelayer
+  COMMAND yse_tests --test-suite=devicelayer
+  WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+)
+set_tests_properties(yse_tests_devicelayer PROPERTIES LABELS "system;audio-io;lifecycle")
+
+# Offline-session device contract (issue #719). The mirror image of the entry
+# above, and isolated for the mirror-image reason: `devicelayer` needs a process
+# where PortAudio has never been initialised, this one needs a process where it
+# has. Both facts are properties of the process — Pa_Initialize runs once and
+# managerObject::terminate() is private and destructor-only — so neither suite
+# can establish its own, and the two must never share a binary run.
+#
+# The suite brings PortAudio up itself with one ordinary init()/pause()/close()
+# session, then asserts what a *subsequent* initOffline() session may not
+# acquire: System().resume() and the autoReconnect watchdog must not open the
+# real default output device on it, while System().openDevice() deliberately
+# may. It therefore needs real audio hardware; on headless CI every case skips
+# with a message, because a device that is not reachable cannot be wrongly
+# opened and there is nothing to stand in for it. The exception is the #973
+# case, which asserts that init() fails, and tears down, when no device opens —
+# headless CI is exactly where that branch runs.
+#
+# It also drives System::init()/close() cycles, which on its own is enough to
+# keep it out of the shared yse_unit_tests process (#298 lineage).
+add_test(
+  NAME    yse_tests_offlinesession
+  COMMAND yse_tests --test-suite=offlinesession
+  WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+)
+set_tests_properties(yse_tests_offlinesession PROPERTIES LABELS "system;audio-io;lifecycle")
+
+# Low-coverage C-API surface (issue #568, follow-up to #417). Covers the eight
+# c_api translation units that #566 left below ~50%: yse_dsp.cpp,
+# yse_dsp_modules.cpp, yse_music.cpp, yse_midi.cpp, yse_patcher.cpp,
+# yse_system.cpp, yse_channel.cpp and yse_sound.cpp. The cases live in five TUs
+# under the subsystem directories they mirror but share one suite name so they
+# also share one offline engine session (Tests/support/capilowcov_offline.hpp).
+# Isolated in its own process for the same reason as yse_tests_capisurface: it
+# drives yse_system_init_offline() and mutates process-global engine state.
+# initOffline() needs no audio hardware, so it runs on headless CI.
+add_test(
+  NAME    yse_tests_capilowcov
+  COMMAND yse_tests --test-suite=capilowcov
+  WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+)
+set_tests_properties(yse_tests_capilowcov PROPERTIES LABELS "system;c-api;lifecycle" TIMEOUT 300)
+
+# Teardown half of the same surface: yse_system_close_current_device() followed
+# by yse_system_close(). Split off from yse_tests_capilowcov rather than ordered
+# last inside it, because closing the device / the pools would pull the ground
+# out from under every other case sharing that process (#298 lineage).
+add_test(
+  NAME    yse_tests_capilowcovlife
+  COMMAND yse_tests --test-suite=capilowcovlife
+  WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+)
+set_tests_properties(yse_tests_capilowcovlife PROPERTIES LABELS "system;c-api;lifecycle")
+
+# Interleaving gate for the close()-driving suites (issue #715).
+#
+# Every entry above isolates one suite because it drives System::close(). What
+# nothing checked is what happens when two of them meet, and the arrangement
+# makes that possible even though each has its own entry: doctest orders test
+# *cases* by file, not by suite, and `capilowcov` is deliberately spread over
+# five translation units under the subsystem directories it mirrors. Those files
+# are not contiguous, so in any process that runs more than this suite, other
+# suites execute in the gaps — `buscapi` (system/test_c_api_bus.cpp) sorts
+# directly before capilowcov's last TU (system/test_c_api_lowcov.cpp).
+#
+# Its yse_system_close() pulled the session out from under the rest of
+# capilowcov, whose one-shot bootstrap could not notice, and the remaining cases
+# ran on into a torn-down engine: the access violation #715 reports, ~168 s into
+# the unfiltered run. Two defects met there — the latched bootstrap
+# (Tests/support/capilowcov_offline.hpp) and an engine one, the underwater
+# effect's reverb zone never being rebuilt after a close (issue #715, covered
+# on its own by yse_tests_lifecycle).
+#
+# This runs that trio in one process. It does not replace the isolated entries
+# above — they stay, and stay required — it pins the one interleaving known to
+# have been broken so a regression fails here rather than only in an
+# unsupported bare run.
+add_test(
+  NAME    yse_tests_close_interleaving
+  COMMAND yse_tests --test-suite=buscapi,capilowcov,capilowcovlife
+  WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+)
+set_tests_properties(yse_tests_close_interleaving PROPERTIES
+  LABELS "system;c-api;lifecycle"
+  TIMEOUT 300
+)
 
 add_test(
   NAME    yse_tests_midi
@@ -582,6 +1075,9 @@ target_compile_definitions(yse_tests PRIVATE
 )
 
 if(NOT ANDROID)
+  # Real-device suite. Not DISABLED (since 948e1c77): it runs in the default
+  # ctest set, and its device-dependent cases return early when no audio
+  # device opens, so it passes headless. `ctest -L integration` runs it alone.
   add_test(
     NAME    yse_tests_integration
     COMMAND yse_tests --test-suite=integration
@@ -612,10 +1108,185 @@ set_source_files_properties(
   patcher/test_graph.cpp
   patcher/test_nodes.cpp
   patcher/test_patcher_math.cpp
+  patcher/test_patcher_compare.cpp
+  patcher/test_patcher_bitwise.cpp
+  patcher/test_patcher_arithmetic_ops.cpp
+  patcher/test_patcher_elementary_math.cpp
+  patcher/test_patcher_trig.cpp
+  patcher/test_patcher_unit_conversions.cpp
+  patcher/test_patcher_drunk.cpp
+  patcher/test_patcher_urn.cpp
+  patcher/test_patcher_decide.cpp
+  patcher/test_patcher_prob.cpp
+  patcher/test_patcher_affix.cpp
+  patcher/test_patcher_sprintf.cpp
+  patcher/test_patcher_substitute.cpp
+  patcher/test_patcher_symbol.cpp
+  patcher/test_patcher_combine.cpp
+  patcher/test_patcher_spell.cpp
+  patcher/test_patcher_case.cpp
+  patcher/test_patcher_coll.cpp
+  patcher/test_patcher_dict.cpp
+  patcher/test_patcher_dict_compare.cpp
+  patcher/test_patcher_dict_deserialize.cpp
+  patcher/test_patcher_dict_group.cpp
+  patcher/test_patcher_dict_iter.cpp
+  patcher/test_patcher_dict_join.cpp
+  patcher/test_patcher_dict_pack.cpp
+  patcher/test_patcher_dict_print.cpp
+  patcher/test_patcher_dict_route.cpp
+  patcher/test_patcher_dict_serialize.cpp
+  patcher/test_patcher_dict_slice.cpp
+  patcher/test_patcher_dict_strip.cpp
+  patcher/test_patcher_dict_unpack.cpp
+  patcher/test_patcher_array.cpp
+  patcher/test_patcher_array_at.cpp
+  patcher/test_patcher_array_length.cpp
+  patcher/test_patcher_array_ends.cpp
+  patcher/test_patcher_array_position.cpp
+  patcher/test_patcher_array_find.cpp
+  patcher/test_patcher_array_indexmap.cpp
+  patcher/test_patcher_array_permute.cpp
+  patcher/test_patcher_array_sort.cpp
+  patcher/test_patcher_array_stats.cpp
+  patcher/test_patcher_array_slice.cpp
+  patcher/test_patcher_array_setops.cpp
+  patcher/test_patcher_array_concat.cpp
+  patcher/test_patcher_array_fill.cpp
+  patcher/test_patcher_array_flatten.cpp
+  patcher/test_patcher_array_convert.cpp
+  patcher/test_patcher_array_deserialize.cpp
+  patcher/test_patcher_array_iter.cpp
+  patcher/test_patcher_array_expr.cpp
+  patcher/test_patcher_array_compare.cpp
+  patcher/test_patcher_array_group.cpp
+  patcher/test_patcher_array_replace.cpp
+  patcher/test_patcher_array_regexp.cpp
+  patcher/test_patcher_array_routepass.cpp
+  patcher/test_patcher_array_random.cpp
+  patcher/test_patcher_array_stream.cpp
+  patcher/test_patcher_array_thin.cpp
+  patcher/test_patcher_array_tuplewise.cpp
+  patcher/test_patcher_array_wrap.cpp
+  patcher/test_patcher_bag.cpp
+  patcher/test_patcher_capture.cpp
+  patcher/test_patcher_funbuff.cpp
+  patcher/test_patcher_table.cpp
+  patcher/test_patcher_textfile.cpp
+  patcher/test_patcher_qlist.cpp
+  patcher/test_patcher_mtr.cpp
+  patcher/test_patcher_seq.cpp
+  patcher/test_patcher_file_io.cpp
+  patcher/test_patcher_delay.cpp
+  patcher/test_patcher_pipe.cpp
+  patcher/test_patcher_ratelimit.cpp
+  patcher/test_patcher_thresh.cpp
+  patcher/test_patcher_line.cpp
+  patcher/test_patcher_bline.cpp
+  patcher/test_patcher_charcode.cpp
+  patcher/test_patcher_anal.cpp
+  patcher/test_patcher_histo.cpp
+  patcher/test_patcher_mean.cpp
+  patcher/test_patcher_accum.cpp
+  patcher/test_patcher_extremum.cpp
+  patcher/test_patcher_running_extremum.cpp
+  patcher/test_patcher_past.cpp
+  patcher/test_patcher_change.cpp
+  patcher/test_patcher_togedge.cpp
+  patcher/test_patcher_scale.cpp
+  patcher/test_patcher_zmap.cpp
+  patcher/test_patcher_clip.cpp
+  patcher/test_patcher_pong.cpp
+  patcher/test_patcher_split.cpp
+  patcher/test_patcher_sel.cpp
+  patcher/test_patcher_trigger.cpp
+  patcher/test_patcher_bangbang.cpp
+  patcher/test_patcher_onebang.cpp
+  patcher/test_patcher_next.cpp
+  patcher/test_patcher_match.cpp
+  patcher/test_patcher_uzi.cpp
+  patcher/test_patcher_bondo.cpp
+  patcher/test_patcher_buddy.cpp
+  patcher/test_patcher_swap.cpp
+  patcher/test_patcher_cycle.cpp
+  patcher/test_patcher_bucket.cpp
+  patcher/test_patcher_spray.cpp
+  patcher/test_patcher_pack.cpp
+  patcher/test_patcher_pak.cpp
+  patcher/test_patcher_unpack.cpp
+  patcher/test_patcher_zl.cpp
+  patcher/test_patcher_join.cpp
+  patcher/test_patcher_unjoin.cpp
+  patcher/test_patcher_iter.cpp
+  patcher/test_patcher_listfunnel.cpp
+  patcher/test_patcher_forward.cpp
+  patcher/test_patcher_funnel.cpp
+  patcher/test_patcher_decode.cpp
+  patcher/test_patcher_router.cpp
+  patcher/test_patcher_matrix.cpp
+  patcher/test_patcher_routepass.cpp
+  patcher/test_patcher_route.cpp
+  patcher/test_patcher_value.cpp
+  patcher/test_message_scheduler.cpp
+  patcher/test_patcher_clock_bridge.cpp
+  patcher/test_patcher_transport.cpp
+  patcher/test_patcher_setclock.cpp
+  patcher/test_patcher_when.cpp
+  patcher/test_patcher_translate.cpp
+  patcher/test_patcher_timepoint.cpp
+  patcher/test_patcher_tempo.cpp
+  patcher/test_patcher_clocker.cpp
+  patcher/test_patcher_timer.cpp
+  patcher/test_patcher_slide.cpp
+  patcher/test_patcher_expr.cpp
+  patcher/test_patcher_vexpr.cpp
+  patcher/test_patcher_if.cpp
+  patcher/test_patcher_regexp.cpp
+  patcher/test_patcher_linedrive.cpp
+  patcher/test_patcher_midiin.cpp
+  patcher/test_patcher_midicodec.cpp
+  patcher/test_patcher_midiout.cpp
+  patcher/test_patcher_sysex.cpp
+  patcher/test_patcher_bendout.cpp
+  patcher/test_patcher_polypressure.cpp
+  patcher/test_patcher_xmidi.cpp
+  patcher/test_patcher_rpn.cpp
+  patcher/test_patcher_mpe.cpp
+  patcher/test_patcher_midiinfo.cpp
+  patcher/test_patcher_midiflush.cpp
+  patcher/test_patcher_makenote.cpp
+  patcher/test_patcher_stripnote.cpp
+  patcher/test_patcher_flush.cpp
+  patcher/test_patcher_sustain.cpp
+  patcher/test_patcher_poly.cpp
+  patcher/test_patcher_borax.cpp
+  patcher/test_patcher_offer.cpp
+  patcher/test_patcher_dial.cpp
+  patcher/test_patcher_incdec.cpp
+  patcher/test_patcher_print.cpp
+  patcher/test_patcher_loadbang.cpp
+  patcher/test_patcher_subpatcher.cpp
+  patcher/test_patcher_subpatcher_signal.cpp
+  patcher/test_patcher_teardown.cpp
+  patcher/test_patcher_tutorials.cpp
   patcher/test_math_wrappers.cpp
   patcher/test_dsp_objects.cpp
+  patcher/test_patcher_fresh_state.cpp
   patcher/test_generic_objects.cpp
   patcher/test_gui_objects.cpp
+  patcher/test_patcher_gui_protocol.cpp
+  patcher/test_patcher_rslider.cpp
+  patcher/test_patcher_xyslider.cpp
+  patcher/test_patcher_multislider.cpp
+  patcher/test_patcher_matrixctrl.cpp
+  patcher/test_patcher_function.cpp
+  patcher/test_patcher_kslider.cpp
+  patcher/test_patcher_nslider.cpp
+  patcher/test_patcher_nodes.cpp
+  patcher/test_patcher_itemlist.cpp
+  patcher/test_patcher_labelswitch.cpp
+  patcher/test_patcher_textedit.cpp
+  patcher/test_patcher_preset.cpp
   patcher/test_doc_coverage.cpp
   patcher/test_c_api_metadata.cpp
   patcher/test_patcher_bus.cpp
@@ -629,3 +1300,41 @@ set_source_files_properties(
   patcher/test_timerthread.cpp
   PROPERTIES COMPILE_FLAGS "${_patcher_test_suppress}"
 )
+
+# ── C99 header gate (issue #976) ─────────────────────────────────────────────
+# yse_common.h promises the public C headers to "any other C ABI client", and
+# some FFI generators and embedded toolchains still default to C99. Repeating a
+# typedef is only legal from C11 on, so a header that forward-declares a handle
+# without its YSE_C_HANDLE_<Type> guard compiles under C11 and C++ but breaks a
+# strict C99 client. Nothing else here compiles the headers as C at all — every
+# test TU is C++ — so this object library compiles each public header on its
+# own (included twice, to exercise the include guard) and yse_all.h, as strict
+# C99 with pedantic diagnostics as errors. It is built with the test tree, so
+# the Linux gcc / clang CI legs fail on a regression; nothing runs.
+#
+# GCC / Clang only: MSVC has no C99 mode (its C_STANDARD floor is C11).
+if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+  file(GLOB _yse_c_public_headers CONFIGURE_DEPENDS
+    "${CMAKE_SOURCE_DIR}/YseEngine/c_api/include/yse_c/*.h")
+  set(_yse_c99_srcs)
+  foreach(_hdr IN LISTS _yse_c_public_headers)
+    get_filename_component(_name "${_hdr}" NAME_WE)
+    set(_src "${CMAKE_CURRENT_BINARY_DIR}/c99_headers/${_name}_c99.c")
+    file(CONFIGURE OUTPUT "${_src}" CONTENT
+"/* Generated by Tests/CMakeLists.txt (issue #976) — do not edit. */
+#include \"yse_c/${_name}.h\"
+#include \"yse_c/${_name}.h\"
+typedef int yse_c99_header_check_${_name};
+" @ONLY)
+    list(APPEND _yse_c99_srcs "${_src}")
+  endforeach()
+  add_library(yse_c99_header_check OBJECT ${_yse_c99_srcs})
+  target_include_directories(yse_c99_header_check PRIVATE
+    "${CMAKE_SOURCE_DIR}/YseEngine/c_api/include")
+  set_target_properties(yse_c99_header_check PROPERTIES
+    C_STANDARD 99
+    C_STANDARD_REQUIRED ON
+    C_EXTENSIONS OFF)
+  target_compile_options(yse_c99_header_check PRIVATE
+    -pedantic-errors -Wall -Wextra -Werror)
+endif()

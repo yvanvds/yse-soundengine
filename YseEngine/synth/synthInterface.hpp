@@ -25,6 +25,10 @@
 
 namespace YSE {
 
+  namespace CLIP {
+    class transport; // befriended below (issue #975)
+  }
+
   namespace SYNTH {
 
     /**
@@ -225,6 +229,9 @@ namespace YSE {
 
       friend class YSE::sound; // sound::create(synth&, ...)
       friend class SYNTH::implementationObject; // impl holds our address
+      // A clip snapshots pimpl when it is destroyed, to release its notes after
+      // this interface may be gone (issue #975).
+      friend class CLIP::transport;
     };
 
   } // namespace SYNTH

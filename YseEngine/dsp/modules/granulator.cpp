@@ -35,12 +35,18 @@ namespace YSE {
           this->pool = pool;
           this->pitch = pitch;
 
-          // determine start position
+          // determine start position (#640): the random range is the pool
+          // length minus the grain length, computed in signed arithmetic and
+          // clamped so a grain longer than the pool never hands BigRandom a
+          // negative range. The wrap below must use >= like the three in-loop
+          // wraps in process() — with a strict > the position could come to
+          // rest at exactly pool->getLength(), one past the last sample.
           int offset = pool->cursor - pool->getPtr();
           int min = offset + this->waitTime;
-          int max = offset + this->waitTime + pool->getLength() - grainLength;
-          poolPos = min + BigRandom(max - min);
-          while (poolPos > pool->getLength())
+          int range = static_cast<int>(pool->getLength()) - static_cast<int>(grainLength);
+          if (range < 0) range = 0;
+          poolPos = min + BigRandom(range);
+          while (poolPos >= pool->getLength())
             poolPos -= pool->getLength();
 
           this->currentGain = 0;

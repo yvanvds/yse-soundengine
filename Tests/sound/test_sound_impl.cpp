@@ -37,6 +37,7 @@
 #include "implementations/listenerImplementation.h"
 #include "internal/virtualFinder.h"
 #include "support/null_device.hpp"
+#include "support/timer_pacing.hpp"
 
 namespace {
 
@@ -107,19 +108,26 @@ namespace {
   SilentSource g_srcs[8]; // size = max N used in multi-sound tests below
   NopDsp g_dsp;
   NopDsp g_dsp2;
+  NopDsp g_dsp3; // used only by the setDSP(nullptr) detach case (#578)
+  NopDsp g_dsp4; // used only by the release-detach / re-attach case (#838)
   DcSource g_dc;
   StereoDcSource g_dcStereo;
 
-  // Drive SOUND::Manager().update() several times, with short sleeps so the
-  // async setupJob has a chance to call setup() on freshly created sounds and
-  // they can be promoted to inUse on a subsequent update().  This is a
-  // best-effort drain; tests guard on observable side-effects rather than
+  // Drive SOUND::Manager().update() several times, with a short wait between
+  // them so the async setupJob has a chance to call setup() on freshly created
+  // sounds and they can be promoted to inUse on a subsequent update().  This is
+  // a best-effort drain; tests guard on observable side-effects rather than
   // asserting strict count of update iterations needed.
+  //
+  // The iteration count is what advances the manager's state machine, so it
+  // stays as it is; the wait between iterations is denominated in ticks of the
+  // suite's pacing reference rather than in milliseconds, so the setup job gets
+  // proportionally longer on a box that is running the pool slower (#753).
   void drainSoundManager(int iterations = 8) {
     for (int i = 0; i < iterations; i++) {
       YSE::INTERNAL::Time().update();
       YSE::SOUND::Manager().update();
-      std::this_thread::sleep_for(std::chrono::milliseconds(5));
+      TestHelpers::paceWindow(5);
     }
   }
 
@@ -311,6 +319,76 @@ TEST_SUITE("sound") {
     s.setDSP(&g_dsp2);
     drainSoundManager();
     CHECK(s.getDSP() == &g_dsp2);
+  }
+
+  TEST_CASE("sound impl: setDSP(nullptr) detaches the plugin instead of crashing") {
+    // Regression for #578: the DSP message payload used to be dereferenced
+    // unconditionally (addDSP took a reference), so the documented detach
+    // request — sound::setDSP(nullptr) / yse_sound_set_dsp(s, NULL) — wrote
+    // through a null pointer on the message-pump/audio thread. Mirrors the
+    // channel-side expectation in test_channel_underwater.cpp.
+    if (!TestHelpers::engineInit()) return;
+    YSE::sound s;
+    s.create(g_src);
+    drainSoundManager();
+
+    s.setDSP(&g_dsp3);
+    drainSoundManager();
+    CHECK(s.getDSP() == &g_dsp3);
+    // calledfrom is the engine-managed back-pointer addDSP installs.
+    CHECK(g_dsp3.calledfrom != nullptr);
+
+    s.setDSP(nullptr);
+    drainSoundManager();
+    CHECK(s.getDSP() == nullptr);
+    CHECK(g_dsp3.calledfrom == nullptr);
+  }
+
+  TEST_CASE("sound impl: releasing a sound detaches its DSP on the update thread") {
+    // Regression for #838: the DSP back-reference (dspObject::calledfrom) used
+    // to be cleared by ~implementationObject on the slow-pool delete job,
+    // racing a concurrent addDSP() on the update/audio thread that re-attached
+    // the same plugin to another sound (TSan, monolithic sweep). The detach now
+    // happens on the update thread at the OBJECT_RELEASE→OBJECT_DELETE
+    // transition, so:
+    //   (a) the back-reference is already severed once the release drain
+    //       completes, without waiting on the slow pool, and
+    //   (b) re-attaching the plugin to a fresh sound keeps the new
+    //       back-reference even after the old impl is reclaimed (the old
+    //       destructor could sever it — the ownership guard plus the
+    //       update-thread detach make that impossible).
+    // The race itself is pinned by the dev-push TSan sweep over this suite.
+    if (!TestHelpers::engineInit()) return;
+    {
+      YSE::sound a;
+      a.create(g_src);
+      drainSoundManager();
+      a.setDSP(&g_dsp4);
+      drainSoundManager();
+      CHECK(g_dsp4.calledfrom != nullptr);
+    } // ~sound flags the impl for release
+    // The release drain runs the RELEASE→DELETE transition on this (the
+    // update) thread; the back-reference must be gone regardless of whether
+    // the slow-pool delete job has run yet.
+    drainSoundManager();
+    CHECK(g_dsp4.calledfrom == nullptr);
+
+    // Re-attach the same plugin to a fresh sound: the new back-reference must
+    // survive the old impl's slow-pool destruction.
+    YSE::sound b;
+    b.create(g_src);
+    drainSoundManager();
+    b.setDSP(&g_dsp4);
+    drainSoundManager();
+    CHECK(b.getDSP() == &g_dsp4);
+    CHECK(g_dsp4.calledfrom != nullptr);
+
+    // Detach before b goes out of scope so the process-lifetime g_dsp4 never
+    // holds a back-pointer into a freed impl (same discipline as the other
+    // file-scope plugins above).
+    b.setDSP(nullptr);
+    drainSoundManager();
+    CHECK(g_dsp4.calledfrom == nullptr);
   }
 
   TEST_CASE("sound impl: MOVE message reconnects sound to another channel") {
@@ -1358,14 +1436,16 @@ TEST_SUITE("sound") {
     auto audible = [&]() { return leftPeak() > 1e-4f || rightPeak() > 1e-4f; };
 
     // Pump update+render until the async slow-pool setup promotes the sound and
-    // it mixes real signal. Best-effort with a deadline; if the host never
-    // delivers audio (e.g. no slow pool), there is nothing to assert.
-    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(3);
-    while (std::chrono::steady_clock::now() < deadline && !audible()) {
-      YSE::System().update();
-      YSE::System().renderOffline(2);
-      std::this_thread::sleep_for(std::chrono::milliseconds(5));
-    }
+    // it mixes real signal. Best-effort on a budget counted in ticks of the
+    // suite's pacing reference rather than in wall clock (#753); if the host
+    // never delivers audio (e.g. no slow pool), there is nothing to assert.
+    TestHelpers::pacedPump(
+        3000, audible,
+        [] {
+          YSE::System().update();
+          YSE::System().renderOffline(2);
+        },
+        5);
     if (!audible()) return;
 
     // Settled hard-left: left output carries the signal, right is ~silent.
@@ -1427,12 +1507,14 @@ TEST_SUITE("sound") {
     auto rightPeak = [&]() { return ch.getPeakLinearPre(1); };
     auto audible = [&]() { return leftPeak() > 1e-4f || rightPeak() > 1e-4f; };
 
-    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(3);
-    while (std::chrono::steady_clock::now() < deadline && !audible()) {
-      YSE::System().update();
-      YSE::System().renderOffline(2);
-      std::this_thread::sleep_for(std::chrono::milliseconds(5));
-    }
+    // Budget in pacing-reference ticks rather than wall clock (#753).
+    TestHelpers::pacedPump(
+        3000, audible,
+        [] {
+          YSE::System().update();
+          YSE::System().renderOffline(2);
+        },
+        5);
     if (!audible()) return;
 
     // Both source channels sum through the same left-dominant gains: left output

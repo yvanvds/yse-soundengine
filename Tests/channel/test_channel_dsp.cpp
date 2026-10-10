@@ -23,8 +23,6 @@
 // on the resulting buffers. Engine-dependent cases guard on engineInit().
 
 #include <doctest/doctest.h>
-#include <chrono>
-#include <thread>
 #include <vector>
 #include "channel/channelInterface.hpp"
 #include "channel/channelImplementation.h"
@@ -34,6 +32,7 @@
 #include "sound/soundManager.h"
 #include "internal/time.h"
 #include "support/null_device.hpp"
+#include "support/timer_pacing.hpp"
 #include "yse_c/yse_dsp_modules.h"
 
 namespace {
@@ -89,13 +88,31 @@ namespace {
     impl.parseMessage(m);
   }
 
-  void drainChannels(int iterations = 8) {
-    for (int i = 0; i < iterations; ++i) {
-      YSE::INTERNAL::Time().update();
-      YSE::SOUND::Manager().update();
-      YSE::CHANNEL::Manager().update();
-      std::this_thread::sleep_for(std::chrono::milliseconds(2));
-    }
+  // Channel setup and message application are async: create() queues setup()
+  // onto the slow-pool, and ATTACH_DSP messages are applied in sync(), which
+  // the manager runs only for impls it has already promoted to OBJECT_READY on
+  // the update thread. A fixed number of pump iterations is a bounded window
+  // that a loaded slow pool can miss entirely (issues #834/#835), so pump the
+  // managers until `ready()` — the completion signal — holds. The budget is
+  // denominated in reference-timer ticks rather than milliseconds (issue
+  // #753). Returns ready(), so a timed-out wait fails the caller's own
+  // assertion.
+  //
+  // IMPORTANT: `ready()` runs on the test thread *between* update() calls and
+  // may therefore poll only state that is published on this (the update)
+  // thread or otherwise synchronized. dspObject::calledfrom qualifies — the
+  // impl writes it while applying ATTACH_DSP in sync(), on this thread.
+  // channel::getNumOutputs() does NOT (issue #834's TSan lesson: it reads the
+  // `out` vector the slow-pool setup() may still be resizing).
+  template <typename P> bool drainChannelsUntil(P ready, int ticks = 5000) {
+    return TestHelpers::pacedPump(
+        ticks, ready,
+        [] {
+          YSE::INTERNAL::Time().update();
+          YSE::SOUND::Manager().update();
+          YSE::CHANNEL::Manager().update();
+        },
+        2);
   }
 } // namespace
 
@@ -364,17 +381,25 @@ TEST_SUITE("channel") {
     if (!TestHelpers::engineInit()) return;
     YSE::channel c;
     c.create("dsp_iface_channel", YSE::ChannelMaster());
-    drainChannels();
-    CHECK(c.getDSP() == nullptr);
+    CHECK(c.getDSP() == nullptr); // synchronous mirror — nothing attached yet
 
-    GainDsp gain(2.0f);
+    // Static so that on the (loud, kTimerStall-guarded) timeout path of the
+    // waits below a still-attached module points at live memory instead of a
+    // dead stack frame — the same shape as test_channel_metering's FenceDsp.
+    static GainDsp gain(2.0f);
     c.setDSP(&gain);
-    CHECK(c.getDSP() == &gain);
-    drainChannels();
+    CHECK(c.getDSP() == &gain); // the interface mirror updates synchronously
+    // The attach is applied by the impl's sync() on this (the update) thread
+    // once it reaches OBJECT_READY; `calledfrom` appearing is the completion
+    // signal, not a fixed drain window (#835).
+    CHECK(drainChannelsUntil([] { return gain.calledfrom != nullptr; }));
 
-    c.setDSP(nullptr); // detach so the stack module doesn't outlive the impl
+    c.setDSP(nullptr); // detach so the module doesn't outlive the impl
     CHECK(c.getDSP() == nullptr);
-    drainChannels();
+    // The wait the fixed window used to approximate is a lifetime guard:
+    // `calledfrom` clearing is the impl's signal that it has applied the
+    // detach and holds no pointer into the module any more (#835).
+    CHECK(drainChannelsUntil([] { return gain.calledfrom == nullptr; }));
   }
 
 } // TEST_SUITE("channel")

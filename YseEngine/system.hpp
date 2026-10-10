@@ -61,7 +61,13 @@ namespace YSE {
      *        re-derived, so driving ``init()`` and ``update()`` from different
      *        threads silently loses the named-bus inline fast path — see the
      *        ``update()`` threading note (issue #290).
-     *  @return ``true`` on success, ``false`` if no device could be opened.
+     *  @return ``true`` when a stream on the default output device is running,
+     *          ``false`` if no device could be opened: the audio backend
+     *          failed to start, there is no default output device, or the
+     *          device refused to open or start the stream. The reason is
+     *          logged. A failed call tears down everything it set up, so the
+     *          engine is left closed; call ``init()`` again, or
+     *          ``initOffline()`` to run without a device (issue #973).
      */
     bool init();
 
@@ -85,6 +91,10 @@ namespace YSE {
      *  output, which is discarded. Use only after ``initOffline()``;
      *  driving this concurrently with a live audio thread would race the
      *  manager-update path.
+     *
+     *  ``resume()`` cannot put such a thread there behind your back (issue
+     *  #719), but ``openDevice()`` deliberately can — after a successful
+     *  ``openDevice()`` on an offline session, stop driving this.
      */
     void renderOffline(int blocks);
 
@@ -136,13 +146,31 @@ namespace YSE {
      */
     void pause();
 
-    /** @brief Resume audio output after ``pause()``. */
+    /** @brief Resume audio output after ``pause()``.
+     *
+     *  Restarts the device *this session already had*; it is not a request for
+     *  one. On a session started with ``initOffline()`` — and on a closed
+     *  engine — there is no device to resume, so the call is a no-op with a
+     *  debug log line rather than an open of whatever the platform default
+     *  happens to be (issue #719). Use ``openDevice()`` to give an offline
+     *  session a device deliberately.
+     */
     void resume();
 
-    /** @brief Number of audio callbacks that have failed to complete on time.
+    /** @brief Consecutive ``update()`` ticks during which the audio device
+     *         delivered no callback.
      *
-     *  A non-zero value indicates the audio thread is starved or the device
-     *  has disconnected. Useful as a watchdog signal for ``autoReconnect``.
+     *  Reset to 0 by the first ``update()`` that sees a callback, so 0 means
+     *  "audio is flowing right now" and any non-zero value means it is not.
+     *
+     *  Non-zero does not by itself mean something is wrong: a stream that has
+     *  just been started (``init()``, ``resume()``, ``openDevice()``) is not
+     *  delivering callbacks yet either — the backend's start call returns
+     *  before the device runs, typically for tens of milliseconds. Reading this
+     *  in a loop until it returns 0 is the way to wait for a device to come up;
+     *  a value that keeps climbing is a starved audio thread or a disconnected
+     *  device. ``autoReconnect`` distinguishes the two itself and does not act
+     *  on this counter.
      */
     int missedCallbacks();
 
@@ -166,15 +194,75 @@ namespace YSE {
     /** @brief Number of audio output devices available. */
     unsigned int getNumDevices();
 
-    /** @brief Audio device at index ``nr``. */
+    /** @brief Audio device at index ``nr``.
+     *  @throws std::out_of_range if ``nr >= getNumDevices()``. Note that an
+     *          empty device list (offline or headless session) makes index 0
+     *          out of range.
+     */
     const device& getDevice(unsigned int nr);
 
     /** @brief Open an audio device.
      *
+     *  Allowed on a session started with ``initOffline()``, and a successful
+     *  call promotes it to a session with a device: ``pause()`` / ``resume()``
+     *  work on it from then on, and ``renderOffline()`` no longer does — a live
+     *  audio callback thread is now driving the same manager updates (issue
+     *  #719). Unlike ``resume()``, this call names the device it wants, so it
+     *  is taken at its word.
+     *
+     *  On desktop the promotion needs the audio backend to be running already:
+     *  ``initOffline()`` does not start PortAudio, and ``openDevice()`` does
+     *  not start it on demand, so the device list is empty and this returns
+     *  ``false`` with a log line in a process that has only ever run offline
+     *  sessions. In a process where an earlier ``init()`` started the backend,
+     *  the device list from that session is still there and the call works
+     *  (issue #972).
+     *
+     *  The stream opens at the session's sample rate, which is locked for the
+     *  whole session and need not be the device's default rate (an offline
+     *  session runs at the requested rate, or 48 kHz). A device that refuses
+     *  that rate is reported with a log line and nothing opens; choose the rate
+     *  with ``requestSampleRate()`` before ``init()`` / ``initOffline()``.
+     *
      *  @param object Device + host + sample-rate configuration.
      *  @param conf   Speaker layout. ``CT_AUTO`` picks stereo when possible.
+     *  @return ``true`` when the backend opened a stream for ``object``.
+     *          ``false`` when it refused the setup — no output device, an
+     *          output ID no host API resolves, a stream open error (a refused
+     *          session rate included), or a backend that was never started —
+     *          in which case the reason is logged, the
+     *          running stream and the mixer layout are left alone, and the
+     *          session is not promoted (issue #900).
      */
-    void openDevice(const deviceSetup& object, CHANNEL_TYPE conf = CT_AUTO);
+    bool openDevice(const deviceSetup& object, CHANNEL_TYPE conf = CT_AUTO);
+
+    /** @brief Set the speaker layout without opening an audio device.
+     *
+     *  ``openDevice()`` derives the layout from the device it actually opened,
+     *  which leaves a session with no device — ``initOffline()``, headless CI,
+     *  ``renderOffline()`` benchmarks — stuck on the stereo layout
+     *  ``initOffline()`` / ``init()`` install. This is the entry point for
+     *  those: it configures the mixer directly and claims nothing about a
+     *  device (issue #668).
+     *
+     *  Call it after ``init()`` / ``initOffline()`` — initialisation installs
+     *  the default stereo layout itself, so an earlier call is overwritten. The
+     *  new layout is picked up by the next audio callback (or the next
+     *  ``renderOffline()`` block), which resizes the master to match.
+     *
+     *  On a session that *does* have a device open, this configures the mixer
+     *  for a channel count the running stream may not have — that is the
+     *  caller's business here, and the reason ``openDevice()`` keeps its own
+     *  device-driven path rather than routing through this.
+     *
+     *  @param conf    Speaker layout. ``CT_AUTO`` derives one from @p outputs;
+     *                 ``CT_CUSTOM`` allocates @p outputs speakers and leaves
+     *                 their positions to be set afterwards.
+     *  @param outputs Number of output channels. Must be at least 1 — a
+     *                 zero-output layout silences the engine on the next
+     *                 callback, so it is refused with a log line.
+     */
+    system& setChannelConfiguration(CHANNEL_TYPE conf, int outputs);
 
     /** @brief Close the currently open audio device. */
     void closeCurrentDevice();
@@ -197,10 +285,19 @@ namespace YSE {
     /** @brief Number of MIDI output devices available. */
     unsigned int getNumMidiOutDevices();
 
-    /** @brief Name of the MIDI input device with the given ID. */
+    /** @brief Name of the MIDI input device with the given ID.
+     *
+     *  Empty when there is no such device — an ID at or past
+     *  ``getNumMidiInDevices()``, or any ID at all on a host where the MIDI
+     *  backend failed to come up (issue #585).
+     */
     const std::string getMidiInDeviceName(unsigned int ID);
 
-    /** @brief Name of the MIDI output device with the given ID. */
+    /** @brief Name of the MIDI output device with the given ID.
+     *
+     *  Empty when there is no such device, on the same terms as
+     *  ``getMidiInDeviceName``.
+     */
     const std::string getMidiOutDeviceName(unsigned int ID);
 #endif
 
@@ -277,9 +374,35 @@ namespace YSE {
 
     /** @brief Configure automatic device reconnection.
      *
+     *  The watchdog runs on ``update()``: when the device has delivered no
+     *  audio callback for ``delay`` milliseconds it closes and re-opens the
+     *  output stream, which picks up whatever the current default device is.
+     *
+     *  A stream that has just been started is not stalled — the backend's
+     *  start call returns before the device delivers its first callback — so a
+     *  stream that has yet to deliver is given a start-up grace period of half
+     *  a second regardless of ``delay``. Without it, a small ``delay`` would
+     *  tear down a perfectly healthy device that was still coming up, and the
+     *  replacement stream would be torn down for the same reason (issue #681).
+     *
+     *  On a session with no device — ``initOffline()``, headless CI — the
+     *  watchdog reaches the device through ``resume()`` like any other caller,
+     *  and ``resume()`` refuses there, so enabling it costs a pair of no-ops
+     *  per interval and can never graft a device onto such a session (issue
+     *  #719).
+     *
      *  @param on    When ``true``, the engine attempts to re-open the audio
      *               device after a disconnection (e.g. headphones unplugged).
-     *  @param delay Milliseconds to wait between reconnection attempts.
+     *  @param delay Milliseconds of silence before a reconnection attempt, and
+     *               the interval between further attempts while the device
+     *               stays unavailable. Negative values are clamped to 0.
+     *
+     *  @note Up to and including v2.4.0 this value was compared against a
+     *        count of ``update()`` calls rather than milliseconds, so the same
+     *        number meant a different wait on every host depending on how often
+     *        it called ``update()``. It is now the documented millisecond
+     *        value: existing callers passing a tick count get a shorter wall
+     *        clock wait than before on a host polling slower than 1 kHz.
      */
     system& autoReconnect(bool on, int delay);
 
@@ -300,6 +423,65 @@ namespace YSE {
      *  exist there.
      */
     float cpuLoad();
+
+    /** @brief Request the audio sample rate for the next engine session.
+     *
+     *  The sample rate is an application setting, fixed per session: call
+     *  this before ``init()`` (or ``initOffline()``) and the engine asks the
+     *  audio backend to open the device at ``rate`` Hz — threaded through to
+     *  ``Pa_OpenStream`` on desktop and the Oboe stream builder on Android.
+     *  The device may refuse or negotiate a different rate; the *negotiated*
+     *  result stays authoritative and is reported by ``getSampleRate()``. A
+     *  refused request is a log line plus the negotiated fallback, never an
+     *  error. Offline / headless sessions have no device to negotiate with
+     *  and run exactly at the requested rate.
+     *
+     *  Pass 0 to clear the request; the backend then opens at the device
+     *  default (the engine's pre-negotiation initial value is 48000).
+     *
+     *  Changing the rate of a running session means ``close()`` followed by
+     *  ``init()`` — calling this mid-session only stores the request for the
+     *  next session. The request survives ``close()``, so a host can set it
+     *  once for repeated init/close cycles. (issue #646)
+     */
+    system& requestSampleRate(unsigned int rate);
+
+    /** @brief Currently requested sample rate in Hz, or 0 when none is set. */
+    unsigned int requestSampleRate();
+
+    /** @brief Set how many worker threads help the audio thread render.
+     *
+     *  The mix is rendered as a task graph that the audio callback thread
+     *  works through together with ``count`` render workers (issue #861).
+     *
+     *  - ``-1`` (default, and any negative value): auto — the number of
+     *    physical cores minus one (the audio thread renders too, and the host
+     *    keeps a core), capped at 8. Only cores the process may run on
+     *    count, and on a hybrid CPU the workers are placed on performance
+     *    cores first (issue #862).
+     *  - ``0``: serial — the audio thread renders everything, no workers
+     *    are started. Use on constrained hardware.
+     *  - ``n > 0``: exactly ``n`` workers (at most 64).
+     *
+     *  Whatever the count, nobody is woken for a block estimated to cost less
+     *  than waking a worker: in real-time rendering the audio thread renders
+     *  such a block alone, so small scenes do not pay for idle workers. The
+     *  setting decides only which thread renders each part of the mix, never
+     *  how it is summed.
+     *
+     *  Call before ``init()`` / ``initOffline()``. On an offline session (or
+     *  with no session) the change applies at once; during a device session
+     *  it is stored and applied by the next ``init()``, since the live
+     *  callback may be rendering. The setting survives ``close()``.
+     */
+    system& renderThreads(int count);
+
+    /** @brief The render thread setting last requested: -1 for auto. */
+    int renderThreads();
+
+    /** @brief The number of render workers currently running (auto resolved;
+     *  a request deferred to the next session is not reflected yet). */
+    int activeRenderThreads();
 
     /** @brief Engine session sample rate in Hz.
      *
@@ -417,9 +599,21 @@ namespace YSE {
     // (c_api/yse_c_internal.hpp §callback bridge rules) — a plain pointer here
     // is a data race and licenses the compiler to cache the load (issue #199).
     std::atomic<occlusionFunc> occlusionPtr;
-    int currentlyMissedCallbacks;
-    bool doAutoReconnect;
-    int reconnectDelay;
+    int currentlyMissedCallbacks = 0;
+    bool doAutoReconnect = false;
+    // Milliseconds. See autoReconnect().
+    int reconnectDelay = 0;
+
+    // autoReconnect watchdog state (issue #681), touched only by update() and
+    // autoReconnect() on the control thread. `watchdogStreamStarts` is the
+    // device manager's stream-start count as of the last tick — a change means
+    // a stream was just opened and is still coming up;
+    // `watchdogAwaitingFirstCallback` stays set until that stream delivers;
+    // `watchdogSinceMs` is the steady-clock milliseconds stamp the current
+    // silence is measured from.
+    unsigned int watchdogStreamStarts = 0;
+    unsigned long long watchdogSinceMs = 0;
+    bool watchdogAwaitingFirstCallback = false;
   };
 
   /** @brief Access the singleton ``system`` object. */

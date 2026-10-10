@@ -88,6 +88,14 @@ Modular synthesis, presets, device resilience, MIDI.
    :maxdepth: 1
 
    05_patcher
+   11_patcher_step_sequencer
+   12_patcher_subpatched_voice
+   13_patcher_midi_synth
+   14_patcher_presets
+
+The four patcher tutorials after ``05_patcher`` have no demo program. Their
+code lives in ``Tests/patcher/test_patcher_tutorials.cpp``, where the test
+suite builds each patch, plays it and checks what it hears.
 
 Other demos in this phase:
 
@@ -113,6 +121,17 @@ mixing, and per-note 3D. These correspond to ``Demo18``–``Demo21``.
    08_instruments
    09_mixing_inserts_sends
    10_per_note_3d
+
+Phase 7 — Musical time
+----------------------
+
+Named beat clocks and clips that loop notes against them. This tutorial has
+no demo program.
+
+.. toctree::
+   :maxdepth: 1
+
+   15_clocks_and_clips
 
 How to follow along
 -------------------

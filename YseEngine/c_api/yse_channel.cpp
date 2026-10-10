@@ -4,9 +4,20 @@
 #include "../channel/channelInterface.hpp"
 #include "../dsp/dspObject.hpp"
 
+#include <cstring>
 #include <exception>
+#include <string>
 
 namespace {
+  size_t copy_string(const std::string& src, char* buf, size_t cap) {
+    if (buf != nullptr && cap > 0) {
+      const size_t n = src.size() < cap - 1 ? src.size() : cap - 1;
+      std::memcpy(buf, src.data(), n);
+      buf[n] = '\0';
+    }
+    return src.size();
+  }
+
   inline YSE::channel* to_cpp(YseChannel* ch) {
     return reinterpret_cast<YSE::channel*>(ch);
   }
@@ -168,9 +179,20 @@ YSE_C_API int yse_channel_is_valid(YseChannel* ch) {
   return to_cpp(ch)->isValid() ? 1 : 0;
 }
 
-YSE_C_API const char* yse_channel_get_name(YseChannel* ch) {
-  if (!ch) return "";
-  return to_cpp(ch)->getName();
+YSE_C_API size_t yse_channel_get_name(YseChannel* ch, char* buf, size_t cap) {
+  if (!ch) {
+    if (buf && cap > 0) buf[0] = '\0';
+    return 0;
+  }
+  return yse_c::guard_string("yse_channel_get_name", buf, cap,
+                             [&] { return copy_string(to_cpp(ch)->getName(), buf, cap); });
+}
+
+YSE_C_API void yse_channel_set_name(YseChannel* ch, const char* name) {
+  // NULL is treated as "" (clear), matching yse_synth_set_name. The engine's
+  // name() does the bus (de)registration and logs a duplicate-name rejection.
+  if (!ch) return;
+  yse_c::guard_void("yse_channel_set_name", [&] { to_cpp(ch)->name(name ? name : ""); });
 }
 
 YSE_C_API int yse_channel_get_num_outputs(YseChannel* ch) {

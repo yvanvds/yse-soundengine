@@ -22,14 +22,14 @@
 
 #include <doctest/doctest.h>
 
-#include <chrono>
+#include <algorithm>
 #include <cstdint>
 #include <cstdio>
 #include <fstream>
 #include <string>
-#include <thread>
 #include <vector>
 
+#include "support/timer_pacing.hpp"
 #include "yse_c/yse_instrument.h"
 #include "yse_c/yse_synth.h"
 #include "yse_c/yse_sound.h"
@@ -39,8 +39,6 @@
 #define YSE_TEST_FIXTURES_DIR "../../Tests/support/fixtures"
 #endif
 
-using namespace std::chrono_literals;
-
 namespace {
 
   std::string fixturesDir() {
@@ -48,17 +46,17 @@ namespace {
   }
 
   // Pump the engine offline until the synth has cloned `expected` voices, or the
-  // budget expires. Same drain helper the synthcapi suite uses.
-  bool drainUntilVoices(YseSystem* sys, YseSynth* syn, int expected,
-                        std::chrono::milliseconds budget = 3000ms) {
-    const auto deadline = std::chrono::steady_clock::now() + budget;
-    while (std::chrono::steady_clock::now() < deadline) {
-      yse_system_update(sys);
-      yse_system_render_offline(sys, 1);
-      if (yse_synth_get_num_voices(syn) >= expected) return true;
-      std::this_thread::sleep_for(2ms);
-    }
-    return yse_synth_get_num_voices(syn) >= expected;
+  // budget expires. Same drain helper the synthcapi suite uses: `ticks` is a
+  // budget in deliveries of the suite's reference timer rather than in
+  // milliseconds (issue #753), so it stretches with machine load.
+  bool drainUntilVoices(YseSystem* sys, YseSynth* syn, int expected, int ticks = 3000) {
+    return TestHelpers::pacedPump(
+        ticks, [syn, expected] { return yse_synth_get_num_voices(syn) >= expected; },
+        [sys] {
+          yse_system_update(sys);
+          yse_system_render_offline(sys, 1);
+        },
+        2);
   }
 
   void render(YseSystem* sys, int blocks) {
@@ -68,13 +66,16 @@ namespace {
     }
   }
 
-  void drainFor(YseSystem* sys, std::chrono::milliseconds budget) {
-    const auto deadline = std::chrono::steady_clock::now() + budget;
-    while (std::chrono::steady_clock::now() < deadline) {
-      yse_system_update(sys);
-      yse_system_render_offline(sys, 1);
-      std::this_thread::sleep_for(2ms);
-    }
+  // The window is counted in reference-timer ticks rather than milliseconds
+  // (issue #753).
+  void drainFor(YseSystem* sys, int ticks) {
+    TestHelpers::pacedPump(
+        ticks, [] { return false; },
+        [sys] {
+          yse_system_update(sys);
+          yse_system_render_offline(sys, 1);
+        },
+        2);
   }
 
   // ─── DX7 SysEx fixture generation (raw bytes, no engine headers) ────────────
@@ -114,9 +115,9 @@ namespace {
     return static_cast<uint8_t>((0x80u - (sum & 0x7fu)) & 0x7fu);
   }
 
-  // Write a framed 32-voice packed bulk dump to `path`. Returns false on I/O
-  // failure. slot 0 = carrier, slots 1..31 = zeroed (silent) voices.
-  bool writeDx7Fixture(const std::string& path) {
+  // A framed 32-voice packed bulk dump: slot 0 = carrier, slots 1..31 = zeroed
+  // (silent) voices.
+  std::vector<uint8_t> buildDx7Bank() {
     std::vector<uint8_t> payload(4096, 0);
     packCarrierVoice(payload.data()); // slot 0
     std::vector<uint8_t> msg;
@@ -129,6 +130,12 @@ namespace {
     msg.insert(msg.end(), payload.begin(), payload.end());
     msg.push_back(sysexChecksum(payload.data(), payload.size()));
     msg.push_back(0xF7);
+    return msg;
+  }
+
+  // Write buildDx7Bank() to `path`. Returns false on I/O failure.
+  bool writeDx7Fixture(const std::string& path) {
+    const std::vector<uint8_t> msg = buildDx7Bank();
     std::ofstream f(path, std::ios::binary | std::ios::trunc);
     if (!f) return false;
     f.write(reinterpret_cast<const char*>(msg.data()), static_cast<std::streamsize>(msg.size()));
@@ -246,6 +253,54 @@ TEST_SUITE("instrumentcapi") {
     std::remove(path.c_str());
   }
 
+  TEST_CASE("c-api instrument: DX7 bank imported from memory and patches found by name (#909)") {
+    // The in-memory path: the same bytes a host would ship as a bundled asset
+    // (an Android APK has no file path to hand yse_dx7_import_sysex()).
+    std::vector<uint8_t> bytes = buildDx7Bank();
+
+    YseDx7Bank* bank = yse_dx7_import_sysex_memory(bytes.data(), bytes.size());
+    REQUIRE(bank != nullptr);
+    CHECK(yse_dx7_get_patch_count(bank) == 32);
+    char name[32] = {0};
+    CHECK(yse_dx7_get_patch_name(bank, 0, name, sizeof(name)) > 0);
+    CHECK(std::string(name) == "YSE Capi");
+
+    // The bytes were read during the call, not retained: scribbling over them
+    // afterwards leaves the parsed bank intact.
+    std::fill(bytes.begin(), bytes.end(), uint8_t{0});
+    CHECK(yse_dx7_get_patch_count(bank) == 32);
+
+    // Lookup by the trimmed name, as yse_dx7_get_patch_name() reports it.
+    CHECK(yse_dx7_find_patch(bank, "YSE Capi") == 0);
+    CHECK(yse_dx7_find_patch(bank, "No Such Patch") == -1);
+    CHECK(yse_dx7_find_patch(bank, nullptr) == -1);
+    CHECK(yse_dx7_find_patch(nullptr, "YSE Capi") == -1);
+
+    yse_dx7_destroy(bank);
+    // A destroyed bank answers -1 like any unknown handle.
+    CHECK(yse_dx7_find_patch(bank, "YSE Capi") == -1);
+
+    // Bad input is refused with NULL and a reason.
+    const std::vector<uint8_t> good = buildDx7Bank();
+    yse_clear_last_error();
+    CHECK(yse_dx7_import_sysex_memory(nullptr, 100) == nullptr);
+    CHECK_FALSE(std::string(yse_last_error()).empty());
+    yse_clear_last_error();
+    CHECK(yse_dx7_import_sysex_memory(good.data(), 0) == nullptr);
+    CHECK_FALSE(std::string(yse_last_error()).empty());
+    // A corrupted checksum rejects the dump.
+    std::vector<uint8_t> corrupt = good;
+    corrupt[corrupt.size() - 2] ^= 0x01;
+    yse_clear_last_error();
+    CHECK(yse_dx7_import_sysex_memory(corrupt.data(), corrupt.size()) == nullptr);
+    CHECK(std::string(yse_last_error()).find("could not parse") != std::string::npos);
+    // A truncated dump is refused, not over-read.
+    yse_clear_last_error();
+    CHECK(yse_dx7_import_sysex_memory(good.data(), 64) == nullptr);
+    CHECK_FALSE(std::string(yse_last_error()).empty());
+    yse_clear_last_error();
+  }
+
   TEST_CASE("c-api instrument: a destroyed instrument cannot be added to a synth") {
     // add-voices with an already-destroyed instrument handle is rejected (logged),
     // not a use-after-free. No engine needed to reach the guard.
@@ -255,7 +310,9 @@ TEST_SUITE("instrumentcapi") {
 
     YseSynth* syn = yse_synth_create();
     REQUIRE(syn != nullptr);
+    yse_clear_last_error();
     CHECK(yse_synth_add_voices_sampler(syn, inst, 4, 0, 0, 127) == YSE_ERR_INVALID_ARGUMENT);
+    CHECK_FALSE(std::string(yse_last_error()).empty()); // issue #910
     yse_synth_destroy(syn);
   }
 
@@ -297,7 +354,7 @@ TEST_SUITE("instrumentcapi") {
 
     yse_sound_destroy(snd);
     yse_synth_destroy(syn);
-    drainFor(sys, 300ms);
+    drainFor(sys, 300);
     yse_system_close(sys);
   }
 
@@ -376,7 +433,7 @@ TEST_SUITE("instrumentcapi") {
 
     yse_sound_destroy(snd);
     yse_synth_destroy(syn);
-    drainFor(sys, 300ms);
+    drainFor(sys, 300);
     yse_system_close(sys);
   }
 
@@ -409,6 +466,9 @@ TEST_SUITE("instrumentcapi") {
     // reached from C. Out-of-range / destroyed-bank guards return errors.
     REQUIRE(yse_synth_fm_set_patch(syn, bank, 0) == YSE_OK);
     CHECK(yse_synth_fm_set_patch(syn, bank, 999) == YSE_ERR_INVALID_ARGUMENT);
+    yse_clear_last_error();
+    CHECK(yse_synth_fm_set_patch(syn, nullptr, 0) == YSE_ERR_INVALID_ARGUMENT);
+    CHECK_FALSE(std::string(yse_last_error()).empty()); // issue #910
 
     // PARITY: the headline FM params, reachable directly from C.
     yse_synth_fm_set_algorithm(syn, 0);
@@ -448,7 +508,7 @@ TEST_SUITE("instrumentcapi") {
     yse_sound_destroy(snd);
     yse_synth_destroy(syn);
     yse_dx7_destroy(bank);
-    drainFor(sys, 300ms);
+    drainFor(sys, 300);
     yse_system_close(sys);
     std::remove(path.c_str());
   }

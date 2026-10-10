@@ -11,7 +11,12 @@
 #include "deviceInterface.hpp"
 #include "../internalHeaders.h"
 
-YSE::device::device() {}
+// The scalar members carry default member initialisers in deviceInterface.hpp
+// (issue #569), so this stays defaulted rather than repeating them here — one
+// place to keep in sync, and every future constructor inherits the same
+// guarantee. It is still user-provided and defined out of line: `device` is an
+// API-exported class and its constructor is part of the shipped ABI.
+YSE::device::device() = default;
 
 YSE::device& YSE::device::setName(const std::string& name) {
   this->name = name;
@@ -72,7 +77,7 @@ unsigned int YSE::device::getNumOutputChannelNames() const {
 }
 
 const std::string& YSE::device::getOutputChannelName(unsigned int nr) const {
-  return outputChannelNames[nr];
+  return outputChannelNames.at(nr);
 }
 
 unsigned int YSE::device::getNumInputChannelNames() const {
@@ -80,7 +85,7 @@ unsigned int YSE::device::getNumInputChannelNames() const {
 }
 
 const std::string& YSE::device::getInputChannelName(unsigned int nr) const {
-  return inputChannelNames[nr];
+  return inputChannelNames.at(nr);
 }
 
 unsigned int YSE::device::getNumAvailableSampleRates() const {
@@ -88,7 +93,7 @@ unsigned int YSE::device::getNumAvailableSampleRates() const {
 }
 
 double YSE::device::getAvailableSampleRate(unsigned int nr) const {
-  return sampleRates[nr];
+  return sampleRates.at(nr);
 }
 
 unsigned int YSE::device::getNumAvailableBufferSizes() const {
@@ -96,7 +101,7 @@ unsigned int YSE::device::getNumAvailableBufferSizes() const {
 }
 
 int YSE::device::getAvailableBufferSize(unsigned int nr) const {
-  return bufferSizes[nr];
+  return bufferSizes.at(nr);
 }
 
 YSE::device& YSE::device::setDefaultBufferSize(int value) {

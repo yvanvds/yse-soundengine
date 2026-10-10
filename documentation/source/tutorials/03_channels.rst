@@ -21,11 +21,18 @@ channel you create yourself. Channels do two things:
 
 - **Shared mixing.** Set the volume on a channel and every sound inside
   it shifts together. No need to walk a list of sounds.
-- **Threading.** Each channel renders its DSP on its own thread, so
-  spreading sounds across several channels also spreads them across
-  cores. Too few channels under-uses cores; too many spends time on
-  thread overhead — the sweet spot is one channel per logical category
-  (music, ambient, voice, GUI, SFX).
+- **Shared processing.** Inserts and sends act on everything a channel
+  carries (see :doc:`09_mixing_inserts_sends`).
+
+Choose your channels by how you want to mix, not for performance. A
+channel does not get a thread of its own. The engine renders the whole
+tree as one set of tasks that the audio thread and a small pool of render
+workers share, and it splits a busy channel's sounds into several tasks by
+itself. Many sounds on one channel spread across cores just as well as the
+same sounds spread over several channels. One channel per category (music,
+ambient, voice, GUI, SFX) is still a good layout, because those are the
+groups you will want to fade separately. :doc:`/intro/threading` explains
+how the render is shared out.
 
 Creating a custom channel
 -------------------------

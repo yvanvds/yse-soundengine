@@ -10,15 +10,41 @@
 
 #include "logImplementation.h"
 #include "../internalHeaders.h"
+#include <atomic>
 #include <iostream>
 
 #ifdef YSE_ANDROID
 #include <android/log.h>
 #endif
 
+namespace {
+  // True once ~logImplementation() has begun. Constant-initialized, so unlike
+  // the object it describes this flag is valid for the whole process — which
+  // is the point: a destructor reaching EmitNoThrow() during static teardown
+  // needs an answer to "is the logger still there?" from *outside* the
+  // logger's own lifetime (issues #433, #298).
+  std::atomic<bool> logImplDestroyed{false};
+} // namespace
+
 YSE::INTERNAL::logImplementation& YSE::INTERNAL::LogImpl() {
   static logImplementation impl;
   return impl;
+}
+
+void YSE::INTERNAL::EmitNoThrow(YSE::ERROR_CODE value, const char* info) noexcept {
+  if (logImplDestroyed.load(std::memory_order_acquire)) return;
+
+  try {
+    // The std::string temporary is built *inside* the try, which is the whole
+    // point of the const char* parameter: at the call sites this replaces, the
+    // conversion happened in the catch handler's own frame, where a throw would
+    // escape the enclosing noexcept destructor and call std::terminate().
+    LogImpl().emit(value, info != nullptr ? info : "");
+  } catch (...) { // NOSONAR NOLINT(bugprone-empty-catch): swallowing *is* the handling
+    // There is no second channel to report a failed failure report on, and the
+    // caller is a destructor that must not throw. Dropping the message is the
+    // only outcome left.
+  }
 }
 
 YSE::INTERNAL::logImplementation::logImplementation() : handler(nullptr) {
@@ -37,23 +63,34 @@ YSE::INTERNAL::logImplementation::logImplementation() : handler(nullptr) {
 }
 
 YSE::INTERNAL::logImplementation::~logImplementation() {
+  // Publish before touching any member: from here on EmitNoThrow() must drop
+  // messages rather than reach into an object under teardown.
+  logImplDestroyed.store(true, std::memory_order_release);
+  // Taken like any other write to the sink, so a line still in flight on
+  // another thread finishes before the stream is closed under it.
+  std::lock_guard<std::mutex> lock(sinkMutex);
   logFile << "=== end of YSE log ===" << std::endl;
   logFile.close();
 }
 
 YSE::ERROR_LEVEL YSE::INTERNAL::logImplementation::getLevel() {
-  return level;
+  return level.load(std::memory_order_relaxed);
 }
 
 void YSE::INTERNAL::logImplementation::setLevel(YSE::ERROR_LEVEL value) {
-  level = value;
+  level.store(value, std::memory_order_relaxed);
 }
 
 void YSE::INTERNAL::logImplementation::setHandler(logHandler* handler) {
+  // The pointer logMessage() dispatches on: swap it under the same lock, so a
+  // handler is never replaced (or cleared, which is how every scoped test sink
+  // ends) while another thread is inside its AddMessage().
+  std::lock_guard<std::mutex> lock(sinkMutex);
   this->handler = handler;
 }
 
 void YSE::INTERNAL::logImplementation::setLogfile(const char* path) {
+  std::lock_guard<std::mutex> lock(sinkMutex);
   logFile.close();
   logFileName = path;
   logFile.open(path, std::ios::out | std::ios::app);
@@ -65,12 +102,21 @@ const std::string& YSE::INTERNAL::logImplementation::getLogfile() {
 }
 
 void YSE::INTERNAL::logImplementation::logMessage(const std::string& message) {
-  if (level == EL_NONE) return;
+  if (level.load(std::memory_order_relaxed) == EL_NONE) return;
 
-  if (handler != nullptr) {
-    handler->AddMessage(message);
-  } else {
-    logFile << message << std::endl;
+  {
+    // The whole delivery, and nothing else. Both branches are shared mutable
+    // state reached from several engine threads at once — the file's streambuf
+    // on one side (issue #820: TSan caught the slow-pool loader and the control
+    // thread inside the same 8 KB filebuf), whatever the host keeps behind
+    // AddMessage() on the other. The message was formatted by the caller, so
+    // the section is one write long.
+    std::lock_guard<std::mutex> lock(sinkMutex);
+    if (handler != nullptr) {
+      handler->AddMessage(message);
+    } else {
+      logFile << message << std::endl;
+    }
   }
 #ifdef YSE_ANDROID
   __android_log_print(ANDROID_LOG_INFO, "YSE", "%s", message.c_str());
@@ -78,7 +124,10 @@ void YSE::INTERNAL::logImplementation::logMessage(const std::string& message) {
 }
 
 void YSE::INTERNAL::logImplementation::emit(ERROR_CODE value, const std::string& info) {
-  switch (level) {
+  // One load, then decide on it: reading the atomic once per emit keeps the
+  // filter from changing under the switch, and logMessage()'s own check below
+  // is the cheap early-out for callers that reach it directly.
+  switch (level.load(std::memory_order_relaxed)) {
   case EL_NONE:
     return;
   case EL_ERROR:
@@ -88,6 +137,7 @@ void YSE::INTERNAL::logImplementation::emit(ERROR_CODE value, const std::string&
     if (value > E_DEBUG_MESSAGES) return;
     break;
   case EL_DEBUG:
+  case EL_COUNT_: // sentinel, not a level: unfiltered, as any out-of-range level was before
     break;
   }
 

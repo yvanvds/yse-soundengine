@@ -7,6 +7,7 @@
 #endif
 
 #include <exception>
+#include <string>
 #include <vector>
 
 namespace {
@@ -40,17 +41,23 @@ YSE_C_API void yse_clip_destroy(YseClip* c) {
   if (c) delete to_cpp(c);
 }
 
-YSE_C_API int yse_clip_bind(YseClip* c, const char* clock_name) {
-  if (!c || !clock_name) return 0;
-  try {
-    return to_cpp(c)->create(clock_name) ? 1 : 0;
-  } catch (const std::exception& e) {
-    yse_c::set_last_error(e.what());
-    return 0;
-  } catch (...) {
-    yse_c::set_last_error("yse_clip_bind: unknown C++ exception");
-    return 0;
+YSE_C_API YseStatus yse_clip_bind(YseClip* c, const char* clock_name) {
+  if (!c) {
+    yse_c::set_last_error("yse_clip_bind: clip handle is NULL");
+    return YSE_ERR_INVALID_HANDLE;
   }
+  if (!clock_name) {
+    yse_c::set_last_error("yse_clip_bind: clock_name is NULL");
+    return YSE_ERR_INVALID_ARGUMENT;
+  }
+  return yse_c::guard("yse_clip_bind", YSE_ERR_EXCEPTION, [&] {
+    if (!to_cpp(c)->create(clock_name)) {
+      yse_c::set_last_error(std::string("yse_clip_bind: no live clock named \"") + clock_name +
+                            "\"; the clip is now unbound");
+      return YSE_ERR_INVALID_ARGUMENT;
+    }
+    return YSE_OK;
+  });
 }
 
 YSE_C_API void yse_clip_set_events(YseClip* c, const YseClipEvent* events, size_t count) {

@@ -5,6 +5,7 @@
 #include "midiDeviceManager.h"
 #include "synth/synthInterface.hpp"
 #include "midi/midiSynthRouting.hpp"
+#include <thread>
 
 YSE::midiOut::midiOut() : device(nullptr) {}
 
@@ -15,7 +16,7 @@ void YSE::midiOut::create(unsigned int port) {
 void YSE::midiOut::NoteOn(MIDI::M_CHANNEL channel, MIDI::M_PITCH pitch, unsigned char velocity) {
   if (isPrepared()) {
     unsigned char message[3];
-    message[0] = 0x90 + channel;
+    message[0] = MIDI::MSG_NOTE_ON + channel;
     message[1] = pitch;
     message[2] = velocity;
     device->sendMessage(message, 3);
@@ -25,7 +26,7 @@ void YSE::midiOut::NoteOn(MIDI::M_CHANNEL channel, MIDI::M_PITCH pitch, unsigned
 void YSE::midiOut::NoteOn(MIDI::M_CHANNEL channel, unsigned char pitch, unsigned char velocity) {
   if (isPrepared()) {
     unsigned char message[3];
-    message[0] = 0x90 + channel;
+    message[0] = MIDI::MSG_NOTE_ON + channel;
     message[1] = pitch;
     message[2] = velocity;
     device->sendMessage(message, 3);
@@ -35,7 +36,7 @@ void YSE::midiOut::NoteOn(MIDI::M_CHANNEL channel, unsigned char pitch, unsigned
 void YSE::midiOut::NoteOff(MIDI::M_CHANNEL channel, MIDI::M_PITCH pitch, unsigned char velocity) {
   if (isPrepared()) {
     unsigned char message[3];
-    message[0] = 0x80 + channel;
+    message[0] = MIDI::MSG_NOTE_OFF + channel;
     message[1] = pitch;
     message[2] = velocity;
     device->sendMessage(message, 3);
@@ -45,7 +46,7 @@ void YSE::midiOut::NoteOff(MIDI::M_CHANNEL channel, MIDI::M_PITCH pitch, unsigne
 void YSE::midiOut::NoteOff(MIDI::M_CHANNEL channel, unsigned char pitch, unsigned char velocity) {
   if (isPrepared()) {
     unsigned char message[3];
-    message[0] = 0x80 + channel;
+    message[0] = MIDI::MSG_NOTE_OFF + channel;
     message[1] = pitch;
     message[2] = velocity;
     device->sendMessage(message, 3);
@@ -56,7 +57,7 @@ void YSE::midiOut::PolyPressure(MIDI::M_CHANNEL channel, MIDI::M_PITCH pitch,
                                 unsigned char velocity) {
   if (isPrepared()) {
     unsigned char message[3];
-    message[0] = 0xA0 + channel;
+    message[0] = MIDI::MSG_POLY_AFTERTOUCH + channel;
     message[1] = pitch;
     message[2] = velocity;
     device->sendMessage(message, 3);
@@ -67,7 +68,7 @@ void YSE::midiOut::PolyPressure(MIDI::M_CHANNEL channel, unsigned char pitch,
                                 unsigned char velocity) {
   if (isPrepared()) {
     unsigned char message[3];
-    message[0] = 0xA0 + channel;
+    message[0] = MIDI::MSG_POLY_AFTERTOUCH + channel;
     message[1] = pitch;
     message[2] = velocity;
     device->sendMessage(message, 3);
@@ -77,7 +78,7 @@ void YSE::midiOut::PolyPressure(MIDI::M_CHANNEL channel, unsigned char pitch,
 void YSE::midiOut::ChannelPressure(MIDI::M_CHANNEL channel, unsigned char value) {
   if (isPrepared()) {
     unsigned char message[3];
-    message[0] = 0xD0 + channel;
+    message[0] = MIDI::MSG_CHANNEL_AFTERTOUCH + channel;
     message[1] = value;
     message[2] = 0;
     device->sendMessage(message, 3);
@@ -87,7 +88,7 @@ void YSE::midiOut::ChannelPressure(MIDI::M_CHANNEL channel, unsigned char value)
 void YSE::midiOut::ProgramChange(MIDI::M_CHANNEL channel, unsigned char value) {
   if (isPrepared()) {
     unsigned char message[3];
-    message[0] = 0xC0 + channel;
+    message[0] = MIDI::MSG_PROGRAM_CHANGE + channel;
     message[1] = value;
     message[2] = 0;
     device->sendMessage(message, 3);
@@ -98,7 +99,7 @@ void YSE::midiOut::ControlChange(MIDI::M_CHANNEL channel, unsigned char controll
                                  unsigned char value) {
   if (isPrepared()) {
     unsigned char message[3];
-    message[0] = 0xB0 + channel;
+    message[0] = MIDI::MSG_CONTROL_CHANGE + channel;
     message[1] = controller;
     message[2] = value;
     device->sendMessage(message, 3);
@@ -108,8 +109,8 @@ void YSE::midiOut::ControlChange(MIDI::M_CHANNEL channel, unsigned char controll
 void YSE::midiOut::AllNotesOff(MIDI::M_CHANNEL channel) {
   if (isPrepared()) {
     unsigned char message[3];
-    message[0] = 0xB0 + channel;
-    message[1] = 0x7B;
+    message[0] = MIDI::MSG_CONTROL_CHANGE + channel;
+    message[1] = MIDI::CC_ALL_NOTES_OFF;
     message[2] = 0;
     device->sendMessage(message, 3);
   }
@@ -118,11 +119,11 @@ void YSE::midiOut::AllNotesOff(MIDI::M_CHANNEL channel) {
 void YSE::midiOut::AllNotesOff() {
   if (isPrepared()) {
     unsigned char message[3];
-    message[1] = 0x7B;
+    message[1] = MIDI::CC_ALL_NOTES_OFF;
     message[2] = 0;
 
     for (unsigned char i = 0; i < 16; i++) {
-      message[0] = 0xB0 + i;
+      message[0] = MIDI::MSG_CONTROL_CHANGE + i;
       device->sendMessage(message, 3);
     }
   }
@@ -131,8 +132,8 @@ void YSE::midiOut::AllNotesOff() {
 void YSE::midiOut::Reset(MIDI::M_CHANNEL channel) {
   if (isPrepared()) {
     unsigned char message[3];
-    message[0] = 0xB0 + channel;
-    message[1] = 0x79;
+    message[0] = MIDI::MSG_CONTROL_CHANGE + channel;
+    message[1] = MIDI::CC_RESET_ALL_CONTROLLERS;
     message[2] = 0;
     device->sendMessage(message, 3);
   }
@@ -141,11 +142,11 @@ void YSE::midiOut::Reset(MIDI::M_CHANNEL channel) {
 void YSE::midiOut::Reset() {
   if (isPrepared()) {
     unsigned char message[3];
-    message[1] = 0x79;
+    message[1] = MIDI::CC_RESET_ALL_CONTROLLERS;
     message[2] = 0;
 
     for (unsigned char i = 0; i < 16; i++) {
-      message[0] = 0xB0 + i;
+      message[0] = MIDI::MSG_CONTROL_CHANGE + i;
       device->sendMessage(message, 3);
     }
   }
@@ -154,8 +155,8 @@ void YSE::midiOut::Reset() {
 void YSE::midiOut::LocalControl(bool on) {
   if (isPrepared()) {
     unsigned char message[3];
-    message[0] = 0xB0;
-    message[1] = 0x7A;
+    message[0] = MIDI::MSG_CONTROL_CHANGE;
+    message[1] = MIDI::CC_LOCAL_CONTROL;
     message[2] = on ? 127 : 0;
     device->sendMessage(message, 3);
   }
@@ -164,8 +165,8 @@ void YSE::midiOut::LocalControl(bool on) {
 void YSE::midiOut::Omni(bool on) {
   if (isPrepared()) {
     unsigned char message[3];
-    message[0] = 0xB0;
-    message[1] = on ? 0x7D : 0x7C;
+    message[0] = MIDI::MSG_CONTROL_CHANGE;
+    message[1] = on ? MIDI::CC_OMNI_MODE_ON : MIDI::CC_OMNI_MODE_OFF;
     message[2] = 0;
     device->sendMessage(message, 3);
   }
@@ -174,8 +175,8 @@ void YSE::midiOut::Omni(bool on) {
 void YSE::midiOut::Poly(bool on) {
   if (isPrepared()) {
     unsigned char message[3];
-    message[0] = 0xB0;
-    message[1] = on ? 0x7F : 0x7E;
+    message[0] = MIDI::MSG_CONTROL_CHANGE;
+    message[1] = on ? MIDI::CC_POLY_MODE_ON : MIDI::CC_MONO_MODE_ON;
     message[2] = 0;
     device->sendMessage(message, 3);
   }
@@ -191,14 +192,21 @@ void YSE::midiOut::Raw(unsigned char a, unsigned char b, unsigned char c) {
   }
 }
 
-void YSE::midiOut::Raw(const std::string& value) {
+void YSE::midiOut::Raw(const unsigned char* data, std::size_t length) {
+  // An empty message is not a message: RtMidi reads message[0] to decide what
+  // it is looking at, so handing it a zero-length buffer is the one input this
+  // must refuse rather than forward.
+  if (data == nullptr || length == 0) return;
   if (isPrepared()) {
-    unsigned char message[3];
-    message[0] = value.length() > 0 ? value[0] : 0;
-    message[1] = value.length() > 1 ? value[1] : 0;
-    message[2] = value.length() > 2 ? value[2] : 0;
-    device->sendMessage(message, 3);
+    device->sendMessage(data, length);
   }
+}
+
+void YSE::midiOut::Raw(const std::string& value) {
+  // Issue #748: the whole string, not the first three bytes of it. Padding a
+  // two-byte program change to three put a byte on the wire the caller never
+  // wrote, and cutting a system-exclusive dump to three made it unsendable.
+  Raw(reinterpret_cast<const unsigned char*>(value.data()), value.size());
 }
 
 bool YSE::midiOut::isPrepared() {
@@ -210,7 +218,10 @@ bool YSE::midiOut::isPrepared() {
 YSE::midiIn::midiIn() : device(nullptr) {}
 
 YSE::midiIn::~midiIn() {
+  // Stop input delivery before freeing the last installed pairs.
   close();
+  delete raw.load(std::memory_order_acquire);
+  delete parsed.load(std::memory_order_acquire);
 }
 
 void YSE::midiIn::create(unsigned int port) {
@@ -254,14 +265,47 @@ bool YSE::midiIn::isOpen() const {
   return device != nullptr && device->isPortOpen();
 }
 
+// ### One pair, one pointer (issue #917)
+//
+// The host callbacks and their user_data used to be four separate atomics,
+// stored one after the other. A message dispatched between the two stores of
+// a re-install could call the old callback with the new user_data. Each
+// install now builds an immutable pair and publishes it with one atomic
+// exchange, so a dispatch sees either the whole old pair or the whole new one
+// — the shape the log bridge got in #902 and the C API raw bridge in #916.
+//
+// ### Reclaiming the old pair
+//
+// RtMidi's input thread holds no lock a setter could wait on, so this uses
+// the same quiescence handshake as the #916 C bridge: dispatch() raises
+// `readers`, loads both pairs, copies their fields onto its stack and drops
+// `readers` again — before it calls out. A setter exchanges the pointer, then
+// waits for `readers` to read zero before deleting what it swapped out. Every
+// access is seq_cst, so either the setter's read of the counter sees a
+// dispatcher's raise (and waits for its drop), or the dispatcher's load of
+// the pair comes after the exchange in the single total order and sees the
+// new pair. The waited-on window never contains user code, so a callback that
+// re-installs from inside itself cannot deadlock on its own dispatch.
+
+void YSE::midiIn::awaitNoReaders() const {
+  while (readers.load(std::memory_order_seq_cst) != 0)
+    std::this_thread::yield();
+}
+
 void YSE::midiIn::setRawCallback(RawCallback cb, void* user_data) {
-  rawUser.store(user_data, std::memory_order_release);
-  rawCb.store(cb, std::memory_order_release);
+  rawPair* next = cb != nullptr ? new rawPair{cb, user_data} : nullptr;
+  rawPair* old = raw.exchange(next, std::memory_order_seq_cst);
+  if (old == nullptr) return;
+  awaitNoReaders();
+  delete old;
 }
 
 void YSE::midiIn::setParsedCallback(ParsedCallback cb, void* user_data) {
-  parsedUser.store(user_data, std::memory_order_release);
-  parsedCb.store(cb, std::memory_order_release);
+  parsedPair* next = cb != nullptr ? new parsedPair{cb, user_data} : nullptr;
+  parsedPair* old = parsed.exchange(next, std::memory_order_seq_cst);
+  if (old == nullptr) return;
+  awaitNoReaders();
+  delete old;
 }
 
 void YSE::midiIn::connect(YSE::synth& synth, int channelFilter) {
@@ -310,19 +354,31 @@ void YSE::midiIn::dispatch(double timestampSec, const unsigned char* bytes, std:
   // Raw subscriber sees the byte pointer as-is; ownership stays with the
   // RtMidi vector that survives the call. Consumers that need to forward
   // across threads must copy (the C API bridge already does).
-  if (auto rcb = rawCb.load(std::memory_order_acquire)) {
-    rcb(timestampSec, bytes, len, rawUser.load(std::memory_order_acquire));
+  //
+  // Both host pairs are copied out under the `readers` handshake before
+  // either callback runs (issue #917 — see the notes above setRawCallback).
+  readers.fetch_add(1, std::memory_order_seq_cst);
+  const rawPair* rp = raw.load(std::memory_order_seq_cst);
+  const parsedPair* pp = parsed.load(std::memory_order_seq_cst);
+  const RawCallback rcb = rp != nullptr ? rp->cb : nullptr;
+  void* const rawUser = rp != nullptr ? rp->user_data : nullptr;
+  const ParsedCallback pcb = pp != nullptr ? pp->cb : nullptr;
+  void* const parsedUser = pp != nullptr ? pp->user_data : nullptr;
+  readers.fetch_sub(1, std::memory_order_release);
+
+  if (rcb != nullptr) {
+    rcb(timestampSec, bytes, len, rawUser);
   }
 
   // Parsed subscriber wants the typed nibbles. For 1- and 2-byte messages
   // (real-time clock, channel pressure, program change) the missing data
   // bytes are reported as zero.
-  if (auto pcb = parsedCb.load(std::memory_order_acquire)) {
+  if (pcb != nullptr) {
     const unsigned char status = static_cast<unsigned char>(bytes[0] & 0xF0);
     const unsigned char channel = static_cast<unsigned char>(bytes[0] & 0x0F);
     const unsigned char data1 = len > 1 ? bytes[1] : 0;
     const unsigned char data2 = len > 2 ? bytes[2] : 0;
-    pcb(timestampSec, status, channel, data1, data2, parsedUser.load(std::memory_order_acquire));
+    pcb(timestampSec, status, channel, data1, data2, parsedUser);
   }
 
   // Internal synth subscribers (issue #155). This is the additive fan-out the

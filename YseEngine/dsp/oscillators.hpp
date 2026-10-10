@@ -26,8 +26,10 @@ namespace YSE {
   namespace DSP {
 
     /**
-     *  @brief Naive (non band-limited) sawtooth oscillator.
+     *  @brief Naive (non band-limited) rising ramp, like Pd's ``phasor~``.
      *
+     *  Outputs 0 to 1, not -1 to 1: callers use it as a phase (the reverb
+     *  feeds it to ``cosine``). The patcher's ``~saw`` rescales it to -1..1.
      *  Cheap; aliases at high pitches. Use the wavetable-driven
      *  ``oscillator`` with a band-limited ``wavetable::createSaw`` table for
      *  alias-free output.

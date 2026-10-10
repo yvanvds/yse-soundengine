@@ -17,7 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           ref: ${{ inputs.tag || github.ref }}
           fetch-depth: 0
@@ -56,7 +56,7 @@ jobs:
       run:
         shell: msys2 {0}
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           ref: ${{ inputs.tag || github.ref }}
           fetch-depth: 0
@@ -82,6 +82,8 @@ jobs:
           cmake --preset release
           cmake --build --preset release
 
+      # Also copies each bundled DLL's license files (via pacman) and downloads
+      # the MSYS2 source packages of the LGPL DLLs from repo.msys2.org (#979).
       - name: Package
         run: python yse.py package --platform windows
 
@@ -104,7 +106,7 @@ jobs:
       matrix:
         abi: [arm64-v8a, x86_64]
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           ref: ${{ inputs.tag || github.ref }}
           fetch-depth: 0
@@ -141,13 +143,15 @@ jobs:
 
   package-android:
     # Merge the per-ABI matrix outputs into a single multi-ABI bundle
-    # (lib/<abi>/libyse.so + headers + LICENSE + README) for upload.
+    # (lib/<abi>/libyse.so + headers + LICENSE + NOTICE + README) for upload.
+    # The package step also clones libsndfile and Oboe at their CMakeLists.txt
+    # pins to ship their license texts and the LGPL libsndfile source (#892).
     name: Package (Android multi-ABI)
     needs: build-android
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           ref: ${{ inputs.tag || github.ref }}
           fetch-depth: 0
@@ -170,10 +174,15 @@ jobs:
     name: Publish GitHub Release
     needs: [build-linux, build-windows, package-android]
     runs-on: ubuntu-latest
+    # Was the only job in this workflow with no cap at all, so it inherited
+    # GitHub's 360-minute default. Observed p90 0.32 min over 7 runs (checkout,
+    # artifact download, `gh release create`); 15 leaves ~45x headroom for a
+    # slow artifact download while still killing a hung upload. See #621.
+    timeout-minutes: 15
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           ref: ${{ inputs.tag || github.ref }}
           fetch-depth: 0

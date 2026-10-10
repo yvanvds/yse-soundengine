@@ -29,7 +29,7 @@ namespace YSE {
     class API ringModulator : public dspObject {
     public:
       ringModulator();
-      virtual ~ringModulator() {}
+      ~ringModulator() override {}
 
       /** @brief Set the carrier frequency in Hz. */
       ringModulator& frequency(Flt value);
@@ -38,10 +38,10 @@ namespace YSE {
       Flt frequency();
 
       /** @brief dspObject lifecycle hook — allocates buffers. */
-      virtual void create();
+      void create() override;
 
       /** @brief dspObject audio-thread entry point. */
-      virtual void process(MULTICHANNELBUFFER& buffer);
+      void process(MULTICHANNELBUFFER& buffer) override;
 
     private:
       aFlt parmFrequency;

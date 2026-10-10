@@ -8,6 +8,7 @@
 */
 
 #include "chorus.hpp"
+#include "../smoother.hpp"
 #include <algorithm>
 #include <cmath>
 
@@ -48,6 +49,7 @@ YSE::DSP::MODULES::chorus::chorus()
     parmMode(MODE_CHORUS),
     lfoCursor(0.0f),
     delaySmoothCoef(0.0f),
+    builtRate(0),
     lineSize(0),
     blockLength(0) {}
 
@@ -107,9 +109,8 @@ Flt YSE::DSP::MODULES::chorus::sweepDelayMs() const {
 void YSE::DSP::MODULES::chorus::create() {
   // One-pole coefficient for the per-sample delay smoother, from the engine
   // sample rate (computed off the audio thread).
-  Flt tauSamples = DELAY_SMOOTH_TAU * static_cast<Flt>(SAMPLERATE);
-  if (tauSamples < 1.0f) tauSamples = 1.0f;
-  delaySmoothCoef = 1.0f - std::exp(-1.0f / tauSamples);
+  delaySmoothCoef = YSE::DSP::onePoleCoef(DELAY_SMOOTH_TAU, static_cast<Flt>(SAMPLERATE));
+  builtRate = SAMPLERATE;
 
   // Line length that covers the longest addressable delay at the current rate.
   lineSize =
@@ -120,6 +121,15 @@ void YSE::DSP::MODULES::chorus::process(MULTICHANNELBUFFER& buffer) {
   createIfNeeded();
 
   if (buffer.empty()) return;
+
+  // create() runs once per instance, so the smoother coefficient would keep
+  // the rate it was built at across a close()/init() cycle (issue #637).
+  // Re-derive it when the session rate changed; steady state pays one integer
+  // compare (the accepted per-block guard, cf. plateReverb/parametricEQ).
+  if (builtRate != SAMPLERATE) {
+    delaySmoothCoef = YSE::DSP::onePoleCoef(DELAY_SMOOTH_TAU, static_cast<Flt>(SAMPLERATE));
+    builtRate = SAMPLERATE;
+  }
 
   // (Re)derive the line length from the current sample rate. It only changes on
   // create() or a device restart at a new rate, never in steady state.
@@ -201,7 +211,7 @@ void YSE::DSP::MODULES::chorus::process(MULTICHANNELBUFFER& buffer) {
     for (std::size_t i = 0; i < length; ++i) {
       const Flt lfo = 0.5f * (1.0f + std::sin(ph[i] + offset)); // [0, 1]
       const Flt target = base + sweep * lfo;
-      sd += (target - sd) * delaySmoothCoef;
+      sd = YSE::DSP::onePoleSmooth(sd, target, delaySmoothCoef);
 
       Flt delaySamps = sd * srMs;
       if (delaySamps < 1.0f) delaySamps = 1.0f;

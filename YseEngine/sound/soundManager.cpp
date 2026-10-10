@@ -9,6 +9,8 @@
 */
 
 #include "soundManager.h"
+#include <cassert>
+#include <iterator>
 #include "../internalHeaders.h"
 #include "../internal/virtualFinder.h"
 #include "../channel/channelManager.h"
@@ -48,7 +50,7 @@ YSE::SOUND::managerObject::~managerObject() noexcept {
       soundFiles.clear();
     }
   } catch (...) {
-    INTERNAL::LogImpl().emit(E_ERROR, "SOUND::Manager destructor swallowed exception");
+    INTERNAL::EmitNoThrow(E_ERROR, "SOUND::Manager destructor swallowed exception");
   }
 }
 
@@ -165,6 +167,33 @@ void YSE::SOUND::managerObject::setup(YSE::SOUND::implementationObject* impl) {
   toLoadInbox.push(impl);
 }
 
+void YSE::SOUND::managerObject::releaseUnpublished(YSE::SOUND::implementationObject* impl) {
+  // A create() that was refused (missing file, patcher already owned) drops its
+  // handle without ever calling setup(), so this impl exists in
+  // `implementations` and nowhere else. Before #817 it was flagged
+  // OBJECT_RELEASE, which nothing promotes for an impl that never reached
+  // `inUse` — so it sat in the list for the rest of the session and a caller
+  // retrying a bad asset grew the list without bound.
+  //
+  // OBJECT_DELETE is the state the slow-pool delete job filters on, and going
+  // there directly is safe precisely because the impl was never published: the
+  // audio thread holds no pointer to it (it is in neither toLoadInbox, toLoad
+  // nor inUse), no channel has it in `sounds` (connectedToParent is false), and
+  // the slow-pool setup job cannot claim it (tryClaimForSetup CASes from
+  // OBJECT_CREATED, which this impl never reached). The destructor therefore
+  // still runs where every other impl's does — on the slow pool, under
+  // implementationsMutex — and not on this control thread.
+  assert(impl->getStatus() == OBJECT_CONSTRUCTED &&
+         "releaseUnpublished() is only for an impl that never reached setup()");
+  impl->setStatus(OBJECT_DELETE);
+  runDelete = true;
+}
+
+std::size_t YSE::SOUND::managerObject::implementationCount() {
+  std::scoped_lock lk(implementationsMutex);
+  return static_cast<std::size_t>(std::distance(implementations.begin(), implementations.end()));
+}
+
 void YSE::SOUND::managerObject::drainInbox() {
   implementationObject* p;
   while (toLoadInbox.try_pop(p))
@@ -184,12 +213,23 @@ void YSE::SOUND::managerObject::scrubToLoadAndScheduleSetup() {
         std::memory_order_acquire); // NOSONAR S8417: intentional acquire — read impl state
                                     // published by setup-failure path
     if (s == OBJECT_DELETE_PENDING) {
+      // Unlink FIRST, publish OBJECT_DELETE second (issue #830). The store is
+      // what makes this impl match managerDeleteJob's canBeDeleted predicate,
+      // and a delete job queued by an earlier tick can still be inside
+      // remove_if right now — update()'s isQueued() guard only prevents
+      // queueing the same job object twice, it never joins a job in flight. In
+      // the reverse order the slow pool could free the impl between the store
+      // and the erase, and cursor::erase() then wrote through the freed node's
+      // `_mgrNext`. Erasing while the impl is still OBJECT_DELETE_PENDING (a
+      // state the delete job ignores) keeps the audio-thread-only list
+      // stitched before the pool is allowed to look at the node at all; the
+      // release store then publishes the finished unlink to the job's load.
+      c.erase();
       p->objectStatus.store(
           OBJECT_DELETE,
           std::memory_order_release); // NOSONAR S8417: intentional release — publish DELETE state
                                       // to slow-pool deleteJob's acquire load
       runDelete = true;
-      c.erase();
     } else if (s == OBJECT_READY || s == OBJECT_RELEASE || s == OBJECT_DELETE) {
       c.erase();
     } else {
@@ -249,6 +289,22 @@ void YSE::SOUND::managerObject::syncAndReleaseInUse() {
       ptr->source_dsp.store(
           nullptr, std::memory_order_release); // NOSONAR S8417: intentional release — publishes
                                                // nulled dsp source to audio thread's acquire load
+      // Detach the post-DSP back-reference HERE, on the update/audio thread
+      // where addDSP() also runs, instead of in the slow-pool destructor
+      // (issue #838). The destructor's clearing raced a concurrent addDSP()
+      // re-attaching the same dspObject to another sound (TSan: addDSP's
+      // `calledfrom = &post_dsp` store vs. the delete job's `calledfrom =
+      // nullptr`). On this thread the ownership test is exact: clear the
+      // back-reference only while it still points at our own slot, so a
+      // plugin already re-attached elsewhere keeps its fresh back-reference.
+      // Nulling post_dsp afterwards makes the destructor's fallback a no-op
+      // on this path (it remains for engine teardown, where the audio thread
+      // is already stopped); the setStatus(OBJECT_DELETE) store below
+      // publishes both writes to the slow pool's status load.
+      if (ptr->post_dsp != nullptr && ptr->post_dsp->calledfrom == &ptr->post_dsp) {
+        ptr->post_dsp->calledfrom = nullptr;
+      }
+      ptr->post_dsp = nullptr;
       ptr->setStatus(OBJECT_DELETE);
       runDelete = true;
       continue; // c already refers to the successor after erase()
@@ -278,10 +334,23 @@ void YSE::SOUND::managerObject::update() {
     scrubToLoadAndScheduleSetup();
   }
 
-  if (runDelete && !mgrDelete.isQueued()) {
-    INTERNAL::Global().addSlowJob(&mgrDelete);
+  // Consume the flag atomically. Since #817 `runDelete` has two writers — the
+  // audio thread below (syncAndReleaseInUse) and the control thread
+  // (releaseUnpublished) — and the old test-then-unconditionally-clear would
+  // drop a set that landed between the two, stranding a flagged impl in
+  // `implementations` until close(): the very leak #817 is about. Exchange
+  // takes the request, and if the previous delete job is still in flight (it
+  // may already have walked the list before the flag was set) the request is
+  // handed back for the next tick rather than dropped. Re-queueing the same
+  // job object while it is queued would push one pointer into the pool ring
+  // twice, so the isQueued() guard stays.
+  if (runDelete.exchange(false)) {
+    if (!mgrDelete.isQueued()) {
+      INTERNAL::Global().addSlowJob(&mgrDelete);
+    } else {
+      runDelete = true;
+    }
   }
-  runDelete = false;
 
   promoteReadyImpls();
   syncAndReleaseInUse();
@@ -295,11 +364,11 @@ void YSE::SOUND::managerObject::garbageCollectFiles() {
   // timer advances at the same rate it did when this loop ran every audio
   // callback (it accumulated Time().delta() there). ~soundFile — with its
   // sf_close and delete[] — now runs here on the erase, off the callback.
-  std::clock_t now = std::clock();
-  Flt dt = (lastGCClock == 0)
-               ? 0.f
-               : static_cast<Flt>(now - lastGCClock) / static_cast<Flt>(CLOCKS_PER_SEC);
+  const std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
+  Flt dt =
+      haveGCClock ? static_cast<Flt>(std::chrono::duration<Dbl>(now - lastGCClock).count()) : 0.f;
   lastGCClock = now;
+  haveGCClock = true;
 
   std::scoped_lock lk(soundFilesMutex);
   auto iMinus = soundFiles.before_begin();

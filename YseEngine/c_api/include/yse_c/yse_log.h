@@ -1,4 +1,5 @@
-/*
+/**
+  @file
   yse_log.h — engine logging.
   C ABI mirror of YseEngine/log.hpp.
 
@@ -7,8 +8,12 @@
     1. Default file sink (set with yse_log_set_logfile / inspect with
        yse_log_get_logfile).
     2. C callback installed via yse_log_set_callback. The callback is
-       invoked from whichever thread emitted the log entry — keep it
-       cheap and re-entrant. Pass NULL to restore the default file sink.
+       invoked from whichever engine thread emitted the log entry (never
+       the audio thread), one call at a time, with the engine's log lock
+       held. It must therefore not call back into the library: a yse_*
+       call that logs, or yse_log_send_message / yse_log_set_callback /
+       yse_log_set_logfile, deadlocks. Copy or queue the message, free it
+       and return; do not block. Pass NULL to restore the default file sink.
 
   Logging is only active between yse_system_init() and yse_system_close().
 */
@@ -23,9 +28,12 @@
 extern "C" {
 #endif
 
-/* Borrowed singleton — owned by the engine, never destroy.
+#ifndef YSE_C_HANDLE_YseLog
+#define YSE_C_HANDLE_YseLog
+/** Borrowed singleton — owned by the engine, never destroy.
    Obtain via yse_log_get(). */
 typedef struct YseLog YseLog;
+#endif
 
 YSE_C_API YseLog* yse_log_get(void);
 
@@ -35,16 +43,16 @@ YSE_C_API YseErrorLevel yse_log_get_level(YseLog* log);
 YSE_C_API void yse_log_set_logfile(YseLog* log, const char* path);
 YSE_C_API size_t yse_log_get_logfile(YseLog* log, char* buf, size_t cap);
 
-/* The receiver OWNS msg and must release it with yse_log_free_message
+/** The receiver OWNS msg and must release it with yse_log_free_message
    when finished. The pointer is allocated with malloc by the bridge so
    any C client can free() it directly if preferred. */
 typedef void(YSE_C_CALLBACK* YseLogCallback)(char* msg, void* user_data);
 
-/* Replaces the default file sink. Pass NULL for cb to restore the default.
+/** Replaces the default file sink. Pass NULL for cb to restore the default.
    user_data is opaque — forwarded to every callback invocation. */
 YSE_C_API void yse_log_set_callback(YseLog* log, YseLogCallback cb, void* user_data);
 
-/* Release a message string previously delivered to a YseLogCallback. */
+/** Release a message string previously delivered to a YseLogCallback. */
 YSE_C_API void yse_log_free_message(char* msg);
 
 #ifdef __cplusplus

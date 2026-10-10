@@ -24,6 +24,7 @@
 
 #include "yse.hpp"
 #include "python/scriptRuntime.h"
+#include "support/timer_pacing.hpp"
 
 namespace {
 
@@ -32,14 +33,12 @@ namespace {
   using YSE::INTERNAL::ScriptRuntime;
 
   // The worker processes a pushed request as soon as it is notified; poll the
-  // outbound queue with a bounded wait rather than guessing a fixed delay.
-  bool waitForResult(ScriptRuntime& rt, EvalResult& out, int tries = 300,
-                     unsigned int sleepMs = 10) {
-    for (int i = 0; i < tries; ++i) {
-      if (rt.tryPopResult(out)) return true;
-      YSE::System().sleep(sleepMs);
-    }
-    return false;
+  // outbound queue with a bounded wait rather than guessing a fixed delay. The
+  // budget is counted in deliveries of the suite's reference timer rather than
+  // in milliseconds, so a loaded box stretches it exactly as it stretches the
+  // worker, while a wedged worker still fails (issue #753).
+  bool waitForResult(ScriptRuntime& rt, EvalResult& out, int ticks = 3000) {
+    return TestHelpers::pacedUntil(ticks, [&] { return rt.tryPopResult(out); });
   }
 
 } // namespace

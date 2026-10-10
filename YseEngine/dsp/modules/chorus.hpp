@@ -26,6 +26,7 @@ namespace YSE {
       enum chorusMode {
         MODE_CHORUS, ///< Longer base delay, wide slow sweep — thickening/detune.
         MODE_FLANGER, ///< Short base delay, feedback — sweeping comb notches.
+        MODE_COUNT_, ///< Sentinel: number of modes, not a valid value. Keep last.
       };
 
       /**
@@ -55,7 +56,7 @@ namespace YSE {
       class API chorus : public dspObject {
       public:
         chorus();
-        virtual ~chorus() {};
+        ~chorus() override {};
 
         /** @brief Select chorus or flanger topology. */
         chorus& mode(chorusMode value);
@@ -92,10 +93,10 @@ namespace YSE {
         Flt spread();
 
         /** @brief dspObject lifecycle hook. */
-        virtual void create();
+        void create() override;
 
         /** @brief dspObject audio-thread entry point. */
-        virtual void process(MULTICHANNELBUFFER& buffer);
+        void process(MULTICHANNELBUFFER& buffer) override;
 
       private:
         aFlt parmRate; // LFO rate, Hz
@@ -107,6 +108,7 @@ namespace YSE {
         // Audio-thread-only state.
         Flt lfoCursor; // shared LFO phase carried across blocks (radians)
         Flt delaySmoothCoef; // one-pole coef for per-sample delay smoothing
+        UInt builtRate; // SAMPLERATE delaySmoothCoef was derived for (#637)
         std::size_t lineSize; // per-channel delay-line length (samples)
         std::size_t blockLength; // last seen block length (scratch sizing)
 

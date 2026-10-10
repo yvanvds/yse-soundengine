@@ -1,4 +1,5 @@
-/*
+/**
+  @file
   yse_midi.h — MIDI file playback + MIDI device output + MIDI device input
                + midiNote helper.
   C ABI mirror of YseEngine/midi/{midifile,midiNote,device}.hpp.
@@ -7,7 +8,18 @@
   (RtMidi-backed). Querying device counts/names lives in yse_system.h
   (yse_system_num_midi_{in,out}_devices, yse_system_midi_{in,out}_device_name).
 
-  Channels are 0..15 (use the same indexing as YSE::MIDI::M_CHANNEL).
+  ── MIDI CHANNEL NUMBERING: TWO BASES IN THIS API ──
+  The wire-level functions here count channels from ZERO: yse_midi_out_*
+  takes 0..15 (the YSE::MIDI::M_CHANNEL indexing; out-of-range values are
+  clamped), and the parsed input callback reports the raw 0..15 nibble.
+  The musical layer counts from ONE: yse_synth_* (yse_synth.h), clip events
+  (yse_clip.h) and the `channel_filter` of yse_midi_in_connect_synth take
+  1..16; on the synth calls and the filter, 0 means omni / every channel.
+  So MIDI channel 1 is 0 on a yse_midi_out_* call and 1 on a synth or clip
+  call — and a 0 passed to a synth is not channel 1 but all of them.
+  Convert with +1 / -1 at the boundary. (A clip bound to a MIDI output
+  does that conversion itself: its events stay 1..16.)
+
   Pitches are 0..127 raw MIDI note numbers.
 
   Input callbacks fire on RtMidi's internal input thread. They MUST return
@@ -28,17 +40,32 @@
 extern "C" {
 #endif
 
-/* Owned — release with yse_midi_file_destroy. */
+#ifndef YSE_C_HANDLE_YseMidiFile
+#define YSE_C_HANDLE_YseMidiFile
+/** Owned — release with yse_midi_file_destroy. */
 typedef struct YseMidiFile YseMidiFile;
-/* Owned — release with yse_midi_out_destroy. */
+#endif
+#ifndef YSE_C_HANDLE_YseMidiOut
+#define YSE_C_HANDLE_YseMidiOut
+/** Owned — release with yse_midi_out_destroy. */
 typedef struct YseMidiOut YseMidiOut;
-/* Owned — release with yse_midi_in_destroy. */
+#endif
+#ifndef YSE_C_HANDLE_YseMidiIn
+#define YSE_C_HANDLE_YseMidiIn
+/** Owned — release with yse_midi_in_destroy. */
 typedef struct YseMidiIn YseMidiIn;
-/* Owned — release with yse_midi_note_destroy. */
+#endif
+#ifndef YSE_C_HANDLE_YseMidiNote
+#define YSE_C_HANDLE_YseMidiNote
+/** Owned — release with yse_midi_note_destroy. */
 typedef struct YseMidiNote YseMidiNote;
-/* Opaque synth handle (defined in yse_synth.h) — target of
+#endif
+#ifndef YSE_C_HANDLE_YseSynth
+#define YSE_C_HANDLE_YseSynth
+/** Opaque synth handle (defined in yse_synth.h) — target of
    yse_midi_file_connect_synth / yse_midi_in_connect_synth. */
 typedef struct YseSynth YseSynth;
+#endif
 
 /* ─── standard MIDI file playback ─────────────────────────────────── */
 
@@ -49,7 +76,7 @@ YSE_C_API void yse_midi_file_play(YseMidiFile* f);
 YSE_C_API void yse_midi_file_pause(YseMidiFile* f);
 YSE_C_API void yse_midi_file_stop(YseMidiFile* f);
 
-/* Route this file's playback into a synth (issue #372, mirrors
+/** Route this file's playback into a synth (issue #372, mirrors
    YSE::MIDI::file::connect). While the file plays, every note / controller /
    pitch-bend event it contains is delivered to `synth` block-accurately on the
    audio thread; may be called for several synths (up to a small fixed cap) to
@@ -62,7 +89,7 @@ YSE_C_API void yse_midi_file_stop(YseMidiFile* f);
    it from the audio thread. */
 YSE_C_API void yse_midi_file_connect_synth(YseMidiFile* f, YseSynth* synth);
 
-/* Stop routing this file's playback into `synth` (issue #372). Safe to call for
+/** Stop routing this file's playback into `synth` (issue #372). Safe to call for
    a synth that was never connected. */
 YSE_C_API void yse_midi_file_disconnect_synth(YseMidiFile* f, YseSynth* synth);
 
@@ -90,14 +117,22 @@ YSE_C_API void yse_midi_out_poly(YseMidiOut* m, int on);
 
 YSE_C_API void yse_midi_out_raw3(YseMidiOut* m, unsigned char a, unsigned char b, unsigned char c);
 
+/** Send `length` bytes from `data` as one message, exactly as given — no
+   padding and no truncation (issue #903, mirrors
+   YSE::midiOut::Raw(const unsigned char*, size_t)). Use it for two-byte
+   messages (program change, channel pressure) and for SysEx. The bytes are
+   copied out before the call returns. A NULL handle, NULL data or a zero
+   length is a no-op. */
+YSE_C_API void yse_midi_out_raw(YseMidiOut* m, const unsigned char* data, size_t length);
+
 /* ─── MIDI device input ───────────────────────────────────────────── */
 
-/* Raw-bytes callback. `bytes` is malloc'd by the engine; the receiver owns
+/** Raw-bytes callback. `bytes` is malloc'd by the engine; the receiver owns
    it and must release with yse_midi_in_free_message. Length is in bytes. */
 typedef void(YSE_C_CALLBACK* YseMidiInRawCallback)(double timestamp_sec, unsigned char* bytes,
                                                    size_t len, void* user_data);
 
-/* Parsed callback. status/channel are pre-split from the first byte; data1
+/** Parsed callback. status/channel are pre-split from the first byte; data1
    and data2 are zero for messages shorter than 3 bytes. No ownership
    transfer. */
 typedef void(YSE_C_CALLBACK* YseMidiInParsedCallback)(double timestamp_sec, unsigned char status,
@@ -110,17 +145,17 @@ YSE_C_API void yse_midi_in_open(YseMidiIn* m, unsigned int port);
 YSE_C_API void yse_midi_in_close(YseMidiIn* m);
 YSE_C_API int yse_midi_in_is_open(YseMidiIn* m);
 
-/* Register a raw callback. Pass NULL to detach. */
+/** Register a raw callback. Pass NULL to detach. */
 YSE_C_API void yse_midi_in_set_raw_callback(YseMidiIn* m, YseMidiInRawCallback cb, void* user_data);
 
-/* Register a parsed callback. Pass NULL to detach. */
+/** Register a parsed callback. Pass NULL to detach. */
 YSE_C_API void yse_midi_in_set_parsed_callback(YseMidiIn* m, YseMidiInParsedCallback cb,
                                                void* user_data);
 
-/* Release a byte buffer previously delivered to a YseMidiInRawCallback. */
+/** Release a byte buffer previously delivered to a YseMidiInRawCallback. */
 YSE_C_API void yse_midi_in_free_message(unsigned char* bytes);
 
-/* Route incoming device MIDI into a synth (issue #155). Every channel-voice
+/** Route incoming device MIDI into a synth (issue #155). Every channel-voice
    message received on the open port is mapped to the synth's normalized note
    API and pushed lock-free onto its inbox, on RtMidi's input thread.
    `channel_filter` is a 1..16 MIDI channel to accept, or 0 for every channel.
@@ -131,7 +166,7 @@ YSE_C_API void yse_midi_in_free_message(unsigned char* bytes);
    from the input callbacks. On builds without MIDI device support it no-ops. */
 YSE_C_API void yse_midi_in_connect_synth(YseMidiIn* m, YseSynth* synth, int channel_filter);
 
-/* Stop routing incoming device MIDI into `synth` (issue #155). Safe to call for
+/** Stop routing incoming device MIDI into `synth` (issue #155). Safe to call for
    a synth that was never connected. */
 YSE_C_API void yse_midi_in_disconnect_synth(YseMidiIn* m, YseSynth* synth);
 

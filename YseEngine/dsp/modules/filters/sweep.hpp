@@ -39,11 +39,12 @@ namespace YSE {
           TRIANGLE,
           SAW,
           SQUARE,
+          SHAPE_COUNT_, // sentinel: number of shapes, not a valid value; keep last
         };
 
         /** @brief Construct with the chosen sweep shape. */
         sweepFilter(SHAPE shape = SAW);
-        virtual ~sweepFilter() {};
+        ~sweepFilter() override {};
 
         /** @brief Set the LFO speed in Hz. */
         sweepFilter& speed(Flt value);
@@ -64,10 +65,10 @@ namespace YSE {
         Int frequency();
 
         /** @brief dspObject lifecycle hook — allocates buffers. */
-        virtual void create();
+        void create() override;
 
         /** @brief dspObject audio-thread entry point. */
-        virtual void process(MULTICHANNELBUFFER& buffer);
+        void process(MULTICHANNELBUFFER& buffer) override;
 
       private:
         aFlt parmSpeed;

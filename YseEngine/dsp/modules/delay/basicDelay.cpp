@@ -28,6 +28,8 @@ YSE::DSP::MODULES::basicDelay& YSE::DSP::MODULES::basicDelay::set(basicDelay::DE
     time2.store(time);
     gain2.store(gain);
     break;
+  case DELAY_NR_COUNT_:
+    break; // sentinel, not a tap
   }
 
   return *this;
@@ -41,6 +43,8 @@ Flt YSE::DSP::MODULES::basicDelay::time(basicDelay::DELAY_NR nr) {
     return time1;
   case THIRD:
     return time2;
+  case DELAY_NR_COUNT_:
+    break; // sentinel, not a tap
   }
   return time0; // stop complaining about control paths
 }
@@ -53,6 +57,8 @@ Flt YSE::DSP::MODULES::basicDelay::gain(basicDelay::DELAY_NR nr) {
     return gain1;
   case THIRD:
     return gain2;
+  case DELAY_NR_COUNT_:
+    break; // sentinel, not a tap
   }
   return gain0; // stop complaining about control paths
 }
@@ -76,6 +82,19 @@ void YSE::DSP::MODULES::basicDelay::process(MULTICHANNELBUFFER& buffer) {
   // the channel count. Allocation-free once the count is stable.
   channels.ensure(buffer.size());
   ensurePreFilter(buffer.size());
+
+  // The line capacity (in ms, numerically SAMPLERATE — see delayChannel's
+  // constructor) was derived from the rate at first construction, so the
+  // maximum addressable delay would stay stale across a close()/init() cycle
+  // at another rate (issue #637). Re-derive it on that path; steady state pays
+  // one integer compare, and the lazy resize inside delay::process() is the
+  // accepted device-restart allocation path.
+  if (builtRate != SAMPLERATE) {
+    for (std::size_t ch = 0; ch < channels.size(); ++ch) {
+      channels[ch].line.setSize(SAMPLERATE);
+    }
+    builtRate = SAMPLERATE;
+  }
 
   for (std::size_t ch = 0; ch < buffer.size(); ++ch) {
     if (buffer[ch].getLength() != result.getLength()) {

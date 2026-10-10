@@ -1,4 +1,5 @@
-/*
+/**
+  @file
   yse_system.h — engine lifecycle, audio device control, global settings.
   C ABI mirror of YseEngine/system.hpp (YSE::system class + YSE::System() singleton accessor).
 */
@@ -13,40 +14,109 @@
 extern "C" {
 #endif
 
-/* Borrowed singleton — owned by the engine, never destroy.
+#ifndef YSE_C_HANDLE_YseSystem
+#define YSE_C_HANDLE_YseSystem
+/** Borrowed singleton — owned by the engine, never destroy.
    Obtain via yse_system_get(). */
 typedef struct YseSystem YseSystem;
-/* Forward declarations — see yse_channel.h / yse_reverb.h / yse_device.h
+#endif
+#ifndef YSE_C_HANDLE_YseChannel
+#define YSE_C_HANDLE_YseChannel
+/** Forward declarations — see yse_channel.h / yse_reverb.h / yse_device.h
    for ownership semantics. */
 typedef struct YseChannel YseChannel;
+#endif
+#ifndef YSE_C_HANDLE_YseReverb
+#define YSE_C_HANDLE_YseReverb
 typedef struct YseReverb YseReverb;
+#endif
+#ifndef YSE_C_HANDLE_YseDevice
+#define YSE_C_HANDLE_YseDevice
 typedef struct YseDevice YseDevice;
+#endif
+#ifndef YSE_C_HANDLE_YseDeviceSetup
+#define YSE_C_HANDLE_YseDeviceSetup
 typedef struct YseDeviceSetup YseDeviceSetup;
+#endif
 
-/* Borrowed singleton pointer — never destroy. */
+/** Borrowed singleton pointer — never destroy. */
 YSE_C_API YseSystem* yse_system_get(void);
 
-/* Lifecycle. */
+/** Lifecycle.
+
+   yse_system_init() returns YSE_OK only when a stream on the default output
+   device is running. With no default device, or one that refuses to open or
+   start the stream, it returns YSE_ERR_AUDIO_DEVICE and leaves the engine
+   closed; yse_system_init_offline() runs the engine without a device
+   (issue #973). */
 YSE_C_API YseStatus yse_system_init(YseSystem* sys);
 YSE_C_API YseStatus yse_system_init_offline(YseSystem* sys);
 YSE_C_API void yse_system_render_offline(YseSystem* sys, int blocks);
 YSE_C_API void yse_system_update(YseSystem* sys);
 YSE_C_API void yse_system_close(YseSystem* sys);
 YSE_C_API void yse_system_pause(YseSystem* sys);
+/** Restarts the device this session already had. A session brought up with
+   yse_system_init_offline() has none, so this is a no-op there rather than an
+   open of the platform default; yse_system_open_device() is the deliberate way
+   to give such a session a device (issue #719). */
 YSE_C_API void yse_system_resume(YseSystem* sys);
 
-/* Diagnostics. */
+/** Diagnostics.
+
+   yse_system_missed_callbacks() counts consecutive yse_system_update() ticks
+   during which the device delivered no audio callback; 0 means audio is
+   flowing right now. A stream that has just been started reads non-zero until
+   its first callback lands (the backend's start call returns before the device
+   runs), so poll this until it reaches 0 to wait for a device to come up — a
+   value that keeps climbing is a starved audio thread or a disconnected
+   device. yse_system_auto_reconnect() does not act on this counter; it
+   distinguishes start-up from a stall itself (issue #681). */
 YSE_C_API int yse_system_missed_callbacks(YseSystem* sys);
 YSE_C_API float yse_system_cpu_load(YseSystem* sys);
 
-/* Engine session sample rate in Hz. Stays constant for the lifetime of an
+/** Request the audio sample rate for the next engine session (issue #646).
+   The sample rate is an application setting, fixed per session: call this
+   before yse_system_init / yse_system_init_offline. The device may refuse or
+   negotiate a different rate — the negotiated result stays authoritative and
+   is reported by yse_system_get_sample_rate(); a refused request is a log
+   line plus the negotiated fallback, never an error. Offline / headless
+   sessions run exactly at the requested rate. Pass 0 to clear the request
+   (the backend then opens at the device default; the pre-negotiation initial
+   value is 48000). Changing a running session's rate means yse_system_close()
+   followed by a new init; calling this mid-session only stores the request
+   for the next session. The request survives close. */
+YSE_C_API void yse_system_request_sample_rate(YseSystem* sys, unsigned int rate_hz);
+
+/** Currently requested sample rate in Hz, or 0 when no request is set. */
+YSE_C_API unsigned int yse_system_get_requested_sample_rate(YseSystem* sys);
+
+/** Render thread count (issue #861): how many worker threads help the audio
+   thread render the mix. count < 0 (default -1) is auto — physical cores minus
+   one, capped at 8; 0 is serial — the audio thread renders alone and no
+   worker is started (constrained hardware, Android); n > 0 is exactly n
+   workers (at most 64). Whatever the count, no worker is woken for a block
+   estimated to cost less than the wake (in real-time rendering the audio
+   thread renders it alone); the setting decides only which thread renders
+   each part of the mix, never how it is summed. Call before yse_system_init /
+   yse_system_init_offline: with no session or an offline one it applies at once; during a device
+   session it is stored for the next init. The setting survives close. Returns YSE_ERR_EXCEPTION
+   (see yse_last_error) if the workers could not be started.
+
+   yse_system_get_render_threads() returns the setting (-1 = auto);
+   yse_system_get_active_render_threads() the workers currently running. Both
+   return 0 on a NULL handle. */
+YSE_C_API YseStatus yse_system_set_render_threads(YseSystem* sys, int count);
+YSE_C_API int yse_system_get_render_threads(YseSystem* sys);
+YSE_C_API int yse_system_get_active_render_threads(YseSystem* sys);
+
+/** Engine session sample rate in Hz. Stays constant for the lifetime of an
    init()/close() session, including across pause/resume cycles where the
    live "active" rate transiently drops to 0. Returns 0 before init(). Use
    this for sample-count-driven scheduling that must outlive a pause; use
    yse_system_get_active_sample_rate() for live device-state UI. */
 YSE_C_API double yse_system_get_sample_rate(YseSystem* sys);
 
-/* Live state of the currently open audio device. Returns 0 when no device
+/** Live state of the currently open audio device. Returns 0 when no device
    is open (pre-init, after close, or initOffline path). Buffer size is the
    device's frames-per-callback, NOT the engine block size. Output latency
    is in samples; convert to ms with (latency / sample_rate) * 1000. */
@@ -54,26 +124,77 @@ YSE_C_API double yse_system_get_active_sample_rate(YseSystem* sys);
 YSE_C_API int yse_system_get_active_buffer_size(YseSystem* sys);
 YSE_C_API int yse_system_get_active_output_latency(YseSystem* sys);
 
-/* Convenience. */
+/** Convenience. */
 YSE_C_API void yse_system_sleep(YseSystem* sys, unsigned int ms);
 
-/* Settings. */
+/** Settings. */
 YSE_C_API void yse_system_set_max_sounds(YseSystem* sys, int value);
 YSE_C_API int yse_system_get_max_sounds(YseSystem* sys);
 YSE_C_API void yse_system_audio_test(YseSystem* sys, int on);
+
+/** Re-open the audio output stream when the device stops delivering callbacks
+   (headphones unplugged, device removed). delay_ms is what its name has always
+   said and now is: milliseconds of silence before an attempt, and the interval
+   between further attempts while the device stays unavailable. Negative values
+   are clamped to 0. Up to and including v2.4.0 the value was compared against a
+   count of yse_system_update() calls instead, so the same number meant a
+   different wait per host (issue #681).
+
+   A stream that has been started but has not delivered its first callback yet
+   is not stalled, and is never torn down for it: it gets a half-second start-up
+   grace regardless of delay_ms. */
 YSE_C_API void yse_system_auto_reconnect(YseSystem* sys, int on, int delay_ms);
 
-/* Devices. Returned YseDevice* pointers are borrowed from the engine and
-   must not be destroyed. See yse_device.h for the descriptor accessors. */
+/** Devices. Returned YseDevice* pointers are borrowed from the engine and
+   must not be destroyed. See yse_device.h for the descriptor accessors.
+
+   yse_system_get_device() is bound-checked: an idx at or beyond
+   yse_system_num_devices() returns NULL and sets the last error, so probing
+   or iterating with a stale count is safe. An offline or headless session
+   enumerates no devices at all, which makes index 0 out of range. */
 YSE_C_API unsigned int yse_system_num_devices(YseSystem* sys);
 YSE_C_API YseDevice* yse_system_get_device(YseSystem* sys, unsigned int idx);
+/** yse_system_open_device() returns YSE_OK only when a stream was opened for
+   `setup`. A setup the engine refuses — no output device, an output device
+   whose id is -1 or no longer resolves, a stream open error, or an offline
+   session with no audio backend — returns YSE_ERR_AUDIO_DEVICE and sets
+   yse_last_error(); the running stream and the speaker layout are left
+   untouched (issue #900).
+
+   On desktop, yse_system_init_offline() does not start the audio backend and
+   open_device does not start it on demand: an offline session can only open a
+   device in a process where an earlier yse_system_init() started it. The
+   stream opens at the locked session rate; a device that refuses that rate is
+   a logged YSE_ERR_AUDIO_DEVICE (issue #972). */
 YSE_C_API YseStatus yse_system_open_device(YseSystem* sys, const YseDeviceSetup* setup,
                                            YseChannelType layout);
 YSE_C_API void yse_system_close_current_device(YseSystem* sys);
+
+/** Set the speaker layout without opening a device (issue #668).
+
+   yse_system_open_device() derives the layout from the device it actually
+   opened, so a session with no device — yse_system_init_offline(), headless
+   CI, yse_system_render_offline() benchmarks — otherwise stays on the stereo
+   layout init installs. Call this after init/init_offline (initialisation
+   installs the stereo default itself, so an earlier call is overwritten); the
+   next audio callback or render_offline block picks the new layout up and
+   resizes the mixer to match.
+
+   `outputs` is the number of output channels and must be at least 1; a
+   zero-output layout would silence the engine, so it is refused with a log
+   line. YSE_CT_AUTO derives a layout from `outputs`; YSE_CT_CUSTOM allocates
+   `outputs` speakers whose positions are set afterwards. */
+YSE_C_API void yse_system_set_channel_configuration(YseSystem* sys, YseChannelType layout,
+                                                    int outputs);
 YSE_C_API size_t yse_system_default_device(YseSystem* sys, char* buf, size_t cap);
 YSE_C_API size_t yse_system_default_host(YseSystem* sys, char* buf, size_t cap);
 
-/* MIDI devices (Windows / Linux only — Android builds report 0). */
+/** MIDI devices (Windows / Linux only — Android builds report 0).
+
+   The name getters write an empty, NUL-terminated buffer and return 0 when
+   there is no such device: an `id` at or past the matching count, or any `id`
+   at all on a host whose MIDI backend failed to initialise (issue #585). A
+   non-empty name therefore always means a real port. */
 YSE_C_API unsigned int yse_system_num_midi_in_devices(YseSystem* sys);
 YSE_C_API unsigned int yse_system_num_midi_out_devices(YseSystem* sys);
 YSE_C_API size_t yse_system_midi_in_device_name(YseSystem* sys, unsigned int id, char* buf,
@@ -81,7 +202,7 @@ YSE_C_API size_t yse_system_midi_in_device_name(YseSystem* sys, unsigned int id,
 YSE_C_API size_t yse_system_midi_out_device_name(YseSystem* sys, unsigned int id, char* buf,
                                                  size_t cap);
 
-/* Domain clocks (issue #249). A set of named musical (beat) clocks, each a
+/** Domain clocks (issue #249). A set of named musical (beat) clocks, each a
    beat accumulator derived from the audio callback: every audio block a clock
    advances by blockSeconds * tempo / 60 at its current tempo, so beat position
    is the running integral of tempo (no absolute-time schedule). All clocks
@@ -93,34 +214,36 @@ YSE_C_API size_t yse_system_midi_out_device_name(YseSystem* sys, unsigned int id
    and current_tempo may be read from the UI thread at frame rate. None run on
    or block the audio callback. `name` is a NUL-terminated UTF-8 string. */
 
-/* Returns 1 on success, 0 if `sys`/`name` is NULL, the name is empty, or a
-   live clock already owns the name (first registration wins). */
-YSE_C_API int yse_system_create_clock(YseSystem* sys, const char* name, float initial_tempo);
+/** YSE_OK on success; YSE_ERR_INVALID_HANDLE on a NULL `sys`,
+   YSE_ERR_INVALID_ARGUMENT when `name` is NULL or empty or a live clock
+   already owns it (first registration wins — the existing clock is left
+   unchanged). Every failure leaves its reason in yse_last_error(). */
+YSE_C_API YseStatus yse_system_create_clock(YseSystem* sys, const char* name, float initial_tempo);
 
-/* Destroy the named clock. No-op for an unknown name or NULL args. */
+/** Destroy the named clock. No-op for an unknown name or NULL args. */
 YSE_C_API void yse_system_destroy_clock(YseSystem* sys, const char* name);
 
-/* Returns 1 if a live clock with `name` exists, else 0. */
+/** Returns 1 if a live clock with `name` exists, else 0. */
 YSE_C_API int yse_system_clock_exists(YseSystem* sys, const char* name);
 
-/* Ramp the named clock's tempo toward `bpm` over `ramp_seconds` (0 = instant).
+/** Ramp the named clock's tempo toward `bpm` over `ramp_seconds` (0 = instant).
    No-op for an unknown name or NULL args. */
 YSE_C_API void yse_system_set_tempo(YseSystem* sys, const char* name, float bpm,
                                     float ramp_seconds);
 
-/* Current beat position (running integral of tempo) of the named clock, or 0
+/** Current beat position (running integral of tempo) of the named clock, or 0
    for an unknown name or NULL args. */
 YSE_C_API double yse_system_beat_position(YseSystem* sys, const char* name);
 
-/* Current tempo in BPM of the named clock, or 0 for an unknown name or NULL
+/** Current tempo in BPM of the named clock, or 0 for an unknown name or NULL
    args. */
 YSE_C_API float yse_system_current_tempo(YseSystem* sys, const char* name);
 
-/* Global reverb — fallback wherever no positioned reverb zone reaches.
+/** Global reverb — fallback wherever no positioned reverb zone reaches.
    Returned pointer is borrowed; never destroy. */
 YSE_C_API YseReverb* yse_system_get_global_reverb(YseSystem* sys);
 
-/* Underwater effect: attaches the engine's underwater insert module to the
+/** Underwater effect: attaches the engine's underwater insert module to the
    channel's insert slot (the same slot yse_channel_set_dsp uses; the two
    replace each other). Depth is the listener's distance below the water
    surface in world units: <= 0 disables the effect, the low-passed
@@ -128,6 +251,56 @@ YSE_C_API YseReverb* yse_system_get_global_reverb(YseSystem* sys);
    depth also enables the built-in underwater reverb zone. */
 YSE_C_API void yse_system_underwater_fx(YseSystem* sys, const YseChannel* target);
 YSE_C_API void yse_system_set_underwater_depth(YseSystem* sys, float depth);
+
+/** Sound occlusion (issue #906). The callback returns how much geometry sits
+   between `src` and `listener`, 0 (clear line of sight) to 1 (fully blocked);
+   the result is clamped to that range and applied as a gain duck
+   (gain *= 1 - occlusion) to every sound with yse_sound_set_occlusion(s, 1).
+   Typical hosts raycast through their world geometry here.
+
+   Threading: the callback runs on the thread that calls yse_system_update(),
+   once per occlusion-enabled sound per update — never on the audio callback
+   thread, so it may lock, allocate or query a physics engine. `src` and
+   `listener` point to stack copies valid only for the duration of the call;
+   positions are already multiplied by the engine's distance factor.
+
+   There is one occlusion callback per process. Installing replaces the
+   previous callback + user_data as one unit; NULL `cb` removes it (sounds
+   then keep the last occlusion value they received). Install and remove may
+   be called from any host thread, including from inside the callback itself.
+   A dispatch never pairs one install's callback with another's user_data, and
+   every update that starts after the install returns uses the new pair; an
+   update already running on another thread may finish its current call with
+   the old one, so keep old user_data alive until that update has returned.
+   A NULL `sys` is a no-op. */
+typedef float(YSE_C_CALLBACK* YseOcclusionCallback)(const yse_pos_t* src, const yse_pos_t* listener,
+                                                    void* user_data);
+YSE_C_API void yse_system_set_occlusion_callback(YseSystem* sys, YseOcclusionCallback cb,
+                                                 void* user_data);
+
+/** Engine block size in frames (issue #908): the fixed number of samples the
+   engine renders per block (128). yse_system_render_offline(sys, blocks)
+   renders blocks * yse_block_size() frames. Independent of the device's
+   frames-per-callback reported by yse_system_get_active_buffer_size(). */
+YSE_C_API unsigned int yse_block_size(void);
+
+/** Engine random generator (issue #908) — the one behind the patcher's .random
+   object, granulator jitter, the LFO random shapes and the seed-0 stream of
+   the seedable patcher objects. These run inside the engine library, so they
+   seed the engine's own generator even when the host links it as a shared
+   library (the C++ YSE::Randomize() inline would seed the host's copy).
+
+   Without either call the engine is reproducible by default. yse_randomize()
+   seeds from the system clock; yse_random_seed() seeds with a fixed value, so
+   the same seed replays the same sequence on the n-th thread to draw after
+   the call — in particular on the audio thread when it is the only one
+   drawing. Every engine thread re-seeds on its next draw, so the audio
+   thread's running stream is affected too. Call from a control thread (not
+   from an audio callback), typically before creating the patch or sounds
+   whose output should be reproducible; objects that drew their stream at
+   construction keep it. */
+YSE_C_API void yse_randomize(void);
+YSE_C_API void yse_random_seed(unsigned int seed);
 
 #ifdef __cplusplus
 }

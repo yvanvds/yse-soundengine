@@ -15,20 +15,72 @@
 
 #include <doctest/doctest.h>
 #include <chrono>
+#include <mutex>
+#include <string>
 #include <thread>
+#include <vector>
 #include "sound/soundInterface.hpp"
 #include "sound/soundManager.h"
 #include "sound/soundMessage.h"
 #include "patcher/patcher.hpp"
 #include "dsp/dspObject.hpp"
 #include "internal/time.h"
+#include "log.hpp"
 #include "support/null_device.hpp"
+#include "support/timer_pacing.hpp"
 
 // Minimal no-op DSP source used to create sounds without file I/O.
 namespace {
   struct SilentSource : YSE::DSP::dspSourceObject {
     void process(YSE::SOUND_STATUS&) override {}
     void frequency(float) override {}
+  };
+
+  // Records every log line so "create() reported this path" is an assertion
+  // rather than an inference. A counting sink rather than a throwing one, so it
+  // is safe in the shared test process; cases match on a substring so an
+  // unrelated line cannot fail them.
+  //
+  // Locked (#948): the engine serialises AddMessage() calls against each
+  // other, not against this test reading the vector. Slow-pool file loads log
+  // from a pool thread while the handler is installed, so the reader needs
+  // the same lock as the writer.
+  class RecordingHandler : public YSE::logHandler {
+  public:
+    void AddMessage(const std::string& message) override {
+      const std::lock_guard<std::mutex> lock(mutex);
+      messages.push_back(message);
+    }
+    bool sawSubstring(const std::string& needle) const {
+      const std::lock_guard<std::mutex> lock(mutex);
+      for (const std::string& m : messages) {
+        if (m.find(needle) != std::string::npos) return true;
+      }
+      return false;
+    }
+
+  private:
+    mutable std::mutex mutex;
+    std::vector<std::string> messages;
+  };
+
+  // Installs a sink and a level that lets warnings through for one case, and
+  // restores both even if an assertion unwinds.
+  class ScopedSink {
+  public:
+    explicit ScopedSink(YSE::logHandler* handler) : previousLevel(YSE::Log().getLevel()) {
+      YSE::Log().setLevel(YSE::EL_WARNING);
+      YSE::Log().setHandler(handler);
+    }
+    ~ScopedSink() {
+      YSE::Log().setHandler(nullptr);
+      YSE::Log().setLevel(previousLevel);
+    }
+    ScopedSink(const ScopedSink&) = delete;
+    ScopedSink& operator=(const ScopedSink&) = delete;
+
+  private:
+    YSE::ERROR_LEVEL previousLevel;
   };
 } // namespace
 
@@ -236,6 +288,162 @@ TEST_SUITE("sound") {
   TEST_CASE("sound: default occlusion is false") {
     YSE::sound s;
     CHECK(s.occlusion() == false);
+  }
+
+  // Regression for issue #579: before create() the interface has no
+  // implementation, and every setter / transport call / implementation-backed
+  // query used to dereference the null pimpl. They are no-ops now — the cached
+  // interface state stays at its defaults and the queries report zero / false.
+  // Without the fix this case segfaults on the first setter.
+  TEST_CASE("sound: an un-created sound no-ops instead of dereferencing a null pimpl (#579)") {
+    YSE::sound s;
+    REQUIRE_FALSE(s.isValid());
+
+    s.pos(YSE::Pos(1.f, 2.f, 3.f));
+    s.volume(0.75f);
+    s.volume(0.5f, 100u);
+    s.speed(2.f);
+    s.size(4.f);
+    s.spread(0.6f);
+    s.looping(true);
+    s.relative(true);
+    s.doppler(false);
+    s.pan2D(true);
+    s.occlusion(true);
+    s.time(128.f);
+    s.setDSP(nullptr);
+    s.play();
+    s.pause();
+    s.stop();
+    s.toggle();
+    s.restart();
+    s.fadeAndStop(100u);
+
+    // Nothing was applied: the cached values are still the constructor defaults.
+    CHECK(s.pos().x == doctest::Approx(0.0f));
+    CHECK(s.volume() == doctest::Approx(0.0f));
+    CHECK(s.speed() == doctest::Approx(1.0f));
+    CHECK(s.size() == doctest::Approx(0.0f));
+    CHECK(s.spread() == doctest::Approx(0.0f));
+    CHECK(s.looping() == false);
+    CHECK(s.relative() == false);
+    CHECK(s.doppler() == true);
+    CHECK(s.pan2D() == false);
+    CHECK(s.occlusion() == false);
+    CHECK(s.getDSP() == nullptr);
+
+    // Implementation-backed queries answer without touching the implementation.
+    CHECK_FALSE(s.isPlaying());
+    CHECK_FALSE(s.isPaused());
+    CHECK_FALSE(s.isStopped());
+    CHECK_FALSE(s.isStreaming());
+    CHECK_FALSE(s.isReady());
+    CHECK(s.time() == doctest::Approx(0.0f));
+    CHECK(s.length() == 0u);
+    CHECK_FALSE(s.isValid());
+  }
+
+  // A sound is still usable after the no-op window: create() takes effect on a
+  // sound that was driven while un-created (issue #579).
+  TEST_CASE("sound: create still works after calls on the un-created sound (#579)") {
+    if (!TestHelpers::engineInit()) return;
+    SilentSource src;
+    YSE::sound s;
+    s.volume(0.9f); // dropped — no implementation yet
+    s.play();
+    CHECK(s.volume() == doctest::Approx(0.0f));
+
+    s.create(src);
+    REQUIRE(s.isValid());
+    s.volume(0.9f);
+    CHECK(s.volume() == doctest::Approx(0.9f));
+  }
+
+  // ─── create() seeds the interface state (issue #583) ─────────────────────────
+  // create() hands `loop` / `volume` to the implementation, which applies them,
+  // but used to leave the interface's cached copies at their constructor
+  // defaults — so looping() reported false for a looping sound and volume()
+  // reported 0 for one playing at 0.5. Pre-fix every CHECK below reads the
+  // default instead of the argument.
+
+  TEST_CASE("sound: create() seeds looping() and volume() from its arguments (#583)") {
+    if (!TestHelpers::engineInit()) return;
+    YSE::sound s;
+    s.create(WAV_FIXTURE, nullptr, /*loop=*/true, /*volume=*/0.5f);
+    if (!s.isValid()) return; // file missing in this environment
+    CHECK(s.looping() == true);
+    CHECK(s.volume() == doctest::Approx(0.5f));
+  }
+
+  TEST_CASE("sound: create() seeds a non-looping sound too (#583)") {
+    if (!TestHelpers::engineInit()) return;
+    YSE::sound s;
+    s.create(WAV_FIXTURE, nullptr, /*loop=*/false, /*volume=*/0.25f);
+    if (!s.isValid()) return;
+    CHECK(s.looping() == false);
+    CHECK(s.volume() == doctest::Approx(0.25f));
+  }
+
+  TEST_CASE("sound: DSP-source create() seeds volume() (#583)") {
+    if (!TestHelpers::engineInit()) return;
+    SilentSource src;
+    YSE::sound s;
+    s.create(src, nullptr, /*volume=*/0.4f);
+    REQUIRE(s.isValid());
+    CHECK(s.volume() == doctest::Approx(0.4f));
+    CHECK(s.looping() == false); // the DSP overload never loops
+  }
+
+  // The seeded value is a starting point, not a lock: the setter still moves it.
+  TEST_CASE("sound: a setter overrides the value create() seeded (#583)") {
+    if (!TestHelpers::engineInit()) return;
+    SilentSource src;
+    YSE::sound s;
+    s.create(src, nullptr, /*volume=*/0.4f);
+    REQUIRE(s.isValid());
+    s.volume(0.8f);
+    CHECK(s.volume() == doctest::Approx(0.8f));
+    s.looping(true);
+    CHECK(s.looping() == true);
+  }
+
+  // A create() that failed nulls pimpl again, so nothing is seeded — the sound
+  // keeps the defaults the null-pimpl contract (#579) promises.
+  TEST_CASE("sound: a failed create() seeds nothing (#583)") {
+    if (!TestHelpers::engineInit()) return;
+    YSE::sound s;
+    s.create("definitely_not_here.wav", nullptr, /*loop=*/true, /*volume=*/0.5f);
+    REQUIRE_FALSE(s.isValid());
+    CHECK(s.looping() == false);
+    CHECK(s.volume() == doctest::Approx(0.0f));
+  }
+
+  // create() resolves a relative file name against the working directory, and
+  // the path it builds is not private: it reaches the user verbatim in the
+  // E_FILE_ERROR line their log handler receives, and it is the key the sound
+  // manager shares loaded files by. #693: the separator was picked by
+  // `#ifdef __WINDOWS_`, one underscore short of the `__WINDOWS__` defines.hpp
+  // actually defines, so the guard never fired and every platform joined with
+  // "/". Win32 opens forward-slash paths happily, which is why no test noticed;
+  // what escaped was the mixed-separator string itself. Assert the join uses
+  // the platform's own separator, as fileScheduler's ResolvePath already does
+  // for this identical prologue.
+  TEST_CASE("sound: a relative file name is joined with the native delimiter (#693)") {
+    if (!TestHelpers::engineInit()) return;
+    YSE::sound s;
+    {
+      RecordingHandler handler;
+      ScopedSink sink(&handler);
+      s.create("definitely_not_here_693.wav", nullptr, /*loop=*/true, /*volume=*/0.5f);
+      REQUIRE_FALSE(s.isValid());
+      REQUIRE(handler.sawSubstring("definitely_not_here_693.wav"));
+#if defined(_WIN32) || defined(_WIN64)
+      CHECK(handler.sawSubstring("\\definitely_not_here_693.wav"));
+      CHECK_FALSE(handler.sawSubstring("/definitely_not_here_693.wav"));
+#else
+      CHECK(handler.sawSubstring("/definitely_not_here_693.wav"));
+#endif
+    }
   }
 
   // ─── DSP sound lifecycle ─────────────────────────────────────────────────────
@@ -453,15 +661,17 @@ TEST_SUITE("sound") {
     if (!s.isValid()) return; // fixture missing in this environment
 
     // Pump the manager directly (test thread drives update; audio is paused).
-    // Budget: ~1 s wall-clock — loading a 244-byte WAV through the single
-    // slow-pool worker normally completes within a couple of update ticks.
-    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(1);
-    while (std::chrono::steady_clock::now() < deadline) {
-      YSE::INTERNAL::Time().update();
-      YSE::SOUND::Manager().update();
-      if (s.isReady()) break;
-      std::this_thread::sleep_for(std::chrono::milliseconds(5));
-    }
+    // Budget: 1000 ticks of the suite's pacing reference rather than ~1 s of
+    // wall clock (issue #753) — loading a 244-byte WAV through the single
+    // slow-pool worker normally completes within a couple of update ticks, and
+    // a box slow enough to need more of them gets proportionally more.
+    TestHelpers::pacedPump(
+        1000, [&] { return s.isReady(); },
+        [] {
+          YSE::INTERNAL::Time().update();
+          YSE::SOUND::Manager().update();
+        },
+        5);
     CHECK(s.isReady());
   }
 

@@ -11,6 +11,7 @@
 #ifndef MIDIFILEMANAGER_H_INCLUDED
 #define MIDIFILEMANAGER_H_INCLUDED
 
+#include <cstddef>
 #include <forward_list>
 #include <mutex>
 #include "midifileImplementation.h"
@@ -32,6 +33,13 @@ namespace YSE {
 
       fileImpl* addImplementation(file* head);
       void update();
+
+      /** Diagnostic: how many fileImpls the canonical `implementations` list
+          currently holds. Takes implementationsMutex, so it is a
+          control-thread / test call only — never the audio thread. Exists so
+          the reclamation of retired impls is observable, mirroring SOUND
+          (issue #817; here issue #842). */
+      std::size_t implementationCount();
 
       /** Advance every live file's playback by ``numSamples`` and push the
           events that fall in this block onto their connected synths (issue

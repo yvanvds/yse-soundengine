@@ -12,15 +12,14 @@
 #include <doctest/doctest.h>
 
 #include <atomic>
-#include <chrono>
 #include <cmath>
-#include <thread>
+#include <string>
 
+#include "support/timer_pacing.hpp"
+#include "yse_c/yse_music.h"
 #include "yse_c/yse_synth.h"
 #include "yse_c/yse_sound.h"
 #include "yse_c/yse_system.h"
-
-using namespace std::chrono_literals;
 
 namespace {
 
@@ -28,17 +27,18 @@ namespace {
   // reached OBJECT_READY on the setup pool) or the budget expires. Mirrors the
   // drain() helper the C++ playersynth/midisynth suites use, but through the C
   // surface: update() flags the managers, render_offline() runs the audio
-  // callback that promotes setup and renders a block.
-  bool drainUntilVoices(YseSystem* sys, YseSynth* syn, int expected,
-                        std::chrono::milliseconds budget = 2000ms) {
-    const auto deadline = std::chrono::steady_clock::now() + budget;
-    while (std::chrono::steady_clock::now() < deadline) {
-      yse_system_update(sys);
-      yse_system_render_offline(sys, 1);
-      if (yse_synth_get_num_voices(syn) >= expected) return true;
-      std::this_thread::sleep_for(2ms);
-    }
-    return yse_synth_get_num_voices(syn) >= expected;
+  // callback that promotes setup and renders a block. `ticks` is a budget in
+  // deliveries of the suite's reference timer rather than in milliseconds
+  // (issue #753), so it stretches with machine load while a wedged setup pool
+  // still fails.
+  bool drainUntilVoices(YseSystem* sys, YseSynth* syn, int expected, int ticks = 2000) {
+    return TestHelpers::pacedPump(
+        ticks, [syn, expected] { return yse_synth_get_num_voices(syn) >= expected; },
+        [sys] {
+          yse_system_update(sys);
+          yse_system_render_offline(sys, 1);
+        },
+        2);
   }
 
   // Render `blocks` offline blocks so queued note/control events are drained on
@@ -55,13 +55,16 @@ namespace {
   // tears down the thread pools. Skipping this races teardown against the
   // pending deletes (the #298/#304 lineage) and can segfault at close. Mirrors
   // the drain() the C++ playersynth/midisynth suites run before System::close().
-  void drainFor(YseSystem* sys, std::chrono::milliseconds budget) {
-    const auto deadline = std::chrono::steady_clock::now() + budget;
-    while (std::chrono::steady_clock::now() < deadline) {
-      yse_system_update(sys);
-      yse_system_render_offline(sys, 1);
-      std::this_thread::sleep_for(2ms);
-    }
+  // The window is counted in reference-timer ticks rather than milliseconds
+  // (issue #753).
+  void drainFor(YseSystem* sys, int ticks) {
+    TestHelpers::pacedPump(
+        ticks, [] { return false; },
+        [sys] {
+          yse_system_update(sys);
+          yse_system_render_offline(sys, 1);
+        },
+        2);
   }
 
   // ---- note-callback probe (issue #157 §7 hook) ------------------------------
@@ -80,6 +83,66 @@ namespace {
       g_noteOnCalls.fetch_add(1, std::memory_order_relaxed);
     } else {
       g_noteOffCalls.fetch_add(1, std::memory_order_relaxed);
+    }
+  }
+
+  // ---- per-synth note-callback probes (issue #899) ---------------------------
+  // Two distinct C callbacks, each recording the raw `int note_on` it receives.
+  // The C API must call them through their own int-typed signature via a
+  // trampoline, so note_on is exactly 1 / 0 as a full int, and each synth's
+  // events must reach only the callback installed on that synth.
+  std::atomic<int> g_aOn{0}, g_aOff{0}, g_aBad{0};
+  std::atomic<int> g_bOn{0}, g_bOff{0}, g_bBad{0};
+
+  void YSE_C_CALLBACK noteCbA(int note_on, float* note_number, float* velocity) {
+    (void)note_number;
+    (void)velocity;
+    if (note_on == 1) {
+      g_aOn.fetch_add(1, std::memory_order_relaxed);
+    } else if (note_on == 0) {
+      g_aOff.fetch_add(1, std::memory_order_relaxed);
+    } else {
+      g_aBad.fetch_add(1, std::memory_order_relaxed);
+    }
+  }
+
+  void YSE_C_CALLBACK noteCbB(int note_on, float* note_number, float* velocity) {
+    (void)note_number;
+    (void)velocity;
+    if (note_on == 1) {
+      g_bOn.fetch_add(1, std::memory_order_relaxed);
+    } else if (note_on == 0) {
+      g_bOff.fetch_add(1, std::memory_order_relaxed);
+    } else {
+      g_bBad.fetch_add(1, std::memory_order_relaxed);
+    }
+  }
+
+  // ---- note-event recorder (issue #909) ---------------------------------------
+  // Records the note number and velocity of the last note-on / note-off the
+  // synth dispatched, untouched, so a note driven by a YseNote can be checked
+  // for what actually reached the voice allocator.
+  std::atomic<int> g_recOn{0}, g_recOff{0};
+  std::atomic<float> g_recOnNote{0.f}, g_recOnVel{0.f};
+  std::atomic<float> g_recOffNote{0.f}, g_recOffVel{0.f};
+
+  void YSE_C_CALLBACK recordNoteCb(int note_on, float* note_number, float* velocity) {
+    const float n = note_number ? *note_number : -1.f;
+    const float v = velocity ? *velocity : -1.f;
+    if (note_on) {
+      g_recOnNote.store(n, std::memory_order_relaxed);
+      g_recOnVel.store(v, std::memory_order_relaxed);
+      g_recOn.fetch_add(1, std::memory_order_relaxed);
+    } else {
+      g_recOffNote.store(n, std::memory_order_relaxed);
+      g_recOffVel.store(v, std::memory_order_relaxed);
+      g_recOff.fetch_add(1, std::memory_order_relaxed);
+    }
+  }
+
+  void resetAB() {
+    for (auto* c : {&g_aOn, &g_aOff, &g_aBad, &g_bOn, &g_bOff, &g_bBad}) {
+      c->store(0, std::memory_order_relaxed);
     }
   }
 
@@ -123,11 +186,17 @@ TEST_SUITE("synthcapi") {
     CHECK(yse_synth_is_valid(syn) == 1);
 
     // Invalid voice count is rejected before any group is recorded.
+    yse_clear_last_error();
     CHECK(yse_synth_add_voices_sine(syn, 0, 0, 0, 127, 0.01f, 0.1f, 0.8f, 0.2f) ==
           YSE_ERR_INVALID_ARGUMENT);
+    CHECK_FALSE(std::string(yse_last_error()).empty()); // issue #910
 
     // 8-voice omni pool, snappy envelope so releases finish quickly.
     REQUIRE(yse_synth_add_voices_sine(syn, 8, 0, 0, 127, 0.001f, 0.001f, 1.0f, 0.05f) == YSE_OK);
+
+    yse_clear_last_error();
+    CHECK(yse_synth_attach_to_sound(syn, nullptr, nullptr, 0.8f) == YSE_ERR_INVALID_ARGUMENT);
+    CHECK_FALSE(std::string(yse_last_error()).empty()); // issue #910
 
     YseSound* snd = yse_sound_create();
     REQUIRE(snd != nullptr);
@@ -175,7 +244,7 @@ TEST_SUITE("synthcapi") {
 
     yse_sound_destroy(snd); // sound must go before the synth it renders
     yse_synth_destroy(syn);
-    drainFor(sys, 300ms); // let the delete jobs free the impls before close
+    drainFor(sys, 300); // let the delete jobs free the impls before close
     yse_system_close(sys);
   }
 
@@ -225,7 +294,138 @@ TEST_SUITE("synthcapi") {
 
     yse_sound_destroy(snd);
     yse_synth_destroy(syn);
-    drainFor(sys, 300ms); // let the delete jobs free the impls before close
+    drainFor(sys, 300); // let the delete jobs free the impls before close
+    yse_system_close(sys);
+  }
+
+  // ─── note callbacks route per synth with an exact int note_on (#899) ──────
+
+  TEST_CASE("c-api synth: note callbacks route per synth with int note_on") {
+    YseSystem* sys = yse_system_get();
+    REQUIRE(sys != nullptr);
+    yse_system_close(sys);
+    if (yse_system_init_offline(sys) != YSE_OK) return;
+    resetAB();
+
+    YseSynth* synA = yse_synth_create();
+    YseSynth* synB = yse_synth_create();
+    REQUIRE(synA != nullptr);
+    REQUIRE(synB != nullptr);
+    REQUIRE(yse_synth_add_voices_sine(synA, 4, 0, 0, 127, 0.001f, 0.001f, 1.0f, 0.02f) == YSE_OK);
+    REQUIRE(yse_synth_add_voices_sine(synB, 4, 0, 0, 127, 0.001f, 0.001f, 1.0f, 0.02f) == YSE_OK);
+
+    YseSound* sndA = yse_sound_create();
+    YseSound* sndB = yse_sound_create();
+    REQUIRE(sndA != nullptr);
+    REQUIRE(sndB != nullptr);
+    REQUIRE(yse_synth_attach_to_sound(synA, sndA, nullptr, 1.0f) == YSE_OK);
+    REQUIRE(yse_synth_attach_to_sound(synB, sndB, nullptr, 1.0f) == YSE_OK);
+    yse_sound_play(sndA);
+    yse_sound_play(sndB);
+    REQUIRE(drainUntilVoices(sys, synA, 4));
+    REQUIRE(drainUntilVoices(sys, synB, 4));
+
+    // Distinct callbacks on two synths: each sees only its own synth's events.
+    yse_synth_set_note_callback(synA, &noteCbA);
+    yse_synth_set_note_callback(synB, &noteCbB);
+    yse_synth_note_on(synA, 1, 60, 1.0f);
+    yse_synth_note_on(synB, 1, 62, 1.0f);
+    yse_synth_note_on(synB, 1, 64, 1.0f);
+    render(sys, 3);
+    yse_synth_note_off(synA, 1, 60, 0.0f);
+    yse_synth_note_off(synB, 1, 62, 0.0f);
+    yse_synth_note_off(synB, 1, 64, 0.0f);
+    render(sys, 3);
+
+    CHECK(g_aOn.load(std::memory_order_relaxed) == 1);
+    CHECK(g_aOff.load(std::memory_order_relaxed) == 1);
+    CHECK(g_bOn.load(std::memory_order_relaxed) == 2);
+    CHECK(g_bOff.load(std::memory_order_relaxed) == 2);
+    CHECK(g_aBad.load(std::memory_order_relaxed) == 0); // note_on always exactly 0 / 1
+    CHECK(g_bBad.load(std::memory_order_relaxed) == 0);
+
+    // Share one callback across both synths, then clear it on A only: B keeps
+    // dispatching through the shared trampoline, A goes silent.
+    resetAB();
+    yse_synth_set_note_callback(synB, &noteCbA);
+    yse_synth_set_note_callback(synA, nullptr);
+    yse_synth_note_on(synA, 1, 60, 1.0f);
+    yse_synth_note_on(synB, 1, 62, 1.0f);
+    render(sys, 3);
+    CHECK(g_aOn.load(std::memory_order_relaxed) == 1); // only synB's note-on
+    CHECK(g_bOn.load(std::memory_order_relaxed) == 0);
+    CHECK(g_aBad.load(std::memory_order_relaxed) == 0);
+
+    yse_synth_set_note_callback(synB, nullptr);
+    yse_synth_all_notes_off(synA, 0);
+    yse_synth_all_notes_off(synB, 0);
+    render(sys, 4);
+
+    yse_sound_destroy(sndA);
+    yse_sound_destroy(sndB);
+    yse_synth_destroy(synA);
+    yse_synth_destroy(synB);
+    drainFor(sys, 300);
+    yse_system_close(sys);
+  }
+
+  // ─── note on / off driven by a YseNote (issue #909) ───────────────────────
+
+  TEST_CASE("c-api synth: note_on_note / note_off_note play a YseNote") {
+    // NULL synth or NULL note is a no-op, with or without an engine.
+    YseNote* probe = yse_note_create(60.0f, 1.0f, 1.0f, 1);
+    REQUIRE(probe != nullptr);
+    yse_synth_note_on_note(nullptr, probe);
+    yse_synth_note_off_note(nullptr, probe);
+
+    YseSystem* sys = yse_system_get();
+    REQUIRE(sys != nullptr);
+    yse_system_close(sys);
+    if (yse_system_init_offline(sys) != YSE_OK) {
+      yse_note_destroy(probe);
+      return;
+    }
+    g_recOn.store(0, std::memory_order_relaxed);
+    g_recOff.store(0, std::memory_order_relaxed);
+
+    YseSynth* syn = yse_synth_create();
+    REQUIRE(syn != nullptr);
+    REQUIRE(yse_synth_add_voices_sine(syn, 4, 0, 0, 127, 0.001f, 0.001f, 1.0f, 0.02f) == YSE_OK);
+    YseSound* snd = yse_sound_create();
+    REQUIRE(snd != nullptr);
+    REQUIRE(yse_synth_attach_to_sound(syn, snd, nullptr, 1.0f) == YSE_OK);
+    yse_sound_play(snd);
+    REQUIRE(drainUntilVoices(sys, syn, 4));
+    yse_synth_set_note_callback(syn, &recordNoteCb);
+
+    yse_synth_note_on_note(syn, nullptr); // NULL note: nothing dispatched
+    render(sys, 3);
+    CHECK(g_recOn.load(std::memory_order_relaxed) == 0);
+
+    // A fractional pitch plays the nearest key; the note's volume is the
+    // velocity.
+    YseNote* n = yse_note_create(61.6f, 0.55f, 1.0f, 2);
+    REQUIRE(n != nullptr);
+    yse_synth_note_on_note(syn, n);
+    render(sys, 3);
+    CHECK(g_recOn.load(std::memory_order_relaxed) == 1);
+    CHECK(g_recOnNote.load(std::memory_order_relaxed) == doctest::Approx(62.0f));
+    CHECK(g_recOnVel.load(std::memory_order_relaxed) == doctest::Approx(0.55f));
+
+    // The same note releases the key it started.
+    yse_synth_note_off_note(syn, n);
+    render(sys, 3);
+    CHECK(g_recOff.load(std::memory_order_relaxed) == 1);
+    CHECK(g_recOffNote.load(std::memory_order_relaxed) == doctest::Approx(62.0f));
+
+    yse_synth_set_note_callback(syn, nullptr);
+    yse_synth_all_notes_off(syn, 0);
+    render(sys, 4);
+    yse_note_destroy(n);
+    yse_note_destroy(probe);
+    yse_sound_destroy(snd);
+    yse_synth_destroy(syn);
+    drainFor(sys, 300);
     yse_system_close(sys);
   }
 
@@ -262,7 +462,7 @@ TEST_SUITE("synthcapi") {
 
     yse_sound_destroy(snd);
     yse_synth_destroy(syn);
-    drainFor(sys, 300ms); // let the delete jobs free the impls before close
+    drainFor(sys, 300); // let the delete jobs free the impls before close
     yse_system_close(sys);
   }
 
@@ -352,7 +552,7 @@ TEST_SUITE("synthcapi") {
 
     yse_sound_destroy(snd);
     yse_synth_destroy(syn);
-    drainFor(sys, 300ms);
+    drainFor(sys, 300);
     yse_system_close(sys);
   }
 
@@ -418,7 +618,7 @@ TEST_SUITE("synthcapi") {
 
     yse_sound_destroy(snd);
     yse_synth_destroy(syn);
-    drainFor(sys, 300ms);
+    drainFor(sys, 300);
     yse_system_close(sys);
   }
 
@@ -463,7 +663,7 @@ TEST_SUITE("synthcapi") {
 
     yse_sound_destroy(snd);
     yse_synth_destroy(syn);
-    drainFor(sys, 300ms);
+    drainFor(sys, 300);
     yse_system_close(sys);
   }
 
@@ -509,7 +709,7 @@ TEST_SUITE("synthcapi") {
 
     yse_sound_destroy(snd);
     yse_synth_destroy(syn);
-    drainFor(sys, 300ms);
+    drainFor(sys, 300);
     yse_system_close(sys);
   }
 

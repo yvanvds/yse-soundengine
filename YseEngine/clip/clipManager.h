@@ -10,6 +10,7 @@
 #ifndef YSE_CLIP_CLIPMANAGER_H
 #define YSE_CLIP_CLIPMANAGER_H
 
+#include <cstddef>
 #include <forward_list>
 #include <mutex>
 
@@ -26,7 +27,7 @@ namespace YSE {
     // managers use (#249 / #190): the control thread emplaces a transport into
     // the canonical list under `implementationsMutex` and hands it to the audio
     // thread through a lock-free inbox; the audio thread owns the `inUse`
-    // working list, advances each transport every callback, and — once the
+    // working list, advances each transport every block, and — once the
     // interface is destroyed — retires it for the slow-pool delete job. The
     // audio thread never allocates, locks, or frees.
     class managerObject {
@@ -39,15 +40,22 @@ namespace YSE {
       /** Create a transport bound to a public `clip` interface. Control thread. */
       transport* addImplementation(clip* head);
 
-      /** Audio-thread tick, driven every callback after the clocks advance:
+      /** Audio-thread tick, driven every rendered block right after the clocks
+          advance (deviceManager::advanceDomainClocks, issue #944):
           drains newly-created transports, advances each live transport (which
           reads its clock's fresh beat window), and retires orphaned ones. */
       void update();
 
       /** Session teardown from INTERNAL::global::close(): join any in-flight
-          delete job and clear every transport. Called after the audio device is
-          closed and both thread pools are joined. */
+          delete job and free every orphaned transport. A transport whose clip
+          interface is still alive is kept and re-queued for the next session,
+          so a YSE::clip may safely outlive System().close() (issue #974).
+          Called after the audio device is closed and both thread pools are
+          joined. */
       void clear();
+
+      /** Test seam: number of transports the manager currently owns. */
+      std::size_t implementationCountForTest();
 
     private:
       // Canonical owner of every transport. Mutated only by the control thread

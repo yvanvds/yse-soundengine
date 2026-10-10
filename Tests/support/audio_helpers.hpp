@@ -1,12 +1,30 @@
 #pragma once
 #include <cmath>
 #include "dsp/buffer.hpp"
+#include "headers/constants.hpp"
 
 // Shared test helpers for buffer construction and comparison.
 // Phases 3+ include this header as "support/audio_helpers.hpp"
 // (Tests/ must be on the include path).
 
 namespace TestHelpers {
+
+  // Temporarily force YSE::SAMPLERATE, restoring it on scope exit — the unit
+  // test stand-in for a system::close()/init() cycle at a different device
+  // rate (issues #634/#637). Safe here: the unit-test process runs its cases
+  // one at a time and the engine's audio stream is paused (see
+  // support/null_device.hpp), so nothing reads the global concurrently.
+  struct ScopedSampleRate {
+    UInt saved;
+    explicit ScopedSampleRate(UInt rate) : saved(YSE::SAMPLERATE) {
+      YSE::SAMPLERATE = rate;
+    }
+    ~ScopedSampleRate() {
+      YSE::SAMPLERATE = saved;
+    }
+    ScopedSampleRate(const ScopedSampleRate&) = delete;
+    ScopedSampleRate& operator=(const ScopedSampleRate&) = delete;
+  };
 
   inline YSE::DSP::buffer makeBuffer(unsigned size, float fillValue = 0.0f) {
     YSE::DSP::buffer b(size);

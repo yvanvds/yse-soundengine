@@ -20,6 +20,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <fstream>
+#include <map>
 #include <set>
 #include <sstream>
 #include <string>
@@ -49,6 +50,61 @@ TEST_SUITE("patcher") {
       CHECK(yse_patcher_is_valid_object(name) == 1);
     }
     CHECK(c_api_names == registry_names);
+  }
+
+  // Regression test for issue #624. The two audio I/O objects are built by a
+  // special case in patcherImplementation::CreateObjectUnlocked rather than
+  // through the registry, and ~dac was never registered at all — so a UI
+  // building its object palette from this metadata (the documented use) could
+  // not offer or resolve the one object every audible patch needs. The
+  // enumeration test above compares the C API against the registry, so it stays
+  // green either way; only naming the types catches the omission.
+  TEST_CASE("c-api metadata: the audio I/O objects ~dac and ~adc are enumerated (#624)") {
+    const int n = yse_patcher_get_type_count();
+    REQUIRE(n > 0);
+
+    std::set<std::string> names;
+    for (int i = 0; i < n; ++i) {
+      names.insert(yse_patcher_get_type_name(i));
+    }
+
+    for (const char* io : {"~dac", "~adc"}) {
+      CAPTURE(io);
+      CHECK(names.count(io) == 1);
+      CHECK(yse_patcher_is_valid_object(io) == 1);
+      CHECK(yse_patcher_get_type_category(io) != YSE_PCAT_UNSET);
+      CHECK(yse_patcher_get_type_is_dsp(io) == 1);
+      const char* desc = yse_patcher_get_type_description(io);
+      REQUIRE(desc != nullptr);
+      CHECK(std::strlen(desc) > 0);
+    }
+
+    // ~dac is the graph's sink — audio channels in, nothing out. ~adc mirrors
+    // it. Their documented ports must be readable through the palette API too,
+    // not just their names.
+    CHECK(yse_patcher_get_inlet_count("~dac") > 0);
+    CHECK(yse_patcher_get_outlet_count("~dac") == 0);
+    CHECK(yse_patcher_get_inlet_count("~adc") == 0);
+    CHECK(yse_patcher_get_outlet_count("~adc") > 0);
+
+    const char* label = nullptr;
+    const char* doc = nullptr;
+    const char* range = nullptr;
+    unsigned int accepts = 0;
+    yse_patcher_get_inlet_info("~dac", 0, &label, &doc, &range, &accepts);
+    REQUIRE(label != nullptr);
+    REQUIRE(doc != nullptr);
+    CHECK(std::strlen(label) > 0);
+    CHECK(std::strlen(doc) > 0);
+
+    // The bulk-JSON route a binding is likelier to use must carry them as well.
+    char* json = yse_patcher_get_metadata_json();
+    REQUIRE(json != nullptr);
+    auto parsed = nlohmann::json::parse(json, nullptr, false);
+    yse_free_string(json);
+    REQUIRE_FALSE(parsed.is_discarded());
+    CHECK(parsed.find("~dac") != parsed.end());
+    CHECK(parsed.find("~adc") != parsed.end());
   }
 
   TEST_CASE("c-api metadata: every type exposes a populated description and category") {
@@ -168,12 +224,14 @@ TEST_SUITE("patcher") {
     // tools/dump_patcher_metadata. The snapshot lives next to the
     // Sphinx hook that consumes it.
     //
-    // The snapshot is generated on Windows, but pRegistry conditionally
-    // omits the MIDI patcher objects on non-Windows platforms (#if
-    // YSE_WINDOWS in pRegistry.cpp), so on Linux/Android the live
-    // registry is a strict subset of the snapshot. We therefore assert
-    // per-object equality for every type the live registry exposes,
-    // rather than whole-object equality of the two trees.
+    // The snapshot is generated on Windows, but pRegistry still omits the
+    // MIDI objects that hold a device port (`.midiout`, the input family,
+    // `.sysexin`) where YSE_ENABLE_MIDI_DEVICE is off — Android and macOS —
+    // so there the live registry is a strict subset of the snapshot. We
+    // therefore assert per-object equality for every type the live registry
+    // exposes, rather than whole-object equality of the two trees. The
+    // carve-out used to be much larger: until issue #746 the whole MIDI
+    // sender family was Windows-only, so Linux was a subset too.
     const std::string snapshot_path = std::string(YSE_TEST_FIXTURES_DIR) +
                                       "/../../../documentation/source/_data/patcher_objects.json";
     std::ifstream f(snapshot_path);
@@ -201,6 +259,68 @@ TEST_SUITE("patcher") {
       REQUIRE(snap_it != snapshot.end());
       CHECK(it.value() == *snap_it);
     }
+  }
+
+  TEST_CASE("c-api metadata: categories and the MIDI-device flag agree across the API (#870)") {
+    // Editors build palettes from either the per-type getter or the bulk JSON;
+    // the two must name the same category. The name table is the one the
+    // YsePCategory header documents (value name without the YSE_PCAT_ prefix).
+    const std::map<YsePCategory, std::string> names = {
+        {YSE_PCAT_OSC, "OSC"},
+        {YSE_PCAT_FILTER, "FILTER"},
+        {YSE_PCAT_MATH, "MATH"},
+        {YSE_PCAT_GENERIC, "GENERIC"},
+        {YSE_PCAT_GUI, "GUI"},
+        {YSE_PCAT_TIME, "TIME"},
+        {YSE_PCAT_MIDI, "MIDI"},
+        {YSE_PCAT_ROUTING, "ROUTING"},
+        {YSE_PCAT_CONTROL, "CONTROL"},
+        {YSE_PCAT_LIST, "LIST"},
+        {YSE_PCAT_STRING, "STRING"},
+        {YSE_PCAT_COLLECTION, "COLLECTION"},
+        {YSE_PCAT_DICT, "DICT"},
+        {YSE_PCAT_ARRAY, "ARRAY"},
+        {YSE_PCAT_RANDOM, "RANDOM"},
+        {YSE_PCAT_IO, "IO"},
+        {YSE_PCAT_ENCAPSULATION, "ENCAPSULATION"},
+        {YSE_PCAT_SEQUENCE, "SEQUENCE"},
+    };
+
+    char* json = yse_patcher_get_metadata_json();
+    REQUIRE(json != nullptr);
+    auto parsed = nlohmann::json::parse(json, nullptr, false);
+    yse_free_string(json);
+    REQUIRE_FALSE(parsed.is_discarded());
+
+    for (auto it = parsed.begin(); it != parsed.end(); ++it) {
+      const std::string& name = it.key();
+      CAPTURE(name);
+      const YsePCategory cat = yse_patcher_get_type_category(name.c_str());
+      REQUIRE(names.count(cat) == 1);
+      CHECK(it.value()["category"] == names.at(cat));
+      REQUIRE(it.value().find("requires_midi_device") != it.value().end());
+      CHECK(it.value()["requires_midi_device"].is_boolean());
+      CHECK(it.value()["requires_midi_device"] ==
+            YSE::PATCHER::Register().RequiresMidiDevice(name));
+    }
+
+    // A few anchors per new category, so a mapping slip (two cases returning
+    // the same value) cannot pass as a consistent pair.
+    CHECK(yse_patcher_get_type_category(".gate") == YSE_PCAT_ROUTING);
+    CHECK(yse_patcher_get_type_category(".trigger") == YSE_PCAT_CONTROL);
+    CHECK(yse_patcher_get_type_category(".pack") == YSE_PCAT_LIST);
+    CHECK(yse_patcher_get_type_category(".sprintf") == YSE_PCAT_STRING);
+    CHECK(yse_patcher_get_type_category(".coll") == YSE_PCAT_COLLECTION);
+    CHECK(yse_patcher_get_type_category(".dict") == YSE_PCAT_DICT);
+    CHECK(yse_patcher_get_type_category(".array") == YSE_PCAT_ARRAY);
+    CHECK(yse_patcher_get_type_category(".random") == YSE_PCAT_RANDOM);
+    CHECK(yse_patcher_get_type_category("~dac") == YSE_PCAT_IO);
+    CHECK(yse_patcher_get_type_category("patcher") == YSE_PCAT_ENCAPSULATION);
+    CHECK(yse_patcher_get_type_category(".qlist") == YSE_PCAT_SEQUENCE);
+    CHECK(parsed[".noteon"]["requires_midi_device"] == false);
+#if YSE_ENABLE_MIDI_DEVICE
+    CHECK(parsed[".midiin"]["requires_midi_device"] == true);
+#endif
   }
 
   TEST_CASE("c-api metadata: bulk JSON contains every registered type") {

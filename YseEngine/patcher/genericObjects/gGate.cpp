@@ -27,7 +27,7 @@ CONSTRUCT() {
 
   ADD_DESCRIPTION("Demultiplexer. Routes a value inlet to one of N outlets, selected by inlet 0. "
                   "activeOutlet=0 silences output; 1-based otherwise.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::ROUTING);
   INLET_DOC(0, "select", "1-based outlet index to forward to (0 = mute).", "0+");
   INLET_DOC(1, "in", "Value inlet — accepts bang / int / float / list.", "");
   OUTLET_DOC(0, "out0", "Outlet 0 — emits the routed value when select == 1.", "");

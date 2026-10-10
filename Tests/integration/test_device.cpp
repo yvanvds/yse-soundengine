@@ -9,10 +9,13 @@
 //   - Sound loading and playback on a real output device
 //   - End-to-end signal probe: DSP source signal reaches an attached effect processor
 //
-// These tests require a real audio output device and are DISABLED in CTest by
-// default (LABELS integration, DISABLED TRUE).  Run explicitly with:
+// The device-dependent cases need a real audio output device and return early
+// when none opens, so the suite is headless-safe. It is registered as
+// yse_tests_integration (LABELS integration, not DISABLED) and runs as part of
+// the default ctest set, including `python yse.py test` and CI. Run it alone
+// with:
 //
-//   ctest -L integration
+//   ctest --preset tests-debug -L integration
 //   yse_tests --test-suite=integration
 //
 // DSP lifetime note: sound implementations are process-scoped static singletons
@@ -25,13 +28,24 @@
 #include <doctest/doctest.h>
 #include <algorithm>
 #include <atomic>
+#include <chrono>
 #include <cmath>
 #include <filesystem>
 #include <fstream>
+#include <new>
+#include <string>
 #include <vector>
 #include "yse.hpp"
 #include "support/null_device.hpp"
+#include "support/timer_pacing.hpp"
 #include "headers/defines.hpp"
+// The mixer layout a refused open must not touch (issue #665) is read through
+// CHANNEL::Manager(); channelImplementation.h / channelMessage.h come first for
+// the same reason as in Tests/system/test_device_layer.cpp (the manager
+// instantiates lfQueue<CHANNEL::messageObject>).
+#include "channel/channelImplementation.h"
+#include "channel/channelMessage.h"
+#include "channel/channelManager.h"
 
 #ifndef YSE_TEST_FIXTURES_DIR
 #define YSE_TEST_FIXTURES_DIR "../../Tests/support/fixtures"
@@ -150,9 +164,205 @@ TEST_SUITE("integration") {
     CHECK_FALSE(YSE::System().getDefaultDevice().empty());
   }
 
+  // The scalar half of a real, hardware-enumerated descriptor (issue #569).
+  // This is the only place the assertion means anything: the devicelayer suite
+  // runs the offline engine, which skips Pa_Initialize on purpose, so its
+  // device list is empty and any loop over it is vacuous. Here PortAudio is
+  // initialised against the machine's actual hardware and updateDeviceList()
+  // has walked every device the host reports.
+  //
+  // updateDeviceList() sets ID and both latencies from PaDeviceInfo but never
+  // calls setDefaultBufferSize(), because PaDeviceInfo carries no equivalent
+  // field. Before the descriptor's members were initialised, that field was
+  // whatever happened to be in the freshly-pushed vector slot — the bug's
+  // user-visible face, since System().getDevice(n).getDefaultBufferSize() is
+  // what a host reads to size its own buffers, and yse_device_default_buffer_
+  // size() forwards it verbatim to FFI consumers. It must now read 0 for every
+  // enumerated device, meaning "unspecified — the backend picks".
+  TEST_CASE("device: enumerated devices report a defined, unspecified buffer size [issue #569]") {
+    if (!TestHelpers::engineInit()) return;
+    const unsigned int n = YSE::System().getNumDevices();
+    if (n == 0) return;
+
+    for (unsigned int i = 0; i < n; i++) {
+      const YSE::device& d = YSE::System().getDevice(i);
+      CHECK(d.getDefaultBufferSize() == 0);
+      // Set from the PortAudio device index, so it identifies this slot rather
+      // than carrying the constructor's default through.
+      CHECK(d.getID() == (int)i);
+      // Latencies come from PaDeviceInfo's defaultLow*Latency, which is never
+      // negative; an indeterminate read was free to be.
+      CHECK(d.getInputLatency() >= 0);
+      CHECK(d.getOutputLatency() >= 0);
+    }
+  }
+
+  // Issue #661. openDevice() built its PaStreamParameters from
+  // `object.out->getID()` and then read `Pa_GetDeviceInfo(...)->
+  // defaultHighOutputLatency`, checking neither pointer. Both are null on
+  // ordinary API input — `out` for a setup that never had setOutput() called,
+  // the PaDeviceInfo* for any index outside [0, Pa_GetDeviceCount()).
+  //
+  // This has to run against a real, initialised PortAudio to mean anything.
+  // The devicelayer suite covers the first guard headless, but it runs the
+  // offline engine, whose `initDone` is false — so its openDevice() returns
+  // before Pa_GetDeviceInfo() is ever called and the second dereference is
+  // unreachable there by construction. Here initDone is true and the calls go
+  // through for real.
+  //
+  // The assertion is that the engine is still alive and still playing
+  // afterwards: on the unpatched engine this segfaults inside openDevice() and
+  // the suite never reports at all.
+  TEST_CASE("device: a malformed openDevice request is refused, not dereferenced [issue #661]") {
+    if (!TestHelpers::engineInitWithAudio()) return;
+    if (YSE::System().getNumDevices() == 0) return;
+    REQUIRE(audioStreamRunning());
+
+    const double rateBefore = YSE::System().getActiveSampleRate();
+    REQUIRE(rateBefore > 0.0);
+
+    // (1) No output device in the setup at all — sample rate and buffer size
+    //     only, which is all the C API forces a caller to provide.
+    {
+      YSE::deviceSetup setup;
+      setup.setSampleRate(44100.0).setBufferSize(256);
+      YSE::System().openDevice(setup, YSE::CT_STEREO);
+    }
+    CHECK(audioStreamRunning());
+
+    // (2) An output device whose ID no host API resolves — the shape a stale
+    //     descriptor has when a device is unplugged between updateDeviceList()
+    //     and the open. Two output channel names, so a refusal here cannot be
+    //     mistaken for the zero-channel case above.
+    {
+      YSE::device stale;
+      stale.setName("unplugged device")
+          .setTypeName("TestHost")
+          .addOutputChannelName("out 1")
+          .addOutputChannelName("out 2")
+          .setID(9999);
+      YSE::deviceSetup setup;
+      setup.setOutput(stale).setSampleRate(44100.0).setBufferSize(256);
+      YSE::System().openDevice(setup, YSE::CT_STEREO);
+    }
+    CHECK(audioStreamRunning());
+
+    // (3) paNoDevice itself, the sentinel Pa_GetDefaultOutputDevice() returns
+    //     on a host with no output — and, since issue #666, the descriptor's
+    //     default ID. Set explicitly here so this case keeps testing the guard
+    //     rather than the default.
+    {
+      YSE::device none;
+      none.addOutputChannelName("out 1").addOutputChannelName("out 2").setID(-1);
+      YSE::deviceSetup setup;
+      setup.setOutput(none).setSampleRate(44100.0).setBufferSize(256);
+      YSE::System().openDevice(setup, YSE::CT_STEREO);
+    }
+    CHECK(audioStreamRunning());
+
+    // The device that was already running is still the one running: a refused
+    // request must not close the stream out from under the host.
+    CHECK(YSE::System().getActiveSampleRate() == rateBefore);
+  }
+
+  // Issue #665, the general form of the guard above. Refusing the open is only
+  // half the contract — the mixer has to keep following the device that is
+  // actually playing. DEVICE::managerObject::openDevice() returned void, so
+  // system::openDevice() applied the *requested* speaker layout for every
+  // failure path; #661 only stopped the one setup whose channel count is 0.
+  //
+  // This needs a real stream to mean anything: the assertion is that a refused
+  // switch to a six-channel device leaves CHANNEL::Manager() on the layout the
+  // running stereo device negotiated. Otherwise the next callback has
+  // deviceManager::doOnCallback() resize the master to six outputs and the
+  // engine renders six channels into a two-channel stream — which is also why
+  // the "still running" check below is not redundant with the layout one.
+  TEST_CASE("device: a refused open does not reconfigure the mixer [issue #665]") {
+    if (!TestHelpers::engineInitWithAudio()) return;
+    if (YSE::System().getNumDevices() == 0) return;
+    REQUIRE(audioStreamRunning());
+
+    const UInt outputsBefore = YSE::CHANNEL::Manager().getNumberOfOutputs();
+    const double rateBefore = YSE::System().getActiveSampleRate();
+    REQUIRE(outputsBefore > 0);
+    REQUIRE(rateBefore > 0.0);
+
+    // A well-formed descriptor for a device that is not there: six output
+    // channels, and an ID no host API resolves (the shape a stale descriptor
+    // has after the device it named was unplugged). Nothing about this setup
+    // is zero, so the #661 guard cannot cover it.
+    YSE::device sixCh;
+    sixCh.setName("unplugged 5.1 device").setTypeName("TestHost").setID(9999);
+    for (int i = 0; i < 6; ++i)
+      sixCh.addOutputChannelName("out " + std::to_string(i + 1));
+
+    YSE::deviceSetup setup;
+    setup.setOutput(sixCh).setSampleRate(44100.0).setBufferSize(256);
+    REQUIRE(setup.getOutputChannels() == 6);
+
+    YSE::System().openDevice(setup, YSE::CT_51);
+
+    // The layout belongs to the device that is open, which is still the one
+    // that was open before the request.
+    CHECK(YSE::CHANNEL::Manager().getNumberOfOutputs() == outputsBefore);
+    CHECK(YSE::System().getActiveSampleRate() == rateBefore);
+    CHECK(audioStreamRunning());
+  }
+
+  // Issue #666, at the level a host actually meets it. A descriptor a host
+  // builds itself — rather than taking one from System().getDevices() — now
+  // starts at paNoDevice (-1) instead of 0, so an open that forgot to name a
+  // device is reported instead of silently landing on whatever device the host
+  // enumerated first.
+  //
+  // Only a real, initialised PortAudio can tell the two apart: index 0 resolves
+  // there, so on the old default this request reached Pa_OpenStream() — after
+  // close() had already torn down the stream that was playing. The devicelayer
+  // suite cannot see any of that (its openDevice() returns at the initDone
+  // gate), and the descriptor-level cases in that suite only assert the value.
+  //
+  // Six channels and CT_51 make the outcome unmistakable in either direction:
+  // if the request were honoured against device 0 the mixer would follow it to
+  // six outputs, and if it were honoured and then failed in Pa_OpenStream() the
+  // stream would be gone. Refused, everything below is untouched.
+  TEST_CASE(
+      "device: a descriptor with no device id is refused, not read as device 0 [issue #666]") {
+    if (!TestHelpers::engineInitWithAudio()) return;
+    if (YSE::System().getNumDevices() == 0) return;
+    REQUIRE(audioStreamRunning());
+
+    const UInt outputsBefore = YSE::CHANNEL::Manager().getNumberOfOutputs();
+    const double rateBefore = YSE::System().getActiveSampleRate();
+    REQUIRE(outputsBefore > 0);
+    REQUIRE(rateBefore > 0.0);
+
+    // Everything a host would fill in except the id, which is the whole point:
+    // the descriptor is well-formed enough that no other guard covers it.
+    YSE::device unnamed;
+    unnamed.setName("hand-built device").setTypeName("TestHost");
+    for (int i = 0; i < 6; ++i)
+      unnamed.addOutputChannelName("out " + std::to_string(i + 1));
+    REQUIRE(unnamed.getID() == -1);
+
+    YSE::deviceSetup setup;
+    setup.setOutput(unnamed).setSampleRate(44100.0).setBufferSize(256);
+    REQUIRE(setup.getOutputChannels() == 6);
+
+    YSE::System().openDevice(setup, YSE::CT_51);
+
+    CHECK(YSE::CHANNEL::Manager().getNumberOfOutputs() == outputsBefore);
+    CHECK(YSE::System().getActiveSampleRate() == rateBefore);
+    CHECK(audioStreamRunning());
+  }
+
   // ─── MIDI device enumeration (gated on YSE_ENABLE_MIDI_DEVICE) ───────────────
 
-#if YSE_WINDOWS && YSE_ENABLE_MIDI_DEVICE
+  // The enumeration API is declared exactly when the RtMidi-backed device
+  // manager is compiled (Windows and Linux), so key on that option alone —
+  // the platform is not the condition. On a machine with no MIDI hardware the
+  // device manager fails to prepare and every call returns 0 / an empty name
+  // instead of throwing, which is what makes these safe as headless smoke tests.
+#if YSE_ENABLE_MIDI_DEVICE
   TEST_CASE("midi: getNumMidiInDevices does not crash") {
     if (!TestHelpers::engineInit()) return;
     (void)YSE::System().getNumMidiInDevices();
@@ -173,9 +383,15 @@ TEST_SUITE("integration") {
       (void)YSE::System().getMidiInDeviceName(i);
     for (unsigned int i = 0; i < nOut; i++)
       (void)YSE::System().getMidiOutDeviceName(i);
-    CHECK(true);
+    // Through the public engine facade, with a real device open: a name only
+    // ever comes back for a counted port (issue #585). The facade forwards
+    // straight to the device manager, so what this adds over the unit case is
+    // the real session — the getters are asked on a host that actually has a
+    // MIDI backend, where the empty answer must hold too.
+    CHECK(YSE::System().getMidiInDeviceName(nIn + 9999).empty());
+    CHECK(YSE::System().getMidiOutDeviceName(nOut + 9999).empty());
   }
-#endif // YSE_WINDOWS && YSE_ENABLE_MIDI_DEVICE
+#endif // YSE_ENABLE_MIDI_DEVICE
 
   // ─── Engine lifecycle ─────────────────────────────────────────────────────────
 
@@ -235,9 +451,9 @@ TEST_SUITE("integration") {
   // shape from the original repro, so the test also exercises the
   // FTZ/DAZ path on the audio thread (issue #53 / PR #70).
   //
-  // Total runtime: ~13 s on a Release build. Run explicitly with:
+  // Total runtime: ~13 s on a Release build. Run it alone with:
   //
-  //   python yse.py test --integration
+  //   ctest --preset tests-debug -L integration
   //   yse_tests --test-suite=integration --test-case='*cpuLoad recovers*'
   TEST_CASE("engine: cpuLoad recovers after multi-sine playback stops [issue #82]") {
     if (!TestHelpers::engineInitWithAudio()) return;
@@ -329,6 +545,54 @@ TEST_SUITE("integration") {
     CHECK(audioStreamRunning());
   }
 
+  // The watchdog's side of that same start-up window (issue #681). A stream
+  // that has just been started delivers nothing for the first tens of
+  // milliseconds, which is indistinguishable from a disconnected device by
+  // callback count alone. autoReconnect's remedy is pause() + resume(), and the
+  // reopened stream is right back inside that window — so a host polling
+  // update() faster than its device starts used to tear down a perfectly
+  // healthy device on every tick and never hear a sample.
+  //
+  // Driven exactly as such a host would: reconnection enabled with the delay
+  // that ships by default (0), a genuinely fresh start-up window, and update()
+  // pumped as fast as the loop turns. The device has to reach "delivering
+  // callbacks" regardless. Before the fix this loop never got there — every
+  // tick closed the stream that was about to deliver.
+  TEST_CASE("engine: autoReconnect leaves a starting device alone [issue #681]") {
+    if (!TestHelpers::engineInitWithAudio()) return;
+    if (YSE::System().getNumDevices() == 0) return;
+
+    YSE::System().pause();
+    // Drain the callbacks the running device delivered between the previous
+    // case's last update() and the pause above; without this the first update()
+    // in the loop would report a live device on their evidence rather than on
+    // the restarted stream's. Done with the watchdog still off, so draining
+    // cannot itself trigger a reconnect.
+    YSE::System().update();
+
+    YSE::System().autoReconnect(true, 0);
+    YSE::System().resume();
+
+    // Budgeted in ticks of the suite's reference timer rather than in seconds
+    // (issue #753): the claim is that the device reaches "delivering callbacks",
+    // not that it does so inside three seconds of a machine that may be
+    // saturated. missedCallbacks() is only meaningful after an update() has
+    // sampled the stream, so the read stays paired with the update it belongs
+    // to — the drain above exists precisely so the first read cannot answer on
+    // the previous case's evidence.
+    const bool delivering = TestHelpers::pacedPump(
+        3000,
+        [] {
+          YSE::System().update();
+          return YSE::System().missedCallbacks() == 0;
+        },
+        [] {}, 1);
+    // Restore the default before asserting: a CHECK that fails must not leave
+    // the watchdog armed for the rest of the suite.
+    YSE::System().autoReconnect(false, 0);
+    CHECK(delivering);
+  }
+
   // ─── Sound loading and playback ───────────────────────────────────────────────
 
   TEST_CASE("sound: WAV fixture creates a valid sound on a real device") {
@@ -350,6 +614,95 @@ TEST_SUITE("integration") {
       YSE::System().update();
     }
     CHECK(true);
+  }
+
+  // Issue #819 made a streaming sound wait for its slow-pool loader before it is
+  // published, instead of being set up straight away off a channel count and a
+  // length the loader had not written yet. That gate has to open through the
+  // engine's own tick on a live device — the unit case for #819 drives
+  // SOUND::Manager().update() by hand with the audio stream paused, so it cannot
+  // tell a working gate from one that only ever opens when a test pumps the
+  // manager directly. Here the real callback is running and the only thing this
+  // case does is YSE::System().update(): if the extra setup round never came
+  // round again the sound would stay un-ready forever and the length would stay
+  // at the zero the old code published.
+  TEST_CASE("sound: a streaming sound becomes ready with its real length (issue #819)") {
+    if (!TestHelpers::engineInitWithAudio()) return;
+    if (YSE::System().getNumDevices() == 0) return;
+
+    YSE::sound s;
+    s.create(WAV_FIXTURE, nullptr, false, 1.0f, /*streaming*/ true);
+    REQUIRE(s.isValid());
+
+    const bool ready = TestHelpers::pacedPump(
+        5000, [&] { return s.isReady(); }, [] { YSE::System().update(); }, 1);
+    CHECK(ready);
+    CHECK(s.length() > 0u);
+
+    s.relative(true);
+    s.play();
+    for (int i = 0; i < 5; i++) {
+      YSE::System().sleep(20);
+      YSE::System().update();
+    }
+    s.stop();
+  }
+
+  // Issue #823: the same gate, reached through a custom file reader instead of
+  // the filesystem. loadStreaming() had an empty custom-IO branch, so the file
+  // never left FILESTATE::LOADING and (after #819 closed the publish-anyway
+  // shortcut) the sound never became ready at all.
+  //
+  // A live device is what makes this case worth its own run: the reader's
+  // callbacks are now driven from two sides at once — the slow pool priming and
+  // refilling the stream buffers, while the real audio callback plays the front
+  // buffer — which is exactly the arrangement the paused-audio unit case cannot
+  // produce. It also proves the reader handle stays open past the load: a stream
+  // whose handle was closed with its loader reaches READY and then falls over on
+  // the first refill.
+  TEST_CASE("sound: a custom-IO streaming sound plays on a real device (issue #823)") {
+    if (!TestHelpers::engineInitWithAudio()) return;
+    if (YSE::System().getNumDevices() == 0) return;
+
+    std::ifstream f(WAV_FIXTURE, std::ios::binary | std::ios::ate);
+    if (!f.is_open()) return; // fixture missing in this environment
+    const auto size = static_cast<std::streamsize>(f.tellg());
+    f.seekg(0);
+    std::vector<char> bytes(static_cast<size_t>(size));
+    f.read(bytes.data(), size);
+
+    YSE::BufferIO io;
+    io.SetActive(true);
+    REQUIRE(io.AddBuffer("vfs-stream-device", bytes.data(), static_cast<int>(bytes.size())));
+
+    {
+      YSE::sound s;
+      s.create("vfs-stream-device", nullptr, false, 1.0f, /*streaming*/ true);
+      REQUIRE(s.isValid());
+
+      const bool ready = TestHelpers::pacedPump(
+          5000, [&] { return s.isReady(); }, [] { YSE::System().update(); }, 1);
+      CHECK(ready);
+      CHECK(s.length() > 0u);
+
+      s.relative(true);
+      s.play();
+      for (int i = 0; i < 5; i++) {
+        YSE::System().sleep(20);
+        YSE::System().update();
+      }
+      s.stop();
+    }
+
+    // Give the slow pool its teardown round, so the streaming file closes the
+    // custom reader handle while the VFS is still registered.
+    for (int i = 0; i < 10; i++) {
+      YSE::System().sleep(20);
+      YSE::System().update();
+    }
+
+    io.RemoveBufferByName("vfs-stream-device");
+    io.SetActive(false);
   }
 
   TEST_CASE("sound: DSP source sound plays on a real device without crash") {
@@ -381,13 +734,93 @@ TEST_SUITE("integration") {
     s.relative(true);
     s.play();
 
-    for (int i = 0; i < 10 && !g_probe.triggered.load(std::memory_order_relaxed); i++) {
-      YSE::System().sleep(50);
-      YSE::System().update();
-    }
+    // 500 reference ticks rather than ten fixed 50 ms naps (issue #753): the
+    // probe flag is set from the audio callback, so what the case waits on is a
+    // delivery, and a loaded box needs a proportionally wider window to make
+    // one rather than a failing CHECK.
+    TestHelpers::pacedPump(
+        500, [] { return g_probe.triggered.load(std::memory_order_relaxed); },
+        [] { YSE::System().update(); }, 50);
     s.stop();
 
     CHECK(g_probe.triggered.load(std::memory_order_relaxed));
+  }
+
+  // ─── moveTo() reparenting, end to end ────────────────────────────────────────
+
+  // Regression guard for #656. YSE::sound::_parent — the interface-side cache
+  // moveTo() compares against to skip redundant MOVE messages — had no
+  // initialiser, so on a freshly constructed sound it held whatever bytes
+  // happened to be at that address. When those bytes matched the move target,
+  // moveTo() short-circuited: no MOVE message, the sound stayed on the channel
+  // create() gave it, and the caller got silence on the channel it asked for.
+  //
+  // The repro makes that collision deterministic instead of waiting for luck:
+  // a first sound is built in a fixed block of storage and moved to `target`,
+  // which writes &target into the block's _parent slot; the sound under test is
+  // then placement-constructed over the *same* bytes. Before the fix its
+  // _parent read &target straight back. This is exercised end to end — real
+  // device, real audio callback — because "did the move actually happen?" is
+  // only answerable from the target channel's own output meter.
+  TEST_CASE("sound: first moveTo() reparents a freshly created sound [issue #656]") {
+    if (!TestHelpers::engineInitWithAudio()) return;
+    if (YSE::System().getNumDevices() == 0) return;
+    if (!audioStreamRunning()) return;
+
+    YSE::channel target;
+    target.create("move_target_656", YSE::ChannelMaster());
+    // Ten update ticks for the new channel to settle. The count is the point,
+    // so it stays; the window each tick leaves the engine is paced off the
+    // suite's reference timer rather than off the clock (issue #753).
+    for (int i = 0; i < 10; i++) {
+      TestHelpers::paceWindow(10);
+      YSE::System().update();
+    }
+    REQUIRE(target.isValid());
+    REQUIRE(target.getPeakLinearPost() == doctest::Approx(0.f));
+
+    // Sound-sized, sound-aligned block reused across both constructions. Static
+    // so the storage outlives the case even if an assertion unwinds early.
+    alignas(YSE::sound) static unsigned char storage[sizeof(YSE::sound)];
+
+    // Pass 1 — dirty the block: this sound's moveTo() stores &target in the
+    // _parent slot, and ~sound() leaves those bytes untouched.
+    {
+      YSE::sound* dirty = new (static_cast<void*>(storage)) YSE::sound();
+      dirty->create(g_source);
+      REQUIRE(dirty->isValid());
+      dirty->moveTo(target);
+      dirty->~sound();
+    }
+
+    // Pass 2 — the sound under test, built over the poisoned bytes.
+    YSE::sound* s = new (static_cast<void*>(storage)) YSE::sound();
+    s->create(g_source);
+    REQUIRE(s->isValid());
+    s->relative(true);
+    s->moveTo(target);
+    s->play();
+
+    // Same shape as the probe case above: the meter is written by the audio
+    // callback, so the wait is on a delivery and is paced off the suite's
+    // reference timer instead of twenty fixed 50 ms naps (issue #753).
+    float peak = 0.f;
+    TestHelpers::pacedPump(
+        1000, [&peak] { return peak > 0.f; },
+        [&peak, &target] {
+          YSE::System().update();
+          peak = target.getPeakLinearPost();
+        },
+        50);
+    s->stop();
+    YSE::System().sleep(50);
+    YSE::System().update();
+    s->~sound();
+
+    // Non-zero only if the MOVE message actually reached the implementation:
+    // without it the sound is still rendering into MainMix and `target` — which
+    // create() never attached anything to — meters pure silence.
+    CHECK(peak > 0.f);
   }
 
 } // TEST_SUITE("integration")

@@ -3,9 +3,12 @@
 // No audio device required.
 
 #include <doctest/doctest.h>
+#include <algorithm>
+#include <string>
 #include "patcher/patcher.hpp"
 #include "patcher/pHandle.hpp"
 #include "patcher/pObjectList.hpp"
+#include "patcher/pRegistry.h"
 #include "patcher/math/gAdd.h"
 #include "patcher/math/gSubstract.h"
 #include "patcher/math/gDivide.h"
@@ -199,12 +202,83 @@ TEST_SUITE("patcher") {
     counter.ConnectOutlet(sink.GetInlet(0), 0);
     sink.ConnectInlet(counter.GetOutlet(0), 0);
 
-    counter.GetInlet(0)->SetInt(5, YSE::T_GUI); // startValue=5, currentValue=5, sends 5
-    counter.GetInlet(0)->SetBang(YSE::T_GUI); // currentValue=6, sends 6
-    CHECK(sink.received == 6);
-    counter.GetInlet(0)->SetList("reset", YSE::T_GUI); // currentValue back to 5, no send
-    counter.GetInlet(0)->SetBang(YSE::T_GUI); // currentValue=6, sends 6
-    CHECK(sink.received == 6);
+    counter.SetParams("3");
+    counter.GetInlet(0)->SetBang(YSE::T_GUI); // 3 + 1
+    CHECK(sink.received == 4);
+    counter.GetInlet(0)->SetBang(YSE::T_GUI);
+    CHECK(sink.received == 5);
+    counter.GetInlet(0)->SetList("reset", YSE::T_GUI); // back to 3, no send
+    CHECK(sink.received == 5);
+    counter.GetInlet(0)->SetBang(YSE::T_GUI);
+    CHECK(sink.received == 4);
+  }
+
+  TEST_CASE("gCounter: startValue argument seeds the count before any reset (#956)") {
+    YSE::PATCHER::gCounter counter;
+    IntSink sink;
+    counter.ConnectOutlet(sink.GetInlet(0), 0);
+    sink.ConnectInlet(counter.GetOutlet(0), 0);
+
+    counter.SetParams("-1");
+    CHECK(counter.GetGuiValue() == "-1");
+    counter.GetInlet(0)->SetBang(YSE::T_GUI);
+    CHECK(sink.received == 0);
+    counter.GetInlet(0)->SetBang(YSE::T_GUI);
+    CHECK(sink.received == 1);
+
+    // A re-parse loads the new start value into the count.
+    counter.SetParams("10");
+    counter.GetInlet(0)->SetBang(YSE::T_GUI);
+    CHECK(sink.received == 11);
+  }
+
+  TEST_CASE("gCounter: inlet 1 sets the step and leaves the count alone (#956)") {
+    YSE::PATCHER::gCounter counter;
+    IntSink sink;
+    counter.ConnectOutlet(sink.GetInlet(0), 0);
+    sink.ConnectInlet(counter.GetOutlet(0), 0);
+
+    sink.received = -99;
+    counter.GetInlet(1)->SetInt(5, YSE::T_GUI);
+    CHECK(sink.received == -99); // cold: nothing sent
+    CHECK(counter.GetGuiValue() == "0"); // count untouched
+    counter.GetInlet(0)->SetBang(YSE::T_GUI);
+    CHECK(sink.received == 5);
+    counter.GetInlet(0)->SetBang(YSE::T_GUI);
+    CHECK(sink.received == 10);
+  }
+
+  TEST_CASE("gCounter: an int on inlet 0 does not move the reset target (#956)") {
+    YSE::PATCHER::gCounter counter;
+    IntSink sink;
+    counter.ConnectOutlet(sink.GetInlet(0), 0);
+    sink.ConnectInlet(counter.GetOutlet(0), 0);
+
+    counter.SetParams("2");
+    counter.GetInlet(0)->SetInt(40, YSE::T_GUI);
+    CHECK(sink.received == 40);
+    counter.GetInlet(0)->SetList("reset", YSE::T_GUI); // back to the argument, 2
+    counter.GetInlet(0)->SetBang(YSE::T_GUI);
+    CHECK(sink.received == 3);
+  }
+
+  TEST_CASE("gCounter: in a patch, '.counter -1' counts from 0 and inlet 1 is the step (#956)") {
+    // The issue's reproduction, through the patcher's own creation path.
+    YSE::patcher p;
+    p.create(1);
+    YSE::pHandle* c = p.CreateObject(".counter", "-1");
+    REQUIRE(c != nullptr);
+    IntSink sink;
+    YSE::pHandle sinkHandle(&sink);
+    p.Connect(c, 0, &sinkHandle, 0);
+
+    c->SetBang(0);
+    CHECK(sink.received == 0);
+    c->SetIntData(1, 5);
+    c->SetBang(0);
+    CHECK(sink.received == 5);
+
+    p.Disconnect(c, 0, &sinkHandle, 0);
   }
 
   // ─── gRandom ──────────────────────────────────────────────────────────────────
@@ -249,7 +323,46 @@ TEST_SUITE("patcher") {
   }
 
   // ─── dClip ───────────────────────────────────────────────────────────────────
-  // dClip is not in the patcher registry, so these tests use direct instantiation.
+  // Regression tests for issue #436: dClip was compiled and had an OBJ::D_CLIP
+  // constant but was never registered, so CreateObject("~clip") returned null.
+  // The behavioural tests below still instantiate directly (that is how the
+  // other DSP math nodes are driven without a graph), but the type is now
+  // reachable through the registry.
+
+  TEST_CASE("dClip: creatable through the registry (#436)") {
+    YSE::patcher p;
+    p.create(2);
+    YSE::pHandle* h = p.CreateObject(YSE::OBJ::D_CLIP);
+    REQUIRE(h != nullptr);
+    CHECK(std::string(h->Type()) == "~clip");
+    CHECK(h->GetInputs() == 3);
+    CHECK(h->GetOutputs() == 1);
+    CHECK(h->OutputDataType(0) == YSE::OUT_TYPE::BUFFER);
+  }
+
+  TEST_CASE("dClip: ~clip is listed by pRegistry::AllNames (#436)") {
+    const auto names = YSE::PATCHER::Register().AllNames();
+    CHECK(std::find(names.begin(), names.end(), std::string("~clip")) != names.end());
+  }
+
+  TEST_CASE("dClip: params survive a DumpJSON / ParseJSON round trip (#436)") {
+    YSE::patcher src;
+    src.create(2);
+    YSE::pHandle* h = src.CreateObject(YSE::OBJ::D_CLIP, "-0.25 0.75");
+    REQUIRE(h != nullptr);
+    const std::string json = src.DumpJSON();
+    CHECK(json.find("~clip") != std::string::npos);
+
+    YSE::patcher loaded;
+    loaded.create(2);
+    loaded.ParseJSON(json);
+    REQUIRE(loaded.Objects() == 1);
+
+    YSE::pHandle* restored = loaded.GetHandleFromList(0);
+    REQUIRE(restored != nullptr);
+    CHECK(std::string(restored->Type()) == "~clip");
+    CHECK(restored->GetParams() == "-0.25 0.75");
+  }
 
   TEST_CASE("dClip: type name, input/output count, and output type") {
     YSE::PATCHER::dClip clip;
@@ -257,6 +370,19 @@ TEST_SUITE("patcher") {
     CHECK(clip.NumInputs() == 3);
     CHECK(clip.NumOutputs() == 1);
     CHECK(clip.GetOutputType(0) == YSE::OUT_TYPE::BUFFER);
+  }
+
+  TEST_CASE("dClip: null input buffer produces no output (#436)") {
+    // Reachable via CreateObject now, so a ~clip left unconnected on inlet 0
+    // gets Calculate()d with a null buffer every block.
+    YSE::PATCHER::dClip clip;
+    BufferSink sink;
+    clip.ConnectOutlet(sink.GetInlet(0), 0);
+    sink.ConnectInlet(clip.GetOutlet(0), 0);
+
+    clip.Calculate(YSE::T_DSP);
+
+    CHECK(sink.received == nullptr);
   }
 
   TEST_CASE("dClip: samples outside [-0.5, 0.5] are clamped") {

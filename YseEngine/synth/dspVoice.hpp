@@ -48,7 +48,7 @@ namespace YSE {
     public:
       /** @brief Construct a voice with ``outputChannels`` output buffers. */
       dspVoice(int outputChannels = 1) : dspSourceObject(outputChannels) {}
-      virtual ~dspVoice() {}
+      ~dspVoice() override {}
 
       /**
        *  @brief Fill ``samples`` for one block. **You must implement this.**

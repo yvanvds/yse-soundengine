@@ -41,6 +41,7 @@ namespace YSE {
     /// Distinct from a real de-duplicated sample entry.
     constexpr int SFZ_SILENCE_SAMPLE = -2;
 
+    /// How a region's sample loops (the SFZ ``loop_mode`` opcode).
     enum sfzLoopMode {
       SFZ_NO_LOOP, ///< Play once from offset to end, then EG release.
       SFZ_ONE_SHOT, ///< Play to completion ignoring note-off (drums).
@@ -48,11 +49,15 @@ namespace YSE {
       SFZ_LOOP_SUSTAIN, ///< Loop only while held; play out on release.
     };
 
+    /// How a region is silenced when its off_by group chokes it (the SFZ
+    /// ``off_mode`` opcode).
     enum sfzOffMode {
       SFZ_OFF_FAST, ///< Choke via the engine steal-fade (~5 ms declick).
       SFZ_OFF_NORMAL, ///< Choke by triggering the region's own ampeg_release.
     };
 
+    /// Crossfade curve shape (the SFZ ``xf_keycurve`` / ``xf_velcurve``
+    /// opcodes).
     enum sfzCurve {
       SFZ_CURVE_GAIN, ///< Linear-amplitude crossfade curve.
       SFZ_CURVE_POWER, ///< Equal-power crossfade curve (SFZ default).

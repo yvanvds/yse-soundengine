@@ -46,8 +46,23 @@ void YSE::INTERNAL::global::addSlowJob(threadPoolJob* job) {
   slowThreads.addJob(job);
 }
 
-void YSE::INTERNAL::global::addFastJob(threadPoolJob* job) {
-  fastThreads.addJob(job);
+void YSE::INTERNAL::global::setRenderWorkerCount(Int numThreads) {
+  if (numThreads < 0) numThreads = -1;
+  renderWorkersRequest = numThreads;
+  render.setWorkerCount(numThreads);
+}
+
+void YSE::INTERNAL::global::requestRenderWorkers(Int numThreads) {
+  if (numThreads < 0) numThreads = -1;
+  renderWorkersRequest = numThreads;
+  // A device session's callback may be inside a block right now; the request
+  // waits for the next init() there (issue #861).
+  if (active && sessionHasDevice) return;
+  if (render.requestedWorkerCount() != numThreads) render.setWorkerCount(numThreads);
+}
+
+Int YSE::INTERNAL::global::renderWorkerCount() const {
+  return render.workerCount();
 }
 
 YSE::INTERNAL::NamedBus& YSE::INTERNAL::global::namedBus() {
@@ -129,22 +144,29 @@ void YSE::INTERNAL::global::drainScriptResults() {
 }
 
 YSE::INTERNAL::global::global()
-  : slowThreads(1, poolClass::background),
-    fastThreads(-1, poolClass::render),
+  : slowThreads(1),
+    render(-1),
     bus(),
     update(false),
     active(false),
-    sampleRateLocked(false) {}
+    sampleRateLocked(false),
+    sessionHasDevice(false) {}
 
 YSE::INTERNAL::global::~global() = default;
 
 void YSE::INTERNAL::global::init() {
   // Revive the worker pools first: close() joins them for good, so a second
   // session would otherwise start with dead pools — no slow-pool file loading,
-  // no fast-pool DSP fan-out or manager setup/delete jobs (issue #140). No-op
-  // on the very first session, where the pools are still live from the ctor.
+  // no render workers or manager setup/delete jobs (issue #140). No-op on the
+  // very first session, where the pools are still live from the ctor.
   slowThreads.startup();
-  fastThreads.startup();
+  // A render thread-count request made during the previous device session
+  // takes effect now, before the new session's first block (issue #861).
+  if (render.requestedWorkerCount() != renderWorkersRequest)
+    render.setWorkerCount(renderWorkersRequest);
+  render.startup();
+  // Worker count and placement, once per session (issue #862).
+  LogImpl().emit(E_DEBUG, render.describePlacement());
   REVERB::Manager().create();
   bus = std::make_unique<NamedBus>();
 }
@@ -152,7 +174,7 @@ void YSE::INTERNAL::global::init() {
 void YSE::INTERNAL::global::close() {
   // first wait for all threads to exit
   slowThreads.shutdown();
-  fastThreads.shutdown();
+  render.shutdown();
   // Threads are joined now, so the reverb manager's session state can be torn
   // down synchronously. This clears the global reverb's implementation handle
   // so a subsequent System::init() can re-create it instead of asserting
@@ -162,9 +184,10 @@ void YSE::INTERNAL::global::close() {
   // the next session. Safe to tear down synchronously here: the device is
   // already closed and both pools are joined, so no audio thread can advance a
   // clock and no slow job can reap one.
-  // Clear clip transports (issue #250) before the clocks they bind to, so no
-  // transport can reference a clock past teardown. Safe synchronously here: the
-  // device is closed and both pools are joined.
+  // Clear clip transports (issue #250) before the clocks they bind to. Orphans
+  // are freed; a transport whose YSE::clip is still alive is kept for the next
+  // session (issue #974) and holds its own share of its bound clock (#707).
+  // Safe synchronously here: the device is closed and both pools are joined.
   CLIP::Manager().clear();
   CLOCK::Manager().clear();
 #if YSE_ENABLE_MIDI_DEVICE

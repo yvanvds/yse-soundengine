@@ -49,8 +49,12 @@ namespace {
     return s;
   }
 
-  void logIgnored(const char* what) {
-    YSE::INTERNAL::LogImpl().emit(YSE::E_WARNING, std::string(what));
+  // Reached from entry points (destroy, handle lookups) that have no other
+  // failure path, so building the message must not throw across the ABI
+  // (issue #901).
+  void logIgnored(const char* what) noexcept {
+    yse_c::guard_void("yse_instrument",
+                      [what] { YSE::INTERNAL::LogImpl().emit(YSE::E_WARNING, std::string(what)); });
   }
 
   // Register a freshly created handle.
@@ -229,6 +233,29 @@ YSE_C_API YseDx7Bank* yse_dx7_import_sysex(const char* path) {
   }
 }
 
+YSE_C_API YseDx7Bank* yse_dx7_import_sysex_memory(const unsigned char* data, size_t length) {
+  if (!data || length == 0) {
+    yse_c::set_last_error("yse_dx7_import_sysex_memory: no data");
+    return nullptr;
+  }
+  return yse_c::guard("yse_dx7_import_sysex_memory", static_cast<YseDx7Bank*>(nullptr), [&] {
+    auto impl = std::make_unique<Dx7BankImpl>();
+    if (!YSE::SYNTH::dx7SysEx::parse(data, length, impl->bank) || impl->bank.empty()) {
+      yse_c::set_last_error("yse_dx7_import_sysex_memory: could not parse bank (" +
+                            std::to_string(length) + " bytes)");
+      return static_cast<YseDx7Bank*>(nullptr);
+    }
+    registerBank(impl.get());
+    return reinterpret_cast<YseDx7Bank*>(impl.release());
+  });
+}
+
+YSE_C_API int yse_dx7_find_patch(YseDx7Bank* h, const char* name) {
+  if (!name || !isLiveBank(h)) return -1;
+  // indexOf builds trimmed std::string names, so it can throw bad_alloc.
+  return yse_c::guard("yse_dx7_find_patch", -1, [&] { return toBank(h)->bank.indexOf(name); });
+}
+
 YSE_C_API int yse_dx7_get_patch_count(YseDx7Bank* h) {
   if (!isLiveBank(h)) return 0;
   return static_cast<int>(toBank(h)->bank.size());
@@ -239,7 +266,9 @@ YSE_C_API size_t yse_dx7_get_patch_name(YseDx7Bank* h, int index, char* buf, siz
     if (buf && cap > 0) buf[0] = '\0';
     return 0;
   }
-  return copy_string(toBank(h)->bank.name(static_cast<size_t>(index)), buf, cap);
+  return yse_c::guard_string("yse_dx7_get_patch_name", buf, cap, [&] {
+    return copy_string(toBank(h)->bank.name(static_cast<size_t>(index)), buf, cap);
+  });
 }
 
 YSE_C_API void yse_dx7_destroy(YseDx7Bank* h) {

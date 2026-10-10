@@ -206,6 +206,17 @@ namespace YSE {
       /** @brief Construct with ``buffers`` audio channels (1 = mono, 2 = stereo, ...). */
       dspSourceObject(Int buffers = 1);
 
+      /** @brief Virtual so a generator held by base pointer destroys correctly.
+       *
+       *  The engine itself never owns a ``dspSourceObject`` -- ``sound::create``
+       *  takes a reference and stores a non-owning pointer -- but the class has
+       *  pure virtuals and is meant to be derived from, so a user holding one
+       *  through a ``dspSourceObject*`` and deleting it would otherwise be UB.
+       *  The class already has a vtable, so this costs nothing at render time.
+       *  (issue #573)
+       */
+      virtual ~dspSourceObject() = default;
+
       /** @brief Fill ``samples`` with the next audio block.
        *
        *  @param intent The current playback intent (start, stop, pause, etc.)

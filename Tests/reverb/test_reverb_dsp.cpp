@@ -610,7 +610,7 @@ TEST_SUITE("reverb") {
     CHECK(leftEnergy > 0.0f);
     CHECK(rightEnergy > 0.0f);
     // L and R should differ because of independent Random() tuning offsets.
-    // Identical tuning has ~2% probability (rnd = rand()%50 same twice in a row).
+    // Identical tuning has ~2% probability (rnd = Random(50) same twice in a row).
     CHECK_MESSAGE(diffEnergy > 0.0f,
                   "L/R channels should differ due to independent Random(50) comb-tuning offsets; "
                   "identical offsets occur with ~2% probability");

@@ -28,24 +28,24 @@ namespace YSE {
     class managerObject : public deviceManager {
     public:
       managerObject();
-      ~managerObject();
+      ~managerObject() override;
 
-      virtual Bool init(bool openDevice = true);
-      virtual void close();
-      virtual Flt cpuLoad();
+      Bool init(bool openDevice = true) override;
+      void close() override;
+      Flt cpuLoad() override;
 
-      virtual void pause();
-      virtual void resume();
-      virtual unsigned int GetCallbacksSinceLastUpdate();
+      void pause() override;
+      void resume() override;
+      unsigned int GetCallbacksSinceLastUpdate() override;
 
-      virtual void updateDeviceList();
-      virtual void openDevice(const YSE::deviceSetup& object);
-      virtual void addCallback();
+      void updateDeviceList() override;
+      Bool openDevice(const YSE::deviceSetup& object) override;
+      Bool addCallback() override;
 
       // Live device-state getters (see deviceManager.h for contract).
-      virtual double getActiveSampleRate() const;
-      virtual int getActiveBufferSize() const;
-      virtual int getActiveOutputLatency() const;
+      double getActiveSampleRate() const override;
+      int getActiveBufferSize() const override;
+      int getActiveOutputLatency() const override;
 
       static int paCallback(const void* input, void* output, unsigned long numSamples,
                             const PaStreamCallbackTimeInfo* timeInfo,
@@ -60,9 +60,14 @@ namespace YSE {
       void updateCpuLoadEma(std::chrono::steady_clock::time_point cbStart,
                             unsigned long numSamples);
 
-      void audioDeviceError(PaError err);
+      void audioDeviceError(PaError err) const;
       PaStream* stream;
-      PaError err;
+
+      // Initialised in-class because updateDeviceList() reports a
+      // Pa_GetDeviceCount() failure through audioDeviceError() before any call
+      // has assigned `err` (issue #418) — on a headless host that is the first
+      // thing that happens.
+      PaError err = paNoError;
       UInt bufferPos;
       bool initDone, open, started;
 

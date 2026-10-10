@@ -1,0 +1,469 @@
+// An offline session must stay offline (issue #719).
+//
+// WHAT THIS SUITE NEEDS AND WHY IT HAS ITS OWN PROCESS
+//
+// `devicelayer` (Tests/system/test_device_layer.cpp) needs a process where
+// PortAudio has never been initialised. This suite needs the exact opposite,
+// and for the same underlying reason: Pa_Initialize runs once per process, on
+// the first init() that opens a device, and the only call that undoes it —
+// managerObject::terminate() — is private and runs from the singleton's
+// destructor at process exit. So "PortAudio is up" is a property of the
+// process, and the bug under test only exists in a process that has it.
+//
+// That is not an exotic configuration. It is *every* host application that
+// calls System().init() and later close()s, and every test binary that does the
+// same. In such a process an initOffline() session used to find a real default
+// output device on the other side of resume():
+//
+//   System().resume()  ->  DEVICE::Manager().resume()  ->  addCallback()
+//                      ->  Pa_GetDefaultOutputDevice()  ->  Pa_OpenStream
+//                      ->  Pa_StartStream
+//
+// and the autoReconnect watchdog in System().update() got there on its own,
+// since an offline session never delivers a callback and therefore reads as
+// permanently stalled. The harm is not the surprise device but the threading:
+// renderOffline() is documented single-threaded ("caller must not have opened a
+// device, e.g. by using YSE::system::initOffline()", deviceManager.h), and a
+// PortAudio callback thread drives the same manager update() functions the
+// offline caller drives from its own thread — the race Tests/support/
+// null_device.hpp opens by explaining.
+//
+// HOW THE PRECONDITION IS ESTABLISHED
+//
+// bringPortAudioUp() below runs one ordinary device session — init(), pause(),
+// close() — before anything else in the suite. After it, PortAudio is up, the
+// device list is populated (close() does not clear it), and no stream and no
+// session are open. That is the state a second, offline session inherits.
+//
+// It needs real audio hardware, so on headless CI (and any host with no default
+// output device) every case skips with a message. That is honest rather than
+// silent: the cases below cannot be made to measure anything without a device
+// to wrongly open, and there is nothing to substitute for it — the whole defect
+// is "a device that is reachable gets opened". The one exception is the #973
+// case at the end, which asserts what init() reports on *either* kind of host.
+//
+// The suite drives System::close() and System::init(), so it is isolated like
+// every other lifecycle suite (Tests/CMakeLists.txt). It must in particular not
+// share a process with `devicelayer`, whose contract case asserts the opposite
+// state and would fail by name.
+
+#include <doctest/doctest.h>
+
+#include <chrono>
+#include <mutex>
+#include <string>
+#include <thread>
+#include <vector>
+
+#include "support/timer_pacing.hpp"
+
+#include "yse.hpp"
+#include "channel/channelInterface.hpp"
+#include "device/deviceInterface.hpp"
+#include "device/deviceSetup.hpp"
+#include "headers/constants.hpp"
+#include "yse_c/yse_system.h"
+
+namespace {
+
+  // One device session, brought up and taken down again, purely to leave
+  // PortAudio initialised and the device list populated for the offline
+  // sessions below. Latched: it must run exactly once, and the answer cannot
+  // change afterwards — nothing un-initialises PortAudio.
+  //
+  // pause() before close() is deliberate: init() opens a stream, and the cases
+  // below drive the engine from the test thread. Nothing here should leave a
+  // callback thread behind.
+  bool bringPortAudioUp() {
+    static const bool result = []() {
+      YSE::System().close(); // normalize regardless of starting state
+      if (!YSE::System().init()) return false;
+      YSE::System().pause();
+      // A device the engine can actually open is what the offline sessions
+      // below must NOT get. Both halves matter: an enumerated list proves
+      // Pa_Initialize ran, a non-empty default name proves
+      // Pa_GetDefaultOutputDevice() resolves to something.
+      const bool reachable =
+          YSE::System().getNumDevices() > 0 && !YSE::System().getDefaultDevice().empty();
+      YSE::System().close();
+      return reachable;
+    }();
+    return result;
+  }
+
+  bool deviceReachable() {
+    if (bringPortAudioUp()) return true;
+    MESSAGE("skipped: no default audio output device in this process, so there is no device for "
+            "an offline session to wrongly open. The defect this suite covers only exists where "
+            "one is reachable (issue #719).");
+    return false;
+  }
+
+  // The first enumerated device that can play, preferring the platform default.
+  // Returned by value: the cases hold it across a close()/initOffline() cycle,
+  // and deviceSetup stores a pointer to whatever it is handed.
+  YSE::device playableDevice() {
+    const std::string& preferred = YSE::System().getDefaultDevice();
+    YSE::device fallback;
+    for (unsigned int i = 0; i < YSE::System().getNumDevices(); ++i) {
+      const YSE::device& d = YSE::System().getDevice(i);
+      if (d.getNumOutputChannelNames() == 0) continue;
+      if (d.getName() == preferred) return d;
+      if (fallback.getNumOutputChannelNames() == 0) fallback = d;
+    }
+    return fallback;
+  }
+
+  // Collects what the engine logs while installed (issue #971). Locked: engine
+  // threads may log while the test reads.
+  class CapturingLog : public YSE::logHandler {
+  public:
+    void AddMessage(const std::string& message) override {
+      const std::lock_guard<std::mutex> lock(mutex);
+      messages.push_back(message);
+    }
+    bool contains(const std::string& fragment) const {
+      const std::lock_guard<std::mutex> lock(mutex);
+      for (const std::string& m : messages)
+        if (m.find(fragment) != std::string::npos) return true;
+      return false;
+    }
+
+  private:
+    mutable std::mutex mutex;
+    std::vector<std::string> messages;
+  };
+
+  // Installs a sink for one case and restores the previous state even if an
+  // assertion unwinds. Safe: this suite owns its process.
+  class ScopedSink {
+  public:
+    explicit ScopedSink(YSE::logHandler* handler) : previousLevel(YSE::Log().getLevel()) {
+      YSE::Log().setLevel(YSE::EL_WARNING);
+      YSE::Log().setHandler(handler);
+    }
+    ~ScopedSink() {
+      YSE::Log().setHandler(nullptr);
+      YSE::Log().setLevel(previousLevel);
+    }
+    ScopedSink(const ScopedSink&) = delete;
+    ScopedSink& operator=(const ScopedSink&) = delete;
+
+  private:
+    YSE::ERROR_LEVEL previousLevel;
+  };
+
+} // namespace
+
+TEST_SUITE("offlinesession") {
+
+  // The direct repro. Pre-fix, resume() opens a real stream here and
+  // getActiveSampleRate() reports the rate of a device the host explicitly
+  // asked not to have; post-fix it is a no-op with a debug log line.
+  TEST_CASE("offlinesession: resume() does not open a device on an offline session (issue #719)") {
+    if (!deviceReachable()) return;
+
+    YSE::System().close();
+    REQUIRE(YSE::System().initOffline());
+    // The starting point: a session with no stream, in a process where one is
+    // one Pa_OpenStream away.
+    REQUIRE(YSE::System().getActiveSampleRate() == 0.0);
+
+    YSE::System().pause();
+    YSE::System().resume();
+
+    const double rate = YSE::System().getActiveSampleRate();
+    const int latency = YSE::System().getActiveOutputLatency();
+    // Take the stream away before asserting. On the unfixed engine a live
+    // PortAudio callback thread is running on an offline session right now, and
+    // it must not survive a failing CHECK into the next case — that thread
+    // driving the manager update()s is the harm being tested for.
+    if (rate != 0.0) YSE::System().closeCurrentDevice();
+
+    CHECK(rate == 0.0);
+    CHECK(latency == 0);
+
+    YSE::System().close();
+  }
+
+  // The same thing reached without the host asking at all: with autoReconnect
+  // on, an offline session's permanent zero-callback state reads as a stalled
+  // device, and the watchdog's remedy is pause() + resume(). A delay of 0 is
+  // what autoReconnect ships with, so this is the shape a host gets by simply
+  // enabling reconnection.
+  TEST_CASE("offlinesession: the autoReconnect watchdog does not open a device on an offline "
+            "session (issue #719)") {
+    if (!deviceReachable()) return;
+
+    YSE::System().close();
+    REQUIRE(YSE::System().initOffline());
+    REQUIRE(YSE::System().getActiveSampleRate() == 0.0);
+
+    YSE::System().autoReconnect(true, 0);
+    // The window is counted in ticks of the suite's reference timer rather than
+    // in milliseconds (issue #753). This is the inverted bet — it passes when
+    // nothing happens — so a wall-clock budget a loaded box burns through
+    // without the watchdog ever running would make it vacuously true; a window
+    // of reference ticks grows with the load instead.
+    double rate = 0.0;
+    TestHelpers::pacedPump(
+        300,
+        [&rate] {
+          rate = YSE::System().getActiveSampleRate();
+          return rate != 0.0;
+        },
+        [] { YSE::System().update(); }, 2);
+    // Disarm before asserting, so a failing CHECK cannot leave the watchdog
+    // re-opening the device for the rest of the process.
+    YSE::System().autoReconnect(false, 0);
+    if (rate != 0.0) YSE::System().closeCurrentDevice();
+
+    CHECK(rate == 0.0);
+    // And the session still reads as having no device at all.
+    CHECK(YSE::System().getActiveBufferSize() == 0);
+    CHECK(YSE::System().getActiveOutputLatency() == 0);
+
+    YSE::System().close();
+  }
+
+  // The other half of the decision (issue #719, design point 3): openDevice()
+  // is *allowed* on an offline session and promotes it, because unlike resume()
+  // it names a device and asks for it. The observable of the promotion is that
+  // pause()/resume() work afterwards — before this change a promoted session
+  // would have been resumable only by accident, and after it, only because the
+  // promotion is recorded.
+  TEST_CASE("offlinesession: openDevice() promotes an offline session (issue #719)") {
+    if (!deviceReachable()) return;
+
+    YSE::System().close();
+
+    const YSE::device out = playableDevice();
+    if (out.getNumOutputChannelNames() == 0 || out.getNumAvailableSampleRates() == 0) {
+      MESSAGE("skipped: no enumerated device with output channels and an advertised rate.");
+      return;
+    }
+
+    // Bring the session up at the device's own rate. SAMPLERATE is locked for
+    // the session at the end of initShared(), and a device may refuse a locked
+    // rate other than its own (the mismatch case has its own test below, issue
+    // #972) — that would test the refusal rather than the promotion.
+    const double deviceRate = out.getAvailableSampleRate(0);
+    const unsigned int previousRequest = YSE::System().requestSampleRate();
+    YSE::System().requestSampleRate(static_cast<unsigned int>(deviceRate));
+    REQUIRE(YSE::System().initOffline());
+    REQUIRE(YSE::System().getActiveSampleRate() == 0.0);
+
+    YSE::deviceSetup setup;
+    setup.setOutput(out).setSampleRate(deviceRate).setBufferSize(0);
+    YSE::System().openDevice(setup, YSE::CT_AUTO);
+
+    if (YSE::System().getActiveSampleRate() == 0.0) {
+      MESSAGE("skipped: the enumerated device did not open in this process (exclusive-mode host, "
+              "device in use), so there is no promotion to observe.");
+      YSE::System().close();
+      YSE::System().requestSampleRate(previousRequest);
+      return;
+    }
+
+    // Promoted. pause() closes the stream the session now owns...
+    YSE::System().pause();
+    CHECK(YSE::System().getActiveSampleRate() == 0.0);
+    // ...and resume() is entitled to bring it back, which is precisely what it
+    // refuses to do for a session that never had one.
+    YSE::System().resume();
+    CHECK(YSE::System().getActiveSampleRate() > 0.0);
+
+    YSE::System().closeCurrentDevice();
+    YSE::System().close();
+    YSE::System().requestSampleRate(previousRequest);
+
+    // close() drops the promotion with the session it belonged to: the next
+    // offline session starts offline again.
+    REQUIRE(YSE::System().initOffline());
+    YSE::System().resume();
+    const double rate = YSE::System().getActiveSampleRate();
+    if (rate != 0.0) YSE::System().closeCurrentDevice();
+    CHECK(rate == 0.0);
+    YSE::System().close();
+  }
+
+  // Issue #971. deviceSetup::setSampleRate() was stored and never read:
+  // openDevice() opened the stream at the session rate and said nothing about
+  // the request. The session rate is locked for the whole session (#646), so a
+  // differing request cannot be honoured on a running session — but it must be
+  // reported, not silently dropped. Lives in this suite because it needs what
+  // this process has: PortAudio up and a real device to open.
+  TEST_CASE("offlinesession: openDevice() reports a setup sample rate the session cannot honour "
+            "(issue #971)") {
+    if (!deviceReachable()) return;
+
+    YSE::System().close();
+
+    const YSE::device out = playableDevice();
+    if (out.getNumOutputChannelNames() == 0 || out.getNumAvailableSampleRates() == 0) {
+      MESSAGE("skipped: no enumerated device with output channels and an advertised rate.");
+      return;
+    }
+
+    // Run the session at the device's own rate, so the device can open at it.
+    const unsigned int deviceRate = static_cast<unsigned int>(out.getAvailableSampleRate(0));
+    const unsigned int otherRate = deviceRate == 44100u ? 48000u : 44100u;
+    const unsigned int previousRequest = YSE::System().requestSampleRate();
+    YSE::System().requestSampleRate(deviceRate);
+    REQUIRE(YSE::System().init());
+    if (YSE::System().getSampleRate() != static_cast<double>(deviceRate)) {
+      MESSAGE("skipped: the default device did not open at the enumerated device's rate.");
+      YSE::System().close();
+      YSE::System().requestSampleRate(previousRequest);
+      return;
+    }
+
+    CapturingLog log;
+    bool opened = false;
+    {
+      ScopedSink sink(&log);
+
+      // A matching request is simply honoured: nothing to report.
+      YSE::deviceSetup same;
+      same.setOutput(out).setSampleRate(static_cast<double>(deviceRate)).setBufferSize(0);
+      opened = YSE::System().openDevice(same, YSE::CT_AUTO);
+      CHECK_FALSE(log.contains("sample rate"));
+
+      // A differing one is refused with a log line naming it, and the stream
+      // opens at the session rate.
+      if (opened) {
+        YSE::deviceSetup differing;
+        differing.setOutput(out).setSampleRate(static_cast<double>(otherRate)).setBufferSize(0);
+        opened = YSE::System().openDevice(differing, YSE::CT_AUTO);
+      }
+    }
+
+    const double active = YSE::System().getActiveSampleRate();
+    YSE::System().closeCurrentDevice();
+    YSE::System().close();
+    YSE::System().requestSampleRate(previousRequest);
+
+    if (!opened) {
+      MESSAGE("skipped: the enumerated device did not open in this process (exclusive-mode host, "
+              "device in use).");
+      return;
+    }
+    CHECK(
+        log.contains("Requested device sample rate " + std::to_string(otherRate) + " Hz ignored"));
+    CHECK(active == static_cast<double>(deviceRate));
+  }
+
+  // Issue #972. An offline session runs at the requested rate or 48 kHz, and
+  // is promoted onto a device whose default may be anything. openDevice() used
+  // to assert the locked session rate equalled the device's default rate, so
+  // the common case — an offline session left at 48 kHz promoted onto a
+  // 44.1 kHz device — aborted a debug build. Now the stream is asked for the
+  // session rate: it either opens at that rate, or the device refuses it and
+  // the call returns false with a log line naming both rates. Either way the
+  // session rate does not move.
+  TEST_CASE("offlinesession: openDevice() on an offline session at a rate other than the device "
+            "default (issue #972)") {
+    if (!deviceReachable()) return;
+
+    YSE::System().close();
+
+    const YSE::device out = playableDevice();
+    if (out.getNumOutputChannelNames() == 0 || out.getNumAvailableSampleRates() == 0) {
+      MESSAGE("skipped: no enumerated device with output channels and an advertised rate.");
+      return;
+    }
+
+    const unsigned int deviceRate = static_cast<unsigned int>(out.getAvailableSampleRate(0));
+    const unsigned int sessionRate = deviceRate == 44100u ? 48000u : 44100u;
+    const unsigned int previousRequest = YSE::System().requestSampleRate();
+    YSE::System().requestSampleRate(sessionRate);
+    REQUIRE(YSE::System().initOffline());
+    REQUIRE(YSE::System().getSampleRate() == static_cast<double>(sessionRate));
+
+    CapturingLog log;
+    bool opened = false;
+    {
+      ScopedSink sink(&log);
+      YSE::deviceSetup setup;
+      setup.setOutput(out).setBufferSize(0);
+      opened = YSE::System().openDevice(setup, YSE::CT_AUTO);
+    }
+
+    const double active = YSE::System().getActiveSampleRate();
+    const double session = YSE::System().getSampleRate();
+    if (opened) YSE::System().closeCurrentDevice();
+    YSE::System().close();
+    YSE::System().requestSampleRate(previousRequest);
+
+    CHECK(session == static_cast<double>(sessionRate));
+    if (opened) {
+      // The host resampled: the stream runs at the session rate.
+      CHECK(active == static_cast<double>(sessionRate));
+    } else {
+      CHECK(active == 0.0);
+      CHECK(log.contains("refused the session sample rate of " + std::to_string(sessionRate) +
+                         " Hz (its default is " + std::to_string(deviceRate) + " Hz)"));
+    }
+  }
+
+  // Issue #973. init() is documented to return false "if no device could be
+  // opened", and used to return true whenever Pa_Initialize succeeded: with no
+  // default output device, or a stream the backend refused to open or start,
+  // the session came up with no stream and the host played silence. The
+  // contract asserted here holds on any host — init() succeeds exactly when a
+  // stream is running afterwards — and the failure branch is the one headless
+  // CI and the Linux docker images take, which is where it bites.
+  //
+  // Unlike the cases above this one does not skip without a device: that is
+  // the state under test. It belongs in this process because it drives
+  // init()/close() and leaves PortAudio initialised, which this suite needs
+  // anyway (and `devicelayer` must never see).
+  TEST_CASE("offlinesession: init() succeeds exactly when a device opens, and a failed init() "
+            "leaves nothing behind (issue #973)") {
+    YSE::System().close();
+    const unsigned int previousRequest = YSE::System().requestSampleRate();
+    YSE::System().requestSampleRate(0);
+    const UInt rateBefore = YSE::SAMPLERATE;
+
+    CapturingLog log;
+    bool ok = false;
+    double active = 0.0;
+    bool channelsUp = false;
+    double sessionRate = 0.0;
+    {
+      ScopedSink sink(&log);
+      ok = YSE::System().init();
+      active = YSE::System().getActiveSampleRate();
+      channelsUp = YSE::ChannelMaster().isValid();
+      sessionRate = YSE::System().getSampleRate();
+      // No callback thread may outlive the case (see bringPortAudioUp()).
+      if (ok) YSE::System().pause();
+    }
+    YSE::System().close();
+
+    CHECK(ok == (active > 0.0));
+    if (!ok) {
+      CHECK(log.contains("no audio output device could be opened"));
+      // Torn down, not left as an active session with no stream.
+      CHECK_FALSE(channelsUp);
+      CHECK(sessionRate == 0.0);
+      CHECK(YSE::SAMPLERATE == rateBefore);
+      // And nothing blocks the explicit alternative.
+      REQUIRE(YSE::System().initOffline());
+      CHECK(YSE::ChannelMaster().isValid());
+      YSE::System().close();
+    }
+
+    // The C API reports the same outcome, as an audio-device error.
+    YseSystem* sys = yse_system_get();
+    const YseStatus status = yse_system_init(sys);
+    const double cActive = yse_system_get_active_sample_rate(sys);
+    if (status == YSE_OK) yse_system_pause(sys);
+    yse_system_close(sys);
+    CHECK((status == YSE_OK) == (cActive > 0.0));
+    if (status != YSE_OK) CHECK(status == YSE_ERR_AUDIO_DEVICE);
+
+    YSE::System().requestSampleRate(previousRequest);
+  }
+
+} // TEST_SUITE("offlinesession")

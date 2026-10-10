@@ -18,7 +18,6 @@
 #include "midifileImplementation.h"
 
 #include <algorithm>
-#include <cmath>
 #include <cstdint>
 #include <fstream>
 
@@ -26,51 +25,31 @@
 // this TU needs (INTERNAL::LogImpl) still come from internalHeaders.h.
 #include "../internalHeaders.h"
 #include "../synth/synthInterface.hpp"
+#include "midiBytes.hpp"
 #include "midiSynthRouting.hpp"
 
 namespace {
 
-  // ─── low-level byte readers (all bounds-checked by the caller) ───────────────
-
-  // Big-endian fixed-width reads. `pos` is advanced past the bytes read.
+  // The format's byte primitives live in midi/midiBytes.hpp since issue #698,
+  // shared with the patcher's .seq reader. Only the primitives are shared — the
+  // parsers are not, and that header says why. create() below is a member of
+  // YSE::MIDI, so it reaches them unqualified; these two helpers are not, hence
+  // the qualification here.
+  //
+  // Big-endian fixed-width reads over the whole-file buffer, advancing `pos` —
+  // which is what the shared readers deliberately do not do, since .seq's parse
+  // keeps its cursors elsewhere. The bytes must already be known to be in range:
+  // every call site below checks that first.
   uint16_t readU16(const std::vector<unsigned char>& d, std::size_t& pos) {
-    uint16_t v = static_cast<uint16_t>((d[pos] << 8) | d[pos + 1]);
+    const uint16_t v = YSE::MIDI::ReadU16BE(d.data() + pos);
     pos += 2;
     return v;
   }
 
   uint32_t readU32(const std::vector<unsigned char>& d, std::size_t& pos) {
-    uint32_t v = (static_cast<uint32_t>(d[pos]) << 24) | (static_cast<uint32_t>(d[pos + 1]) << 16) |
-                 (static_cast<uint32_t>(d[pos + 2]) << 8) | static_cast<uint32_t>(d[pos + 3]);
+    const uint32_t v = YSE::MIDI::ReadU32BE(d.data() + pos);
     pos += 4;
     return v;
-  }
-
-  // MIDI variable-length quantity: 7 bits per byte, MSB set = "more bytes".
-  // Returns false on truncation (pos past end before the value terminates).
-  bool readVarLen(const std::vector<unsigned char>& d, std::size_t& pos, uint32_t& out) {
-    uint32_t value = 0;
-    for (int i = 0; i < 4; ++i) {
-      if (pos >= d.size()) return false;
-      const unsigned char byte = d[pos++];
-      value = (value << 7) | static_cast<uint32_t>(byte & 0x7F);
-      if ((byte & 0x80) == 0) {
-        out = value;
-        return true;
-      }
-    }
-    return false; // more than 4 continuation bytes is malformed
-  }
-
-  // Number of data bytes a running-status channel-voice message carries.
-  int channelDataBytes(unsigned char statusNibble) {
-    switch (statusNibble & 0xF0) {
-    case 0xC0: // program change
-    case 0xD0: // channel aftertouch
-      return 1;
-    default: // note on/off, poly aftertouch, CC, pitch bend
-      return 2;
-    }
   }
 
   // A tempo change: microseconds per quarter note in effect from `tick`.
@@ -105,7 +84,7 @@ bool YSE::MIDI::fileImpl::create(const std::string& fileName) {
   // Reset so create() can be re-called (main thread, before play()).
   hasFile = false;
   midiEvents.clear();
-  playhead = 0;
+  playheadSec = 0.0;
   nextEvent = 0;
 
   std::vector<unsigned char> data = readWholeFile(fileName);
@@ -134,16 +113,18 @@ bool YSE::MIDI::fileImpl::create(const std::string& fileName) {
   pos = headerEnd; // skip any extra header bytes
 
   // Tick -> time conversion. PPQN (tempo-driven) is the common case; SMPTE is
-  // a fixed tick rate independent of tempo.
+  // a fixed tick rate independent of tempo. Times are kept in SECONDS — never
+  // samples — so the parsed events stay valid across a system::close()/init()
+  // cycle at a different device rate (issue #637); advance() converts against
+  // the live SAMPLERATE.
   const bool smpte = (division & 0x8000) != 0;
-  double smpteSamplesPerTick = 0.0;
+  double smpteSecondsPerTick = 0.0;
   uint32_t ppqn = 96;
   if (smpte) {
     const int framesPerSecond = -static_cast<int8_t>(division >> 8);
     const int ticksPerFrame = division & 0xFF;
     const double ticksPerSecond = static_cast<double>(framesPerSecond) * ticksPerFrame;
-    if (ticksPerSecond > 0.0)
-      smpteSamplesPerTick = static_cast<double>(SAMPLERATE) / ticksPerSecond;
+    if (ticksPerSecond > 0.0) smpteSecondsPerTick = 1.0 / ticksPerSecond;
   } else {
     ppqn = division & 0x7FFF;
     if (ppqn == 0) ppqn = 96; // guard against a zero division
@@ -180,7 +161,10 @@ bool YSE::MIDI::fileImpl::create(const std::string& fileName) {
 
     while (pos < trackEnd) {
       uint32_t delta = 0;
-      if (!readVarLen(data, pos, delta) || pos >= trackEnd) {
+      // Bounded by the whole buffer rather than by trackEnd, as before the
+      // primitives moved: a delta-time that runs past the chunk boundary is
+      // caught by the `pos >= trackEnd` test right here.
+      if (!ReadVarLen(data.data(), pos, data.size(), delta) || pos >= trackEnd) {
         INTERNAL::LogImpl().emit(E_FILE_ERROR, "Malformed MIDI delta-time: " + fileName);
         return false;
       }
@@ -198,16 +182,16 @@ bool YSE::MIDI::fileImpl::create(const std::string& fileName) {
         }
       }
 
-      if (statusByte == 0xFF) {
+      if (statusByte == META_PREFIX) {
         // Meta event: FF type len data...
         if (pos >= trackEnd) return false;
         const unsigned char metaType = data[pos++];
         uint32_t metaLen = 0;
-        if (!readVarLen(data, pos, metaLen) || pos + metaLen > trackEnd) {
+        if (!ReadVarLen(data.data(), pos, data.size(), metaLen) || pos + metaLen > trackEnd) {
           INTERNAL::LogImpl().emit(E_FILE_ERROR, "Malformed MIDI meta event: " + fileName);
           return false;
         }
-        if (metaType == 0x51 && metaLen == 3) { // set tempo (us per quarter)
+        if (metaType == META_TEMPO && metaLen == 3) { // set tempo (us per quarter)
           const uint32_t us = (static_cast<uint32_t>(data[pos]) << 16) |
                               (static_cast<uint32_t>(data[pos + 1]) << 8) |
                               static_cast<uint32_t>(data[pos + 2]);
@@ -215,10 +199,10 @@ bool YSE::MIDI::fileImpl::create(const std::string& fileName) {
         }
         pos += metaLen;
         runningStatus = 0; // meta cancels running status
-      } else if (statusByte == 0xF0 || statusByte == 0xF7) {
+      } else if (statusByte == SYSEX_BEGIN || statusByte == SYSEX_ESCAPE) {
         // SysEx (or escape): F0/F7 len data... — skipped.
         uint32_t sysexLen = 0;
-        if (!readVarLen(data, pos, sysexLen) || pos + sysexLen > trackEnd) {
+        if (!ReadVarLen(data.data(), pos, data.size(), sysexLen) || pos + sysexLen > trackEnd) {
           INTERNAL::LogImpl().emit(E_FILE_ERROR, "Malformed MIDI sysex event: " + fileName);
           return false;
         }
@@ -227,14 +211,14 @@ bool YSE::MIDI::fileImpl::create(const std::string& fileName) {
       } else {
         // Channel-voice message.
         runningStatus = statusByte;
-        const int nBytes = channelDataBytes(statusByte);
-        if (pos + static_cast<std::size_t>(nBytes) > trackEnd) {
+        const std::size_t nBytes = ChannelDataBytes(statusByte);
+        if (pos + nBytes > trackEnd) {
           INTERNAL::LogImpl().emit(E_FILE_ERROR, "Truncated MIDI channel message: " + fileName);
           return false;
         }
         const unsigned char d1 = data[pos];
         const unsigned char d2 = nBytes == 2 ? data[pos + 1] : 0;
-        pos += static_cast<std::size_t>(nBytes);
+        pos += nBytes;
         raw.push_back({tick, statusByte, d1, d2});
       }
     }
@@ -254,10 +238,8 @@ bool YSE::MIDI::fileImpl::create(const std::string& fileName) {
         tempo[i - 1].cumUs + static_cast<double>(deltaTicks) * tempo[i - 1].usPerQuarter / ppqn;
   }
 
-  auto tickToSample = [&](uint64_t targetTick) -> uint64_t {
-    if (smpte)
-      return static_cast<uint64_t>(
-          std::llround(static_cast<double>(targetTick) * smpteSamplesPerTick));
+  auto tickToSeconds = [&](uint64_t targetTick) -> double {
+    if (smpte) return static_cast<double>(targetTick) * smpteSecondsPerTick;
     // Last tempo entry whose tick <= targetTick.
     std::size_t idx = 0;
     for (std::size_t i = 0; i < tempo.size(); ++i) {
@@ -268,17 +250,17 @@ bool YSE::MIDI::fileImpl::create(const std::string& fileName) {
     }
     const double us = tempo[idx].cumUs + static_cast<double>(targetTick - tempo[idx].tick) *
                                              tempo[idx].usPerQuarter / ppqn;
-    return static_cast<uint64_t>(std::llround(us * static_cast<double>(SAMPLERATE) / 1'000'000.0));
+    return us / 1'000'000.0;
   };
 
   midiEvents.reserve(raw.size());
   for (const RawEvent& e : raw)
-    midiEvents.push_back({tickToSample(e.tick), e.status, e.data1, e.data2});
+    midiEvents.push_back({tickToSeconds(e.tick), e.status, e.data1, e.data2});
 
   // Stable sort so simultaneous events keep their in-file (track) order.
   std::stable_sort(
       midiEvents.begin(), midiEvents.end(),
-      [](const fileEvent& a, const fileEvent& b) { return a.sampleTime < b.sampleTime; });
+      [](const fileEvent& a, const fileEvent& b) { return a.timeSeconds < b.timeSeconds; });
 
   hasFile = true;
   return true;
@@ -340,7 +322,7 @@ void YSE::MIDI::fileImpl::advance(int numSamples) {
     return;
   case SS_WANTSTOSTOP:
     allNotesOffToSynths();
-    playhead = 0;
+    playheadSec = 0.0;
     nextEvent = 0;
     intent.store(SS_STOPPED, std::memory_order_release);
     return;
@@ -350,17 +332,22 @@ void YSE::MIDI::fileImpl::advance(int numSamples) {
 
   if (!hasFile || numSamples <= 0) return;
 
-  const uint64_t blockEnd = playhead + static_cast<uint64_t>(numSamples);
-  while (nextEvent < midiEvents.size() && midiEvents[nextEvent].sampleTime < blockEnd) {
+  // Convert this block's span to seconds against the live SAMPLERATE (issue
+  // #637): the parsed timestamps are rate-independent seconds, so playback
+  // timing follows whatever rate the current session negotiated. One divide
+  // per block plus one compare per pending event — allocation-free.
+  const double blockEndSec =
+      playheadSec + static_cast<double>(numSamples) / static_cast<double>(SAMPLERATE);
+  while (nextEvent < midiEvents.size() && midiEvents[nextEvent].timeSeconds < blockEndSec) {
     dispatchEvent(midiEvents[nextEvent]);
     ++nextEvent;
   }
-  playhead = blockEnd;
+  playheadSec = blockEndSec;
 
   if (nextEvent >= midiEvents.size()) {
     // One-shot playback: release held notes and rewind to the start.
     allNotesOffToSynths();
-    playhead = 0;
+    playheadSec = 0.0;
     nextEvent = 0;
     intent.store(SS_STOPPED, std::memory_order_release);
   }

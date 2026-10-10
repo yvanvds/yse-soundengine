@@ -26,6 +26,7 @@ The pages below are generated from the source code by Doxygen + Breathe.
 
    music
    player
+   clips
 
 .. toctree::
    :maxdepth: 1
@@ -41,17 +42,21 @@ The pages below are generated from the source code by Doxygen + Breathe.
    dsp_modules
    effects
 
-.. toctree::
-   :maxdepth: 1
-   :caption: Patcher
-
-   patcher
+The patcher has its own section. Its C++ reference is
+:doc:`/patcher/api`, and every object type is listed in
+:doc:`/patcher/objects/index`.
 
 .. toctree::
    :maxdepth: 1
    :caption: Utilities
 
+   types
    utils
+
+Language bindings use the flat C API. Its page opens with a
+:ref:`guide <c-api-guide>` to the rules every C function follows: handles
+and ownership, error codes and the last error, strings, and which thread each
+callback runs on.
 
 .. toctree::
    :maxdepth: 1

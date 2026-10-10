@@ -27,26 +27,31 @@
 #include "yse.hpp"
 #include "channel/channelInterface.hpp"
 #include "channel/channelManager.h"
+#include "dsp/dspObject.hpp"
 #include "dsp/panner.hpp"
 #include "sound/soundInterface.hpp"
 #include "synth/sineVoice.hpp"
+#include "synth/synthImplementation.h"
 #include "synth/synthInterface.hpp"
 #include "synth/synthManager.h"
 #include "internal/time.h"
+#include "support/timer_pacing.hpp"
 
 namespace {
 
   // Bring a synth (behind a sound) to READY by pumping the offline engine until
-  // its voices are cloned on the slow pool, or a deadline passes.
+  // its voices are cloned on the slow pool, or the budget runs out. That budget
+  // is counted in deliveries of the suite's reference timer, not in
+  // milliseconds (issue #753): it stretches with machine load exactly as the
+  // slow pool does, while a wedged pool still fails.
   bool bringToReady(YSE::synth& syn, int expectVoices) {
-    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
-    while (std::chrono::steady_clock::now() < deadline) {
-      YSE::System().update();
-      YSE::System().renderOffline(1);
-      if (syn.getNumVoices() == expectVoices) return true;
-      std::this_thread::sleep_for(std::chrono::milliseconds(2));
-    }
-    return syn.getNumVoices() == expectVoices;
+    return TestHelpers::pacedPump(
+        2000, [&syn, expectVoices] { return syn.getNumVoices() == expectVoices; },
+        [] {
+          YSE::System().update();
+          YSE::System().renderOffline(1);
+        },
+        2);
   }
 
   // Total energy (sum of squares) of one channel of a bed.
@@ -161,6 +166,38 @@ TEST_SUITE("synthpositioning") {
     YSE::System().close();
   }
 
+  // ── Issue #828: the aggregate bed must be fully sized by the time the impl
+  //    exists at all. The render path reads `output.samples` through two doors
+  //    that do NOT wait for OBJECT_SETUP — renderBlock()'s pre-ready branch and
+  //    the owning sound's cached `&output.samples` in toChannels() — so if the
+  //    bed were still sized later, on the setup pool, that resize would run
+  //    concurrently with a render and hand the audio thread a freed
+  //    DSP::buffer array. Constructing an impl directly is what makes the
+  //    invariant checkable without a race window: nothing has ticked the engine
+  //    between the constructor returning and these CHECKs, so a bed that is
+  //    device-width and block-length here can only have been sized in the
+  //    constructor. Before the fix this impl came back with a single
+  //    zero-length buffer and both CHECKs failed. ──
+  TEST_CASE("synthpositioning: aggregate bed is sized by the constructor (#828)") {
+    YSE::System().close();
+    if (!YSE::System().initOffline()) return;
+
+    const UInt no = YSE::CHANNEL::Manager().getNumberOfOutputs();
+    REQUIRE(no >= 1);
+    {
+      // Stack-constructed, never handed to the manager: this is the state of a
+      // synth impl in the window between YSE::synth::create() and the setup
+      // pool picking it up — precisely the window the race lived in.
+      YSE::SYNTH::implementationObject impl(nullptr);
+      YSE::DSP::dspSourceObject& src = impl.getOutputSource();
+      CHECK(src.samples.size() == static_cast<size_t>(no));
+      for (auto& b : src.samples)
+        CHECK(b.getLength() == YSE::STANDARD_BUFFERSIZE);
+    }
+
+    YSE::System().close();
+  }
+
   // ── Note storm: hundreds of notes per second into a synth behind a sound,
   //    driven through the offline render loop. The note inbox drains and the
   //    allocator churns every block with no create/connect/free at note rate —
@@ -210,21 +247,24 @@ TEST_SUITE("synthpositioning") {
         snd.stop();
         YSE::System().renderOffline(4);
       }
-      // Drain the sound impl to full release/delete before the synth goes.
-      const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(1);
-      while (std::chrono::steady_clock::now() < deadline) {
-        YSE::System().update();
-        YSE::System().renderOffline(1);
-        std::this_thread::sleep_for(std::chrono::milliseconds(2));
-      }
+      // Drain the sound impl to full release/delete before the synth goes, over
+      // a window of reference ticks rather than of wall clock (issue #753).
+      TestHelpers::pacedPump(
+          1000, [] { return false; },
+          [] {
+            YSE::System().update();
+            YSE::System().renderOffline(1);
+          },
+          2);
     }
     // Drain the synth impl.
-    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(1);
-    while (std::chrono::steady_clock::now() < deadline) {
-      YSE::System().update();
-      YSE::System().renderOffline(1);
-      std::this_thread::sleep_for(std::chrono::milliseconds(2));
-    }
+    TestHelpers::pacedPump(
+        1000, [] { return false; },
+        [] {
+          YSE::System().update();
+          YSE::System().renderOffline(1);
+        },
+        2);
     YSE::System().close();
     CHECK(true);
   }
@@ -265,19 +305,22 @@ TEST_SUITE("synthpositioning") {
         snd.stop();
         YSE::System().renderOffline(4);
       }
-      const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(1);
-      while (std::chrono::steady_clock::now() < deadline) {
-        YSE::System().update();
-        YSE::System().renderOffline(1);
-        std::this_thread::sleep_for(std::chrono::milliseconds(2));
-      }
+      // A drain window of reference ticks rather than of wall clock (#753).
+      TestHelpers::pacedPump(
+          1000, [] { return false; },
+          [] {
+            YSE::System().update();
+            YSE::System().renderOffline(1);
+          },
+          2);
     }
-    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(1);
-    while (std::chrono::steady_clock::now() < deadline) {
-      YSE::System().update();
-      YSE::System().renderOffline(1);
-      std::this_thread::sleep_for(std::chrono::milliseconds(2));
-    }
+    TestHelpers::pacedPump(
+        1000, [] { return false; },
+        [] {
+          YSE::System().update();
+          YSE::System().renderOffline(1);
+        },
+        2);
     YSE::System().close();
     CHECK(true);
   }

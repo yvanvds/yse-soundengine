@@ -26,12 +26,13 @@
 
 #include <doctest/doctest.h>
 #include <algorithm>
-#include <chrono>
 #include <cmath>
 #include <cstddef>
-#include <thread>
+#include <memory>
 #include <vector>
 
+#include "support/inflight_delete.hpp"
+#include "support/timer_pacing.hpp"
 #include "yse.hpp"
 #include "channel/channelInterface.hpp"
 #include "sound/soundInterface.hpp"
@@ -41,9 +42,9 @@
 #include "music/motif/motifInterface.hpp"
 #include "music/pNote.hpp"
 #include "player/playerInterface.hpp"
+#include "player/playerMessage.h"
+#include "player/playerManager.h"
 #include "internal/time.h"
-
-using namespace std::chrono_literals;
 
 namespace {
 
@@ -70,16 +71,17 @@ namespace {
   }
 
   // Bring a synth attached to a sound up to OBJECT_READY (voice cloning is async
-  // on the slow pool). Returns true once its voices are allocated.
+  // on the slow pool). Returns true once its voices are allocated. The budget is
+  // counted in reference-timer ticks rather than milliseconds (issue #753), so it
+  // stretches with machine load instead of asserting the machine kept up.
   bool bringReady(YSE::synth& syn, int expectedVoices) {
-    const auto deadline = std::chrono::steady_clock::now() + 2s;
-    while (std::chrono::steady_clock::now() < deadline) {
-      YSE::System().update();
-      YSE::System().renderOffline(1);
-      if (syn.getNumVoices() == expectedVoices) return true;
-      std::this_thread::sleep_for(5ms);
-    }
-    return syn.getNumVoices() == expectedVoices;
+    return TestHelpers::pacedPump(
+        2000, [&syn, expectedVoices] { return syn.getNumVoices() == expectedVoices; },
+        [] {
+          YSE::System().update();
+          YSE::System().renderOffline(1);
+        },
+        5);
   }
 
   // Advance the engine `blocks` blocks, returning the peak master output level
@@ -96,14 +98,17 @@ namespace {
     return peak;
   }
 
-  // Drain the engine so released impls are fully deleted before teardown.
-  void drain(std::chrono::milliseconds budget = 500ms) {
-    const auto deadline = std::chrono::steady_clock::now() + budget;
-    while (std::chrono::steady_clock::now() < deadline) {
-      YSE::System().update();
-      YSE::System().renderOffline(1);
-      std::this_thread::sleep_for(2ms);
-    }
+  // Drain the engine so released impls are fully deleted before teardown. The
+  // window is counted in reference-timer ticks rather than milliseconds
+  // (issue #753).
+  void drain(int ticks = 500) {
+    TestHelpers::pacedPump(
+        ticks, [] { return false; },
+        [] {
+          YSE::System().update();
+          YSE::System().renderOffline(1);
+        },
+        2);
   }
 
   // Every note-on logged so far is a member of the C-major scale.
@@ -154,6 +159,48 @@ TEST_SUITE("music") {
 
     CHECK(p.isPlaying() == false);
     CHECK(true); // reached here without dereferencing a null implementation
+  }
+
+  TEST_CASE("player concurrency: a release marked during an in-flight delete job "
+            "is still reclaimed (issue #992)") {
+    // PLAYER::Manager().update() cleared its delete request even when the
+    // previous delete job was still running, and that job may already have
+    // walked past the impl the request was for — which then stayed in the
+    // canonical list, so the settle below could not succeed. Staging: see
+    // support/inflight_delete.hpp. The slow pool is live from process start,
+    // so no engine session is needed; the synth is only the players' target
+    // and is never created, since no player here plays.
+    //
+    // A smaller bulk than the other managers' cases: every player impl
+    // preallocates its note / motif / voice pools (issue #195), which makes
+    // each one both large and slow to destroy.
+    constexpr int kBulk = 200;
+    constexpr int kRounds = 5;
+    auto& mgr = YSE::PLAYER::Manager();
+    auto tick = [&mgr] { mgr.update(0.01f); };
+    YSE::synth instrument;
+
+    for (int round = 0; round < kRounds; ++round) {
+      const std::size_t before = mgr.implementationCount();
+
+      std::vector<std::unique_ptr<YSE::player>> bulk;
+      bulk.reserve(kBulk);
+      for (int i = 0; i < kBulk; ++i) {
+        bulk.push_back(std::make_unique<YSE::player>());
+        bulk.back()->create(instrument);
+      }
+      auto x = std::make_unique<YSE::player>(); // last: heads the canonical list
+      x->create(instrument);
+      tick(); // drains the inbox: every impl is in the working list
+
+      REQUIRE(TestHelpers::releaseDuringInFlightDelete(
+          tick, [&] { bulk.clear(); }, [&] { x.reset(); }));
+
+      const bool reclaimed = TestHelpers::pacedPump(
+          5000, [&mgr, before] { return mgr.implementationCount() <= before; }, tick, 2);
+      CHECK_MESSAGE(reclaimed, "round " << round << " stranded a released player impl");
+      if (!reclaimed) break;
+    }
   }
 
 } // TEST_SUITE("music")

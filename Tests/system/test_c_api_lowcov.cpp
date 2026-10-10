@@ -1,0 +1,1620 @@
+// C-API boundary tests for the three engine-facing low-coverage translation
+// units under YseEngine/c_api/ (issue #568, the follow-up half of #417 /
+// epic #420): yse_system.cpp, yse_channel.cpp and yse_sound.cpp.
+//
+// As in test_c_api_surface.cpp the assertions are about the boundary contract,
+// not DSP behaviour:
+//
+//   * NULL-handle handling on every entry point — void setters no-op, queries
+//     return zero / false / NULL, and the YseStatus entry points distinguish
+//     YSE_ERR_INVALID_HANDLE (bad handle) from YSE_ERR_INVALID_ARGUMENT (bad
+//     argument).
+//   * The snprintf string convention on yse_system_default_device /
+//     _default_host / the MIDI device-name getters: the return is the full
+//     length, cap == 0 or buf == NULL is a size query, and the buffer is
+//     always NUL-terminated.
+//   * Ownership — channel create/destroy, sound create/destroy, and the
+//     borrowed pre-built channel singletons (never destroyed).
+//   * Round-trips — every sound parameter through the flat ABI.
+//
+// Everything runs against the suite's shared offline engine
+// (yse_system_init_offline), so no audio hardware is needed and it runs on
+// headless CI.
+//
+// Deliberately NOT covered here, and why:
+//
+//   * yse_system_init() past its NULL guard. Opening the default hardware
+//     device is exactly what CI does not have, and doing it on a developer
+//     machine would seize the audio device mid-suite. The offline path
+//     (init_offline) is the one under test.
+//   * yse_system_open_device() succeeding, for the same reason — it hands the
+//     setup straight to the backend's device open. Its refusal path is covered
+//     (issue #900): a setup with no output device never reaches hardware.
+//
+// yse_system_get_device() used to be listed here too: the engine's getDevice()
+// indexed the device vector with an unchecked operator[], so an out-of-range
+// probe was undefined behaviour rather than a catchable exception. Issue #581
+// made it bound-checked, and the out-of-range contract is asserted below.
+//
+// yse_system_close() and yse_system_close_current_device() tear down
+// process-global engine state, so they live in TEST_SUITE("capilowcovlife")
+// at the bottom of this file and run in their own ctest process — the same
+// isolation the lifecycle / synthlifecycle suites use.
+
+#include <doctest/doctest.h>
+
+#include <atomic>
+#include <chrono>
+#include <cmath>
+#include <cstring>
+#include <string>
+#include <thread>
+#include <vector>
+
+#include "support/capilowcov_offline.hpp"
+#include "support/timer_pacing.hpp"
+
+// Engine-side readback for the layout case below: the C API exposes no
+// output-count getter, and channelImplementation.h (pulled in by the manager)
+// instantiates lfQueue<CHANNEL::messageObject>, which needs the message type
+// complete by the end of the TU. Same include pair as test_device_layer.cpp,
+// which reaches them through yse.hpp — this TU carries no engine header at
+// all, so the scalar typedefs both are written against come in explicitly
+// first rather than by luck of the include order.
+#include "headers/types.hpp"
+#include "channel/channelMessage.h"
+#include "channel/channelManager.h"
+
+#include "yse_c/yse_channel.h"
+#include "yse_c/yse_common.h"
+#include "yse_c/yse_device.h"
+#include "yse_c/yse_dsp.h"
+#include "yse_c/yse_dsp_modules.h"
+#include "yse_c/yse_enums.h"
+#include "yse_c/yse_patcher.h"
+#include "yse_c/yse_sound.h"
+#include "yse_c/yse_system.h"
+
+#ifndef YSE_TEST_FIXTURES_DIR
+#define YSE_TEST_FIXTURES_DIR "../../Tests/support/fixtures"
+#endif
+
+namespace {
+
+  const char* const kWavFixture = YSE_TEST_FIXTURES_DIR "/test_mono_44100.wav";
+
+  // Read a snprintf-convention getter with the two-call size-then-fill pattern.
+  template <typename Fn> std::string readString(Fn&& get) {
+    const size_t need = get(nullptr, size_t{0});
+    std::vector<char> buf(need + 1, '\0');
+    get(buf.data(), buf.size());
+    return std::string(buf.data());
+  }
+
+  // Pump until `s` reports ready or the budget runs out. The budget is 2000
+  // ticks of the suite's reference timer rather than 2 s of wall clock (issue
+  // #753) — a wall-clock budget is a claim about the machine's scheduler, which
+  // is exactly what a loaded CI box falsifies while the engine behaves. Same
+  // numeric budget the C++ lifecycle suite uses for this fixture
+  // (Tests/system/test_lifecycle.cpp).
+  void pumpUntilReady(YseSound* s) {
+    TestHelpers::pacedPump(
+        2000, [s] { return yse_sound_is_ready(s) != 0; }, [] { capilowcov::pump(1); });
+  }
+
+  // Load the bundled mono fixture into a fresh sound on the master channel and
+  // pump until it reports ready. Returns nullptr when the engine or the fixture
+  // is unavailable, in which case the caller skips.
+  YseSound* makeLoadedSound(int loop = 0) {
+    YseSound* s = yse_sound_create();
+    if (!s) return nullptr;
+    if (yse_sound_load_file(s, kWavFixture, yse_channel_master(), loop, 0.5f, 0) != YSE_OK) {
+      yse_sound_destroy(s);
+      return nullptr;
+    }
+    pumpUntilReady(s);
+    return s;
+  }
+
+  // Host-side state an occlusion callback reaches through its user_data
+  // (issue #906). `ret` is what the host's "raycast" reports.
+  struct OcclusionProbe {
+    std::atomic<int> calls{0};
+    std::atomic<float> ret{0.f};
+    yse_pos_t lastSrc{0.f, 0.f, 0.f};
+  };
+
+  float YSE_C_CALLBACK occlusionProbeCb(const yse_pos_t* src, const yse_pos_t* /*listener*/,
+                                        void* ud) {
+    auto* p = static_cast<OcclusionProbe*>(ud);
+    p->lastSrc = *src;
+    p->calls.fetch_add(1);
+    return p->ret.load();
+  }
+
+  // A second callback with its own identity, so a test can tell which
+  // (callback, user_data) pair a dispatch used.
+  struct PairTag {
+    int id;
+    std::atomic<int> calls{0};
+    std::atomic<int> mismatches{0};
+  };
+
+  float YSE_C_CALLBACK occlusionTagA(const yse_pos_t*, const yse_pos_t*, void* ud) {
+    auto* t = static_cast<PairTag*>(ud);
+    if (t->id != 1) t->mismatches.fetch_add(1);
+    t->calls.fetch_add(1);
+    return 0.f;
+  }
+
+  float YSE_C_CALLBACK occlusionTagB(const yse_pos_t*, const yse_pos_t*, void* ud) {
+    auto* t = static_cast<PairTag*>(ud);
+    if (t->id != 2) t->mismatches.fetch_add(1);
+    t->calls.fetch_add(1);
+    return 0.f;
+  }
+
+  // Re-installs itself from inside its own dispatch: the bridge's reclaim wait
+  // must not include user code, or this deadlocks.
+  float YSE_C_CALLBACK occlusionReinstall(const yse_pos_t*, const yse_pos_t*, void* ud) {
+    auto* p = static_cast<OcclusionProbe*>(ud);
+    p->calls.fetch_add(1);
+    yse_system_set_occlusion_callback(yse_system_get(), occlusionProbeCb, p);
+    return 0.f;
+  }
+
+} // namespace
+
+TEST_SUITE("capilowcov") {
+
+  // ═══ yse_system.cpp ═══════════════════════════════════════════════════════
+
+  TEST_CASE("c-api system: every entry point is NULL-safe") {
+    // The two init entry points reject a NULL handle before touching the
+    // engine, which is the only branch of yse_system_init() that is reachable
+    // without audio hardware.
+    CHECK(yse_system_init(nullptr) == YSE_ERR_INVALID_HANDLE);
+    CHECK(yse_system_init_offline(nullptr) == YSE_ERR_INVALID_HANDLE);
+
+    yse_system_render_offline(nullptr, 1);
+    yse_system_update(nullptr);
+    yse_system_close(nullptr);
+    yse_system_pause(nullptr);
+    yse_system_resume(nullptr);
+    yse_system_sleep(nullptr, 1);
+    yse_system_set_max_sounds(nullptr, 10);
+    yse_system_audio_test(nullptr, 1);
+    yse_system_auto_reconnect(nullptr, 1, 10);
+    yse_system_close_current_device(nullptr);
+    yse_system_set_underwater_depth(nullptr, 0.5f);
+    yse_system_underwater_fx(nullptr, nullptr);
+    yse_system_set_occlusion_callback(nullptr, nullptr, nullptr);
+
+    CHECK(yse_system_missed_callbacks(nullptr) == 0);
+    CHECK(yse_system_cpu_load(nullptr) == doctest::Approx(0.0f));
+    CHECK(yse_system_get_sample_rate(nullptr) == doctest::Approx(0.0));
+    CHECK(yse_system_get_active_sample_rate(nullptr) == doctest::Approx(0.0));
+    CHECK(yse_system_get_active_buffer_size(nullptr) == 0);
+    CHECK(yse_system_get_active_output_latency(nullptr) == 0);
+    CHECK(yse_system_get_max_sounds(nullptr) == 0);
+    CHECK(yse_system_num_devices(nullptr) == 0u);
+    CHECK(yse_system_get_device(nullptr, 0) == nullptr);
+    CHECK(yse_system_get_global_reverb(nullptr) == nullptr);
+    CHECK(yse_system_num_midi_in_devices(nullptr) == 0u);
+    CHECK(yse_system_num_midi_out_devices(nullptr) == 0u);
+    CHECK(yse_system_set_render_threads(nullptr, 2) == YSE_ERR_INVALID_HANDLE);
+    CHECK(yse_system_get_render_threads(nullptr) == 0);
+    CHECK(yse_system_get_active_render_threads(nullptr) == 0);
+
+    // Clock helpers reject both a NULL system and a NULL name.
+    CHECK(yse_system_create_clock(nullptr, "c", 120.f) == YSE_ERR_INVALID_HANDLE);
+    CHECK(yse_system_clock_exists(nullptr, "c") == 0);
+    CHECK(yse_system_beat_position(nullptr, "c") == doctest::Approx(0.0));
+    CHECK(yse_system_current_tempo(nullptr, "c") == doctest::Approx(0.0f));
+    yse_system_destroy_clock(nullptr, "c");
+    yse_system_set_tempo(nullptr, "c", 120.f, 0.f);
+
+    YseSystem* sys = yse_system_get();
+    REQUIRE(sys != nullptr);
+    CHECK(yse_system_create_clock(sys, nullptr, 120.f) == YSE_ERR_INVALID_ARGUMENT);
+    CHECK(yse_system_clock_exists(sys, nullptr) == 0);
+    CHECK(yse_system_beat_position(sys, nullptr) == doctest::Approx(0.0));
+    CHECK(yse_system_current_tempo(sys, nullptr) == doctest::Approx(0.0f));
+    yse_system_destroy_clock(sys, nullptr);
+    yse_system_set_tempo(sys, nullptr, 120.f, 0.f);
+
+    // Device / setup argument guards.
+    CHECK(yse_system_open_device(nullptr, nullptr, YSE_CT_STEREO) == YSE_ERR_INVALID_HANDLE);
+    yse_clear_last_error();
+    CHECK(yse_system_open_device(sys, nullptr, YSE_CT_STEREO) == YSE_ERR_INVALID_ARGUMENT);
+    CHECK_FALSE(std::string(yse_last_error()).empty()); // issue #910
+    yse_system_set_channel_configuration(nullptr, YSE_CT_51, 6);
+    yse_system_underwater_fx(sys, nullptr);
+  }
+
+  TEST_CASE("c-api system: NULL handle clears every string out-parameter") {
+    char buf[8];
+    const auto dirty = [&buf] { std::memset(buf, 'x', sizeof(buf)); };
+
+    dirty();
+    CHECK(yse_system_default_device(nullptr, buf, sizeof(buf)) == 0u);
+    CHECK(buf[0] == '\0');
+    dirty();
+    CHECK(yse_system_default_host(nullptr, buf, sizeof(buf)) == 0u);
+    CHECK(buf[0] == '\0');
+    dirty();
+    CHECK(yse_system_midi_in_device_name(nullptr, 0, buf, sizeof(buf)) == 0u);
+    CHECK(buf[0] == '\0');
+    dirty();
+    CHECK(yse_system_midi_out_device_name(nullptr, 0, buf, sizeof(buf)) == 0u);
+    CHECK(buf[0] == '\0');
+
+    // NULL buffers are accepted as size queries in the same NULL-handle path.
+    CHECK(yse_system_default_device(nullptr, nullptr, 0) == 0u);
+    CHECK(yse_system_default_host(nullptr, nullptr, 0) == 0u);
+    CHECK(yse_system_midi_in_device_name(nullptr, 0, nullptr, 0) == 0u);
+    CHECK(yse_system_midi_out_device_name(nullptr, 0, nullptr, 0) == 0u);
+  }
+
+  TEST_CASE("c-api common: yse_version is a static MAJOR.MINOR.PATCH string (#913)") {
+    // No engine needed. The pointer is library-owned and valid for the life of
+    // the process, so a host may cache it; the text is the release number a
+    // binding checks against the headers it was generated from.
+    const char* v = yse_version();
+    REQUIRE(v != nullptr);
+    const std::string version(v);
+
+    int parts = 0;
+    size_t pos = 0;
+    while (pos <= version.size()) {
+      size_t digits = 0;
+      while (pos + digits < version.size() && version[pos + digits] >= '0' &&
+             version[pos + digits] <= '9')
+        ++digits;
+      CHECK(digits > 0u); // every dot-separated part is a non-empty number
+      ++parts;
+      pos += digits;
+      if (pos == version.size()) break;
+      CHECK(version[pos] == '.');
+      ++pos;
+    }
+    CHECK(parts == 3);
+
+    // Stable across calls, and not the thread's error slot: clearing that
+    // leaves it alone.
+    CHECK(yse_version() == v);
+    yse_clear_last_error();
+    CHECK(std::string(yse_version()) == version);
+  }
+
+  TEST_CASE("c-api system: offline session reports its runtime state") {
+    if (!capilowcov::ensureOffline()) return; // engine unavailable → skip
+    YseSystem* sys = yse_system_get();
+
+    CHECK(yse_system_get_sample_rate(sys) > 0.0);
+    CHECK(yse_system_get_active_sample_rate(sys) >= 0.0);
+    CHECK(yse_system_get_active_buffer_size(sys) >= 0);
+    CHECK(yse_system_get_active_output_latency(sys) >= 0);
+    CHECK(yse_system_cpu_load(sys) >= 0.0f);
+    CHECK(yse_system_missed_callbacks(sys) >= 0);
+    CHECK(yse_system_get_global_reverb(sys) != nullptr);
+
+    // maxSounds round-trips through the virtual-sound finder.
+    const int before = yse_system_get_max_sounds(sys);
+    yse_system_set_max_sounds(sys, 17);
+    CHECK(yse_system_get_max_sounds(sys) == 17);
+    yse_system_set_max_sounds(sys, before);
+    CHECK(yse_system_get_max_sounds(sys) == before);
+
+    // The remaining plain setters have no observable getter; assert only that
+    // they are callable against a live offline session.
+    yse_system_auto_reconnect(sys, 1, 5);
+    yse_system_auto_reconnect(sys, 0, 0);
+    yse_system_audio_test(sys, 1);
+    yse_system_audio_test(sys, 0);
+    yse_system_set_underwater_depth(sys, 0.5f);
+    yse_system_set_underwater_depth(sys, 0.0f);
+    yse_system_underwater_fx(sys, yse_channel_master());
+    yse_system_sleep(sys, 1);
+
+    // pause / resume are the reconnect primitives; both are no-ops on an
+    // offline session — pause() closes a stream that does not exist, and
+    // resume() refuses to acquire one this session never had (issue #719) —
+    // and the session must survive the pair.
+    yse_system_pause(sys);
+    yse_system_resume(sys);
+    capilowcov::pump(2);
+    CHECK(yse_system_get_sample_rate(sys) > 0.0);
+  }
+
+  TEST_CASE("c-api system: render thread count applies to an offline session (#861)") {
+    if (!capilowcov::ensureOffline()) return;
+    YseSystem* sys = yse_system_get();
+    const int before = yse_system_get_render_threads(sys);
+
+    // A looping buffer-backed tone on its own channel, so every count below is
+    // judged on a real mix: the playhead advances and signal reaches the meter.
+    const unsigned int len = 4096;
+    YseDspBuffer* buf = yse_dsp_buffer_create(len, 0);
+    REQUIRE(buf != nullptr);
+    std::vector<float> tone(len);
+    for (unsigned int i = 0; i < len; ++i)
+      tone[i] = 0.5f * std::sin(2.0f * 3.14159265f * 16.0f * static_cast<float>(i) /
+                                static_cast<float>(len));
+    REQUIRE(yse_dsp_buffer_write(buf, 0, tone.data(), len) == len);
+    YseChannel* ch = yse_channel_create("capi_threads861", yse_channel_master());
+    REQUIRE(ch != nullptr);
+    capilowcov::pump(5);
+    YseSound* s = yse_sound_create();
+    REQUIRE(s != nullptr);
+    REQUIRE(yse_sound_load_buffer(s, buf, ch, /*loop=*/1, /*volume=*/0.8f) == YSE_OK);
+    pumpUntilReady(s);
+    yse_sound_play(s);
+    capilowcov::pump(10);
+    REQUIRE(yse_sound_is_playing(s) == 1);
+
+    const auto renders = [s, ch] {
+      const float t0 = yse_sound_get_time(s);
+      capilowcov::pump(4);
+      return yse_sound_get_time(s) != t0 && yse_channel_get_peak_linear_post(ch) > 0.01f;
+    };
+
+    // 0 = serial: no workers at all. The offline session applies it at once.
+    CHECK(yse_system_set_render_threads(sys, 0) == YSE_OK);
+    CHECK(yse_system_get_render_threads(sys) == 0);
+    CHECK(yse_system_get_active_render_threads(sys) == 0);
+    CHECK(renders());
+
+    CHECK(yse_system_set_render_threads(sys, 3) == YSE_OK);
+    CHECK(yse_system_get_render_threads(sys) == 3);
+    CHECK(yse_system_get_active_render_threads(sys) == 3);
+    CHECK(renders());
+
+    // Any negative count is auto: physical cores - 1, capped at 8.
+    CHECK(yse_system_set_render_threads(sys, -5) == YSE_OK);
+    CHECK(yse_system_get_render_threads(sys) == -1);
+    const int autoCount = yse_system_get_active_render_threads(sys);
+    CHECK(autoCount >= 0);
+    CHECK(autoCount <= 8);
+    CHECK(renders());
+
+    yse_system_set_render_threads(sys, before);
+    yse_sound_stop(s);
+    capilowcov::pump(5);
+    yse_sound_destroy(s);
+    capilowcov::pump(10);
+    yse_channel_destroy(ch);
+    capilowcov::pump(10);
+    yse_dsp_buffer_destroy(buf);
+  }
+
+  // ─── Multichannel buffer source (issue #909) ────────────────────────────
+  //
+  // Before #909 the sound::create(MULTICHANNELBUFFER&) overload had no C
+  // mirror, so a host holding decoded stereo audio in memory had to play it as
+  // two mono sounds. The host-visible contract: a sound loaded from a
+  // YseDspMultiBuffer plays, its length is the shortest channel, and the host
+  // may drop its per-channel source buffers once the multi-buffer is built.
+
+  TEST_CASE("c-api sound: a multichannel buffer loads and plays (#909)") {
+    if (!capilowcov::ensureOffline()) return;
+
+    // Two channels of different lengths; a 64-sample period keeps a full cycle
+    // in every 128-sample meter block (see the #925 note on the occlusion case).
+    const unsigned int lenL = 4096;
+    const unsigned int lenR = 2048;
+    YseDspBuffer* left = yse_dsp_buffer_create(lenL, 0);
+    YseDspBuffer* right = yse_dsp_buffer_create(lenR, 0);
+    REQUIRE(left != nullptr);
+    REQUIRE(right != nullptr);
+    std::vector<float> tone(lenL);
+    for (unsigned int i = 0; i < lenL; ++i)
+      tone[i] = 0.5f * std::sin(2.0f * 3.14159265f * static_cast<float>(i) / 64.0f);
+    REQUIRE(yse_dsp_buffer_write(left, 0, tone.data(), lenL) == lenL);
+    REQUIRE(yse_dsp_buffer_write(right, 0, tone.data(), lenR) == lenR);
+
+    YseDspBuffer* channels[2] = {left, right};
+    YseDspMultiBuffer* mb = yse_dsp_multi_buffer_create(channels, 2);
+    REQUIRE(mb != nullptr);
+    // The multi-buffer holds its own copies; the per-channel sources can go.
+    yse_dsp_buffer_destroy(left);
+    yse_dsp_buffer_destroy(right);
+
+    YseChannel* ch = yse_channel_create("capi_multibuffer909", yse_channel_master());
+    REQUIRE(ch != nullptr);
+    capilowcov::pump(5);
+
+    // Argument checks come first and leave the sound unloaded.
+    YseSound* s = yse_sound_create();
+    REQUIRE(s != nullptr);
+    CHECK(yse_sound_load_multi_buffer(nullptr, mb, ch, 1, 0.8f) == YSE_ERR_INVALID_HANDLE);
+    yse_clear_last_error();
+    CHECK(yse_sound_load_multi_buffer(s, nullptr, ch, 1, 0.8f) == YSE_ERR_INVALID_ARGUMENT);
+    CHECK_FALSE(std::string(yse_last_error()).empty());
+    yse_clear_last_error();
+    CHECK(yse_sound_is_valid(s) == 0);
+
+    REQUIRE(yse_sound_load_multi_buffer(s, mb, ch, /*loop=*/1, /*volume=*/0.8f) == YSE_OK);
+    CHECK(yse_sound_is_valid(s) == 1);
+    pumpUntilReady(s);
+    REQUIRE(yse_sound_is_ready(s) == 1);
+    // The seed values of the load are reported back (#583 contract).
+    CHECK(yse_sound_get_looping(s) == 1);
+    CHECK(yse_sound_get_volume(s) == doctest::Approx(0.8f));
+    // A multichannel source is as long as its shortest channel.
+    CHECK(yse_sound_length(s) == lenR);
+
+    CHECK(yse_channel_get_peak_linear_post(ch) == doctest::Approx(0.f)); // silent until played
+    yse_sound_play(s);
+    const float t0 = yse_sound_get_time(s);
+    capilowcov::pump(10);
+    CHECK(yse_sound_is_playing(s) == 1);
+    CHECK(yse_sound_get_time(s) != t0);
+    CHECK(yse_channel_get_peak_linear_post(ch) > 0.01f);
+
+    yse_sound_stop(s);
+    capilowcov::pump(5);
+    yse_sound_destroy(s);
+    capilowcov::pump(10);
+    yse_channel_destroy(ch);
+    capilowcov::pump(10);
+    yse_dsp_multi_buffer_destroy(mb);
+  }
+
+  // ─── Occlusion callback bridge (issue #906) ─────────────────────────────
+  //
+  // Before #906 nothing in C could install the engine's occlusion callback, so
+  // yse_sound_set_occlusion() did nothing from FFI. The host-visible contract:
+  // yse_system_update() calls the host's callback with its user_data and the
+  // sound's position, and what it returns audibly ducks the sound.
+
+  TEST_CASE("c-api system: occlusion callback reaches the host and ducks the sound (#906)") {
+    if (!capilowcov::ensureOffline()) return;
+    YseSystem* sys = yse_system_get();
+
+    const unsigned int len = 4096;
+    YseDspBuffer* buf = yse_dsp_buffer_create(len, 0);
+    REQUIRE(buf != nullptr);
+    // The channel meter reports the signed maximum of the last 128-sample block
+    // only, so the tone must put a full cycle in every block for that reading
+    // to track the gain. A 256-sample period (16 cycles here) left half a cycle
+    // per block, and since the playhead drifts against the block grid the
+    // reading swung 0.05..0.37 at a constant gain, failing the level checks
+    // below at random (issue #925). 64 cycles = a 64-sample period: every
+    // block holds two cycles and reads the tone's peak whatever its phase.
+    std::vector<float> tone(len);
+    for (unsigned int i = 0; i < len; ++i)
+      tone[i] = 0.5f * std::sin(2.0f * 3.14159265f * 64.0f * static_cast<float>(i) /
+                                static_cast<float>(len));
+    REQUIRE(yse_dsp_buffer_write(buf, 0, tone.data(), len) == len);
+    YseChannel* ch = yse_channel_create("capi_occlusion906", yse_channel_master());
+    REQUIRE(ch != nullptr);
+    capilowcov::pump(5);
+    YseSound* s = yse_sound_create();
+    REQUIRE(s != nullptr);
+    REQUIRE(yse_sound_load_buffer(s, buf, ch, /*loop=*/1, /*volume=*/0.8f) == YSE_OK);
+    pumpUntilReady(s);
+    const yse_pos_t where{0.5f, 0.f, 1.f};
+    yse_sound_set_pos(s, &where);
+    yse_sound_set_occlusion(s, 1);
+    yse_sound_play(s);
+
+    OcclusionProbe probe;
+
+    // A NULL system installs nothing.
+    yse_system_set_occlusion_callback(nullptr, occlusionProbeCb, &probe);
+    capilowcov::pump(5);
+    CHECK(probe.calls.load() == 0);
+
+    // Clear line of sight: the host is asked, with its own user_data and the
+    // sound's position, and the sound is heard.
+    probe.ret = 0.f;
+    yse_system_set_occlusion_callback(sys, occlusionProbeCb, &probe);
+    capilowcov::pump(20);
+    REQUIRE(probe.calls.load() > 0);
+    CHECK(probe.lastSrc.x == doctest::Approx(where.x));
+    CHECK(probe.lastSrc.y == doctest::Approx(where.y));
+    CHECK(probe.lastSrc.z == doctest::Approx(where.z));
+    const float open = yse_channel_get_peak_linear_post(ch);
+    REQUIRE(open > 0.001f);
+
+    // How long a new answer takes to be heard: the callback runs inside
+    // yse_system_update() on this thread and queues the value to the sound;
+    // the next rendered block applies it with a 50-sample gain ramp (shorter
+    // than one block). Offline rendering is synchronous, so one pump settles
+    // it deterministically — the pump counts below are margin, not a wait on
+    // another thread.
+
+    // Fully blocked: the host's answer silences the sound. Values above 1 are
+    // clamped, so this is the same as 1.
+    probe.ret = 2.f;
+    capilowcov::pump(30);
+    CHECK(yse_channel_get_peak_linear_post(ch) < open * 0.05f);
+
+    // Removing the callback stops the calls; the sound keeps its last value.
+    yse_system_set_occlusion_callback(sys, nullptr, nullptr);
+    const int callsAtRemove = probe.calls.load();
+    capilowcov::pump(10);
+    CHECK(probe.calls.load() == callsAtRemove);
+    CHECK(yse_channel_get_peak_linear_post(ch) < open * 0.05f);
+
+    // Reinstalling with a clear answer brings the sound back.
+    probe.ret = 0.f;
+    yse_system_set_occlusion_callback(sys, occlusionProbeCb, &probe);
+    capilowcov::pump(30);
+    CHECK(yse_channel_get_peak_linear_post(ch) > open * 0.5f);
+
+    yse_system_set_occlusion_callback(sys, nullptr, nullptr);
+    yse_sound_stop(s);
+    capilowcov::pump(5);
+    yse_sound_destroy(s);
+    capilowcov::pump(10);
+    yse_channel_destroy(ch);
+    capilowcov::pump(10);
+    yse_dsp_buffer_destroy(buf);
+  }
+
+  TEST_CASE("c-api system: occlusion re-install swaps callback and user_data as one pair (#906)") {
+    if (!capilowcov::ensureOffline()) return;
+    YseSystem* sys = yse_system_get();
+    YseSound* s = makeLoadedSound();
+    if (!s) return; // fixture unavailable → skip
+    yse_sound_set_occlusion(s, 1);
+
+    PairTag a{1};
+    PairTag b{2};
+    yse_system_set_occlusion_callback(sys, occlusionTagA, &a);
+    yse_system_update(sys);
+    CHECK(a.calls.load() > 0);
+    CHECK(b.calls.load() == 0);
+
+    // Once the install returns, the next update uses the new pair only.
+    yse_system_set_occlusion_callback(sys, occlusionTagB, &b);
+    const int aCalls = a.calls.load();
+    yse_system_update(sys);
+    CHECK(a.calls.load() == aCalls);
+    CHECK(b.calls.load() > 0);
+
+    // A callback may re-install from inside its own dispatch without
+    // deadlocking; the next update runs the newly installed callback.
+    OcclusionProbe probe;
+    yse_system_set_occlusion_callback(sys, occlusionReinstall, &probe);
+    yse_system_update(sys);
+    const int afterReinstall = probe.calls.load();
+    CHECK(afterReinstall > 0);
+    yse_system_update(sys);
+    CHECK(probe.calls.load() > afterReinstall);
+
+    // Installs racing updates on another thread never mix one install's
+    // callback with the other's user_data. This is the case ThreadSanitizer
+    // watches for the pair node's publish / reclaim.
+    std::atomic<bool> stop{false};
+    std::thread installer([&] {
+      bool flip = false;
+      while (!stop.load()) {
+        if (flip)
+          yse_system_set_occlusion_callback(sys, occlusionTagA, &a);
+        else
+          yse_system_set_occlusion_callback(sys, occlusionTagB, &b);
+        flip = !flip;
+      }
+    });
+    for (int i = 0; i < 2000; ++i)
+      yse_system_update(sys);
+    stop = true;
+    installer.join();
+    CHECK(a.mismatches.load() == 0);
+    CHECK(b.mismatches.load() == 0);
+
+    yse_system_set_occlusion_callback(sys, nullptr, nullptr);
+    yse_sound_set_occlusion(s, 0);
+    yse_sound_destroy(s);
+    capilowcov::pump(10);
+  }
+
+  TEST_CASE("c-api system: clock create / tempo / destroy round-trip") {
+    if (!capilowcov::ensureOffline()) return;
+    YseSystem* sys = yse_system_get();
+
+    const char* name = "capilowcov.clock";
+    CHECK(yse_system_clock_exists(sys, name) == 0);
+    REQUIRE(yse_system_create_clock(sys, name, 120.0f) == YSE_OK);
+    CHECK(yse_system_clock_exists(sys, name) == 1);
+    CHECK(yse_system_current_tempo(sys, name) == doctest::Approx(120.0f));
+    CHECK(yse_system_beat_position(sys, name) >= 0.0);
+
+    yse_system_set_tempo(sys, name, 90.0f, 0.0f);
+    capilowcov::pump(2);
+    CHECK(yse_system_current_tempo(sys, name) == doctest::Approx(90.0f));
+
+    yse_system_destroy_clock(sys, name);
+    CHECK(yse_system_clock_exists(sys, name) == 0);
+    // Queries against a destroyed clock answer with the documented zeroes.
+    CHECK(yse_system_current_tempo(sys, name) == doctest::Approx(0.0f));
+    CHECK(yse_system_beat_position(sys, name) == doctest::Approx(0.0));
+  }
+
+  TEST_CASE("c-api system: render_offline(n) renders n * yse_block_size() frames (#908)") {
+    if (!capilowcov::ensureOffline()) return;
+    YseSystem* sys = yse_system_get();
+
+    CHECK(yse_block_size() == 128u);
+
+    // A 60 BPM clock advances one beat per second of rendered audio, so its
+    // beat delta over a render_offline call measures the frames rendered.
+    const char* name = "capilowcov.blocksize";
+    REQUIRE(yse_system_create_clock(sys, name, 60.0f) == YSE_OK);
+    yse_system_render_offline(sys, 1); // let the clock take its first block
+    const double sr = yse_system_get_sample_rate(sys);
+    REQUIRE(sr > 0.0);
+
+    const int blocks = 25;
+    const double before = yse_system_beat_position(sys, name);
+    yse_system_render_offline(sys, blocks);
+    const double frames = (yse_system_beat_position(sys, name) - before) * sr;
+    CHECK(frames == doctest::Approx(static_cast<double>(blocks) * yse_block_size()).epsilon(1e-6));
+
+    yse_system_destroy_clock(sys, name);
+  }
+
+  TEST_CASE("c-api system: device / host name strings follow the snprintf convention") {
+    if (!capilowcov::ensureOffline()) return;
+    YseSystem* sys = yse_system_get();
+
+    // Both are plain std::string copies out of the device manager. On headless
+    // CI they are typically empty, which still has to obey the convention.
+    for (int which = 0; which < 2; ++which) {
+      const auto get = [sys, which](char* b, size_t c) {
+        return which == 0 ? yse_system_default_device(sys, b, c)
+                          : yse_system_default_host(sys, b, c);
+      };
+      const size_t need = get(nullptr, 0);
+      char one = 'x';
+      CHECK(get(&one, 0) == need); // cap == 0 must not write
+      CHECK(one == 'x');
+
+      std::vector<char> exact(need + 1, '\1');
+      CHECK(get(exact.data(), exact.size()) == need);
+      CHECK(std::strlen(exact.data()) == need);
+
+      if (need > 1) {
+        std::vector<char> small(need, '\1'); // one byte short
+        CHECK(get(small.data(), small.size()) == need);
+        CHECK(std::strlen(small.data()) == need - 1);
+      }
+    }
+  }
+
+  TEST_CASE("c-api system: device and MIDI enumeration stay inside their own range") {
+    if (!capilowcov::ensureOffline()) return;
+    YseSystem* sys = yse_system_get();
+
+    // On headless CI the audio device list is empty, which is exactly the
+    // branch under test: the count is the loop bound, and no descriptor is
+    // requested when there is none.
+    const unsigned int devices = yse_system_num_devices(sys);
+    for (unsigned int i = 0; i < devices; ++i) {
+      CHECK(yse_system_get_device(sys, i) != nullptr);
+    }
+
+    // Out of range is an error, not undefined behaviour (issue #581). Before
+    // the fix the engine indexed with operator[], so the try/catch in
+    // yse_system_get_device() could never fire and the caller got a pointer
+    // past the end of the device list — and with the list empty, as it is on
+    // headless CI and in any offline session, index 0 already qualified. That
+    // is precisely the call a binding makes before it has checked the count.
+    yse_clear_last_error();
+    CHECK(yse_system_get_device(sys, devices) == nullptr);
+    // The failure is reported, not silent: the engine's std::out_of_range is
+    // translated into the thread-local error slot rather than crossing the ABI.
+    CHECK(std::strlen(yse_last_error()) > 0);
+
+    CHECK(yse_system_get_device(sys, devices + 9999) == nullptr);
+
+    // The MIDI name getters clear the buffer first, then answer within range.
+    //
+    // Out of range is now asserted too (issue #585). It used to be left alone
+    // because the answer depended on the host: with a live backend the port
+    // lookup returns an empty name, but without one (Linux CI has no ALSA
+    // sequencer, so MidiInAlsa::initialize fails) the device manager's
+    // isPrepared() guard returned the literal sentinel "Invalid Call", which
+    // reached the C boundary looking exactly like a device name — a binding
+    // enumerating ports could not tell it from a port called "Invalid Call".
+    // With the sentinel replaced by an empty string the answer is the same on
+    // every host, so this is the assertion that failed on the Linux leg of #568
+    // and passes on both legs now: no device, no name.
+    char buf[64];
+    const unsigned int midiIn = yse_system_num_midi_in_devices(sys);
+    for (unsigned int i = 0; i < midiIn; ++i) {
+      std::memset(buf, 'x', sizeof(buf));
+      yse_system_midi_in_device_name(sys, i, buf, sizeof(buf));
+      CHECK(std::strlen(buf) < sizeof(buf));
+    }
+    std::memset(buf, 'x', sizeof(buf));
+    CHECK(yse_system_midi_in_device_name(sys, midiIn + 9999, buf, sizeof(buf)) == 0u);
+    CHECK(buf[0] == '\0');
+    // Index 0 with a zero count is the same call a binding makes before it has
+    // checked the count, and on a backend-less host it is *the* reported case.
+    if (midiIn == 0) {
+      std::memset(buf, 'x', sizeof(buf));
+      CHECK(yse_system_midi_in_device_name(sys, 0, buf, sizeof(buf)) == 0u);
+      CHECK(buf[0] == '\0');
+    }
+
+    const unsigned int midiOut = yse_system_num_midi_out_devices(sys);
+    for (unsigned int i = 0; i < midiOut; ++i) {
+      std::memset(buf, 'x', sizeof(buf));
+      yse_system_midi_out_device_name(sys, i, buf, sizeof(buf));
+      CHECK(std::strlen(buf) < sizeof(buf));
+    }
+    std::memset(buf, 'x', sizeof(buf));
+    CHECK(yse_system_midi_out_device_name(sys, midiOut + 9999, buf, sizeof(buf)) == 0u);
+    CHECK(buf[0] == '\0');
+    if (midiOut == 0) {
+      std::memset(buf, 'x', sizeof(buf));
+      CHECK(yse_system_midi_out_device_name(sys, 0, buf, sizeof(buf)) == 0u);
+      CHECK(buf[0] == '\0');
+    }
+  }
+
+  // Regression for issue #900. The engine refuses a setup with no output device
+  // (and, on this offline session, any setup — there is no backend stream to
+  // open) by logging and returning, not by throwing. The wrapper only
+  // translated exceptions, so it answered YSE_OK for a device that was never
+  // opened. The refusal must come back as an error status with a reason, and
+  // must leave the mixer layout alone.
+  //
+  // Verified fail-without-fix: on the unpatched wrapper the status is YSE_OK
+  // and yse_last_error() stays empty.
+  TEST_CASE("c-api system: open_device reports a refused setup (issue #900)") {
+    if (!capilowcov::ensureOffline()) return;
+    YseSystem* sys = yse_system_get();
+
+    YseDeviceSetup* setup = yse_device_setup_create();
+    REQUIRE(setup != nullptr);
+    yse_device_setup_set_sample_rate(setup, 44100.0);
+    yse_device_setup_set_buffer_size(setup, 256);
+
+    auto& channels = YSE::CHANNEL::Manager();
+    const unsigned int outputsBefore = channels.getNumberOfOutputs();
+
+    yse_clear_last_error();
+    CHECK(yse_system_open_device(sys, setup, YSE_CT_51) == YSE_ERR_AUDIO_DEVICE);
+    CHECK(std::string(yse_last_error()).find("refused") != std::string::npos);
+    // Nothing opened, so the requested 5.1 layout was not applied either.
+    CHECK(channels.getNumberOfOutputs() == outputsBefore);
+    yse_clear_last_error();
+
+    yse_device_setup_destroy(setup);
+  }
+
+  // The layout entry point that does not open a device (issue #668). Unlike
+  // yse_system_open_device(), this one is fully reachable headless — that is
+  // its whole reason for existing, since an offline session has no device for
+  // the mixer to follow and was therefore stuck on stereo after #665.
+  //
+  // The C API has no output-count getter, so the effect is read back through
+  // the engine's channel manager: this asserts that the wrapper *forwards*,
+  // which is the boundary contract. The user-visible claim — an offline engine
+  // actually rendering 5.1, master buffers and all — is asserted at the engine
+  // level in Tests/system/test_device_layer.cpp, which owns its own process and
+  // can resize the master without disturbing the cases that follow. This case
+  // deliberately does not render, so the master keeps its two channels and the
+  // rest of the suite sees the engine exactly as it left it.
+  TEST_CASE("c-api system: the speaker layout can be set without a device (issue #668)") {
+    if (!capilowcov::ensureOffline()) return;
+    YseSystem* sys = yse_system_get();
+
+    auto& channels = YSE::CHANNEL::Manager();
+    REQUIRE(channels.getNumberOfOutputs() == 2u);
+
+    yse_system_set_channel_configuration(sys, YSE_CT_51, 6);
+    CHECK(channels.getNumberOfOutputs() == 6u);
+
+    // The zero-output guard holds across the ABI too: accepting it would leave
+    // the engine mixing into nothing on the next callback.
+    yse_system_set_channel_configuration(sys, YSE_CT_STEREO, 0);
+    CHECK(channels.getNumberOfOutputs() == 6u);
+
+    yse_system_set_channel_configuration(sys, YSE_CT_STEREO, 2);
+    CHECK(channels.getNumberOfOutputs() == 2u);
+  }
+
+  // ═══ yse_channel.cpp ══════════════════════════════════════════════════════
+
+  TEST_CASE("c-api channel: every entry point is NULL-safe") {
+    yse_channel_send(nullptr, 0, nullptr, 0.5f, 0);
+    yse_channel_set_send_level(nullptr, 0, 0.5f);
+    yse_channel_clear_send(nullptr, 0);
+    yse_channel_set_dsp(nullptr, nullptr);
+    yse_channel_set_volume(nullptr, 0.5f);
+    yse_channel_move_to(nullptr, nullptr);
+    yse_channel_attach_reverb(nullptr);
+    yse_channel_set_virtual(nullptr, 1);
+    yse_channel_destroy(nullptr);
+
+    CHECK(yse_channel_get_send_level(nullptr, 0) == doctest::Approx(0.0f));
+    CHECK(yse_channel_get_dsp(nullptr) == nullptr);
+    CHECK(yse_channel_get_volume(nullptr) == doctest::Approx(0.0f));
+    CHECK(yse_channel_get_virtual(nullptr) == 0);
+    CHECK(yse_channel_is_valid(nullptr) == 0);
+    CHECK(yse_channel_is_return(nullptr) == 0);
+    yse_channel_set_name(nullptr, "x");
+    char nameBuf[4] = {'z', 'z', 'z', '\0'};
+    CHECK(yse_channel_get_name(nullptr, nameBuf, sizeof(nameBuf)) == 0);
+    CHECK(nameBuf[0] == '\0'); // NULL handle clears the caller's buffer
+    CHECK(yse_channel_get_name(nullptr, nullptr, 0) == 0);
+    CHECK(yse_channel_get_num_outputs(nullptr) == 0);
+    CHECK(yse_channel_get_peak_linear_pre(nullptr) == doctest::Approx(0.0f));
+    CHECK(yse_channel_get_peak_linear_post(nullptr) == doctest::Approx(0.0f));
+    CHECK(yse_channel_get_peak_db_pre(nullptr) == doctest::Approx(0.0f));
+    CHECK(yse_channel_get_peak_db_post(nullptr) == doctest::Approx(0.0f));
+    CHECK(yse_channel_get_peak_linear_pre_output(nullptr, 0) == doctest::Approx(0.0f));
+    CHECK(yse_channel_get_peak_linear_post_output(nullptr, 0) == doctest::Approx(0.0f));
+    CHECK(yse_channel_get_peak_db_pre_output(nullptr, 0) == doctest::Approx(0.0f));
+    CHECK(yse_channel_get_peak_db_post_output(nullptr, 0) == doctest::Approx(0.0f));
+
+    // The create entry points refuse a NULL name / parent and say why.
+    yse_clear_last_error();
+    CHECK(yse_channel_create(nullptr, nullptr) == nullptr);
+    CHECK(std::string(yse_last_error()).find("non-null") != std::string::npos);
+    CHECK(yse_channel_create_with_sends(nullptr, nullptr, 2) == nullptr);
+    CHECK(yse_channel_create_return(nullptr, 2) == nullptr);
+    yse_clear_last_error();
+  }
+
+  TEST_CASE("c-api channel: the six pre-built channels are distinct and live") {
+    if (!capilowcov::ensureOffline()) return;
+
+    YseChannel* const builtins[] = {yse_channel_master(),  yse_channel_fx(),    yse_channel_music(),
+                                    yse_channel_ambient(), yse_channel_voice(), yse_channel_gui()};
+    CHECK(yse_channel_get_num_outputs(builtins[0]) > 0); // master drives the device
+    for (YseChannel* ch : builtins) {
+      REQUIRE(ch != nullptr);
+      CHECK(yse_channel_is_valid(ch) == 1);
+      CHECK(yse_channel_is_return(ch) == 0);
+      // Only the master owns device outputs; the five sub-channels mix into it
+      // and report none of their own. Either way the count is never negative.
+      CHECK(yse_channel_get_num_outputs(ch) >= 0);
+      // Meters read zero with nothing rendered, but must be callable and
+      // finite on both the combined and the per-output form.
+      CHECK(yse_channel_get_peak_linear_pre(ch) >= 0.0f);
+      CHECK(yse_channel_get_peak_linear_post(ch) >= 0.0f);
+      CHECK(yse_channel_get_peak_db_pre(ch) <= 0.0f);
+      CHECK(yse_channel_get_peak_db_post(ch) <= 0.0f);
+      CHECK(yse_channel_get_peak_linear_pre_output(ch, 0) >= 0.0f);
+      CHECK(yse_channel_get_peak_linear_post_output(ch, 0) >= 0.0f);
+      CHECK(yse_channel_get_peak_db_pre_output(ch, 0) <= 0.0f);
+      CHECK(yse_channel_get_peak_db_post_output(ch, 0) <= 0.0f);
+    }
+
+    // The five sub-channels are separate objects from the master and from
+    // each other — a binding that mixed them up would still "work" until it
+    // set a volume.
+    for (size_t i = 1; i < sizeof(builtins) / sizeof(builtins[0]); ++i) {
+      CHECK(builtins[i] != builtins[0]);
+      CHECK(
+          readString([&](char* b, size_t c) { return yse_channel_get_name(builtins[i], b, c); }) !=
+          readString([&](char* b, size_t c) { return yse_channel_get_name(builtins[0], b, c); }));
+    }
+  }
+
+  TEST_CASE("c-api channel: create / volume / virtual / reverb / move / destroy") {
+    if (!capilowcov::ensureOffline()) return;
+
+    YseChannel* ch = yse_channel_create("capilowcov.channel", yse_channel_master());
+    REQUIRE(ch != nullptr);
+    capilowcov::pump(10);
+
+    CHECK(yse_channel_is_valid(ch) == 1);
+    CHECK(yse_channel_is_return(ch) == 0);
+    CHECK(readString([&](char* b, size_t c) { return yse_channel_get_name(ch, b, c); }) ==
+          "capilowcov.channel");
+    // snprintf contract: full length returned, output truncated to cap-1.
+    char small[5];
+    CHECK(yse_channel_get_name(ch, small, sizeof(small)) == std::strlen("capilowcov.channel"));
+    CHECK(std::string(small) == "capi");
+
+    yse_channel_set_volume(ch, 0.25f);
+    CHECK(yse_channel_get_volume(ch) == doctest::Approx(0.25f));
+    yse_channel_set_volume(ch, 1.0f);
+    CHECK(yse_channel_get_volume(ch) == doctest::Approx(1.0f));
+
+    yse_channel_set_virtual(ch, 0);
+    CHECK(yse_channel_get_virtual(ch) == 0);
+    yse_channel_set_virtual(ch, 1);
+    CHECK(yse_channel_get_virtual(ch) == 1);
+
+    // An insert DSP object round-trips through the channel; the channel does
+    // not take ownership, so it is destroyed separately after being detached.
+    YseDspObject* eq = yse_dsp_eq_create();
+    REQUIRE(eq != nullptr);
+    yse_channel_set_dsp(ch, eq);
+    CHECK(yse_channel_get_dsp(ch) == eq);
+    capilowcov::pump(5);
+    yse_channel_set_dsp(ch, nullptr);
+    CHECK(yse_channel_get_dsp(ch) == nullptr);
+    capilowcov::pump(5);
+    yse_dsp_object_destroy(eq);
+
+    yse_channel_attach_reverb(ch);
+    capilowcov::pump(5);
+
+    yse_channel_move_to(ch, yse_channel_fx());
+    capilowcov::pump(5);
+    CHECK(yse_channel_is_valid(ch) == 1);
+
+    yse_channel_destroy(ch);
+    capilowcov::pump(5);
+  }
+
+  TEST_CASE("c-api channel: return bus and send slots") {
+    if (!capilowcov::ensureOffline()) return;
+
+    YseChannel* ret = yse_channel_create_return("capilowcov.return", 1);
+    REQUIRE(ret != nullptr);
+    YseChannel* src = yse_channel_create_with_sends("capilowcov.source", yse_channel_master(), 2);
+    REQUIRE(src != nullptr);
+    capilowcov::pump(10);
+
+    CHECK(yse_channel_is_return(ret) == 1);
+    CHECK(yse_channel_is_return(src) == 0);
+
+    CHECK(yse_channel_get_send_level(src, 0) == doctest::Approx(0.0f));
+    yse_channel_send(src, 0, ret, 0.4f, 0);
+    capilowcov::pump(5);
+    CHECK(yse_channel_get_send_level(src, 0) == doctest::Approx(0.4f));
+
+    yse_channel_set_send_level(src, 0, 0.8f);
+    capilowcov::pump(5);
+    CHECK(yse_channel_get_send_level(src, 0) == doctest::Approx(0.8f));
+
+    yse_channel_clear_send(src, 0);
+    capilowcov::pump(5);
+    CHECK(yse_channel_get_send_level(src, 0) == doctest::Approx(0.0f));
+
+    // A NULL return bus leaves the slot alone rather than clearing it.
+    yse_channel_send(src, 1, nullptr, 0.5f, 1);
+    CHECK(yse_channel_get_send_level(src, 1) == doctest::Approx(0.0f));
+
+    yse_channel_destroy(src);
+    yse_channel_destroy(ret);
+    capilowcov::pump(10);
+  }
+
+  // ═══ yse_sound.cpp ════════════════════════════════════════════════════════
+
+  TEST_CASE("c-api sound: create / destroy and the load failure paths") {
+    YseSound* s = yse_sound_create();
+    REQUIRE(s != nullptr);
+    CHECK(yse_sound_is_valid(s) == 0); // nothing loaded yet
+
+    // Handle guard vs argument guard are distinct status codes on all three
+    // load entry points.
+    CHECK(yse_sound_load_file(nullptr, "x.wav", nullptr, 0, 1.f, 0) == YSE_ERR_INVALID_HANDLE);
+    yse_clear_last_error();
+    CHECK(yse_sound_load_file(s, nullptr, nullptr, 0, 1.f, 0) == YSE_ERR_INVALID_ARGUMENT);
+    CHECK_FALSE(std::string(yse_last_error()).empty()); // issue #910
+    CHECK(yse_sound_load_buffer(nullptr, nullptr, nullptr, 0, 1.f) == YSE_ERR_INVALID_HANDLE);
+    yse_clear_last_error();
+    CHECK(yse_sound_load_buffer(s, nullptr, nullptr, 0, 1.f) == YSE_ERR_INVALID_ARGUMENT);
+    CHECK_FALSE(std::string(yse_last_error()).empty()); // issue #910
+    CHECK(yse_sound_load_patcher(nullptr, nullptr, nullptr, 1.f) == YSE_ERR_INVALID_HANDLE);
+    yse_clear_last_error();
+    CHECK(yse_sound_load_patcher(s, nullptr, nullptr, 1.f) == YSE_ERR_INVALID_ARGUMENT);
+    CHECK_FALSE(std::string(yse_last_error()).empty()); // issue #910
+
+    yse_sound_destroy(s);
+    yse_sound_destroy(nullptr);
+  }
+
+  TEST_CASE("c-api sound: a missing file reports FILE_NOT_FOUND and names the path") {
+    if (!capilowcov::ensureOffline()) return;
+
+    YseSound* s = yse_sound_create();
+    REQUIRE(s != nullptr);
+    yse_clear_last_error();
+    CHECK(yse_sound_load_file(s, "definitely_not_here.wav", nullptr, 0, 1.f, 0) ==
+          YSE_ERR_FILE_NOT_FOUND);
+    CHECK(std::string(yse_last_error()).find("definitely_not_here.wav") != std::string::npos);
+    yse_clear_last_error();
+    CHECK(yse_sound_is_valid(s) == 0);
+    yse_sound_destroy(s);
+    capilowcov::pump(5);
+  }
+
+  TEST_CASE("c-api sound: NULL-handle queries return zero without an engine") {
+    CHECK(yse_sound_is_valid(nullptr) == 0);
+    CHECK(yse_sound_is_ready(nullptr) == 0);
+    CHECK(yse_sound_is_streaming(nullptr) == 0);
+    CHECK(yse_sound_is_playing(nullptr) == 0);
+    CHECK(yse_sound_is_paused(nullptr) == 0);
+    CHECK(yse_sound_is_stopped(nullptr) == 0);
+    CHECK(yse_sound_get_volume(nullptr) == doctest::Approx(0.0f));
+    CHECK(yse_sound_get_speed(nullptr) == doctest::Approx(0.0f));
+    CHECK(yse_sound_get_size(nullptr) == doctest::Approx(0.0f));
+    CHECK(yse_sound_get_spread(nullptr) == doctest::Approx(0.0f));
+    CHECK(yse_sound_get_looping(nullptr) == 0);
+    CHECK(yse_sound_get_relative(nullptr) == 0);
+    CHECK(yse_sound_get_doppler(nullptr) == 0);
+    CHECK(yse_sound_get_pan2d(nullptr) == 0);
+    CHECK(yse_sound_get_occlusion(nullptr) == 0);
+    CHECK(yse_sound_get_time(nullptr) == doctest::Approx(0.0f));
+    CHECK(yse_sound_length(nullptr) == 0u);
+    CHECK(yse_sound_get_dsp(nullptr) == nullptr);
+
+    const yse_pos_t p = yse_sound_get_pos(nullptr);
+    CHECK(p.x == doctest::Approx(0.0f));
+    CHECK(p.y == doctest::Approx(0.0f));
+    CHECK(p.z == doctest::Approx(0.0f));
+
+    yse_sound_set_name(nullptr, "x");
+    yse_sound_play(nullptr);
+    yse_sound_pause(nullptr);
+    yse_sound_stop(nullptr);
+    yse_sound_toggle(nullptr);
+    yse_sound_restart(nullptr);
+    yse_sound_fade_and_stop(nullptr, 10);
+    yse_sound_set_pos(nullptr, nullptr);
+    yse_sound_set_volume(nullptr, 1.f, 0);
+    yse_sound_set_speed(nullptr, 1.f);
+    yse_sound_set_size(nullptr, 1.f);
+    yse_sound_set_spread(nullptr, 1.f);
+    yse_sound_set_looping(nullptr, 1);
+    yse_sound_set_relative(nullptr, 1);
+    yse_sound_set_doppler(nullptr, 1);
+    yse_sound_set_pan2d(nullptr, 1);
+    yse_sound_set_occlusion(nullptr, 1);
+    yse_sound_set_time(nullptr, 1.f);
+    yse_sound_set_dsp(nullptr, nullptr);
+    yse_sound_move_to(nullptr, nullptr);
+    CHECK(true); // reached here without dereferencing a NULL handle
+  }
+
+  // Regression for issue #579. A YseSound handle is valid from create() on, but
+  // the engine object behind it has no implementation until a load succeeds —
+  // the state the C wrappers' `if (!s)` guard cannot see. Every entry point used
+  // to dereference that null implementation. Both un-created shapes are covered:
+  // a freshly created handle, and one whose load failed (which nulls the
+  // implementation again). Without the fix the first setter segfaults.
+  TEST_CASE("c-api sound: an un-created handle no-ops instead of crashing (#579)") {
+    if (!capilowcov::ensureOffline()) return;
+
+    YseSound* fresh = yse_sound_create();
+    REQUIRE(fresh != nullptr);
+
+    YseSound* failed = yse_sound_create();
+    REQUIRE(failed != nullptr);
+    yse_clear_last_error();
+    REQUIRE(yse_sound_load_file(failed, "definitely_not_here.wav", nullptr, 0, 1.f, 0) ==
+            YSE_ERR_FILE_NOT_FOUND);
+    yse_clear_last_error();
+
+    for (YseSound* s : {fresh, failed}) {
+      CHECK(yse_sound_is_valid(s) == 0);
+
+      const yse_pos_t p{1.f, -2.f, 3.f};
+      yse_sound_set_pos(s, &p);
+      yse_sound_set_volume(s, 0.75f, 0);
+      yse_sound_set_volume(s, 0.25f, 50);
+      yse_sound_set_speed(s, 1.5f);
+      yse_sound_set_size(s, 4.f);
+      yse_sound_set_spread(s, 0.6f);
+      yse_sound_set_looping(s, 1);
+      yse_sound_set_relative(s, 1);
+      yse_sound_set_doppler(s, 0);
+      yse_sound_set_pan2d(s, 1);
+      yse_sound_set_occlusion(s, 1);
+      yse_sound_set_time(s, 128.f);
+      yse_sound_move_to(s, yse_channel_music());
+      yse_sound_play(s);
+      yse_sound_pause(s);
+      yse_sound_stop(s);
+      yse_sound_toggle(s);
+      yse_sound_restart(s);
+      yse_sound_fade_and_stop(s, 10);
+
+      // No-op means no-op: the cached parameters are still at their defaults.
+      const yse_pos_t got = yse_sound_get_pos(s);
+      CHECK(got.x == doctest::Approx(0.0f));
+      CHECK(got.y == doctest::Approx(0.0f));
+      CHECK(got.z == doctest::Approx(0.0f));
+      CHECK(yse_sound_get_volume(s) == doctest::Approx(0.0f));
+      CHECK(yse_sound_get_speed(s) == doctest::Approx(1.0f));
+      CHECK(yse_sound_get_size(s) == doctest::Approx(0.0f));
+      CHECK(yse_sound_get_spread(s) == doctest::Approx(0.0f));
+      CHECK(yse_sound_get_looping(s) == 0);
+      CHECK(yse_sound_get_relative(s) == 0);
+      CHECK(yse_sound_get_doppler(s) == 1); // doppler defaults to on
+      CHECK(yse_sound_get_pan2d(s) == 0);
+      CHECK(yse_sound_get_occlusion(s) == 0);
+
+      // Implementation-backed queries answer zero / false, matching the
+      // NULL-handle rules this header already publishes.
+      CHECK(yse_sound_is_ready(s) == 0);
+      CHECK(yse_sound_is_streaming(s) == 0);
+      CHECK(yse_sound_is_playing(s) == 0);
+      CHECK(yse_sound_is_paused(s) == 0);
+      CHECK(yse_sound_is_stopped(s) == 0);
+      CHECK(yse_sound_get_time(s) == doctest::Approx(0.0f));
+      CHECK(yse_sound_length(s) == 0u);
+      CHECK(yse_sound_get_dsp(s) == nullptr);
+    }
+
+    // The no-op window does not poison the handle: a later successful load on
+    // the same object still takes effect.
+    if (yse_sound_load_file(fresh, kWavFixture, yse_channel_master(), 0, 0.5f, 0) == YSE_OK) {
+      pumpUntilReady(fresh);
+      CHECK(yse_sound_is_valid(fresh) == 1);
+      yse_sound_set_volume(fresh, 0.75f, 0);
+      CHECK(yse_sound_get_volume(fresh) == doctest::Approx(0.75f));
+    }
+
+    yse_sound_destroy(fresh);
+    yse_sound_destroy(failed);
+    capilowcov::pump(5);
+  }
+
+  TEST_CASE("c-api sound: file load and every parameter round-trip") {
+    if (!capilowcov::ensureOffline()) return;
+
+    YseSound* s = makeLoadedSound();
+    if (!s) return; // fixture unavailable → skip
+    CHECK(yse_sound_is_valid(s) == 1);
+    CHECK(yse_sound_is_ready(s) == 1);
+    CHECK(yse_sound_is_streaming(s) == 0); // loaded with streaming == 0
+    CHECK(yse_sound_length(s) > 0u);
+
+    // yse_sound_load_file()'s loop / volume arguments seed the getters (issue
+    // #583): makeLoadedSound() loads with loop == 0 at volume 0.5, and the
+    // volume used to read back as 0.0f here.
+    CHECK(yse_sound_get_looping(s) == 0);
+    CHECK(yse_sound_get_volume(s) == doctest::Approx(0.5f));
+
+    // Position is stored on the interface side, so it reads back immediately.
+    const yse_pos_t want{1.f, -2.f, 3.f};
+    yse_sound_set_pos(s, &want);
+    const yse_pos_t got = yse_sound_get_pos(s);
+    CHECK(got.x == doctest::Approx(want.x));
+    CHECK(got.y == doctest::Approx(want.y));
+    CHECK(got.z == doctest::Approx(want.z));
+    yse_sound_set_pos(s, nullptr); // NULL position is a no-op, not a reset
+    CHECK(yse_sound_get_pos(s).x == doctest::Approx(want.x));
+
+    yse_sound_set_volume(s, 0.75f, 0);
+    CHECK(yse_sound_get_volume(s) == doctest::Approx(0.75f));
+    yse_sound_set_volume(s, 0.25f, 50); // the faded form takes the same path
+    CHECK(yse_sound_get_volume(s) == doctest::Approx(0.25f));
+
+    yse_sound_set_speed(s, 1.5f);
+    CHECK(yse_sound_get_speed(s) == doctest::Approx(1.5f));
+    yse_sound_set_size(s, 4.0f);
+    CHECK(yse_sound_get_size(s) == doctest::Approx(4.0f));
+    yse_sound_set_spread(s, 0.6f);
+    CHECK(yse_sound_get_spread(s) == doctest::Approx(0.6f));
+
+    for (int on : {1, 0}) {
+      yse_sound_set_looping(s, on);
+      CHECK(yse_sound_get_looping(s) == on);
+      yse_sound_set_relative(s, on);
+      CHECK(yse_sound_get_relative(s) == on);
+      yse_sound_set_doppler(s, on);
+      CHECK(yse_sound_get_doppler(s) == on);
+      yse_sound_set_pan2d(s, on);
+      CHECK(yse_sound_get_pan2d(s) == on);
+      yse_sound_set_occlusion(s, on);
+      CHECK(yse_sound_get_occlusion(s) == on);
+    }
+
+    yse_sound_destroy(s);
+    capilowcov::pump(10);
+  }
+
+  TEST_CASE("c-api sound: play / pause / toggle / stop drive the transport") {
+    if (!capilowcov::ensureOffline()) return;
+
+    // Looping, so the 100-frame fixture keeps playing long enough to observe
+    // the transport states rather than reaching its end between two pumps.
+    YseSound* s = makeLoadedSound(/*loop=*/1);
+    if (!s) return;
+    CHECK(yse_sound_is_stopped(s) == 1);
+    CHECK(yse_sound_get_looping(s) == 1); // the load argument seeds it (#583)
+
+    // The intents are queued messages, so pump between them and read the state
+    // back off the implementation.
+    yse_sound_play(s);
+    capilowcov::pump(10);
+    CHECK(yse_sound_is_playing(s) == 1);
+
+    yse_sound_pause(s);
+    capilowcov::pump(10);
+    CHECK(yse_sound_is_paused(s) == 1);
+
+    yse_sound_toggle(s); // paused -> playing
+    capilowcov::pump(10);
+    CHECK(yse_sound_is_paused(s) == 0);
+
+    yse_sound_stop(s);
+    capilowcov::pump(10);
+    CHECK(yse_sound_is_stopped(s) == 1);
+
+    yse_sound_destroy(s);
+    capilowcov::pump(10);
+  }
+
+  TEST_CASE("c-api sound: set_time seeks a playing sound") {
+    if (!capilowcov::ensureOffline()) return;
+
+    YseSound* s = makeLoadedSound(/*loop=*/1);
+    if (!s) return;
+
+    yse_sound_play(s);
+    capilowcov::pump(10);
+    yse_sound_set_time(s, 0.0f);
+    capilowcov::pump(5);
+    CHECK(yse_sound_get_time(s) >= 0.0f);
+
+    yse_sound_destroy(s);
+    capilowcov::pump(10);
+  }
+
+  TEST_CASE("c-api sound: fade_and_stop ramps down without stalling the render") {
+    if (!capilowcov::ensureOffline()) return;
+
+    YseSound* s = makeLoadedSound(/*loop=*/1);
+    if (!s) return;
+
+    yse_sound_play(s);
+    capilowcov::pump(10);
+    yse_sound_fade_and_stop(s, 20);
+    capilowcov::pump(20);
+    CHECK(yse_sound_is_valid(s) == 1);
+
+    yse_sound_destroy(s);
+    capilowcov::pump(10);
+  }
+
+  // Regression for issue #577. yse_sound_restart() used to leave the
+  // implementation in SS_WANTSTORESTART, which the file reader's intent ladder
+  // has no branch for: the read loop consumed none of the requested frames and
+  // the render block never returned. Without the fix this case never finishes —
+  // the first pump after restart spins inside yse_system_render_offline() and
+  // the suite dies on its ctest TIMEOUT.
+  //
+  // The bundled fixture is only 100 frames long, so at normal speed the looping
+  // play position wraps several times inside a single 128-frame block and could
+  // never show a rewind. Playing it at 1/100 speed keeps the position monotonic
+  // across the whole case, which makes "restart sent the playhead back to the
+  // start" an observable assertion rather than just "the render returned". A
+  // longer in-memory DSP::buffer source would be the obvious alternative, but
+  // when this case was written a buffer-backed sound rendered nothing at all and
+  // its play position never left 0 (issue #657, fixed and covered below), so it
+  // could not witness a rewind.
+  TEST_CASE("c-api sound: restart rewinds a file-backed sound without spinning (#577)") {
+    if (!capilowcov::ensureOffline()) return;
+
+    YseSound* s = makeLoadedSound(/*loop=*/1);
+    if (!s) return;
+    REQUIRE(yse_sound_length(s) > 0u);
+
+    yse_sound_set_speed(s, 0.01f);
+    yse_sound_play(s);
+    capilowcov::pump(10);
+
+    const float before = yse_sound_get_time(s);
+    CHECK(before > 0.0f); // the playhead really did move off frame 0
+
+    yse_sound_restart(s); // used to livelock the very next render block
+    capilowcov::pump(2); // far fewer blocks than the pump that built `before`
+    CHECK(yse_sound_get_time(s) < before);
+    CHECK(yse_sound_is_valid(s) == 1);
+
+    // A restart on a stopped sound is the other entry into the same intent: it
+    // starts playing again from the beginning instead of staying silent.
+    yse_sound_stop(s);
+    capilowcov::pump(10);
+    yse_sound_restart(s);
+    capilowcov::pump(10);
+    CHECK(yse_sound_is_valid(s) == 1);
+    CHECK(yse_sound_is_stopped(s) == 0);
+
+    yse_sound_destroy(s);
+    capilowcov::pump(10);
+  }
+
+  TEST_CASE("c-api sound: move_to re-parents a live sound") {
+    if (!capilowcov::ensureOffline()) return;
+
+    YseSound* s = makeLoadedSound();
+    if (!s) return;
+
+    yse_sound_move_to(s, yse_channel_fx());
+    capilowcov::pump(5);
+    yse_sound_move_to(s, nullptr); // NULL target is a no-op
+    capilowcov::pump(5);
+    CHECK(yse_sound_is_valid(s) == 1);
+
+    yse_sound_destroy(s);
+    capilowcov::pump(10);
+  }
+
+  TEST_CASE("c-api sound: buffer source and DSP insert") {
+    if (!capilowcov::ensureOffline()) return;
+
+    // A looping in-memory tone as the source — no file I/O at all.
+    const unsigned int len = 1024;
+    YseDspBuffer* buf = yse_dsp_buffer_create(len, 0);
+    REQUIRE(buf != nullptr);
+    std::vector<float> tone(len, 0.25f);
+    REQUIRE(yse_dsp_buffer_write(buf, 0, tone.data(), len) == len);
+
+    YseSound* s = yse_sound_create();
+    REQUIRE(s != nullptr);
+    REQUIRE(yse_sound_load_buffer(s, buf, yse_channel_master(), 1, 0.5f) == YSE_OK);
+    pumpUntilReady(s);
+    CHECK(yse_sound_is_valid(s) == 1);
+    // The `loop` / `volume` arguments of yse_sound_load_buffer are mirrored onto
+    // the interface, so the getters report them back (issue #583 — they used to
+    // read the constructor defaults 0 / 0.0f for a sound that was in fact
+    // looping at 0.5). The setter still overrides them afterwards.
+    CHECK(yse_sound_get_looping(s) == 1);
+    CHECK(yse_sound_get_volume(s) == doctest::Approx(0.5f));
+    yse_sound_set_looping(s, 0);
+    CHECK(yse_sound_get_looping(s) == 0);
+
+    // The insert round-trips; the sound borrows it rather than owning it.
+    YseDspObject* lp = yse_dsp_lowpass_create();
+    REQUIRE(lp != nullptr);
+    CHECK(yse_sound_get_dsp(s) == nullptr);
+    yse_sound_set_dsp(s, lp);
+    CHECK(yse_sound_get_dsp(s) == lp);
+    // Play so the render blocks below actually walk the insert chain.
+    yse_sound_play(s);
+    capilowcov::pump(5);
+    CHECK(yse_sound_is_valid(s) == 1);
+
+    // ...and yse_sound_set_dsp(s, NULL) detaches it again, the same contract
+    // the channel side honours. This used to dereference the null message
+    // payload on the render thread (issue #578) — the pump below is where the
+    // crash landed, so it is the regression guard, not just cleanup. The
+    // insert is safe to destroy afterwards while the sound is still alive.
+    yse_sound_set_dsp(s, nullptr);
+    CHECK(yse_sound_get_dsp(s) == nullptr);
+    capilowcov::pump(10);
+    CHECK(yse_sound_is_valid(s) == 1);
+    yse_dsp_object_destroy(lp);
+    capilowcov::pump(5);
+    CHECK(yse_sound_is_valid(s) == 1);
+
+    yse_sound_destroy(s);
+    capilowcov::pump(10);
+    yse_dsp_buffer_destroy(buf); // the buffer must outlive every sound using it
+  }
+
+  // Regression for issue #657. abstractSoundFile::create() returns early on the
+  // buffer branch, and it used to do so without ever setting _channels — which
+  // the constructor leaves at 0. implementationObject::create() then sized the
+  // sound's output with filebuffer.resize(file->channels()) == resize(0), so the
+  // sound had no output buffers at all: readNonInterleaved()'s per-channel loop
+  // iterated over nothing, the play position stayed pinned at frame 0 and the
+  // channel stayed silent. Nothing in the status surface gave that away — the
+  // sound still reported ready, playing and of the right length — which is why
+  // the assertions below are on the playhead and on the channel's meter rather
+  // than on the lifecycle flags.
+  //
+  // Verified fail-without-fix: on the unpatched engine get_time() stays 0.0 and
+  // the channel's post peak stays 0.0 while is_playing() reports 1.
+  TEST_CASE("c-api sound: a buffer-backed sound renders and its playhead moves (#657)") {
+    if (!capilowcov::ensureOffline()) return;
+
+    // A tone long enough that the pump below cannot wrap it, so the playhead is
+    // strictly monotonic across the case and "it moved" is unambiguous.
+    const unsigned int len = 16384;
+    YseDspBuffer* buf = yse_dsp_buffer_create(len, 0);
+    REQUIRE(buf != nullptr);
+    std::vector<float> tone(len);
+    for (unsigned int i = 0; i < len; ++i)
+      tone[i] = 0.5f * std::sin(2.0f * 3.14159265f * 32.0f * static_cast<float>(i) /
+                                static_cast<float>(len));
+    REQUIRE(yse_dsp_buffer_write(buf, 0, tone.data(), len) == len);
+
+    // A dedicated channel so the meter reading below is this sound's output and
+    // not whatever else the shared master saw earlier in the suite.
+    YseChannel* ch = yse_channel_create("capi_buf657", yse_channel_master());
+    REQUIRE(ch != nullptr);
+    capilowcov::pump(5);
+    CHECK(yse_channel_get_peak_linear_post(ch) == doctest::Approx(0.f)); // silent so far
+
+    YseSound* s = yse_sound_create();
+    REQUIRE(s != nullptr);
+    REQUIRE(yse_sound_load_buffer(s, buf, ch, /*loop=*/1, /*volume=*/0.8f) == YSE_OK);
+    pumpUntilReady(s);
+    REQUIRE(yse_sound_is_ready(s) == 1);
+    CHECK(yse_sound_length(s) == len); // the length was always right...
+
+    yse_sound_play(s);
+    capilowcov::pump(20);
+
+    CHECK(yse_sound_is_playing(s) == 1); // ...and so was the status...
+    // ...but these two were the lie: the playhead never advanced and not one
+    // sample reached the channel.
+    const float pos = yse_sound_get_time(s);
+    CHECK(pos > 0.0f);
+    CHECK(pos < static_cast<float>(len)); // no wrap — still the first pass
+    const float peak = yse_channel_get_peak_linear_post(ch);
+    CHECK(std::isfinite(peak));
+    CHECK(peak > 0.01f);
+
+    yse_sound_stop(s);
+    capilowcov::pump(5);
+    yse_sound_destroy(s);
+    capilowcov::pump(10);
+    yse_channel_destroy(ch);
+    capilowcov::pump(10);
+    yse_dsp_buffer_destroy(buf); // the buffer must outlive every sound using it
+  }
+
+  // Regression for issue #864. yse_channel_set_virtual(ch, 0) forwards to
+  // channel::setVirtual(false), which used to send its message with a
+  // hard-coded `true`: get_virtual() read back 0 while the engine kept
+  // virtualising the channel's sounds, so past the max-sounds limit they never
+  // started. Every sound on a channel with virtualisation off must render.
+  //
+  // Verified fail-without-fix: on the unpatched engine none of the sounds
+  // reports playing and every playhead stays at 0.
+  TEST_CASE("c-api channel: set_virtual(0) renders every sound past the max-sounds limit (#864)") {
+    if (!capilowcov::ensureOffline()) return;
+    YseSystem* sys = yse_system_get();
+
+    const unsigned int len = 16384;
+    YseDspBuffer* buf = yse_dsp_buffer_create(len, 0);
+    REQUIRE(buf != nullptr);
+    std::vector<float> tone(len, 0.1f);
+    REQUIRE(yse_dsp_buffer_write(buf, 0, tone.data(), len) == len);
+
+    const int previousMaxSounds = yse_system_get_max_sounds(sys);
+    yse_system_set_max_sounds(sys, 1);
+
+    YseChannel* ch = yse_channel_create("capi_virt864", yse_channel_master());
+    REQUIRE(ch != nullptr);
+    yse_channel_set_virtual(ch, 0);
+    CHECK(yse_channel_get_virtual(ch) == 0);
+    capilowcov::pump(5);
+
+    constexpr int kSounds = 6;
+    std::vector<YseSound*> sounds;
+    sounds.reserve(kSounds);
+    for (int i = 0; i < kSounds; ++i) {
+      YseSound* s = yse_sound_create();
+      REQUIRE(s != nullptr);
+      REQUIRE(yse_sound_load_buffer(s, buf, ch, /*loop=*/1, /*volume=*/0.5f) == YSE_OK);
+      sounds.push_back(s);
+    }
+    for (YseSound* s : sounds)
+      pumpUntilReady(s);
+    // Spread over distance so a virtualising channel would have to drop all but
+    // the nearest sound.
+    for (int i = 0; i < kSounds; ++i) {
+      const yse_pos_t p = {static_cast<float>(i) * 10.f, 0.f, 0.f};
+      yse_sound_set_pos(sounds[i], &p);
+      yse_sound_play(sounds[i]);
+    }
+    capilowcov::pump(20);
+
+    // Every playhead keeps advancing — a virtual sound is frozen after its
+    // one farewell block.
+    std::vector<float> before;
+    before.reserve(kSounds);
+    for (YseSound* s : sounds)
+      before.push_back(yse_sound_get_time(s));
+    capilowcov::pump(10);
+    for (int i = 0; i < kSounds; ++i) {
+      INFO("sound " << i);
+      CHECK(yse_sound_is_playing(sounds[i]) == 1);
+      CHECK(yse_sound_get_time(sounds[i]) > before[static_cast<std::size_t>(i)]);
+    }
+
+    yse_system_set_max_sounds(sys, previousMaxSounds);
+    for (YseSound* s : sounds)
+      yse_sound_stop(s);
+    capilowcov::pump(5);
+    for (YseSound* s : sounds)
+      yse_sound_destroy(s);
+    capilowcov::pump(10);
+    yse_channel_destroy(ch);
+    capilowcov::pump(10);
+    yse_dsp_buffer_destroy(buf); // the buffer must outlive every sound using it
+  }
+
+  TEST_CASE("c-api sound: patcher source refuses a second owner") {
+    if (!capilowcov::ensureOffline()) return;
+
+    YsePatcher* patch = yse_patcher_create();
+    REQUIRE(patch != nullptr);
+    yse_patcher_init(patch, 2);
+
+    YseSound* first = yse_sound_create();
+    REQUIRE(first != nullptr);
+    REQUIRE(yse_sound_load_patcher(first, patch, yse_channel_master(), 0.5f) == YSE_OK);
+    capilowcov::pump(10);
+    CHECK(yse_sound_is_valid(first) == 1);
+
+    // One patcher per sound (#287): the second create is refused, reported as
+    // an error status, and leaves the second sound invalid rather than
+    // silently sharing the graph.
+    YseSound* second = yse_sound_create();
+    REQUIRE(second != nullptr);
+    yse_clear_last_error();
+    CHECK(yse_sound_load_patcher(second, patch, yse_channel_master(), 0.5f) == YSE_ERR_GENERIC);
+    CHECK(std::string(yse_last_error()).find("already controlled") != std::string::npos);
+    CHECK(yse_sound_is_valid(second) == 0);
+    yse_clear_last_error();
+
+    yse_sound_destroy(second);
+    yse_sound_destroy(first);
+    capilowcov::pump(10);
+    yse_patcher_destroy(patch);
+  }
+
+} // TEST_SUITE("capilowcov")
+
+// ═══ teardown half ══════════════════════════════════════════════════════════
+//
+// yse_system_close_current_device() and yse_system_close() tear down
+// process-global engine state (the audio device, then the thread pools and the
+// named bus). They cannot share a process with the cases above, so they run in
+// their own ctest entry — the same treatment yse_tests_lifecycle gives
+// System::close() at the C++ level.
+
+TEST_SUITE("capilowcovlife") {
+
+  TEST_CASE("c-api system: close_current_device then close tears the session down") {
+    YseSystem* sys = yse_system_get();
+    REQUIRE(sys != nullptr);
+
+    yse_system_close(sys); // normalize regardless of starting state
+    if (yse_system_init_offline(sys) != YSE_OK) return; // unavailable → skip
+    CHECK(yse_system_get_sample_rate(sys) > 0.0);
+
+    // Let any queued setup work drain before pulling the device.
+    for (int i = 0; i < 10; ++i) {
+      yse_system_update(sys);
+      yse_system_render_offline(sys, 2);
+    }
+
+    yse_system_close_current_device(sys);
+    // update() must stay safe with no device attached — this is the path a host
+    // takes between closing one device and opening the next.
+    yse_system_update(sys);
+
+    yse_system_close(sys);
+    yse_system_close(sys); // idempotent
+    CHECK(true); // reached here without a crash on the teardown path
+  }
+
+  TEST_CASE("c-api system: the render thread count survives close and init (#861)") {
+    YseSystem* sys = yse_system_get();
+    REQUIRE(sys != nullptr);
+    yse_system_close(sys);
+
+    // Set with no session: applies at once and is what the next session uses.
+    CHECK(yse_system_set_render_threads(sys, 1) == YSE_OK);
+    CHECK(yse_system_get_render_threads(sys) == 1);
+    CHECK(yse_system_get_active_render_threads(sys) == 1);
+    if (yse_system_init_offline(sys) != YSE_OK) return; // unavailable → skip
+    CHECK(yse_system_get_active_render_threads(sys) == 1);
+    for (int i = 0; i < 4; ++i) {
+      yse_system_update(sys);
+      yse_system_render_offline(sys, 2);
+    }
+    yse_system_close(sys);
+
+    // Still set after close; a second session starts with it too.
+    CHECK(yse_system_get_render_threads(sys) == 1);
+    if (yse_system_init_offline(sys) != YSE_OK) return;
+    CHECK(yse_system_get_active_render_threads(sys) == 1);
+    CHECK(yse_system_set_render_threads(sys, -1) == YSE_OK);
+    yse_system_close(sys);
+  }
+
+} // TEST_SUITE("capilowcovlife")

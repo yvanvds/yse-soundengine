@@ -2,6 +2,7 @@
 #include "yse_c_internal.hpp"
 
 #include "../patcher/patcher.hpp"
+#include "../patcher/patcherImplementation.h"
 #include "../patcher/pHandle.hpp"
 #include "../patcher/pObject.h"
 #include "../patcher/pRegistry.h"
@@ -11,17 +12,117 @@
 #include "../patcher/parameters.h"
 #include "../headers/enums.hpp"
 
+#include <atomic>
 #include <cstdlib>
 #include <cstring>
 #include <exception>
 #include <memory>
 #include <string>
+#include <thread>
 #include <unordered_map>
 #include <vector>
 
 namespace {
+  // ── Send-callback bridge (issue #907) ───────────────────────────────
+  //
+  // The engine hands a patcher's unmatched sends to a C++ oscHandler. This is
+  // that handler for a C host: it copies the message into one malloc'd block
+  // the receiver owns and calls the host's function pointer.
+  //
+  // It runs on whichever non-audio thread emitted the message — the host's,
+  // or the timer worker behind a millisecond `.metro` — so the host may be
+  // installing on one thread while it dispatches on another. The (cb,
+  // user_data) pair is therefore one immutable node behind one atomic pointer
+  // (#902, #916), reclaimed with the MIDI raw bridge's handshake: a dispatch
+  // bumps `readers`, loads the pair, copies both fields to its stack and drops
+  // `readers` again before it allocates or calls out; an install exchanges the
+  // pointer and waits for `readers` to read zero before freeing what it swapped
+  // out. All seq_cst, so either the installer sees the increment or the
+  // dispatch loads the new pair. No user code is inside that window, so a
+  // callback that re-installs from inside itself does not wait on itself.
+  //
+  // The bridge itself lives exactly as long as the handle. It is installed in
+  // the engine while a callback is set and detached while none is, so a
+  // cleared callback also stops yse_patcher_pass_* from answering 1 for a name
+  // nothing receives. Its lifetime past a detach is what keeps a dispatch that
+  // already loaded it safe; the engine's SetOscHandler grace period (no other
+  // thread still inside the old handler on return) is what lets destroy free
+  // it.
+  struct SendPair {
+    YsePatcherSendCallback cb;
+    void* user_data;
+  };
+
+  class SendBridge final : public YSE::oscHandler {
+  public:
+    SendBridge() = default;
+    SendBridge(const SendBridge&) = delete;
+    SendBridge& operator=(const SendBridge&) = delete;
+    SendBridge(SendBridge&&) = delete;
+    SendBridge& operator=(SendBridge&&) = delete;
+    ~SendBridge() override {
+      delete pair.load(std::memory_order_acquire);
+    }
+
+    void Send(const std::string& to) override {
+      Deliver(to, YSE_OUT_BANG, 0, 0.f, nullptr);
+    }
+    void Send(const std::string& to, int value) override {
+      Deliver(to, YSE_OUT_INT, value, 0.f, nullptr);
+    }
+    void Send(const std::string& to, float value) override {
+      Deliver(to, YSE_OUT_FLOAT, 0, value, nullptr);
+    }
+    void Send(const std::string& to, const std::string& value) override {
+      Deliver(to, YSE_OUT_LIST, 0, 0.f, &value);
+    }
+
+    std::atomic<SendPair*> pair{nullptr};
+    std::atomic<unsigned int> readers{0};
+
+  private:
+    void Deliver(const std::string& to, YseOutType kind, int i, float f,
+                 const std::string* s) noexcept {
+      readers.fetch_add(1, std::memory_order_seq_cst);
+      const SendPair* current = pair.load(std::memory_order_seq_cst);
+      YsePatcherSendCallback cb = current != nullptr ? current->cb : nullptr;
+      void* user = current != nullptr ? current->user_data : nullptr;
+      readers.fetch_sub(1, std::memory_order_release);
+      if (cb == nullptr) return;
+      // One block: the address, then (for a list) the payload. A Dart
+      // NativeCallable.listener runs after this returns, so the strings must
+      // outlive the call; freeing the address releases both.
+      const size_t addressSize = to.size() + 1;
+      const size_t total = addressSize + (s != nullptr ? s->size() + 1 : 0);
+      auto* block = static_cast<char*>(std::malloc(total));
+      if (block == nullptr) return;
+      std::memcpy(block, to.c_str(), addressSize);
+      char* payload = nullptr;
+      if (s != nullptr) {
+        payload = block + addressSize;
+        std::memcpy(payload, s->c_str(), s->size() + 1);
+      }
+      cb(user, block, kind, i, f, payload);
+    }
+  };
+
+  // What a YsePatcher* points at: the engine patcher plus its bridge.
+  struct YsePatcherImpl {
+    YSE::patcher cpp;
+    SendBridge bridge;
+    // Set once yse_patcher_init succeeds. The engine patcher no-ops every
+    // call made before create() and has no public "created" query, so this
+    // is what lets yse_patcher_parse_json report YSE_ERR_NOT_INITIALIZED
+    // instead of a silent success (issue #910). Control thread only, like
+    // init and parse themselves.
+    bool initialized = false;
+  };
+
+  inline YsePatcherImpl* to_impl(YsePatcher* p) {
+    return reinterpret_cast<YsePatcherImpl*>(p);
+  }
   inline YSE::patcher* to_cpp(YsePatcher* p) {
-    return reinterpret_cast<YSE::patcher*>(p);
+    return &to_impl(p)->cpp;
   }
   inline YSE::pHandle* to_cpp(YsePHandle* h) {
     return reinterpret_cast<YSE::pHandle*>(h);
@@ -73,6 +174,7 @@ namespace {
     std::string description;
     YsePCategory category;
     bool isDsp;
+    bool requiresMidiDevice;
     std::vector<InletMeta> inlets;
     std::vector<OutletMeta> outlets;
     std::vector<ParamMeta> params;
@@ -97,6 +199,30 @@ namespace {
       return YSE_PCAT_TIME;
     case pCategory::MIDI:
       return YSE_PCAT_MIDI;
+    case pCategory::ROUTING:
+      return YSE_PCAT_ROUTING;
+    case pCategory::CONTROL:
+      return YSE_PCAT_CONTROL;
+    case pCategory::LIST:
+      return YSE_PCAT_LIST;
+    case pCategory::STRING:
+      return YSE_PCAT_STRING;
+    case pCategory::COLLECTION:
+      return YSE_PCAT_COLLECTION;
+    case pCategory::DICT:
+      return YSE_PCAT_DICT;
+    case pCategory::ARRAY:
+      return YSE_PCAT_ARRAY;
+    case pCategory::RANDOM:
+      return YSE_PCAT_RANDOM;
+    case pCategory::IO:
+      return YSE_PCAT_IO;
+    case pCategory::ENCAPSULATION:
+      return YSE_PCAT_ENCAPSULATION;
+    case pCategory::SEQUENCE:
+      return YSE_PCAT_SEQUENCE;
+    case pCategory::COUNT_:
+      break; // sentinel, not a category (drift guard in yse_enums_check.cpp)
     }
     return YSE_PCAT_UNSET;
   }
@@ -119,6 +245,28 @@ namespace {
       return "TIME";
     case YSE_PCAT_MIDI:
       return "MIDI";
+    case YSE_PCAT_ROUTING:
+      return "ROUTING";
+    case YSE_PCAT_CONTROL:
+      return "CONTROL";
+    case YSE_PCAT_LIST:
+      return "LIST";
+    case YSE_PCAT_STRING:
+      return "STRING";
+    case YSE_PCAT_COLLECTION:
+      return "COLLECTION";
+    case YSE_PCAT_DICT:
+      return "DICT";
+    case YSE_PCAT_ARRAY:
+      return "ARRAY";
+    case YSE_PCAT_RANDOM:
+      return "RANDOM";
+    case YSE_PCAT_IO:
+      return "IO";
+    case YSE_PCAT_ENCAPSULATION:
+      return "ENCAPSULATION";
+    case YSE_PCAT_SEQUENCE:
+      return "SEQUENCE";
     }
     return "UNKNOWN";
   }
@@ -162,6 +310,7 @@ namespace {
         tm.description = obj->GetDescription();
         tm.category = mapCategory(obj->GetCategory());
         tm.isDsp = obj->IsDSPObject();
+        tm.requiresMidiDevice = YSE::PATCHER::Register().RequiresMidiDevice(name);
 
         tm.inlets.reserve(static_cast<size_t>(obj->NumInputs()));
         for (int i = 0; i < obj->NumInputs(); ++i) {
@@ -210,21 +359,38 @@ namespace {
     return cache;
   }
 
-  const TypeMeta* findType(const char* type_name) {
+  // The metadata entry points reach the cache through these two, so the one
+  // step that allocates — building it, or the std::string key a lookup makes —
+  // is behind the ABI exception barrier (issue #901). A build that threw is
+  // retried on the next call: a function-local static whose initialiser throws
+  // is left uninitialised.
+  const MetaCache* cacheOrNull() noexcept {
+    return yse_c::guard("yse_patcher metadata", static_cast<const MetaCache*>(nullptr),
+                        [] { return &buildCache(); });
+  }
+
+  const TypeMeta* findType(const char* type_name) noexcept {
     if (!type_name) return nullptr;
-    const auto& cache = buildCache();
-    auto it = cache.indexByName.find(type_name);
-    if (it == cache.indexByName.end()) return nullptr;
-    return &cache.types[it->second];
+    return yse_c::guard("yse_patcher metadata", static_cast<const TypeMeta*>(nullptr),
+                        [type_name]() -> const TypeMeta* {
+                          const auto& cache = buildCache();
+                          auto it = cache.indexByName.find(type_name);
+                          if (it == cache.indexByName.end()) return nullptr;
+                          return &cache.types[it->second];
+                        });
   }
 
 } // namespace
+
+YSE::patcher* yse_c::patcher_from_handle(YsePatcher* h) {
+  return h != nullptr ? to_cpp(h) : nullptr;
+}
 
 extern "C" {
 
 YSE_C_API YsePatcher* yse_patcher_create(void) {
   try {
-    return reinterpret_cast<YsePatcher*>(new YSE::patcher());
+    return reinterpret_cast<YsePatcher*>(new YsePatcherImpl());
   } catch (const std::exception& e) {
     yse_c::set_last_error(e.what());
     return nullptr;
@@ -236,12 +402,94 @@ YSE_C_API YsePatcher* yse_patcher_create(void) {
 
 YSE_C_API void yse_patcher_destroy(YsePatcher* p) {
   if (!p) return;
-  delete to_cpp(p);
+  YsePatcherImpl* impl = to_impl(p);
+  // Detach the bridge first. A patcher loaded into a sound outlives this
+  // handle (the sound keeps rendering its graph, timers included), so the
+  // engine must stop reaching the bridge before it is freed below; on return
+  // no other thread is still inside it (issue #907).
+  impl->cpp.SetOscHandler(nullptr);
+  delete impl;
 }
 
-YSE_C_API void yse_patcher_init(YsePatcher* p, int main_outputs) {
-  if (!p) return;
-  to_cpp(p)->create(main_outputs);
+YSE_C_API YseStatus yse_patcher_set_send_callback(YsePatcher* p, YsePatcherSendCallback cb,
+                                                  void* user_data) {
+  if (!p) return YSE_ERR_INVALID_HANDLE;
+  YsePatcherImpl* impl = to_impl(p);
+  // The install allocates, so it runs inside the ABI exception barrier.
+  return yse_c::guard("yse_patcher_set_send_callback", YSE_ERR_EXCEPTION, [&] {
+    SendBridge& bridge = impl->bridge;
+    SendPair* next = cb != nullptr ? new SendPair{cb, user_data} : nullptr;
+    SendPair* old = bridge.pair.exchange(next, std::memory_order_seq_cst);
+    // The engine sees the bridge exactly while a pair is set. Re-read after
+    // each install so two threads re-installing at once still leave the engine
+    // agreeing with whichever pair won.
+    YSE::oscHandler* wanted = nullptr;
+    do {
+      wanted = bridge.pair.load(std::memory_order_seq_cst) != nullptr ? &bridge : nullptr;
+      impl->cpp.SetOscHandler(wanted);
+    } while ((bridge.pair.load(std::memory_order_seq_cst) != nullptr ? &bridge : nullptr) !=
+             wanted);
+    if (old != nullptr) {
+      // Quiescence: once no dispatch is between its increment and decrement of
+      // `readers`, none can still be reading `old` (see SendBridge).
+      while (bridge.readers.load(std::memory_order_seq_cst) != 0)
+        std::this_thread::yield();
+      delete old;
+    }
+    return YSE_OK;
+  });
+}
+
+YSE_C_API void yse_patcher_free_message(char* address) {
+  std::free(address);
+}
+
+YSE_C_API YseStatus yse_patcher_init(YsePatcher* p, int main_outputs) {
+  if (!p) {
+    yse_c::set_last_error("yse_patcher_init: patcher handle is NULL");
+    return YSE_ERR_INVALID_HANDLE;
+  }
+  // The engine sizes its output list with this count, so a negative one would
+  // surface as a length_error from deep inside the constructor.
+  if (main_outputs < 0) {
+    yse_c::set_last_error("yse_patcher_init: main_outputs must not be negative");
+    return YSE_ERR_INVALID_ARGUMENT;
+  }
+  return yse_c::guard("yse_patcher_init", YSE_ERR_EXCEPTION, [&] {
+    to_cpp(p)->create(main_outputs);
+    to_impl(p)->initialized = true;
+    return YSE_OK;
+  });
+}
+
+// The engine's name() refuses rather than throws (issue #921) — it logs and
+// keeps the old name — so a refusal is read back off name() afterwards instead
+// of re-checking the length here, which would restate the engine's rule in a
+// second place. "" (and NULL) restores the auto-name and always succeeds.
+YSE_C_API YseStatus yse_patcher_set_name(YsePatcher* p, const char* name) {
+  if (!p) return YSE_ERR_INVALID_HANDLE;
+  const char* requested = name ? name : "";
+  return yse_c::guard("yse_patcher_set_name", YSE_ERR_EXCEPTION, [&] {
+    YSE::patcher& patcher = *to_cpp(p);
+    patcher.name(requested);
+    if (requested[0] != '\0' && patcher.name() != requested) {
+      yse_c::set_last_error(
+          std::string("yse_patcher_set_name: name \"") + requested + "\" refused (longer than " +
+          std::to_string(YSE::PATCHER::patcherImplementation::MAX_PATCHER_NAME_LENGTH) +
+          " characters); name unchanged");
+      return YSE_ERR_INVALID_ARGUMENT;
+    }
+    return YSE_OK;
+  });
+}
+
+YSE_C_API size_t yse_patcher_get_name(YsePatcher* p, char* buf, size_t cap) {
+  if (!p) {
+    if (buf && cap > 0) buf[0] = '\0';
+    return 0;
+  }
+  return yse_c::guard_string("yse_patcher_get_name", buf, cap,
+                             [&] { return copy_string(to_cpp(p)->name(), buf, cap); });
 }
 
 YSE_C_API YsePHandle* yse_patcher_create_object(YsePatcher* p, const char* type, const char* args) {
@@ -259,28 +507,62 @@ YSE_C_API YsePHandle* yse_patcher_create_object(YsePatcher* p, const char* type,
 
 YSE_C_API void yse_patcher_delete_object(YsePatcher* p, YsePHandle* obj) {
   if (!p || !obj) return;
-  to_cpp(p)->DeleteObject(to_cpp(obj));
+  yse_c::guard_void("yse_patcher_delete_object", [&] { to_cpp(p)->DeleteObject(to_cpp(obj)); });
 }
 
 YSE_C_API void yse_patcher_clear(YsePatcher* p) {
-  if (p) to_cpp(p)->Clear();
+  if (!p) return;
+  yse_c::guard_void("yse_patcher_clear", [&] { to_cpp(p)->Clear(); });
 }
 
 YSE_C_API void yse_patcher_connect(YsePatcher* p, YsePHandle* from, int outlet, YsePHandle* to,
                                    int inlet) {
   if (!p || !from || !to) return;
-  to_cpp(p)->Connect(to_cpp(from), outlet, to_cpp(to), inlet);
+  yse_c::guard_void("yse_patcher_connect",
+                    [&] { to_cpp(p)->Connect(to_cpp(from), outlet, to_cpp(to), inlet); });
 }
 
 YSE_C_API void yse_patcher_disconnect(YsePatcher* p, YsePHandle* from, int outlet, YsePHandle* to,
                                       int inlet) {
   if (!p || !from || !to) return;
-  to_cpp(p)->Disconnect(to_cpp(from), outlet, to_cpp(to), inlet);
+  yse_c::guard_void("yse_patcher_disconnect",
+                    [&] { to_cpp(p)->Disconnect(to_cpp(from), outlet, to_cpp(to), inlet); });
 }
 
 YSE_C_API int yse_patcher_is_valid_object(const char* type) {
   if (!type) return 0;
-  return YSE::patcher::IsValidObject(type) ? 1 : 0;
+  return yse_c::guard("yse_patcher_is_valid_object", 0,
+                      [&] { return YSE::patcher::IsValidObject(type) ? 1 : 0; });
+}
+
+// Subpatchers (issue #545). A NULL `container` is meaningful here rather than a
+// no-op — it is how an object is moved back out to the top level — so only the
+// patcher and the object itself are null-checked.
+YSE_C_API void yse_patcher_set_container(YsePatcher* p, YsePHandle* obj, YsePHandle* container) {
+  if (!p || !obj) return;
+  yse_c::guard_void("yse_patcher_set_container",
+                    [&] { to_cpp(p)->SetContainer(to_cpp(obj), to_cpp(container)); });
+}
+
+// These three, and the object-list queries further down, take the patcher's
+// std::mutex, whose lock() may throw std::system_error — so they run behind
+// the barrier too, not only the calls that allocate (issue #953).
+YSE_C_API YsePHandle* yse_patcher_get_container(YsePatcher* p, YsePHandle* obj) {
+  if (!p || !obj) return nullptr;
+  return yse_c::guard("yse_patcher_get_container", static_cast<YsePHandle*>(nullptr),
+                      [&] { return to_c(to_cpp(p)->GetContainer(to_cpp(obj))); });
+}
+
+YSE_C_API int yse_patcher_subpatcher_inlets(YsePatcher* p, YsePHandle* container) {
+  if (!p || !container) return 0;
+  return yse_c::guard("yse_patcher_subpatcher_inlets", 0,
+                      [&] { return to_cpp(p)->SubpatcherInlets(to_cpp(container)); });
+}
+
+YSE_C_API int yse_patcher_subpatcher_outlets(YsePatcher* p, YsePHandle* container) {
+  if (!p || !container) return 0;
+  return yse_c::guard("yse_patcher_subpatcher_outlets", 0,
+                      [&] { return to_cpp(p)->SubpatcherOutlets(to_cpp(container)); });
 }
 
 YSE_C_API size_t yse_patcher_dump_json(YsePatcher* p, char* buf, size_t cap) {
@@ -288,50 +570,67 @@ YSE_C_API size_t yse_patcher_dump_json(YsePatcher* p, char* buf, size_t cap) {
     if (buf && cap > 0) buf[0] = '\0';
     return 0;
   }
-  try {
-    return copy_string(to_cpp(p)->DumpJSON(), buf, cap);
-  } catch (const std::exception&) {
-    if (buf && cap > 0) buf[0] = '\0';
-    return 0;
-  }
+  return yse_c::guard_string("yse_patcher_dump_json", buf, cap,
+                             [&] { return copy_string(to_cpp(p)->DumpJSON(), buf, cap); });
 }
 
-YSE_C_API void yse_patcher_parse_json(YsePatcher* p, const char* content) {
-  if (!p || !content) return;
-  try {
-    to_cpp(p)->ParseJSON(content);
-  } catch (const std::exception& e) {
-    yse_c::set_last_error(e.what());
-  } catch (...) {
-    yse_c::set_last_error("patcher_parse_json: unknown C++ exception");
+YSE_C_API YseStatus yse_patcher_parse_json(YsePatcher* p, const char* content) {
+  if (!p) {
+    yse_c::set_last_error("yse_patcher_parse_json: patcher handle is NULL");
+    return YSE_ERR_INVALID_HANDLE;
   }
+  if (!content) {
+    yse_c::set_last_error("yse_patcher_parse_json: content is NULL");
+    return YSE_ERR_INVALID_ARGUMENT;
+  }
+  if (!to_impl(p)->initialized) {
+    yse_c::set_last_error("yse_patcher_parse_json: patcher not initialized (call yse_patcher_init "
+                          "first); nothing was loaded");
+    return YSE_ERR_NOT_INITIALIZED;
+  }
+  // Malformed JSON, or a record missing a field the loader needs, throws out of
+  // the engine's parser; the barrier turns that into YSE_ERR_EXCEPTION with
+  // the parser's message.
+  return yse_c::guard("yse_patcher_parse_json", YSE_ERR_EXCEPTION, [&] {
+    to_cpp(p)->ParseJSON(content);
+    return YSE_OK;
+  });
 }
 
 YSE_C_API unsigned int yse_patcher_objects(YsePatcher* p) {
-  return p ? to_cpp(p)->Objects() : 0;
+  if (!p) return 0;
+  return yse_c::guard("yse_patcher_objects", 0u, [&] { return to_cpp(p)->Objects(); });
 }
 YSE_C_API YsePHandle* yse_patcher_get_handle_from_list(YsePatcher* p, unsigned int idx) {
-  return p ? to_c(to_cpp(p)->GetHandleFromList(idx)) : nullptr;
+  if (!p) return nullptr;
+  return yse_c::guard("yse_patcher_get_handle_from_list", static_cast<YsePHandle*>(nullptr),
+                      [&] { return to_c(to_cpp(p)->GetHandleFromList(idx)); });
 }
 YSE_C_API YsePHandle* yse_patcher_get_handle_from_id(YsePatcher* p, unsigned int id) {
-  return p ? to_c(to_cpp(p)->GetHandleFromID(id)) : nullptr;
+  if (!p) return nullptr;
+  return yse_c::guard("yse_patcher_get_handle_from_id", static_cast<YsePHandle*>(nullptr),
+                      [&] { return to_c(to_cpp(p)->GetHandleFromID(id)); });
 }
 
 YSE_C_API int yse_patcher_pass_bang(YsePatcher* p, const char* to) {
   if (!p || !to) return 0;
-  return to_cpp(p)->PassBang(to) ? 1 : 0;
+  return yse_c::guard("yse_patcher_pass_bang", 0, [&] { return to_cpp(p)->PassBang(to) ? 1 : 0; });
 }
 YSE_C_API int yse_patcher_pass_int(YsePatcher* p, int value, const char* to) {
   if (!p || !to) return 0;
-  return to_cpp(p)->PassData(value, std::string(to)) ? 1 : 0;
+  return yse_c::guard("yse_patcher_pass_int", 0,
+                      [&] { return to_cpp(p)->PassData(value, std::string(to)) ? 1 : 0; });
 }
 YSE_C_API int yse_patcher_pass_float(YsePatcher* p, float value, const char* to) {
   if (!p || !to) return 0;
-  return to_cpp(p)->PassData(value, std::string(to)) ? 1 : 0;
+  return yse_c::guard("yse_patcher_pass_float", 0,
+                      [&] { return to_cpp(p)->PassData(value, std::string(to)) ? 1 : 0; });
 }
 YSE_C_API int yse_patcher_pass_string(YsePatcher* p, const char* value, const char* to) {
   if (!p || !to || !value) return 0;
-  return to_cpp(p)->PassData(std::string(value), std::string(to)) ? 1 : 0;
+  return yse_c::guard("yse_patcher_pass_string", 0, [&] {
+    return to_cpp(p)->PassData(std::string(value), std::string(to)) ? 1 : 0;
+  });
 }
 
 // ─── handle accessors ────────────────────────────────────────────────
@@ -341,29 +640,59 @@ YSE_C_API size_t yse_phandle_get_type(YsePHandle* h, char* buf, size_t cap) {
     if (buf && cap > 0) buf[0] = '\0';
     return 0;
   }
-  const char* s = to_cpp(h)->Type();
-  return copy_string(s ? std::string(s) : std::string(), buf, cap);
+  return yse_c::guard_string("yse_phandle_get_type", buf, cap, [&] {
+    const char* s = to_cpp(h)->Type();
+    return copy_string(s ? std::string(s) : std::string(), buf, cap);
+  });
 }
 YSE_C_API size_t yse_phandle_get_name(YsePHandle* h, char* buf, size_t cap) {
   if (!h) {
     if (buf && cap > 0) buf[0] = '\0';
     return 0;
   }
-  return copy_string(to_cpp(h)->GetName(), buf, cap);
+  return yse_c::guard_string("yse_phandle_get_name", buf, cap,
+                             [&] { return copy_string(to_cpp(h)->GetName(), buf, cap); });
 }
 YSE_C_API size_t yse_phandle_get_params(YsePHandle* h, char* buf, size_t cap) {
   if (!h) {
     if (buf && cap > 0) buf[0] = '\0';
     return 0;
   }
-  return copy_string(to_cpp(h)->GetParams(), buf, cap);
+  return yse_c::guard_string("yse_phandle_get_params", buf, cap,
+                             [&] { return copy_string(to_cpp(h)->GetParams(), buf, cap); });
 }
 YSE_C_API size_t yse_phandle_get_gui_value(YsePHandle* h, char* buf, size_t cap) {
   if (!h) {
     if (buf && cap > 0) buf[0] = '\0';
     return 0;
   }
-  return copy_string(to_cpp(h)->GetGuiValue(), buf, cap);
+  return yse_c::guard_string("yse_phandle_get_gui_value", buf, cap,
+                             [&] { return copy_string(to_cpp(h)->GetGuiValue(), buf, cap); });
+}
+YSE_C_API unsigned int yse_phandle_get_gui_value_count(YsePHandle* h) {
+  // 0 rather than 1 on NULL: a handle that names no object has no cells, and
+  // a host looping `for (i = 0; i < count; ++i)` must not be handed a cell to
+  // read off a null handle.
+  if (!h) return 0;
+  return to_cpp(h)->GetGuiValueCount();
+}
+YSE_C_API size_t yse_phandle_get_gui_value_at(YsePHandle* h, unsigned int index, char* buf,
+                                              size_t cap) {
+  if (!h) {
+    if (buf && cap > 0) buf[0] = '\0';
+    return 0;
+  }
+  // An out-of-range index is the object's own answer (""), not an error here:
+  // the count can change under a live SetParams between a host's count read
+  // and its cell reads, so "past the end" is a normal outcome of a legitimate
+  // poll rather than a caller mistake. See pObject.h.
+  return yse_c::guard_string("yse_phandle_get_gui_value_at", buf, cap, [&] {
+    return copy_string(to_cpp(h)->GetGuiValueAt(index), buf, cap);
+  });
+}
+YSE_C_API int yse_phandle_gui_value_is_settable(YsePHandle* h) {
+  if (!h) return 0;
+  return to_cpp(h)->GuiValueIsSettable() ? 1 : 0;
 }
 YSE_C_API size_t yse_phandle_get_gui_property(YsePHandle* h, const char* key, char* buf,
                                               size_t cap) {
@@ -371,27 +700,42 @@ YSE_C_API size_t yse_phandle_get_gui_property(YsePHandle* h, const char* key, ch
     if (buf && cap > 0) buf[0] = '\0';
     return 0;
   }
-  return copy_string(to_cpp(h)->GetGuiProperty(key), buf, cap);
+  return yse_c::guard_string("yse_phandle_get_gui_property", buf, cap,
+                             [&] { return copy_string(to_cpp(h)->GetGuiProperty(key), buf, cap); });
 }
 YSE_C_API void yse_phandle_set_gui_property(YsePHandle* h, const char* key, const char* value) {
   if (!h || !key) return;
-  to_cpp(h)->SetGuiProperty(key, value ? std::string(value) : std::string());
+  yse_c::guard_void("yse_phandle_set_gui_property", [&] {
+    to_cpp(h)->SetGuiProperty(key, value ? std::string(value) : std::string());
+  });
 }
 
+// All four setters run the target's handler — and whatever it sends on to —
+// synchronously on this thread, and that cascade may allocate or reach a C++
+// oscHandler that throws, so every one of them is behind the barrier, not only
+// the list setter (issue #953).
 YSE_C_API void yse_phandle_set_bang(YsePHandle* h, unsigned int inlet) {
-  if (h) to_cpp(h)->SetBang(inlet);
+  if (!h) return;
+  yse_c::guard_void("yse_phandle_set_bang", [&] { to_cpp(h)->SetBang(inlet); });
 }
 YSE_C_API void yse_phandle_set_int(YsePHandle* h, unsigned int inlet, int v) {
-  if (h) to_cpp(h)->SetIntData(inlet, v);
+  if (!h) return;
+  yse_c::guard_void("yse_phandle_set_int", [&] { to_cpp(h)->SetIntData(inlet, v); });
 }
 YSE_C_API void yse_phandle_set_float(YsePHandle* h, unsigned int inlet, float v) {
-  if (h) to_cpp(h)->SetFloatData(inlet, v);
+  if (!h) return;
+  yse_c::guard_void("yse_phandle_set_float", [&] { to_cpp(h)->SetFloatData(inlet, v); });
 }
 YSE_C_API void yse_phandle_set_list(YsePHandle* h, unsigned int inlet, const char* v) {
-  if (h && v) to_cpp(h)->SetListData(inlet, v);
+  if (!h || !v) return;
+  yse_c::guard_void("yse_phandle_set_list", [&] { to_cpp(h)->SetListData(inlet, v); });
 }
+// A malformed argument string (a non-number for a numeric param) throws out of
+// the re-parse; the barrier reports it through yse_last_error() and the object
+// keeps its previous params.
 YSE_C_API void yse_phandle_set_params(YsePHandle* h, const char* args) {
-  if (h && args) to_cpp(h)->SetParams(args);
+  if (!h || !args) return;
+  yse_c::guard_void("yse_phandle_set_params", [&] { to_cpp(h)->SetParams(args); });
 }
 
 YSE_C_API int yse_phandle_get_inputs(YsePHandle* h) {
@@ -400,38 +744,73 @@ YSE_C_API int yse_phandle_get_inputs(YsePHandle* h) {
 YSE_C_API int yse_phandle_get_outputs(YsePHandle* h) {
   return h ? to_cpp(h)->GetOutputs() : 0;
 }
+// On a subpatcher these two resolve the pin through its boundary objects under
+// the owning patcher's std::mutex (issue #545 / #942), so they share the
+// barrier of the mtx-taking patcher queries above (issue #953). The remaining
+// accessors read fixed-size fields or vector sizes and cannot throw.
 YSE_C_API int yse_phandle_is_dsp_input(YsePHandle* h, unsigned int inlet) {
-  return h && to_cpp(h)->IsDSPInput(inlet) ? 1 : 0;
+  if (!h) return 0;
+  return yse_c::guard("yse_phandle_is_dsp_input", 0,
+                      [&] { return to_cpp(h)->IsDSPInput(inlet) ? 1 : 0; });
 }
 YSE_C_API YseOutType yse_phandle_output_data_type(YsePHandle* h, unsigned int pin) {
-  return h ? static_cast<YseOutType>(to_cpp(h)->OutputDataType(pin)) : YSE_OUT_INVALID;
+  if (!h) return YSE_OUT_INVALID;
+  return yse_c::guard("yse_phandle_output_data_type", YSE_OUT_INVALID,
+                      [&] { return static_cast<YseOutType>(to_cpp(h)->OutputDataType(pin)); });
 }
+// Object IDs are per-patcher and start at 0 (issue #730), so 0 is the first
+// object in every patch and cannot also mean "no object" — these two answer
+// YSE_PATCHER_ID_NONE instead of the header's blanket 0-on-NULL (issue #732).
 YSE_C_API unsigned int yse_phandle_get_id(YsePHandle* h) {
-  return h ? to_cpp(h)->GetID() : 0;
+  return h ? to_cpp(h)->GetID() : YSE_PATCHER_ID_NONE;
 }
 
 YSE_C_API unsigned int yse_phandle_get_connections(YsePHandle* h, unsigned int outlet) {
   return h ? to_cpp(h)->GetConnections(outlet) : 0;
 }
+// The sentinel this file hands out is the engine's own, so a caller can compare
+// yse_phandle_get_id against yse_phandle_get_connection_target without either
+// side translating. If the engine ever changes its mind, this stops the build
+// rather than letting the ABI's published value drift away from it.
+static_assert(YSE_PATCHER_ID_NONE == YSE::PATCHER::pObject::kNoObjectID,
+              "YSE_PATCHER_ID_NONE must be pObject::kNoObjectID");
 YSE_C_API unsigned int yse_phandle_get_connection_target(YsePHandle* h, unsigned int outlet,
                                                          unsigned int connection) {
-  return h ? to_cpp(h)->GetConnectionTarget(outlet, connection) : 0;
+  // #732 added the two range checks here because the engine indexed
+  // `outputs[outlet]` unguarded and asking it about a nonexistent outlet was
+  // itself an out-of-bounds read. #737 moved that guard into the engine, where
+  // every caller gets it, and made it answer kNoObjectID — the same number as
+  // YSE_PATCHER_ID_NONE — for both an absent outlet and an absent connection.
+  // Repeating the checks here would only restate what the callee now
+  // guarantees, in a second place that can fall out of step with it.
+  return h ? to_cpp(h)->GetConnectionTarget(outlet, connection) : YSE_PATCHER_ID_NONE;
 }
+// Same discipline as YSE_PATCHER_ID_NONE above, for the other domain: the
+// number the ABI publishes is the engine's own, so a drift stops the build.
+// The two sentinels are the same number by choice, not by accident — see
+// pObject::kNoInletIndex for why they agree and still get separate names.
+static_assert(YSE_PATCHER_INLET_NONE == YSE::PATCHER::pObject::kNoInletIndex,
+              "YSE_PATCHER_INLET_NONE must be pObject::kNoInletIndex");
 YSE_C_API unsigned int yse_phandle_get_connection_target_inlet(YsePHandle* h, unsigned int outlet,
                                                                unsigned int connection) {
-  return h ? to_cpp(h)->GetConnectionTargetInlet(outlet, connection) : 0;
+  // The engine answers kNoInletIndex for an absent outlet and for an absent
+  // connection (issue #736), so the only case left for the wrapper is the NULL
+  // handle — no bounds check here, for the same reason
+  // yse_phandle_get_connection_target carries none.
+  return h ? to_cpp(h)->GetConnectionTargetInlet(outlet, connection) : YSE_PATCHER_INLET_NONE;
 }
 
 // ─── registry metadata ───────────────────────────────────────────────
 
 YSE_C_API int yse_patcher_get_type_count(void) {
-  return static_cast<int>(buildCache().types.size());
+  const MetaCache* cache = cacheOrNull();
+  return cache ? static_cast<int>(cache->types.size()) : 0;
 }
 
 YSE_C_API const char* yse_patcher_get_type_name(int index) {
-  const auto& cache = buildCache();
-  if (index < 0 || static_cast<size_t>(index) >= cache.types.size()) return "";
-  return cache.types[static_cast<size_t>(index)].name.c_str();
+  const MetaCache* cache = cacheOrNull();
+  if (!cache || index < 0 || static_cast<size_t>(index) >= cache->types.size()) return "";
+  return cache->types[static_cast<size_t>(index)].name.c_str();
 }
 
 YSE_C_API const char* yse_patcher_get_type_description(const char* type_name) {
@@ -529,6 +908,7 @@ YSE_C_API char* yse_patcher_get_metadata_json(void) {
       entry["name"] = tm.name;
       entry["category"] = categoryName(tm.category);
       entry["is_dsp"] = tm.isDsp;
+      entry["requires_midi_device"] = tm.requiresMidiDevice;
       entry["description"] = tm.description;
 
       nlohmann::json inlets = nlohmann::json::array();
@@ -592,10 +972,6 @@ YSE_C_API char* yse_patcher_get_metadata_json(void) {
     yse_c::set_last_error("yse_patcher_get_metadata_json: unknown C++ exception");
     return nullptr;
   }
-}
-
-YSE_C_API void yse_free_string(char* s) {
-  std::free(s);
 }
 
 } // extern "C"

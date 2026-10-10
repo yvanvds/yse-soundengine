@@ -18,6 +18,14 @@
                           inbox, runs the keyboard/allocator, drives every voice
                           and mixes, all allocation-free and lock-free.
 
+    Invariant (issue #828): the aggregate bed `output.samples` is resized ONLY
+    by the constructor (before this impl is reachable from the render path) or
+    by the render thread itself. Everything else the render path reads —
+    voices, handlers, panners, the fader scratch — is published by setup()'s
+    OBJECT_SETUP release store and so may be built on the setup pool; the bed
+    cannot be, because renderBlock()'s pre-ready branch and the owning sound's
+    toChannels() both touch it before that store is ever observed.
+
   ==============================================================================
 */
 
@@ -246,11 +254,27 @@ namespace YSE {
       }
 
       // ---- audio-thread render path --------------------------------------
-      // Ensure the aggregate bed and every voice's panner are sized to the
-      // current device output width. A no-op in the steady state (one int
-      // compare); on the first call and on a device restart it re-sizes, which
-      // allocates — the same accepted device-restart exception the engine makes
-      // in deviceManager (master->resize(true)). Never allocates at note rate.
+      // Current device output width, floored at 1 so the bed is never
+      // zero-width in a headless / pre-init build.
+      static int deviceWidth();
+      // Size the aggregate bed (`output.samples`) to `no` device channels.
+      // THREADING (issue #828): callable ONLY from the constructor — before
+      // this impl is reachable from the render path — or from the render
+      // thread itself. The setup pool must never call it: renderBlock()'s
+      // pre-ready branch and the owning sound's toChannels() both read the bed
+      // before OBJECT_SETUP is published, so a resize from a third thread is a
+      // use-after-free on the audio thread.
+      void sizeOutputBed(int no);
+      // Size every voice's panner and the fader scratch to `no` channels and
+      // record `builtForOutputs`. Safe on the setup pool: this state is read
+      // only from renderBlock()'s ready branch, i.e. strictly after the
+      // OBJECT_SETUP release store.
+      void sizeVoiceState(int no);
+      // Render-thread-only re-sync of bed + voice state to the current device
+      // width. A no-op in the steady state (one int compare); on a device
+      // restart it re-sizes, which allocates — the same accepted
+      // device-restart exception the engine makes in deviceManager
+      // (master->resize(true)). Never allocates at note rate.
       void ensureDeviceWidth();
       void renderBlock(SOUND_STATUS& masterIntent);
       void parseMessage(const messageObject& message);
@@ -299,7 +323,11 @@ namespace YSE {
       std::atomic<OBJECT_IMPLEMENTATION_STATE> objectStatus;
       lfQueue<messageObject> messages; // SPSC note inbox
 
-      outputSource output; // aggregate source
+      // Aggregate source. Its `samples` bed is sized in the constructor and
+      // thereafter only from the render thread (issue #828) — the owning sound
+      // caches `&output.samples` in create() and reads it every block, so it
+      // has no readiness gate to hide behind.
+      outputSource output;
 
       // Built on the setup pool, read on the audio thread. Published via
       // objectStatus (release in setup(), acquire in renderBlock()): the audio
@@ -322,9 +350,11 @@ namespace YSE {
       std::atomic<int> numVoicesTotal{0};
       uint64_t ageCounter = 0; // audio thread only
       int stealFadeSamples = 1; // computed in setup()
-      // Device output width the aggregate bed + voice panners are currently
-      // sized for (issue #169). -1 until first sized; compared in
-      // ensureDeviceWidth() to detect a device restart. Audio thread + setup.
+      // Device output width the voice panners are currently sized for (issue
+      // #169). -1 until first sized; compared (together with the bed's own
+      // size) in ensureDeviceWidth() to detect a device restart. Written by
+      // the setup pool before the OBJECT_SETUP release store, then by the
+      // render thread only.
       int builtForOutputs = -1;
       // Per-voice gain envelope scratch for spread(): filled with 1.0 for a
       // normal voice or the declining steal ramp for a voice being stolen.

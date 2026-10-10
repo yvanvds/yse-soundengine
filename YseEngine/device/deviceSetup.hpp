@@ -21,6 +21,15 @@ namespace YSE {
 
     deviceSetup& setInput(const device& in);
     deviceSetup& setOutput(const device& out);
+    /** @brief Sample rate to open the device at, in Hz. 0 (the default) means
+     *  no request.
+     *
+     *  The sample rate is fixed for a whole session. When this rate differs
+     *  from the session rate, ``System().openDevice()`` logs a warning and
+     *  opens the stream at the session rate (issue #971). To run at a
+     *  different rate, call ``System().requestSampleRate()`` before
+     *  ``init()``.
+     */
     deviceSetup& setSampleRate(double value);
     deviceSetup& setBufferSize(int value);
     int getOutputChannels() const;

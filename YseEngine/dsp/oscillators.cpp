@@ -153,9 +153,8 @@ namespace YSE {
         tf.d = dphase;
         f1 = addr[0];
         f2 = addr[1];
-        addr = tab + (tf.i[HIOFFSET] &
-                      (COSTABSIZE - 1)); // NOSONAR S6232: intentional UNITBIT32 fast-phase pun —
-                                         // see union tablePhase declaration above
+        // S6232: intentional UNITBIT32 fast-phase pun — see union tablePhase above.
+        addr = tab + (tf.i[HIOFFSET] & (COSTABSIZE - 1)); // NOSONAR
         *outPtr++ = f1 + frac * (f2 - f1);
         tf.i[HIOFFSET] = normhipart; // NOSONAR S6232: intentional UNITBIT32 fast-phase pun — see
                                      // union tablePhase declaration above
@@ -233,9 +232,8 @@ namespace YSE {
           dphase += frequency * conv;
         else
           dphase += *inPtr++ * conv;
-        addr = tab + (tf.i[HIOFFSET] &
-                      (COSTABSIZE - 1)); // NOSONAR S6232: intentional UNITBIT32 fast-phase pun —
-                                         // see union tablePhase declaration above
+        // S6232: intentional UNITBIT32 fast-phase pun — see union tablePhase above.
+        addr = tab + (tf.i[HIOFFSET] & (COSTABSIZE - 1)); // NOSONAR
         tf.i[HIOFFSET] = normhipart; // NOSONAR S6232: intentional UNITBIT32 fast-phase pun — see
                                      // union tablePhase declaration above
         *outPtr++ = f1 + frac * (f2 - f1);

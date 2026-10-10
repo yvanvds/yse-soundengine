@@ -1,4 +1,5 @@
-/*
+/**
+  @file
   yse_common.h — shared types, status codes, error reporting.
   Self-contained C header: no transitive includes outside <stddef.h>.
   Consumed by Dart ffigen and any other C ABI client.
@@ -35,6 +36,22 @@
 #define YSE_C_CALLBACK
 #endif
 
+/* Opaque handle typedefs. Several headers forward-declare the same handle
+   (YseChannel appears in yse_system.h, yse_channel.h, yse_sound.h and
+   yse_synth.h). Repeating a typedef is only legal from C11 on, so every
+   handle typedef — in its home header and in each forward declaration — sits
+   behind its own YSE_C_HANDLE_<Type> guard. That keeps the headers valid C99
+   (issue #976). A new handle typedef follows the same shape, with its
+   ownership comment inside the guard so Doxygen attaches it to the typedef
+   rather than to the guard macro:
+
+     #ifndef YSE_C_HANDLE_YseFoo
+     #define YSE_C_HANDLE_YseFoo
+     (ownership comment)
+     typedef struct YseFoo YseFoo;
+     #endif
+*/
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -59,12 +76,18 @@ typedef struct yse_pos_t {
 
 YSE_C_API const char* yse_version(void);
 
-/* Returns the last error message recorded on the calling thread (the
+/** Returns the last error message recorded on the calling thread (the
    slot is thread-local). The returned pointer is valid until the next
    yse_* call from the same thread; copy the string if you need to hold
    onto it. Empty string when no error has been recorded. */
 YSE_C_API const char* yse_last_error(void);
 YSE_C_API void yse_clear_last_error(void);
+
+/** Release a string the library allocated and handed to the caller — any
+   function whose comment says its result is released with yse_free_string
+   (e.g. yse_patcher_get_metadata_json). NULL is a no-op. Never pass it a
+   pointer to engine-owned storage or a buffer the caller allocated. */
+YSE_C_API void yse_free_string(char* s);
 
 #ifdef __cplusplus
 }

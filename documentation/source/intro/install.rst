@@ -86,8 +86,8 @@ The simplest setup pulls libYSE in as a subdirectory:
 
    add_subdirectory(third_party/yse-soundengine)
 
-   add_executable(my_game src/main.cpp)
-   target_link_libraries(my_game PRIVATE yse)
+   add_executable(my_app src/main.cpp)
+   target_link_libraries(my_app PRIVATE yse)
 
 Then in your code:
 
@@ -97,23 +97,29 @@ Then in your code:
 
    int main() {
        YSE::System().init();
-       // ... use the engine ...
+       // ... use the engine, calling YSE::System().update() regularly ...
        YSE::System().close();
    }
 
 Verifying the install
 ---------------------
 
-Run one of the bundled demos to confirm the audio device is reachable:
+**Windows.** The build includes the bundled demos. Run one to confirm the
+audio device is reachable:
 
 .. code-block:: sh
 
    cd build/bin
    ./Demo00          # plays drone.ogg
-   ./Demo12          # tone generator (audio self-test)
+   ./Demo12          # built-in test tone (press 1 to turn it on)
 
-Demos hard-code paths relative to ``build/bin/``, so they must be launched
-from that directory.
+The demos find their audio files through an absolute path compiled in at
+build time, so they can be started from any directory.
+
+**Linux and Android.** The demos are Windows-only and are not built there.
+Build and run the :doc:`hello_sound` program instead. The C++ call
+``YSE::System().AudioTest(true)`` plays the same test tone as ``Demo12`` on
+every platform.
 
 Next
 ----

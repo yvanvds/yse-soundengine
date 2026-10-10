@@ -54,6 +54,11 @@ YSE::DSP::ramp& YSE::DSP::ramp::stop() {
 
 YSE::DSP::ramp& YSE::DSP::ramp::update() {
   if (reTarget) {
+    // Re-derive the ms->tick factor from the live SAMPLERATE on every retarget
+    // (issue #637): ramps back long-lived channel/sound gain fades that survive
+    // a close()/init() cycle, and the rate can differ across sessions. Plain
+    // arithmetic, so it is audio-thread safe; retargets are control-rate.
+    _dspTickToMSEC = SAMPLERATE / (1000.0f * getLength());
     nTicks = (Int)(time * _dspTickToMSEC);
     if (!nTicks) nTicks = 1;
     ticksLeft = nTicks;
@@ -203,6 +208,11 @@ YSE::DSP::lint& YSE::DSP::lint::set(Flt target, Int time) {
   } else {
     Flt difference = target - currentValue;
     if (difference != 0) {
+      // Re-derive the ticks-per-second factor from the live SAMPLERATE on every
+      // set (issue #637): lint instances live inside long-lived objects (e.g.
+      // reverbDSP faders) that can survive a close()/init() cycle at another
+      // rate. Plain arithmetic; set() runs at control rate.
+      stepSecond = SAMPLERATE / static_cast<Flt>(STANDARD_BUFFERSIZE);
       step = difference / static_cast<Flt>(stepSecond * (time / 1000.0f));
       up = difference > 0;
       calculate = true;

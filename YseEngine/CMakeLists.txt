@@ -77,10 +77,17 @@ set(YSE_SRCS
   implementations/listenerImplementation.cpp
   implementations/logImplementation.cpp
   internal/abstractSoundFile.cpp
+  # Processor topology: render worker sizing and placement (issue #862).
+  internal/cpuTopology.cpp
   internal/customFileReader.cpp
   internal/global.cpp
   internal/lsfSoundfile.cpp
   internal/namedBus.cpp
+  # The real-time on-ramp to the engine log (issue #546): what `.print` pushes
+  # onto from a render thread and system::update() drains on the control one.
+  internal/rtLogQueue.cpp
+  # The task-graph render scheduler (issue #859).
+  internal/renderScheduler.cpp
   internal/reverbDSP.cpp
   internal/settings.cpp
   internal/thread.cpp
@@ -88,7 +95,6 @@ set(YSE_SRCS
   internal/time.cpp
   internal/underWaterEffect.cpp
   internal/virtualFinder.cpp
-  json/cJSON.cpp
   midi/midifile.cpp
   midi/midifileImplementation.cpp
   midi/midifileManager.cpp
@@ -108,34 +114,192 @@ set(YSE_SRCS
   patcher/generatorObjects/dNoise.cpp
   patcher/generatorObjects/dSaw.cpp
   patcher/generatorObjects/pSine.cpp
+  patcher/genericObjects/gAffix.cpp
+  patcher/genericObjects/gBag.cpp
+  patcher/genericObjects/gBangBang.cpp
+  patcher/genericObjects/gBondo.cpp
+  patcher/genericObjects/gBucket.cpp
+  patcher/genericObjects/gBuddy.cpp
+  patcher/genericObjects/gCapture.cpp
+  patcher/genericObjects/gCase.cpp
+  patcher/genericObjects/gCharCode.cpp
+  patcher/genericObjects/gColl.cpp
+  patcher/genericObjects/gArray.cpp
+  patcher/genericObjects/gArrayAt.cpp
+  patcher/genericObjects/gArrayLength.cpp
+  patcher/genericObjects/gArrayEnds.cpp
+  patcher/genericObjects/gArrayPosition.cpp
+  patcher/genericObjects/gArrayFind.cpp
+  patcher/genericObjects/gArrayIndexMap.cpp
+  patcher/genericObjects/gArrayPermute.cpp
+  patcher/genericObjects/gArraySort.cpp
+  patcher/genericObjects/gArrayStats.cpp
+  patcher/genericObjects/gArraySlice.cpp
+  patcher/genericObjects/gArraySetOps.cpp
+  patcher/genericObjects/gArrayConcat.cpp
+  patcher/genericObjects/gArrayFill.cpp
+  patcher/genericObjects/gArrayFlatten.cpp
+  patcher/genericObjects/gArrayConvert.cpp
+  patcher/genericObjects/arrayParser.cpp
+  patcher/genericObjects/gArrayDeserialize.cpp
+  patcher/genericObjects/gArrayIter.cpp
+  patcher/genericObjects/gArrayGroup.cpp
+  patcher/genericObjects/gArrayReplace.cpp
+  patcher/genericObjects/gArrayRegexp.cpp
+  patcher/genericObjects/gArrayRoutepass.cpp
+  patcher/genericObjects/gArrayRandom.cpp
+  patcher/genericObjects/gArrayStream.cpp
+  patcher/genericObjects/gArrayThin.cpp
+  patcher/genericObjects/gArrayTuplewise.cpp
+  patcher/genericObjects/gArrayWrap.cpp
+  patcher/genericObjects/gArrayExpr.cpp
+  patcher/genericObjects/gArrayCompare.cpp
+  patcher/genericObjects/gCombine.cpp
+  patcher/genericObjects/gCycle.cpp
+  patcher/genericObjects/gDecode.cpp
+  patcher/genericObjects/dictParser.cpp
+  patcher/genericObjects/gDict.cpp
+  patcher/genericObjects/gDictCompare.cpp
+  patcher/genericObjects/gDictDeserialize.cpp
+  patcher/genericObjects/gDictGroup.cpp
+  patcher/genericObjects/gDictIter.cpp
+  patcher/genericObjects/gDictJoin.cpp
+  patcher/genericObjects/gDictPack.cpp
+  patcher/genericObjects/gDictPrint.cpp
+  patcher/genericObjects/gDictRoute.cpp
+  patcher/genericObjects/gDictSerialize.cpp
+  patcher/genericObjects/gDictSlice.cpp
+  patcher/genericObjects/gDictStrip.cpp
+  patcher/genericObjects/gDictUnpack.cpp
+  patcher/genericObjects/gForward.cpp
+  patcher/genericObjects/gFunbuff.cpp
+  patcher/genericObjects/gFunnel.cpp
   patcher/genericObjects/gGate.cpp
+  patcher/genericObjects/gIf.cpp
+  # Subpatchers (issue #545): the `patcher` façade and its `.inlet` / `.outlet`
+  # boundary. The façade has no pins and no Calculate; the boundary objects are
+  # pass-throughs. Everything that makes nesting work — resolving a façade pin
+  # to a boundary object, the containment subtree, the serialised container id —
+  # lives in patcherImplementation, and none of it is on the audio thread.
+  # `~inlet` / `~outlet` (issue #764) are the audio-rate half of that boundary:
+  # the same pass-through forwarding a buffer *pointer*, so a signal crossing a
+  # subpatcher costs one Calculate and one send and copies nothing.
+  patcher/genericObjects/dInlet.cpp
+  patcher/genericObjects/dOutlet.cpp
+  patcher/genericObjects/gInlet.cpp
+  # `.loadbang` / `.loadmess` (issue #547): one inlet and one outlet each, no
+  # device and no state beyond the stored message. The lifecycle hook they hang
+  # off lives in patcherImplementation.
+  patcher/genericObjects/gLoadbang.cpp
+  patcher/genericObjects/gLoadmess.cpp
+  patcher/genericObjects/gMatch.cpp
+  patcher/genericObjects/gMatrix.cpp
+  patcher/genericObjects/gMtr.cpp
+  patcher/genericObjects/gNext.cpp
+  patcher/genericObjects/gOneBang.cpp
+  patcher/genericObjects/gOutlet.cpp
+  patcher/genericObjects/gPrint.cpp
+  patcher/genericObjects/gQlist.cpp
   patcher/genericObjects/gReceive.cpp
+  patcher/genericObjects/gRegexEngine.cpp
+  patcher/genericObjects/gRegexp.cpp
   patcher/genericObjects/gRoute.cpp
+  patcher/genericObjects/gRoutePass.cpp
+  patcher/genericObjects/gRouter.cpp
+  patcher/genericObjects/gSel.cpp
   patcher/genericObjects/gSend.cpp
+  patcher/genericObjects/gSeq.cpp
+  patcher/genericObjects/gSpell.cpp
+  patcher/genericObjects/gSpray.cpp
+  patcher/genericObjects/gSprintf.cpp
+  patcher/genericObjects/gSubpatcher.cpp
+  patcher/genericObjects/gSubstitute.cpp
   patcher/genericObjects/gSwitch.cpp
+  patcher/genericObjects/gSymbol.cpp
+  patcher/genericObjects/gTable.cpp
+  patcher/genericObjects/gTextfile.cpp
+  patcher/genericObjects/gTrigger.cpp
+  patcher/genericObjects/gUzi.cpp
+  patcher/genericObjects/gValue.cpp
+  patcher/genericObjects/gPack.cpp
+  patcher/genericObjects/gUnpack.cpp
+  patcher/genericObjects/gZl.cpp
+  patcher/genericObjects/gJoin.cpp
+  patcher/genericObjects/gUnjoin.cpp
+  patcher/genericObjects/gIter.cpp
+  patcher/genericObjects/gListFunnel.cpp
   patcher/genericObjects/pAdc.cpp
   patcher/genericObjects/pDac.cpp
   patcher/genericObjects/pLine.cpp
   patcher/guiObjects/gButton.cpp
+  patcher/guiObjects/gDial.cpp
   patcher/guiObjects/gFloat.cpp
+  patcher/guiObjects/gFunction.cpp
+  patcher/guiObjects/gIncDec.cpp
   patcher/guiObjects/gInt.cpp
+  patcher/guiObjects/gItemList.cpp
+  patcher/guiObjects/gKSlider.cpp
+  patcher/guiObjects/gLabelSwitch.cpp
   patcher/guiObjects/gList.cpp
+  patcher/guiObjects/gMatrixCtrl.cpp
   patcher/guiObjects/gMessage.cpp
+  patcher/guiObjects/gMultiSlider.cpp
+  patcher/guiObjects/gNSlider.cpp
+  patcher/guiObjects/gNodes.cpp
+  patcher/guiObjects/gPreset.cpp
+  patcher/guiObjects/gRSlider.cpp
   patcher/guiObjects/gSlider.cpp
   patcher/guiObjects/gText.cpp
+  patcher/guiObjects/gTextEdit.cpp
   patcher/guiObjects/gToggle.cpp
+  patcher/guiObjects/gXYSlider.cpp
   patcher/inlet.cpp
   patcher/math/dAdd.cpp
   patcher/math/dClip.cpp
   patcher/math/dDivide.cpp
   patcher/math/dMultiply.cpp
   patcher/math/dSubstract.cpp
+  patcher/math/gAccum.cpp
   patcher/math/gAdd.cpp
+  patcher/math/gAnal.cpp
+  patcher/math/gAtan2.cpp
+  patcher/math/gBitwise.cpp
+  patcher/math/gChange.cpp
+  patcher/math/gTogEdge.cpp
+  patcher/math/gClip.cpp
+  patcher/math/gCompare.cpp
   patcher/math/gCounter.cpp
+  patcher/math/gDbConvert.cpp
+  patcher/math/gDecide.cpp
   patcher/math/gDivide.cpp
+  patcher/math/gDrunk.cpp
+  patcher/math/gExpr.cpp
+  patcher/math/gExprEval.cpp
+  patcher/math/gExtremum.cpp
+  patcher/math/gHisto.cpp
+  patcher/math/gIntDiv.cpp
+  patcher/math/gLinedrive.cpp
+  patcher/math/gMean.cpp
   patcher/math/gMultiply.cpp
+  patcher/math/gPast.cpp
+  patcher/math/gPolar.cpp
+  patcher/math/gPong.cpp
+  patcher/math/gProb.cpp
+  patcher/math/gPow.cpp
   patcher/math/gRandom.cpp
+  patcher/math/gReverse.cpp
+  patcher/math/gRound.cpp
+  patcher/math/gRunningExtremum.cpp
+  patcher/math/gScale.cpp
+  patcher/math/gSlide.cpp
+  patcher/math/gSplit.cpp
   patcher/math/gSubstract.cpp
+  patcher/math/gSwap.cpp
+  patcher/math/gTrig.cpp
+  patcher/math/gUnaryMath.cpp
+  patcher/math/gUrn.cpp
+  patcher/math/gVexpr.cpp
+  patcher/math/gZmap.cpp
   patcher/math/pFrequencyToMidi.cpp
   patcher/math/pMidiToFrequency.cpp
   patcher/outlet.cpp
@@ -145,8 +309,25 @@ set(YSE_SRCS
   patcher/pHandle.cpp
   patcher/pObject.cpp
   patcher/pRegistry.cpp
+  patcher/io/fileScheduler.cpp
+  patcher/time/clockBridge.cpp
+  patcher/time/gClocker.cpp
+  patcher/time/gDelay.cpp
+  patcher/time/gLine.cpp
   patcher/time/gMetro.cpp
+  patcher/time/gPipe.cpp
+  patcher/time/gRateLimit.cpp
+  patcher/time/gTempo.cpp
+  patcher/time/gThresh.cpp
+  patcher/time/gTimepoint.cpp
+  patcher/time/gTimer.cpp
+  patcher/time/gSetClock.cpp
+  patcher/time/gTranslate.cpp
+  patcher/time/gTransport.cpp
+  patcher/time/gWhen.cpp
+  patcher/time/messageScheduler.cpp
   patcher/time/TimerThread.cpp
+  patcher/time/timerBridge.cpp
   player/playerImplementation.cpp
   player/playerInterface.cpp
   player/playerManager.cpp
@@ -168,17 +349,64 @@ set(YSE_SRCS
   utils/interpolators.cpp
   utils/vector.cpp
   # AudioTest.cpp was commented out in the original CMakeLists.txt but
-  # system.cpp calls YSE::INTERNAL::Test() (inside #ifdef __WINDOWS__), so
-  # the DLL fails to link without it.
+  # system.cpp calls YSE::INTERNAL::Test() unconditionally on every platform
+  # (issue #570), so the DLL fails to link without it.
   internal/AudioTest.cpp
-  # patcher/midi objects are registered unconditionally in pRegistry.cpp.
+  # The patcher MIDI senders. Registered unconditionally in pRegistry.cpp and,
+  # since issue #746, compiled unconditionally too: they format bytes onto a
+  # list outlet and open no device, so none of them carries a platform guard.
+  patcher/midi/mMidiBendOut.cpp
   patcher/midi/mMidiChannelPressure.cpp
+  # The MIDI codec pair (issue #530) opens no device, so unlike mMidiIn.cpp it
+  # belongs in the unconditional list.
+  patcher/midi/mMidiCodec.cpp
+  # `.midiflush` (issue #537) is unconditional for the same reason: it reads
+  # bytes off an inlet and writes bytes to an outlet, and opens no device.
+  patcher/midi/mMidiFlush.cpp
+  # `.makenote` (issue #538) is unconditional too: it emits ints on two outlets
+  # and opens no device.
+  patcher/midi/mMakeNote.cpp
+  # `.stripnote` (issue #539) is unconditional for the same reason: two int
+  # inlets, two int outlets, no device.
+  patcher/midi/mStripNote.cpp
+  # `.flush` (issue #540) is unconditional for the same reason once more: it
+  # reads a pitch and a velocity off two inlets and writes them to two outlets,
+  # and opens no device.
+  patcher/midi/mFlush.cpp
+  # `.sustain` (issue #541) is unconditional once more: three int inlets, two int
+  # outlets, no device.
+  patcher/midi/mSustain.cpp
+  # `.poly` (issue #542) is unconditional once more: two int inlets, three int
+  # outlets and a list outlet, no device.
+  patcher/midi/mPoly.cpp
+  # `.borax` (issue #543) is unconditional once more: three inlets, seven int
+  # outlets and two float ones, no device.
+  patcher/midi/mBorax.cpp
+  # `.offer` (issue #544) is unconditional once more: two int inlets, one int
+  # outlet, no device.
+  patcher/midi/mOffer.cpp
   patcher/midi/mMidiControl.cpp
+  # The system-exclusive pair (issue #531). Unconditional like the codec above:
+  # `.sxformat` opens no device, and the `.sysexin` half of the file carries its
+  # own `#if YSE_ENABLE_MIDI_DEVICE`.
+  patcher/midi/mSysEx.cpp
   patcher/midi/mMidiNoteOff.cpp
   patcher/midi/mMidiNoteOn.cpp
+  # mMidiOut is the one sender that holds a device port. It stays in the
+  # unconditional list because the TU carries its own `#if YSE_ENABLE_MIDI_DEVICE`
+  # and compiles to an empty object file where the backend is off.
   patcher/midi/mMidiOut.cpp
   patcher/midi/mMidiPolyPressure.cpp
   patcher/midi/mMidiProgramChange.cpp
+  # The extended-precision senders (issue #533), unguarded like the rest.
+  patcher/midi/mMidiXOut.cpp
+  # The parameter-number senders (issue #534), likewise: they format control
+  # changes onto a list outlet and open no device.
+  patcher/midi/mMidiRpnOut.cpp
+  # The MPE family (issue #535). Unconditional for the same reason the codec
+  # pair is: two of the three format bytes onto a list outlet and the third
+  # decodes bytes off an inlet, so none of them touches a backend.
+  patcher/midi/mMpe.cpp
   # midiNote is a plain data class with no platform dependencies.
   midi/midiNote.cpp
 )
@@ -193,6 +421,26 @@ if(YSE_ENABLE_MIDI_DEVICE)
     midi/device.cpp
     # Clip-transport external MIDI-out sender thread (issue #350).
     midi/midiOutSender.cpp
+    # Patcher MIDI-input fan-out: RtMidi thread -> per-object lock-free queue
+    # (issue #529). Both this and the patcher objects that drain it need the
+    # device backend, so unlike the mMidi* senders they are added here rather
+    # than unconditionally.
+    midi/midiInHub.cpp
+    patcher/midi/mMidiIn.cpp
+    # The extended-precision input objects (issue #533) are built on that
+    # family and need the same backend.
+    patcher/midi/mMidiXIn.cpp
+    # The parameter-number input objects (issue #534) are built on it too.
+    patcher/midi/mMidiRpnIn.cpp
+    # `.midiinfo` (issue #536) opens no port but enumerates them, which is the
+    # same backend and so the same gate. Its background rescan (issue #757)
+    # lives beside it and is the only other caller of the enumeration.
+    patcher/midi/mMidiInfo.cpp
+    patcher/midi/midiPortScanner.cpp
+    # `.midiout`'s deferred port open (issue #759) lives beside them: it is the
+    # only other caller of the device backend from a patcher message handler,
+    # and like the scanner it exists to keep that call off the calling thread.
+    patcher/midi/midiPortOpener.cpp
   )
 endif()
 
@@ -207,11 +455,6 @@ if(YSE_ENABLE_PYTHON)
 endif()
 
 # ── Source-file-scoped warning suppressions ───────────────────────────────────
-# cJSON is a vendored C file; suppress all its warnings rather than patching it.
-set_source_files_properties(json/cJSON.cpp
-  PROPERTIES COMPILE_FLAGS "-w"
-)
-
 # The dsp/fm/msfa/ files are ported verbatim from music-synthesizer-for-android
 # (Apache-2.0, see NOTICE). They are treated like vendored third-party code:
 # suppress compiler warnings rather than patching upstream style, and they are
@@ -255,43 +498,225 @@ set_source_files_properties(
   patcher/generatorObjects/dNoise.cpp
   patcher/generatorObjects/dSaw.cpp
   patcher/generatorObjects/pSine.cpp
+  patcher/genericObjects/gAffix.cpp
+  patcher/genericObjects/gBag.cpp
+  patcher/genericObjects/gBangBang.cpp
+  patcher/genericObjects/gBondo.cpp
+  patcher/genericObjects/gBucket.cpp
+  patcher/genericObjects/gBuddy.cpp
+  patcher/genericObjects/gCapture.cpp
+  patcher/genericObjects/gCase.cpp
+  patcher/genericObjects/gCharCode.cpp
+  patcher/genericObjects/gColl.cpp
+  patcher/genericObjects/gArray.cpp
+  patcher/genericObjects/gArrayAt.cpp
+  patcher/genericObjects/gArrayLength.cpp
+  patcher/genericObjects/gArrayEnds.cpp
+  patcher/genericObjects/gArrayPosition.cpp
+  patcher/genericObjects/gArrayFind.cpp
+  patcher/genericObjects/gArrayIndexMap.cpp
+  patcher/genericObjects/gArrayPermute.cpp
+  patcher/genericObjects/gArraySort.cpp
+  patcher/genericObjects/gArrayStats.cpp
+  patcher/genericObjects/gArraySlice.cpp
+  patcher/genericObjects/gArraySetOps.cpp
+  patcher/genericObjects/gArrayConcat.cpp
+  patcher/genericObjects/gArrayFill.cpp
+  patcher/genericObjects/gArrayFlatten.cpp
+  patcher/genericObjects/gArrayConvert.cpp
+  patcher/genericObjects/arrayParser.cpp
+  patcher/genericObjects/gArrayDeserialize.cpp
+  patcher/genericObjects/gArrayIter.cpp
+  patcher/genericObjects/gArrayGroup.cpp
+  patcher/genericObjects/gArrayReplace.cpp
+  patcher/genericObjects/gArrayRegexp.cpp
+  patcher/genericObjects/gArrayRoutepass.cpp
+  patcher/genericObjects/gArrayRandom.cpp
+  patcher/genericObjects/gArrayStream.cpp
+  patcher/genericObjects/gArrayThin.cpp
+  patcher/genericObjects/gArrayTuplewise.cpp
+  patcher/genericObjects/gArrayWrap.cpp
+  patcher/genericObjects/gArrayExpr.cpp
+  patcher/genericObjects/gArrayCompare.cpp
+  patcher/genericObjects/gCombine.cpp
+  patcher/genericObjects/gCycle.cpp
+  patcher/genericObjects/gDecode.cpp
+  patcher/genericObjects/dictParser.cpp
+  patcher/genericObjects/gDict.cpp
+  patcher/genericObjects/gDictCompare.cpp
+  patcher/genericObjects/gDictDeserialize.cpp
+  patcher/genericObjects/gDictGroup.cpp
+  patcher/genericObjects/gDictIter.cpp
+  patcher/genericObjects/gDictJoin.cpp
+  patcher/genericObjects/gDictPack.cpp
+  patcher/genericObjects/gDictPrint.cpp
+  patcher/genericObjects/gDictRoute.cpp
+  patcher/genericObjects/gDictSerialize.cpp
+  patcher/genericObjects/gDictSlice.cpp
+  patcher/genericObjects/gDictStrip.cpp
+  patcher/genericObjects/gDictUnpack.cpp
+  patcher/genericObjects/gForward.cpp
+  patcher/genericObjects/gFunbuff.cpp
+  patcher/genericObjects/gFunnel.cpp
   patcher/genericObjects/gGate.cpp
+  patcher/genericObjects/gIf.cpp
+  patcher/genericObjects/dInlet.cpp
+  patcher/genericObjects/dOutlet.cpp
+  patcher/genericObjects/gInlet.cpp
+  patcher/genericObjects/gLoadbang.cpp
+  patcher/genericObjects/gLoadmess.cpp
+  patcher/genericObjects/gMatch.cpp
+  patcher/genericObjects/gMatrix.cpp
+  patcher/genericObjects/gMtr.cpp
+  patcher/genericObjects/gNext.cpp
+  patcher/genericObjects/gOneBang.cpp
+  patcher/genericObjects/gOutlet.cpp
+  patcher/genericObjects/gPrint.cpp
+  patcher/genericObjects/gQlist.cpp
   patcher/genericObjects/gReceive.cpp
+  patcher/genericObjects/gRegexp.cpp
   patcher/genericObjects/gRoute.cpp
+  patcher/genericObjects/gRoutePass.cpp
+  patcher/genericObjects/gRouter.cpp
+  patcher/genericObjects/gSel.cpp
   patcher/genericObjects/gSend.cpp
+  patcher/genericObjects/gSeq.cpp
+  patcher/genericObjects/gSpell.cpp
+  patcher/genericObjects/gSpray.cpp
+  patcher/genericObjects/gSprintf.cpp
+  patcher/genericObjects/gSubpatcher.cpp
+  patcher/genericObjects/gSubstitute.cpp
   patcher/genericObjects/gSwitch.cpp
+  patcher/genericObjects/gSymbol.cpp
+  patcher/genericObjects/gTable.cpp
+  patcher/genericObjects/gTextfile.cpp
+  patcher/genericObjects/gTrigger.cpp
+  patcher/genericObjects/gUzi.cpp
+  patcher/genericObjects/gValue.cpp
+  patcher/genericObjects/gPack.cpp
+  patcher/genericObjects/gUnpack.cpp
+  patcher/genericObjects/gZl.cpp
+  patcher/genericObjects/gJoin.cpp
+  patcher/genericObjects/gUnjoin.cpp
+  patcher/genericObjects/gIter.cpp
+  patcher/genericObjects/gListFunnel.cpp
   patcher/genericObjects/pAdc.cpp
   patcher/genericObjects/pDac.cpp
   patcher/genericObjects/pLine.cpp
   patcher/guiObjects/gButton.cpp
+  patcher/guiObjects/gDial.cpp
   patcher/guiObjects/gFloat.cpp
+  patcher/guiObjects/gFunction.cpp
+  patcher/guiObjects/gIncDec.cpp
   patcher/guiObjects/gInt.cpp
+  patcher/guiObjects/gItemList.cpp
+  patcher/guiObjects/gKSlider.cpp
+  patcher/guiObjects/gLabelSwitch.cpp
   patcher/guiObjects/gList.cpp
+  patcher/guiObjects/gMatrixCtrl.cpp
   patcher/guiObjects/gMessage.cpp
+  patcher/guiObjects/gMultiSlider.cpp
+  patcher/guiObjects/gNSlider.cpp
+  patcher/guiObjects/gNodes.cpp
+  patcher/guiObjects/gPreset.cpp
+  patcher/guiObjects/gRSlider.cpp
   patcher/guiObjects/gSlider.cpp
   patcher/guiObjects/gText.cpp
+  patcher/guiObjects/gTextEdit.cpp
   patcher/guiObjects/gToggle.cpp
+  patcher/guiObjects/gXYSlider.cpp
   patcher/math/dAdd.cpp
   patcher/math/dClip.cpp
   patcher/math/dDivide.cpp
   patcher/math/dMultiply.cpp
   patcher/math/dSubstract.cpp
+  patcher/math/gAccum.cpp
   patcher/math/gAdd.cpp
+  patcher/math/gAnal.cpp
+  patcher/math/gAtan2.cpp
+  patcher/math/gBitwise.cpp
+  patcher/math/gChange.cpp
+  patcher/math/gTogEdge.cpp
+  patcher/math/gClip.cpp
+  patcher/math/gCompare.cpp
   patcher/math/gCounter.cpp
+  patcher/math/gDbConvert.cpp
+  patcher/math/gDecide.cpp
   patcher/math/gDivide.cpp
+  patcher/math/gDrunk.cpp
+  patcher/math/gExpr.cpp
+  patcher/math/gExtremum.cpp
+  patcher/math/gHisto.cpp
+  patcher/math/gIntDiv.cpp
+  patcher/math/gLinedrive.cpp
+  patcher/math/gMean.cpp
   patcher/math/gMultiply.cpp
+  patcher/math/gPast.cpp
+  patcher/math/gPolar.cpp
+  patcher/math/gPong.cpp
+  patcher/math/gProb.cpp
+  patcher/math/gPow.cpp
   patcher/math/gRandom.cpp
+  patcher/math/gReverse.cpp
+  patcher/math/gRound.cpp
+  patcher/math/gRunningExtremum.cpp
+  patcher/math/gScale.cpp
+  patcher/math/gSlide.cpp
+  patcher/math/gSplit.cpp
   patcher/math/gSubstract.cpp
+  patcher/math/gSwap.cpp
+  patcher/math/gTrig.cpp
+  patcher/math/gUnaryMath.cpp
+  patcher/math/gUrn.cpp
+  patcher/math/gVexpr.cpp
+  patcher/math/gZmap.cpp
   patcher/math/pFrequencyToMidi.cpp
   patcher/math/pMidiToFrequency.cpp
+  patcher/midi/mBorax.cpp
+  patcher/midi/mFlush.cpp
+  patcher/midi/mMakeNote.cpp
+  patcher/midi/mMidiBendOut.cpp
   patcher/midi/mMidiChannelPressure.cpp
+  patcher/midi/mMidiCodec.cpp
   patcher/midi/mMidiControl.cpp
+  patcher/midi/mMidiFlush.cpp
+  patcher/midi/mMidiIn.cpp
+  patcher/midi/mMidiInfo.cpp
   patcher/midi/mMidiNoteOff.cpp
   patcher/midi/mMidiNoteOn.cpp
   patcher/midi/mMidiOut.cpp
   patcher/midi/mMidiPolyPressure.cpp
   patcher/midi/mMidiProgramChange.cpp
+  patcher/midi/mMidiRpnIn.cpp
+  patcher/midi/mMidiRpnOut.cpp
+  patcher/midi/mMidiXIn.cpp
+  patcher/midi/mMidiXOut.cpp
+  patcher/midi/mMpe.cpp
+  patcher/midi/mOffer.cpp
+  patcher/midi/mPoly.cpp
+  patcher/midi/mStripNote.cpp
+  patcher/midi/mSustain.cpp
+  patcher/midi/mSysEx.cpp
+  patcher/midi/midiPortOpener.cpp
+  patcher/midi/midiPortScanner.cpp
+  patcher/io/fileScheduler.cpp
+  patcher/time/clockBridge.cpp
+  patcher/time/gClocker.cpp
+  patcher/time/gDelay.cpp
+  patcher/time/gLine.cpp
   patcher/time/gMetro.cpp
+  patcher/time/gPipe.cpp
+  patcher/time/gRateLimit.cpp
+  patcher/time/gTempo.cpp
+  patcher/time/gThresh.cpp
+  patcher/time/gTimepoint.cpp
+  patcher/time/gTimer.cpp
+  patcher/time/gSetClock.cpp
+  patcher/time/gTranslate.cpp
+  patcher/time/gTransport.cpp
+  patcher/time/gWhen.cpp
+  patcher/time/messageScheduler.cpp
+  patcher/time/timerBridge.cpp
   PROPERTIES COMPILE_FLAGS "${PATCHER_SUPPRESS}"
 )
 
@@ -432,7 +857,9 @@ else()
 endif()
 
 if(WIN32)
-  target_link_libraries(yse_objects PUBLIC winmm)
+  # synchronization: WaitOnAddress / WakeByAddress* for render-worker
+  # park/wake (issue #858).
+  target_link_libraries(yse_objects PUBLIC winmm synchronization)
 endif()
 
 # ── C ABI bridge ──────────────────────────────────────────────────────────────

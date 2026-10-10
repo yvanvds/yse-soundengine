@@ -1,5 +1,6 @@
 #pragma once
 #include "../dsp/buffer.hpp"
+#include <cstdint>
 #include <functional>
 #include <string>
 #include <vector>
@@ -11,6 +12,65 @@ namespace YSE {
 
     class pObject;
     struct outlet;
+
+    /**
+     *  @brief Identity of the logical message event being dispatched right now
+     *         on the calling thread — Max's "event", for ``.next`` (issue
+     *         #471).
+     *
+     *  Max groups messages into *events*: one mouse click, one key press, one
+     *  MIDI event, one tick of the scheduler. Everything a single stimulus
+     *  causes — however many boxes it passes through, and however many messages
+     *  those boxes emit — belongs to that one event. That is why Max's
+     *  reference calls ``bang, bang`` from a message box, or two bangs from
+     *  ``uzi``, "part of the same logical event", while two separate clicks on
+     *  the same bang box are not.
+     *
+     *  This patcher has no scheduler and no logical clock, but it has the same
+     *  *shape*: message delivery is synchronous and depth-first, so every
+     *  message one stimulus causes is dispatched inside the call frame of the
+     *  dispatch that started it. Counting that nesting recovers Max's grouping
+     *  exactly — the outermost inlet dispatch on a thread opens an event, every
+     *  dispatch nested inside it shares that event, and the next outermost
+     *  dispatch opens a new one. So a ``.metro`` tick is one event, a
+     *  ``.trigger``'s whole right-to-left fan-out is one event, and two calls
+     *  from a host are two events.
+     *
+     *  Ids are unique across threads and never reused, so two unrelated events
+     *  can never compare equal. **0 is never a live event**: it is what the
+     *  function returns when no dispatch is in progress at all, which happens
+     *  only when an object's message handler is called directly rather than
+     *  through its inlet. A reader must treat 0 as "no event", not as an event
+     *  that other messages could belong to.
+     *
+     *  RT-safe on every path — see the definition in inlet.cpp for the full
+     *  argument. Reading it is a single thread-local load.
+     */
+    std::uint64_t CurrentMessageEvent();
+
+    /**
+     *  @brief RAII dispatch frame for a delivery that does not enter through an
+     *         ``inlet::Set*`` call — the deferred-message scheduler's drain
+     *         (issue #628).
+     *
+     *  The outermost scope opened on a thread starts a new logical event;
+     *  nested scopes share it. This is exactly the frame the inlet setters open
+     *  around their handlers, exported so the scheduler can hand a deferred
+     *  delivery a proper event id: without it, each message a deferred send
+     *  causes would open its *own* event at the first inlet it reaches, and a
+     *  multi-outlet release (``.bondo``) would read as several unrelated
+     *  stimuli to a downstream ``.next``.
+     *
+     *  RT-safe on every path — the same thread-local counter argument as
+     *  CurrentMessageEvent() above; see inlet.cpp.
+     */
+    class messageEventScope {
+    public:
+      messageEventScope();
+      ~messageEventScope();
+      messageEventScope(const messageEventScope&) = delete;
+      messageEventScope& operator=(const messageEventScope&) = delete;
+    };
 
     typedef std::function<void(float, int, THREAD)> floatFunc;
     typedef std::function<void(int, int, THREAD)> intFunc;

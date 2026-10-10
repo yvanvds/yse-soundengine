@@ -50,5 +50,5 @@ void pAdc::build(int chans) {
   ADD_DESCRIPTION("Audio input into a patcher graph. When the patcher runs as a channel or sound "
                   "insert, each outlet carries one channel of the host's incoming audio, so the "
                   "graph can process external audio rather than only generating it.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::IO);
 }

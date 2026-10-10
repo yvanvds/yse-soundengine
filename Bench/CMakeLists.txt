@@ -18,6 +18,7 @@ add_executable(yse_benchmarks
   internal/bench_mpmcqueue.cpp
   patcher/bench_patcher.cpp
   integration/bench_mixing.cpp
+  integration/bench_render_heavy.cpp
   integration/bench_synth_effects.cpp
   integration/bench_yse_dsl.cpp
 )

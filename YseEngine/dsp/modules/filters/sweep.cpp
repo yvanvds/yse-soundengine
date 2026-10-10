@@ -65,6 +65,8 @@ void YSE::DSP::MODULES::sweepFilter::create() {
   case SQUARE:
     table->createSquare(8, SAMPLERATE);
     break;
+  case SHAPE_COUNT_:
+    break; // sentinel, not a shape
   }
 
   osc.reset(new oscillator);

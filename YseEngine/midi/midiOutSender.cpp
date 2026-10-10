@@ -15,6 +15,7 @@
 #include <cmath>
 
 #include "RtMidi.h"
+#include "implementations/logImplementation.h"
 #include "midiDeviceManager.h"
 
 namespace {
@@ -78,7 +79,22 @@ YSE::MIDI::outSender& YSE::MIDI::OutSender() {
 }
 
 YSE::MIDI::outSender::~outSender() {
-  stop();
+  // A destructor is implicitly noexcept, so anything escaping stop() would call
+  // std::terminate() and take the host process down instead of shutting the
+  // engine down (issue #414). stop() joins the worker and then drains the queue,
+  // and the drain still touches RtMidi — neither is nothrow.
+  try {
+    stop();
+  } catch (...) {
+    // PR #432 had to leave this handler silent where the sibling manager
+    // destructors logged: this one is reached through the function-local static
+    // in OutSender() and runs during static destruction, when LogImpl() — an
+    // equally function-local static with unspecified relative order — may
+    // already be gone. EmitNoThrow() carries its own lifetime guard for exactly
+    // that case (issue #433), so the report is safe to make now and the two
+    // answers this codebase had for "how does a destructor log" become one.
+    INTERNAL::EmitNoThrow(E_ERROR, "MIDI::outSender destructor swallowed exception");
+  }
 }
 
 void YSE::MIDI::outSender::start() {
@@ -88,19 +104,44 @@ void YSE::MIDI::outSender::start() {
 
 void YSE::MIDI::outSender::stop() {
   running.store(false, std::memory_order_release);
-  if (worker.joinable()) worker.join();
+  // Never join the worker from the worker itself — that is the one join() error
+  // a caller can actually provoke (std::system_error /
+  // resource_deadlock_would_occur), reachable through the send hook, which runs
+  // on this thread. Skipping it here leaves `worker` joinable for the eventual
+  // control-thread stop() to join properly (issue #414).
+  if (worker.joinable() && worker.get_id() != std::this_thread::get_id()) worker.join();
   // The worker is joined (or was never started), so this thread is now the
   // queue's only consumer. Flush what is still pending immediately — a stopping
   // clip's releaseAll note-offs must reach the hardware even at shutdown.
+  drainImmediate();
   outEvent e;
   while (queue.try_pop(e))
     send(e);
+}
+
+bool YSE::MIDI::outSender::tryEnqueueNow(RtMidiOut* port, const unsigned char* data,
+                                         std::size_t length) {
+  if (port == nullptr || data == nullptr || length == 0 || length > kRawEventMax) return false;
+  rawEvent e;
+  e.port = port;
+  e.len = static_cast<std::uint16_t>(length);
+  std::copy(data, data + length, e.bytes);
+  return immediate.try_push(e);
+}
+
+void YSE::MIDI::outSender::drainImmediate() {
+  rawEvent e;
+  while (immediate.try_pop(e))
+    sendRaw(e);
 }
 
 void YSE::MIDI::outSender::run() {
   // System::init raises the Windows timer resolution to 1 ms (timeBeginPeriod)
   // for the whole process, so the sleeps below wake with ~1 ms granularity.
   while (running.load(std::memory_order_acquire)) {
+    // The immediate lane first: it has no deadline, and every sleep below is
+    // capped at 1 ms, so a patcher message waits at most about that long.
+    drainImmediate();
     outEvent* next = queue.peek();
     if (next == nullptr) {
       std::this_thread::sleep_for(std::chrono::milliseconds(1));
@@ -122,6 +163,19 @@ void YSE::MIDI::outSender::run() {
 void YSE::MIDI::outSender::send(const outEvent& e) {
   if (SendHook h = hook.load(std::memory_order_acquire)) {
     h(e, hookUser.load(std::memory_order_acquire));
+    return;
+  }
+  if (e.port == nullptr || e.len == 0) return;
+  try {
+    e.port->sendMessage(e.bytes, e.len);
+  } catch (RtMidiError& error) {
+    GenerateMidiError(error);
+  }
+}
+
+void YSE::MIDI::outSender::sendRaw(const rawEvent& e) {
+  if (RawSendHook h = rawHook.load(std::memory_order_acquire)) {
+    h(e, rawHookUser.load(std::memory_order_acquire));
     return;
   }
   if (e.port == nullptr || e.len == 0) return;

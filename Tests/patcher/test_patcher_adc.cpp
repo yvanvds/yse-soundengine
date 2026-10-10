@@ -157,7 +157,7 @@ TEST_SUITE("patcher") {
 
   // ─── patcherInsert: a filter graph measurably processes ───────────────────────
 
-  TEST_CASE("patcherInsert: ~adc -> ~lp -> ~dac attenuates a high tone") {
+  TEST_CASE("patcherInsert: ~adc -> ~lp -> ~dac attenuates a high tone and passes a low one") {
     YSE::patcher p;
     p.create(1);
     YSE::pHandle* adc = p.CreateObject(YSE::OBJ::D_ADC);
@@ -190,6 +190,25 @@ TEST_SUITE("patcher") {
     const float wetRms = measureRms(io[0]);
     CHECK(wetRms < dryRms * 0.5f); // clearly attenuated
     CHECK_FALSE(exactlyEqual(io[0], dry)); // signal was modified
+
+    // Attenuation on its own is also what an insert delivering *silence* would
+    // produce — silence passes any "quieter than dry" check, which is the way a
+    // test like this fails to fail. Any regression that breaks the ~adc
+    // injection, the graph wiring or patcherInsert's writeback would read as
+    // green above. So the pass band is measured too: a 100 Hz tone through the
+    // same 200 Hz lowpass has to come back at close to its input level, which
+    // only a graph actually delivering audio can do (#768).
+    YSE::DSP::buffer lowDry(128);
+    fillSine(lowDry, 100.0f);
+    const float lowDryRms = measureRms(lowDry);
+    REQUIRE(lowDryRms > 0.0f);
+
+    for (int iter = 0; iter < 40; ++iter) {
+      fillSine(io[0], 100.0f);
+      insert.process(io);
+    }
+
+    CHECK(measureRms(io[0]) > lowDryRms * 0.5f);
   }
 
   // ─── patcherInsert: JSON round-trip of a graph containing ~adc ─────────────────
@@ -285,6 +304,56 @@ TEST_SUITE("patcher") {
 
     CHECK(exactlyEqual(io[0], dry0)); // passthrough graph replaced ch0 with itself
     CHECK(exactlyEqual(io[1], dry1)); // ch1 left unchanged (dry)
+  }
+
+  // ─── several ~dac objects are summed (issue #932) ─────────────────────────────
+
+  TEST_CASE("patcherInsert: several ~dac objects are summed, whatever their creation order") {
+    // Two ~dac objects fed from the host's two channels:
+    //   dacA: in0 -> ch0, in1 -> ch1
+    //   dacB: in1 -> ch0, ch1 left unconnected
+    // Summed, ch0 is in0 + in1 and ch1 is in1. The render used to assign each
+    // ~dac over the last and divide by the count, so ch0 came out as in1 / 2
+    // and ch1 as in1 / 2 (or 0, depending on which ~dac was created last).
+    for (int bFirst = 0; bFirst < 2; ++bFirst) {
+      CAPTURE(bFirst);
+      YSE::patcher p;
+      p.create(2);
+      YSE::pHandle* adc = p.CreateObject(YSE::OBJ::D_ADC);
+      YSE::pHandle* dacA = nullptr;
+      YSE::pHandle* dacB = nullptr;
+      if (bFirst != 0) {
+        dacB = p.CreateObject(YSE::OBJ::D_DAC);
+        dacA = p.CreateObject(YSE::OBJ::D_DAC);
+      } else {
+        dacA = p.CreateObject(YSE::OBJ::D_DAC);
+        dacB = p.CreateObject(YSE::OBJ::D_DAC);
+      }
+      REQUIRE(adc != nullptr);
+      REQUIRE(dacA != nullptr);
+      REQUIRE(dacB != nullptr);
+      p.Connect(adc, 0, dacA, 0);
+      p.Connect(adc, 1, dacA, 1);
+      p.Connect(adc, 1, dacB, 0);
+
+      YSE::DSP::patcherInsert insert(p);
+
+      MULTICHANNELBUFFER io;
+      io.resize(2);
+      io[0].resize(128);
+      io[1].resize(128);
+      fillPattern(io[0], 0.4f);
+      fillPattern(io[1], 2.3f);
+
+      YSE::DSP::buffer expected0(io[0]);
+      expected0 += io[1];
+      YSE::DSP::buffer expected1(io[1]);
+
+      insert.process(io);
+
+      CHECK(exactlyEqual(io[0], expected0));
+      CHECK(exactlyEqual(io[1], expected1));
+    }
   }
 
   TEST_CASE("patcherInsert: null / uncreated patcher process is a safe no-op") {

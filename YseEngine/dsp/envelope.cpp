@@ -19,7 +19,11 @@ bool YSE::DSP::envelope::create(YSE::DSP::buffer& source, Int windowSize) {
     return false;
   }
   Flt windowDuration = windowSize / 1000.0f;
-  Int window = (Int)windowDuration * SAMPLERATE;
+  // Cast the product, not windowDuration alone: (Int)windowDuration is 0 for
+  // any window under one second, which froze the loop below (issue #641).
+  Int window = (Int)(windowDuration * SAMPLERATE);
+  // Floor at one sample so a sub-sample window can never stall the loop.
+  if (window < 1) window = 1;
 
   Int pos = 0;
   Flt time = 0;

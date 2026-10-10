@@ -13,7 +13,9 @@ public:
 	void AudioOff();
 
 	void Reconnect();
-	void ReconnectIn20();
+	// autoReconnect's delay is milliseconds since issue #681 (it used to be a
+	// count of update() ticks), so the delayed variant asks for a real 2 s.
+	void ReconnectIn2Seconds();
 	void DontReconnect();
 
 private:

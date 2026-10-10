@@ -11,10 +11,11 @@
 #ifndef SOUNDMANAGER_H_INCLUDED
 #define SOUNDMANAGER_H_INCLUDED
 
+#include <cstddef>
 #include <forward_list>
 #include <mutex>
 #include <vector>
-#include <ctime>
+#include <chrono>
 #include "sound.hpp"
 #include "soundMessage.h"
 #include "soundInterface.hpp"
@@ -63,6 +64,29 @@ namespace YSE {
       INTERNAL::soundFile* addFile(MULTICHANNELBUFFER* buffer);
 
       void setup(implementationObject* impl);
+
+      /** Retire an implementation that addImplementation() handed out but that
+          was never published with setup() — the refusal branches of
+          sound::create() (issue #817). Such an impl is in `implementations`
+          only: it never reached `toLoadInbox` / `toLoad` / `inUse`, no channel
+          ever connected it, and the slow-pool setup job cannot claim it
+          (tryClaimForSetup only takes OBJECT_CREATED, and it is still
+          OBJECT_CONSTRUCTED). Flagging it OBJECT_DELETE therefore hands it
+          straight to the one place an impl may legally be destroyed — the
+          slow-pool delete job's remove_if — instead of leaving it parked in
+          `implementations` until system::close(). Deliberately does NOT free
+          on the calling (control) thread: the list contract admits the main
+          thread and the slow pool, and the destructor must stay on the pool.
+
+          Call on the control thread, with the interface already detached. */
+      void releaseUnpublished(implementationObject* impl);
+
+      /** Diagnostic: how many implementationObjects the canonical
+          `implementations` list currently holds. Takes implementationsMutex,
+          so it is a control-thread / test call only — never the audio thread.
+          Exists so the reclamation of retired impls is observable (issue
+          #817). */
+      std::size_t implementationCount();
 
       /** Run the soundManager update. This function is responsable for most of the
           action on sound implementations and sound files.
@@ -143,9 +167,13 @@ namespace YSE {
       // Audio-thread-only: accumulates Time().delta() so update() hands the GC to
       // the slow pool at most about once a second instead of every callback.
       Flt fileGCTimer = 0.f;
-      // Slow-pool-only (GC job): previous std::clock() sample, used to measure the
-      // elapsed time fed to soundFile::inUse() for the idle timer.
-      std::clock_t lastGCClock = 0;
+      // Slow-pool-only (GC job): previous wall-clock sample, used to measure the
+      // elapsed time fed to soundFile::inUse() for the idle timer. Monotonic wall
+      // time for the same reason INTERNAL::time uses it (issue #667) — the
+      // std::clock() this replaced measured processor time, which on POSIX sums
+      // every engine thread's CPU and so aged idle files far too fast.
+      std::chrono::steady_clock::time_point lastGCClock;
+      bool haveGCClock = false;
 
       /** the lastGain buffer of each sound is needed to provide smooth changes
       in volume for each channel. When the number of output channels is changed

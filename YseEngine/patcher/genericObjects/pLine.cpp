@@ -19,6 +19,12 @@ CONSTRUCT_DSP() {
 
   ADD_OUT_BUFFER;
 
+  // std::atomic's default constructor leaves the value indeterminate before
+  // C++20, so both have to be set here: a fresh ~line used to ramp toward
+  // whatever the heap held, and render that at full scale until its first
+  // message arrived (issue #951). 0 is what PARAM_DOC documents.
+  target = 0.f;
+  time = 0.f;
   ADD_PARAM(target);
   ADD_PARAM(time);
 
@@ -26,7 +32,7 @@ CONSTRUCT_DSP() {
 
   ADD_DESCRIPTION("Linear-ramp generator. Ramps an audio-rate value toward a target over a given "
                   "time in ms. The 'stop' message freezes the ramp at the current value.");
-  ADD_CATEGORY(pCategory::GENERIC);
+  ADD_CATEGORY(pCategory::OSC);
   INLET_DOC(0, "target", "Target value to ramp toward.", "any float");
   INLET_DOC(1, "time", "Ramp duration in milliseconds.", "0+ ms");
   OUTLET_DOC(0, "out", "Audio-rate ramp output.", "any float");

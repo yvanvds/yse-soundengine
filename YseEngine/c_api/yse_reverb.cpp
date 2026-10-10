@@ -1,5 +1,6 @@
 #include "yse_c/yse_reverb.h"
 #include "yse_c_internal.hpp"
+#include "yse_reverb_internal.hpp"
 
 #include "../reverb/reverbInterface.hpp"
 #include "../utils/vector.hpp"
@@ -121,6 +122,25 @@ YSE_C_API float yse_reverb_get_reflection_gain(YseReverb* rev, int reflection) {
 YSE_C_API void yse_reverb_set_preset(YseReverb* rev, YseReverbPreset preset) {
   if (!rev) return;
   to_cpp(rev)->setPreset(static_cast<YSE::REVERB_PRESET>(preset));
+}
+
+YSE_C_API void yse_reverb_preset_get_values(YseReverbPreset preset, YseReverbPresetValues* out) {
+  if (!out) return;
+  // getPresetValues() maps an out-of-range value to REVERB_OFF itself.
+  *out = yse_c::to_c_preset(YSE::REVERB::getPresetValues(static_cast<YSE::REVERB_PRESET>(preset)));
+}
+
+YSE_C_API void yse_reverb_preset_morph(const YseReverbPresetValues* a,
+                                       const YseReverbPresetValues* b, float t,
+                                       YseReverbPresetValues* out) {
+  if (!out) return;
+  if (!a || !b) {
+    *out = YseReverbPresetValues{};
+    return;
+  }
+  // Both inputs are converted before *out is written, so out may alias a or b.
+  *out =
+      yse_c::to_c_preset(YSE::REVERB::morph(yse_c::to_cpp_preset(*a), yse_c::to_cpp_preset(*b), t));
 }
 
 } // extern "C"

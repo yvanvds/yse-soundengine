@@ -65,6 +65,14 @@ namespace YSE {
        */
       drawableBuffer& drawLine(UInt start, UInt stop, Flt value);
 
+      // The operators below deliberately shadow their `buffer` counterparts:
+      // each forwards to the base implementation and only re-types the return
+      // value so `drawableBuffer b; (b += 1.f).drawLine(...)` keeps working.
+      // `buffer`'s operators are non-virtual, so this is the ordinary
+      // covariant-return idiom and not the accidental hiding
+      // bugprone-derived-method-shadowing-base-method looks for (issue #573).
+      // NOLINTBEGIN(bugprone-derived-method-shadowing-base-method)
+
       /** @brief Add ``f`` to every sample (returns drawableBuffer&). */
       drawableBuffer& operator+=(Flt f) {
         buffer::operator+=(f);
@@ -117,6 +125,7 @@ namespace YSE {
         buffer::operator=(f);
         return *this;
       }
+      // NOLINTEND(bugprone-derived-method-shadowing-base-method)
     };
 
   } // namespace DSP

@@ -12,11 +12,32 @@ Author:  yvan
 #include "patcher/time/TimerThread.h"
 #include "device/portaudioDeviceManager.h"
 
+#include <chrono>
+
 #ifdef YSE_WINDOWS
 #include <Windows.h>
 #else
 #include <unistd.h>
 #endif
+
+namespace {
+  // Wall clock for the autoReconnect watchdog (issue #681). Only ever called
+  // from system::update() and system::autoReconnect(), both control-thread
+  // entry points — never from an audio callback.
+  unsigned long long nowMs() {
+    return (unsigned long long)std::chrono::duration_cast<std::chrono::milliseconds>(
+               std::chrono::steady_clock::now().time_since_epoch())
+        .count();
+  }
+
+  // Minimum time a freshly started stream gets to produce its first callback
+  // before the watchdog is allowed to call it stalled (issue #681). Starting a
+  // stream returns before the device runs: measured at 15-70 ms on Windows 11,
+  // load-dependent. This ceiling is an order of magnitude above that, and short
+  // enough that a device which opens but never delivers is still reconnected
+  // promptly. It is a floor under the user's `delay`, not an addition to it.
+  constexpr unsigned long long kFirstCallbackGraceMs = 500;
+} // namespace
 
 YSE::system& YSE::System() {
   static YSE::system s;
@@ -35,16 +56,37 @@ void YSE::system::renderOffline(int blocks) {
   DEVICE::Manager().renderOffline(blocks);
 }
 
+/// @cond INTERNAL
+// initShared() is private and hidden in system.hpp; keep its definition out of
+// the docs as well.
 Bool YSE::system::initShared(bool openDevice) {
   if (INTERNAL::Global().active) {
     INTERNAL::LogImpl().emit(E_DEBUG, "You're trying to initialize more than once!");
     return true;
   }
+  // Seed SAMPLERATE with the application's requested rate before anything can
+  // derive state from it (issue #646): objects constructed between here and
+  // device negotiation (the #637 init window) then already see the requested
+  // rate. The backend stays authoritative — if a device opens below, it
+  // rewrites SAMPLERATE with the negotiated rate; when no device opens
+  // (initOffline), the requested rate IS the session rate. The previous value
+  // is kept so a failed init() can put it back (issue #973).
+  const UInt rateBeforeInit = SAMPLERATE;
+  {
+    const UInt requested = DEVICE::Manager().getRequestedSampleRate();
+    if (requested != 0 && !INTERNAL::Global().isSampleRateLocked()) {
+      SAMPLERATE = requested;
+    }
+  }
+
   // global objects should always be loaded before anything else!
   INTERNAL::Global().init();
   currentlyMissedCallbacks = 0;
   doAutoReconnect = false;
   reconnectDelay = 0;
+  watchdogStreamStarts = DEVICE::Manager().getStreamStartCount();
+  watchdogSinceMs = nowMs();
+  watchdogAwaitingFirstCallback = false;
 
   if (DEVICE::Manager().init(openDevice)) {
     INTERNAL::LogImpl().emit(E_DEBUG, "YSE System object initialized");
@@ -61,9 +103,27 @@ Bool YSE::system::initShared(bool openDevice) {
 
     maxSounds(50);
     INTERNAL::Global().active = true;
+    // Remember which kind of session this is, not merely that one is up (issue
+    // #719). resume() is the only consumer, and it is what stops an offline
+    // session from acquiring a device it was never asked to have — see the
+    // comment there and on global::isDeviceSession().
+    INTERNAL::Global().sessionHasDevice = openDevice;
 
-    if (openDevice) {
-      DEVICE::Manager().addCallback();
+    // init() promises a running device, so a device that does not open fails
+    // it (issue #973). This used to be ignored: with no default output device,
+    // or one another application holds exclusively, init() returned true and
+    // the host played silence into a session that believed it had a device.
+    // Everything set up above is torn down again through close(), and
+    // SAMPLERATE goes back to what it was before this call, so a failed init()
+    // leaves the engine exactly as it found it. A host that wants the engine
+    // without a device asks for that explicitly with initOffline().
+    if (openDevice && !DEVICE::Manager().addCallback()) {
+      INTERNAL::LogImpl().emit(E_ERROR, "YSE System object failed to initialize: no audio output "
+                                        "device could be opened. Use initOffline() to run the "
+                                        "engine without one.");
+      close();
+      SAMPLERATE = rateBeforeInit;
+      return false;
     }
 
     // addCallback() is the last point at which the backend can negotiate
@@ -85,6 +145,7 @@ Bool YSE::system::initShared(bool openDevice) {
   INTERNAL::LogImpl().emit(E_ERROR, "YSE System object failed to initialize");
   return false;
 }
+/// @endcond
 
 void YSE::system::update() {
   INTERNAL::Global().flagForUpdate();
@@ -97,6 +158,12 @@ void YSE::system::update() {
   // and dispatch them synchronously to their subscribers. Cheap when empty:
   // a single SPSC peek + early exit.
   INTERNAL::Global().namedBus().drainPending();
+  // Hand the log any lines a patcher `.print` queued since the last tick (issue
+  // #546). The queue is the only way onto the log from a render thread, and
+  // this is its one drain: the object formats and pushes wherever it happens to
+  // run, and the writing — a std::string, a file, possibly a host handler —
+  // happens here on the control thread. Cheap when empty: one lock-free peek.
+  INTERNAL::RtLog().drain();
   // Wake the script thread once per tick so future scheduled work can advance
   // (issue #124 establishes the wake; #126/#127 add the scheduling). No-op
   // unless built with YSE_ENABLE_PYTHON.
@@ -109,16 +176,65 @@ void YSE::system::update() {
   // backend's error thread (e.g. Oboe's onErrorAfterClose). No-op on backends
   // that reconnect synchronously (issue #200).
   DEVICE::Manager().serviceReconnect();
-  unsigned int callbacks = DEVICE::Manager().GetCallbacksSinceLastUpdate();
-  if (callbacks == 0) {
-    currentlyMissedCallbacks++;
-    if (doAutoReconnect && currentlyMissedCallbacks > reconnectDelay) {
-      pause();
-      resume();
-    }
-  } else {
-    currentlyMissedCallbacks = 0;
+
+  // Two distinct things are tracked here, and conflating them was issue #681:
+  //
+  //  * currentlyMissedCallbacks — consecutive update() ticks during which the
+  //    device delivered no audio callback. That is the raw liveness reading
+  //    hosts poll through missedCallbacks(), and it deliberately still counts
+  //    the start-up window of a stream that has been started but is not yet
+  //    delivering: "started" is not "running", and a host asking whether audio
+  //    is flowing must not be told yes before it is.
+  //
+  //  * the autoReconnect trigger — which must fire only for a device that is
+  //    genuinely stalled. A stream that was just started is in the same
+  //    zero-callback state as a disconnected one for the 15-70 ms it takes the
+  //    backend to deliver its first callback, and tearing it down there (the
+  //    remedy is pause() + resume()) puts the reopened stream straight back
+  //    into that window: a host polling update() faster than the device starts
+  //    never let a healthy device play a sample.
+  const unsigned int streamStarts = DEVICE::Manager().getStreamStartCount();
+  const bool streamJustStarted = streamStarts != watchdogStreamStarts;
+  if (streamJustStarted) {
+    // init(), resume(), openDevice(), or a backend-side rebuild opened a stream
+    // since the last tick. It is coming up, not stalling.
+    watchdogStreamStarts = streamStarts;
+    watchdogAwaitingFirstCallback = true;
   }
+
+  const unsigned int callbacks = DEVICE::Manager().GetCallbacksSinceLastUpdate();
+  if (callbacks != 0) {
+    currentlyMissedCallbacks = 0;
+    watchdogAwaitingFirstCallback = false;
+    return;
+  }
+
+  // A silence starts at the first empty tick, and at every (re)open — both are
+  // points from which "no callbacks for `delay` ms" starts being true.
+  if (currentlyMissedCallbacks == 0 || streamJustStarted) watchdogSinceMs = nowMs();
+  currentlyMissedCallbacks++;
+
+  if (!doAutoReconnect) return;
+
+  // reconnectDelay is milliseconds (see autoReconnect). A stream that has not
+  // delivered its first callback yet gets at least the start-up grace, so a
+  // small — or zero, which is the default — delay cannot cut the device off
+  // while it is coming up.
+  unsigned long long waitMs = (unsigned long long)reconnectDelay;
+  if (watchdogAwaitingFirstCallback && waitMs < kFirstCallbackGraceMs) {
+    waitMs = kFirstCallbackGraceMs;
+  }
+  if (nowMs() - watchdogSinceMs < waitMs) return;
+
+  pause();
+  resume();
+  // Restart the interval from here whatever resume() achieved. A stream that
+  // came up bumps the stream-start count and re-enters the grace above on the
+  // next tick; one that did not (no device to open — the disconnected case
+  // autoReconnect exists for) is retried `delay` ms from now rather than on
+  // every single update() tick, which is what "delay between reconnection
+  // attempts" has always promised.
+  watchdogSinceMs = nowMs();
 }
 
 void YSE::system::close() {
@@ -133,6 +249,10 @@ void YSE::system::close() {
     // SAMPLERATE if the host opens a device with a different negotiated rate.
     INTERNAL::Global().sampleRateLocked = false;
     INTERNAL::Global().active = false;
+    // The session's device mode dies with the session (issue #719): the next
+    // one declares its own, and until then resume() must refuse — with no
+    // session up there is nothing to open a device for.
+    INTERNAL::Global().sessionHasDevice = false;
     DEVICE::Manager().close();
     INTERNAL::Global().close();
     // Drain the sound manager BEFORE the channel manager: a sound impl that
@@ -161,6 +281,33 @@ void YSE::system::pause() {
 }
 
 void YSE::system::resume() {
+  // A session that was never given a device does not acquire one here (issue
+  // #719). resume() is a request to restart the device this session already
+  // had, not a request for one — an initOffline() session has none, and a
+  // closed engine has none either.
+  //
+  // Without this the call went straight to addCallback() ->
+  // Pa_GetDefaultOutputDevice() -> Pa_OpenStream / Pa_StartStream. In a fresh
+  // process that fails closed (initOffline() skips Pa_Initialize, so there is
+  // no default device to find) and the omission was invisible. But
+  // Pa_Initialize runs once per process and managerObject::terminate() — the
+  // only call that undoes it — is private and destructor-only, so in any
+  // process that has ever called init(), this opened a real stream on an
+  // offline session: a live PortAudio callback thread driving the manager
+  // update() functions that renderOffline()'s caller is already driving from
+  // its own thread, which deviceManager.h documents as single-threaded.
+  //
+  // Deliberately the *only* guard. The autoReconnect watchdog in update()
+  // reaches a device through this same call, so gating here covers it too,
+  // rather than repeating the check at each call site and leaving the next one
+  // free to forget it (the reasoning that settled issue #716). The watchdog's
+  // pause()/resume() pair on an offline session is then two no-ops: pause()
+  // closes a stream that does not exist, which it already did.
+  if (!INTERNAL::Global().isDeviceSession()) {
+    INTERNAL::LogImpl().emit(E_DEBUG,
+                             "resume() ignored: this session has no audio device to resume.");
+    return;
+  }
   DEVICE::Manager().resume();
 }
 
@@ -168,9 +315,39 @@ int YSE::system::missedCallbacks() {
   return currentlyMissedCallbacks;
 }
 
+YSE::system& YSE::system::requestSampleRate(unsigned int rate) {
+  DEVICE::Manager().requestSampleRate(rate);
+  return *this;
+}
+
+unsigned int YSE::system::requestSampleRate() {
+  return DEVICE::Manager().getRequestedSampleRate();
+}
+
+YSE::system& YSE::system::renderThreads(int count) {
+  INTERNAL::Global().requestRenderWorkers((Int)count);
+  return *this;
+}
+
+int YSE::system::renderThreads() {
+  return (int)INTERNAL::Global().requestedRenderWorkers();
+}
+
+int YSE::system::activeRenderThreads() {
+  return (int)INTERNAL::Global().renderWorkerCount();
+}
+
 YSE::system& YSE::system::autoReconnect(bool on, int delay) {
   doAutoReconnect = on;
-  reconnectDelay = delay;
+  // Milliseconds, as documented — it used to be compared against a count of
+  // empty update() ticks, which made the wait depend on how fast the host
+  // happens to poll (issue #681). A negative wait is meaningless; clamp it to
+  // "as soon as the device is confirmed stalled".
+  reconnectDelay = delay < 0 ? 0 : delay;
+  // Measure the first wait from here rather than from whatever the previous
+  // configuration left behind, so enabling the watchdog cannot fire it
+  // immediately on a stale timestamp.
+  watchdogSinceMs = nowMs();
   return *this;
 }
 
@@ -183,7 +360,9 @@ YSE::occlusionFunc YSE::system::occlusionCallback() {
   return occlusionPtr.load(std::memory_order_acquire);
 }
 
-YSE::system::system() : occlusionPtr(nullptr) {}
+YSE::system::system() : occlusionPtr(nullptr) {
+  watchdogSinceMs = nowMs();
+}
 
 YSE::system& YSE::system::underWaterFX(const channel& target) {
   // The stock underwater effect is an ordinary insert module since issue
@@ -202,10 +381,14 @@ YSE::system& YSE::system::setUnderWaterDepth(float value) {
   return *this;
 }
 
+/// @cond INTERNAL
+// Documented in system.hpp. Doxygen cannot see through the Int typedef to match
+// this definition against the header's int declaration, so hide it.
 YSE::system& YSE::system::maxSounds(Int value) {
   VirtualSoundFinder().setLimit(value);
   return *this;
 }
+/// @endcond
 
 Int YSE::system::maxSounds() {
   return VirtualSoundFinder().getLimit();
@@ -242,7 +425,7 @@ float YSE::system::currentTempo(const std::string& name) {
 
 double YSE::system::getSampleRate() {
   // The session lock is set at the end of initShared(); before that, SAMPLERATE
-  // still holds its 44100 default and reporting it would mislead hosts that
+  // still holds its 48000 default and reporting it would mislead hosts that
   // start sample-count-driven work pre-init.
   return INTERNAL::Global().isSampleRateLocked() ? (double)SAMPLERATE : 0.0;
 }
@@ -275,9 +458,60 @@ const std::vector<YSE::device>& YSE::system::getDevices() {
   return DEVICE::Manager().getDeviceList();
 }
 
-void YSE::system::openDevice(const deviceSetup& object, CHANNEL_TYPE conf) {
-  DEVICE::Manager().openDevice(object);
-  CHANNEL::Manager().setChannelConf(conf, object.getOutputChannels());
+bool YSE::system::openDevice(const deviceSetup& object, CHANNEL_TYPE conf) {
+  // The mixer layout must follow the device that is actually open (issue
+  // #665). The backend reports whether a stream is running afterwards: a setup
+  // with no output device or an ID no host API resolves (both refused since
+  // #661), a Pa_OpenStream / Pa_StartStream error, and the offline engine all
+  // report false. Applying the requested layout for any of those configures
+  // the mixer for a device that is not playing — doOnCallback() resizes the
+  // master to getNumberOfOutputs() on the next callback, so a refused switch
+  // from a stereo device to a 5.1 one leaves the engine rendering six channels
+  // into the two-channel stream that is still live. Leave the layout the
+  // running device negotiated. The refusal is reported to the caller so the C
+  // API can turn it into a status instead of YSE_OK (issue #900).
+  if (!DEVICE::Manager().openDevice(object)) return false;
+
+  // The session now has a device, whatever it was started with (issue #719).
+  //
+  // This is a decision, not a side effect. Unlike resume(), which asks for the
+  // session's own device back, openDevice() names a device and asks for it — an
+  // unambiguous request that an initOffline() session is entitled to make (a
+  // headless tool that later decides to play out loud, say). Refusing it would
+  // leave such a host with no way at all to reach a device short of close() +
+  // init(), and would be a strange thing to refuse *after* the stream is
+  // already running. So the session is promoted here instead, which is what
+  // makes the pause()/resume() pair work on it afterwards. The flip side —
+  // renderOffline() is no longer safe to drive on this session — is the
+  // caller's, and is stated on renderOffline() in system.hpp.
+  INTERNAL::Global().sessionHasDevice = true;
+
+  // A backend with a single fixed device (Oboe) reports success without
+  // reading the setup at all, so the zero-output guard from #661 still has to
+  // stand on its own: a zero-output layout silences the engine on the next
+  // callback, by the same doOnCallback() resize.
+  const int outputs = object.getOutputChannels();
+  if (outputs > 0) CHANNEL::Manager().setChannelConf(conf, outputs);
+  return true;
+}
+
+YSE::system& YSE::system::setChannelConfiguration(CHANNEL_TYPE conf, Int outputs) {
+  // The layout half of openDevice(), without the device (issue #668). Since
+  // #665 the mixer follows the device that actually opened, so a session with
+  // no device to follow — initOffline(), headless CI, renderOffline()
+  // benchmarks — had no way at all to leave the stereo layout initShared()
+  // installs. This is that way.
+  //
+  // Same zero-output guard as openDevice(): deviceManager::doOnCallback()
+  // resizes the master to getNumberOfOutputs() on the next callback, so a
+  // zero-output layout means everything rendered after it goes nowhere.
+  if (outputs <= 0) {
+    INTERNAL::LogImpl().emit(E_WARNING,
+                             "Cannot set a channel configuration with no output channels.");
+    return *this;
+  }
+  CHANNEL::Manager().setChannelConf(conf, outputs);
+  return *this;
 }
 
 void YSE::system::closeCurrentDevice() {
@@ -289,7 +523,12 @@ UInt YSE::system::getNumDevices() {
 }
 
 const YSE::device& YSE::system::getDevice(unsigned int nr) {
-  return DEVICE::Manager().getDeviceList()[nr];
+  // Bound-checked on purpose (issue #581, same fix shape as #565): operator[]
+  // never throws, so an out-of-range index used to read past the end of the
+  // list and the try/catch in yse_system_get_device() was dead code. With an
+  // empty device list — headless CI, or any offline session — index 0 is
+  // already out of range, which is the first thing a naive binding tries.
+  return DEVICE::Manager().getDeviceList().at(nr);
 }
 
 const std::string& YSE::system::getDefaultDevice() {
@@ -320,8 +559,14 @@ const std::string YSE::system::getMidiOutDeviceName(unsigned int ID) {
 #endif
 
 YSE::system& YSE::system::AudioTest(bool on) {
-#ifdef __WINDOWS__
+  // No platform guard here on purpose (issue #570). The diagnostic tone is an
+  // ordinary dspSourceObject — 11 sines through a low-pass, driven by the same
+  // sound path as any user DSP source — so nothing in it is Windows-specific.
+  // The old `#ifdef __WINDOWS__` was a JUCE-era remnant (same shape as the
+  // lsfSoundfile guard fixed in #46) and turned this documented public call,
+  // and the C API's yse_system_audio_test(), into a silent no-op on Linux,
+  // macOS, BSD and Android — the platforms where output routing is hardest to
+  // diagnose in the first place.
   YSE::INTERNAL::Test().On(on);
-#endif
   return *this;
 }

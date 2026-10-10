@@ -48,21 +48,46 @@ namespace {
 outlet::outlet(pObject* owner, YSE::OUT_TYPE type) : type(type), owner(owner) {}
 
 outlet::~outlet() {
-  for (unsigned int i = 0; i < connections.size(); i++) {
-    connections[i]->Disconnect(this);
-  }
+  // Exactly UnwireFromPeers, and it has to be (issue #537).
+  //
+  // This used to walk `connections` in place, which is unsound for the same
+  // reason UnwireFromPeers spells out below: `inlet::Disconnect` calls straight
+  // back into this outlet's `Disconnect`, which erases the peer being processed
+  // and shifts the rest of the vector down. The loop's `i++` then stepped over
+  // whatever moved into the freed slot, so an outlet with N peers detached only
+  // every second one and left the others holding a pointer to storage about to
+  // be freed. The next of those inlets to be destroyed called `Disconnect` on
+  // it — a heap-use-after-free that ASan caught the first time a standalone
+  // test rig gave one outlet two peers.
+  //
+  // A real patcher never reached it: every deletion path in
+  // patcherImplementation (DeleteObject, the #234 replacement, Clear) calls
+  // pObject::UnwireFromPeers first, so by the time the destructor ran the
+  // vectors were already empty. That is what kept it latent, and it is also why
+  // the destructor must not be the one place with its own weaker version.
+  UnwireFromPeers();
 }
 
-// Resolve this outlet's fan-out. When the owning patcher is mid-block it hands
-// back a pinned, immutable GraphState and we read the snapshot's adjacency (the
-// audio-thread path — never touches the live ``connections`` vector). Outside a
-// block, or for a standalone object with no patcher, ``graph`` is null and we
-// fall back to the live wiring (control-thread / unit-test path). See #226.
-const std::vector<YSE::PATCHER::inlet*>& outlet::resolveTargets() const {
-  const GraphState* graph = owner ? owner->CurrentBlockGraph() : nullptr;
-  if (graph != nullptr && graphId >= 0 &&
-      static_cast<size_t>(graphId) < graph->outletTargets.size()) {
-    return graph->outletTargets[graphId];
+bool outlet::OwnedBy(const GraphState* graph) const {
+  return graph != nullptr && graphId >= 0 &&
+         static_cast<size_t>(graphId) < graph->outletTargets.size() &&
+         graph->outletOwner[graphId] == this;
+}
+
+// Resolve this outlet's fan-out through the caller's graphReadScope: the
+// block's pinned GraphState on the thread rendering it, the pinned published
+// one on any other thread (issues #226, #962, #963). Either way an immutable
+// snapshot, never the live ``connections`` vector that a structural edit on
+// another control thread rewrites under mtx. See graphReadScope for the two
+// fallbacks an outlet the snapshot does not own takes; the live wiring is only
+// read where nothing else writes it — a standalone object, a rig never added
+// to its patcher, or an object deleted (and unwired) since.
+const std::vector<YSE::PATCHER::inlet*>& outlet::resolveTargets(const graphReadScope& scope) const {
+  const GraphState* graph = scope.Graph();
+  if (OwnedBy(graph)) return graph->outletTargets[graphId];
+  if (graph != nullptr && graphId >= 0) {
+    const GraphState* latest = scope.Latest();
+    if (latest != graph && OwnedBy(latest)) return latest->outletTargets[graphId];
   }
   return connections;
 }
@@ -70,7 +95,8 @@ const std::vector<YSE::PATCHER::inlet*>& outlet::resolveTargets() const {
 void outlet::SendBang(YSE::THREAD thread) {
   SendDepthGuard guard;
   if (!guard.allowed) return;
-  const auto& targets = resolveTargets();
+  const graphReadScope scope(owner);
+  const auto& targets = resolveTargets(scope);
   for (unsigned int i = 0; i < targets.size(); i++) {
     targets[i]->SetBang(thread);
   }
@@ -79,7 +105,8 @@ void outlet::SendBang(YSE::THREAD thread) {
 void outlet::SendFloat(float value, YSE::THREAD thread) {
   SendDepthGuard guard;
   if (!guard.allowed) return;
-  const auto& targets = resolveTargets();
+  const graphReadScope scope(owner);
+  const auto& targets = resolveTargets(scope);
   for (unsigned int i = 0; i < targets.size(); i++) {
     targets[i]->SetFloat(value, thread);
   }
@@ -88,7 +115,8 @@ void outlet::SendFloat(float value, YSE::THREAD thread) {
 void outlet::SendInt(int value, YSE::THREAD thread) {
   SendDepthGuard guard;
   if (!guard.allowed) return;
-  const auto& targets = resolveTargets();
+  const graphReadScope scope(owner);
+  const auto& targets = resolveTargets(scope);
   for (unsigned int i = 0; i < targets.size(); i++) {
     targets[i]->SetInt(value, thread);
   }
@@ -97,7 +125,8 @@ void outlet::SendInt(int value, YSE::THREAD thread) {
 void outlet::SendList(const std::string& value, YSE::THREAD thread) {
   SendDepthGuard guard;
   if (!guard.allowed) return;
-  const auto& targets = resolveTargets();
+  const graphReadScope scope(owner);
+  const auto& targets = resolveTargets(scope);
   for (unsigned int i = 0; i < targets.size(); i++) {
     targets[i]->SetList(value, thread);
   }
@@ -106,7 +135,8 @@ void outlet::SendList(const std::string& value, YSE::THREAD thread) {
 void outlet::SendMessage(const std::string& value, YSE::THREAD thread) {
   SendDepthGuard guard;
   if (!guard.allowed) return;
-  const auto& targets = resolveTargets();
+  const graphReadScope scope(owner);
+  const auto& targets = resolveTargets(scope);
   for (unsigned int i = 0; i < targets.size(); i++) {
     targets[i]->SetMessage(value, thread);
   }
@@ -115,7 +145,8 @@ void outlet::SendMessage(const std::string& value, YSE::THREAD thread) {
 void outlet::SendBuffer(YSE::DSP::buffer* value, YSE::THREAD thread) {
   SendDepthGuard guard;
   if (!guard.allowed) return;
-  const auto& targets = resolveTargets();
+  const graphReadScope scope(owner);
+  const auto& targets = resolveTargets(scope);
   for (unsigned int i = 0; i < targets.size(); i++) {
     targets[i]->SetBuffer(value, thread);
   }
@@ -162,14 +193,22 @@ unsigned int outlet::GetTarget(unsigned int connection) {
   if (connection < connections.size()) {
     return connections[connection]->GetObjectID();
   }
-  return 0;
+  // Not 0 — object IDs start at 0 (issue #730), so 0 is a real target and
+  // would be indistinguishable from "there is no such edge". This is the same
+  // answer pObject::GetConnectionTarget gives for an outlet that does not
+  // exist, so one function has one unanswerable-query value (issue #737).
+  return pObject::kNoObjectID;
 }
 
 unsigned int outlet::GetTargetInlet(unsigned int connection) {
   if (connection < connections.size()) {
     return connections[connection]->GetPosition();
   }
-  return 0;
+  // Not 0 — inlet 0 is the leftmost inlet and the one most edges arrive at, so
+  // it cannot double as "there is no such edge" (issue #736). Same answer
+  // pObject::GetConnectionTargetInlet gives for an outlet that does not exist,
+  // so one function has one unanswerable-query value.
+  return pObject::kNoInletIndex;
 }
 
 void outlet::SetDoc(const std::string& label, const std::string& doc, const std::string& range) {

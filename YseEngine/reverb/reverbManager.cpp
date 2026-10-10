@@ -8,6 +8,7 @@
   ==============================================================================
 */
 
+#include <iterator>
 #include "../internalHeaders.h"
 
 YSE::REVERB::managerObject& YSE::REVERB::Manager() {
@@ -36,7 +37,7 @@ YSE::REVERB::managerObject::~managerObject() noexcept {
     inUse.clear();
     implementations.clear();
   } catch (...) {
-    INTERNAL::LogImpl().emit(E_ERROR, "REVERB::Manager destructor swallowed exception");
+    INTERNAL::EmitNoThrow(E_ERROR, "REVERB::Manager destructor swallowed exception");
   }
 }
 
@@ -95,7 +96,19 @@ YSE::reverb& YSE::REVERB::managerObject::getGlobalReverb() {
 }
 
 Bool YSE::REVERB::managerObject::empty() {
-  return implementations.empty();
+  // Audio-thread-only read set: `toLoad` and `inUse` are single-thread (audio)
+  // by design, whereas `implementations` is mutated by the main thread
+  // (addImplementation) and the slow-pool (deleteJob) under
+  // implementationsMutex. Reading `implementations` here without that lock was
+  // a latent #200-class race — no engine caller existed, but any future
+  // audio-callback caller would have inherited it (issue #842). Mirrors
+  // SOUND::managerObject::empty().
+  return toLoad.empty() && inUse.empty();
+}
+
+std::size_t YSE::REVERB::managerObject::implementationCount() {
+  std::scoped_lock lk(implementationsMutex);
+  return static_cast<std::size_t>(std::distance(implementations.begin(), implementations.end()));
 }
 
 void YSE::REVERB::managerObject::update() {
@@ -110,10 +123,16 @@ void YSE::REVERB::managerObject::update() {
 
   toLoad.remove_if(implementationObject::canBeRemovedFromLoading);
 
+  // Clear the delete request only once a job has actually been enqueued for it
+  // (issue #992). isQueued() stays true while the previous delete job is still
+  // *running*, and that job may already have walked past an impl the inUse
+  // pass below marked OBJECT_DELETE on the last tick; clearing the flag
+  // regardless stranded it in `implementations`. Same fix as CHANNEL (#990)
+  // and SOUND (#817).
   if (runDelete && !mgrDelete.isQueued()) {
     INTERNAL::Global().addSlowJob(&mgrDelete);
+    runDelete = false;
   }
-  runDelete = false;
 
   ///////////////////////////////////////////
   // check if loaded implementations are ready

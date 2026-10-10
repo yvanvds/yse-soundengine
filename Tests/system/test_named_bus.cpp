@@ -438,4 +438,52 @@ TEST_SUITE("system") {
     bus.unsubscribe(h2);
   }
 
+  TEST_CASE("named bus: a subscription skips its ignoreOrigin on every path, others still get it "
+            "(#943)") {
+    // The origin rides the inline, audio-queue and parked paths alike; only the
+    // subscription registered with that origin skips it. Origin 0 (host) and a
+    // different origin are delivered, and taps see everything.
+    REQUIRE(TestHelpers::engineInit());
+    auto& bus = YSE::INTERNAL::Bus();
+    constexpr YSE::INTERNAL::BusOrigin self = 0x943;
+    constexpr YSE::INTERNAL::BusOrigin other = 0x944;
+
+    int own = 0;
+    int plain = 0;
+    int tapped = 0;
+    auto hOwn =
+        bus.subscribe("ch.test.origin", [&](const YSE::INTERNAL::BusValue&) { ++own; }, self);
+    auto hPlain = bus.subscribe("ch.test.origin", [&](const YSE::INTERNAL::BusValue&) { ++plain; });
+    auto t = bus.subscribeTap(
+        "ch.test.origin", [&](const std::string&, const YSE::INTERNAL::BusValue&) { ++tapped; });
+
+    // Inline (control thread).
+    bus.publish("ch.test.origin", YSE::INTERNAL::BusValue{1}, YSE::T_GUI, self);
+    CHECK(own == 0);
+    CHECK(plain == 1);
+    CHECK(tapped == 1);
+
+    // Audio-thread queue and the parked off-control-thread inbox.
+    bus.publish("ch.test.origin", YSE::INTERNAL::BusValue{2}, YSE::T_DSP, self);
+    std::thread worker(
+        [&] { bus.publish("ch.test.origin", YSE::INTERNAL::BusValue{3}, YSE::T_GUI, self); });
+    worker.join();
+    bus.drainPending();
+    CHECK(own == 0);
+    CHECK(plain == 3);
+    CHECK(tapped == 3);
+
+    // No origin, and someone else's origin, reach the filtered subscription.
+    bus.publish("ch.test.origin", YSE::INTERNAL::BusValue{4}, YSE::T_GUI);
+    bus.publish("ch.test.origin", YSE::INTERNAL::BusValue{5}, YSE::T_DSP, other);
+    bus.drainPending();
+    CHECK(own == 2);
+    CHECK(plain == 5);
+    CHECK(tapped == 5);
+
+    bus.unsubscribe(hOwn);
+    bus.unsubscribe(hPlain);
+    bus.unsubscribeTap(t);
+  }
+
 } // TEST_SUITE("system")

@@ -81,31 +81,50 @@ namespace YSE {
     /** @brief Number of output channels. */
     unsigned int getNumOutputChannelNames() const;
 
-    /** @brief Name of output channel ``nr``. */
+    /** @brief Name of output channel ``nr``.
+     *  @throws std::out_of_range if ``nr >= getNumOutputChannelNames()``.
+     */
     const std::string& getOutputChannelName(unsigned int nr) const;
 
     /** @brief Number of input channels. */
     unsigned int getNumInputChannelNames() const;
 
-    /** @brief Name of input channel ``nr``. */
+    /** @brief Name of input channel ``nr``.
+     *  @throws std::out_of_range if ``nr >= getNumInputChannelNames()``.
+     */
     const std::string& getInputChannelName(unsigned int nr) const;
 
     /** @brief Number of supported sample rates. */
     unsigned int getNumAvailableSampleRates() const;
 
-    /** @brief Supported sample rate at index ``nr``. */
+    /** @brief Supported sample rate at index ``nr``.
+     *  @throws std::out_of_range if ``nr >= getNumAvailableSampleRates()``.
+     */
     double getAvailableSampleRate(unsigned int nr) const;
 
     /** @brief Number of supported buffer sizes. */
     unsigned int getNumAvailableBufferSizes() const;
 
-    /** @brief Supported buffer size at index ``nr``. */
+    /** @brief Supported buffer size at index ``nr``.
+     *  @throws std::out_of_range if ``nr >= getNumAvailableBufferSizes()``.
+     */
     int getAvailableBufferSize(unsigned int nr) const;
 
     /** @brief Set the default buffer size to use when this device is opened. */
     device& setDefaultBufferSize(int value);
 
-    /** @brief Default buffer size for this device. */
+    /** @brief Default buffer size for this device, or ``0`` when the host does
+     *         not advertise one.
+     *
+     *  ``0`` means *unspecified*, not *zero frames*: fed to
+     *  ``deviceSetup::setBufferSize`` it asks the backend to pick the size
+     *  itself (PortAudio's ``paFramesPerBufferUnspecified``). The PortAudio
+     *  enumerator leaves it at ``0`` for every device it reports, because
+     *  ``PaDeviceInfo`` carries no equivalent field and inventing a number
+     *  would be worse than saying nothing (issue #569). Read
+     *  ``System().getActiveBufferSize()`` after the device is open for the
+     *  size actually negotiated.
+     */
     int getDefaultBufferSize() const;
 
     /** @brief Set the reported output latency in samples. */
@@ -123,7 +142,18 @@ namespace YSE {
     /** @brief Set the host-assigned ID for this device. */
     device& setID(int value);
 
-    /** @brief Host-assigned ID for this device. */
+    /** @brief Host-assigned ID for this device, or ``-1`` when no device has
+     *         been assigned.
+     *
+     *  ``-1`` is PortAudio's ``paNoDevice`` sentinel and the value a descriptor
+     *  starts at: it means *no device*, not *device index -1*, and is what a
+     *  descriptor built by hand rather than taken from ``System().getDevices()``
+     *  reports until ``setID`` is called (issue #666). Passing such a descriptor
+     *  to ``System().openDevice`` is refused with an ``E_AUDIODEVICE`` log line
+     *  and leaves the running stream alone, the same as any other index no host
+     *  API resolves (issue #661). Every enumerated device carries a real,
+     *  non-negative index.
+     */
     int getID() const;
 
   private:
@@ -135,9 +165,27 @@ namespace YSE {
     std::vector<double> sampleRates;
     std::vector<int> bufferSizes;
 
-    int defaultBufferSize;
-    int inputLatency, outputLatency;
-    int ID;
+    // Initialised here rather than in the constructor's mem-init list (issue
+    // #569). The four scalars sat uninitialised from 2014 until #565 precisely
+    // because the declarations and their initialisation lived in two different
+    // files; a default member initialiser keeps them in one place and covers
+    // any constructor added later, not just the one in deviceInterface.cpp.
+    //
+    // ID is the -1 sentinel #569 floated and #666 landed, not 0. 0 is a valid
+    // PortAudio device index, so it could not tell "nobody chose a device" from
+    // "device 0"; -1 is paNoDevice, which no host API resolves, so an
+    // unpopulated descriptor handed to openDevice() is reported rather than
+    // quietly opening whatever the host enumerated first. Safe only because
+    // managerObject::openDevice() stopped dereferencing
+    // Pa_GetDeviceInfo(getID()) unchecked (issue #661) — that guard is the
+    // precondition for this default, not an afterthought.
+    //
+    // The other three stay 0, which is their "unspecified" value (see the
+    // getDefaultBufferSize() doc comment). All four are initialised here rather
+    // than in the constructor's mem-init list for the reason above.
+    int defaultBufferSize = 0;
+    int inputLatency = 0, outputLatency = 0;
+    int ID = -1;
 
     friend class DEVICE::managerObject;
   };

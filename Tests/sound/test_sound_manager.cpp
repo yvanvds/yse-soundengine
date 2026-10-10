@@ -4,14 +4,17 @@
 
 #include <doctest/doctest.h>
 #include <chrono>
+#include <cstddef>
 #include <thread>
 #include <vector>
 #include "yse.hpp"
 #include "sound/soundInterface.hpp"
 #include "sound/soundManager.h"
+#include "patcher/patcher.hpp"
 #include "dsp/dspObject.hpp"
 #include "internal/time.h"
 #include "support/null_device.hpp"
+#include "support/timer_pacing.hpp"
 
 using namespace std::chrono_literals;
 
@@ -26,12 +29,31 @@ namespace {
   // for the Phase C lifetime rationale.
   SilentSource g_src;
 
+  // The iteration count is what advances the manager's state machine, so it
+  // stays as it is; the wait between iterations is counted in ticks of the
+  // suite's pacing reference instead of milliseconds, so the slow pool gets
+  // proportionally longer on a loaded box (issue #753).
   void drain(int n = 12) {
     for (int i = 0; i < n; i++) {
       YSE::INTERNAL::Time().update();
       YSE::SOUND::Manager().update();
-      std::this_thread::sleep_for(5ms);
+      TestHelpers::paceWindow(5);
     }
+  }
+
+  // The completion-signal form of drain(), for the cases whose CHECK depends
+  // on the slow pool having actually finished: a fixed iteration count is a
+  // bounded window that a loaded pool can miss entirely (issue #834). The
+  // budget is denominated in reference-timer ticks (issue #753); returns
+  // ready(), so a timed-out wait fails the caller's own assertion.
+  template <typename P> bool drainUntil(P ready, int ticks = 5000) {
+    return TestHelpers::pacedPump(
+        ticks, ready,
+        [] {
+          YSE::INTERNAL::Time().update();
+          YSE::SOUND::Manager().update();
+        },
+        5);
   }
 
 } // namespace
@@ -47,7 +69,9 @@ TEST_SUITE("sound") {
     {
       YSE::sound s;
       s.create(g_src);
-      drain(); // let the impl reach inUse
+      // Pump until the impl has actually reached inUse — empty() flipping
+      // false is the completion signal, not a fixed window (#834).
+      drainUntil([] { return YSE::SOUND::Manager().empty() == false; });
       CHECK(YSE::SOUND::Manager().empty() == false);
       s.stop();
     }
@@ -64,21 +88,89 @@ TEST_SUITE("sound") {
     // non-empty forever (and, worse, read that list lock-free from the audio
     // callback). The fixed empty() ignores it.
     //
-    // Assert the invariant rather than an absolute empty() value: the SOUND
-    // manager is a process-wide singleton other tests have touched, so the
-    // baseline may already be non-empty. `after == before` holds on the fixed
-    // code regardless; on the pre-fix code it breaks whenever the baseline is
-    // empty (true -> false), so the test can only ever fail on a regression.
-    drain(); // settle any pending lifecycle work first
-    const bool before = YSE::SOUND::Manager().empty();
+    // The invariant must tolerate background reclamation (#835): the SOUND
+    // manager is a process-wide singleton, and an impl from an earlier case
+    // still being reclaimed can flip empty() between a before- and an
+    // after-sample with no bug present. So quiesce instead of sampling: pump
+    // until empty() reports true — the completion signal that every earlier
+    // impl has left the audio-thread toLoad/inUse lists — run the failing
+    // create, and pump until it reports true again. The refused impl never
+    // enters toLoad/inUse, so the fixed empty() re-quiesces immediately; the
+    // pre-fix empty() read the `implementations` list, which the stuck impl
+    // kept non-empty. Polling empty() here is race-free: it reads lists owned
+    // by the sole update() caller, which (audio being paused) is this thread.
+    CHECK(drainUntil([] { return YSE::SOUND::Manager().empty(); }));
     {
       YSE::sound s;
       s.create("/no/such/file.wav"); // FileExists() fails -> create() returns false
       CHECK(s.isValid() == false); // confirm we hit the failure path
     }
+    CHECK(drainUntil([] { return YSE::SOUND::Manager().empty(); }));
+  }
+
+  // ─── refused create() reclaims its implementation (issue #817) ───────────────
+  //
+  // sound::create() registers an implementationObject before it knows whether
+  // the source is acceptable. On refusal it used to flag that impl
+  // OBJECT_RELEASE and drop it — but only the `inUse` pass promotes RELEASE to
+  // DELETE, and a refused impl never reached `inUse`, so nothing ever made it
+  // eligible for the slow-pool delete job. Every failed create() parked one
+  // (fairly heavy) impl in `implementations` until system::close(); a caller
+  // retrying a missing asset each frame grew that list without bound.
+  //
+  // These drive the real manager — real slow pool, real delete job — and assert
+  // the list does not grow across the refusals. They fail on the pre-fix code
+  // (count grows by the number of attempts and stays there) and pass once the
+  // refusal path retires the impl to OBJECT_DELETE.
+  //
+  // `<= before` rather than `== before`: the manager is a process-wide
+  // singleton, so an impl retired by an earlier test could still be reaped
+  // during the settling drain, legitimately lowering the baseline. Growth is
+  // what the regression is, and growth is what this rejects.
+
+  TEST_CASE("SOUND::Manager: a refused file create() releases its impl (#817)") {
+    if (!TestHelpers::engineInit()) return;
+
+    drain(); // settle any pending lifecycle work first
+    const std::size_t before = YSE::SOUND::Manager().implementationCount();
+
+    constexpr int kAttempts = 16;
+    for (int i = 0; i < kAttempts; i++) {
+      YSE::sound s;
+      s.create("/no/such/file.wav"); // FileExists() fails -> create() returns false
+      CHECK(s.isValid() == false); // confirm we hit the refusal path
+    }
+
+    // Pump until the slow-pool delete job has reclaimed the refused impls —
+    // the list shrinking back to the baseline is the completion signal (#834).
+    drainUntil([before] { return YSE::SOUND::Manager().implementationCount() <= before; });
+    CHECK(YSE::SOUND::Manager().implementationCount() <= before);
+  }
+
+  TEST_CASE("SOUND::Manager: a refused patcher create() releases its impl (#817)") {
+    if (!TestHelpers::engineInit()) return;
+
+    // The other refusal branch: one-patcher-per-sound (#287). The first sound
+    // keeps the patcher for the whole case, so every later attempt is refused.
+    YSE::patcher p;
+    p.create(1);
+    YSE::sound owner;
+    owner.create(p);
+    CHECK(owner.isValid());
+
     drain();
-    const bool after = YSE::SOUND::Manager().empty();
-    CHECK(after == before);
+    const std::size_t before = YSE::SOUND::Manager().implementationCount();
+
+    constexpr int kAttempts = 16;
+    for (int i = 0; i < kAttempts; i++) {
+      YSE::sound s;
+      s.create(p);
+      CHECK(s.isValid() == false);
+    }
+
+    // Completion signal rather than a fixed window, as above (#834).
+    drainUntil([before] { return YSE::SOUND::Manager().implementationCount() <= before; });
+    CHECK(YSE::SOUND::Manager().implementationCount() <= before);
   }
 
   TEST_CASE("SOUND::Manager: addFile by filename returns a valid soundFile pointer or null") {

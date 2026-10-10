@@ -4,7 +4,7 @@
 // Tests/CMakeLists.txt); the macro guard is belt-and-suspenders.
 //
 // These drive the real script path: source is submitted through the C API
-// (yse_run_script), executed asynchronously on the engine's script thread, and
+// (yse_python_run_script), executed asynchronously on the engine's script thread, and
 // observed two ways —
 //   * C++ bus subscribers, since yse.send dispatches T_GUI synchronously; and
 //   * the #125 error callback, for type errors and raising handlers.
@@ -29,6 +29,7 @@
 #include "yse_c/yse_python.h"
 #include "internal/namedBus.h"
 #include "support/null_device.hpp"
+#include "support/timer_pacing.hpp"
 
 namespace {
 
@@ -73,14 +74,20 @@ namespace {
     ScopedSub& operator=(const ScopedSub&) = delete;
   };
 
-  // Pump update() until `pred()` holds or the budget is exhausted.
-  template <typename Pred> bool pumpUntil(Pred pred, int tries = 300, unsigned ms = 10) {
-    for (int i = 0; i < tries; ++i) {
-      if (pred()) return true;
-      YSE::System().update();
-      YSE::System().sleep(ms);
-    }
-    return pred();
+  // Pump update() until `pred()` holds or the budget is exhausted. The budget is
+  // counted in deliveries of the suite's reference timer rather than in
+  // milliseconds, so a loaded box stretches it exactly as it stretches the
+  // script thread, while a wedged worker still fails (issue #753).
+  template <typename Pred> bool pumpUntil(Pred pred, int ticks = 3000, int pollMs = 10) {
+    return TestHelpers::pacedPump(ticks, pred, [] { YSE::System().update(); }, pollMs);
+  }
+
+  // Pump update() across a window of `ticks` reference ticks, without a
+  // predicate to satisfy: the load-proportional replacement for a fixed count of
+  // sleeps, used where a case has to let the script thread run on before reading
+  // back a value or asserting that nothing arrived (issue #753).
+  void pumpWindow(int ticks, int pollMs = 10) {
+    TestHelpers::pacedPump(ticks, [] { return false; }, [] { YSE::System().update(); }, pollMs);
   }
 
   bool pumpCount(BusCapture& cap, std::size_t n) {
@@ -88,7 +95,7 @@ namespace {
   }
 
   void run(const char* src) {
-    yse_run_script(src);
+    yse_python_run_script(src);
   }
 
   // Error-callback sink, mirroring test_c_api_python.cpp.
@@ -170,10 +177,7 @@ TEST_SUITE("python") {
 
     bus().publish("ysemod.latch.x", BusValue{7.5f}, YSE::T_GUI);
     // Let the latch's subscription deliver the cached value on a script wake.
-    for (int i = 0; i < 5; ++i) {
-      YSE::System().update();
-      YSE::System().sleep(10);
-    }
+    pumpWindow(50);
 
     run("yse.send('ysemod.latch.after', l.value)\n");
     REQUIRE(pumpCount(after, 1));
@@ -198,10 +202,7 @@ TEST_SUITE("python") {
         "rec()\n");
 
     // Pump several ticks so the chain accumulates samples.
-    for (int i = 0; i < 12; ++i) {
-      YSE::System().update();
-      YSE::System().sleep(10);
-    }
+    pumpWindow(120);
 
     run("yse.send('ysemod.tick.len', len(tlog))\n"
         "yse.send('ysemod.tick.diff', tlog[-1] - tlog[-2])\n");
@@ -228,10 +229,7 @@ TEST_SUITE("python") {
     REQUIRE(pumpCount(start, 1));
 
     // Pump well past the 3-tick horizon, then read back the firing tick.
-    for (int i = 0; i < 8; ++i) {
-      YSE::System().update();
-      YSE::System().sleep(10);
-    }
+    pumpWindow(80);
     run("yse.send('ysemod.sched.fired', sfire[0] if sfire[0] is not None else -1)\n");
     REQUIRE(pumpCount(fired, 1));
 
@@ -259,10 +257,7 @@ TEST_SUITE("python") {
 
     // Publishing now reaches no subscriber; the echo count must stay at zero.
     bus().publish("ysemod.cancel.in", BusValue{99}, YSE::T_GUI);
-    for (int i = 0; i < 10; ++i) {
-      YSE::System().update();
-      YSE::System().sleep(10);
-    }
+    pumpWindow(100);
     CHECK(echo.count() == 0);
   }
 
@@ -320,10 +315,7 @@ TEST_SUITE("python") {
     REQUIRE(pumpCount(ready, 1));
 
     // Pump well past the horizon; the gen-G schedule must never fire.
-    for (int i = 0; i < 20; ++i) {
-      YSE::System().update();
-      YSE::System().sleep(10);
-    }
+    pumpWindow(200);
     CHECK(fired.count() == 0);
   }
 
@@ -354,17 +346,14 @@ TEST_SUITE("python") {
     CHECK(std::get<int>(newEcho.last()) == 7);
 
     bus().publish("ysemod.fresh.old.in", BusValue{9}, YSE::T_GUI);
-    for (int i = 0; i < 10; ++i) {
-      YSE::System().update();
-      YSE::System().sleep(10);
-    }
+    pumpWindow(100);
     CHECK(oldEcho.count() == 0);
   }
 
   TEST_CASE("yse module: send rejects non-bus types via the error callback") {
     if (!TestHelpers::engineInit()) return;
     ErrSink sink;
-    yse_set_script_error_callback(&captureErr, &sink);
+    yse_python_set_script_error_callback(&captureErr, &sink);
 
     // bool is rejected (not coerced to int).
     run("yse.send('ysemod.err.bool', True)\n");
@@ -382,13 +371,13 @@ TEST_SUITE("python") {
     REQUIRE(pumpUntil([&] { return sink.count >= 3; }));
     CHECK(sink.last.find("ValueError") != std::string::npos);
 
-    yse_set_script_error_callback(nullptr, nullptr);
+    yse_python_set_script_error_callback(nullptr, nullptr);
   }
 
   TEST_CASE("yse module: an exception in an on callback routes to the error callback") {
     if (!TestHelpers::engineInit()) return;
     ErrSink sink;
-    yse_set_script_error_callback(&captureErr, &sink);
+    yse_python_set_script_error_callback(&captureErr, &sink);
 
     BusCapture ready;
     ScopedSub readySub("ysemod.cberr.ready", ready);
@@ -401,7 +390,7 @@ TEST_SUITE("python") {
     REQUIRE(pumpUntil([&] { return sink.count >= 1; }));
     CHECK(sink.last.find("ZeroDivisionError") != std::string::npos);
 
-    yse_set_script_error_callback(nullptr, nullptr);
+    yse_python_set_script_error_callback(nullptr, nullptr);
   }
 
 } // TEST_SUITE("python")

@@ -1,6 +1,37 @@
-# libYSE 2.0 — Phased Test Plan
+# libYSE Test Plan
 
-## Overview
+> **Status: historical.** Phases 1–13 below are the roadmap the test suite
+> was built from during the 2.0 work. Every phase has landed, and the suite
+> has since grown well past it — synth, clocks, clips, the C API, the
+> render scheduler, lifecycle, Python, Android. The phases are kept as the
+> record of why the suite is shaped the way it is, not as a to-do list; file
+> names, counts and CTest details in them describe the plan, not today's
+> tree.
+>
+> **The suite today.** `Tests/` mirrors `YseEngine/` (`channel/`, `clip/`,
+> `clock/`, `dsp/`, `internal/`, `io/`, `listener/`, `midi/`, `music/`,
+> `patcher/`, `python/`, `reverb/`, `sound/`, `synth/`, `system/`,
+> `utils/`, plus `integration/`, `support/` and the `Android/` harness).
+> Everything compiles into one doctest binary, `yse_tests`, and CTest is the
+> entry point (`python yse.py test`, or `ctest --preset tests-debug`):
+> `yse_unit_tests` runs every suite except the ones that drive
+> `System::close()` / `initOffline()` or other process-global state, and
+> each of those runs in its own `yse_tests_<suite>` entry (see
+> `Tests/CMakeLists.txt` for the list and the reason for each). Running
+> `yse_tests` with no filter is refused (#712): it puts those suites back
+> into one process, which corrupts the run. Narrow it with
+> `--test-suite=<name>` / `--test-case=<pattern>`, or set
+> `YSE_TESTS_ALLOW_MONOLITHIC=1` to reproduce that crash on purpose.
+> Sanitizer runs: `python yse.py test --sanitizer asan|tsan` (TSan is
+> Linux/clang only; `tools/ci-linux/Dockerfile.sanitizers` reproduces it on
+> Windows).
+>
+> The render-scheduler measurement protocol and baselines (#857–#862) that
+> used to sit at the end of this file are now in
+> [docs/design/render_scheduler.md](../docs/design/render_scheduler.md);
+> how to run the benchmarks is in [Bench/README.md](../Bench/README.md).
+
+## Overview (2.0 plan)
 
 ### Proposed `Tests/` Directory Layout
 
@@ -543,12 +574,12 @@ None — Phase 12 tests are self-contained or build on `null_device.hpp`.
 - MIDI device enumeration lists at least zero devices without crash (hardware not required to be present).
 - End-to-end round-trip: synthesise a known signal, capture it via a loopback or buffer probe, compare to expected.
 
-**CI gating:** This phase **must be skippable** in CI. Implement via:
+**CI gating:** The suite was first registered `DISABLED TRUE` so it stayed out of CI. Since 948e1c77 it is enabled:
 ```cmake
 add_test(NAME yse_tests_integration COMMAND yse_tests --test-suite=integration)
-set_tests_properties(yse_tests_integration PROPERTIES LABELS integration DISABLED TRUE)
+set_tests_properties(yse_tests_integration PROPERTIES LABELS integration)
 ```
-The `DISABLED TRUE` property means the test is registered but not run by default. On machines with audio hardware, run with `ctest -L integration` to include it.
+It runs in the default ctest set (`python yse.py test` and CI). Cases that need a real device return early when none opens, so it passes headless. Run it alone with `ctest -L integration`.
 
 **Shared Helpers Introduced**
 
@@ -556,7 +587,7 @@ None beyond what was introduced in earlier phases.
 
 **Dependencies:** All prior phases.
 
-**Definition of Done:** `ctest -R integration` passes on a developer machine with audio hardware. CI pipeline excludes the `integration` label by default. Disabling this phase does not break any earlier phase.
+**Definition of Done:** `ctest -L integration` passes on a developer machine with audio hardware and headless in CI. Disabling this phase does not break any earlier phase.
 
 ---
 
@@ -576,4 +607,4 @@ None beyond what was introduced in earlier phases.
 | 10 | Reverb DSP | 1 | — | Yes |
 | 11 | MIDI file parsing | 1 | — | Yes |
 | 12 | Music & composition | 3 | — | Yes |
-| 13 | Device integration | 1 | — | **No (opt-in)** |
+| 13 | Device integration | 1 | — | Yes (device cases return early headless) |

@@ -119,8 +119,9 @@ extern "C" void android_main(struct android_app* app) {
   }
 
   doctest::Context context;
-  // Match desktop CI: skip integration suite (needs live PortAudio device that
-  // doesn't exist here), force per-test duration printing.
+  // Skip the integration suite (it drives a live PortAudio device, which the
+  // Android build doesn't have; desktop registers it only under NOT ANDROID),
+  // force per-test duration printing.
   context.setOption("test-suite-exclude", "integration");
   context.setOption("duration", true);
   const int res = context.run();

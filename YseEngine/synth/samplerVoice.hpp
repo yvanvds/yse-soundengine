@@ -53,6 +53,13 @@ namespace YSE {
       std::vector<DSP::fileBuffer> channels; ///< One buffer per source channel.
       long frames = 0; ///< Frame count (per channel).
       Flt sampleRateAdjustment = 1.0f; ///< fileRate / deviceRate (spec §6).
+      /** Native rate of the source file in Hz; 0 = unknown. When set, the
+       *  playback-speed adjustment is re-derived from the *live* SAMPLERATE at
+       *  every note-on, so an instrument that survives a ``system::close()`` /
+       *  ``init()`` cycle at another device rate keeps its pitch (issue #637).
+       *  When 0 (e.g. a hand-built instrument), the fixed
+       *  ``sampleRateAdjustment`` above is used unchanged. */
+      Flt fileRate = 0.0f;
       bool silence = false; ///< sample=*silence — produces silence, no PCM.
       bool loaded = false; ///< PCM decoded (or silence), ready to render.
     };
@@ -217,7 +224,7 @@ namespace YSE {
       Stage stage = IDLE;
       Flt lvl = 0.0f;
       Flt sus = 1.0f;
-      Flt sr = 44100.0f;
+      Flt sr = 48000.0f;
       long delaySamps = 0, holdSamps = 0;
       long delayCnt = 0, holdCnt = 0;
       Flt aInc = 1.0f, dInc = 1.0f, rInc = 1.0f;

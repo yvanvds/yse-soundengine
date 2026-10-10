@@ -15,6 +15,9 @@ are propagated unchanged.
 
 import argparse
 import datetime
+import fnmatch
+import io
+import json
 import os
 import platform
 import re
@@ -22,6 +25,8 @@ import shutil
 import subprocess
 import sys
 import tarfile
+import urllib.error
+import urllib.request
 import zipfile
 from pathlib import Path
 
@@ -57,6 +62,390 @@ def run(cmd, cwd=None):
         sys.exit(result.returncode)
 
 
+# Windows caps an entire process command line at 32767 characters
+# (CreateProcess), and exceeding it fails the spawn outright with
+# "[WinError 206] The filename or extension is too long" — no partial work.
+# POSIX allows far more (ARG_MAX, typically megabytes) but is not unlimited
+# either, so both platforms get batched; only the budget differs.  See #598.
+MAX_CMDLINE = 30000 if IS_WINDOWS else 120000
+
+
+def _cmdline_cost(arg):
+    """Characters *arg* is worth on a command line: the text, the separating
+    space, and headroom for the quotes the platform may add around it."""
+    return len(str(arg)) + 3
+
+
+def batch_args(prefix, arguments, limit=MAX_CMDLINE):
+    """Split ``prefix + arguments`` into command lines shorter than *limit*.
+
+    Every batch repeats *prefix* and carries a slice of *arguments*.  An
+    argument too long to fit even alone still gets its own batch rather than
+    being dropped — a hopeless command line is better than a silently skipped
+    file.  Returns a list of command lists (never empty when *arguments* is
+    non-empty).
+    """
+    prefix = [str(c) for c in prefix]
+    base = sum(_cmdline_cost(c) for c in prefix)
+    batches = []
+    current = []
+    size = base
+    for arg in arguments:
+        arg = str(arg)
+        cost = _cmdline_cost(arg)
+        if current and size + cost > limit:
+            batches.append(prefix + current)
+            current = []
+            size = base
+        current.append(arg)
+        size += cost
+    if current:
+        batches.append(prefix + current)
+    return batches
+
+
+def run_batched(prefix, arguments, cwd=None):
+    """Run ``prefix + arguments`` over as many batches as the command-line
+    limit requires.
+
+    Only valid for tools whose per-argument work is independent (clang-format
+    -i, clang-tidy): splitting the list must not change the result.  Every
+    batch runs even if an earlier one failed, so a failure part-way through
+    still reports the remaining files; the first non-zero return code is then
+    propagated, matching ``run``.
+    """
+    batches = batch_args(prefix, arguments)
+    total = len(batches)
+    failure = 0
+    for index, batch in enumerate(batches, start=1):
+        count = len(batch) - len(prefix)
+        if cwd:
+            print(f"+ cd {cwd}", flush=True)
+        label = f" [batch {index}/{total}]" if total > 1 else ""
+        print("+", " ".join(str(c) for c in prefix),
+              f"<{count} file(s)>{label}", flush=True)
+        result = subprocess.run(batch, cwd=str(cwd) if cwd else None)
+        if result.returncode != 0 and failure == 0:
+            failure = result.returncode
+    if failure:
+        sys.exit(failure)
+
+
+# ctest rewrites Testing/Temporary/LastTest.log — the only place the per-test
+# output of a run survives — on every invocation.  For an intermittent failure
+# that is fatal to diagnosis: the run that destroys the evidence is the re-run
+# you start to see whether it reproduces.  Both occurrences of the #738
+# yse_unit_tests flake were lost exactly that way, leaving LastTestsFailed.log
+# naming the entry and no assertion text to blame-hunt from.  Every ctest
+# invocation in this script therefore goes through run_ctest, which copies the
+# failing run's logs somewhere no later run can reach before propagating the
+# exit code.
+CTEST_LOG_NAMES = ("LastTest.log", "LastTestsFailed.log", "CTestCostData.txt")
+
+
+def test_preset_build_dir(preset):
+    """Return the build directory ``ctest --preset <preset>`` runs in.
+
+    Resolved from CMakePresets.json (test preset → configure preset →
+    binaryDir) rather than hard-coded, because the names do not follow from
+    each other: tests-debug builds in build-tests, and coverage-windows shares
+    build-coverage with coverage.  Returns None if the preset, its configure
+    preset, or the binaryDir cannot be resolved.
+    """
+    try:
+        with open(ROOT / "CMakePresets.json", "r", encoding="utf-8") as f:
+            presets = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return None
+    configure = next(
+        (p.get("configurePreset") for p in presets.get("testPresets", [])
+         if p.get("name") == preset),
+        None,
+    )
+    binary_dir = next(
+        (p.get("binaryDir") for p in presets.get("configurePresets", [])
+         if p.get("name") == configure),
+        None,
+    )
+    if not binary_dir:
+        return None
+    return Path(binary_dir.replace("${sourceDir}", str(ROOT)))
+
+
+def archive_ctest_logs(preset):
+    """Copy the ctest logs of *preset*'s build dir out of Testing/Temporary/.
+
+    Returns the archive directory, or None when there was nothing to copy.
+    The archive lands in Testing/failures/ inside the same build directory, so
+    it is covered by the existing .gitignore rules and removed by `yse.py
+    clean` along with the build tree.
+    """
+    build_dir = test_preset_build_dir(preset)
+    if build_dir is None:
+        return None
+    temp_dir = build_dir / "Testing" / "Temporary"
+    sources = [temp_dir / name for name in CTEST_LOG_NAMES]
+    sources = [p for p in sources if p.is_file()]
+    if not sources:
+        return None
+
+    stamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+    parent = build_dir / "Testing" / "failures"
+    dest = parent / f"{preset}-{stamp}"
+    # Two failures inside the same second would otherwise land on top of each
+    # other, which is the exact loss this function exists to prevent.
+    counter = 2
+    while dest.exists():
+        dest = parent / f"{preset}-{stamp}-{counter}"
+        counter += 1
+    dest.mkdir(parents=True)
+    for src in sources:
+        shutil.copy2(src, dest / src.name)
+    return dest
+
+
+# The archived LastTest.log is tens of thousands of lines (the presets pass
+# --duration=true, so every test case prints), and the question it has to
+# answer first is one line long: did the failing assertion fail *only* in the
+# monolithic yse_unit_tests entry, or also in the isolated entry that runs the
+# same suite on its own?  Monolithic-only is the cross-suite / load-flake shape
+# (#298, #304, #352, #834 — the one #738 archive that caught the flake); a
+# failure that also shows in the isolated entry is ordinary deterministic
+# breakage.  summarize_ctest_log answers it so the archive is triaged at a
+# glance instead of by hand.
+_CTEST_ENTRY_RE = re.compile(r"^\d+/\d+ Test: (\S+)")
+_CTEST_SUITE_FILTER_RE = re.compile(r'"--test-suite=([^"]*)"')
+_DOCTEST_SUITE_RE = re.compile(r"^TEST SUITE:\s+(.*)$")
+_DOCTEST_CASE_RE = re.compile(r"^TEST CASE:\s+(.*)$")
+_DOCTEST_ASSERT_RE = re.compile(r"^(.+?):(\d+): (?:FATAL )?ERROR: ")
+_SUMMARY_LINE_MAX = 300
+
+
+def _clip(line):
+    """Shorten *line* for the summary; the full text stays in LastTest.log."""
+    if len(line) <= _SUMMARY_LINE_MAX:
+        return line
+    return line[:_SUMMARY_LINE_MAX] + f" ... [{len(line)} chars, see LastTest.log]"
+
+
+def _entry_ran(entry, case_name, suite):
+    """Whether a ctest entry demonstrably executed *case_name*.
+
+    Either doctest printed the case (entries run with --duration=true print
+    every case), or the entry's --test-suite filter selects the case's suite.
+    """
+    if case_name in entry["cases"]:
+        return True
+    return suite is not None and any(fnmatch.fnmatchcase(suite, pattern)
+                                     for pattern in entry["suites"])
+
+
+class _CtestLogParser:
+    """Line-by-line reader of a ctest LastTest.log.
+
+    Builds ``entries``: ctest entry name -> {"asserts": [(location, case,
+    [lines])], "last_case": str, "cases": {case names printed}, "suites":
+    [--test-suite= patterns]}, plus ``case_suite``: case name -> the TEST
+    SUITE doctest printed above it.
+    """
+
+    def __init__(self):
+        self.entries = {}
+        self.case_suite = {}
+        self.current = None
+        self.case = None
+        self.suite = None
+        self.pending = None  # assertion whose `values:` lines are collected
+
+    def feed(self, line):
+        m = _CTEST_ENTRY_RE.match(line)
+        if m:
+            self._start_entry(m.group(1))
+        elif self.current is None:
+            return
+        elif line.startswith("Command:"):
+            self._command(line)
+        elif line.startswith("====="):
+            self.suite = None  # every doctest block restates its suite, if any
+        elif self._suite(line) or self._case(line) or self._assert(line):
+            return
+        elif self.pending is not None:
+            self._continuation(line)
+
+    def _start_entry(self, name):
+        self.current = self.entries.setdefault(
+            name, {"asserts": [], "last_case": None, "cases": set(), "suites": []})
+        self.case = self.suite = self.pending = None
+
+    def _command(self, line):
+        m = _CTEST_SUITE_FILTER_RE.search(line)
+        # A --test-case filter narrows the suite filter to an unknown subset,
+        # so such an entry only counts for the cases it printed.
+        if m and "--test-case=" not in line:
+            self.current["suites"] = [s for s in m.group(1).split(",") if s]
+
+    def _suite(self, line):
+        m = _DOCTEST_SUITE_RE.match(line)
+        if m:
+            self.suite = m.group(1).strip()
+        return m is not None
+
+    def _case(self, line):
+        m = _DOCTEST_CASE_RE.match(line)
+        if m is None:
+            return False
+        self.case = m.group(1).strip()
+        self.current["last_case"] = self.case
+        # --duration=true makes doctest print every case it runs, pass or
+        # fail, so this is the set of cases the entry actually executed.
+        self.current["cases"].add(self.case)
+        if self.suite is not None:
+            self.case_suite[self.case] = self.suite
+        self.pending = None
+        return True
+
+    def _assert(self, line):
+        m = _DOCTEST_ASSERT_RE.match(line)
+        if m is None:
+            return False
+        location = f"{Path(m.group(1)).name}:{m.group(2)}"
+        self.pending = [line.strip()]
+        self.current["asserts"].append((location, self.case, self.pending))
+        return True
+
+    def _continuation(self, line):
+        if line.startswith("  ") and line.strip():
+            self.pending.append(line.strip())
+        else:
+            self.pending = None
+
+
+def _read_failed_entries(failed_log):
+    """Entry names from a LastTestsFailed.log (``<index>:<name>`` per line)."""
+    if failed_log is None or not Path(failed_log).is_file():
+        return []
+    lines = Path(failed_log).read_text(encoding="utf-8",
+                                       errors="replace").splitlines()
+    return [n for n in (l.partition(":")[2].strip() for l in lines) if n]
+
+
+def _verdict(parser, name, location, case_name, failed_in):
+    """One line classifying a failing assertion against the other entries."""
+    others = sorted(failed_in[location] - {name})
+    if others:
+        return (f"    -> also failed in: {', '.join(others)} (reproduces "
+                "outside this entry: likely deterministic)")
+    suite = parser.case_suite.get(case_name)
+    passed_in = sorted(n for n, e in parser.entries.items()
+                       if n != name and _entry_ran(e, case_name, suite))
+    if passed_in:
+        return (f"    -> failed ONLY here; the same case passed in "
+                f"{', '.join(passed_in)}: cross-suite interference or a "
+                "load-dependent race (see #738)")
+    return ("    -> no other entry ran this case, so there is no isolated run "
+            "to compare against")
+
+
+def _format_entry(parser, name, failed_in):
+    """Summary lines for one failing ctest entry."""
+    out = ["", f"== {name}"]
+    entry = parser.entries.get(name)
+    if entry is None:
+        return out + ["  (entry not found in LastTest.log)"]
+    if not entry["asserts"]:
+        # No assertion: a crash, a hang killed by the timeout, or a failed
+        # pass-regex.  The last case started is where to look.
+        return out + ["  no doctest assertion captured (crash, timeout, or "
+                      "pass-regex failure?)",
+                      f"  last TEST CASE started: {entry['last_case']}"]
+    # One block per location: a CHECK inside a loop can fail thousands of
+    # times, and the first occurrence plus a count is what a reader needs.
+    by_location = {}
+    for location, case_name, lines in entry["asserts"]:
+        by_location.setdefault(location, []).append((case_name, lines))
+    for location, hits in by_location.items():
+        case_name, lines = hits[0]
+        out.append(f"  TEST CASE: {case_name}")
+        out.extend(f"    {_clip(l)}" for l in lines)
+        if len(hits) > 1:
+            out.append(f"    (+{len(hits) - 1} more failure(s) at {location})")
+        out.append(_verdict(parser, name, location, case_name, failed_in))
+    return out
+
+
+def summarize_ctest_log(last_test_log, failed_log=None):
+    """Return a short plain-text triage of a failing ctest run.
+
+    *last_test_log* is ctest's LastTest.log; *failed_log* its optional
+    LastTestsFailed.log, which is the authoritative list of failing entries —
+    an entry can fail without any doctest assertion (crash, timeout, a failed
+    pass-regex).
+    """
+    parser = _CtestLogParser()
+    text = Path(last_test_log).read_text(encoding="utf-8", errors="replace")
+    for line in text.splitlines():
+        parser.feed(line)
+
+    failed_entries = _read_failed_entries(failed_log) or [
+        n for n, e in parser.entries.items() if e["asserts"]]
+
+    # Where did each assertion location fail?  Keyed by location, not by test
+    # case name, so the same CHECK is matched across entries.
+    failed_in = {}
+    for name, entry in parser.entries.items():
+        for location, _, _ in entry["asserts"]:
+            failed_in.setdefault(location, set()).add(name)
+
+    out = [f"Failing ctest entries: {', '.join(failed_entries) or '(none found)'}"]
+    for name in failed_entries:
+        out.extend(_format_entry(parser, name, failed_in))
+    return "\n".join(out) + "\n"
+
+
+def run_ctest(preset):
+    """Print and run ``ctest --preset <preset>``.
+
+    On success this behaves exactly like ``run``.  On failure the run's logs
+    are archived (see archive_ctest_logs) before the child's return code is
+    propagated, so an intermittent failure stays diagnosable after the
+    confirming re-run has overwritten Testing/Temporary/ (#738).  A triage
+    summary (see summarize_ctest_log) is written next to them and printed.
+    """
+    cmd = ["ctest", "--preset", preset]
+    _print_cmd(cmd)
+    result = subprocess.run(cmd)
+    if result.returncode == 0:
+        return
+    dest = archive_ctest_logs(preset)
+    if dest is None:
+        print("\nctest failed and no Testing/Temporary/ logs were found to "
+              "preserve.", flush=True)
+    else:
+        print(f"\nctest failed — logs preserved in {dest}", flush=True)
+        print("  Testing/Temporary/ is overwritten by the next ctest run; "
+              "this copy is not.", flush=True)
+        write_ctest_summary(dest)
+    sys.exit(result.returncode)
+
+
+def write_ctest_summary(archive_dir):
+    """Write summary.txt into *archive_dir* and echo it; never raises.
+
+    The summary is a convenience on top of the archive: a parse problem must
+    not replace the test run's exit code with a Python traceback.
+    """
+    log = Path(archive_dir) / "LastTest.log"
+    if not log.is_file():
+        return
+    try:
+        summary = summarize_ctest_log(log, Path(archive_dir) / "LastTestsFailed.log")
+        (Path(archive_dir) / "summary.txt").write_text(summary, encoding="utf-8")
+    except Exception as exc:  # deliberate catch-all: see docstring
+        print(f"  (could not summarize the failure: {exc})", flush=True)
+        return
+    print("\n" + summary, flush=True)
+
+
 def run_to_file(cmd, output_path, cwd=None):
     """Print and run *cmd*, writing stdout to output_path."""
     _print_cmd(cmd, cwd)
@@ -65,6 +454,20 @@ def run_to_file(cmd, output_path, cwd=None):
         result = subprocess.run(cmd, stdout=f, cwd=str(cwd) if cwd else None)
     if result.returncode != 0:
         sys.exit(result.returncode)
+
+
+def _check_json_report(path):
+    """Exit with an error unless *path* is a non-empty, parseable JSON file."""
+    path = Path(path)
+    if not path.exists() or path.stat().st_size == 0:
+        print(f"error: {path} is empty — the report generator wrote nothing.")
+        sys.exit(1)
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            json.load(f)
+    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+        print(f"error: {path} is not valid JSON: {exc}")
+        sys.exit(1)
 
 
 def _demo_exe(name):
@@ -97,41 +500,40 @@ def cmd_build(args):
 def cmd_test(args):
     sanitizer = getattr(args, "sanitizer", None)
     if sanitizer:
-        # ASan/TSan gate for the #229 patcher concurrency stress test. clang +
-        # sanitizer runtime are Linux-only here (Windows/MSYS2 clang ships no
-        # TSan and no ASan leak detector), matching the preset conditions.
-        if IS_WINDOWS:
-            print("error: --sanitizer builds require Linux/clang (see the "
-                  "tests-asan / tests-tsan presets).")
+        # Sanitizer gates. The two presets scope differently (CMakePresets.json):
+        #   - tests-asan (Linux) is the #229 patcher concurrency gate: its test
+        #     preset filters to the patcher suite + send/return stress tests.
+        #   - tests-tsan (Linux) is the engine-wide race gate since #824: the
+        #     whole ctest set bar a short exclude list (the monolithic
+        #     yse_unit_tests and the content-pack suite).
+        #
+        # TSan stays Linux-only: MSYS2 Clang64 ships no ThreadSanitizer runtime
+        # at all. ASan does ship, and issue #671 made the test binary linkable
+        # under it, so Windows gets its own preset — it runs the whole ctest set
+        # rather than the Linux ASan gate's patcher filter, and adds
+        # -fsized-deallocation so new-delete-type-mismatch is observable there
+        # (issue #662). Windows ASan has no leak detector either way.
+        if IS_WINDOWS and sanitizer == "tsan":
+            print("error: --sanitizer tsan requires Linux/clang (MSYS2 Clang64 "
+                  "ships no ThreadSanitizer runtime); use --sanitizer asan on "
+                  "Windows.")
             sys.exit(1)
-        preset = "tests-asan" if sanitizer == "asan" else "tests-tsan"
+        if sanitizer == "asan":
+            preset = "tests-asan-windows" if IS_WINDOWS else "tests-asan"
+        else:
+            preset = "tests-tsan"
         run(["cmake", "--preset", preset])
         run(["cmake", "--build", "--preset", preset])
-        run(["ctest", "--preset", preset])
+        run_ctest(preset)
         return
 
+    # The ctest run includes yse_tests_integration (label `integration`): it
+    # has not been DISABLED since 948e1c77, and its device-dependent cases
+    # return early when no audio device opens, so it is headless-safe.
     preset = "tests-debug-python" if args.python else "tests-debug"
-    build_dir = "build-tests-python" if args.python else "build-tests"
     run(["cmake", "--preset", preset])
     run(["cmake", "--build", "--preset", preset])
-    run(["ctest", "--preset", preset])
-
-    if args.integration:
-        suffix = ".exe" if IS_WINDOWS else ""
-        exe = ROOT / build_dir / "bin" / ("yse_tests" + suffix)
-        if not exe.exists():
-            print(f"error: {exe} not found after build.")
-            sys.exit(1)
-        # ctest's DISABLED property on yse_tests_integration blocks the suite
-        # even with `-L integration`, so invoke the doctest binary directly.
-        # WORKING_DIRECTORY = bin/ matches the per-suite CTest entries.
-        bin_dir = exe.parent
-        _print_cmd([exe.name, "--test-suite=integration"], cwd=bin_dir)
-        result = subprocess.run(
-            [str(exe), "--test-suite=integration"], cwd=str(bin_dir)
-        )
-        if result.returncode != 0:
-            sys.exit(result.returncode)
+    run_ctest(preset)
 
 
 def cmd_bench(args):
@@ -162,7 +564,7 @@ def cmd_bench(args):
 def _cmd_coverage_linux():
     run(["cmake", "--preset", "coverage"])
     run(["cmake", "--build", "--preset", "coverage"])
-    run(["ctest", "--preset", "coverage"])
+    run_ctest("coverage")
 
     if shutil.which("gcovr") is None:
         print("\nNote: gcovr not found — skipping coverage report generation.")
@@ -170,11 +572,18 @@ def _cmd_coverage_linux():
         return
 
     report = ROOT / "coverage.xml"
+    # The --exclude-*-branches flags must match the gcovr invocation in
+    # .github/workflows/build.yml, otherwise local and CI coverage disagree.
+    # They drop gcov's implicit exception-unwind / never-entered edges, which
+    # are not reachable by any test and otherwise dominate the condition
+    # coverage figure.  See #416.
     run([
         "gcovr",
         "--root", str(ROOT),
         "--filter", "./YseEngine/",
         "--filter", "./Tests/",
+        "--exclude-throw-branches",
+        "--exclude-unreachable-branches",
         "--sonarqube",
         "--output", str(report),
     ])
@@ -201,28 +610,45 @@ def _cmd_coverage_windows():
     # LLVM_PROFILE_FILE controls where the instrumented binary writes its raw
     # profile data.  %p expands to PID, keeping per-process files distinct.
     os.environ["LLVM_PROFILE_FILE"] = str(build_dir / "coverage-%p.profraw")
-    run(["ctest", "--preset", "coverage-windows"])
+    run_ctest("coverage-windows")
 
     profraw_files = sorted(build_dir.glob("coverage-*.profraw"))
     if not profraw_files:
         print("error: no .profraw files found after running tests.")
         sys.exit(1)
 
-    run(["llvm-profdata", "merge", "-sparse"]
-        + [str(f) for f in profraw_files]
-        + ["-o", str(profdata)])
+    # One .profraw per test process, so this list is unbounded in the same way
+    # the format/analyze file lists are (#598).  Chunking is not an option here
+    # — a merge must see every input at once — so the paths go through
+    # llvm-profdata's --input-files response file instead of argv.
+    profraw_list = build_dir / "profraw-files.txt"
+    profraw_list.write_text(
+        "".join(f"{f}\n" for f in profraw_files), encoding="utf-8")
+    run(["llvm-profdata", "merge", "-sparse",
+         f"--input-files={profraw_list}", "-o", str(profdata)])
 
     # llvm-cov export writes the JSON to stdout; redirect to report file.
     # SonarQube ingests this via sonar.cfamily.llvm-cov.reportPath.
+    #
+    # Do NOT pass --format=json here: `export` emits JSON by default and its
+    # --format option only accepts text/lcov (json is a `show`/`report` value).
+    # Passing it made llvm-cov exit 1 with "Cannot find option named 'json'!"
+    # *after* the expensive configure/build/ctest steps had already run.  See
+    # #567.
     run_to_file(
         ["llvm-cov", "export",
          str(test_exe),
          f"--instr-profile={profdata}",
-         "--format=json",
          str(ROOT / "YseEngine"),
          str(ROOT / "Tests")],
         output_path=str(report),
     )
+
+    # llvm-cov can exit 0 having written nothing useful (bad filter paths, a
+    # future flag rename).  Fail loudly here rather than leaving a truncated
+    # report for SonarQube to silently ingest as "no coverage".
+    _check_json_report(report)
+
     print(f"\nCoverage report written to {report}")
     print(f"SonarQube property: sonar.cfamily.llvm-cov.reportPath={report.name}")
 
@@ -369,7 +795,11 @@ def cmd_analyze(args):
             print(f"Note: sonar-scanner is also on PATH ({sonar_scanner}) "
                   "and provides a deeper analysis including SonarCloud upload.\n")
 
-        run([clang_tidy, f"-p={compile_commands_dir}"] + [str(f) for f in files])
+        # Batched: the full file list is already ~19 KB of argv and growing,
+        # and clang-tidy treats each translation unit independently, so
+        # splitting the list cannot change the findings.  See #598.
+        run_batched([clang_tidy, f"-p={compile_commands_dir}"],
+                    [str(f) for f in files])
 
     elif sonar_scanner:
         print("clang-tidy not found — falling back to sonar-scanner (heavier analysis).")
@@ -447,7 +877,10 @@ def cmd_format(args):
         print("No source files found to format.")
         return
 
-    run([clang_format, "-i"] + [str(f) for f in files])
+    # Batched: the tree is well past Windows' 32 KB command-line cap, and
+    # clang-format -i rewrites each file independently, so splitting the list
+    # cannot change the result.  See #598.
+    run_batched([clang_format, "-i"], [str(f) for f in files])
     print(f"Formatted {len(files)} file(s).")
 
 
@@ -595,13 +1028,190 @@ def _collect_mingw_dlls(dll_path, mingw_prefix):
     return sorted(found)
 
 
+# Upstream license files, as found in share/doc/<pkg>/ or an upstream tarball.
+_LICENSE_NAME_RE = re.compile(r"^(licen[sc]e|copying|copyright|notice)([.-].*)?$", re.IGNORECASE)
+MSYS2_SOURCES_URL = "https://repo.msys2.org/mingw/sources"
+
+
+def _pacman(msys_root, *pacman_args):
+    """Run pacman (PATH first, else <msys_root>/usr/bin) and return its stdout."""
+    pacman = shutil.which("pacman") or str(msys_root / "usr" / "bin" / "pacman.exe")
+    if not Path(pacman).exists():
+        print(f"error: pacman not found (looked on PATH and at {pacman}); "
+              "cannot resolve the licenses of the bundled DLLs.")
+        sys.exit(1)
+    return subprocess.check_output([pacman, *pacman_args], text=True, errors="replace")
+
+
+def _msys2_package(msys_root, dll):
+    """Return {name, version, base, licenses, files} of the MSYS2 package that
+    owns `dll` (pacman -Qqo / -Qi / -Qlq, and %BASE% from the local db)."""
+    try:
+        # pacman only resolves forward-slash Windows paths.
+        name = _pacman(msys_root, "-Qqo", Path(dll).as_posix()).strip()
+    except subprocess.CalledProcessError:
+        print(f"error: no MSYS2 package owns {dll}; cannot ship its license.")
+        sys.exit(1)
+    info = {}
+    for line in _pacman(msys_root, "-Qi", name).splitlines():
+        key, sep, value = line.partition(":")
+        if sep and key.strip() and not key.startswith(" "):
+            info[key.strip()] = value.strip()
+    version = info["Version"]
+    desc = msys_root / "var" / "lib" / "pacman" / "local" / f"{name}-{version}" / "desc"
+    base = re.search(r"^%BASE%\n(\S+)", desc.read_text(encoding="utf-8"), re.MULTILINE)
+    files = []
+    for entry in _pacman(msys_root, "-Qlq", name).splitlines():
+        if entry.endswith("/"):
+            continue
+        path = msys_root / entry.lstrip("/")
+        parts = Path(entry).parts
+        if "licenses" in parts or ("doc" in parts and _LICENSE_NAME_RE.match(path.name)):
+            files.append(path)
+    return {
+        "name": name,
+        "version": version,
+        "base": base.group(1) if base else name,
+        "licenses": info.get("Licenses", "unknown"),
+        "files": files,
+    }
+
+
+def _open_zst_tar(path):
+    """Open a .tar.zst (Python 3.14+ natively, else via the zstd CLI)."""
+    try:
+        return tarfile.open(path, "r:*")
+    except tarfile.TarError:
+        pass
+    zstd = shutil.which("zstd")
+    if zstd is None:
+        print(f"error: cannot read {path}: needs Python 3.14+ or zstd on PATH.")
+        sys.exit(1)
+    data = subprocess.check_output([zstd, "-d", "-c", str(path)])
+    return tarfile.open(fileobj=io.BytesIO(data), mode="r:")
+
+
+def _msys2_source_package(pkg, cache):
+    """Download (once, into `cache`) the MSYS2 source package that built `pkg`
+    at its installed version, and return its path."""
+    cache.mkdir(parents=True, exist_ok=True)
+    stem = f"{pkg['base']}-{pkg['version']}.src"
+    for ext in (".tar.zst", ".tar.gz"):
+        cached = cache / (stem + ext)
+        if cached.is_file():
+            return cached
+    for ext in (".tar.zst", ".tar.gz"):
+        url = f"{MSYS2_SOURCES_URL}/{stem}{ext}"
+        try:
+            with urllib.request.urlopen(url, timeout=120) as resp:
+                data = resp.read()
+        except urllib.error.HTTPError as e:
+            if e.code == 404:
+                continue
+            raise
+        target = cache / (stem + ext)
+        partial = target.with_name(target.name + ".part")
+        partial.write_bytes(data)
+        partial.replace(target)
+        print(f"Fetched {url}")
+        return target
+    print(f"error: MSYS2 source package {stem}.tar.{{zst,gz}} not found at "
+          f"{MSYS2_SOURCES_URL}/. Place it in {cache} to package offline.")
+    sys.exit(1)
+
+
+def _license_files_from_source(src_pkg):
+    """Return [(name, bytes)] of the top-level license files of the upstream
+    tarball inside an MSYS2 source package (for packages whose binary package
+    carries none, e.g. lame and libvorbis)."""
+    found = []
+    with _open_zst_tar(src_pkg) as outer:
+        for member in outer.getmembers():
+            if not member.isfile() or not re.search(r"\.tar\.(gz|xz|bz2|zst)$", member.name):
+                continue
+            inner_bytes = outer.extractfile(member).read()
+            try:
+                inner = tarfile.open(fileobj=io.BytesIO(inner_bytes), mode="r:*")
+            except tarfile.TarError:
+                continue
+            with inner:
+                for m in inner.getmembers():
+                    parts = Path(m.name).parts
+                    if m.isfile() and len(parts) == 2 and _LICENSE_NAME_RE.match(parts[1]):
+                        found.append((parts[1], inner.extractfile(m).read()))
+    return found
+
+
+def _add_windows_license_files(stage, bundled, mingw_prefix, cache):
+    """Ship each bundled DLL's license texts under licenses/<package>/ and, for
+    packages whose declared license includes the (L)GPL, the exact MSYS2 source
+    package under third_party/
+    (#979). Writes licenses/BUNDLED-DLLS.txt mapping each DLL to its package."""
+    msys_root = Path(mingw_prefix).parent
+    packages = {}   # name -> package info
+    owners = []     # (dll name, package name)
+    for dll in bundled:
+        pkg = _msys2_package(msys_root, dll)
+        packages.setdefault(pkg["name"], pkg)
+        owners.append((dll.name, pkg["name"]))
+
+    licenses = stage / "licenses"
+    third_party = stage / "third_party"
+    licenses.mkdir(exist_ok=True)
+    manifest = [
+        "DLLs bundled in bin/ and the MSYS2 Clang64 packages they come from.",
+        "License texts are in licenses/<package>/. Packages whose declared",
+        "license includes the (L)GPL ship their complete MSYS2 source package",
+        "(PKGBUILD, patches, upstream tarball) under third_party/; see NOTICE.",
+        "",
+    ]
+    for name, pkg in sorted(packages.items()):
+        short = re.sub(r"^mingw-w64-(?:clang-|ucrt-)?(?:x86_64|i686|aarch64)-", "", name)
+        dest = licenses / short
+        dest.mkdir(exist_ok=True)
+        copyleft = "GPL" in pkg["licenses"]
+        src_pkg = None
+        if copyleft or not pkg["files"]:
+            src_pkg = _msys2_source_package(pkg, cache)
+        if pkg["files"]:
+            for f in pkg["files"]:
+                shutil.copy2(f, dest / f.name)
+            copied = [f.name for f in pkg["files"]]
+        else:
+            texts = _license_files_from_source(src_pkg)
+            if not texts:
+                print(f"error: no license file found for {name} in its binary "
+                      f"or source package ({src_pkg.name}).")
+                sys.exit(1)
+            for fname, data in texts:
+                (dest / fname).write_bytes(data)
+            copied = [fname for fname, _ in texts]
+        dlls = ", ".join(d for d, owner in owners if owner == name)
+        manifest.append(f"{dlls}")
+        manifest.append(f"    package:  {name} {pkg['version']}")
+        manifest.append(f"    license:  {pkg['licenses']}")
+        manifest.append(f"    texts:    " + ", ".join(f"licenses/{short}/{c}" for c in copied))
+        if copyleft:
+            third_party.mkdir(exist_ok=True)
+            shutil.copy2(src_pkg, third_party / src_pkg.name)
+            manifest.append(f"    source:   third_party/{src_pkg.name}")
+            manifest.append(f"              ({MSYS2_SOURCES_URL}/{src_pkg.name})")
+        manifest.append("")
+    (licenses / "BUNDLED-DLLS.txt").write_text("\n".join(manifest), encoding="utf-8")
+    shipped = sorted(p.name for p in third_party.iterdir()) if third_party.is_dir() else []
+    print(f"Added licenses/ for {len(packages)} package(s); "
+          f"LGPL sources: {', '.join(shipped) or 'none'}.")
+
+
 def _make_release_readme(version, platform_name, dlls):
     today = datetime.date.today().isoformat()
     if platform_name == "windows":
         layout = (
             "    include/        Public C++ headers (use `#include \"yse.hpp\"`)\n"
             "    bin/            libyse.dll + bundled runtime dependencies\n"
-            "    lib/            libyse.dll.a (MinGW import library)"
+            "    lib/            libyse.dll.a (MinGW import library)\n"
+            "    licenses/       License texts of the bundled DLLs (see BUNDLED-DLLS.txt)\n"
+            "    third_party/    MSYS2 source packages of the LGPL DLLs (see NOTICE)"
         )
         deps_section = (
             "All runtime dependencies are bundled in `bin/`. Just drop the contents of\n"
@@ -609,6 +1219,12 @@ def _make_release_readme(version, platform_name, dlls):
             "come from MSYS2 Clang64 and include:\n\n"
         )
         deps_section += "\n".join(f"- `{d.name}`" for d in dlls) if dlls else "- (none — see bin/)"
+        deps_section += (
+            "\n\nEach DLL's license text is in `licenses/`. For the LGPL ones (libsndfile,\n"
+            "mpg123 and LAME; FLAC's package also declares LGPL) the complete source,\n"
+            "as built by MSYS2, is in `third_party/`; see `licenses/BUNDLED-DLLS.txt`.\n"
+            "You may replace any of these DLLs with a compatible build of your own."
+        )
         link_hint = (
             "Compile: `-I<archive>/include`\n"
             "Link:    `-L<archive>/lib -lyse`\n"
@@ -619,10 +1235,17 @@ def _make_release_readme(version, platform_name, dlls):
             "    include/                Public C++ headers (use `#include \"yse.hpp\"`)\n"
             "    lib/<abi>/libyse.so     One libyse.so per Android ABI shipped"
         )
+        layout += (
+            "\n    licenses/               License texts of the statically linked libraries\n"
+            "    third_party/            Source of libsndfile, as linked (LGPL-2.1, see NOTICE)"
+        )
         deps_section = (
             "libYSE on Android uses Oboe for audio I/O — it is statically linked\n"
             "into `libyse.so`, so the only system requirement is `android-26` (API 26\n"
-            "/ Android 8.0 Oreo) or newer."
+            "/ Android 8.0 Oreo) or newer.\n\n"
+            "libsndfile (LGPL-2.1-or-later) is also statically linked into\n"
+            "`libyse.so`. Its complete source is in `third_party/` and `NOTICE`\n"
+            "explains how to relink `libyse.so` against a modified libsndfile."
         )
         link_hint = (
             "Gradle:   copy the `lib/` directory into your module's\n"
@@ -672,6 +1295,7 @@ prebuilt shared library and public headers for {platform_blurb}.
 ```
 {layout}
     LICENSE.md      MIT License
+    NOTICE          Third-party attributions and license obligations
     README.md       This file
 ```
 
@@ -690,8 +1314,90 @@ surface, and known issues.
 ## License
 
 libYSE is distributed under the MIT License. See `LICENSE.md` for the full
-text.
+text. Third-party components keep their own licenses; see `NOTICE`.
 """
+
+
+def _fetchcontent_pin(name):
+    """Return (GIT_REPOSITORY, GIT_TAG) of `FetchContent_Declare(<name> ...)` in
+    the top-level CMakeLists.txt, so packaging uses the exact pinned source."""
+    text = (ROOT / "CMakeLists.txt").read_text(encoding="utf-8")
+    m = re.search(
+        r"FetchContent_Declare\(\s*" + re.escape(name)
+        + r"\s+GIT_REPOSITORY\s+(\S+)\s+GIT_TAG\s+(\S+)",
+        text,
+    )
+    if not m:
+        print(f"error: no FetchContent_Declare({name} ...) pin in CMakeLists.txt.")
+        sys.exit(1)
+    return m.group(1), m.group(2)
+
+
+def _android_third_party(args, out_root):
+    """Resolve the libsndfile and Oboe source trees the Android archive needs to
+    meet their licenses (#892): libsndfile is LGPL-2.1 and statically linked, so
+    its full source ships in the archive; Oboe is Apache-2.0, so its license
+    text does. Trees come from --sndfile-src / --oboe-src, or are shallow-cloned
+    at the CMakeLists.txt pins. Returns {name: (path, tag)}."""
+    trees = {}
+    for name, given in (("sndfile", args.sndfile_src), ("oboe", args.oboe_src)):
+        repo, tag = _fetchcontent_pin(name)
+        if given:
+            src = Path(given)
+            if not src.is_absolute():
+                src = (ROOT / src).resolve()
+        else:
+            src = out_root / "_third_party" / f"{name}-{tag}"
+            if not src.is_dir():
+                print(f"Fetching {name} {tag} from {repo} ...")
+                src.parent.mkdir(parents=True, exist_ok=True)
+                subprocess.run(
+                    ["git", "-c", "advice.detachedHead=false", "clone", "--quiet",
+                     "--depth", "1", "--branch", tag, repo, str(src)],
+                    check=True,
+                )
+        if not src.is_dir():
+            print(f"error: {name} source tree {src} not found.")
+            sys.exit(1)
+        trees[name] = (src, tag)
+
+    sndfile, sndfile_tag = trees["sndfile"]
+    cmake_lists = sndfile / "CMakeLists.txt"
+    declared = re.search(
+        r"project\(\s*libsndfile\s+VERSION\s+(\S+?)\s*\)",
+        cmake_lists.read_text(encoding="utf-8") if cmake_lists.exists() else "",
+    )
+    if not declared or declared.group(1) != sndfile_tag:
+        found = declared.group(1) if declared else "unknown"
+        print(f"error: {sndfile} is libsndfile {found}, but the linked version is {sndfile_tag}.")
+        sys.exit(1)
+    for name, required in (("sndfile", "COPYING"), ("oboe", "LICENSE")):
+        if not (trees[name][0] / required).is_file():
+            print(f"error: {trees[name][0] / required} not found.")
+            sys.exit(1)
+    return trees
+
+
+def _add_android_license_files(stage, trees):
+    """Ship the Android archive's third-party license texts and the LGPL source."""
+    sndfile, sndfile_tag = trees["sndfile"]
+    oboe, _ = trees["oboe"]
+
+    licenses = stage / "licenses"
+    licenses.mkdir()
+    shutil.copy2(sndfile / "COPYING", licenses / "libsndfile-COPYING.txt")
+    shutil.copy2(oboe / "LICENSE", licenses / "oboe-LICENSE.txt")
+
+    third_party = stage / "third_party"
+    third_party.mkdir()
+    tarball = third_party / f"libsndfile-{sndfile_tag}-src.tar.gz"
+
+    def _skip_git(info):
+        return None if ".git" in Path(info.name).parts else info
+
+    with tarfile.open(tarball, "w:gz") as tf:
+        tf.add(sndfile, arcname=f"libsndfile-{sndfile_tag}", filter=_skip_git)
+    print(f"Added licenses/ and third_party/{tarball.name}.")
 
 
 def cmd_package(args):
@@ -776,6 +1482,8 @@ def cmd_package(args):
     out_root = Path(args.out_dir)
     if not out_root.is_absolute():
         out_root = (ROOT / out_root).resolve()
+    # Resolve before staging so a missing/mismatched source tree fails fast.
+    android_trees = _android_third_party(args, out_root) if platform_name == "android" else None
     arch_suffix = "android" if platform_name == "android" else f"{platform_name}-x64"
     pkg_name = f"libyse-v{version}-{arch_suffix}"
     stage = out_root / pkg_name
@@ -852,6 +1560,18 @@ def cmd_package(args):
         sys.exit(1)
     shutil.copy2(license_src, stage / "LICENSE.md")
 
+    # NOTICE — third-party attributions (#892).
+    notice_src = ROOT / "NOTICE"
+    if not notice_src.exists():
+        print(f"error: {notice_src} not found.")
+        sys.exit(1)
+    shutil.copy2(notice_src, stage / "NOTICE")
+    if platform_name == "windows":
+        _add_windows_license_files(stage, bundled, mingw_prefix,
+                                   out_root / "_third_party" / "msys2")
+    if android_trees is not None:
+        _add_android_license_files(stage, android_trees)
+
     # Generated README.md
     (stage / "README.md").write_text(
         _make_release_readme(version, platform_name, bundled),
@@ -890,8 +1610,7 @@ def build_parser():
   python yse.py build --release    configure + build (release)
   python yse.py build --python     configure + build (debug) with embedded-Python live-coding (YSE_ENABLE_PYTHON=ON)
   python yse.py build --content-pack   configure + build (debug) and fetch the optional SFZ/DX7/FM content pack (YSE_FETCH_CONTENT_PACK=ON)
-  python yse.py test               build tests-debug preset, run ctest
-  python yse.py test --integration same, plus the integration suite (needs real audio device)
+  python yse.py test               build tests-debug preset, run ctest (includes the integration suite)
   python yse.py test --python      build tests-debug-python preset so the embedded-interpreter suite runs
   python yse.py bench              build bench preset, run benchmark binary
   python yse.py bench --filter Buffer  run only benchmarks matching 'Buffer'
@@ -953,16 +1672,17 @@ def build_parser():
         description=(
             "Configures with YSE_BUILD_TESTS=ON (tests-debug preset), builds, "
             "then runs ctest --preset tests-debug.\n\n"
-            "With --integration, additionally runs the integration suite by "
-            "invoking yse_tests --test-suite=integration directly.  These tests "
-            "are DISABLED in CTest because they require a real audio output "
-            "device (and on Windows probe the RtMidi backend), so they only "
-            "run when explicitly requested."
+            "The ctest run includes the integration suite "
+            "(yse_tests_integration, label `integration`). Its cases that need "
+            "a real audio output device return early when none opens, so it "
+            "passes headless; on a machine with a device it exercises the live "
+            "audio path. Run it alone with "
+            "`ctest --preset tests-debug -L integration`.\n\n"
+            "If ctest fails, the run's Testing/Temporary/ logs are copied to "
+            "Testing/failures/<preset>-<timestamp>/ inside the build directory "
+            "before the exit code is propagated, so an intermittent failure is "
+            "still readable after the re-run that overwrites them (#738)."
         ),
-    )
-    p.add_argument(
-        "--integration", action="store_true",
-        help="Also run the integration suite (requires a real audio device)",
     )
     p.add_argument(
         "--python", action="store_true",
@@ -972,9 +1692,13 @@ def build_parser():
     )
     p.add_argument(
         "--sanitizer", choices=["asan", "tsan"],
-        help="Build the patcher concurrency stress test (#229) under Address- or "
-             "ThreadSanitizer (tests-asan / tests-tsan presets) and run just that "
-             "test. Linux/clang only.",
+        help="Build the test binary under Address- or ThreadSanitizer. asan: on "
+             "Linux the tests-asan preset, filtered to the patcher + send/return "
+             "tests (the #229 patcher concurrency gate); on Windows the "
+             "tests-asan-windows preset, which runs the whole suite. tsan: the "
+             "tests-tsan preset, which runs the whole ctest set minus "
+             "yse_unit_tests and yse_tests_contentpack (the engine-wide race "
+             "gate, #824); Linux/clang only.",
     )
     p.set_defaults(func=cmd_test)
 
@@ -1106,7 +1830,8 @@ def build_parser():
             "build-tools/ directory) and runs it to (re)generate the JSON "
             "snapshot of every registered patcher object's in-code metadata.\n\n"
             "The default output path is documentation/source/_data/patcher_objects.json, "
-            "which is rendered into documentation/source/api/patcher_objects.rst by "
+            "which is rendered into the per-category pages under "
+            "documentation/source/patcher/objects/ by "
             "the Sphinx pre-build hook in documentation/source/conf.py. Re-run this "
             "command after changing ADD_DESCRIPTION / ADD_CATEGORY / INLET_DOC / "
             "OUTLET_DOC / PARAM_DOC in any patcher object so the rendered docs match."
@@ -1167,6 +1892,18 @@ def build_parser():
     p.add_argument(
         "--android-libs", default="android-libs",
         help="Directory of per-ABI libyse.so subdirs (android only; default: android-libs)",
+    )
+    # libsndfile (LGPL-2.1) and Oboe (Apache-2.0) are statically linked into the
+    # Android libyse.so, so the archive carries their license texts and the
+    # libsndfile source (#892). Without these, the trees are shallow-cloned at
+    # the tags pinned in CMakeLists.txt.
+    p.add_argument(
+        "--sndfile-src", default=None,
+        help="libsndfile source tree at the pinned tag (android only; default: clone it)",
+    )
+    p.add_argument(
+        "--oboe-src", default=None,
+        help="Oboe source tree at the pinned tag (android only; default: clone it)",
     )
     p.set_defaults(func=cmd_package)
 

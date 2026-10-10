@@ -41,9 +41,37 @@ namespace YSE {
 
       /**
        *  @brief Save the contents to a mono WAV file.
-       *  @note WAV is currently the only supported output format.
+       *
+       *  @param fileName Destination path, used verbatim — no extension is
+       *                  appended, so pass the ".wav" yourself.
+       *  @return ``true`` when every sample was written, ``false`` if the file
+       *          cannot be created, the buffer is empty, or a custom IO backend
+       *          is active (``IO().getActive()``, which is read-only).
+       *
+       *  @note WAV is currently the only supported output format. Samples are
+       *        stored as 32-bit float, at the sample rate of the file this
+       *        buffer was loaded from, or the engine rate if it was not loaded
+       *        from one.
+       *  @note File I/O: never call this from the audio callback.
        */
       bool save(const char* fileName);
+
+      /**
+       *  @brief Native sample rate of the last loaded file, in Hz (0 before a
+       *         successful ``load``).
+       *
+       *  Unlike ``getSampleRateAdjustment`` — a ratio against the SAMPLERATE
+       *  in effect at load time — this is rate-independent, so consumers can
+       *  re-derive the playback-speed adjustment against the *live* engine
+       *  rate after a ``system::close()`` / ``init()`` cycle (issue #637).
+       */
+      Flt getFileSampleRate() const {
+        return fileRate;
+      }
+
+      // Covariant-return wrappers over the (non-virtual) base assignment
+      // operators, same idiom as drawableBuffer -- see the note there.
+      // NOLINTBEGIN(bugprone-derived-method-shadowing-base-method)
 
       /** @brief Copy-assign from a ``buffer``. */
       fileBuffer& operator=(const buffer& s) {
@@ -55,6 +83,10 @@ namespace YSE {
         buffer::operator=(value);
         return *this;
       }
+      // NOLINTEND(bugprone-derived-method-shadowing-base-method)
+
+    private:
+      Flt fileRate = 0.0f; // native rate of the loaded file, Hz (issue #637)
     };
 
   } // namespace DSP

@@ -15,12 +15,34 @@
 #include <doctest/doctest.h>
 #include "patcher/patcherImplementation.h"
 #include "patcher/pHandle.hpp"
+#include "patcher/pObject.h"
 #include "patcher/pObjectList.hpp"
 #include "dsp/buffer.hpp"
+#include "sinks.hpp"
+#include "support/timer_pacing.hpp"
 #include <chrono>
+#include <string>
 #include <thread>
 
 using YSE::PATCHER::patcherImplementation;
+
+namespace {
+
+  // The smallest possible sender: one control outlet and nothing else. Used by
+  // the destructor cases below, which are about the outlet/inlet edge lists
+  // rather than about any object's behaviour.
+  struct OneOutlet : TestHelpers::SinkBase {
+    OneOutlet() : SinkBase(false) {
+      outputs.emplace_back(this, YSE::OUT_TYPE::INT);
+    }
+    const char* Type() const override {
+      return "teardown_source";
+    }
+    void Calculate(YSE::THREAD) override {}
+    void SetMessage(const std::string&, float) override {}
+  };
+
+} // namespace
 
 TEST_SUITE("patcher") {
 
@@ -144,15 +166,19 @@ TEST_SUITE("patcher") {
 
     // Let the background worker catch up. Re-arm with a light edit each spin so a
     // reclaimer that gave up on a momentarily-stalled epoch is retriggered; the
-    // rendered blocks keep the epoch moving so it can cross the +2 grace.
-    for (int spins = 0; spins < 2000 && p.PendingRetired() > 4; ++spins) {
-      p.Connect(noise, 0, dac, 0);
-      p.Calculate(YSE::T_DSP);
-      p.Disconnect(noise, 0, dac, 0);
-      p.Calculate(YSE::T_DSP);
-      p.Calculate(YSE::T_DSP);
-      std::this_thread::sleep_for(std::chrono::milliseconds(1));
-    }
+    // rendered blocks keep the epoch moving so it can cross the +2 grace. The
+    // budget is counted in deliveries of the suite's reference timer rather than
+    // in milliseconds (issue #753), so it stretches with machine load exactly as
+    // the background pool does.
+    TestHelpers::pacedPump(
+        2000, [&] { return p.PendingRetired() <= 4; },
+        [&] {
+          p.Connect(noise, 0, dac, 0);
+          p.Calculate(YSE::T_DSP);
+          p.Disconnect(noise, 0, dac, 0);
+          p.Calculate(YSE::T_DSP);
+          p.Calculate(YSE::T_DSP);
+        });
 
     // A handful of just-retired snapshots may still be inside the +2 grace, but
     // the 400+ retired over the churn must be gone — reclaimed by the pool, not
@@ -218,6 +244,57 @@ TEST_SUITE("patcher") {
     CHECK(noiseB->GetConnections(0) == 0);
   }
 
+  TEST_CASE("teardown: an outlet's destructor detaches every peer, not every second one (#537)") {
+    // `outlet::~outlet` used to walk `connections` in place while the
+    // `inlet::Disconnect` it called erased from that same vector, shifting the
+    // rest down. The loop's `i++` then stepped over whatever moved into the
+    // freed slot, so an outlet with two peers detached only one — and the other
+    // was left holding a pointer to storage the destructor was about to free.
+    // The next inlet destroyed called `Disconnect` on it: the #537
+    // heap-use-after-free, which ASan caught the first time a standalone rig
+    // gave one outlet two peers.
+    //
+    // Two sinks on one outlet is the smallest shape that shows it, and the
+    // check needs no sanitizer: a peer that was skipped still names the outlet.
+    TestHelpers::IntSink a;
+    TestHelpers::IntSink b;
+    {
+      // Standalone, deliberately: every deletion path in a real patcher calls
+      // pObject::UnwireFromPeers first (which always took the list away before
+      // walking it), so the destructor is reached with the lists already empty.
+      // A unit rig is what reaches the destructor with edges still on it.
+      OneOutlet src;
+      TestHelpers::Wire(src, 0, a, 0);
+      TestHelpers::Wire(src, 0, b, 0);
+      REQUIRE(src.GetOutlet(0)->GetConnections() == 2u);
+      REQUIRE(a.GetInlet(0)->Sources().size() == 1u);
+      REQUIRE(b.GetInlet(0)->Sources().size() == 1u);
+    }
+
+    CHECK(a.GetInlet(0)->Sources().empty());
+    CHECK(b.GetInlet(0)->Sources().empty());
+  }
+
+  TEST_CASE("teardown: an inlet's destructor detaches every source (#537)") {
+    // The mirror invariant. It is deliberately *not* a regression test: this
+    // end was already correct, because `outlet::Disconnect` erases only from
+    // the outlet's own list and never calls back into the inlet's, so nothing
+    // mutated the vector under that loop. Pinned anyway — the two ends read
+    // alike, one of them was unsound, and the pair should be held to one
+    // standard rather than left for the next reader to tell apart.
+    OneOutlet a;
+    OneOutlet b;
+    {
+      TestHelpers::IntSink sink;
+      TestHelpers::Wire(a, 0, sink, 0);
+      TestHelpers::Wire(b, 0, sink, 0);
+      REQUIRE(sink.GetInlet(0)->Sources().size() == 2u);
+    }
+
+    CHECK(a.GetOutlet(0)->GetConnections() == 0u);
+    CHECK(b.GetOutlet(0)->GetConnections() == 0u);
+  }
+
   TEST_CASE("connect: deleting the target of a refused connection leaves no dangling edge") {
     patcherImplementation p(1, nullptr);
     YSE::pHandle* noiseA = p.CreateObject(YSE::OBJ::D_NOISE, "");
@@ -235,14 +312,15 @@ TEST_SUITE("patcher") {
     // targets from the pinned snapshot; a leftover one-sided edge would make
     // these blocks read the freed inlet (an ASan/TSan build trips here).
     YSE::pHandle* dac = p.CreateObject(YSE::OBJ::D_DAC, "");
-    for (int spins = 0; spins < 2000 && p.PendingRetired() > 4; ++spins) {
-      p.Connect(noiseA, 0, dac, 0);
-      p.Calculate(YSE::T_DSP);
-      p.Disconnect(noiseA, 0, dac, 0);
-      p.Calculate(YSE::T_DSP);
-      p.Calculate(YSE::T_DSP);
-      std::this_thread::sleep_for(std::chrono::milliseconds(1));
-    }
+    TestHelpers::pacedPump(
+        2000, [&] { return p.PendingRetired() <= 4; },
+        [&] {
+          p.Connect(noiseA, 0, dac, 0);
+          p.Calculate(YSE::T_DSP);
+          p.Disconnect(noiseA, 0, dac, 0);
+          p.Calculate(YSE::T_DSP);
+          p.Calculate(YSE::T_DSP);
+        });
     p.Calculate(YSE::T_DSP);
     CHECK(p.output[0].isSilent());
   }
@@ -386,14 +464,15 @@ TEST_SUITE("patcher") {
       // +2 grace); the background pool then frees the temp and recycles its ids
       // (RecycleObjectIds pushes all of a temp's inlet + outlet ids under one
       // reclaimMtx_ hold, so FreeIdCount jumps from 0 to the full count at once).
-      for (int spins = 0; spins < 3000 && p.FreeIdCount() == 0; ++spins) {
-        p.Disconnect(noise, 0, dac, 0);
-        p.Calculate(YSE::T_DSP);
-        p.Connect(noise, 0, dac, 0);
-        p.Calculate(YSE::T_DSP);
-        p.Calculate(YSE::T_DSP);
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
-      }
+      TestHelpers::pacedPump(
+          3000, [&] { return p.FreeIdCount() > 0; },
+          [&] {
+            p.Disconnect(noise, 0, dac, 0);
+            p.Calculate(YSE::T_DSP);
+            p.Connect(noise, 0, dac, 0);
+            p.Calculate(YSE::T_DSP);
+            p.Calculate(YSE::T_DSP);
+          });
       REQUIRE(p.FreeIdCount() > 0); // the deleted temp's ids are recyclable now
 
       YSE::pHandle* temp = p.CreateObject(YSE::OBJ::D_ADD, "");
@@ -434,6 +513,90 @@ TEST_SUITE("patcher") {
       p.Calculate(YSE::T_DSP);
       CHECK(p.output[0].isSilent()); // source gone -> silence, no stale target
     }
+  }
+
+  TEST_CASE(
+      "graphstate: a control-thread send during a block follows the published wiring (#962)") {
+    // Only the thread rendering a block may resolve through the snapshot it
+    // pinned: the reclaimer's two-block grace counts that thread's blocks and
+    // nobody else's. Before #962 the pin was visible to every thread for the
+    // whole block, so a host send made mid-block walked the renderer's
+    // snapshot — which the reclaimer could free under it, and which is also
+    // the wrong topology once an edit has been published since the block
+    // started.
+    //
+    // The second symptom is the deterministic observable. The audio thread is
+    // parked mid-block inside a GateSink (fed from a queued value delivered by
+    // the block's own drain), so its snapshot stays pinned. The test thread
+    // then wires slider -> sink, which publishes a snapshot the parked block
+    // does not have, and sends into the slider. The published snapshot (which
+    // control-thread sends read since #963) has the new edge, the block's
+    // does not: the sink hears the value only if the send did not use the
+    // renderer's snapshot.
+    TestHelpers::GateSink gate; // before the patcher: outlives it
+    TestHelpers::FloatSink sink;
+    YSE::pHandle gateHandle(&gate);
+    YSE::pHandle sinkHandle(&sink);
+    patcherImplementation p(1, nullptr);
+    YSE::pHandle* recv = p.CreateObject(YSE::OBJ::G_RECEIVE, "park962");
+    YSE::pHandle* slider = p.CreateObject(YSE::OBJ::G_SLIDER, "");
+    REQUIRE(recv != nullptr);
+    REQUIRE(slider != nullptr);
+    p.Connect(recv, 0, &gateHandle, 0);
+    p.Calculate(YSE::T_DSP);
+
+    REQUIRE(p.PassData(1.f, "park962", YSE::T_GUI));
+    std::thread audio([&] { p.Calculate(YSE::T_DSP); });
+    REQUIRE(gate.WaitEntered());
+
+    p.Connect(slider, 0, &sinkHandle, 0);
+    slider->SetFloatData(0, 0.25f);
+    CHECK(sink.gotFloat);
+    CHECK(sink.received == doctest::Approx(0.25f));
+
+    gate.Release();
+    audio.join();
+  }
+
+  TEST_CASE("graphstate: a deleted object's send never takes the cords of the object that reused "
+            "its id (#963)") {
+    // Control-thread sends resolve through the published snapshot (issue
+    // #963), indexed by graph id. A control thread can still hold an object
+    // deleted since — a `.preset` recall does, under an objectPin — and a
+    // Clear recompacts the id space (issue #355), so a new object can carry
+    // the very ids the deleted one had. The snapshot records which pin owns
+    // each id, and a pin no snapshot owns falls back to its own wiring, which
+    // the delete emptied. Without that, the deleted slider's send below would
+    // come out of the new slider's cord.
+    TestHelpers::FloatSink oldSink; // before the patcher: outlive it
+    TestHelpers::FloatSink newSink;
+    YSE::pHandle oldSinkHandle(&oldSink);
+    YSE::pHandle newSinkHandle(&newSink);
+    patcherImplementation p(1, nullptr);
+    YSE::pHandle* first = p.CreateObject(YSE::OBJ::G_SLIDER, "");
+    REQUIRE(first != nullptr);
+    p.Connect(first, 0, &oldSinkHandle, 0);
+    YSE::PATCHER::pObject* deleted = p.GetObjectFromID(first->GetID());
+    REQUIRE(deleted != nullptr);
+
+    // No block is rendered, so the retired slider stays allocated.
+    p.Clear();
+    YSE::pHandle* second = p.CreateObject(YSE::OBJ::G_SLIDER, "");
+    REQUIRE(second != nullptr);
+    p.Connect(second, 0, &newSinkHandle, 0);
+    YSE::PATCHER::pObject* live = p.GetObjectFromID(second->GetID());
+    REQUIRE(live != nullptr);
+    REQUIRE(live != deleted);
+    REQUIRE(live->GetOutlet(0)->GraphId() == deleted->GetOutlet(0)->GraphId());
+
+    deleted->GetOutlet(0)->SendFloat(0.5f, YSE::T_GUI);
+    CHECK_FALSE(newSink.gotFloat);
+    CHECK_FALSE(oldSink.gotFloat); // its own cord went with the delete
+
+    // The live object's cord still carries.
+    second->SetFloatData(0, 0.25f);
+    CHECK(newSink.gotFloat);
+    CHECK(newSink.received == doctest::Approx(0.25f));
   }
 
 } // TEST_SUITE("patcher")
