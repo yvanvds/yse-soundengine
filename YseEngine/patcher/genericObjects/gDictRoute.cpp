@@ -21,41 +21,20 @@ namespace {
   // arrangement. Kept at namespace scope so ShapePorts can re-document the
   // ports it rebuilds on a re-parse.
   constexpr char kInletDoc[] =
-      "A bang routes the bound dictionary: it is tested for each key argument in order, and the "
-      "reference \"dictionary <name>\" leaves the outlet of the leftmost key present — exactly "
-      "one outlet fires per trigger, and a dictionary holding none of the keys leaves the "
-      "rightmost outlet instead. \"dictionary <name>\" does the same when it names the "
-      "dictionary bound by the creation argument — the message a .dict's reference outlet emits "
-      "on a bang, so wiring that outlet here gives Max's own gesture: bang the dict, and it "
-      "dispatches itself. A reference naming anything else, any other message, or a trigger "
-      "arriving while a route is already in flight — a cord looped back from an outlet, or "
-      "another thread — is refused and counted rather than logged, since this inlet may be the "
-      "audio thread. An unnamed .dict.route is inert: its private dictionary has no name to "
-      "pass on, so a trigger routes nothing, silently.";
+      "A bang routes the dictionary: its reference leaves the outlet of the first key argument "
+      "it holds, or the rightmost outlet when it holds none. So does the dictionary's reference "
+      "'dictionary <name>'.";
 
   constexpr char kRejectDoc[] =
-      "The dictionary's reference, when none of the key arguments is present in it — Max's "
-      "rightmost outlet, present whatever the argument count. The reference is unchanged, so "
-      "chaining this into the next .dict.route carries on testing the dictionary the first one "
-      "saw.";
+      "The dictionary's reference, when it holds none of the keys. Wire it into the next "
+      ".dict.route to test more keys.";
 
   constexpr char kNameDoc[] =
-      "The dictionary's shared name, addressed as \"patcher.<patcherName>.<name>\" — the "
-      "dictionary a "
-      ".dict of the same name in this patcher holds. Resolved once, on the control thread, "
-      "which is why no message re-points it at run time. Empty leaves the object inert: a "
-      "private dictionary has no name to pass on, so there is nothing to route.";
+      "The name of the dictionary to route. Empty makes the object do nothing.";
 
   constexpr char kKeysDoc[] =
-      "One key per match outlet, in order, plus a rightmost reject outlet. A key is a path: "
-      "usually one top-level segment (\"voice\"), but \"voice::1\" tests two levels down the "
-      "same way — presence means an entry at the path or under it (\"<path>::...\"), the "
-      "family's bounded sub-tree scan. The leftmost key present wins, and a key repeated in "
-      "the argument list uses the leftmost of its outlets only. An empty token, or a key past "
-      "128 characters (which no stored entry can spell), matches nothing and costs an "
-      "unreachable outlet. With no keys at all the object has only the reject outlet — Max "
-      "documents no default key for dict.route, and inventing one would put a branch in a "
-      "patch that did not ask for one.";
+      "One key per outlet, in order. A key may be a path ('voice::1'); it matches an entry at "
+      "that path or under it. The rightmost outlet is always added for no match.";
 
   // Whether the dictionary holds an entry at `key` or under it — the
   // presence question one match outlet asks. **The caller holds the store's
@@ -103,31 +82,13 @@ CONSTRUCT() {
   // the outlet list — gRoute's arrangement.
   ShapePorts();
 
-  ADD_DESCRIPTION(
-      "Routes a dictionary by the keys it holds — Max's dict.route on the name-addressed value "
-      "model .dict settled: the dictionary is bound from the first creation argument and every "
-      "argument after it is a key declaring one outlet, plus a rightmost reject — \".dict.route "
-      "<name> <key> [<key> ...]\" — because a dictionary is addressed by name and never passed "
-      "down a cord. The dispatcher for structured messages: a patch that receives dictionaries "
-      "of several shapes sends each to the part of the graph that understands it, which is what "
-      ".route does for list text and this object does for dictionaries. A trigger — a bang, or "
-      "the bound dictionary's \"dictionary <name>\" reference, the message a .dict's reference "
-      "outlet emits — tests the dictionary for each key in argument order and sends the "
-      "reference, never the contents, out the outlet of the leftmost key present: the routing "
-      "decision is about which dictionary, and the receiver still binds the name itself. "
-      "Exactly one outlet fires per trigger; a dictionary holding none of the keys leaves the "
-      "rightmost outlet with its reference unchanged, so a chain of .dict.route objects strings "
-      "together with each reject feeding the next inlet. A key is a path — \"voice\" tests a "
-      "top-level key, \"voice::1\" tests two levels down — and presence means an entry at the "
-      "path or under it, the family's bounded sub-tree scan. With no keys the object has only "
-      "the reject outlet, since Max documents no default key for dict.route. The decision is a "
-      "bounded scan under the store's try-lock guard, released before the send, and the "
-      "reference is built once per rebind, so no message path allocates, locks or blocks and "
-      "Calculate() does nothing. A trigger that loses the guard, a reference naming an unbound "
-      "dictionary, and a trigger arriving while a route is in flight are refused and counted "
-      "rather than resolved, a registry lookup being a mutex on whatever thread the message "
-      "arrived on. Only the creation arguments persist across a save; the dictionary's contents "
-      "persist with the .dict that owns them.");
+  // The decision is a bounded scan under the store's try-lock guard,
+  // released before the send, and the reference is built once per rebind, so
+  // no message path allocates, locks or blocks and Calculate() does nothing.
+  // gDictRoute.h has the whole design.
+  ADD_DESCRIPTION("Sends a named dictionary's reference out of the outlet of the first key "
+                  "argument it holds, or out of the rightmost outlet when it holds none. Use it "
+                  "to send dictionaries of different shapes to different parts of a patch.");
   ADD_CATEGORY(pCategory::DICT);
   INLET_DOC(0, "route", kInletDoc, "");
   PARAM_DOC("name", "", kNameDoc, "any identifier");
@@ -220,14 +181,10 @@ void gDictRoute::ShapePorts() {
     // LIST, because the reference is a list message — the kind every other
     // reference outlet in the family carries.
     ADD_OUT_LIST;
-    outputs.back().SetDoc(
-        token.empty() ? "empty" : token,
-        "The dictionary's reference, when \"" + token +
-            "\" is the leftmost key argument present in it — an entry at that path or under "
-            "it. What leaves is \"dictionary <name>\", never the contents: the receiver binds "
-            "the name itself. A key repeated in the argument list uses the leftmost of its "
-            "outlets only.",
-        token);
+    outputs.back().SetDoc(token.empty() ? "empty" : token,
+                          "The dictionary's reference, when '" + token +
+                              "' is the first key argument it holds, at that path or under it.",
+                          token);
   }
 
   // Max's rightmost outlet, present whatever the argument count. The

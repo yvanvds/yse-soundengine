@@ -30,22 +30,12 @@ namespace {
   // is exactly the kind of thing that drifts.
 
   constexpr char kInletDoc[] =
-      "The message to spell. Whatever arrives is spelled out as the character codes of its text: "
-      "an "
-      "int digit by digit (123 spells 49 50 51), a float including its decimal point, and a list "
-      "character by character with the code 32 between its items, which is Max's four separate "
-      "rules falling out of the one rule this patcher's message model allows. Runs of whitespace "
-      "collapse to a single 32 and the ends are trimmed. A bang is declined: Max's spell has none, "
-      "and there is nothing for it to spell.";
+      "The message to spell: an int digit by digit (123 gives 49 50 51), a float including its "
+      "decimal point, a list character by character with 32 between its items.";
 
   constexpr char kOutletDoc[] =
-      "The codes, as one list, in the order the characters appear — 'hi' leaves as 104 105. Max "
-      "sends them one at a time; they leave together here because nothing in this patcher "
-      "accumulates a stream of numbers back into a message, so one-at-a-time codes could not be "
-      "put back together, while a list can be taken apart by a .spray whenever a patch wants them "
-      "separately. Nothing is sent when there is nothing to spell and "
-      "no minimum size to pad to, and nothing is sent at all when the input would spell past 256 "
-      "codes — refused rather than truncated.";
+      "The codes as one list, in the order the characters appear: 'hi' leaves as 104 105. Nothing "
+      "is sent when there is nothing to spell, or when the result would pass 256 codes.";
 
 } // namespace
 
@@ -77,56 +67,27 @@ CONSTRUCT() {
   // control thread: MAX_CODES codes, each at its widest, plus a separator each.
   outText.reserve((MAX_CODES * (FORMAT_INT_WIDTH + 1)) + 1);
 
-  ADD_DESCRIPTION(
-      "Spells whatever arrives out as the character codes of its text — Max's spell, 'convert "
-      "input to UTF-8 (Unicode) codes', so text can be processed numerically inside a patch. Max "
-      "documents four rules, one per atom type: an int is spelled digit by digit, a symbol "
-      "character by character, a list with a space (32) between its items, and anything with all "
-      "its int and symbol items converted one character at a time. They collapse into a single "
-      "rule here, and not by cutting a corner: a message in this patcher is text, with no atom "
-      "types at all, so .spell sends the code of every character of the message as it stands and "
-      "each of Max's four rules falls out of that — a number's digits are its text, written by "
-      "ExprFormatValue the way a patch author would have typed it, and a list gets its 32 because "
-      "a space is the character that is actually between its items. Runs of whitespace collapse to "
-      "one space and the ends are trimmed, so what is spelled is the tokens with a single 32 "
-      "between them, Max's own spacing, rather than however much incidental whitespace the sender "
-      "left in. The encoding is stated rather than assumed, because a patcher message is bytes and "
-      "nothing upstream promises otherwise: bytes that form a well-formed UTF-8 sequence are "
-      "decoded to the one code point they spell, so the two bytes of an accented letter give one "
-      "code and not two, and any byte that is not part of a well-formed sequence — a stray "
-      "continuation byte, a truncated sequence, an overlong encoding, a surrogate half — spells "
-      "its own value 0-255 with decoding resuming at the next byte, so the object never fails, "
-      "never drops a byte and never guesses. Max's two creation arguments are kept: size is the "
-      "minimum number of codes, padded to with the fill code, and fill is that code, 32 (a space) "
-      "by default. They are creation arguments rather than reserved words on inlet 0 — the "
-      ".prepend discipline, which matters here because this object exists to carry arbitrary text "
-      "and a reserved word would swallow the very messages it is asked to spell. Max's 'use a "
-      "negative number to get 0 as the fill character' is not reproduced: it exists only because "
-      "Max cannot tell an absent argument from a zero, whereas arguments are read as tokens here, "
-      "so .spell 8 48 says 'pad with the character 0' directly and a negative fill is reported and "
-      "ignored instead of silently becoming 48. The codes leave together as one list rather than "
-      "one at a time, since nothing in this patcher accumulates a stream of numbers back into a "
-      "message. At most 256 codes; longer input is refused rather than truncated, because half a "
-      "spelling is not a shorter word but a different one. Calculate() does nothing, and no "
-      "message path allocates, locks or blocks: a spelling is one walk of the bytes into a buffer "
-      "reserved at construction for every code at full width.");
+  // gSpell.h explains the design: one conversion rule for every kind of
+  // message, the UTF-8 reading shared with .atoi through pCharCodes.h, the
+  // codes leaving as one list, and refusal rather than truncation at 256. A
+  // spelling is one walk of the bytes into the buffer reserved above, so no
+  // message path allocates, locks or blocks, and Calculate() does nothing.
+  ADD_DESCRIPTION("Spells a message out as the character codes of its text, sent as one list: 'hi' "
+                  "gives 104 105. Optional arguments pad a short result to a minimum length with "
+                  "a fill code.");
   ADD_CATEGORY(pCategory::STRING);
 
   INLET_DOC(0, "in", kInletDoc, "any");
   OUTLET_DOC(0, "out", kOutletDoc, "0-1114111 per code, at most 256 codes");
 
   PARAM_DOC("size", "0",
-            "Max's size argument: the minimum number of codes to send. A message that spells to "
-            "fewer is followed by enough fill codes to reach it, which is how a patch gets "
-            "fixed-width records out of variable-length text. 0, the default, means no minimum. "
-            "Clamped to 256, the most codes the object will send at all.",
+            "The minimum number of codes to send. A shorter result is padded with the fill code. "
+            "0 means no minimum. Clamped to 256.",
             "0-256");
   PARAM_DOC("fill", "32",
-            "Max's character argument: the code short output is padded with, 32 (a space) by "
-            "default. Taken literally, so 0 is the code 0 and .spell 8 48 pads with the character "
-            "'0' — Max's 'use any negative number' escape is not reproduced, because it only "
-            "exists to work around Max being unable to tell an absent argument from a zero. A "
-            "negative code, or one above 1114111, is reported and the default kept.",
+            "The code a short result is padded with: 32 (a space) by default, 48 for the "
+            "character '0'. A negative code, or one above 1114111, is logged and the default "
+            "kept.",
             "0-1114111");
 }
 

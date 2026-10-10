@@ -29,37 +29,15 @@ namespace {
   // arrangement. Kept at namespace scope so ShapePorts can re-document the
   // ports it rebuilds on a re-parse.
   constexpr char kHotInletDoc[] =
-      "The hot inlet, and the first key path's value. A value arriving here is stored in its "
-      "slot, the whole dictionary is packed — the bound dictionary replaced with one entry per "
-      "key path, current values — and the reference \"dictionary <name>\" is sent. A whole list "
-      "is one value, not a spread: a dictionary value is list text, so \"0.2 0.5 0.9\" here is "
-      "the array this key holds. A bang packs and sends without storing, and \"set <value>\" "
-      "performs the same store while suppressing only the release, which is how a patch loads "
-      "this slot and chooses when to send. \"dictionary <name>\" naming the bound dictionary "
-      "also packs and sends — the message a .dict's reference outlet emits — while a reference "
-      "naming anything else is refused and counted: an identity is not a value, and resolving "
-      "an unrecognised name would mean the registry's mutex on whatever thread this message "
-      "arrived on. A value past 256 characters is refused whole and counted, the slot keeping "
-      "what it had.";
+      "Hot. Stores the value for the first key path, writes the dictionary and sends its "
+      "reference. A whole list is one value. A bang writes and sends without storing; 'set "
+      "<value>' stores without sending.";
   constexpr char kColdInletDoc[] =
-      "Cold: a value arriving here is stored in this inlet's key path slot and nothing is sent "
-      "— load the right-hand values first, then let the leftmost inlet carry the finished "
-      "dictionary out. A whole list is one value, not a spread, and \"set <value>\" is accepted "
-      "here too, though it means the same as the plain message since this inlet never releases. "
-      "\"dictionary <name>\" naming the bound dictionary is acknowledged and stores nothing; a "
-      "reference naming anything else is refused and counted. A value past 256 characters is "
-      "refused whole and counted, the slot keeping what it had.";
+      "Cold. Stores the value for this key path and sends nothing. A whole list is one value.";
   constexpr char kTriggerInletDoc[] =
-      "With no key-path arguments there is nothing to store: a bang, or \"dictionary <name>\" "
-      "naming the bound dictionary, packs the empty dictionary — replacing whatever the bound "
-      "store held — and sends its reference. Any other message is refused and counted, since "
-      "this inlet may be the audio thread.";
+      "With no key paths, a bang writes an empty dictionary and sends its reference.";
   constexpr char kOutletDoc[] =
-      "\"dictionary <name>\" after a pack — the reference the dict.* family binds, carrying the "
-      "local name so the receiving object prefixes it with its own patcher's name. Sent "
-      "whenever the leftmost inlet is written, banged, or handed the bound dictionary's "
-      "reference. Silent for an unnamed dictionary, which has no name to pass on — the pack "
-      "still lands in the private store.";
+      "'dictionary <name>' after each write. Silent for an unnamed dictionary.";
 
 } // namespace
 
@@ -79,40 +57,17 @@ CONSTRUCT() {
   // port list — gPack's arrangement.
   ShapePorts();
 
-  ADD_DESCRIPTION(
-      "Builds a dictionary from a list of named inlets — Max's dict.pack on the name-addressed "
-      "value model .dict settled: the dictionary is bound from the first creation argument, and "
-      "every argument after it is a key path declaring one inlet — \".dict.pack out freq gain "
-      "pan\" — because a dictionary is addressed by name and never passed down a cord. The "
-      "dictionary counterpart of .pack, and its hot/cold rule exactly: only the leftmost inlet "
-      "releases — writing any other inlet stores its key's value and stays quiet — so a patch "
-      "loads the right-hand values first and lets the leftmost carry the finished dictionary "
-      "out. A trigger — a value on inlet 0, a bang, or the bound dictionary's \"dictionary "
-      "<name>\" reference — replaces the bound dictionary whole with one entry per key path in "
-      "argument order, a slot never written packing its path with an empty value, and sends the "
-      "reference out the outlet, consistent with .dict. \"set <value>\" stores without "
-      "releasing. A whole list is one value rather than a spread, since a dictionary value is "
-      "list text; paths nest with \"::\", so the packed dictionary is as structured as its keys "
-      "spell. A value past 256 characters is refused whole and counted rather than truncated, "
-      "and a reference naming an unbound dictionary is refused rather than resolved, a registry "
-      "lookup being a mutex on whatever thread the message arrived on.");
+  ADD_DESCRIPTION("Builds a named dictionary from its inlets, one inlet per key path: '.dict.pack "
+                  "synth freq gain'. The left inlet stores its value, writes the dictionary and "
+                  "sends its reference; the other inlets only store.");
   ADD_CATEGORY(pCategory::DICT);
-  PARAM_DOC(
-      "name", "",
-      "The packed dictionary's shared name — the first creation argument, addressed as "
-      "\"patcher.<patcherName>.<name>\", the dictionary a .dict of the same name in this patcher "
-      "holds. Resolved once, on the control thread, which is why no message re-points it "
-      "at run time. The result goes into a bound dictionary rather than a new anonymous "
-      "one because there is no way to hand a fresh dictionary's identity down a cord. "
-      "Empty packs into a private store and sends nothing.",
-      "any identifier");
+  PARAM_DOC("name", "",
+            "The name of the dictionary to write. Empty writes a private dictionary and sends "
+            "nothing.",
+            "any identifier");
   PARAM_DOC("keys", "",
-            "One key path per inlet, in order — the shape of the packed dictionary. Paths nest "
-            "with \"::\", Max's own separator, so \"voice::1::freq\" is one entry three levels "
-            "deep. At most 256 paths of at most 128 characters each; a path that does not fit "
-            "declares no inlet and is logged, parameter parsing being control-thread only. A "
-            "duplicate path is two inlets writing one entry, and the later inlet wins. With no "
-            "paths the object is a bare trigger that packs the empty dictionary.",
+            "One key path per inlet, in order. Paths nest with '::'. A path longer than 128 "
+            "characters is logged and gets no inlet.",
             "key paths");
 }
 

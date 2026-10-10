@@ -16,21 +16,13 @@ namespace {
   // the constructor stops being readable with them inline — gDict's
   // arrangement.
   constexpr char kLeftInletDoc[] =
-      "A bang joins the two bound dictionaries into the target and sends the target's reference "
-      "out the outlet. \"dictionary <name>\" does the same when it names the left dictionary "
-      "bound by the first creation argument — the message a .dict's reference outlet emits on a "
-      "bang, so wiring that outlet here gives Max's own gesture. A reference naming anything "
-      "else, or any other message, is refused and counted rather than logged, since this inlet "
-      "may be the audio thread.";
+      "A bang joins the two dictionaries into the target and sends the target's reference. So "
+      "does the left dictionary's reference 'dictionary <name>'.";
   constexpr char kRightInletDoc[] =
-      "\"dictionary <name>\" is accepted silently when it names the right dictionary bound by "
-      "the second creation argument, so a patch may wire both reference outlets across as it "
-      "would in Max. It sets nothing — the binding is the creation argument, resolved on the "
-      "control thread — and anything else is refused and counted.";
-  constexpr char kOutletDoc[] =
-      "\"dictionary <target>\" after a join — the reference the dict.* family binds, carrying "
-      "the local name so the receiving object prefixes it with its own patcher's name. Silent "
-      "for an unnamed target, which has no name to pass on.";
+      "Accepts the right dictionary's reference and does nothing with it, so its .dict can be "
+      "wired here.";
+  constexpr char kOutletDoc[] = "'dictionary <target>' after each join. Silent for an unnamed "
+                                "target.";
 
 } // namespace
 
@@ -57,38 +49,22 @@ CONSTRUCT() {
   Rebind();
   RefreshReference();
 
-  ADD_DESCRIPTION(
-      "Merges two dictionaries into one — Max's dict.join on the name-addressed value model "
-      ".dict settled: all three dictionaries are bound from the creation arguments, \".dict.join "
-      "<left> <right> <target>\", because a dictionary is addressed by name and never passed "
-      "down a cord. A bang, or the left dictionary's reference message \"dictionary <name>\", "
-      "replaces the target with the left dictionary's entries overlaid by the right's — on a "
-      "colliding key path the right dictionary overwrites the left, Max's own rule, so the left "
-      "argument is the base and the right the override. Layering a preset over a base is the use "
-      "case: both sources survive the join, and \".dict.join a b a\" spells the in-place merge "
-      "when a patch wants one. A join past the 256-entry capacity is refused entry by entry and "
-      "counted rather than truncated, so a partial merge is possible — whatever fits, left "
-      "entries first, is the result.");
+  ADD_DESCRIPTION("Merges two named dictionaries into a target dictionary: the left one's entries, "
+                  "overlaid with the right one's. Where both hold a key path, the right value "
+                  "wins.");
   ADD_CATEGORY(pCategory::DICT);
   INLET_DOC(0, "join", kLeftInletDoc, "");
   INLET_DOC(1, "right reference", kRightInletDoc, "");
   OUTLET_DOC(0, "reference", kOutletDoc, "");
-  PARAM_DOC(
-      "left", "",
-      "The left dictionary's shared name — the base of the join, addressed as "
-      "\"patcher.<patcherName>.<name>\", the dictionary a .dict of the same name in this patcher "
-      "holds. Resolved once, on the control thread, which is why no message re-points it "
-      "at run time. Empty joins a private, empty dictionary.",
-      "any identifier");
+  PARAM_DOC("left", "", "The name of the base dictionary. Empty joins an empty dictionary.",
+            "any identifier");
   PARAM_DOC("right", "",
-            "The right dictionary's shared name, bound exactly as the left one — the override: "
-            "on a colliding key path its value wins. Empty joins a private, empty dictionary.",
+            "The name of the dictionary laid over the base: its value wins on a shared key path. "
+            "Empty joins an empty dictionary.",
             "any identifier");
   PARAM_DOC("target", "",
-            "The target dictionary's shared name, bound exactly as the sources. A join replaces "
-            "its contents whole. The result goes into a bound dictionary rather than a new "
-            "anonymous one because there is no way to hand a fresh dictionary's identity down a "
-            "cord; naming a source as the target merges in place.",
+            "The name of the dictionary that receives the result. Each join replaces its "
+            "contents. It may be one of the two sources.",
             "any identifier");
 }
 

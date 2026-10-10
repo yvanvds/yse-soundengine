@@ -4511,7 +4511,7 @@
   },
   ".atoi": {
     "category": "STRING",
-    "description": "Converts the characters of a message into their character codes, and holds them — Max's atoi, 'convert characters to integers'. Max documents four rules, one per atom type: an int is converted digit by digit, a symbol character by character, a list with a space (32) between its items, and anything with all its items converted one character at a time. They collapse into a single rule here, and not by cutting a corner: a message in this patcher is text, with no atom types at all, so .atoi sends the code of every character of the message as it stands and each of Max's four rules falls out of that — a number's digits are its text, and a list gets its 32 because a space is the character that is actually between its items. Runs of whitespace collapse to one space and the ends are trimmed. The encoding is the one .spell states and shares with this object, character for character: bytes forming a well-formed UTF-8 sequence give the one code point they spell, so the two bytes of an accented letter give one code and not two, and any byte that is not part of a well-formed sequence spells its own value 0-255 with decoding resuming at the next byte, so the object never fails, never drops a byte and never guesses. What .spell does not have is the state: this object holds what it converted, so a bang sends it again, inlet 1 adds to it a piece at a time without sending, and inlet 2 loads it silently — Max's three inlets. An empty message on inlet 2 is Max's clear, spelled as an empty message rather than a reserved word because inlet 0 has to be able to carry the word 'clear' as text like any other. At most 256 codes; a message that would take it past that is refused whole rather than truncated, leaving what was already stored untouched, because half a spelling is a different word rather than a shorter one. Pair it with .itoa, which converts codes back into the characters they spell and returns exactly the message that went in. Calculate() does nothing, and no message path allocates, locks or blocks.",
+    "description": "Converts a message into the character codes of its text and holds them: 'hi' gives 104 105. A bang sends the held codes again, and the other two inlets add to them or replace them without sending.",
     "inlets": [
       {
         "accepts": [
@@ -4520,7 +4520,7 @@
           "BANG",
           "LIST"
         ],
-        "doc": "The message to convert. Whatever arrives replaces the stored codes and the result goes straight out: an int digit by digit (123 gives 49 50 51), a float including its decimal point, and a list character by character with the code 32 between its items, which is Max's four separate rules falling out of the one rule this patcher's message model allows. A bang sends the stored codes again without converting anything. Runs of whitespace collapse to a single 32 and the ends are trimmed. An empty message stores nothing and sends nothing.",
+        "doc": "The message to convert. It replaces the stored codes and the codes are sent. A bang sends the stored codes again. An empty message clears them and sends nothing.",
         "index": 0,
         "label": "in",
         "range": ""
@@ -4531,7 +4531,7 @@
           "INT",
           "LIST"
         ],
-        "doc": "Max's middle inlet: the codes of whatever arrives are added to the stored codes and nothing is sent. Appending is at the code level, so 'a' then 'b' gives 97 98 — the same as the one message 'ab', and not the 97 32 98 that the two-token message 'a b' gives. A message that would take the stored codes past 256 is refused whole, leaving what was already there untouched.",
+        "doc": "Adds the codes of the message to the stored codes and sends nothing. Characters are added with no space between messages: 'a' then 'b' gives 97 98.",
         "index": 1,
         "label": "append",
         "range": "at most 256 characters in total"
@@ -4542,7 +4542,7 @@
           "INT",
           "LIST"
         ],
-        "doc": "Max's right inlet: the codes of whatever arrives replace the stored codes and nothing is sent, so a patch can load the object and send it later with a bang on inlet 0. An empty message here is Max's clear — replacing the contents with nothing is what clearing them is, and it needs no reserved word on the inlet that has to carry arbitrary text.",
+        "doc": "Replaces the stored codes with the codes of the message and sends nothing. An empty message clears them.",
         "index": 2,
         "label": "set",
         "range": "at most 256 characters in total"
@@ -4552,7 +4552,7 @@
     "name": ".atoi",
     "outlets": [
       {
-        "doc": "The stored codes, as one list, in the order the characters appear — 'hi' leaves as 104 105. Max sends them one at a time; they leave together here because nothing in this patcher accumulates a stream of numbers back into a message, while a list can be taken apart by a .spray whenever a patch wants them separately. Nothing is sent when there is nothing stored.",
+        "doc": "The stored codes as one list, in the order the characters appear: 'hi' leaves as 104 105.",
         "index": 0,
         "label": "out",
         "range": "",
@@ -5435,7 +5435,7 @@
   },
   ".combine": {
     "category": "STRING",
-    "description": "Joins several items, each held in its own inlet, into a single symbol — Max's combine, which 'combines a list of items into a single symbol' and 'works similar to pack and sprintf'. The creation arguments are the items: each one becomes an inlet and that inlet's starting value, every inlet remembers the last item it was given, and the output is those items written out one after another with nothing in between. That memory is what distinguishes it from .tosymbol, which collapses one message that has already arrived whole: .combine assembles a symbol out of parts arriving at different times from different sources — an address built from a .route branch, a .counter and a constant, each updating on its own schedule — which nothing in this patcher could express, since .bondo and .buddy synchronise arrivals but hand them on through separate outlets. There is no separator either, because every separator is an item: .combine synth . lead . note is six inlets, three of them constants, and the punctuation may differ between them, where .tosymbol applies one uniform separator throughout. Every item is text; a number is stored as the text that spells it, a list is spread one token per item from the receiving inlet rightwards, and an empty message clears an item, which is how a patch takes a component back out of an address. An item never set renders as nothing, Max's 'if no value has been received for a %s argument, that argument will be left blank', and a .combine holding nothing at all sends nothing rather than an empty message — the .prepend rule that makes an unconfigured object safe to drop into a working patch. Max's @triggers attribute is a leading creation argument here, 'triggers -1' for every inlet hot or 'triggers <n>' for one of them, read and consumed the way .sprintf reads Max's leading symout; it takes exactly one token, since the argument list has no bracket to end a subset with, and without it the hot inlet is inlet 0. It is deliberately not a reserved word on inlet 0: this object exists to carry arbitrary words, and a reserved one would swallow the very items it is asked to join. A bang on inlet 0 sends the items as they stand whatever triggers says. Max's @padding is not reproduced — spelling a number into a fixed-width field is what .sprintf's %03ld already says, and a second spelling of it here would only make the argument list ambiguous. At most 32 items, each at most 64 characters and refused rather than truncated past that. Calculate() does nothing, and no message path allocates, locks or blocks: a join is one walk of the items into a buffer reserved before the object was published for every item at full length.",
+    "description": "Joins the items held in its inlets into one symbol, with nothing between them. Each creation argument is an item and the starting value of its own inlet. By default inlet 0 sends and the other inlets only store.",
     "inlets": [
       {
         "accepts": [
@@ -5444,7 +5444,7 @@
           "BANG",
           "LIST"
         ],
-        "doc": "Hot. Stores what arrives as this inlet's item and sends the joined symbol. An int or a float is stored as the text that spells it; a list is spread one token per item from here rightwards, and tokens past the last item are dropped; an empty message clears this item, which is how a patch takes a component back out of the symbol it is building. A bang sends the items as they stand, whatever the triggers setting is — Max's 'bang: sends stored items as combined symbol'.",
+        "doc": "Hot. Stores the message as this inlet's item and sends the joined symbol. A number is stored as its text. A list fills this item and the ones to its right, one token each. An empty message clears this item. A bang sends the joined symbol, whichever inlets the triggers argument makes hot.",
         "index": 0,
         "label": "in0",
         "range": "any"
@@ -5454,7 +5454,7 @@
     "name": ".combine",
     "outlets": [
       {
-        "doc": "The items written out one after another with nothing between them — one whitespace-free token, which is what a symbol can be in this patcher, so a .route matches it as one element and a .forward or a .s will take it as a destination name. Nothing is sent while every item is empty.",
+        "doc": "The items joined with nothing between them, as one symbol. Nothing is sent while every item is empty.",
         "index": 0,
         "label": "out",
         "range": "any",
@@ -5464,7 +5464,7 @@
     "params": [
       {
         "default": "",
-        "doc": "An optional leading 'triggers <n>' followed by the items, one per inlet, each the starting value of the inlet it builds. 'triggers -1' makes every inlet hot and 'triggers <n>' makes inlet n the only hot one; with no flag at all inlet 0 is hot, Max's default. At most 32 items, each at most 64 characters; a longer one is reported and left empty. With no arguments at all the object has one inlet, holds nothing, and sends nothing.",
+        "doc": "An optional 'triggers <n>' followed by the items, one inlet each. 'triggers -1' makes every inlet hot and 'triggers <n>' makes inlet n the only hot one; without it inlet 0 is hot. An item longer than 64 characters is logged and left empty.",
         "name": "items",
         "range": "optional 'triggers <n>' then up to 32 items of at most 64 characters"
       }
@@ -5955,14 +5955,14 @@
   },
   ".dict": {
     "category": "DICT",
-    "description": "A nested key/value dictionary shared by name — Max's dict. Paths nest with \"::\", so \"voice::1::freq\" is one entry three levels deep, and the contents are a proper nested JSON object when the patch is saved. The dictionary is addressed as \"patcher.<patcherName>.<name>\", the same address form .s, .r, .value and .coll use, so every .dict of one name shares one dictionary and two patchers given one name share theirs. A bang emits \"dictionary <name>\" out outlet 1 — the reference the dict.* family binds. Dictionaries are addressed by name rather than passed down a cord: an outlet carries a value, never an identity, so the name is what travels and the store is resolved once, on the control thread. An unnamed .dict keeps a dictionary of its own.",
+    "description": "A key/value store shared by name. Keys nest with '::' (voice::1::freq), a value is any message, and the contents are saved with the patch. A bang sends the reference 'dictionary <name>' that the other .dict objects take.",
     "inlets": [
       {
         "accepts": [
           "BANG",
           "LIST"
         ],
-        "doc": "\"set <path> <value...>\" stores a value; \"get <path>\" fetches one out outlet 0 or bangs outlet 2 when there is none; \"delete <path>\" removes one; \"clear\" empties the dictionary; \"getsize\" reports the entry count and \"getkeys\" the top-level keys out outlet 0. A bang emits this dictionary's reference out outlet 1. Paths nest with \"::\", Max's own separator, so \"voice::1::freq\" is one entry three levels deep. Anything refused — an unknown message, a path past 128 characters, a value past 256, or a store into a full dictionary — is counted rather than logged, since this inlet may be the audio thread.",
+        "doc": "'set <path> <value...>' stores a value, 'get <path>' sends one, 'delete <path>' removes one, 'clear' empties the dictionary, 'getsize' sends the entry count and 'getkeys' the top-level keys. A bang sends the reference out of outlet 1.",
         "index": 0,
         "label": "in",
         "range": "at most 256 entries"
@@ -5972,21 +5972,21 @@
     "name": ".dict",
     "outlets": [
       {
-        "doc": "The value fetched by \"get\", typed the way the patcher spells it: a single numeric token leaves as an int or a float by its spelling and anything else as a list. Also the int \"getsize\" reports and the key list \"getkeys\" reports.",
+        "doc": "The value a 'get' fetched: one number leaves as an int or a float, anything else as a list. Also the count from 'getsize' and the key list from 'getkeys'.",
         "index": 0,
         "label": "data",
         "range": "",
         "type": "ANY"
       },
       {
-        "doc": "\"dictionary <name>\" on a bang — the reference the dict.* family binds. It carries the *local* name, because the object receiving it prefixes that with its own patcher's name exactly as this one does. Silent for an unnamed dictionary, which has no name to pass on.",
+        "doc": "'dictionary <name>' on a bang: the reference the other .dict objects accept. Silent for an unnamed dictionary.",
         "index": 1,
         "label": "reference",
         "range": "",
         "type": "LIST"
       },
       {
-        "doc": "Bang when a \"get\" names a path the dictionary does not hold — the miss, kept off outlet 0 so a patch can tell \"no such key\" from a key holding nothing.",
+        "doc": "Bang when a 'get' names a path the dictionary does not hold.",
         "index": 2,
         "label": "miss",
         "range": "",
@@ -5996,7 +5996,7 @@
     "params": [
       {
         "default": "",
-        "doc": "Max's shared context: all .dict objects of this name share their contents, through a store addressed as \"patcher.<patcherName>.<name>\". Empty gives this object a dictionary of its own rather than pooling it with every other unnamed .dict in the patcher. The name is resolved once, on the control thread, which is why there is no message that re-points a .dict at another name at run time.",
+        "doc": "The dictionary's name. Every .dict with this name in the patcher shares one dictionary. Empty gives this object a private dictionary. Cannot be changed while the patch runs.",
         "name": "name",
         "range": "any identifier"
       }
@@ -6005,14 +6005,14 @@
   },
   ".dict.compare": {
     "category": "DICT",
-    "description": "Compares two dictionaries — Max's dict.compare on the name-addressed value model .dict settled: both dictionaries are bound from the creation arguments, \".dict.compare <left> <right>\", because a dictionary is addressed by name and never passed down a cord. A bang, or the left dictionary's reference message \"dictionary <name>\", sends 1 when the two hold the same entries and 0 when they do not — the same number of entries and every key path present in both with identical value text, storage order ignored. On a difference, the differing key paths follow out the second outlet, so a patch that keeps a dictionary of live parameters can compare the preset it just loaded against what is running and repair exactly the keys that drifted.",
+    "description": "Compares two named dictionaries and sends 1 when they hold the same entries, 0 when they do not. On a difference, the key paths that differ follow from the right outlet.",
     "inlets": [
       {
         "accepts": [
           "BANG",
           "LIST"
         ],
-        "doc": "A bang compares the two bound dictionaries and sends the verdict out the outlet. \"dictionary <name>\" does the same when it names the left dictionary bound by the first creation argument — the message a .dict's reference outlet emits on a bang, so wiring that outlet here gives Max's own gesture. A reference naming anything else, or any other message, is refused and counted rather than logged, since this inlet may be the audio thread.",
+        "doc": "A bang compares the two dictionaries. So does the left dictionary's reference 'dictionary <name>'.",
         "index": 0,
         "label": "compare",
         "range": ""
@@ -6021,7 +6021,7 @@
         "accepts": [
           "LIST"
         ],
-        "doc": "\"dictionary <name>\" is accepted silently when it names the right dictionary bound by the second creation argument, so a patch may wire both reference outlets across as it would in Max. It sets nothing — the binding is the creation argument, resolved on the control thread — and anything else is refused and counted.",
+        "doc": "Accepts the right dictionary's reference and does nothing with it, so its .dict can be wired here.",
         "index": 1,
         "label": "right reference",
         "range": ""
@@ -6031,14 +6031,14 @@
     "name": ".dict.compare",
     "outlets": [
       {
-        "doc": "The verdict: 1 when the two dictionaries hold the same entries — the same number of them, every key path present in both with identical value text, storage order ignored — and 0 when they do not. Sent first, before the differing paths.",
+        "doc": "1 when the two dictionaries hold the same entries, 0 when they do not. Sent before the differing paths.",
         "index": 0,
         "label": "equal",
         "range": "0 or 1",
         "type": "INT"
       },
       {
-        "doc": "On a difference, the key paths that differ, sent after the verdict as space-separated list text — the getkeys rendering: paths only in the left dictionary or in both with different value text, in the left's storage order, then paths only in the right. Silent when the two are equal. At most 256 paths and the list-text bound; a path that does not fit is refused and counted, and the verdict is unaffected.",
+        "doc": "The key paths that differ, as a list, sent after the verdict. Silent when the dictionaries are equal.",
         "index": 1,
         "label": "paths",
         "range": "at most 256 paths",
@@ -6048,13 +6048,13 @@
     "params": [
       {
         "default": "",
-        "doc": "The left dictionary's shared name, addressed as \"patcher.<patcherName>.<name>\" — the dictionary a .dict of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty compares a private, empty dictionary.",
+        "doc": "The name of the left dictionary. Empty compares an empty dictionary.",
         "name": "left",
         "range": "any identifier"
       },
       {
         "default": "",
-        "doc": "The right dictionary's shared name, bound exactly as the left one. Empty compares a private, empty dictionary.",
+        "doc": "The name of the right dictionary. Empty compares an empty dictionary.",
         "name": "right",
         "range": "any identifier"
       }
@@ -6063,13 +6063,13 @@
   },
   ".dict.deserialize": {
     "category": "DICT",
-    "description": "Builds a dictionary from serialised text — Max's dict.deserialize on the name-addressed value model .dict settled. The read half of the interchange pair whose write half is .dict.serialize: a JSON string arriving from a host, a .textedit, a .s/.r pair or the live-coding DSL becomes a dictionary the patch can address. The target dictionary is bound from the creation argument, \".dict.deserialize <name>\", resolved once on the control thread; a list message holding one JSON object — exactly what .dict.serialize emits — replaces that dictionary whole, \"::\" paths flattened back out of the nesting, and the reference \"dictionary <name>\" leaves the outlet so the rest of the family can pick the result up. The parse runs on the background pool — nlohmann allocates without bound, and the inlet may be the audio thread — so the inlet is a wait-free hand-off and the result is installed by the patcher's block poll one block later, .midiinfo's arrangement for a result with no cord to arrive on. A document past 255 characters — the longest list payload the patcher's value queue carries — is refused whole and counted, never truncated; a document that fails to parse is counted and changes nothing, so a bad document never costs a dictionary its contents. A larger document takes the file route: 'read [file]' loads a JSON file through the patcher's file scheduler — background disk work, the same background parse, the same block-poll install — lifting the bound to the scheduler slot's 128 KiB, past which a file is refused whole. Only the creation argument persists across a save; the dictionary's contents persist with the .dict that owns them.",
+    "description": "Fills a named dictionary from JSON text, replacing its contents, and sends its reference. Takes a JSON object as a message, or 'read <file>' for a larger document.",
     "inlets": [
       {
         "accepts": [
           "LIST"
         ],
-        "doc": "The document: one JSON object as a single list message — exactly what .dict.serialize emits, and anything else JSON calls an object. It is handed to the background pool to parse (nlohmann allocates, and this inlet may be the audio thread) and, a block later, replaces the bound dictionary whole — \"::\" paths flattened back out of the nesting by the same DictFromJson a saved patch loads through, so a serialise/deserialise round trip reproduces the dictionary. A document longer than 255 characters — the longest list payload the patcher's value queue carries — is refused whole and counted, never truncated: the prefix of a JSON document is a different document or none. A document arriving while the previous one is still in flight is refused and counted too, and one that fails to parse is counted and changes nothing — a bad document never costs a dictionary its contents. 'read [file]' is the document past that bound: the file loads through the patcher's file scheduler — the request claims a patcher-owned slot, the disk work runs on the background pool, and the bytes are handed to the same parse slot the inlet uses, so a file document installs and announces exactly as an inlet document does, up to the scheduler slot's 128 KiB (a larger file is refused whole by the scheduler, never truncated). A bare 'read' reuses the last path given. No bang and no bare number: a bang carries no document, and a number names nothing.",
+        "doc": "A JSON object as one list message, such as the text .dict.serialize sends. It replaces the dictionary's contents one block later. 'read <file>' loads the JSON from a file; a bare 'read' reads the last file again.",
         "index": 0,
         "label": "json",
         "range": "at most 255 characters inline; a file up to 128 KiB"
@@ -6079,7 +6079,7 @@
     "name": ".dict.deserialize",
     "outlets": [
       {
-        "doc": "\"dictionary <name>\" once a document has been parsed and installed — the reference the dict.* family binds, .dict.pack's gesture, so the rest of the family can pick the result up the moment it exists. Emitted from the patcher's block poll, one block after the document arrived, because the parse finishes on the background pool and has no cord to arrive on. Silent for an unnamed dictionary, which has no name to pass on, and silent on a failed parse, which installed nothing.",
+        "doc": "'dictionary <name>' once a document has been loaded. Silent for an unnamed dictionary and for a document that could not be read.",
         "index": 0,
         "label": "reference",
         "range": "",
@@ -6089,7 +6089,7 @@
     "params": [
       {
         "default": "",
-        "doc": "The dictionary the parsed document fills, addressed as \"patcher.<patcherName>.<name>\" — the dictionary a .dict of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty binds a private dictionary: the document still loads, but there is no name to announce.",
+        "doc": "The name of the dictionary to fill. Empty fills a private dictionary and sends nothing.",
         "name": "name",
         "range": "any identifier"
       }
@@ -6098,14 +6098,14 @@
   },
   ".dict.group": {
     "category": "DICT",
-    "description": "Groups a dictionary's entries by a value — Max's dict.group on the name-addressed value model .dict settled: both dictionaries are bound from the creation arguments, \".dict.group <source> <target> [<key>]\", because a dictionary is addressed by name and never passed down a cord. A bang, or the source dictionary's reference message \"dictionary <name>\", replaces the target with the grouped entries, each written as \"<groupValue>::<originalPath>\" — the dictionary of dictionaries the flat store expresses as a path prefix. With a <key> the source is read as a table of records (the first path segment names the record) and each entry groups under the value its record stores at that key; without one each entry groups under its own value, turning a flat table into an index. An entry without a group, or one whose composed path outgrows the 128-character key capacity, is refused whole and counted rather than truncated.",
+    "description": "Groups a named dictionary's entries by value into a target dictionary, as '<group>::<original path>'. With a key argument, each record is grouped by the value it holds at that key.",
     "inlets": [
       {
         "accepts": [
           "BANG",
           "LIST"
         ],
-        "doc": "A bang groups the source dictionary's entries into the target and sends the target's reference out the outlet. \"dictionary <name>\" does the same when it names the source dictionary bound by the first creation argument — the message a .dict's reference outlet emits on a bang, so wiring that outlet here gives Max's own gesture. A reference naming anything else, or any other message, is refused and counted rather than logged, since this inlet may be the audio thread.",
+        "doc": "A bang groups the source dictionary into the target and sends the target's reference. So does the source dictionary's reference 'dictionary <name>'.",
         "index": 0,
         "label": "group",
         "range": ""
@@ -6114,7 +6114,7 @@
         "accepts": [
           "LIST"
         ],
-        "doc": "\"dictionary <name>\" is accepted silently when it names the target dictionary bound by the second creation argument, so a patch may wire the target's reference outlet across. It sets nothing — the binding is the creation argument, resolved on the control thread — and anything else is refused and counted.",
+        "doc": "Accepts the target dictionary's reference and does nothing with it, so its .dict can be wired here.",
         "index": 1,
         "label": "target reference",
         "range": ""
@@ -6124,7 +6124,7 @@
     "name": ".dict.group",
     "outlets": [
       {
-        "doc": "\"dictionary <target>\" after a grouping — the reference the dict.* family binds, carrying the local name so the receiving object prefixes it with its own patcher's name. Silent for an unnamed target, which has no name to pass on.",
+        "doc": "'dictionary <target>' after each grouping. Silent for an unnamed target.",
         "index": 0,
         "label": "reference",
         "range": "",
@@ -6134,19 +6134,19 @@
     "params": [
       {
         "default": "",
-        "doc": "The source dictionary's shared name, addressed as \"patcher.<patcherName>.<name>\" — the dictionary a .dict of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty groups a private, empty dictionary.",
+        "doc": "The name of the dictionary to group. Empty groups an empty dictionary.",
         "name": "source",
         "range": "any identifier"
       },
       {
         "default": "",
-        "doc": "The target dictionary's shared name, bound exactly as the source. A grouping replaces its contents whole. The result goes into a bound dictionary rather than a new anonymous one because there is no way to hand a fresh dictionary's identity down a cord.",
+        "doc": "The name of the dictionary that receives the result. Each grouping replaces its contents.",
         "name": "target",
         "range": "any identifier"
       },
       {
         "default": "",
-        "doc": "The key each record's group is read from: with \"instrument\" every \"<record>::...\" entry groups under the value at \"<record>::instrument\", and a record without that entry is skipped and counted. Empty groups each entry by its own value instead, turning a flat table into an index.",
+        "doc": "The key each record's group is read from: with 'instrument', the entries under '<record>::' group under the value at '<record>::instrument'. Empty groups each entry by its own value.",
         "name": "key",
         "range": "any key path segment"
       }
@@ -6155,14 +6155,14 @@
   },
   ".dict.iter": {
     "category": "DICT",
-    "description": "Outputs a dictionary's key/value pairs one at a time — Max's dict.iter, whose summary is 'stream the content of a dictionary', on the name-addressed value model .dict settled: the dictionary is bound from the creation argument, \".dict.iter <name>\", because a dictionary is addressed by name and never passed down a cord. A bang, or the dictionary's reference message \"dictionary <name>\", emits one \"<path> <value...>\" list per entry in storage order out the pair outlet, then a bang out the done outlet — the .uzi/.iter shape applied to structured data, and the object every 'do this for each entry' patch is built from. Paths are whole \"::\" paths, so what leaves here feeds .route, .zl and a set-building .prepend unchanged. The walk is a snapshot of the dictionary as it stood at the trigger: a set or delete arriving mid-walk changes the dictionary but never the walk in flight, and two .dict.iter on one name walk independently. A trigger arriving mid-walk is refused and counted, as .uzi refuses a re-entrant start.",
+    "description": "Walks a named dictionary, sending one '<path> <value>' list per entry, then a bang from the right outlet when it is done.",
     "inlets": [
       {
         "accepts": [
           "BANG",
           "LIST"
         ],
-        "doc": "A bang walks the bound dictionary: one \"<path> <value...>\" list per entry out the pair outlet, in storage order, then one bang out the done outlet. \"dictionary <name>\" does the same when it names the dictionary bound by the creation argument — the message a .dict's reference outlet emits on a bang, so wiring that outlet here gives Max's own gesture. A reference naming anything else, any other message, or a trigger arriving while a walk is already running — a cord looped back from an outlet, or another thread — is refused and counted rather than logged, since this inlet may be the audio thread.",
+        "doc": "A bang walks the dictionary: one pair per entry out of the left outlet, then a bang out of the right one. So does the dictionary's reference 'dictionary <name>'.",
         "index": 0,
         "label": "walk",
         "range": ""
@@ -6172,14 +6172,14 @@
     "name": ".dict.iter",
     "outlets": [
       {
-        "doc": "One entry per send: the whole \"::\" path followed by the stored value's tokens, in storage order — the order paths were first written. An entry holding nothing leaves as its path alone. The walk is a snapshot of the dictionary as it stood at the trigger, so a set or delete arriving mid-walk — including from this outlet's own subgraph — changes the dictionary but not the walk in flight: every entry held at the trigger is emitted exactly once. Each send completes in full, the whole subgraph behind this outlet, before the next pair leaves — up to 256 sends per trigger, on whichever thread sent it.",
+        "doc": "One entry per message: its whole '::' path followed by its value, in the order the entries were first written. An entry with an empty value leaves as its path alone.",
         "index": 0,
         "label": "pair",
         "range": "",
         "type": "LIST"
       },
       {
-        "doc": "Bang after the last pair — 'all the pairs have been sent', the exception to right-to-left that Max states for uzi's carry. It fires even for an empty dictionary, so the 'and afterwards, do this' branch is never silently skipped; a refused walk emits no done bang.",
+        "doc": "Bang after the last pair, also for an empty dictionary.",
         "index": 1,
         "label": "done",
         "range": "",
@@ -6189,7 +6189,7 @@
     "params": [
       {
         "default": "",
-        "doc": "The dictionary's shared name, addressed as \"patcher.<patcherName>.<name>\" — the dictionary a .dict of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty walks a private, empty dictionary: no pairs, just the done bang.",
+        "doc": "The name of the dictionary to walk. Empty walks an empty dictionary: no pairs, only the done bang.",
         "name": "name",
         "range": "any identifier"
       }
@@ -6198,14 +6198,14 @@
   },
   ".dict.join": {
     "category": "DICT",
-    "description": "Merges two dictionaries into one — Max's dict.join on the name-addressed value model .dict settled: all three dictionaries are bound from the creation arguments, \".dict.join <left> <right> <target>\", because a dictionary is addressed by name and never passed down a cord. A bang, or the left dictionary's reference message \"dictionary <name>\", replaces the target with the left dictionary's entries overlaid by the right's — on a colliding key path the right dictionary overwrites the left, Max's own rule, so the left argument is the base and the right the override. Layering a preset over a base is the use case: both sources survive the join, and \".dict.join a b a\" spells the in-place merge when a patch wants one. A join past the 256-entry capacity is refused entry by entry and counted rather than truncated, so a partial merge is possible — whatever fits, left entries first, is the result.",
+    "description": "Merges two named dictionaries into a target dictionary: the left one's entries, overlaid with the right one's. Where both hold a key path, the right value wins.",
     "inlets": [
       {
         "accepts": [
           "BANG",
           "LIST"
         ],
-        "doc": "A bang joins the two bound dictionaries into the target and sends the target's reference out the outlet. \"dictionary <name>\" does the same when it names the left dictionary bound by the first creation argument — the message a .dict's reference outlet emits on a bang, so wiring that outlet here gives Max's own gesture. A reference naming anything else, or any other message, is refused and counted rather than logged, since this inlet may be the audio thread.",
+        "doc": "A bang joins the two dictionaries into the target and sends the target's reference. So does the left dictionary's reference 'dictionary <name>'.",
         "index": 0,
         "label": "join",
         "range": ""
@@ -6214,7 +6214,7 @@
         "accepts": [
           "LIST"
         ],
-        "doc": "\"dictionary <name>\" is accepted silently when it names the right dictionary bound by the second creation argument, so a patch may wire both reference outlets across as it would in Max. It sets nothing — the binding is the creation argument, resolved on the control thread — and anything else is refused and counted.",
+        "doc": "Accepts the right dictionary's reference and does nothing with it, so its .dict can be wired here.",
         "index": 1,
         "label": "right reference",
         "range": ""
@@ -6224,7 +6224,7 @@
     "name": ".dict.join",
     "outlets": [
       {
-        "doc": "\"dictionary <target>\" after a join — the reference the dict.* family binds, carrying the local name so the receiving object prefixes it with its own patcher's name. Silent for an unnamed target, which has no name to pass on.",
+        "doc": "'dictionary <target>' after each join. Silent for an unnamed target.",
         "index": 0,
         "label": "reference",
         "range": "",
@@ -6234,19 +6234,19 @@
     "params": [
       {
         "default": "",
-        "doc": "The left dictionary's shared name — the base of the join, addressed as \"patcher.<patcherName>.<name>\", the dictionary a .dict of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty joins a private, empty dictionary.",
+        "doc": "The name of the base dictionary. Empty joins an empty dictionary.",
         "name": "left",
         "range": "any identifier"
       },
       {
         "default": "",
-        "doc": "The right dictionary's shared name, bound exactly as the left one — the override: on a colliding key path its value wins. Empty joins a private, empty dictionary.",
+        "doc": "The name of the dictionary laid over the base: its value wins on a shared key path. Empty joins an empty dictionary.",
         "name": "right",
         "range": "any identifier"
       },
       {
         "default": "",
-        "doc": "The target dictionary's shared name, bound exactly as the sources. A join replaces its contents whole. The result goes into a bound dictionary rather than a new anonymous one because there is no way to hand a fresh dictionary's identity down a cord; naming a source as the target merges in place.",
+        "doc": "The name of the dictionary that receives the result. Each join replaces its contents. It may be one of the two sources.",
         "name": "target",
         "range": "any identifier"
       }
@@ -6255,14 +6255,14 @@
   },
   ".dict.pack": {
     "category": "DICT",
-    "description": "Builds a dictionary from a list of named inlets — Max's dict.pack on the name-addressed value model .dict settled: the dictionary is bound from the first creation argument, and every argument after it is a key path declaring one inlet — \".dict.pack out freq gain pan\" — because a dictionary is addressed by name and never passed down a cord. The dictionary counterpart of .pack, and its hot/cold rule exactly: only the leftmost inlet releases — writing any other inlet stores its key's value and stays quiet — so a patch loads the right-hand values first and lets the leftmost carry the finished dictionary out. A trigger — a value on inlet 0, a bang, or the bound dictionary's \"dictionary <name>\" reference — replaces the bound dictionary whole with one entry per key path in argument order, a slot never written packing its path with an empty value, and sends the reference out the outlet, consistent with .dict. \"set <value>\" stores without releasing. A whole list is one value rather than a spread, since a dictionary value is list text; paths nest with \"::\", so the packed dictionary is as structured as its keys spell. A value past 256 characters is refused whole and counted rather than truncated, and a reference naming an unbound dictionary is refused rather than resolved, a registry lookup being a mutex on whatever thread the message arrived on.",
+    "description": "Builds a named dictionary from its inlets, one inlet per key path: '.dict.pack synth freq gain'. The left inlet stores its value, writes the dictionary and sends its reference; the other inlets only store.",
     "inlets": [
       {
         "accepts": [
           "BANG",
           "LIST"
         ],
-        "doc": "With no key-path arguments there is nothing to store: a bang, or \"dictionary <name>\" naming the bound dictionary, packs the empty dictionary — replacing whatever the bound store held — and sends its reference. Any other message is refused and counted, since this inlet may be the audio thread.",
+        "doc": "With no key paths, a bang writes an empty dictionary and sends its reference.",
         "index": 0,
         "label": "pack",
         "range": ""
@@ -6272,7 +6272,7 @@
     "name": ".dict.pack",
     "outlets": [
       {
-        "doc": "\"dictionary <name>\" after a pack — the reference the dict.* family binds, carrying the local name so the receiving object prefixes it with its own patcher's name. Sent whenever the leftmost inlet is written, banged, or handed the bound dictionary's reference. Silent for an unnamed dictionary, which has no name to pass on — the pack still lands in the private store.",
+        "doc": "'dictionary <name>' after each write. Silent for an unnamed dictionary.",
         "index": 0,
         "label": "reference",
         "range": "",
@@ -6282,13 +6282,13 @@
     "params": [
       {
         "default": "",
-        "doc": "The packed dictionary's shared name — the first creation argument, addressed as \"patcher.<patcherName>.<name>\", the dictionary a .dict of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. The result goes into a bound dictionary rather than a new anonymous one because there is no way to hand a fresh dictionary's identity down a cord. Empty packs into a private store and sends nothing.",
+        "doc": "The name of the dictionary to write. Empty writes a private dictionary and sends nothing.",
         "name": "name",
         "range": "any identifier"
       },
       {
         "default": "",
-        "doc": "One key path per inlet, in order — the shape of the packed dictionary. Paths nest with \"::\", Max's own separator, so \"voice::1::freq\" is one entry three levels deep. At most 256 paths of at most 128 characters each; a path that does not fit declares no inlet and is logged, parameter parsing being control-thread only. A duplicate path is two inlets writing one entry, and the later inlet wins. With no paths the object is a bare trigger that packs the empty dictionary.",
+        "doc": "One key path per inlet, in order. Paths nest with '::'. A path longer than 128 characters is logged and gets no inlet.",
         "name": "keys",
         "range": "key paths"
       }
@@ -6297,14 +6297,14 @@
   },
   ".dict.print": {
     "category": "DICT",
-    "description": "Prints a dictionary's contents to the engine log — Max's dict.print ('print the contents of a dictionary in the Max Console') on the name-addressed value model .dict settled. There is no Max window here, so the destination is the engine log, .print's destination: the thing a host already reads, redirects with YSE::Log().setLogfile() and intercepts with YSE::Log().setHandler(). It is the debugging instrument for structured data and the counterpart of .print — a dictionary is the one patcher value a patch cannot see by wiring it to a sink, because what a cord carries is only its name. The dictionary is bound from the first creation argument, \".dict.print <name>\", resolved once on the control thread; a bang, or the dictionary's reference message \"dictionary <name>\", dumps the whole dictionary as a nested multi-line JSON document — the same document a saved patch holds, with \"::\" paths expanded into real nesting, entries grouped in storage order of first appearance, and values typed by the patcher's own classifier: a single numeric token prints as a number, a multi-token value as an array, anything else as a string. Each line is prefixed with the dictionary's name, so two of these in one patch are tellable apart. There are no outlets — a probe, not a participant. Nothing is ever logged from the message path: the dump is a snapshot of the dictionary as it stood at the trigger, composed row by row into buffers the object owns and pushed onto the bounded lock-free queue .print built, whose control-thread drain hands the lines to the log on the host's next tick. Nothing on any message path allocates, locks or blocks, and Calculate() does nothing. Two bounds can refuse a line and both report: this object's per-tick budget — the second creation argument, default 64, clamped to 1-256 — whose first refusal in a tick posts a notice, and the shared queue's capacity, whose overflow the next drain names as a single count. A row longer than the record is cut and marked with '...'. Only the creation arguments persist across a save; the lines already sent belong to the log rather than to the patch.",
+    "description": "Prints a named dictionary to the engine log as indented JSON, one line per row, each line labelled with the dictionary's name. A debugging aid with no outlets.",
     "inlets": [
       {
         "accepts": [
           "BANG",
           "LIST"
         ],
-        "doc": "A bang dumps the bound dictionary to the engine log as a nested multi-line JSON document, one log line per row, each prefixed with the dictionary's name. \"dictionary <name>\" does the same when it names the dictionary bound by the creation argument — the message a .dict's reference outlet emits on a bang, so wiring that outlet here gives Max's own gesture: bang the dict, read its contents. A reference naming anything else, any other message, or a trigger arriving while a dump is already being composed is refused and counted rather than logged, since this inlet may be the audio thread. Nothing is logged from here either: every row is composed into a buffer the object owns and pushed onto the bounded lock-free queue .print built, so the document reaches the log on the host's next System::update() tick. A dump that runs past this object's per-tick line budget is cut and the first refusal posts one notice line, and a row longer than the queue's record is cut and marked with a trailing '...' — a truncated dump must read as a marked gap, never as a complete dictionary.",
+        "doc": "A bang prints the dictionary to the engine log. So does the dictionary's reference 'dictionary <name>'.",
         "index": 0,
         "label": "dump",
         "range": ""
@@ -6316,13 +6316,13 @@
     "params": [
       {
         "default": "",
-        "doc": "The dictionary's shared name, addressed as \"patcher.<patcherName>.<name>\" — the dictionary a .dict of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Also the label in front of every printed line, which is what makes two of these in one patch tellable apart; a name longer than 32 characters labels with its first 32. Empty binds a private, empty dictionary — the dump is then '{}' under the label 'dict.print'.",
+        "doc": "The name of the dictionary to print, also used as the label in front of every line (at most 32 characters of it). Empty prints {} under the label 'dict.print'.",
         "name": "name",
         "range": "any identifier"
       },
       {
         "default": "64",
-        "doc": "The most lines this object emits between two drain ticks — .print's budget, with a wider default because the unit of output here is a whole document rather than a line: 64 covers a dictionary of a few dozen entries. Clamped to 1-256, 256 being the shared queue's own capacity, past which asking for more cannot buy anything. A dump that runs past the budget is truncated and the first refusal in a tick posts a notice line, so a cut dump is visible rather than silent; every refusal is counted. A non-numeric second argument leaves the default standing rather than failing, since a creation argument arriving from a saved patch must never be able to break loading it.",
+        "doc": "The most lines this object sends to the log per engine update. Lines past it are dropped and one notice line says so. A value that is not a number keeps the default.",
         "name": "lines",
         "range": "1-256"
       }
@@ -6331,14 +6331,14 @@
   },
   ".dict.route": {
     "category": "DICT",
-    "description": "Routes a dictionary by the keys it holds — Max's dict.route on the name-addressed value model .dict settled: the dictionary is bound from the first creation argument and every argument after it is a key declaring one outlet, plus a rightmost reject — \".dict.route <name> <key> [<key> ...]\" — because a dictionary is addressed by name and never passed down a cord. The dispatcher for structured messages: a patch that receives dictionaries of several shapes sends each to the part of the graph that understands it, which is what .route does for list text and this object does for dictionaries. A trigger — a bang, or the bound dictionary's \"dictionary <name>\" reference, the message a .dict's reference outlet emits — tests the dictionary for each key in argument order and sends the reference, never the contents, out the outlet of the leftmost key present: the routing decision is about which dictionary, and the receiver still binds the name itself. Exactly one outlet fires per trigger; a dictionary holding none of the keys leaves the rightmost outlet with its reference unchanged, so a chain of .dict.route objects strings together with each reject feeding the next inlet. A key is a path — \"voice\" tests a top-level key, \"voice::1\" tests two levels down — and presence means an entry at the path or under it, the family's bounded sub-tree scan. With no keys the object has only the reject outlet, since Max documents no default key for dict.route. The decision is a bounded scan under the store's try-lock guard, released before the send, and the reference is built once per rebind, so no message path allocates, locks or blocks and Calculate() does nothing. A trigger that loses the guard, a reference naming an unbound dictionary, and a trigger arriving while a route is in flight are refused and counted rather than resolved, a registry lookup being a mutex on whatever thread the message arrived on. Only the creation arguments persist across a save; the dictionary's contents persist with the .dict that owns them.",
+    "description": "Sends a named dictionary's reference out of the outlet of the first key argument it holds, or out of the rightmost outlet when it holds none. Use it to send dictionaries of different shapes to different parts of a patch.",
     "inlets": [
       {
         "accepts": [
           "BANG",
           "LIST"
         ],
-        "doc": "A bang routes the bound dictionary: it is tested for each key argument in order, and the reference \"dictionary <name>\" leaves the outlet of the leftmost key present — exactly one outlet fires per trigger, and a dictionary holding none of the keys leaves the rightmost outlet instead. \"dictionary <name>\" does the same when it names the dictionary bound by the creation argument — the message a .dict's reference outlet emits on a bang, so wiring that outlet here gives Max's own gesture: bang the dict, and it dispatches itself. A reference naming anything else, any other message, or a trigger arriving while a route is already in flight — a cord looped back from an outlet, or another thread — is refused and counted rather than logged, since this inlet may be the audio thread. An unnamed .dict.route is inert: its private dictionary has no name to pass on, so a trigger routes nothing, silently.",
+        "doc": "A bang routes the dictionary: its reference leaves the outlet of the first key argument it holds, or the rightmost outlet when it holds none. So does the dictionary's reference 'dictionary <name>'.",
         "index": 0,
         "label": "route",
         "range": ""
@@ -6348,7 +6348,7 @@
     "name": ".dict.route",
     "outlets": [
       {
-        "doc": "The dictionary's reference, when none of the key arguments is present in it — Max's rightmost outlet, present whatever the argument count. The reference is unchanged, so chaining this into the next .dict.route carries on testing the dictionary the first one saw.",
+        "doc": "The dictionary's reference, when it holds none of the keys. Wire it into the next .dict.route to test more keys.",
         "index": 0,
         "label": "none",
         "range": "",
@@ -6358,13 +6358,13 @@
     "params": [
       {
         "default": "",
-        "doc": "The dictionary's shared name, addressed as \"patcher.<patcherName>.<name>\" — the dictionary a .dict of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty leaves the object inert: a private dictionary has no name to pass on, so there is nothing to route.",
+        "doc": "The name of the dictionary to route. Empty makes the object do nothing.",
         "name": "name",
         "range": "any identifier"
       },
       {
         "default": "",
-        "doc": "One key per match outlet, in order, plus a rightmost reject outlet. A key is a path: usually one top-level segment (\"voice\"), but \"voice::1\" tests two levels down the same way — presence means an entry at the path or under it (\"<path>::...\"), the family's bounded sub-tree scan. The leftmost key present wins, and a key repeated in the argument list uses the leftmost of its outlets only. An empty token, or a key past 128 characters (which no stored entry can spell), matches nothing and costs an unreachable outlet. With no keys at all the object has only the reject outlet — Max documents no default key for dict.route, and inventing one would put a branch in a patch that did not ask for one.",
+        "doc": "One key per outlet, in order. A key may be a path ('voice::1'); it matches an entry at that path or under it. The rightmost outlet is always added for no match.",
         "name": "keys",
         "range": "key paths"
       }
@@ -6373,14 +6373,14 @@
   },
   ".dict.serialize": {
     "category": "DICT",
-    "description": "Serialises a dictionary to text — Max's dict.serialize ('convert a dictionary into a single symbol') on the name-addressed value model .dict settled. The write half of the interchange pair whose read half is .dict.deserialize: a dictionary becomes a JSON string a host, a .textedit, a .s/.r pair or the live-coding DSL can carry — what makes a dictionary the patcher's interchange format rather than only its store. The dictionary is bound from the creation argument, \".dict.serialize <name>\", resolved once on the control thread; a bang, or the dictionary's reference message \"dictionary <name>\", sends the whole dictionary out the outlet as one list message holding a single-line compact JSON object — \"::\" paths expanded into real nesting, members in storage order of first appearance, no whitespace outside strings, values typed by the patcher's own classifier: a single numeric token as a number, a multi-token value as an array, an empty value as \"\", anything else as an escaped string. Exactly the document DictToJson builds for a saved patch, so what leaves here parses anywhere JSON parses. The document is a snapshot of the dictionary as it stood at the trigger, composed by a bounded allocation-free emitter, so no message path allocates, locks or blocks and Calculate() does nothing. A finished document longer than 255 characters — the longest list payload the patcher's value queue carries — is refused whole and counted, never truncated: a truncated JSON document parses as a different dictionary or none at all. A dictionary that large takes the file route: 'write [file]' composes the same document and hands it to the patcher's file scheduler — background disk work, up to the scheduler slot's 128 KiB, past which the document is refused whole. Only the creation argument persists across a save; the dictionary's contents persist with the .dict that owns them.",
+    "description": "Sends a named dictionary as one line of JSON text. 'write <file>' saves the same JSON to a file instead, for a dictionary too large to send as a message.",
     "inlets": [
       {
         "accepts": [
           "BANG",
           "LIST"
         ],
-        "doc": "A bang serialises the bound dictionary: the whole dictionary leaves the outlet as one list message holding a single-line compact JSON object. \"dictionary <name>\" does the same when it names the dictionary bound by the creation argument — the message a .dict's reference outlet emits on a bang, so wiring that outlet here gives Max's own gesture: bang the dict, out comes its text. 'write [file]' composes the same document and hands it to the patcher's file scheduler instead of the outlet — the bytes are copied into a patcher-owned slot and the disk work runs on the background pool, so a dictionary too large for a list payload still leaves whole, up to the slot's 128 KiB; a bare 'write' reuses the last path given. A reference naming anything else, any other message, or a trigger arriving while a document is already being composed — a cord looped back from the outlet, or another thread — is refused and counted rather than logged, since this inlet may be the audio thread.",
+        "doc": "A bang sends the dictionary as JSON text. So does the dictionary's reference 'dictionary <name>'. 'write <file>' saves the same JSON to a file instead; a bare 'write' writes to the last file again.",
         "index": 0,
         "label": "serialize",
         "range": ""
@@ -6390,7 +6390,7 @@
     "name": ".dict.serialize",
     "outlets": [
       {
-        "doc": "The document: one JSON object on one line, no whitespace outside strings — \"::\" paths expanded into real nesting, members in storage order of first appearance, values typed by the patcher's own classifier (a single numeric token as a number, a multi-token value as an array, an empty value as \"\", anything else as an escaped string), an empty dictionary as {}. Exactly the document DictToJson builds for a saved patch, and exactly what .dict.deserialize parses back — the dictionary's interchange form. The document is a snapshot of the dictionary as it stood at the trigger. A finished document longer than 255 characters — the longest list payload the patcher's value queue carries — is refused whole and counted, never truncated: a truncated document is not a shorter document, it parses as a different one. Route a dictionary that large through a file instead — 'write [file]' carries up to 128 KiB — or through its parts (.dict.iter).",
+        "doc": "The dictionary as one line of compact JSON, in one list message. Nothing is sent when the text would be longer than 255 characters.",
         "index": 0,
         "label": "json",
         "range": "",
@@ -6400,7 +6400,7 @@
     "params": [
       {
         "default": "",
-        "doc": "The dictionary's shared name, addressed as \"patcher.<patcherName>.<name>\" — the dictionary a .dict of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty binds a private, empty dictionary — the document is then {}.",
+        "doc": "The name of the dictionary to convert. Empty converts an empty dictionary, which gives {}.",
         "name": "name",
         "range": "any identifier"
       }
@@ -6409,14 +6409,14 @@
   },
   ".dict.slice": {
     "category": "DICT",
-    "description": "Splits a dictionary at a key path — Max's dict.slice on the name-addressed value model .dict settled: all three dictionaries are bound from the creation arguments, \".dict.slice <source> <slice> <remainder> [<path>]\", because a dictionary is addressed by name and never passed down a cord. A bang, or the source dictionary's reference message \"dictionary <name>\", partitions the source: every entry under the path — its key begins \"<path>::\" — replaces the slice target with the prefix stripped, so the sub-tree becomes a dictionary rooted at itself, and every other entry (including a leaf stored at exactly the path, which is a value, not a sub-tree) replaces the remainder target unchanged. Each target's reference then leaves its outlet, remainder first — Max's right-to-left order. An empty path matches nothing, so the slice comes out empty and the remainder is the whole source.",
+    "description": "Splits a named dictionary at a key path. Entries under the path go into the slice dictionary with the path removed from their keys; all other entries go into the remainder dictionary.",
     "inlets": [
       {
         "accepts": [
           "BANG",
           "LIST"
         ],
-        "doc": "A bang splits the source dictionary at the path: entries under it go into the slice target with the prefix stripped, everything else into the remainder target, and each target's reference leaves its outlet, right to left. \"dictionary <name>\" does the same when it names the source dictionary bound by the first creation argument — the message a .dict's reference outlet emits on a bang, so wiring that outlet here gives Max's own gesture. A reference naming anything else, or any other message, is refused and counted rather than logged, since this inlet may be the audio thread.",
+        "doc": "A bang splits the source dictionary into the slice and remainder dictionaries and sends both references. So does the source dictionary's reference 'dictionary <name>'.",
         "index": 0,
         "label": "slice",
         "range": ""
@@ -6425,7 +6425,7 @@
         "accepts": [
           "LIST"
         ],
-        "doc": "\"dictionary <name>\" is accepted silently when it names the slice target bound by the second creation argument, so a patch may wire the target's reference outlet across. It sets nothing — the binding is the creation argument, resolved on the control thread — and anything else is refused and counted.",
+        "doc": "Accepts the slice dictionary's reference and does nothing with it, so its .dict can be wired here.",
         "index": 1,
         "label": "slice reference",
         "range": ""
@@ -6434,7 +6434,7 @@
         "accepts": [
           "LIST"
         ],
-        "doc": "\"dictionary <name>\" is accepted silently when it names the remainder target bound by the third creation argument, so a patch may wire the target's reference outlet across. It sets nothing — the binding is the creation argument, resolved on the control thread — and anything else is refused and counted.",
+        "doc": "Accepts the remainder dictionary's reference and does nothing with it, so its .dict can be wired here.",
         "index": 2,
         "label": "remainder reference",
         "range": ""
@@ -6444,14 +6444,14 @@
     "name": ".dict.slice",
     "outlets": [
       {
-        "doc": "\"dictionary <slice>\" after a split — the reference the dict.* family binds, carrying the local name so the receiving object prefixes it with its own patcher's name. Sent after the remainder outlet, Max's right-to-left order. Silent for an unnamed slice target, which has no name to pass on.",
+        "doc": "'dictionary <slice>' after each split, sent after the remainder. Silent for an unnamed slice dictionary.",
         "index": 0,
         "label": "slice reference",
         "range": "",
         "type": "LIST"
       },
       {
-        "doc": "\"dictionary <remainder>\" after a split, sent first — Max's right-to-left order. Silent for an unnamed remainder target, which has no name to pass on.",
+        "doc": "'dictionary <remainder>' after each split, sent first. Silent for an unnamed remainder dictionary.",
         "index": 1,
         "label": "remainder reference",
         "range": "",
@@ -6461,25 +6461,25 @@
     "params": [
       {
         "default": "",
-        "doc": "The source dictionary's shared name, addressed as \"patcher.<patcherName>.<name>\" — the dictionary a .dict of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty splits a private, empty dictionary.",
+        "doc": "The name of the dictionary to split. Empty splits an empty dictionary.",
         "name": "source",
         "range": "any identifier"
       },
       {
         "default": "",
-        "doc": "The slice target's shared name, bound exactly as the source. A split replaces its contents whole with the entries under the path, prefix stripped. The result goes into a bound dictionary rather than a new anonymous one because there is no way to hand a fresh dictionary's identity down a cord.",
+        "doc": "The name of the dictionary that receives the entries under the path, with the path removed. Each split replaces its contents.",
         "name": "slice",
         "range": "any identifier"
       },
       {
         "default": "",
-        "doc": "The remainder target's shared name, bound exactly as the source. A split replaces its contents whole with every entry not under the path, keys unchanged — the other half of the partition, what .dict.strip would leave behind.",
+        "doc": "The name of the dictionary that receives every other entry, keys unchanged. Each split replaces its contents.",
         "name": "remainder",
         "range": "any identifier"
       },
       {
         "default": "",
-        "doc": "The key path the source is split at: \"voice::1\" slices every \"voice::1::...\" entry into the slice target under the \"...\" left after the prefix is stripped. A leaf stored at exactly the path is a value, not a sub-tree, and stays in the remainder. Empty matches nothing — there is no sub-tree above the root.",
+        "doc": "The key path to split at: 'voice::1' takes every 'voice::1::...' entry. Empty takes nothing.",
         "name": "path",
         "range": "any key path"
       }
@@ -6488,14 +6488,14 @@
   },
   ".dict.strip": {
     "category": "DICT",
-    "description": "Removes a dictionary's entries under a key path, in place — Max's dict.strip on the name-addressed value model .dict settled: the dictionary is bound from the creation argument, \".dict.strip <name> [<path>]\", because a dictionary is addressed by name and never passed down a cord. A bang, or the dictionary's reference message \"dictionary <name>\", erases every entry under the path — its key begins \"<path>::\" — and leaves everything else untouched, including a leaf stored at exactly the path, which is a value, not a sub-tree. The prefix ends at a \"::\" boundary or it is not a prefix, so stripping \"voice\" never removes \"voices::1\". The dictionary's reference then leaves the outlet, so the rest of the dict.* family can pick the edited dictionary up. An empty path matches nothing — there is no sub-tree above the root. The branch removal .dict's delete cannot spell (one path, not a sub-tree), and the in-place half of .dict.slice's partition: what a slice of the same path leaves in its remainder is exactly what a strip leaves behind.",
+    "description": "Removes every entry under a key path from a named dictionary, in place, then sends its reference. An entry stored at exactly the path is kept.",
     "inlets": [
       {
         "accepts": [
           "BANG",
           "LIST"
         ],
-        "doc": "A bang strips the bound dictionary in place: every entry under the path — its key begins \"<path>::\" — is erased, and everything else survives untouched, including a leaf stored at exactly the path, which is a value, not a sub-tree. \"dictionary <name>\" does the same when it names the dictionary bound by the first creation argument — the message a .dict's reference outlet emits on a bang, so wiring that outlet here gives Max's own gesture. A reference naming anything else, or any other message, is refused and counted rather than logged, since this inlet may be the audio thread.",
+        "doc": "A bang removes every entry under the path and sends the dictionary's reference. So does the dictionary's reference 'dictionary <name>'.",
         "index": 0,
         "label": "strip",
         "range": ""
@@ -6505,7 +6505,7 @@
     "name": ".dict.strip",
     "outlets": [
       {
-        "doc": "\"dictionary <name>\" after a strip — the reference the dict.* family binds, carrying the local name so the receiving object prefixes it with its own patcher's name. What lets a strip sit in a chain: bang it, and whatever reads the dictionary next sees the sub-tree gone. Silent for an unnamed dictionary, which has no name to pass on — the strip still ran, on the private store.",
+        "doc": "'dictionary <name>' after each strip. Silent for an unnamed dictionary.",
         "index": 0,
         "label": "dictionary reference",
         "range": "",
@@ -6515,13 +6515,13 @@
     "params": [
       {
         "default": "",
-        "doc": "The dictionary's shared name, addressed as \"patcher.<patcherName>.<name>\" — the dictionary a .dict of the same name in this patcher holds, edited in place. Resolved once, on the control thread, which is why no message re-points it at run time. Empty strips a private, empty dictionary.",
+        "doc": "The name of the dictionary to edit. Empty strips an empty dictionary.",
         "name": "name",
         "range": "any identifier"
       },
       {
         "default": "",
-        "doc": "The key path whose sub-tree a strip removes: \"voice::1\" erases every \"voice::1::...\" entry. A leaf stored at exactly the path is a value, not a sub-tree, and survives — that one entry is .dict's delete. The prefix ends at a \"::\" boundary or it is not a prefix, so stripping \"voice\" never removes \"voices::1\". Empty matches nothing — there is no sub-tree above the root; clearing a whole dictionary is .dict's clear.",
+        "doc": "The key path whose entries are removed: 'voice::1' removes every 'voice::1::...' entry. An entry at exactly the path is kept. Empty removes nothing.",
         "name": "path",
         "range": "any key path"
       }
@@ -6530,14 +6530,14 @@
   },
   ".dict.unpack": {
     "category": "DICT",
-    "description": "Outputs a dictionary's values on separate outlets — Max's dict.unpack on the name-addressed value model .dict settled: the dictionary is bound from the first creation argument and every argument after it is a key path declaring one outlet — \".dict.unpack in freq gain pan\" — because a dictionary is addressed by name and never passed down a cord. The dictionary counterpart of .unpack, and .dict.pack's inverse: a structure arriving as one reference becomes several separate values a patch can wire individually, so a .dict.pack wired into a .dict.unpack of the same name and paths is the identity. A trigger — a bang, or the bound dictionary's \"dictionary <name>\" reference, the message a .dict's reference outlet emits on a bang and .dict.pack emits on a pack — looks each path up and sends its value out its outlet, right to left, each send completing in full before the next one starts, so the right-hand values land in cold inlets before the leftmost sets the result off. Each outlet sends through the family's SendAtom: a value spelling a single number leaves as the int or float it spells, and anything else — a symbol, or a whole list, since a dictionary value is list text — leaves as one list message, .dict.pack's 'a list is a value, not a spread' read backwards. A path the dictionary does not hold sends nothing on its outlet rather than a zero, .dict's miss rule, and an entry holding nothing sends nothing either. Paths nest with \"::\", so \"voice::1::freq\" reads one entry three levels deep. The read is a snapshot: every path's value is copied out under the store's try-lock guard before anything is sent, so a set arriving mid-unpack — including from an outlet's own subgraph — changes the dictionary but not the unpack in flight, and a trigger that loses the guard is refused whole and counted rather than firing with half a snapshot. A reference naming an unbound dictionary is refused rather than resolved, a registry lookup being a mutex on whatever thread the message arrived on. Calculate() does nothing and no message path allocates, locks or blocks.",
+    "description": "Sends the values at a named dictionary's key paths out of separate outlets, one outlet per key path argument, right to left. The inverse of .dict.pack.",
     "inlets": [
       {
         "accepts": [
           "BANG",
           "LIST"
         ],
-        "doc": "A bang unpacks the bound dictionary: each key-path argument is looked up and its value leaves its outlet, right to left, each send completing in full before the next one starts. \"dictionary <name>\" does the same when it names the dictionary bound by the creation argument — the message a .dict's reference outlet emits on a bang and .dict.pack emits on a pack, so wiring either here gives the pair gesture: pack on one side, and the values pop out the other. A path the dictionary does not hold sends nothing on its outlet rather than a zero, .dict's miss rule, and an entry holding nothing sends nothing either. A reference naming anything else, any other message, or a trigger arriving while an unpack is already running — a cord looped back from an outlet, or another thread — is refused and counted rather than logged, since this inlet may be the audio thread.",
+        "doc": "A bang sends the value of each key path out of its outlet, right to left. So does the dictionary's reference 'dictionary <name>'.",
         "index": 0,
         "label": "unpack",
         "range": ""
@@ -6549,13 +6549,13 @@
     "params": [
       {
         "default": "",
-        "doc": "The dictionary's shared name — the first creation argument, addressed as \"patcher.<patcherName>.<name>\", the dictionary a .dict of the same name in this patcher holds. Resolved once, on the control thread, which is why no message re-points it at run time. Empty reads a private, empty dictionary: every path misses and nothing is sent.",
+        "doc": "The name of the dictionary to read. Empty reads an empty dictionary, so nothing is sent.",
         "name": "name",
         "range": "any identifier"
       },
       {
         "default": "",
-        "doc": "One key path per outlet, in order — the shape of the unpacked dictionary, .dict.pack's convention read backwards so the pair reads as a pair. Paths nest with \"::\", Max's own separator, so \"voice::1::freq\" reads one entry three levels deep. At most 256 paths of at most 128 characters each; a path that does not fit declares no outlet and is logged, parameter parsing being control-thread only. A duplicate path is two outlets reading one entry, and both fire. With no paths the object has no outlets and a trigger reads nothing.",
+        "doc": "One key path per outlet, in order. Paths nest with '::'. A path longer than 128 characters is logged and gets no outlet.",
         "name": "keys",
         "range": "key paths"
       }
@@ -6861,7 +6861,7 @@
   },
   ".fromsymbol": {
     "category": "STRING",
-    "description": "Expands a symbol back into a message — Max's fromsymbol, which 'converts individual characters in a symbol into numbers or messages'. The inverse of .tosymbol, and used with the same separator on both ends it is the round trip that carries structured data through anything that takes a name: a bus address, a file path, a dictionary key. It splits the incoming text on its separator and hands the pieces on as an ordinary whitespace-separated message, so .fromsymbol / turns voice/3/freq back into voice 3 freq, which a .route then reads as three elements; and it restores the type, so a result that came out as a single token leaves as an int or a float when it reads as a number and as a bang when it is the word bang — Max's 'the word bang sent as a part of a symbol will be converted to a message'. A type is a property of the whole message in this patcher, so only a single-token result has one to restore: bang/5 split on / is the two-token list bang 5, not a list with a bang atom in it, because there is no such thing here. An int, a float or a bang arriving directly is passed straight through, Max's 'any integer will simply pass through to the output'. The separator is a creation argument and inlet 1, leaving inlet 0 with no reserved words in it; an empty message on inlet 1 is Max's separator with no arguments, and with nothing to split on the object falls back to Max's own phrasing and takes the symbol apart into its individual characters, so 1234 comes back as 1 2 3 4. Whitespace already in the message separates pieces too, which is not an extra rule but the same one, and it is what makes the default separator of a single space plain whitespace normalisation. An empty piece is dropped, so a//b splits into a b rather than into a message with an empty token no .route matches. Calculate() does nothing, and no message path allocates, locks or blocks: the split is one bounded walk into a buffer reserved at construction for the longest list the patcher's queues carry.",
+    "description": "Splits a symbol on its separator into a message: with separator /, voice/3/freq becomes 'voice 3 freq'. A result that is one number or the word bang leaves as an int, a float or a bang. The inverse of .tosymbol.",
     "inlets": [
       {
         "accepts": [
@@ -6870,7 +6870,7 @@
           "BANG",
           "LIST"
         ],
-        "doc": "A list is split on the separator; an int, a float or a bang passes straight through, since each is already what a symbol would have been expanded into.",
+        "doc": "The message to split. A bang, an int or a float passes through as it is.",
         "index": 0,
         "label": "in",
         "range": ""
@@ -6881,7 +6881,7 @@
           "INT",
           "LIST"
         ],
-        "doc": "Sets the separator used to join tokens together and to split them apart, without emitting anything. A list contributes its first token, an int or a float the number it spells. An empty message empties the separator, which is Max's 'separator' with no arguments: .tosymbol then joins with nothing at all (1 2 3 4 becomes 1234) and .fromsymbol takes the symbol apart into its individual characters. A token longer than 16 characters is refused and the previous separator kept. The default single space is a creation-time state, so SetParams restores it.",
+        "doc": "Sets the separator and sends nothing. A list sets its first token, a number its text. An empty message sets an empty separator. A separator longer than 16 characters is ignored.",
         "index": 1,
         "label": "separator",
         "range": "one token, at most 16 characters"
@@ -6891,7 +6891,7 @@
     "name": ".fromsymbol",
     "outlets": [
       {
-        "doc": "The expanded message. A single-token result leaves as the type it reads as — an int, a float, or a bang for the word bang — and anything else leaves as a list.",
+        "doc": "The split message. A one-token result leaves as an int, a float or a bang when it reads as one, and as a list otherwise.",
         "index": 0,
         "label": "out",
         "range": "",
@@ -6901,7 +6901,7 @@
     "params": [
       {
         "default": " ",
-        "doc": "The separator the symbol is split on. One token, at most 16 characters; a longer one is reported and ignored. With no argument at all it is a single space, Max's default, which restores the type but leaves the token structure alone. Empty splits into individual characters.",
+        "doc": "The separator to split on. A single space when not given, which only evens out the spacing. Empty splits the symbol into single characters.",
         "name": "separator",
         "range": "one token, at most 16 characters"
       }
@@ -7444,7 +7444,7 @@
   },
   ".itoa": {
     "category": "STRING",
-    "description": "Converts character codes into the characters they spell, and holds them — Max's itoa, 'convert a stream or list of up to 256 integer character codes into a symbol'. The inverse of .atoi, and the direction nothing in the message-construction family could go before: .spell and .atoi leave the text model and hand a patch numbers, and until now nothing brought it back, so codes computed inside a patch could never become a name, a path or a word again. A list of codes gives the text they spell, an int or a float gives the one character it names (a float truncated, Max's 'converted to an int'), and the result leaves as a list. Always a list, whatever the codes spell: a result that happens to read as a number is still the text those codes wrote, and a patch that wants a type restored sends it through a .fromsymbol, whose job that is. The codes are written as UTF-8 by the exact inverse of the decoder .atoi and .spell read with, which is what makes the pair a real round trip — .atoi after .itoa gives back the codes that went in, and .itoa after .atoi gives back the message. A token that is not a number, or a number that is not a code point — negative, above 1114111, or a surrogate half — makes the whole message refused rather than replaced with something arbitrary, since a substituted character would come back from an .atoi as a different code and break that guarantee. Max's three inlets are kept: inlet 0 converts and sends, a bang sends what is held again, inlet 1 adds characters without sending — which is how a patch builds a symbol one character at a time and sends it once it is complete — and inlet 2 loads it silently. An empty message on inlet 2 is Max's clear. At most 256 characters; a message that would take it past that is refused whole, leaving what was already stored untouched. Calculate() does nothing, and no message path allocates, locks or blocks.",
+    "description": "Converts character codes into the text they spell and holds it: 104 105 gives 'hi'. A bang sends the held text again, and the other two inlets add to it or replace it without sending. The inverse of .atoi.",
     "inlets": [
       {
         "accepts": [
@@ -7453,7 +7453,7 @@
           "BANG",
           "LIST"
         ],
-        "doc": "The character codes to convert. An int, a float (truncated, Max's 'converted to an int') or a list of them replaces the stored characters and the result goes straight out; a bang sends the stored characters again without converting anything. A token that is not a number, or a number that is not a code point — negative, above 1114111, or a surrogate half — makes the whole message refused, since there is no character to write in its place. An empty message stores nothing and sends nothing.",
+        "doc": "The character codes to convert: an int, a float (truncated) or a list of them. They replace the stored text and the text is sent. A bang sends the stored text again. An empty message clears it and sends nothing.",
         "index": 0,
         "label": "in",
         "range": ""
@@ -7464,7 +7464,7 @@
           "INT",
           "LIST"
         ],
-        "doc": "Max's middle inlet: the characters the arriving codes spell are added to the stored characters and nothing is sent — how a patch builds up a symbol one character at a time and sends it with a bang once it is complete. A message that would take the stored characters past 256 is refused whole, leaving what was already there untouched.",
+        "doc": "Adds the characters the codes spell to the stored text and sends nothing. Use it to build a word one character at a time, then bang inlet 0 to send it.",
         "index": 1,
         "label": "append",
         "range": "at most 256 characters in total"
@@ -7475,7 +7475,7 @@
           "INT",
           "LIST"
         ],
-        "doc": "Max's right inlet: the characters the arriving codes spell replace the stored characters and nothing is sent. An empty message here is Max's clear — replacing the contents with nothing is what clearing them is, and it needs no reserved word on the inlet that has to carry arbitrary codes.",
+        "doc": "Replaces the stored text with the characters the codes spell and sends nothing. An empty message clears it.",
         "index": 2,
         "label": "set",
         "range": "at most 256 characters in total"
@@ -7485,7 +7485,7 @@
     "name": ".itoa",
     "outlets": [
       {
-        "doc": "The stored characters, as a list — 104 105 leaves as 'hi'. Always a list, whatever the codes spell: a result that happens to read as a number is still the text those codes wrote, and a patch that wants the number back sends it through a .fromsymbol, which is the object whose job restoring a type is. Nothing is sent when there is nothing stored.",
+        "doc": "The stored text as a list: 104 105 leaves as 'hi'. Always a list, even when the text reads as a number.",
         "index": 0,
         "label": "out",
         "range": "",
@@ -10718,7 +10718,7 @@
   },
   ".regexp": {
     "category": "STRING",
-    "description": "Regular-expression matching and substitution on symbols: pattern-matching and search-and-replace on the messages flowing through a patch, so an address, a name or a field can be picked apart without a round trip through the host application. The first creation argument is the pattern and everything after it is an optional substitution string, e.g. \".regexp ^/synth/(\\d+)/(\\w+)$ %2\". In a substitution, %1-%9 stand for the capture groups, %0 for the whole match and %% for a literal percent sign. The four outlets fire right to left, as in Max: a message the pattern does not match anywhere leaves the rightmost outlet unchanged and nothing else is sent, which is how the object works as a filter; a message that does match sends the matched substring and then that match's capture groups, once per match from left to right, and finally - only when a substitution is set - the whole subject with every match replaced. Ints and floats are matched as their text. The pattern language is a PCRE-flavoured core: literals, . for any character, character classes with ranges and negation, the \\d \\D \\w \\W \\s \\S shorthands, backslash escapes including \\xHH, the anchors ^ and $, the quantifiers * + ? and {n,m} (greedy, or lazy with a trailing ?), alternation with | and up to nine capturing groups plus (?: ) for a non-capturing one. Backreferences, lookaround, named groups and \\b are rejected when the pattern is compiled. Because the patcher splits parameters on spaces, a pattern cannot contain a literal space: write \\s for any whitespace or \\x20 for exactly one. The pattern is compiled once, when the parameter is set, into a fixed instruction array; matching runs a backtracking VM over that array with a step budget and writes into buffers reserved up front, so it allocates nothing, takes no lock and cannot run away - std::regex is deliberately not used because it allocates and throws at match time and its backtracking is unbounded. A malformed pattern is reported to the log when it is compiled and the object then passes every message out the no-match outlet.",
+    "description": "Matches messages against a regular expression. Each match leaves with its capture groups, an optional substitution rewrites every match, and a message that does not match leaves the rightmost outlet unchanged.",
     "inlets": [
       {
         "accepts": [
@@ -10726,7 +10726,7 @@
           "INT",
           "LIST"
         ],
-        "doc": "The subject to match. A symbol or list is matched as it stands; an int or a float is matched as its text.",
+        "doc": "The message to match. A list is matched as its text, an int or a float as the text that spells it.",
         "index": 0,
         "label": "in",
         "range": "any symbol"
@@ -10736,28 +10736,28 @@
     "name": ".regexp",
     "outlets": [
       {
-        "doc": "The whole subject with every match replaced by the expanded substitution string. Sent once, after the per-match outlets, and only when a substitution parameter is set and the pattern matched at least once.",
+        "doc": "The whole message with every match replaced by the substitution. Sent once, after the matches, and only when a substitution is set and something matched.",
         "index": 0,
         "label": "substitution",
         "range": "symbol",
         "type": "LIST"
       },
       {
-        "doc": "The capture groups of one match, as a space-separated list, sent once per match. Silent when the pattern declares no groups; a group that did not take part in the match contributes an empty token.",
+        "doc": "The capture groups of one match, as a list, sent once per match. Silent when the pattern has no groups. A group that took no part in the match is empty.",
         "index": 1,
         "label": "groups",
         "range": "symbol",
         "type": "LIST"
       },
       {
-        "doc": "One matched substring, sent once per match, left to right.",
+        "doc": "One matched piece of text, sent once per match, left to right.",
         "index": 2,
         "label": "match",
         "range": "symbol",
         "type": "LIST"
       },
       {
-        "doc": "The message, unchanged, when the pattern matched nowhere in it - and the only outlet that fires in that case. Also the outlet an inert object (no pattern, or a pattern that did not compile) sends everything to.",
+        "doc": "The message, unchanged, when the pattern matches nowhere in it. Also receives every message while there is no pattern, or the pattern could not be compiled.",
         "index": 3,
         "label": "no match",
         "range": "symbol",
@@ -10767,13 +10767,13 @@
     "params": [
       {
         "default": "",
-        "doc": "The regular expression, as one token. Write \\s or \\x20 rather than a literal space, which the parameter tokenizer would eat.",
+        "doc": "The regular expression, as one token. Write \\s or \\x20 for a space.",
         "name": "pattern",
         "range": "any pattern"
       },
       {
         "default": "",
-        "doc": "Optional replacement text; everything after the pattern, joined with single spaces. %1-%9 expand to the capture groups, %0 to the whole match, %% to a literal percent sign. Without it, outlet 0 never fires.",
+        "doc": "Optional replacement text: everything after the pattern, joined with single spaces. %1-%9 insert a capture group, %0 the whole match and %% a percent sign. Without it, outlet 0 never sends.",
         "name": "substitution",
         "range": "any text"
       }
@@ -11708,7 +11708,7 @@
   },
   ".spell": {
     "category": "STRING",
-    "description": "Spells whatever arrives out as the character codes of its text — Max's spell, 'convert input to UTF-8 (Unicode) codes', so text can be processed numerically inside a patch. Max documents four rules, one per atom type: an int is spelled digit by digit, a symbol character by character, a list with a space (32) between its items, and anything with all its int and symbol items converted one character at a time. They collapse into a single rule here, and not by cutting a corner: a message in this patcher is text, with no atom types at all, so .spell sends the code of every character of the message as it stands and each of Max's four rules falls out of that — a number's digits are its text, written by ExprFormatValue the way a patch author would have typed it, and a list gets its 32 because a space is the character that is actually between its items. Runs of whitespace collapse to one space and the ends are trimmed, so what is spelled is the tokens with a single 32 between them, Max's own spacing, rather than however much incidental whitespace the sender left in. The encoding is stated rather than assumed, because a patcher message is bytes and nothing upstream promises otherwise: bytes that form a well-formed UTF-8 sequence are decoded to the one code point they spell, so the two bytes of an accented letter give one code and not two, and any byte that is not part of a well-formed sequence — a stray continuation byte, a truncated sequence, an overlong encoding, a surrogate half — spells its own value 0-255 with decoding resuming at the next byte, so the object never fails, never drops a byte and never guesses. Max's two creation arguments are kept: size is the minimum number of codes, padded to with the fill code, and fill is that code, 32 (a space) by default. They are creation arguments rather than reserved words on inlet 0 — the .prepend discipline, which matters here because this object exists to carry arbitrary text and a reserved word would swallow the very messages it is asked to spell. Max's 'use a negative number to get 0 as the fill character' is not reproduced: it exists only because Max cannot tell an absent argument from a zero, whereas arguments are read as tokens here, so .spell 8 48 says 'pad with the character 0' directly and a negative fill is reported and ignored instead of silently becoming 48. The codes leave together as one list rather than one at a time, since nothing in this patcher accumulates a stream of numbers back into a message. At most 256 codes; longer input is refused rather than truncated, because half a spelling is not a shorter word but a different one. Calculate() does nothing, and no message path allocates, locks or blocks: a spelling is one walk of the bytes into a buffer reserved at construction for every code at full width.",
+    "description": "Spells a message out as the character codes of its text, sent as one list: 'hi' gives 104 105. Optional arguments pad a short result to a minimum length with a fill code.",
     "inlets": [
       {
         "accepts": [
@@ -11716,7 +11716,7 @@
           "INT",
           "LIST"
         ],
-        "doc": "The message to spell. Whatever arrives is spelled out as the character codes of its text: an int digit by digit (123 spells 49 50 51), a float including its decimal point, and a list character by character with the code 32 between its items, which is Max's four separate rules falling out of the one rule this patcher's message model allows. Runs of whitespace collapse to a single 32 and the ends are trimmed. A bang is declined: Max's spell has none, and there is nothing for it to spell.",
+        "doc": "The message to spell: an int digit by digit (123 gives 49 50 51), a float including its decimal point, a list character by character with 32 between its items.",
         "index": 0,
         "label": "in",
         "range": "any"
@@ -11726,7 +11726,7 @@
     "name": ".spell",
     "outlets": [
       {
-        "doc": "The codes, as one list, in the order the characters appear — 'hi' leaves as 104 105. Max sends them one at a time; they leave together here because nothing in this patcher accumulates a stream of numbers back into a message, so one-at-a-time codes could not be put back together, while a list can be taken apart by a .spray whenever a patch wants them separately. Nothing is sent when there is nothing to spell and no minimum size to pad to, and nothing is sent at all when the input would spell past 256 codes — refused rather than truncated.",
+        "doc": "The codes as one list, in the order the characters appear: 'hi' leaves as 104 105. Nothing is sent when there is nothing to spell, or when the result would pass 256 codes.",
         "index": 0,
         "label": "out",
         "range": "0-1114111 per code, at most 256 codes",
@@ -11736,13 +11736,13 @@
     "params": [
       {
         "default": "0",
-        "doc": "Max's size argument: the minimum number of codes to send. A message that spells to fewer is followed by enough fill codes to reach it, which is how a patch gets fixed-width records out of variable-length text. 0, the default, means no minimum. Clamped to 256, the most codes the object will send at all.",
+        "doc": "The minimum number of codes to send. A shorter result is padded with the fill code. 0 means no minimum. Clamped to 256.",
         "name": "size",
         "range": "0-256"
       },
       {
         "default": "32",
-        "doc": "Max's character argument: the code short output is padded with, 32 (a space) by default. Taken literally, so 0 is the code 0 and .spell 8 48 pads with the character '0' — Max's 'use any negative number' escape is not reproduced, because it only exists to work around Max being unable to tell an absent argument from a zero. A negative code, or one above 1114111, is reported and the default kept.",
+        "doc": "The code a short result is padded with: 32 (a space) by default, 48 for the character '0'. A negative code, or one above 1114111, is logged and the default kept.",
         "name": "fill",
         "range": "0-1114111"
       }
@@ -11862,7 +11862,7 @@
   },
   ".sprintf": {
     "category": "STRING",
-    "description": "Formats a message out of words and numbers — Max's sprintf, which 'uses the common C-language printf function inside Max' to 'combine symbols, organize lists of numbers, or format messages or menu items'. The creation arguments are a format: literal text with changeable arguments in it, %s for a symbol, %ld for an int, %f for a float and %c for an int rendered as a character, and 'the number of inlets is determined by the number of changeable arguments, with each inlet corresponding to a changeable argument, in order'. This is the message-construction object the others could not stand in for: .prepend and .append reach the ends of a message and .substitute swaps one word for another, but all three work in whole tokens, so building /voice/3/freq out of the number 3 meant a round trip out to the host application. The format is parsed once, on the control thread, into literal runs and typed slots, and every argument is rendered by the patcher's own writers: no user-supplied text ever reaches a printf-family function, which would otherwise let a patch file decide how many arguments to read off the stack. The accepted grammar is %, optional - and 0 flags, an optional field width, an optional .precision, optional l/h length modifiers (read and ignored, since this patcher has one integer type and one floating-point one) and one of d i f F s c; %% is a literal per cent sign. Anything else is not a specifier: it is reported at error level and copied into the output as the text it was typed as, so a typo shows up in the log and in the message rather than silently eating an inlet. Inlet 0 is hot — a bang, an int, a float or a list formats and sends, which is Max's 'any of the above messages in the left inlet will format the message and send it out' — and every other inlet is cold and only stores. Inlet 0 keeps no reserved words in it, the .prepend and .substitute discipline, which matters here because the values this object formats are often symbols. A list is spread one token per slot from the receiving inlet rightwards, Max's 'each item in the list is treated as if it had been received in a separate inlet, up to the number of inlets'. Every slot inlet accepts all three types rather than only the one its conversion names, since a patch feeding a counter into a %s obviously means the digits: a number reaching a %s is stored as the text that spells it, and a token that does not read as a number is refused by a %ld or a %f so the previous value stands rather than a zero nobody sent. An unset slot follows Max exactly, including its asymmetry: a %ld or a %f renders 0, a %s or a %c renders nothing. A .sprintf with no format at all sends nothing, the .prepend rule that makes an unconfigured object safe to drop into a working patch, and a format with no changeable arguments is a constant message generator. Max's symout flag is recognised and consumed rather than read as part of the format — 'the word symout itself is not included in the output' — but it switches nothing, because this patcher carries every message as one piece of text and so has no symbol/list distinction to make. A symbol slot holds at most 64 characters and refuses a longer token rather than truncating it, field width is capped at 64, precision at 9 and the format at 32 changeable arguments. Calculate() does nothing, and no message path allocates, locks or blocks: formatting is a bounded walk of the compiled pieces into a buffer reserved before the object was published for the literal text plus the widest thing every slot can render.",
+    "description": "Builds a message from a format with printf-style placeholders: '.sprintf /voice/%d/freq' sends /voice/3/freq for a 3. Each placeholder has its own inlet; inlet 0 formats and sends, the others only store.",
     "inlets": [
       {
         "accepts": [
@@ -11871,7 +11871,7 @@
           "BANG",
           "LIST"
         ],
-        "doc": "Hot. A bang, an int, a float or a list formats the message and sends it — Max's 'any of the above messages in the left inlet will format the message and send it out'. When the format has changeable arguments this is also the first one's inlet, so an int here both stores and fires. A list is spread one token per changeable argument from here rightwards, and tokens past the last one are dropped.",
+        "doc": "Hot. A bang, an int, a float or a list formats the message and sends it. When the format has placeholders this is also the first one's inlet: the value is stored first. A list fills this placeholder and the ones to its right, one token each.",
         "index": 0,
         "label": "in0",
         "range": "any"
@@ -11881,7 +11881,7 @@
     "name": ".sprintf",
     "outlets": [
       {
-        "doc": "The formatted message, as text — Max's 'the message specified by the typed-in argument(s) is formatted and sent out with substitutions made for the changeable arguments'. Fires once per message into inlet 0, and never at all while no format has been given.",
+        "doc": "The formatted message, as text. Sent once per message on inlet 0, and never while there is no format.",
         "index": 0,
         "label": "out",
         "range": "any",
@@ -11891,9 +11891,9 @@
     "params": [
       {
         "default": "",
-        "doc": "Max's argument list: an optional leading 'symout' followed by the format itself, which is literal text with changeable arguments in it. A changeable argument is %, optional - and 0 flags, an optional field width (at most 64), an optional .precision (at most 9 — decimals for %f, characters for %s), optional l/h length modifiers, and one of d i f F s c; %% is a literal per cent sign. One inlet is built per changeable argument, up to 32 of them, and anything else after a % is reported and copied through as text. With no argument at all the object sends nothing.",
+        "doc": "The format: text with placeholders in it. Each placeholder gets one inlet, in order. Supports %d, %f, %s, %c and %%, with the - and 0 flags, a width and a .precision. Anything else after a % is logged and copied through as text.",
         "name": "format",
-        "range": "printf-style format, at most 32 changeable arguments"
+        "range": "printf-style format, at most 32 placeholders"
       }
     ],
     "requires_midi_device": false
@@ -12903,7 +12903,7 @@
   },
   ".tolower": {
     "category": "STRING",
-    "description": "Converts the text of a message to lower case — Max's string.tolower. Every A-Z becomes the matching a-z and nothing else about the message changes: the same bytes, the same length, the same tokens, the same whitespace. It exists because every comparison in this patcher is exact — .route, .sel, .match, .substitute and the named-bus objects all compare text character for character — so a patch handed a name from outside itself, in whatever case a user or a host application typed it, had no way to match it against a name written into the patch. A .tolower in front of a .route makes that route case-insensitive without the route needing a second way to compare, and folding both sides is how case-insensitive matching is done everywhere else. Until now nothing in the patcher could change the case of a character at all; the only way to express it was .spell into arithmetic into .itoa, an object-per-character patch for what is one comparison of a byte. The fold is ASCII only, which is both a deliberate scope and a guarantee: real case mapping is language-dependent (Turkish dotless i, German sharp s, Greek final sigma), is not length-preserving, and needs a table or locale state that no inlet-driven path can afford — while an ASCII fold provably cannot corrupt text that is not ASCII, since every byte of a multi-byte UTF-8 sequence is 0x80 or above and the folded range is entirely below it. Accented letters, CJK text and raw binary therefore pass through byte for byte. Whitespace is deliberately left alone, unlike .tosymbol and .spell which normalise it: those rebuild the message and must decide what its spacing is, whereas this one rewrites characters in place, and a fold that also changed the token structure would break the very .route it was put there to feed. An empty message is forwarded rather than swallowed, and a bang, an int and a float pass straight through in their own type, since the fold is the identity on a message with no letters in it. Calculate() does nothing, and no message path allocates, locks or blocks: the fold is one walk of the bytes into a buffer reserved at construction for the longest list the patcher's queues carry.",
+    "description": "Converts the letters A-Z in a message to lower case and leaves everything else as it was: other characters, spacing and tokens. Put it in front of a .route or .sel to make the match ignore case.",
     "inlets": [
       {
         "accepts": [
@@ -12912,7 +12912,7 @@
           "BANG",
           "LIST"
         ],
-        "doc": "The message to fold. A list has every A-Z in its text replaced by the matching a-z, with every other byte — digits, punctuation, whitespace and anything outside ASCII — left exactly as it was. A bang, an int and a float pass straight through in their own type, since a message with no letters in it is already lower case.",
+        "doc": "The message to convert. In a list, every A-Z becomes a-z and every other character is unchanged. A bang, an int or a float passes through as it is.",
         "index": 0,
         "label": "in",
         "range": "any"
@@ -12922,7 +12922,7 @@
     "name": ".tolower",
     "outlets": [
       {
-        "doc": "The folded message, as a list, with the token structure and the whitespace of the message that arrived. A bang, an int or a float leaves as itself rather than as the text that spells it.",
+        "doc": "The converted message, as a list with the same tokens and spacing. A bang, an int or a float leaves in its own type.",
         "index": 0,
         "label": "out",
         "range": "",
@@ -12934,7 +12934,7 @@
   },
   ".tosymbol": {
     "category": "STRING",
-    "description": "Collapses whatever arrives into a single symbol — Max's tosymbol, which 'converts messages, numbers, or lists into a single symbol'. Max has atom types and this patcher does not: a message here is text, and every object that reads one apart — .route and .routepass on the leading token, .sel, .substitute, .spray — splits it on whitespace. So a symbol here is a message that is one whitespace-free token, and this object makes one in two ways. It joins the tokens of the incoming message with its separator, so .tosymbol / turns voice 3 freq into voice/3/freq, one element a .route matches on and a name a .forward will send to; and it converts a bang, an int or a float into the text that spells it, sent as a list, which is what lets a computed value be used as a name at all. Max's separator default of a space is kept and left honest rather than papered over: whitespace is exactly what separates tokens here, so with the default separator the object performs the type conversion and normalises the whitespace and nothing more. Max wraps a symbol containing spaces in double quotes; that is not reproduced, because nothing in this patcher reads a quote as anything but an ordinary character, so quoting would only produce a different message. The separator is a creation argument and inlet 1, leaving inlet 0 with no reserved words in it — the .prepend discipline, which matters here because this object exists to carry arbitrary words. An empty message on inlet 1 is Max's separator with no arguments and empties it, so 1 2 3 4 joins into 1234. Runs of whitespace collapse to one separator and the ends are trimmed, so the result never has an empty token in it. Calculate() does nothing, and no message path allocates, locks or blocks: the join is one bounded walk into a buffer reserved at construction for the longest list the patcher's queues carry.",
+    "description": "Joins the tokens of a message into one symbol, with the separator between them: with separator /, 'voice 3 freq' becomes voice/3/freq. A number or a bang becomes the text that spells it.",
     "inlets": [
       {
         "accepts": [
@@ -12943,7 +12943,7 @@
           "BANG",
           "LIST"
         ],
-        "doc": "Bang, int, float and list are all converted. A bang becomes the symbol bang, a number becomes the text that spells it, and a list has its tokens joined with the separator. The result always leaves as a list, whatever arrived.",
+        "doc": "The message to convert. A list has its tokens joined with the separator. A bang becomes the word bang, and a number becomes its text.",
         "index": 0,
         "label": "in",
         "range": ""
@@ -12954,7 +12954,7 @@
           "INT",
           "LIST"
         ],
-        "doc": "Sets the separator used to join tokens together and to split them apart, without emitting anything. A list contributes its first token, an int or a float the number it spells. An empty message empties the separator, which is Max's 'separator' with no arguments: .tosymbol then joins with nothing at all (1 2 3 4 becomes 1234) and .fromsymbol takes the symbol apart into its individual characters. A token longer than 16 characters is refused and the previous separator kept. The default single space is a creation-time state, so SetParams restores it.",
+        "doc": "Sets the separator and sends nothing. A list sets its first token, a number its text. An empty message sets an empty separator. A separator longer than 16 characters is ignored.",
         "index": 1,
         "label": "separator",
         "range": "one token, at most 16 characters"
@@ -12964,7 +12964,7 @@
     "name": ".tosymbol",
     "outlets": [
       {
-        "doc": "The collapsed message, as a list. With a non-whitespace separator it is a single token — a symbol — that .route, .sel or .forward reads as one element.",
+        "doc": "The result, always as a list. With a separator that is not a space, it is one token.",
         "index": 0,
         "label": "out",
         "range": "",
@@ -12974,7 +12974,7 @@
     "params": [
       {
         "default": " ",
-        "doc": "The separator tokens are joined with. One token, at most 16 characters; a longer one is reported and ignored. With no argument at all it is a single space, Max's default, which leaves the token structure alone and converts only the type.",
+        "doc": "The separator placed between tokens. A single space when not given, which only evens out the spacing.",
         "name": "separator",
         "range": "one token, at most 16 characters"
       }
@@ -13021,7 +13021,7 @@
   },
   ".toupper": {
     "category": "STRING",
-    "description": "Converts the text of a message to upper case — Max's string.toupper. The mirror of .tolower: every a-z becomes the matching A-Z and nothing else about the message changes — the same bytes, the same length, the same tokens, the same whitespace. It exists because every comparison in this patcher is exact — .route, .sel, .match, .substitute and the named-bus objects all compare text character for character — so a patch handed a name from outside itself, in whatever case a user or a host application typed it, had no way to match it against a name written into the patch. Folding both sides to the same case before the comparison is how that is done, and which case is chosen only has to be agreed on by both ends; .toupper is the one to reach for when the names a patch is matching against are themselves written in capitals, so the fold is applied to the incoming text rather than to the patch. The fold is ASCII only, which is both a deliberate scope and a guarantee: real case mapping is language-dependent (Turkish dotless i, German sharp s, Greek final sigma), is not length-preserving, and needs a table or locale state that no inlet-driven path can afford — while an ASCII fold provably cannot corrupt text that is not ASCII, since every byte of a multi-byte UTF-8 sequence is 0x80 or above and the folded range is entirely below it. Accented letters, CJK text and raw binary therefore pass through byte for byte, and in particular a lower-case accented letter is left alone rather than half-converted. Whitespace is deliberately left alone, unlike .tosymbol and .spell which normalise it: those rebuild the message and must decide what its spacing is, whereas this one rewrites characters in place, and a fold that also changed the token structure would break the very .route it was put there to feed. An empty message is forwarded rather than swallowed, and a bang, an int and a float pass straight through in their own type, since the fold is the identity on a message with no letters in it. Calculate() does nothing, and no message path allocates, locks or blocks: the fold is one walk of the bytes into a buffer reserved at construction for the longest list the patcher's queues carry.",
+    "description": "Converts the letters a-z in a message to upper case and leaves everything else as it was: other characters, spacing and tokens. The mirror of .tolower.",
     "inlets": [
       {
         "accepts": [
@@ -13030,7 +13030,7 @@
           "BANG",
           "LIST"
         ],
-        "doc": "The message to fold. A list has every a-z in its text replaced by the matching A-Z, with every other byte — digits, punctuation, whitespace and anything outside ASCII — left exactly as it was. A bang, an int and a float pass straight through in their own type, since a message with no letters in it is already upper case.",
+        "doc": "The message to convert. In a list, every a-z becomes A-Z and every other character is unchanged. A bang, an int or a float passes through as it is.",
         "index": 0,
         "label": "in",
         "range": "any"
@@ -13040,7 +13040,7 @@
     "name": ".toupper",
     "outlets": [
       {
-        "doc": "The folded message, as a list, with the token structure and the whitespace of the message that arrived. A bang, an int or a float leaves as itself rather than as the text that spells it.",
+        "doc": "The converted message, as a list with the same tokens and spacing. A bang, an int or a float leaves in its own type.",
         "index": 0,
         "label": "out",
         "range": "",
