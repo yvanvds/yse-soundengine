@@ -98,87 +98,37 @@ CONSTRUCT() {
   ClearParams();
 
   ADD_DESCRIPTION(
-      "Replaces elements of a message — Max's substitute, which 'matches messages to its own "
-      "arguments; whenever it finds a match, will make the appropriate substitution'. Two "
-      "arguments, a match and a replacement: every element of an incoming message equal to the "
-      "match leaves as the replacement, everything else leaves untouched, and a third argument of "
-      "any kind restricts the edit to the first match in the message. This is the edit the patcher "
-      "could not otherwise make: .prepend and .append put words on the ends of a message and "
-      ".route, .routepass and .sel branch on the word it starts with, but nothing could change a "
-      "word in the middle of one without a round trip out to the host application. Exactly one "
-      "outlet fires. A message something was substituted in leaves the left outlet; one that "
-      "matched nothing leaves the rightmost outlet unchanged and in its own type, which is Max's "
-      "'if no substitution occurred ... the original input message is passed out the rightmost "
-      "outlet' and makes the outlet a report of whether the edit happened — so substitutions chain "
-      "the way .routepass matches do, each reject outlet feeding the next inlet. A bare "
-      ".substitute matches nothing and is a wire, the .prepend rule that makes it safe to drop an "
-      "unconfigured object into a working patch; Max's default of 0 for both arguments is declined "
-      "for the reason .routepass declines to invent a default selector, since it would route "
-      "zeroes out the other outlet than everything else. A match given without a replacement does "
-      "take Max's 0, because an empty replacement would leave an empty token no .route matches. "
-      "The matcher is .sel's and .routepass's: a match is a number or a symbol, classified once, "
-      "and the two never match each other — a number matches by value with an int widened to a "
-      "float, a symbol matches by exact text, and a bang matches a match spelled 'bang'. A list is "
-      "walked element by element, which is the one place this differs from .routepass: "
-      "substituting "
-      "is not routing, so a match anywhere in the message counts. The comparison is exact, so a "
-      "computed float may miss a match it looks equal to and a NaN matches nothing. A replaced "
-      "element is written as the text of the replacement; when a scalar matched, the replacement "
-      "leaves as the type it reads as, so .substitute 5 7 turns the int 5 into the int 7 rather "
-      "than into the list that spells it. The match and the replacement each have an inlet, "
-      "leaving inlet 0 with no reserved words in it — which matters more here than anywhere, since "
-      "the messages this object edits are the ones that begin with a word. Match and replacement "
-      "are at most 64 characters, refused rather than truncated past that. Calculate() does "
-      "nothing, and no message path allocates, locks or blocks: the rewrite is a bounded walk into "
-      "a buffer reserved at construction for the worst case a 256-character list can grow into, "
-      "and a message that matched nothing is forwarded by reference rather than copied through "
-      "it.");
+      "Replaces every item of a message that equals the match with the replacement, anywhere in "
+      "the message. A message with a replacement leaves the left outlet; one with no match leaves "
+      "the right outlet unchanged.");
   ADD_CATEGORY(pCategory::LIST);
 
   INLET_DOC(0, "in",
-            "Bang, int, float or list to rewrite. Every element equal to the match is replaced; if "
-            "any was, the result leaves the left outlet, and if none was, the message leaves the "
-            "rightmost outlet unchanged and in the type it arrived as.",
+            "The message to edit: bang, int, float or list. A bang matches the word 'bang'.",
             "any");
   INLET_DOC(1, "match",
-            "Replaces the element being matched, without emitting anything. The first word of a "
-            "list, or an int or a float as the number it spells. An empty message clears the match "
-            "and makes the object a pass-through; a word longer than 64 characters is refused and "
-            "the previous match kept.",
+            "Sets the item to look for, without sending anything. An empty message clears it, so "
+            "everything passes out the right outlet.",
             "any single number or symbol, at most 64 characters");
   INLET_DOC(2, "replacement",
-            "Replaces what a matched element is rewritten as, without emitting anything. The first "
-            "word of a list, or an int or a float as the number it spells. An empty message is "
-            "ignored — there is no empty replacement — and a word longer than 64 characters is "
-            "refused and the previous replacement kept.",
+            "Sets what a matched item becomes, without sending anything. An empty message is "
+            "ignored.",
             "any single number or symbol, at most 64 characters");
 
   OUTLET_DOC(0, "out",
-             "The message with every matched element replaced, as a list — or, when the whole "
-             "message was one matched element, the replacement in the type it reads as. Fires only "
-             "when at least one substitution was made.",
+             "The message with its matches replaced. A matched int, float or bang sends the "
+             "replacement alone, as the int, float or symbol it spells.",
              "any");
-  OUTLET_DOC(1, "rest",
-             "The message, unchanged and in its own type, when nothing in it matched. Chain this "
-             "into the next .substitute to carry on rewriting: nothing was consumed, so the next "
-             "object sees exactly what this one saw.",
-             "any");
+  OUTLET_DOC(1, "rest", "The message, unchanged, when nothing in it matched.", "any");
 
   PARAM_DOC("match", "",
-            "The element to look for. A token that reads as a finite number matches by value, with "
-            "an int widened to a float; anything else is a symbol and matches by exact text. With "
-            "no argument the object matches nothing and passes everything out the rightmost "
-            "outlet. At most 64 characters.",
+            "The item to look for. Without it nothing matches and every message passes out the "
+            "right outlet.",
             "any single number or symbol");
-  PARAM_DOC("replacement", "0",
-            "What a matched element is replaced by, written into the message exactly as it is "
-            "spelled here. Defaults to Max's 0 when a match is given without one, since an empty "
-            "replacement would leave an empty token in the message. At most 64 characters.",
+  PARAM_DOC("replacement", "0", "What a matched item is replaced by.",
             "any single number or symbol");
   PARAM_DOC("mode", "",
-            "Max's 'replace first message only' mode: any third argument, of any kind, restricts "
-            "the edit to the first matching element of a list rather than every one of them. With "
-            "no third argument every match is replaced.",
+            "Any third argument replaces only the first match in a message instead of every one.",
             "any single number or symbol");
 }
 

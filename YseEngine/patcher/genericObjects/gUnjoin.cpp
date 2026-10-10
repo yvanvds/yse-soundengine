@@ -66,39 +66,15 @@ namespace {
   }
 
   constexpr char kInletDoc[] =
-      "The list to cut up. Its items are taken in order, one complete group at a time: the first "
-      "group of items goes out the leftmost outlet, the next out the one after it, and so on for "
-      "as many group outlets as there are. A group outlet fires only when there are enough items "
-      "left to fill it completely; everything from the first incomplete group onwards — a short "
-      "tail, a surplus past the last group outlet, or both — goes out the rightmost outlet as one "
-      "message, so nothing is ever dropped for want of an outlet. An int or a float is a one-item "
-      "list and lands wherever a one-item list lands: on the leftmost outlet at the default group "
-      "size of 1, and on the remainder at any larger size, there being no complete group to put it "
-      "in. There is no bang, and no stored list for one to re-send: this object distributes the "
-      "message it is given and holds nothing between messages, so a patch that wants to re-send "
-      "puts a .l in front of it. A list longer than the bounded storage loses its tail, which is "
-      "counted, and its head is distributed.";
+      "The list to split into groups. An int or float is a list of one. Bang is not accepted.";
 
   constexpr char kGroupOutletDoc[] =
-      "One complete group of items from the incoming list, taken in order — this outlet's position "
-      "among the group outlets decides which group. It fires only when the list was long enough to "
-      "fill this group completely, so what leaves here is always exactly the group size and never "
-      "a short piece; a list that runs out before reaching this outlet leaves it silent and its "
-      "items go out the rightmost outlet instead. Outlets fire right to left, Max's universal "
-      "order, so the remainder and every group to the right of this one have already been sent, "
-      "each of them completing in full through the whole subgraph behind it before this one "
-      "starts. A group of one item leaves as the int, float or symbol it spells rather than as a "
-      "list of one, so it reaches the inlets an uncollected value would have reached; a longer one "
-      "leaves as list text. Nothing is coerced — a group carries whatever the list carried.";
+      "One complete group of items, the group in this position. Silent when the list ran out "
+      "before filling it.";
 
   constexpr char kRestOutletDoc[] =
-      "The remainder: everything the group outlets did not claim, sent as one message. That is a "
-      "surplus past the last group outlet, a tail too short to fill a complete group, or both at "
-      "once — which is why this object drops nothing for want of an outlet, unlike .unpack. It is "
-      "the first outlet to fire, Max's right-to-left order, so a patch reading it can rely on the "
-      "groups arriving after it. A remainder of one item leaves as the int, float or symbol it "
-      "spells rather than as a list of one, and a list that divided exactly into complete groups "
-      "leaves nothing over, so this outlet sends nothing at all rather than an empty message.";
+      "Everything the group outlets did not take, as one message. Sent first; silent when nothing "
+      "is left over.";
 
 } // namespace
 
@@ -136,52 +112,8 @@ CONSTRUCT() {
   AtomList::ReserveRender(render);
 
   ADD_DESCRIPTION(
-      "Cuts a list into equal groups and sends each group out its own outlet, with everything left "
-      "over going out the rightmost one — Max's unjoin, which 'separates a list's elements by "
-      "group, and sends each group of items out a separate outlet', and the inverse of .join. "
-      "Where .unpack sends one item per outlet and drops whatever it has no outlet for, this sends "
-      "a group of items per outlet and drops nothing at all, because its rightmost outlet is a "
-      "remainder: everything the groups did not claim leaves there whole. So .unpack is the object "
-      "for taking a list of known shape apart into its named components, and this is the object "
-      "for cutting a list of unknown length into equal pieces. The round trip with .join is exact: "
-      "a .join 2 holding '1 2' and '3 4' sends '1 2 3 4', and a .unjoin 2 2 gives back '1 2' and "
-      "'3 4'. The first creation argument is Max's, 'the number of outlets beyond the rightmost "
-      "outlet', so an object with n group outlets has n+1 outlets in all and a bare .unjoin has "
-      "three; the default is 2. The second is Max's @outsize attribute, 'defines the number of "
-      "items to be sent out the outlets', and defaults to 1 — which makes the default object "
-      ".unpack with a remainder outlet instead of a drop. The patcher has no attributes, so an "
-      "attribute that changes what an object does becomes a positional creation argument, which is "
-      "the route .zl takes for its mode argument. Groups are complete or nothing: a group outlet "
-      "fires only when enough items are left to fill it completely, and everything from the first "
-      "incomplete group onwards — a short tail, a surplus past the last group outlet, or both — "
-      "goes out the rightmost outlet as one message. That is Max's 'the rightmost outlet receives "
-      "remaining items that don't fill a complete group' read literally, and it is what makes the "
-      "object safe to wire into anything expecting a fixed-length list. Outlets fire right to "
-      "left, Max's universal order, so the remainder lands first and the leftmost group last, and "
-      "each send completes in full through the whole subgraph behind that outlet before the next "
-      "one starts. There is no bang and no stored list for one to re-send: this object is a "
-      "distributor rather than a register, and registering no bang is what keeps the reported "
-      "contract honest; a patch that wants to re-send puts a .l in front. An int or a float is a "
-      "one-item list and lands wherever a one-item list lands — on the leftmost outlet at the "
-      "default group size, which is Max's 'the number is sent out the left outlet', and on the "
-      "remainder at any larger size. A group of one item leaves as the int, float or symbol it "
-      "spells rather than as a list of one, a longer one as list text, and an empty remainder "
-      "sends nothing at all rather than an empty message; every outlet is declared as accepting "
-      "anything, because a group carries whatever the list carried and this object coerces "
-      "nothing. The arriving list is read into the bounded pre-allocated storage the whole list "
-      "family shares: at most 256 items spanning at most 1024 characters between them, in memory "
-      "reserved when the object is built. A list too long for it loses its tail, which is counted, "
-      "and its head is distributed — the surplus here is input the patch has just sent rather than "
-      "state the object was holding, which is why it is not refused whole the way .join's store "
-      "is; the count is a counter rather than a log line because the refusing thread may be the "
-      "audio callback, while a creation argument out of range is logged, parameter parsing being "
-      "control-thread only. Re-typing the creation arguments rebuilds the object, since the first "
-      "of them is the outlet count. Calculate() does nothing and no message path allocates, locks "
-      "or blocks: numbers are rendered into a stack buffer, the list is collected into storage "
-      "reserved at construction, and the sends render into a buffer reserved at the same time. Two "
-      "threads sending to the same object are serialised by a single test-and-set guard whose "
-      "loser is dropped and counted rather than made to spin, which is also what stops an object "
-      "wired back into its own inlet from recursing on the audio thread.");
+      "Splits a list into groups of equal size, one group per outlet, and sends whatever is left "
+      "over out the rightmost outlet. Nothing is dropped. The reverse of .join.");
 
   ADD_CATEGORY(pCategory::LIST);
 
@@ -189,20 +121,8 @@ CONSTRUCT() {
 
   // One entry for the one LIST parameter, which carries both arguments (#954).
   PARAM_DOC("groups size", "2 1",
-            "The first argument is the number of group outlets, which is Max's 'the number of "
-            "outlets beyond the rightmost outlet': the object has one more outlet than this, the "
-            "last of them being the remainder. With no argument it is Max's default of 2, so a "
-            "bare .unjoin has three outlets. At most 256 group outlets are built, a group needing "
-            "at least one item and the shared bounded list holding at most that many; an argument "
-            "outside 1-256 is clamped and the clamp is logged. The second argument is how many "
-            "items fill one group — Max's @outsize attribute, 'defines the number of items to be "
-            "sent out the outlets', carried here as a positional creation argument because the "
-            "patcher has no attributes. With no argument it is Max's default of 1, which makes the "
-            "object .unpack with a remainder outlet instead of a drop. A group outlet fires only "
-            "when this many items are left to fill it, so what leaves a group outlet is always "
-            "exactly this long. An argument outside 1-256 is clamped and the clamp is logged. "
-            "Either argument that is not a whole number is logged and leaves its default in place, "
-            "and arguments after the second are ignored.",
+            "The number of group outlets; the object has one more, for the remainder. The second "
+            "argument is the number of items in each group.",
             "groups 1-256, optional size 1-256");
 }
 

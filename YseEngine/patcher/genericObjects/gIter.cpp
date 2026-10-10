@@ -12,25 +12,10 @@ using namespace YSE::PATCHER;
 namespace {
 
   constexpr char kInletDoc[] =
-      "The message to break up. Its items are sent out the outlet one at a time, first to last — "
-      "Max's 'the numbers in the list are sent out the outlet in sequential order'. Each send "
-      "completes in full, the whole subgraph behind the outlet, before the next item leaves, so "
-      "the items arrive as a sequence rather than all at once. An int or a float is a one-item "
-      "list and so is simply passed through, and anything works exactly like a list, there being "
-      "no message word to strip. A bang re-sends the message most recently received, which is why "
-      "this inlet's last message is held; before anything has arrived a bang sends nothing at all "
-      "rather than an empty message. A list longer than the shared bound of 256 items loses its "
-      "tail, which is counted, and its head is iterated. One message here costs one send per item, "
-      "up to 256 of them, on whichever thread sent it.";
+      "The list to send item by item. An int or float is a list of one. A bang sends the last "
+      "list again.";
 
-  constexpr char kOutletDoc[] =
-      "The items of the last message, one per send, in the order they appeared. An item leaves as "
-      "the int, float or symbol it spells rather than as a list of one, which is the whole point "
-      "of the object: it reaches the ordinary scalar inlets — a .i, a .+, a .mtof — that a list "
-      "could not. Nothing is coerced, so an item carries whatever the list carried, and a message "
-      "with no items sends nothing at all. The sends are synchronous and consecutive: the whole "
-      "subgraph behind this outlet runs to completion for one item before the next item is sent, "
-      "so a patch may accumulate downstream and rely on the order.";
+  constexpr char kOutletDoc[] = "Each item of the list, first to last, as an int, float or symbol.";
 
 } // namespace
 
@@ -58,48 +43,8 @@ CONSTRUCT() {
   AtomList::ReserveRender(render);
 
   ADD_DESCRIPTION(
-      "Sends the items of a list out one at a time — Max's iter, which 'unpacks and outputs list "
-      "contents one element at a time'. It is the list family's serialiser: everything else here "
-      "answers a list with a list, .zl by rearranging one and .unpack and .unjoin by fanning one "
-      "out across a fixed set of outlets, while this turns a list of unknown length into a stream "
-      "of individual messages down a single cord. That is what makes ordinary scalar objects — a "
-      ".i, a .+, a .mtof, a .coll — usable per element, and it is why the object needs to know "
-      "nothing about the list it is given where a .unpack 0 0 0 has to be told the shape up front. "
-      "With .uzi it is the patcher's second iteration primitive, and the two iterate over "
-      "different things: .uzi counts, driving a loop whose body reads an index, while this walks "
-      "the data it was handed. Items leave first to last, and each send completes in full — the "
-      "whole subgraph behind the outlet, depth first — before the next item is sent, because the "
-      "patcher's send path calls the target inlet directly with no queue in between; that is what "
-      "makes the object a serialiser rather than a scatter. A bang re-sends the message most "
-      "recently received, which is why the object holds a list at all rather than passing straight "
-      "through, and a bang before anything has arrived sends nothing rather than an empty message. "
-      "An int or a float is a one-item list, as everywhere in this family, and anything is a list, "
-      "so there is no message word to strip. Each item leaves as the int, float or symbol it "
-      "spells rather than as a list of one, so it reaches the inlets an uncollected value would "
-      "have reached; nothing is coerced. One arriving message becomes as many messages as the list "
-      "is long, all inside the call frame of the one send that started it, so the object's cost is "
-      "bounded by the same number that bounds its storage: at most 256 items, and so at most 256 "
-      "sends, per stimulus. The number worth knowing beside it is that the patcher's value-command "
-      "queue is 256 deep, so a full-length .iter feeding a .s from the control thread can saturate "
-      "it in one burst and hit its documented drop-and-log backpressure — the same caution .uzi "
-      "records, and a reason to keep bursts that cross the send/receive boundary short. The "
-      "arriving list is read into the bounded pre-allocated storage the whole list family shares: "
-      "at most 256 items spanning at most 1024 characters between them, in memory reserved when "
-      "the object is built. A list too long for it loses its tail, which is counted, and its head "
-      "is iterated — the surplus here is input the patch has just sent rather than state the "
-      "object was holding, which is why it is not refused whole the way .join's store is, and the "
-      "count is a counter rather than a log line because the refusing thread may be the audio "
-      "callback. There are no creation arguments, Max documents none, and so nothing to re-parse: "
-      "the object has a fixed shape and its only bound is the shared one. Calculate() does nothing "
-      "and no message path allocates, locks or blocks: numbers are rendered into a stack buffer, "
-      "the list is collected into storage reserved at construction, and the sends render into a "
-      "buffer reserved at the same time. Two threads sending to the same object are serialised by "
-      "a single test-and-set guard whose loser is dropped and counted rather than made to spin. "
-      "That guard is held across the whole walk on purpose: this object emits in a loop, so a cord "
-      "from its outlet back to its inlet re-enters the handler from inside the walk, and letting "
-      "that through would both restart an iteration that never terminates and rewrite the list "
-      "being walked. The returning message is refused and counted, exactly as .uzi refuses a "
-      "re-entrant start.");
+      "Sends the items of a list out one at a time, first to last, so objects that take single "
+      "numbers can process each one. A bang sends the last list again.");
 
   ADD_CATEGORY(pCategory::LIST);
 
