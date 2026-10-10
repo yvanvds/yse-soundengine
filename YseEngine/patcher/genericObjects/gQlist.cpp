@@ -72,83 +72,6 @@ namespace {
     return prefix;
   }
 
-  constexpr char kInletDoc[] =
-      "The command inlet. 'bang' plays the whole cue list automatically from the first line — "
-      "Max's "
-      "'it begins sending messages from the first line, until a line begins with a number, at "
-      "which point qlist will use that number as a delay time in milliseconds before continuing to "
-      "send the remaining messages' — so a bang always restarts rather than resuming. 'next' steps "
-      "by hand: it sends every symbol line it passes remotely and stops after outputting the first "
-      "numeric line, which is the number a patch is meant to wait for itself, and 'next 1' skips "
-      "the symbol lines instead of sending them. 'fwd <n>' is that repeated n times with nothing "
-      "sent remotely — Max's 'fast forward through a given number of lines' — and a bare 'fwd' "
-      "moves nothing, Max documenting it as taking a number. 'rewind' puts the cursor back at the "
-      "first line, 'stop' ends automatic playback, and 'tempo <f>' scales every wait by dividing: "
-      "0.5 plays at half speed and 2 twice as fast, and a tempo of zero or less is refused because "
-      "it cannot scale a duration into anything a clock can wait for. 'clock <name>' moves "
-      "playback "
-      "onto the YSE domain clock of that name (issue #688): the leading number of a numeric cue is "
-      "then a beat count on that clock instead of a delay in milliseconds, so the list follows "
-      "tempo changes and ramps and stays in step with every clip on the same domain, while "
-      "everything else — the outlets, next, fwd, rewind, stop, and tempo still dividing — is "
-      "unchanged. A bare 'clock' goes back to milliseconds, and an object never sent one is Max's "
-      "exactly. The name is Max's own vocabulary, setclock describing its name as something passed "
-      "as the argument to a 'clock' message to timing objects, though Max's qlist lists no clock "
-      "method of its own. Nothing is looked up in the handler: binding is a wait-free claim on a "
-      "patcher-owned slot and the name is resolved on the background pool, so a clock named before "
-      "the host creates it simply does not advance until it appears — and a clock at tempo zero "
-      "holds the walk where it stands. The binding is run-time state and is not saved with the "
-      "patch, the way the tempo and the cursor are not. 'set' replaces the whole cue "
-      "list and with no arguments is the same as 'clear'; 'insert' adds its arguments as a new "
-      "entry (Max's own name for an append, reproduced rather than corrected so a patch brought "
-      "across builds the same list); 'append' glues its arguments onto the last entry. In all "
-      "three, ';' separates cue lines. Max needs a backslash before one, but that is a rule about "
-      "the message box that would otherwise eat it — the patcher has no message box, so a "
-      "semicolon is written bare. 'read [file]' and 'write [file]' move the cue list through a "
-      "text file in Max's own format, one entry per line and semicolon-terminated. Neither opens "
-      "anything here: the request is a wait-free claim on a patcher-owned slot, the disk work runs "
-      "on the background pool, and a read replaces the list in the completion the patcher delivers "
-      "at the top of a later block — which is also when outlet 2 bangs. A read rewinds the cursor "
-      "and lets a walk in progress carry on into the list it just loaded; both bare forms reuse "
-      "the last name given, since Max's bare forms open a file dialog and a headless patcher has "
-      "none, and Max documents no readagain / writeagain for qlist, so neither is invented. "
-      "'open' and 'wclose' are consumed and do nothing, there being no editing window here. "
-      "Anything else does nothing at all, which is Max — this is a command "
-      "inlet, so cue text is written with set, append and insert and never by being sent bare, and "
-      "qlist documents no int or float method either. A cue line longer than 256 characters, or "
-      "one past the 256th, is refused whole and silently, since the inlet may be the audio thread.";
-
-  constexpr char kDataDoc[] =
-      "Numeric cue lines. Max: 'the qlist object outputs a numerical value or list of numerical "
-      "values when a line in the cue list begins with a number'. It leaves in the kind it is, "
-      ".route's rule — a cue holding '60' as the int 60, one holding '60.5' as that float, and "
-      "anything longer as a list. The same line does two jobs and that is the design rather than "
-      "an overload: during automatic playback its leading number is also the wait before the walk "
-      "goes on — in milliseconds, or in beats on the bound domain clock once a 'clock <name>' has "
-      "been given (issue #688) — and sending it out is what lets a patch drive the identical list "
-      "by hand with this "
-      "outlet into a delay and the delay's bang back into 'next'. Symbol lines never come out "
-      "here; they go to the named receivers.";
-
-  constexpr char kEndDoc[] =
-      "Bangs when the walk runs out of cue lines — Max's 'a bang is sent when a cue list has "
-      "reached the end, and there are no more lines to send or output'. It fires for a 'next' or "
-      "'fwd' that walks off the end just as it does for automatic playback finishing, and it fires "
-      "on an empty list, which has reached its end before it starts. Max's third outlet, which "
-      "bangs when a file has been read from disk, follows this one (issue #689) — appended rather "
-      "than inserted, which is the family's rule and here also Max's own position for it, so no "
-      "saved patch's cords shift either way.";
-
-  constexpr char kFileDoc[] =
-      "Bangs when a 'read' has finished loading a file into the cue list — Max's third outlet, "
-      "which 'bangs when a file has been read successfully from disk'. Appended after the end "
-      "outlet rather than inserted, which is the rule the whole file-reading family follows and "
-      "which here costs nothing, Max putting it third as well. It fires only on success: a file "
-      "that does not exist, does not fit, or cannot be opened leaves it silent, and it does not "
-      "fire for a write, for which Max has no outlet either. It fires a block or more after the "
-      "read message rather than inside it, because the disk work happens on the background pool — "
-      "a read arrives on whichever thread dispatched it, which may be the audio callback.";
-
 } // namespace
 
 CONSTRUCT() {
@@ -191,90 +114,17 @@ CONSTRUCT() {
   fileScratch.reserve(FILE_TEXT_CAPACITY + 1);
 
   ADD_DESCRIPTION(
-      "Stores a sequence of messages and plays it back in time — Max's qlist, which 'stores a "
-      "collection of timed or untimed cues in the form of messages which can be sent either out "
-      "its outlet or remotely to various receive objects'. Every store before it is passive: "
-      ".coll answers a lookup, .bag a bang, and .capture, .funbuff, .table and .textfile a dump, "
-      "and none of them has any notion of when. This one has a clock, so a scene, a scripted "
-      "parameter sweep or a note sequence is one object holding one block of text — and the timing "
-      "is data in the list rather than a setting on the object, which is what makes it a cue list "
-      "rather than a collection. There are three kinds of line, which is the whole grammar: a line "
-      "of only numbers is sent out outlet 0 and, during automatic playback, its leading number is "
-      "the wait in milliseconds before the walk continues; a line beginning with a symbol is sent "
-      "remotely to the receiver of that name, through the same door .s uses, and does not stop the "
-      "walk; and a line of numbers followed by a message is, in Max's words, 'treated as two "
-      "separate lines'. That last rule is taken literally — a line is split when it is stored, "
-      "never on the way past — so the cursor is one index into one flat table and every traversal "
-      "walks the same thing. 'next' is the manual mode, sending symbol lines as it passes them and "
-      "stopping after it outputs a numeric one, which is the classic Max idiom of outlet 0 into a "
-      "delay and the delay's bang back into next; 'fwd n' repeats that n times sending nothing "
-      "remotely; 'bang' is the automatic mode, rewinding first and then waiting out each numeric "
-      "line itself; 'stop' ends it, 'rewind' moves the cursor, and 'tempo' divides every wait so "
-      "that 2 plays twice as fast. Reaching the end bangs outlet 1 whichever mode got there. The "
-      "waiting is done by the patcher's own deferred-message scheduler (issue #628), the mechanism "
-      ".bondo defers through: arming is wait-free and allocation-free so a bang from a rendering "
-      "graph may arm one, delivery happens inside a real dispatch frame so each resumed step is "
-      "one logical event downstream, and the deadline floor of one audio block means a cue list of "
-      "zero delays advances one entry per block instead of spinning. Issue #500 asked for playback "
-      "driven from a YSE domain clock instead, and that is here as an opt-in rather than as a "
-      "replacement (issue #688): 'clock <name>' binds the domain clock of that name and reads the "
-      "leading number of a numeric cue as beats on it, so the sequence inherits the polytemporal "
-      "tempo model — following tempo changes and ramps, staying in step with every clip on the "
-      "same "
-      "domain, and holding where it stands when that domain pauses — while a bare 'clock' and an "
-      "object never sent one are Max's milliseconds exactly. It is an opt-in because Max's cue "
-      "list "
-      "is milliseconds and its tempo is a bare multiplier with no beat or meter in it, so a "
-      "beat-driven version replacing it would be a different object wearing Max's name. The "
-      "binding runs through the shared patcher-to-domain-clock bridge of #688, which every timed "
-      "patcher object can use: binding by name is wait-free so a message from a rendering graph "
-      "may "
-      "do it, the name is resolved against the clock manager on the background pool because that "
-      "lookup takes a mutex, and the deferred-message scheduler then tests a beat deadline where "
-      "it "
-      "would otherwise test a block one. The store is .coll's model and "
-      "for .coll's reason — a fixed table allocated whole at construction plus .value's "
-      "non-blocking guard, whose loser drops rather than waiting — because a copy-on-write "
-      "GraphState publish assumes the writer is the control thread while this object is written by "
-      "whichever thread its message arrived on. The guard is never held across a send, so a walk "
-      "takes it once per entry and re-reads the bounds each step. At most 256 cue lines of at most "
-      "256 characters; anything that does not fit is refused whole rather than truncated, since "
-      "half a cue is a different cue. Calculate() does nothing. The contents survive a DumpJSON / "
-      "ParseJSON round trip, which is the family's rule of saving exactly where Max has a save "
-      "flag and here Max could not be plainer — 'the qlist object saves its cue-list with the "
-      "patcher' — so this saves like .coll rather than like .textfile, whose contents live in a "
-      "file. The cursor, the tempo and whether it is playing are run-time state and do not "
-      "survive, the way .coll's pointer does not. 'read [file]' and 'write [file]' move the cue "
-      "list through a text file in Max's format — one entry per line, semicolon-terminated — and "
-      "none of it happens on the message path: a handler runs on whichever thread the message "
-      "arrived on, in-patcher delivery dispatches on the audio thread, and THREAD is a "
-      "dispatch-semantics tag rather than a thread identity, so there is no predicate an object "
-      "can ask to find out it is not on the audio callback, where opening a file would block it. "
-      "The request is instead a wait-free claim on a patcher-owned slot, the disk work runs on the "
-      "background pool honouring the host's IO() layer, and the bytes are parsed in the completion "
-      "the patcher delivers at the top of a later block, which is also when outlet 2 bangs — the "
-      "shared fileScheduler plumbing of issue #683, whose consumer half here is #689. A read "
-      "breaks lines on a semicolon or a newline alike, so a hand-written file with neither the "
-      "semicolons nor the CRLF of the writer's own output still loads as the lines it looks like, "
-      "and it splits a numbers-then-message line into two entries exactly as the inlet does, so "
-      "what a write emitted comes back as the same list. A read replaces what is held and rewinds "
-      "the cursor, but does not stop a walk in progress — the walk carries on into the list just "
-      "loaded; an over-long line is refused with the rest of the file still loading, lines past "
-      "the 256th are dropped, and a file too large or unopenable is refused whole with outlet 2 "
-      "silent. Both bare forms reuse the last name given, since Max's open a file dialog and a "
-      "headless patcher has none, and Max documents no readagain / writeagain for qlist, so "
-      "neither is invented. There is deliberately no filename creation argument either — Max "
-      "documents none, and unlike .textfile this object saves its cue list with the patcher, so an "
-      "object that also read a file when it joined one would have two answers to what is in the "
-      "list arriving in an order nothing controls. Max's third outlet, which bangs when a file has "
-      "been read successfully from disk, is appended after the end outlet rather than inserted, "
-      "which is the family's rule and here also Max's own position for it. Not ported: the editing "
-      "window and everything addressing it, the patcher being headless.");
+      "A cue list: lines of numbers and messages played back in time. A line of numbers is "
+      "sent out and its first number is the wait before the next line; a line starting with a "
+      "word is sent to the receivers of that name.");
   ADD_CATEGORY(pCategory::SEQUENCE);
-  INLET_DOC(0, "in", kInletDoc, "at most 256 cue lines of 256 characters");
-  OUTLET_DOC(0, "data", kDataDoc, "");
-  OUTLET_DOC(1, "end", kEndDoc, "");
-  OUTLET_DOC(2, "file", kFileDoc, "");
+  INLET_DOC(0, "in",
+            "bang plays the list from the top; 'next' steps by hand. Also 'stop', 'rewind', "
+            "'fwd', 'tempo', 'clock', 'set', 'insert', 'append', 'clear', 'read' and 'write'.",
+            "at most 256 cue lines of 256 characters");
+  OUTLET_DOC(0, "data", "Lines of numbers, as an int, a float or a list.", "");
+  OUTLET_DOC(1, "end", "A bang when playback or 'next' reaches the end of the list.", "");
+  OUTLET_DOC(2, "file", "A bang when a 'read' has loaded a file. Silent when the read fails.", "");
 }
 
 // ─── writing the list ─────────────────────────────────────────────────────────

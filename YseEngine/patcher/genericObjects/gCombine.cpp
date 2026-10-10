@@ -27,27 +27,21 @@ namespace {
   constexpr int kAllInletsHot = -1;
 
   constexpr char kInletDocHot[] =
-      "Hot. Stores what arrives as this inlet's item and sends the joined symbol. An int or a "
-      "float "
-      "is stored as the text that spells it; a list is spread one token per item from here "
-      "rightwards, and tokens past the last item are dropped; an empty message clears this item, "
-      "which is how a patch takes a component back out of the symbol it is building.";
+      "Hot. Stores the message as this inlet's item and sends the joined symbol. A number is "
+      "stored as its text. A list fills this item and the ones to its right, one token each. An "
+      "empty message clears this item.";
 
   constexpr char kInletDocCold[] =
-      "Cold. Stores what arrives as this inlet's item and sends nothing; the symbol is joined when "
-      "a hot inlet next receives, or when inlet 0 is banged. An int or a float is stored as the "
-      "text that spells it; a list is spread one token per item from here rightwards; an empty "
-      "message clears this item.";
+      "Cold. Stores the message as this inlet's item and sends nothing. A number is stored as its "
+      "text. A list fills this item and the ones to its right, one token each. An empty message "
+      "clears this item.";
 
-  constexpr char kBangSentence[] = " A bang sends the items as they stand, whatever the triggers "
-                                   "setting is — Max's 'bang: sends "
-                                   "stored items as combined symbol'.";
+  constexpr char kBangSentence[] =
+      " A bang sends the joined symbol, whichever inlets the triggers argument makes hot.";
 
   constexpr char kOutletDoc[] =
-      "The items written out one after another with nothing between them — one whitespace-free "
-      "token, which is what a symbol can be in this patcher, so a .route matches it as one element "
-      "and a .forward or a .s will take it as a destination name. Nothing is sent while every item "
-      "is empty.";
+      "The items joined with nothing between them, as one symbol. Nothing is sent while every "
+      "item is empty.";
 
 } // namespace
 
@@ -65,47 +59,20 @@ CONSTRUCT() {
   // nothing sent. Also the shape ClearParams() restores.
   ShapePorts();
 
-  ADD_DESCRIPTION(
-      "Joins several items, each held in its own inlet, into a single symbol — Max's combine, "
-      "which 'combines a list of items into a single symbol' and 'works similar to pack and "
-      "sprintf'. The creation arguments are the items: each one becomes an inlet and that inlet's "
-      "starting value, every inlet remembers the last item it was given, and the output is those "
-      "items written out one after another with nothing in between. That memory is what "
-      "distinguishes it from .tosymbol, which collapses one message that has already arrived "
-      "whole: .combine assembles a symbol out of parts arriving at different times from different "
-      "sources — an address built from a .route branch, a .counter and a constant, each updating "
-      "on its own schedule — which nothing in this patcher could express, since .bondo and .buddy "
-      "synchronise arrivals but hand them on through separate outlets. There is no separator "
-      "either, because every separator is an item: .combine synth . lead . note is six inlets, "
-      "three of them constants, and the punctuation may differ between them, where .tosymbol "
-      "applies one uniform separator throughout. Every item is text; a number is stored as the "
-      "text that spells it, a list is spread one token per item from the receiving inlet "
-      "rightwards, and an empty message clears an item, which is how a patch takes a component "
-      "back out of an address. An item never set renders as nothing, Max's 'if no value has been "
-      "received for a %s argument, that argument will be left blank', and a .combine holding "
-      "nothing at all sends nothing rather than an empty message — the .prepend rule that makes an "
-      "unconfigured object safe to drop into a working patch. Max's @triggers attribute is a "
-      "leading creation argument here, 'triggers -1' for every inlet hot or 'triggers <n>' for one "
-      "of them, read and consumed the way .sprintf reads Max's leading symout; it takes exactly "
-      "one token, since the argument list has no bracket to end a subset with, and without it the "
-      "hot inlet is inlet 0. It is deliberately not a reserved word on inlet 0: this object exists "
-      "to carry arbitrary words, and a reserved one would swallow the very items it is asked to "
-      "join. A bang on inlet 0 sends the items as they stand whatever triggers says. Max's "
-      "@padding is not reproduced — spelling a number into a fixed-width field is what .sprintf's "
-      "%03ld already says, and a second spelling of it here would only make the argument list "
-      "ambiguous. At most 32 items, each at most 64 characters and refused rather than truncated "
-      "past that. Calculate() does nothing, and no message path allocates, locks or blocks: a join "
-      "is one walk of the items into a buffer reserved before the object was published for every "
-      "item at full length.");
+  // gCombine.h explains the design: items as inlets, `triggers` as a leading
+  // argument rather than a reserved word, no padding option. A join is one
+  // walk of the items into a buffer ShapePorts() reserved for every item at
+  // full length, so no message path allocates, locks or blocks, and
+  // Calculate() does nothing.
+  ADD_DESCRIPTION("Joins the items held in its inlets into one symbol, with nothing between them. "
+                  "Each creation argument is an item and the starting value of its own inlet. By "
+                  "default inlet 0 sends and the other inlets only store.");
   ADD_CATEGORY(pCategory::STRING);
 
   PARAM_DOC("items", "",
-            "An optional leading 'triggers <n>' followed by the items, one per inlet, each the "
-            "starting value of the inlet it builds. 'triggers -1' makes every inlet hot and "
-            "'triggers <n>' makes inlet n the only hot one; with no flag at all inlet 0 is hot, "
-            "Max's default. At most 32 items, each at most 64 characters; a longer one is reported "
-            "and left empty. With no arguments at all the object has one inlet, holds nothing, and "
-            "sends nothing.",
+            "An optional 'triggers <n>' followed by the items, one inlet each. 'triggers -1' "
+            "makes every inlet hot and 'triggers <n>' makes inlet n the only hot one; without it "
+            "inlet 0 is hot. An item longer than 64 characters is logged and left empty.",
             "optional 'triggers <n>' then up to 32 items of at most 64 characters");
 }
 

@@ -29,12 +29,11 @@ void pDac::build(int chans) {
     inputs.emplace_back(this, false, i);
     inputs.back().RegisterBuffer(std::bind(&pDac::SetBuffer, this, std::placeholders::_1,
                                            std::placeholders::_2, std::placeholders::_3));
-    INLET_DOC(i, "in", "One channel of the graph's audio output, handed to the patcher's host.",
-              "-1.0 to 1.0");
+    INLET_DOC(i, "in", "One channel of the patch's audio output.", "-1.0 to 1.0");
   }
-  ADD_DESCRIPTION("Audio output of a patcher graph. Each inlet takes one channel of audio and the "
-                  "patcher passes it on to whatever hosts it — a channel, a sound, or the engine's "
-                  "output. A patch is only audible once something reaches this object.");
+  ADD_DESCRIPTION("The patch's audio output. Each inlet is one output channel, passed on to the "
+                  "sound or insert that hosts the patcher. A patch is silent until a signal "
+                  "reaches this object.");
   ADD_CATEGORY(pCategory::IO);
 }
 

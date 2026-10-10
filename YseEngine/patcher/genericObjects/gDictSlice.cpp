@@ -19,31 +19,20 @@ namespace {
   // the constructor stops being readable with them inline — gDict's
   // arrangement.
   constexpr char kSourceInletDoc[] =
-      "A bang splits the source dictionary at the path: entries under it go into the slice "
-      "target with the prefix stripped, everything else into the remainder target, and each "
-      "target's reference leaves its outlet, right to left. \"dictionary <name>\" does the same "
-      "when it names the source dictionary bound by the first creation argument — the message a "
-      ".dict's reference outlet emits on a bang, so wiring that outlet here gives Max's own "
-      "gesture. A reference naming anything else, or any other message, is refused and counted "
-      "rather than logged, since this inlet may be the audio thread.";
+      "A bang splits the source dictionary into the slice and remainder dictionaries and sends "
+      "both references. So does the source dictionary's reference 'dictionary <name>'.";
   constexpr char kSliceInletDoc[] =
-      "\"dictionary <name>\" is accepted silently when it names the slice target bound by the "
-      "second creation argument, so a patch may wire the target's reference outlet across. It "
-      "sets nothing — the binding is the creation argument, resolved on the control thread — "
-      "and anything else is refused and counted.";
+      "Accepts the slice dictionary's reference and does nothing with it, so its .dict can be "
+      "wired here.";
   constexpr char kRemainderInletDoc[] =
-      "\"dictionary <name>\" is accepted silently when it names the remainder target bound by "
-      "the third creation argument, so a patch may wire the target's reference outlet across. "
-      "It sets nothing — the binding is the creation argument, resolved on the control thread — "
-      "and anything else is refused and counted.";
+      "Accepts the remainder dictionary's reference and does nothing with it, so its .dict can "
+      "be wired here.";
   constexpr char kSliceOutletDoc[] =
-      "\"dictionary <slice>\" after a split — the reference the dict.* family binds, carrying "
-      "the local name so the receiving object prefixes it with its own patcher's name. Sent "
-      "after the remainder outlet, Max's right-to-left order. Silent for an unnamed slice "
-      "target, which has no name to pass on.";
+      "'dictionary <slice>' after each split, sent after the remainder. Silent for an unnamed "
+      "slice dictionary.";
   constexpr char kRemainderOutletDoc[] =
-      "\"dictionary <remainder>\" after a split, sent first — Max's right-to-left order. Silent "
-      "for an unnamed remainder target, which has no name to pass on.";
+      "'dictionary <remainder>' after each split, sent first. Silent for an unnamed remainder "
+      "dictionary.";
 
 } // namespace
 
@@ -77,47 +66,28 @@ CONSTRUCT() {
   Rebind();
   RefreshReferences();
 
-  ADD_DESCRIPTION(
-      "Splits a dictionary at a key path — Max's dict.slice on the name-addressed value model "
-      ".dict settled: all three dictionaries are bound from the creation arguments, "
-      "\".dict.slice <source> <slice> <remainder> [<path>]\", because a dictionary is addressed "
-      "by name and never passed down a cord. A bang, or the source dictionary's reference "
-      "message \"dictionary <name>\", partitions the source: every entry under the path — its "
-      "key begins \"<path>::\" — replaces the slice target with the prefix stripped, so the "
-      "sub-tree becomes a dictionary rooted at itself, and every other entry (including a leaf "
-      "stored at exactly the path, which is a value, not a sub-tree) replaces the remainder "
-      "target unchanged. Each target's reference then leaves its outlet, remainder first — "
-      "Max's right-to-left order. An empty path matches nothing, so the slice comes out empty "
-      "and the remainder is the whole source.");
+  ADD_DESCRIPTION("Splits a named dictionary at a key path. Entries under the path go into the "
+                  "slice dictionary with the path removed from their keys; all other entries go "
+                  "into the remainder dictionary.");
   ADD_CATEGORY(pCategory::DICT);
   INLET_DOC(0, "slice", kSourceInletDoc, "");
   INLET_DOC(1, "slice reference", kSliceInletDoc, "");
   INLET_DOC(2, "remainder reference", kRemainderInletDoc, "");
   OUTLET_DOC(0, "slice reference", kSliceOutletDoc, "");
   OUTLET_DOC(1, "remainder reference", kRemainderOutletDoc, "");
-  PARAM_DOC(
-      "source", "",
-      "The source dictionary's shared name, addressed as \"patcher.<patcherName>.<name>\" — the "
-      "dictionary a .dict of the same name in this patcher holds. Resolved once, on the "
-      "control thread, which is why no message re-points it at run time. Empty splits a "
-      "private, empty dictionary.",
-      "any identifier");
+  PARAM_DOC("source", "", "The name of the dictionary to split. Empty splits an empty dictionary.",
+            "any identifier");
   PARAM_DOC("slice", "",
-            "The slice target's shared name, bound exactly as the source. A split replaces its "
-            "contents whole with the entries under the path, prefix stripped. The result goes "
-            "into a bound dictionary rather than a new anonymous one because there is no way to "
-            "hand a fresh dictionary's identity down a cord.",
+            "The name of the dictionary that receives the entries under the path, with the path "
+            "removed. Each split replaces its contents.",
             "any identifier");
   PARAM_DOC("remainder", "",
-            "The remainder target's shared name, bound exactly as the source. A split replaces "
-            "its contents whole with every entry not under the path, keys unchanged — the other "
-            "half of the partition, what .dict.strip would leave behind.",
+            "The name of the dictionary that receives every other entry, keys unchanged. Each "
+            "split replaces its contents.",
             "any identifier");
   PARAM_DOC("path", "",
-            "The key path the source is split at: \"voice::1\" slices every \"voice::1::...\" "
-            "entry into the slice target under the \"...\" left after the prefix is stripped. A "
-            "leaf stored at exactly the path is a value, not a sub-tree, and stays in the "
-            "remainder. Empty matches nothing — there is no sub-tree above the root.",
+            "The key path to split at: 'voice::1' takes every 'voice::1::...' entry. Empty takes "
+            "nothing.",
             "any key path");
 }
 

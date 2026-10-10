@@ -52,75 +52,6 @@ namespace {
     return true;
   }
 
-  constexpr char kInletDoc[] =
-      "Everything arrives here. A message that is not one of the reserved words is appended to the "
-      "current line — Max's 'the message is stored in the text object, placed after any previously "
-      "stored messages, and is followed by a space' — with one space separating it from what the "
-      "line already carried. An int or a float is spelled the patcher's one way, so the text "
-      "agrees "
-      "with what every other object writes for that value; a list is appended as it arrived, since "
-      "it is already the text the patch composed. The reserved words are 'clear', which erases the "
-      "contents; 'cr', which ends the current line, and which leaves a blank line behind when no "
-      "line is open, so two in a row separate two full lines; 'tab', which writes a tab and no "
-      "space after it (Max's 'the tab stop replaces that space'); 'dump', which sends every line "
-      "out "
-      "outlet 0 in order; 'line <n>', which sends line n preceded by the word 'set', numbering "
-      "from "
-      "1, converting anything below 1 to 1 and sending nothing for a line that does not exist; "
-      "'query', which sends the line count out outlet 1; 'symbol <word>' / 't_symbol <word>', "
-      "which store a word that would otherwise be read as one of these — Max's own escape hatch, "
-      "'useful if you want to store a word that would otherwise be understood as a specific "
-      "message "
-      "by text'; and 'read [file]' / 'write [file]', which move the contents through a plain text "
-      "file, one line per line. Neither opens anything here: the request is a wait-free claim on a "
-      "patcher-owned slot, the disk work runs on the background pool, and a read replaces the "
-      "contents in the completion the patcher delivers at the top of a later block — which is also "
-      "when outlet 2 bangs. Both bare forms reuse the last name given, which starts as the "
-      "filename creation argument, since Max's bare forms open a file dialog and a headless "
-      "patcher has none. 'open', 'wclose', 'settitle', 'filetype', 'precision' and "
-      "'stringout' are consumed and do nothing: there is no window here and no file dialog for "
-      "filetype to narrow, and the two attribute names set an attribute in Max rather than being "
-      "stored. They are consumed rather than stored because Max dispatches "
-      "on the "
-      "selector and so cannot store them either, and contents that differed from Max's for the "
-      "same "
-      "patch would be the one thing this object must not produce. A line longer than 256 "
-      "characters, "
-      "or a new line past the 256th, is refused whole and silently, since the inlet may be the "
-      "audio "
-      "thread.";
-
-  constexpr char kTextDoc[] =
-      "The lines. 'dump' sends every one of them in order, one send per line, and 'line <n>' sends "
-      "the one asked for preceded by the word 'set' — Max's 'the text of the specified line number "
-      "is sent out preceded by the word set ... can be sent to any other object for which that "
-      "particular set message is appropriate', which is not a foreign word here: .table, .funbuff, "
-      ".bucket, .cycle, .accum and .match all take one. A 'line' is therefore always a list, being "
-      "'set' plus the contents; a dumped line leaves in the kind it is, .route's rule — a line "
-      "holding '60' as the int 60, one holding '60.5' as that float, and anything else as a list. "
-      "An "
-      "empty line is still a line and leaves as an empty list, so a dump sends exactly as many "
-      "messages as 'query' reports. Appending sends nothing.";
-
-  constexpr char kCountDoc[] =
-      "How many lines the contents hold, in response to 'query' — Max's 'a number that specifies "
-      "the "
-      "number of lines stored in the text object'. Counted the way 'dump' walks them, so the two "
-      "always agree. Max's middle outlet, which bangs when a file has finished loading, is the "
-      "third one here rather than the second: it was appended after this one rather than inserted "
-      "in Max's position, so the cords of every patch saved while .textfile had two outlets still "
-      "land where they did (issue #687).";
-
-  constexpr char kFileDoc[] =
-      "Bangs when a 'read' has finished loading a file into the contents — Max's middle outlet, "
-      "appended here as the third so no saved patch's cords shift (the promise #499 made and the "
-      "rule the rest of the file-reading family follows). It fires only on success: a file that "
-      "does not exist, does not fit, or cannot be opened leaves it silent, and it does not fire "
-      "for a write, for which Max has no outlet either. It fires a block or more after the read "
-      "message rather than inside it, because the disk work happens on the background pool — a "
-      "read arrives on whichever thread dispatched it, which may be the audio callback. The "
-      "filename creation argument's read fires it too, since it is the same request.";
-
 } // namespace
 
 CONSTRUCT() {
@@ -169,109 +100,22 @@ CONSTRUCT() {
   fileScratch.reserve(FILE_TEXT_CAPACITY + 1);
 
   ADD_DESCRIPTION(
-      "Collects the messages it is sent as lines of text — Max's text, which 'collects and formats "
-      "incoming messages as text to be output as lines of text'. The line is the unit, and that is "
-      "the whole difference from the four stores before it: .coll is keyed by an address, .bag has "
-      "no keys, .funbuff is a sparse function of x,y pairs and .table a dense array of numbers, "
-      "while .capture — the closest, since it too swallows whatever arrives — stores one atom per "
-      "item, so a three-element list becomes three entries and comes back as three sends. Here a "
-      "message is appended to the current line, several accumulate on it separated by spaces, and "
-      "'cr' ends it. That is the shape a note list, a cue sheet or a configuration block has, and "
-      "it "
-      "is the shape a text file has. Max keeps the separating space after each stored message, "
-      "which "
-      "is why both its 'cr' and its 'tab' carry the rule 'if the last character in text is a "
-      "space, "
-      "the carriage return replaces that space'; the space is kept between messages here instead, "
-      "which gives the same visible text with no trailing space to hand downstream, and 'tab' "
-      "clears "
-      "the pending separator so that 5, tab, 6 gives 5<tab>6 rather than 5<tab> 6 — Max's rule "
-      "spelled as state rather than as a fix-up. An int or a float is spelled the patcher's one "
-      "way, "
-      "WriteInt and ExprFormatValue, so the text agrees with what every other object writes for "
-      "the "
-      "same value; a list is appended as it arrived, being already the text the patch composed. "
-      "'clear' erases the contents, 'dump' sends every line out outlet 0, 'line <n>' sends one "
-      "line "
-      "preceded by the word 'set' (Max's, and not a foreign word here — .table, .funbuff, .bucket, "
-      ".cycle, .accum and .match all take a set), numbering from 1 and sending nothing for a line "
-      "that does not exist, and 'query' sends the line count out outlet 1. A dumped line leaves in "
-      "the kind it is, .route's rule. Max's own escape hatch is ported: 'symbol clear' stores the "
-      "word clear, 'useful if you want to store a word that would otherwise be understood as a "
-      "specific message by text'. 'open', 'wclose', 'settitle', 'filetype', "
-      "'precision' and 'stringout' are consumed and do nothing — Max dispatches on the selector, "
-      "so "
-      "a text in Max cannot store those symbols either, and contents differing from Max's for the "
-      "same patch is the one thing this object must not produce. 'read [file]' and 'write [file]' "
-      "move the contents through a plain text file, one stored line per line of the file, and the "
-      "filename creation argument is read when the object is built — Max's 'names a text file to "
-      "be read in when the object is loaded' (issue #687). None of that happens on the message "
-      "path: a message handler runs on whichever "
-      "thread the message arrived on, in-patcher delivery dispatches on the audio thread, and "
-      "THREAD "
-      "is a dispatch-semantics tag rather than a thread identity, so there is no predicate an "
-      "object "
-      "can ask to find out it is not on the audio callback — opening a file there would block it. "
-      "The request is instead a wait-free claim on a patcher-owned slot, the disk work runs on the "
-      "background pool honouring the host's IO() layer, and the bytes are parsed in the completion "
-      "the patcher delivers at the top of a later block, which is also when outlet 2 bangs — the "
-      "shared fileScheduler plumbing of issue #683. The last line carries a newline only when it "
-      "is closed, so a write then read round trip is exact down to whether the last line is still "
-      "taking appends; a trailing carriage return is dropped on reading, so a CRLF file written by "
-      "another editor loads the same lines everywhere. A read replaces what is held, an over-long "
-      "line is skipped with the rest of the file still loading, lines past the 256th are dropped, "
-      "and a file too large or unopenable is refused whole with outlet 2 silent. The bare forms of "
-      "read and write reuse the last name given, which starts as the filename argument, since "
-      "Max's open a file dialog and a headless patcher has none, and filetype is consumed and "
-      "inert for the same reason; Max has no readagain / writeagain for text, so neither is "
-      "invented here. Max's middle outlet, which bangs when "
-      "a "
-      "file has finished loading, is outlet 2 rather than outlet 1: it was appended rather than "
-      "inserted in Max's position, because #499 shipped this object with two outlets and moving "
-      "the line-count outlet would shift every saved patch's cords. The store is .coll's model "
-      "and for "
-      ".coll's "
-      "reason — a fixed table of lines allocated whole at construction, every line reserved to its "
-      "capacity, plus .value's non-blocking guard — because a copy-on-write GraphState publish "
-      "assumes the writer is the control thread while this object is written by whichever thread "
-      "its "
-      "message arrived on. The guard is never held across a send, a loser of it drops rather than "
-      "waiting, and dump takes it once per line and re-reads the bounds each step. At most 256 "
-      "lines "
-      "of at most 256 characters, Max's own limit for the line message; anything that does not fit "
-      "is refused whole rather than truncated, since half a line is a different line. Calculate() "
-      "does nothing. The filename survives a save because it is a creation argument; the contents "
-      "deliberately do not, which is the family's rule of saving exactly where Max has a save flag "
-      "— "
-      "coll has 'save data with patcher', table and funbuff have embed, and text has none of them, "
-      "because Max keeps a text's contents in a file — which since #687 is where they live here "
-      "too, a '.textfile notes.txt' reloading its lines when the patch it was saved in opens. Not "
-      "ported: the editing window and "
-      "everything "
-      "addressing it (open, wclose, settitle, the double-click), filetype, the precision attribute "
-      "— "
-      "the patcher has one way of spelling a float, the fewest digits that read back as the same "
-      "value, which loses nothing and pads nothing, and a second spelling on one object would make "
-      "its text disagree with every other's — and stringout, there being no string atom to "
-      "output.");
+      "Collects incoming messages as lines of text: each message is added to the current line "
+      "and 'cr' ends it. Lines can be sent back one at a time or all at once, and read from or "
+      "written to a text file.");
   ADD_CATEGORY(pCategory::COLLECTION);
-  INLET_DOC(0, "in", kInletDoc, "at most 256 lines of 256 characters");
-  OUTLET_DOC(0, "text", kTextDoc, "");
-  OUTLET_DOC(1, "lines", kCountDoc, "0-256");
-  OUTLET_DOC(2, "file", kFileDoc, "");
-  PARAM_DOC(
-      "filename", "",
-      "Max's filename argument, which 'names a text file to be read in when the object is "
-      "loaded'. The first argument token is taken as the name. It is held and it survives a "
-      "save, so a '.textfile mydata.txt' brought across from Max builds the object it names "
-      "and the argument the author typed comes back unchanged. It is also read when the object "
-      "joins a patcher, which is where 'when the object is loaded' happens here, and it seeds "
-      "the name a bare 'read' or 'write' falls back on — so a bare 'write' saves back over the "
-      "file the object is named after (issue #687). A standalone object with no patcher has no "
-      "file plumbing and reads nothing. Setting the "
-      "parameters again also empties the contents, since the object that comes back is the one "
-      "the arguments describe.",
-      "any filename");
+  INLET_DOC(0, "in",
+            "Any message is added to the current line. Also 'cr', 'tab', 'clear', 'dump', "
+            "'line <n>', 'query', 'symbol <word>', 'read [file]' and 'write [file]'.",
+            "at most 256 lines of 256 characters");
+  OUTLET_DOC(0, "text", "Lines: every line on 'dump'; one line preceded by 'set' on 'line <n>'.",
+             "");
+  OUTLET_DOC(1, "lines", "The number of lines, on 'query'.", "0-256");
+  OUTLET_DOC(2, "file", "A bang when a 'read' has loaded a file. Silent when the read fails.", "");
+  PARAM_DOC("filename", "",
+            "A text file to read when the object is created. Also the default file for a bare "
+            "'read' or 'write'.",
+            "any filename");
 }
 
 // ─── parameters ───────────────────────────────────────────────────────────────

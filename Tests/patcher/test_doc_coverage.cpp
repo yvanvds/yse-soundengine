@@ -39,79 +39,13 @@ using YSE::PATCHER::Register;
 namespace {
 
   // Objects exempt from the summary rule in "descriptions are short summaries
-  // and never name Max (#997)" below: exactly the objects that broke it when
-  // the rule was introduced. This list must only shrink. #998 (#1002-#1012)
-  // empties it; remove an entry in the commit that fixes the object. Sorted,
-  // one per line.
+  // and never name Max (#997)" below. The rewrite in #998 (#1002-#1012)
+  // brought every object into line, so the list is now empty and must stay
+  // empty: new objects follow the rule. The mechanism stays so the test
+  // keeps reporting stale entries. Sorted, one per line.
   std::set<std::string> DocRuleExempt() {
     // clang-format off
     return {
-        ".append",
-        ".atoi",
-        ".bag",
-        ".bangbang",
-        ".bondo",
-        ".buddy",
-        ".capture",
-        ".coll",
-        ".combine",
-        ".decide",
-        ".dict",
-        ".dict.compare",
-        ".dict.deserialize",
-        ".dict.group",
-        ".dict.iter",
-        ".dict.join",
-        ".dict.pack",
-        ".dict.print",
-        ".dict.route",
-        ".dict.serialize",
-        ".dict.slice",
-        ".dict.strip",
-        ".dict.unpack",
-        ".drunk",
-        ".forward",
-        ".fromsymbol",
-        ".funbuff",
-        ".if",
-        ".inlet",
-        ".iter",
-        ".itoa",
-        ".join",
-        ".listfunnel",
-        ".loadbang",
-        ".loadmess",
-        ".match",
-        ".mtr",
-        ".next",
-        ".onebang",
-        ".outlet",
-        ".pack",
-        ".pak",
-        ".prepend",
-        ".print",
-        ".prob",
-        ".qlist",
-        ".regexp",
-        ".seq",
-        ".spell",
-        ".sprintf",
-        ".substitute",
-        ".table",
-        ".textfile",
-        ".tolower",
-        ".tosymbol",
-        ".toupper",
-        ".trigger",
-        ".unjoin",
-        ".unpack",
-        ".urn",
-        ".uzi",
-        ".value",
-        ".zl",
-        "patcher",
-        "~inlet",
-        "~outlet",
     };
     // clang-format on
   }
@@ -172,10 +106,10 @@ TEST_SUITE("patcher") {
     // (case-sensitive whole word: "max" and "Maximum" are fine). conf.py
     // applies the same word check to the notes files.
     //
-    // Objects written before this rule are exempt through DocRuleExempt().
-    // That list must only shrink, and is emptied by the rewrite in #998
-    // (#1002-#1012). An exempt object that already passes fails this test,
-    // so remove its entry in the commit that fixes it. An exempt name that
+    // DocRuleExempt() lists objects excused from this rule. It has been empty
+    // since the rewrite in #998 (#1002-#1012) and must stay empty; new
+    // objects follow the rule. An exempt object that already passes fails
+    // this test, so a stale entry cannot linger. An exempt name that
     // is not registered (e.g. a MIDI device object in a build without
     // YSE_ENABLE_MIDI_DEVICE) is skipped.
     constexpr std::size_t kMaxDescriptionLength = 300;

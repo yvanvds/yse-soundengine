@@ -1,0 +1,212 @@
+.. Notes for the Sequencing category. Format: _data/patcher_notes/README.md.
+
+.. patcher-object:: .mtr
+
+``.mtr 4`` has four tracks. Each track has its own inlet and outlet: inlet 1
+and outlet 1 are track 1, and so on. The leftmost inlet controls the whole
+recorder, the leftmost outlet reports what ``next`` sends, and the last outlet
+bangs when a file has been read.
+
+While a track records, every message on its inlet (bang, number, list) is
+stored with the time since the previous one. Playback sends each message out
+of the track's outlet after the same wait, as the type it arrived as. Each
+track has its own position, speed and mute, so tracks can be recorded and
+played independently.
+
+Timing is measured in audio blocks, so its resolution is one block (see
+:doc:`/patcher/time`). The clock stops while the engine is paused.
+
+**Transport**
+
+These work in the leftmost inlet on every track, or on the tracks whose
+numbers follow (``play 1 3``). In a track's own inlet they act on that track.
+
+- ``record``: start a new recording, erasing the old one.
+- ``play``: play from the beginning. In a track inlet, ``play <repeats>
+  <timescale>`` plays the track several times and at a speed (``play 3 200``:
+  three times at double speed).
+- ``stop``: stop recording or playing. The position stays where it is.
+- ``next``: send the next event of each track at once, without waiting, and
+  report ``<track> <delta> <time>`` out of the leftmost outlet for each.
+- ``rewind``: go back to the beginning, without playing.
+- ``clear``: erase the recording.
+- ``mute`` / ``unmute``: silence a track. It keeps playing, so unmuting picks
+  up where the track has got to.
+
+**Settings** (leftmost inlet only, for all tracks)
+
+- ``timescale <percent>``: playback speed. 100 is as recorded, 200 twice as
+  fast. ``play`` resets it to 100, so send it after ``play``.
+- ``first <ms>``: wait this long after ``play`` before the first event. The
+  recording is not changed.
+- ``delay <ms>``: set the wait before the first event of every track. This
+  changes the recording.
+- ``embed 1``: save the recordings with the patch (off by default). See
+  :ref:`data-saved`.
+
+**Files**
+
+``read <file>`` and ``write <file>`` in the leftmost inlet load or save every
+track; in a track's inlet they load or save that track only. A read replaces
+the tracks and stops them, then bangs the last outlet. A bare ``read`` or
+``write`` reuses the last file name. See :doc:`/patcher/files` for the
+format.
+
+**Limits**
+
+1-32 tracks. Each track holds 256 events of at most 128 characters; later
+events are not recorded. A bang on the leftmost inlet does nothing. There is
+no editing window.
+
+.. patcher-object:: .qlist
+
+A cue list is a list of lines. What a line does depends on how it starts:
+
+- **Numbers only** (``500`` or ``500 60 100``): sent out of the left outlet as
+  an int, a float or a list. During playback, the first number is then the
+  wait, in milliseconds, before the next line.
+- **A word first** (``synth 60 100``): sent to every ``.r synth``, with the
+  rest of the line as the message (a bare word sends a bang). The next line
+  follows at once.
+- **Numbers then a word** (``500 synth 60``): stored as two lines, ``500``
+  and ``synth 60``.
+
+.. code-block:: text
+
+   set synth 60 100; 500; synth 64 100; 500; synth 67 100
+
+   bang  =>  "60 100" to .r synth, 500 out of the left outlet, wait 500 ms,
+             "64 100" to .r synth, 500 out of the left outlet, wait 500 ms,
+             "67 100" to .r synth, bang out of the middle outlet
+
+**Playing**
+
+- bang: play from the first line, waiting out each number line. A bang always
+  starts again from the top.
+- ``stop``: stop playback. The position stays where it is.
+- ``next``: step by hand. Sends word lines until it reaches a number line,
+  sends that and stops. It does not wait: to play by hand, wire the left
+  outlet into a delay whose bang goes back into ``next``. ``next 1`` skips the
+  word lines instead of sending them.
+- ``fwd <n>``: ``next 1``, ``n`` times: the number lines are sent, the word
+  lines skipped.
+- ``rewind``: go back to the first line.
+- ``tempo <f>``: speed factor for the waits. 2 plays twice as fast, 0.5 at
+  half speed.
+- ``clock <name>``: wait on the YSE domain clock of that name. The leading
+  numbers are then beats instead of milliseconds, so playback follows that
+  clock's tempo changes and stops when it is paused. A bare ``clock`` goes back
+  to milliseconds. A clock that doesn't exist yet holds playback until it
+  does.
+
+The middle outlet bangs when playback or ``next`` runs past the last line,
+and for an empty list.
+
+**Writing the list**
+
+``;`` separates lines in all three messages.
+
+- ``set <lines>``: replace the whole list. A bare ``set`` empties it.
+- ``insert <lines>``: add lines at the end.
+- ``append <text>``: add the text to the end of the last line.
+- ``clear``: empty the list.
+
+**Files and saving**
+
+``read <file>`` replaces the list with a text file and bangs the right
+outlet; ``write <file>`` saves the list. A bare ``read`` or ``write`` reuses
+the last file name. A read during playback lets it carry on from the top of
+the new list. See :doc:`/patcher/files` for the format.
+
+The list is saved with the patch. The position, tempo and clock are not.
+
+**Limits**
+
+At most 256 lines of 256 characters; longer or extra lines are ignored. Waits
+shorter than one audio block take one block. ``open`` and ``wclose`` are
+accepted and do nothing: there is no editing window.
+
+.. patcher-object:: .seq
+
+``.seq`` stores MIDI as raw bytes, the way a MIDI port sends them: a note-on
+is three bytes. Feed it bytes from a MIDI input or from the ``.midi*``
+formatting objects, and send its output to a MIDI output or parser.
+
+While recording, each byte is stored with the time since the previous one.
+Playback sends each byte after the same wait. Bytes that arrived together are
+sent together, so a message is never split across blocks.
+
+**Recording and playing**
+
+- ``record``: start a new recording, erasing the old one.
+- ``append``: record on after the end of the current sequence.
+- a number 0-255, or a list of them: one byte each. Ignored when not
+  recording. Floats are truncated; other numbers are ignored.
+- bang or ``start``: play from the beginning.
+- ``start <speed>``: play at a speed, where 1024 is as recorded, 512 half
+  speed and 2048 double. The speed can only be set when playback starts.
+- ``stop``: stop recording or playing.
+- ``clear``: erase the sequence.
+
+``record`` and ``start`` don't need a ``stop`` first.
+
+The middle outlet bangs **just before** the last event is sent, so a patch
+knows the next byte is the final one. A ``start`` on an empty sequence sends
+nothing.
+
+**External timing**
+
+``start -1`` plays by ``tick`` messages instead of by its own clock: 48 ticks
+per second play the sequence at its recorded speed. Use it to follow another
+timing source.
+
+``clock <name>`` makes the YSE domain clock of that name supply the ticks, 24
+per beat, so the sequence follows that clock's tempo changes and stops when
+it is paused. While a clock drives it, ``tick`` messages are ignored. A bare
+``clock`` hands the ticks back to the patch. At 120 BPM, 24 ticks per beat is
+the same 48 per second.
+
+**Editing the timing**
+
+- ``delay <ms>``: set when the first event happens; the rest move with it.
+- ``addeventdelay <ms>``: add to that time.
+- ``hook <factor>``: multiply every event time. 2 plays twice as slowly. It
+  works during playback, from the next event on.
+
+**Files**
+
+``read <file>`` loads a standard MIDI file (format 0, or format 1 with up to
+32 tracks, merged into one sequence) or a text file with one event per line:
+a time in milliseconds, then the bytes. A read replaces the sequence and stops
+playback, then bangs the right outlet. A file name given as the argument is
+read when the object is created.
+
+``write <file>`` saves a standard MIDI file, format 0. ``write <file> 1``
+saves format 1: one track for meta events and anything without a channel,
+then one track per MIDI channel used. A bare ``read`` or ``write`` reuses the
+last file name, which starts as the argument. See :doc:`/patcher/files`.
+
+The sequence is not saved with the patch: the file is where it is kept.
+
+**Meta events and tempo**
+
+Meta events from a MIDI file stay in the sequence at their place and are sent
+out of the third outlet as ``meta <name> <data>``: for example ``meta tempo
+120.`` (in BPM) or ``meta marker verse``. The names are ``sequencenumber``,
+``text``, ``copyright``, ``sequenceortrackname``, ``instrumentname``,
+``lyric``, ``marker``, ``cuepoint``, ``midichannelprefix``, ``endoftrack``,
+``tempo``, ``smpteoffset``, ``timesignature``, ``keysignature`` and
+``sequencerspecific``; any other type sends its number instead of a name.
+Text is sent as words, everything else as numbers. A recorded sequence has no
+meta events.
+
+A read uses the file's tempo map to turn its ticks into milliseconds.
+``tempo <bpm>`` sets the tempo written into files. With ``overridetempo 1``
+the next read uses that tempo instead of the file's. Without it, a tempo event
+passing during playback updates ``tempo``.
+
+**Limits**
+
+4096 events, where each byte is one event: about 1365 three-byte messages.
+Further bytes are not recorded. ``dump``, ``print`` and ``sequencetempo`` are
+accepted and do nothing; there is no editing window.

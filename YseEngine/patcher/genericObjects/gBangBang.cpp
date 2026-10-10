@@ -31,33 +31,13 @@ CONSTRUCT() {
   ShapePorts();
 
   ADD_DESCRIPTION(
-      "Sends a bang out every outlet, in right-to-left order, whenever anything arrives. Max's "
-      "bangbang, and the bang-only degenerate case of .trigger: where .trigger converts the input "
-      "per outlet, this discards it entirely, so a bang, an int, a float and a list all produce "
-      "exactly the same N bangs. What it keeps is the ordering guarantee, which is the reason "
-      "either object exists: outlet n-1 is sent first and outlet 0 last, and each send completes "
-      "in full — the whole subgraph hanging off that outlet, depth first — before the next one "
-      "starts, because the patcher's send path calls the target inlet directly with no queue in "
-      "between. That makes 'do this, and only once it has finished, do that' expressible as a "
-      "single box rather than as an assumption about how the patch happens to be wired. The order "
-      "in which several patch cords from the same outlet are served is deliberately not "
-      "guaranteed, as in Max; the answer to needing it is another .bangbang. The optional creation "
-      "argument is the outlet count, not a format list — .bangbang 3 has three outlets where "
-      ".trigger 3 has one outlet emitting the constant 3 — and Max's documented range of 1 to 40 "
-      "is applied, so a larger count is capped at 40 rather than following .trigger's 256. A float "
-      "argument is truncated towards zero, as Max converts it to an int; an argument that is not a "
-      "whole finite number, or no argument at all, gives two outlets, which is Max's default shape "
-      "and .trigger's. Calculate() does nothing: the object is driven by its inlet, and emitting "
-      "on a DSP tick would re-fire the whole fan-out every block.");
+      "Sends a bang out every outlet, right to left, whatever arrives. Each outlet's branch "
+      "finishes before the next outlet fires, so it orders 'do this, then that'.");
   ADD_CATEGORY(pCategory::CONTROL);
-  INLET_DOC(0, "in",
-            "Bang, int, float or list. Whatever arrives is discarded and a bang is sent out every "
-            "outlet, right to left.",
-            "any");
+  INLET_DOC(0, "in", "Bang, int, float or list. The value is ignored.", "any");
   PARAM_DOC("outlets", "2",
-            "How many outlets to build, between 1 and 40 — Max's documented range. A float is "
-            "truncated towards zero; a count outside the range is clamped to it. With no argument, "
-            "or with an argument that is not a whole finite number, there are two outlets.",
+            "Number of outlets, clamped to 1-40; a float is truncated. Two when absent or not a "
+            "number. Unlike .trigger, '.bangbang 3' means three outlets.",
             "1-40");
 }
 
@@ -72,10 +52,7 @@ void gBangBang::ShapePorts() {
   outputs.clear();
   for (int i = 0; i < outletCount; i++) {
     ADD_OUT_BANG;
-    outputs.back().SetDoc(OutletLabel(i),
-                          "A bang, whatever arrived at the inlet. Outlet n-1 fires first and "
-                          "outlet 0 last, and each send completes in full before the outlet to "
-                          "its left is served.",
+    outputs.back().SetDoc(OutletLabel(i), "A bang. The last outlet fires first, outlet 0 last.",
                           "bang");
   }
 }

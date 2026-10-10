@@ -205,13 +205,9 @@ FLOAT_IN(SetStoredFloat) {
 // ─── the two insertion points ─────────────────────────────────────────────────
 
 gPrepend::gPrepend() : gAffixBase(affixSide::Front) {
-  Document("Puts a stored message in front of every message that arrives, and sends the two out "
-           "joined as a list. The patcher's routing family reads the first token of a list — "
-           ".route and .routepass match on it, .sel compares against it, and every object with a "
-           "message interface is addressed by it — so this is how a patch builds a message with a "
-           "leading selector out of a value it computed. The stored message comes from the "
-           "creation argument or from inlet 1; with none stored the object passes what it is given "
-           "straight through, unchanged and as the type it arrived as.",
+  Document("Puts a stored message in front of every message that arrives and sends the result as "
+           "one list. Use it to put a selector word such as 'note' or 'set' in front of a "
+           "computed value.",
            "Bang emits the stored message on its own; an int, float or list is emitted with the "
            "stored message in front of it. With nothing stored the value is passed through as the "
            "type it arrived as.",
@@ -222,12 +218,9 @@ gPrepend::gPrepend() : gAffixBase(affixSide::Front) {
 }
 
 gAppend::gAppend() : gAffixBase(affixSide::Back) {
-  Document("Puts a stored message after every message that arrives, and sends the two out joined "
-           "as a list. The mirror of .prepend: where that one builds the selector a message starts "
-           "with, this one supplies the trailing arguments it ends with — a fixed channel number, "
-           "a target index, the second half of a pair whose first half is computed. The stored "
-           "message comes from the creation argument or from inlet 1; with none stored the object "
-           "passes what it is given straight through, unchanged and as the type it arrived as.",
+  Document("Puts a stored message after every message that arrives and sends the result as one "
+           "list. Use it to add fixed trailing arguments, such as a channel number, to a computed "
+           "value.",
            "Bang emits the stored message on its own; an int, float or list is emitted with the "
            "stored message after it. With nothing stored the value is passed through as the type "
            "it arrived as.",

@@ -39,29 +39,22 @@ CONSTRUCT() {
   REG_PARM_PARSE;
 
   ADD_DESCRIPTION(
-      "Bounded random walk. Each bang moves the stored value by a random step and emits the new "
-      "position, clipped into [0, range). Unlike .random, successive values are related — the walk "
-      "drifts rather than jumps — which is what makes it usable for generative pitch, filter and "
-      "position material. The step size is an exclusive magnitude limit: |step| < |stepSize|, so "
-      "the default of 2 draws from {-1, 0, +1}. A negative step size uses the same magnitudes with "
-      "zero excluded, so the walk is guaranteed to move on every bang. The walk clips at the range "
-      "boundaries the way Max's does and therefore lingers at an edge it reaches; send the output "
-      "through .pong for a reflecting or wrapping boundary instead. A non-zero seed makes the "
-      "whole sequence reproducible across runs; seed 0 takes an arbitrary stream. Exactly one "
-      "random draw is taken per bang.");
+      "A random walk: each bang moves the value up or down by a small random step and sends it, "
+      "kept within 0 to range-1. Successive values drift rather than jump.");
   ADD_CATEGORY(pCategory::RANDOM);
   INLET_DOC(0, "control",
-            "Bang to take a step / int or float to set the position and emit it / list 'set <n>' "
-            "to set it without emitting / list 'seed <n>' to restart the random sequence.",
+            "A bang takes a step. An int or float sets the position and sends it. 'set <n>' sets "
+            "it without sending; 'seed <n>' restarts the random sequence.",
             "0 to range-1");
-  INLET_DOC(1, "range", "Sets the exclusive upper bound of the walk.", "1+");
-  INLET_DOC(2, "stepSize", "Sets the exclusive step magnitude limit; negative forbids a zero step.",
+  INLET_DOC(1, "range", "The walk stays below this value.", "1+");
+  INLET_DOC(2, "stepSize",
+            "Steps are smaller than this value. A negative value also rules out a zero step.",
             "any int");
-  OUTLET_DOC(0, "out", "Current position of the walk.", "0 to range-1");
-  PARAM_DOC("range", "128", "Exclusive upper bound of the walk.", "1+");
-  PARAM_DOC("stepSize", "2", "Exclusive step magnitude limit; negative forbids a zero step.",
+  OUTLET_DOC(0, "out", "The position of the walk.", "0 to range-1");
+  PARAM_DOC("range", "128", "The walk stays below this value.", "1+");
+  PARAM_DOC("stepSize", "2", "Steps are smaller than this value; negative rules out a zero step.",
             "any int");
-  PARAM_DOC("seed", "0", "Random seed; non-zero replays the same walk every run, 0 picks a stream.",
+  PARAM_DOC("seed", "0", "Random seed. Any other value than 0 gives the same walk on every run.",
             "any int");
 }
 

@@ -25,46 +25,18 @@ namespace {
   constexpr std::size_t kEllipsisLength = 3;
 
   constexpr char kInletDoc[] =
-      "Everything that arrives here is written to the engine log as one line, prefixed with this "
-      "object's name — Max's 'the print object prints, in the Max window, any message it receives "
-      "in its inlet'. There is no Max window here, so the destination is the log a host already "
-      "reads, redirects with YSE::Log().setLogfile() and intercepts with YSE::Log().setHandler(). "
-      "A bang prints the word 'bang'; an int prints its digits; a float prints its shortest "
-      "spelling that reads back as the same float, always with a decimal point, so a float stays "
-      "visibly a float; a list and a message box's text print verbatim, exactly as the cord "
-      "carried them. Nothing is ever sent onward — this object has no outlet, which is Max's "
-      "shape. Nothing is logged from here either: the line is formatted into a stack buffer and "
-      "pushed onto a bounded lock-free queue, because a message handler runs on whichever thread "
-      "dispatched the message and in-patcher delivery dispatches on the audio thread. The line "
-      "reaches the log on the host's next System::update() tick. A line longer than the record is "
-      "cut and marked with a trailing '...'. Two bounds can refuse a message and both say so: "
-      "this object's own budget of lines per drain tick, which posts one notice the first time it "
-      "bites in a tick, and the shared queue's capacity, whose overflow the next drain reports as "
-      "a single count. Dropping under flood is the only alternative to blocking the audio thread, "
-      "but a silent drop would make a debugging instrument lie about the patch it is being used "
-      "to debug.";
+      "Any message. Each one is written to the engine log as one line, after this object's name.";
 
   // One entry for the one LIST parameter, which carries both arguments (#954).
+  //
+  // Why the line budget exists: a .print wired into a per-block path is driven
+  // by the audio callback (86 lines a second at 44.1 kHz / 512-sample blocks),
+  // and the queue is shared, so without a per-object budget the first noisy
+  // object fills it and every other .print goes dark. 256 is the queue's own
+  // capacity, past which asking for more buys nothing.
   constexpr char kArgsDoc[] =
-      "Max's argument list, in Max's order. The first token is the name printed in front of every "
-      "line — Max's 'the first argument sets the name that appears in the Max window when the "
-      "object prints something. The default name is print'. It is what makes two of these in one "
-      "patch tellable apart. A name longer than 32 characters is cut, since the whole line has to "
-      "fit a fixed record and a name that ate it would leave no room for the message it is "
-      "labelling. "
-      "The second token is the most lines this object emits between two drain ticks, default 16. "
-      "This one is the YSE patcher's "
-      "and not Max's: Max's print runs in Max's scheduler, while a .print wired into a per-block "
-      "path here is driven by the audio callback, which at 44.1 kHz and 512-sample blocks is 86 "
-      "lines a second from one object before a patch does anything unusual. The queue is shared, "
-      "so without a budget the first such object fills it and every other .print in the patch "
-      "goes dark; the limit is what keeps one noisy object from silencing the rest. Clamped to "
-      "1-256 — 256 being the queue's own capacity, past which asking for more cannot buy "
-      "anything. A non-numeric second argument leaves the default of 16 standing rather than "
-      "failing, since a creation argument arriving from a saved patch must never be able to break "
-      "loading it. Refused messages are counted and the first refusal in a tick posts a notice, "
-      "so a budget that bites is visible rather than silent. Tokens after the second are "
-      "ignored.";
+      "The name printed before each line (default 'print', cut at 32 characters), then the most "
+      "lines this object prints per update tick (default 16, clamped to 1-256).";
 
 } // namespace
 
@@ -94,44 +66,19 @@ CONSTRUCT() {
   // the only reason it is in the constructor.
   (void)YSE::INTERNAL::RtLog().capacity();
 
+  // A message handler runs on whichever thread dispatched the message, which
+  // for in-patcher delivery is the audio thread. So nothing is logged from the
+  // message path: the line is formatted into a stack buffer and pushed onto the
+  // bounded lock-free RtLog queue, whose drain in System::update() hands it to
+  // the log. Nothing allocates, locks or blocks, and Calculate() does nothing.
+  // Two bounds can refuse a line (this object's per-tick budget and the shared
+  // queue's capacity) and both report the loss, because a silent drop would make
+  // a debugging tool lie. An over-long line is cut and marked with '...' rather
+  // than refused (.capture refuses whole): this is a line to read, and its first
+  // 240 characters are nearly all of the information.
   ADD_DESCRIPTION(
-      "Writes whatever arrives at its inlet to the engine log, one line per message, with a "
-      "settable name in front of it — Max's 'print', which prints 'any message in the Max "
-      "window'. Max: 'the print object prints, in the Max window, any message it receives in its "
-      "inlet.' This patcher is headless and there is no Max window, so the destination is the "
-      "engine log: the thing a host already reads, already redirects with "
-      "YSE::Log().setLogfile(), and already intercepts with YSE::Log().setHandler(), so every "
-      "tool a host has for watching the engine talk watches this object too with no new plumbing "
-      "at either end. It is the patcher's missing debugging affordance — until it existed there "
-      "was no way to see what was happening inside a graph, and a patch that misbehaved had to be "
-      "diagnosed from the audio coming out of it. It is not .capture, the other half of the same "
-      "job: this says what is passing now, one line at a time, as it passes, while .capture keeps "
-      "the last N values so a patch can be run, stopped, and only then asked what it saw. The "
-      "first creation argument is the name — Max's 'the first argument sets the name that appears "
-      "in the Max window', default 'print'. The second is this patcher's and not Max's: the most "
-      "lines the object emits per drain tick, default 16, clamped to 1-256. A bang prints the "
-      "word 'bang', an int its digits, a float its shortest round-tripping spelling with a "
-      "decimal point so it stays visibly a float, and a list or a message box's text verbatim. "
-      "There is no outlet, which is Max's shape and also the right one: an outlet would turn a "
-      "probe into a participant. Nothing is ever logged from the message path. A handler runs on "
-      "whichever thread dispatched the message and in-patcher delivery dispatches on the audio "
-      "thread, where building a std::string and then writing a file or calling into a host "
-      "handler is exactly what the engine's real-time rules forbid — so the line is formatted "
-      "into a stack buffer and pushed onto a bounded lock-free queue whose control-thread drain, "
-      "running from System::update(), hands it to the log. That is the named bus's audio-thread "
-      "path with text in the record instead of a variant, and it means a line reaches the log on "
-      "the host's next tick rather than instantly. Nothing on any message path allocates, locks "
-      "or blocks, and Calculate() does nothing. Two bounds can refuse a message and both report: "
-      "this object's per-tick budget, whose first refusal in a tick posts a notice and whose "
-      "refusals are all counted, and the shared queue's capacity, whose overflow the next drain "
-      "names as a single count. Dropping under flood is correct — the alternative is blocking the "
-      "audio thread, which is not an answer — but a silent drop would make a debugging instrument "
-      "lie about the patch it is being used to debug. A line longer than the record is cut and "
-      "marked with '...', the opposite of .capture's refuse-whole rule and deliberately so: "
-      ".capture stores a symbol, where half of one is a different symbol, while this produces a "
-      "line to read, where the first 240 characters are almost all of the information and silence "
-      "is none of it. Only the creation arguments persist across a save; the lines already sent "
-      "belong to the log rather than to the patch.");
+      "Writes every message that arrives to the engine log, one line each, with a name in front. "
+      "Use it to watch values pass through a patch.");
   ADD_CATEGORY(pCategory::IO);
 
   INLET_DOC(0, "in", kInletDoc, "any");

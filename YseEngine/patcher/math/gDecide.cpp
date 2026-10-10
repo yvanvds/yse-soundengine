@@ -23,25 +23,14 @@ CONSTRUCT() {
   REG_PARM_PARSE;
 
   ADD_DESCRIPTION(
-      "Coin flip. Every bang emits a 0 or a 1, chosen with equal probability — the cheapest "
-      "possible branch, for probabilistic patterns, drum-machine fills and stochastic gating. An "
-      "int or a float on the left inlet does the same thing as a bang, so any value source can "
-      "drive it directly. The draw is unbiased rather than merely nearly so, and successive flips "
-      "are uncorrelated, so the object is a fair coin and not an alternation. A non-zero seed "
-      "makes "
-      "the whole sequence reproducible across runs, which is what lets a generative patch replay "
-      "exactly; seed 0 takes an arbitrary stream. An int on the right inlet, or the message 'seed "
-      "<n>' on the left, restarts the sequence at runtime. Exactly one random draw is taken per "
-      "flip.");
+      "A coin flip: each bang sends 0 or 1 with equal chance. Use it for random branching, "
+      "fills and gating.");
   ADD_CATEGORY(pCategory::RANDOM);
   INLET_DOC(0, "control",
-            "Bang, int or float to flip the coin and emit the result / list 'seed <n>' to restart "
-            "the random sequence.",
-            "");
-  INLET_DOC(1, "seed", "Restarts the random sequence; 0 takes an arbitrary stream.", "any int");
-  OUTLET_DOC(0, "out", "0 or 1, chosen with equal probability.", "0 or 1");
-  PARAM_DOC("seed", "0",
-            "Random seed; non-zero replays the same flips every run, 0 picks an arbitrary stream.",
+            "A bang, int or float flips the coin. 'seed <n>' restarts the random sequence.", "");
+  INLET_DOC(1, "seed", "Restarts the random sequence with this seed.", "any int");
+  OUTLET_DOC(0, "out", "0 or 1.", "0 or 1");
+  PARAM_DOC("seed", "0", "Random seed. Any other value than 0 gives the same flips on every run.",
             "any int");
 }
 

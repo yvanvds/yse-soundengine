@@ -4,8 +4,7 @@ Messages and dispatch
 Control objects talk to each other with **messages**. This page covers what
 a message can be, which inlets act on one, and in what order a message and
 everything it causes travel through the graph. Every patch depends on these
-rules. Most of them match Max, and this page notes where the patcher
-differs.
+rules.
 
 Message types
 -------------
@@ -67,7 +66,7 @@ List objects (``.zl``, ``.pack``, ``.unpack``, ``.join``, ``.iter``, the
 keeps them from allocating when a message arrives on the audio thread. The
 limits are:
 
-- at most **256 atoms**, Max's default for ``zl``. An object can lower its own
+- at most **256 atoms**. An object can lower its own
   limit (``.zl``'s ``zlmaxsize``) but cannot raise it;
 - at most **1024 characters** of atom text in total.
 
@@ -129,9 +128,8 @@ started it:
 Two consequences follow:
 
 **The order of cords from one outlet is not guaranteed.** When one outlet
-feeds several inlets, the patcher does not promise which one is served first,
-and neither does Max. Do not build a patch that depends on it. Use
-``.trigger`` instead.
+feeds several inlets, the patcher does not promise which one is served first.
+Do not build a patch that depends on it. Use ``.trigger`` instead.
 
 **Feedback loops are cut off, not queued.** A cord path that leads back to
 where it started (directly, or through ``.s`` / ``.r``) would recurse
@@ -146,7 +144,7 @@ Right to left, and .trigger
 
 Every object that sends from more than one outlet for one input (``.trigger``,
 ``.bangbang``, ``.bondo``, ``.unpack``, ``.uzi`` and others) sends from its
-**rightmost outlet first** and its leftmost outlet last. That is Max's rule.
+**rightmost outlet first** and its leftmost outlet last.
 Combined with depth-first dispatch, it gives a firm guarantee: everything
 connected to the right outlet has finished before the left outlet sends
 anything.
@@ -185,7 +183,7 @@ Logical events
 
 Some objects need to know whether two messages came from **the same
 stimulus**. A stimulus is one host call, one GUI action, one tick of a timed
-object, or one incoming MIDI event. Max calls this a *logical event*: two
+object, or one incoming MIDI event. It is also called a *logical event*: two
 clicks on a bang are two events, but the two bangs of a ``bang, bang``
 message box are one event, however long the patch takes to process them.
 
@@ -307,23 +305,21 @@ What .route sends after removing the matched item depends on what is left:
      5  or  5.0     ->  outlet 0: bang   (the number was the whole message)
 
 .. versionchanged:: 3.0
-   ``.route`` now removes the matched item, as Max's ``route`` does (issue
-   #672). Before this change it forwarded the whole message, which is what
-   Max's ``routepass`` does. If a saved patch relied on the old behaviour,
-   replace that ``.route`` with ``.routepass``. The same change fixed float
+   ``.route`` now removes the matched item (issue #672). Before this change
+   it forwarded the whole message, which is what ``.routepass`` does. If a
+   saved patch relied on the old behaviour, replace that ``.route`` with ``.routepass``. The same change fixed float
    matching: previously ``.route 5`` never matched the float 5.0.
 
 .. versionchanged:: 3.0
    A ``.route`` with no arguments now has two outlets and matches the number
-   0, like ``.sel`` and Max's ``route`` (issue #679). Before this change it
+   0, like ``.sel`` (issue #679). Before this change it
    had no outlets and dropped every message.
 
 The message box
 ---------------
 
-When banged, ``.m`` sends its text as the message it spells, as a Max
-message box does. Each receiving inlet reads the text by the same rules as
-the list objects above:
+When banged, ``.m`` sends its text as the message it spells. Each receiving
+inlet reads the text by the same rules as the list objects above:
 
 - one number is an **int** or a **float**, by its spelling (``60``, ``0.5``);
 - the single word ``bang`` is a **bang**;

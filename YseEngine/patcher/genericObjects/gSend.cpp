@@ -20,18 +20,15 @@ CONSTRUCT() {
   REG_PARM_PARSE;
 
   ADD_DESCRIPTION(
-      "Named send endpoint. Broadcasts incoming values to every gReceive in the patcher whose "
-      "dataName matches, and publishes them on the global bus as "
-      "\"patcher.<patcherName>.<dataName>\" so "
-      "cross-patcher routing works without explicit wiring.");
+      "Sends what arrives to every .r with the same name, without a cord. It also publishes on the "
+      "named bus as 'patcher.<patcherName>.<name>', so other patchers and the host can listen.");
   ADD_CATEGORY(pCategory::IO);
-  INLET_DOC(0, "in", "Value inlet — accepts bang / int / float / list.", "");
+  INLET_DOC(0, "in", "Bang, int, float or list to send.", "");
   PARAM_DOC("dataName", "",
-            "Name to broadcast on; matching gReceive nodes will emit the forwarded value. A name "
-            "longer than 63 characters is refused and the object left unnamed.",
-            "any identifier, at most 63 characters");
-  PARAM_DOC("globalOnly", "0",
-            "When 1, skip in-patcher delivery and publish only to the global bus.", "0 or 1");
+            "The name to send to. A name longer than 63 characters is refused and logged, and the "
+            "object sends nowhere.",
+            "any name, at most 63 characters");
+  PARAM_DOC("globalOnly", "0", "1 sends only on the named bus, not inside the patcher.", "0 or 1");
 }
 
 // Control thread only (Parameters::Set), and before SetParent caches the bus

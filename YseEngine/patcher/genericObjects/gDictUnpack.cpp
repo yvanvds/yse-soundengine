@@ -27,16 +27,8 @@ namespace {
   // the constructor stops being readable with them inline — gDict's
   // arrangement.
   constexpr char kInletDoc[] =
-      "A bang unpacks the bound dictionary: each key-path argument is looked up and its value "
-      "leaves its outlet, right to left, each send completing in full before the next one "
-      "starts. \"dictionary <name>\" does the same when it names the dictionary bound by the "
-      "creation argument — the message a .dict's reference outlet emits on a bang and .dict.pack "
-      "emits on a pack, so wiring either here gives the pair gesture: pack on one side, and the "
-      "values pop out the other. A path the dictionary does not hold sends nothing on its outlet "
-      "rather than a zero, .dict's miss rule, and an entry holding nothing sends nothing either. "
-      "A reference naming anything else, any other message, or a trigger arriving while an "
-      "unpack is already running — a cord looped back from an outlet, or another thread — is "
-      "refused and counted rather than logged, since this inlet may be the audio thread.";
+      "A bang sends the value of each key path out of its outlet, right to left. So does the "
+      "dictionary's reference 'dictionary <name>'.";
 
 } // namespace
 
@@ -70,50 +62,21 @@ CONSTRUCT() {
   // came in on — routinely the audio callback.
   AtomList::ReserveRender(render);
 
-  ADD_DESCRIPTION(
-      "Outputs a dictionary's values on separate outlets — Max's dict.unpack on the "
-      "name-addressed value model .dict settled: the dictionary is bound from the first creation "
-      "argument and every argument after it is a key path declaring one outlet — \".dict.unpack "
-      "in freq gain pan\" — because a dictionary is addressed by name and never passed down a "
-      "cord. The dictionary counterpart of .unpack, and .dict.pack's inverse: a structure "
-      "arriving as one reference becomes several separate values a patch can wire individually, "
-      "so a .dict.pack wired into a .dict.unpack of the same name and paths is the identity. A "
-      "trigger — a bang, or the bound dictionary's \"dictionary <name>\" reference, the message "
-      "a .dict's reference outlet emits on a bang and .dict.pack emits on a pack — looks each "
-      "path up and sends its value out its outlet, right to left, each send completing in full "
-      "before the next one starts, so the right-hand values land in cold inlets before the "
-      "leftmost sets the result off. Each outlet sends through the family's SendAtom: a value "
-      "spelling a single number leaves as the int or float it spells, and anything else — a "
-      "symbol, or a whole list, since a dictionary value is list text — leaves as one list "
-      "message, .dict.pack's 'a list is a value, not a spread' read backwards. A path the "
-      "dictionary does not hold sends nothing on its outlet rather than a zero, .dict's miss "
-      "rule, and an entry holding nothing sends nothing either. Paths nest with \"::\", so "
-      "\"voice::1::freq\" reads one entry three levels deep. The read is a snapshot: every "
-      "path's value is copied out under the store's try-lock guard before anything is sent, so "
-      "a set arriving mid-unpack — including from an outlet's own subgraph — changes the "
-      "dictionary but not the unpack in flight, and a trigger that loses the guard is refused "
-      "whole and counted rather than firing with half a snapshot. A reference naming an unbound "
-      "dictionary is refused rather than resolved, a registry lookup being a mutex on whatever "
-      "thread the message arrived on. Calculate() does nothing and no message path allocates, "
-      "locks or blocks.");
+  // The read is a snapshot taken under the store's try-lock guard before
+  // anything is sent, into slots sized at parse time, so no message path
+  // allocates, locks or blocks and Calculate() does nothing. gDictUnpack.h
+  // has the whole design.
+  ADD_DESCRIPTION("Sends the values at a named dictionary's key paths out of separate outlets, one "
+                  "outlet per key path argument, right to left. The inverse of .dict.pack.");
   ADD_CATEGORY(pCategory::DICT);
   INLET_DOC(0, "unpack", kInletDoc, "");
-  PARAM_DOC(
-      "name", "",
-      "The dictionary's shared name — the first creation argument, addressed as "
-      "\"patcher.<patcherName>.<name>\", the dictionary a .dict of the same name in this patcher "
-      "holds. Resolved once, on the control thread, which is why no message re-points it "
-      "at run time. Empty reads a private, empty dictionary: every path misses and "
-      "nothing is sent.",
-      "any identifier");
+  PARAM_DOC("name", "",
+            "The name of the dictionary to read. Empty reads an empty dictionary, so nothing is "
+            "sent.",
+            "any identifier");
   PARAM_DOC("keys", "",
-            "One key path per outlet, in order — the shape of the unpacked dictionary, "
-            ".dict.pack's convention read backwards so the pair reads as a pair. Paths nest "
-            "with \"::\", Max's own separator, so \"voice::1::freq\" reads one entry three "
-            "levels deep. At most 256 paths of at most 128 characters each; a path that does "
-            "not fit declares no outlet and is logged, parameter parsing being control-thread "
-            "only. A duplicate path is two outlets reading one entry, and both fire. With no "
-            "paths the object has no outlets and a trigger reads nothing.",
+            "One key path per outlet, in order. Paths nest with '::'. A path longer than 128 "
+            "characters is logged and gets no outlet.",
             "key paths");
 }
 
@@ -215,12 +178,9 @@ void gDictUnpack::ShapePorts() {
     // thing worth saying about it.
     outputs.back().SetDoc(
         key,
-        "The value stored at \"" + key +
-            "\" when the object is triggered, typed by its spelling: a single number leaves as "
-            "the int or float it spells, anything else — a symbol, or a whole list — leaves as "
-            "one list message. Fires right to left with every other outlet, each send "
-            "completing in full before the next. A path the dictionary does not hold, or an "
-            "entry holding nothing, sends nothing here rather than a zero.",
+        "The value at '" + key +
+            "': one number leaves as an int or a float, anything else as a list. Nothing is sent "
+            "when the path is missing or its value is empty.",
         "any");
   }
 }

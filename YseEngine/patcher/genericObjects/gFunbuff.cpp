@@ -48,72 +48,6 @@ namespace {
     return true;
   }
 
-  constexpr char kXDoc[] =
-      "The x of an x,y pair, and the hot inlet — it both writes and reads, and which one happens "
-      "is "
-      "decided by whether a y is waiting on inlet 1. Max: 'if a y value was previously received in "
-      "the right inlet, the pair is stored; otherwise, outputs the corresponding y value'. The "
-      "waiting y is consumed by exactly one x, so the next number here is a lookup again; a y that "
-      "stayed behind would turn every later lookup into a store and the object could never be "
-      "read. "
-      "A float is converted to an int, so the stored function is an integer function. A lookup "
-      "that "
-      "misses an exact x falls back to Max's 'the closest x value which is less than the number "
-      "received' — a step function, not an interpolation, which is what makes a plain lookup right "
-      "for presets and zone maps; 'interp' is the message that interpolates. An x below every "
-      "stored x has no lesser neighbour and sends nothing. A two-number list stores a pair: Max's "
-      "ordinary right-to-left list distribution puts the second item on inlet 1 and the first "
-      "here, "
-      "so '60 100' stores (60, 100). The messages are 'set <x> <y> ...', 'delete <x> [<y>]', "
-      "'clear', 'dump', 'goto <x>', 'next', 'min', 'max', 'find <y>', 'interp <x>' and 'embed "
-      "<flag>'. 'print' and a bang are Max's Console diagnostics and are consumed silently, since "
-      "there is no console here and neither sends anything out any outlet in Max either. A store "
-      "past 256 pairs is refused whole and silently, since this inlet may be the audio thread.";
-
-  constexpr char kYDoc[] =
-      "The y that will be paired with the next x arriving on inlet 0 — Max's 'y value which will "
-      "be "
-      "paired with the next x value received in the left inlet, and stored'. Cold: setting it "
-      "sends "
-      "nothing and changes nothing already stored, it only arms the next x to be a store rather "
-      "than a lookup. It is consumed by that one x and not by the one after it. A float is "
-      "converted to an int. Nothing is armed until a y arrives, so a fresh object reads rather "
-      "than "
-      "writes; the armed y is run-time state and does not survive a save.";
-
-  constexpr char kYOutDoc[] =
-      "The y values, and everything else that answers a question. A plain x on inlet 0 sends the y "
-      "stored at it, or the y of the closest lesser x when nothing is stored there exactly; 'next' "
-      "sends the y at the pointer; 'min' and 'max' send the smallest and largest y stored, Max's "
-      "'sends the minimum / maximum y value currently stored in the funbuff out the left outlet'; "
-      "'find' sends every x whose y equals the number asked for, which is the one message that "
-      "sends x values here rather than y values, exactly as in Max; 'dump' sends each pair's y "
-      "after its x has gone out outlet 1. All of those are ints, because a stored y is an int. "
-      "'interp' is the exception and leaves as a float: it is the one message reporting a value "
-      "that was never stored, 'the y value that holds a corresponding position between the two "
-      "neighboring y values' is fractional by definition, and truncating it would quantise every "
-      "curve this object exists to draw. Max's reference does not state the type. Nothing is sent "
-      "when there is no answer — an empty store, or an x below every stored x.";
-
-  constexpr char kXOutDoc[] =
-      "The x column. Under 'next' this is the *difference* between the x just reported and the one "
-      "reported before it — Max's 'calculates the difference between that x value and the value "
-      "previously pointed to' — which makes it the inter-onset interval of a time-stamped "
-      "sequence, the gap a .metro or .line needs before the next event. Both the pointer and that "
-      "reference x start at 0, so the first 'next' on a fresh object reports the first x itself, "
-      "its distance from the origin. A 'goto' moves both, so a jump measures from where the patch "
-      "jumped to. Under 'dump' this carries the x of each pair rather than a difference, and it "
-      "fires before that pair's y leaves outlet 0 — Max's right-to-left outlet order, the order "
-      ".coll and .trigger already fire in. Always an int.";
-
-  constexpr char kEndDoc[] =
-      "Bangs when 'next' has run off the end — when no stored x is at or past the pointer. Nothing "
-      "leaves the other two outlets in that case, so this is how a patch learns a traversal is "
-      "finished. The pointer is left past the end rather than wrapped, so a repeated 'next' keeps "
-      "banging and a patch restarts with 'goto'. That is deliberately unlike .coll's 'next', which "
-      "wraps: a collection is a ring of entries, while this is a traversal of a function, and a "
-      "sequence that silently looped would be a different musical object.";
-
 } // namespace
 
 CONSTRUCT() {
@@ -149,89 +83,24 @@ CONSTRUCT() {
   pairs.resize(MAX_PAIRS);
 
   ADD_DESCRIPTION(
-      "Stores pairs of numbers sorted by x and recalls the y at any x, with linear interpolation "
-      "between the stored points — Max's funbuff, which 'stores, manages, and recalls pairs of "
-      "numbers'. A sparse function: a handful of (x, y) points and a way to ask what y is at an x "
-      "that was never stored, which is the data structure behind every breakpoint curve, tuning "
-      "table, velocity map and step sequence. It is the first store in the family ordered by its "
-      "own key — .coll is keyed but keeps storage order, .bag has no keys and .capture is a tape — "
-      "and the sort is not a convenience but the object, since every question it answers is a "
-      "question about where an x sits among the others. Inlet 0 is the x and is hot, inlet 1 is "
-      "the "
-      "y and is cold, and the same inlet writes and reads: Max's 'if a y value was previously "
-      "received in the right inlet, the pair is stored; otherwise, outputs the corresponding y "
-      "value'. The waiting y is consumed by exactly one x, since a y that stayed behind would turn "
-      "every later lookup into a store, and a float is converted to an int on either inlet, so the "
-      "stored function is an integer function. A two-number list stores a pair, Max's ordinary "
-      "right-to-left list distribution. The plain lookup is a floor lookup and not an "
-      "interpolation: Max's 'if there is no stored x value which matches the number received, "
-      "funbuff uses the closest x value which is less than the number received'. That is where "
-      "issue #497's shorthand and Max part company — the issue calls the lookup interpolated — and "
-      "Max is followed, because a patch that wanted a stepped zone map and got a ramp would be "
-      "silently wrong in a way nothing downstream could detect. Interpolation is the separate "
-      "'interp' message, Max's 'measures its position between its two neighboring x values ... and "
-      "sends the y value that holds a corresponding position between the two neighboring y "
-      "values', clamped at both ends here since Max describes only the bracketed case. Its result "
-      "leaves as a float, the one type Max's reference does not state: every other message on that "
-      "outlet reports a stored y, which is an int by construction, while interp alone reports a "
-      "value that was never stored and a position between two values is fractional by definition — "
-      "truncating it would quantise every curve the object exists to draw, and the loss is not "
-      "recoverable downstream. 'next' walks the pointer forward, sending the y out outlet 0 and "
-      "the "
-      "difference from the previously reported x out outlet 1 — Max's 'calculates the difference "
-      "between that x value and the value previously pointed to' — which makes outlet 1 the "
-      "inter-onset interval of a time-stamped sequence; outlet 2 bangs when the walk runs off the "
-      "end, and the pointer is left there rather than wrapped, unlike .coll's next, because this "
-      "is "
-      "a traversal of a function rather than a ring of entries. 'min' and 'max' send the smallest "
-      "and largest stored y, 'find' sends every x holding a given y, 'dump' sends every pair in "
-      "ascending x order with the x out outlet 1 before its y out outlet 0, 'set' stores pairs, "
-      "'delete' removes one by x alone or by an exact x,y match, 'goto' moves the pointer and "
-      "'clear' empties the store. 'print' and bang are Max's Console diagnostics and are consumed "
-      "silently, since neither sends anything out any outlet in Max either. dump and find capture "
-      "their whole burst into a stack array under one acquisition of the guard and emit after "
-      "releasing it — .bag's capture rather than .coll's per-item walk, and the sort is what "
-      "forces "
-      "it: .coll only ever appends, so re-reading its bounds each step is enough, while a "
-      "re-entrant set here can insert in front of the cursor and shift every later pair, which "
-      "would emit one pair twice and skip another. The store is bounded at 256 pairs allocated "
-      "whole at construction and never resized, with .value's non-blocking guard around it — "
-      ".coll's model, and the reason issue #497's 'mutation on the control thread only, "
-      "Calculate() "
-      "reads a published snapshot' is not what is built: a copy-on-write GraphState publish "
-      "assumes "
-      "the writer is the control thread, while a .funbuff is written by whichever thread its "
-      "message arrived on and in-patcher delivery dispatches on the audio thread, so a set from a "
-      "rendering graph would have to allocate a replacement table there. A store past the capacity "
-      "is refused whole and silently and a loser of the guard drops rather than waiting. "
-      "Calculate() does nothing. Persistence is Max's third answer, neither .coll's always nor "
-      ".bag's never: the contents ride the DumpState / RestoreState hook only when 'embed' is on, "
-      "Max's 'the word embed, followed by a non-zero number, causes the funbuff data to be stored "
-      "inside the patcher', and the flag is written alongside them so a reloaded object still "
-      "knows "
-      "to embed itself. With embed off nothing is written at all. The pointer is not saved, being "
-      "run-time position as .coll's pointer and .bucket's freeze are. Not ported: read and write "
-      "(file I/O on a path that may be the audio thread) and with them the filename argument, "
-      "which "
-      "is accepted and ignored so a patch brought across from Max still builds; copy, cut, paste, "
-      "select and undo, which are an editor selection plus a global clipboard shared between every "
-      "funbuff in the application, the same shared-name context .coll and .bag deferred; and "
-      "interptab, which interpolates through a Max table object by name, the patcher having "
-      "neither.");
+      "Stores (x, y) pairs of ints sorted by x, and sends the y for any x: the stored y, or the "
+      "one at the nearest lower x. 'interp' interpolates between points; 'next' steps through "
+      "them in order.");
   ADD_CATEGORY(pCategory::COLLECTION);
-  INLET_DOC(0, "x", kXDoc, "at most 256 pairs");
-  INLET_DOC(1, "y", kYDoc, "any int");
-  OUTLET_DOC(0, "y", kYOutDoc, "any");
-  OUTLET_DOC(1, "x", kXOutDoc, "any int");
-  OUTLET_DOC(2, "end", kEndDoc, "");
-  PARAM_DOC("filename", "",
-            "Max's filename argument, 'specifies a file to read into funbuff when the patch "
-            "loads'. Accepted and ignored: reading and writing funbuff files is file I/O on a path "
-            "that may be the audio thread and is deliberately out of scope, so the argument is "
-            "held only so that a '.funbuff mydata' brought across from Max still builds the object "
-            "it names and so the argument a patch author typed survives a save unchanged. Nothing "
-            "is derived from it, and the contents of the object come from its inlets or, when "
-            "'embed' is on, from the saved patch itself.",
+  INLET_DOC(0, "x",
+            "With a y waiting on the right inlet, stores the pair; otherwise sends the y for this "
+            "x. '<x> <y>' stores a pair. Also the commands listed in the notes.",
+            "at most 256 pairs");
+  INLET_DOC(1, "y", "The y for the next x on the left inlet. Sends nothing.", "any int");
+  OUTLET_DOC(0, "y",
+             "The y for a lookup, 'next', 'min', 'max' or 'dump'; the x values found by 'find'; a "
+             "float for 'interp'.",
+             "any");
+  OUTLET_DOC(1, "x",
+             "On 'next', the distance from the previous x; on 'dump', each pair's x, before its y.",
+             "any int");
+  OUTLET_DOC(2, "end", "A bang when 'next' has passed the last pair.", "");
+  PARAM_DOC("filename", "", "Accepted for compatibility and ignored: no file is read.",
             "any symbol");
 }
 

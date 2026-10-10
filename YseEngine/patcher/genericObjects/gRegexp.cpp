@@ -33,60 +33,39 @@ CONSTRUCT() {
   fragment.reserve(kRegexpMaxOutput);
   input.reserve(kExprValueTextMax);
 
-  ADD_DESCRIPTION(
-      "Regular-expression matching and substitution on symbols: pattern-matching and "
-      "search-and-replace on the messages flowing through a patch, so an address, a name or a "
-      "field can be picked apart without a round trip through the host application. The first "
-      "creation argument is the pattern and everything after it is an optional substitution "
-      "string, e.g. \".regexp ^/synth/(\\d+)/(\\w+)$ %2\". In a substitution, %1-%9 stand for the "
-      "capture groups, %0 for the whole match and %% for a literal percent sign. The four outlets "
-      "fire right to left, as in Max: a message the pattern does not match anywhere leaves the "
-      "rightmost outlet unchanged and nothing else is sent, which is how the object works as a "
-      "filter; a message that does match sends the matched substring and then that match's "
-      "capture groups, once per match from left to right, and finally - only when a substitution "
-      "is set - the whole subject with every match replaced. Ints and floats are matched as their "
-      "text. The pattern language is a PCRE-flavoured core: literals, . for any character, "
-      "character classes with ranges and negation, the \\d \\D \\w \\W \\s \\S shorthands, "
-      "backslash escapes including \\xHH, the anchors ^ and $, the quantifiers * + ? and {n,m} "
-      "(greedy, or lazy with a trailing ?), alternation with | and up to nine capturing groups "
-      "plus (?: ) for a non-capturing one. Backreferences, lookaround, named groups and \\b are "
-      "rejected when the pattern is compiled. Because the patcher splits parameters on spaces, a "
-      "pattern cannot contain a literal space: write \\s for any whitespace or \\x20 for exactly "
-      "one. The pattern is compiled once, when the parameter is set, into a fixed instruction "
-      "array; matching runs a backtracking VM over that array with a step budget and writes into "
-      "buffers reserved up front, so it allocates nothing, takes no lock and cannot run away - "
-      "std::regex is deliberately not used because it allocates and throws at match time and its "
-      "backtracking is unbounded. A malformed pattern is reported to the log when it is compiled "
-      "and the object then passes every message out the no-match outlet.");
+  // The pattern is compiled once, on the control thread, into a fixed
+  // instruction array; matching runs gRegexEngine's bounded backtracking VM
+  // with a step budget, into buffers reserved above. So no message path
+  // allocates, locks or blocks. gRegexp.h and gRegexEngine.h explain why this
+  // is not std::regex.
+  ADD_DESCRIPTION("Matches messages against a regular expression. Each match leaves with its "
+                  "capture groups, an optional substitution rewrites every match, and a message "
+                  "that does not match leaves the rightmost outlet unchanged.");
   ADD_CATEGORY(pCategory::STRING);
   INLET_DOC(0, "in",
-            "The subject to match. A symbol or list is matched as it stands; an int or a float is "
-            "matched as its text.",
+            "The message to match. A list is matched as its text, an int or a float as the text "
+            "that spells it.",
             "any symbol");
   OUTLET_DOC(0, "substitution",
-             "The whole subject with every match replaced by the expanded substitution string. "
-             "Sent once, after the per-match outlets, and only when a substitution parameter is "
-             "set and the pattern matched at least once.",
+             "The whole message with every match replaced by the substitution. Sent once, after "
+             "the matches, and only when a substitution is set and something matched.",
              "symbol");
   OUTLET_DOC(1, "groups",
-             "The capture groups of one match, as a space-separated list, sent once per match. "
-             "Silent when the pattern declares no groups; a group that did not take part in the "
-             "match contributes an empty token.",
+             "The capture groups of one match, as a list, sent once per match. Silent when the "
+             "pattern has no groups. A group that took no part in the match is empty.",
              "symbol");
-  OUTLET_DOC(2, "match", "One matched substring, sent once per match, left to right.", "symbol");
+  OUTLET_DOC(2, "match", "One matched piece of text, sent once per match, left to right.",
+             "symbol");
   OUTLET_DOC(3, "no match",
-             "The message, unchanged, when the pattern matched nowhere in it - and the only "
-             "outlet that fires in that case. Also the outlet an inert object (no pattern, or a "
-             "pattern that did not compile) sends everything to.",
+             "The message, unchanged, when the pattern matches nowhere in it. Also receives every "
+             "message while there is no pattern, or the pattern could not be compiled.",
              "symbol");
-  PARAM_DOC("pattern", "",
-            "The regular expression, as one token. Write \\s or \\x20 rather than a literal "
-            "space, which the parameter tokenizer would eat.",
+  PARAM_DOC("pattern", "", "The regular expression, as one token. Write \\s or \\x20 for a space.",
             "any pattern");
   PARAM_DOC("substitution", "",
-            "Optional replacement text; everything after the pattern, joined with single spaces. "
-            "%1-%9 expand to the capture groups, %0 to the whole match, %% to a literal percent "
-            "sign. Without it, outlet 0 never fires.",
+            "Optional replacement text: everything after the pattern, joined with single spaces. "
+            "%1-%9 insert a capture group, %0 the whole match and %% a percent sign. Without it, "
+            "outlet 0 never sends.",
             "any text");
 }
 

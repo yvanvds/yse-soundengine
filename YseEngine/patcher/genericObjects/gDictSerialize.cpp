@@ -49,38 +49,16 @@ namespace {
   // the constructor stops being readable with them inline — gDict's
   // arrangement.
   constexpr char kInletDoc[] =
-      "A bang serialises the bound dictionary: the whole dictionary leaves the outlet as one "
-      "list message holding a single-line compact JSON object. \"dictionary <name>\" does the "
-      "same when it names the dictionary bound by the creation argument — the message a .dict's "
-      "reference outlet emits on a bang, so wiring that outlet here gives Max's own gesture: "
-      "bang the dict, out comes its text. 'write [file]' composes the same document and hands "
-      "it to the patcher's file scheduler instead of the outlet — the bytes are copied into a "
-      "patcher-owned slot and the disk work runs on the background pool, so a dictionary too "
-      "large for a list payload still leaves whole, up to the slot's 128 KiB; a bare 'write' "
-      "reuses the last path given. A reference naming anything else, any other message, "
-      "or a trigger arriving while a document is already being composed — a cord looped back "
-      "from the outlet, or another thread — is refused and counted rather than logged, since "
-      "this inlet may be the audio thread.";
+      "A bang sends the dictionary as JSON text. So does the dictionary's reference 'dictionary "
+      "<name>'. 'write <file>' saves the same JSON to a file instead; a bare 'write' writes to "
+      "the last file again.";
 
   constexpr char kOutletDoc[] =
-      "The document: one JSON object on one line, no whitespace outside strings — \"::\" paths "
-      "expanded into real nesting, members in storage order of first appearance, values typed by "
-      "the patcher's own classifier (a single numeric token as a number, a multi-token value as "
-      "an array, an empty value as \"\", anything else as an escaped string), an empty "
-      "dictionary as {}. Exactly the document DictToJson builds for a saved patch, and exactly "
-      "what .dict.deserialize parses back — the dictionary's interchange form. The document is "
-      "a snapshot of the dictionary as it stood at the trigger. A finished document longer than "
-      "255 characters — the longest list payload the patcher's value queue carries — is refused "
-      "whole and counted, never truncated: a truncated document is not a shorter document, it "
-      "parses as a different one. Route a dictionary that large through a file instead — "
-      "'write [file]' carries up to 128 KiB — or through its parts (.dict.iter).";
+      "The dictionary as one line of compact JSON, in one list message. Nothing is sent when the "
+      "text would be longer than 255 characters.";
 
   constexpr char kNameDoc[] =
-      "The dictionary's shared name, addressed as \"patcher.<patcherName>.<name>\" — the "
-      "dictionary a "
-      ".dict of the same name in this patcher holds. Resolved once, on the control thread, "
-      "which is why no message re-points it at run time. Empty binds a private, empty "
-      "dictionary — the document is then {}.";
+      "The name of the dictionary to convert. Empty converts an empty dictionary, which gives {}.";
 
 } // namespace
 
@@ -112,29 +90,14 @@ CONSTRUCT() {
   compose = std::make_unique<char[]>(COMPOSE_CAPACITY);
   writePath.reserve(fileScheduler::PATH_CAPACITY);
 
-  ADD_DESCRIPTION(
-      "Serialises a dictionary to text — Max's dict.serialize ('convert a dictionary into a "
-      "single symbol') on the name-addressed value model .dict settled. The write half of the "
-      "interchange pair whose read half is .dict.deserialize: a dictionary becomes a JSON "
-      "string a host, a .textedit, a .s/.r pair or the live-coding DSL can carry — what makes a "
-      "dictionary the patcher's interchange format rather than only its store. The dictionary "
-      "is bound from the creation argument, \".dict.serialize <name>\", resolved once on the "
-      "control thread; a bang, or the dictionary's reference message \"dictionary <name>\", "
-      "sends the whole dictionary out the outlet as one list message holding a single-line "
-      "compact JSON object — \"::\" paths expanded into real nesting, members in storage order "
-      "of first appearance, no whitespace outside strings, values typed by the patcher's own "
-      "classifier: a single numeric token as a number, a multi-token value as an array, an "
-      "empty value as \"\", anything else as an escaped string. Exactly the document DictToJson "
-      "builds for a saved patch, so what leaves here parses anywhere JSON parses. The document "
-      "is a snapshot of the dictionary as it stood at the trigger, composed by a bounded "
-      "allocation-free emitter, so no message path allocates, locks or blocks and Calculate() "
-      "does nothing. A finished document longer than 255 characters — the longest list payload "
-      "the patcher's value queue carries — is refused whole and counted, never truncated: a "
-      "truncated JSON document parses as a different dictionary or none at all. A dictionary "
-      "that large takes the file route: 'write [file]' composes the same document and hands it "
-      "to the patcher's file scheduler — background disk work, up to the scheduler slot's 128 "
-      "KiB, past which the document is refused whole. Only the creation argument persists "
-      "across a save; the dictionary's contents persist with the .dict that owns them.");
+  // The document is a snapshot composed by a bounded, allocation-free
+  // emitter (DictAppendValueJson and friends in gDict.cpp), so no message
+  // path allocates, locks or blocks and Calculate() does nothing. 'write'
+  // hands the bytes to the patcher's fileScheduler. gDictSerialize.h has the
+  // whole design.
+  ADD_DESCRIPTION("Sends a named dictionary as one line of JSON text. 'write <file>' saves the "
+                  "same JSON to a file instead, for a dictionary too large to send as a "
+                  "message.");
   ADD_CATEGORY(pCategory::DICT);
   INLET_DOC(0, "serialize", kInletDoc, "");
   OUTLET_DOC(0, "json", kOutletDoc, "");

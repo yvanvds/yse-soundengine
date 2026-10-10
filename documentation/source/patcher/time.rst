@@ -169,7 +169,7 @@ itself.
 .. versionchanged:: 3.0
    **Left inlet** (issue `#711
    <https://github.com/yvanvds/yse-soundengine/issues/711>`_). The left
-   inlet now takes all four of Max's messages:
+   inlet now takes four messages:
 
    - a non-zero int or float starts the metro and 0 stops it. A float is
      compared with 0, not rounded, so ``0.5`` starts it.
@@ -177,7 +177,7 @@ itself.
      it from now. One button wired to several metros brings them into step.
    - ``stop`` stops it.
 
-   Every start sends a bang straight away, as Max does.
+   Every start sends a bang straight away.
 
 .. versionchanged:: 3.0
    Starting and stopping a millisecond metro from the audio thread is now
@@ -229,7 +229,7 @@ every clip on that clock. Two millisecond metros cannot do that.
 Tempo-relative time values
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Objects that accept beat time read Max's tempo-relative syntax. A quarter
+Objects that accept beat time read a tempo-relative syntax. A quarter
 note is one beat.
 
 .. list-table::
@@ -252,10 +252,10 @@ note is one beat.
      - 3
      - Ticks, 480 per beat. Use this for any other length.
 
-Any plain number means **milliseconds**, as in Max, and switches a
+Any plain number means **milliseconds** and switches a
 two-unit object back to its millisecond engine. ``bars.beats.units``,
-``hh:mm:ss``, ``quantize`` and Max's ``transport`` attribute are not read: a
-domain clock counts beats but has no bars and no time signature.
+``hh:mm:ss`` and ``quantize`` are not read: a domain clock counts beats but
+has no bars and no time signature.
 
 Binding a clock
 ~~~~~~~~~~~~~~~

@@ -39,45 +39,18 @@ namespace {
   }
 
   constexpr char kInletDocLeft[] =
-      "The first piece of the joined list, and — unless the trigger arguments say otherwise — the "
-      "hot inlet. Whatever message arrives here is stored whole, however many items it carries and "
-      "whatever they spell: this object concatenates pieces rather than collecting single typed "
-      "values, which is the whole difference between it and .pack. Storing replaces what this "
-      "inlet was holding; the other inlets keep theirs. When this inlet is hot the joined list "
-      "goes "
-      "out as soon as the store lands. A bang releases the list as it stands without storing, and "
-      "is accepted here whether or not this inlet is hot — Max's 'outputs the currently stored "
-      "list "
-      "from any inlet'. 'set <message>' performs exactly the store the plain message would have "
-      "performed and releases nothing, which is how a patch loads every inlet and then chooses "
-      "when "
-      "to send; 'set' followed by nothing empties this inlet, which then contributes nothing to "
-      "the "
-      "list. A store whose result would not fit the bounded list is refused whole — this inlet "
-      "keeps what it had, and so does every other — and counted.";
+      "The first piece of the list. Stores the whole message, whatever its length. Sends the list "
+      "unless the trigger arguments make this inlet cold. A bang sends without storing; 'set "
+      "<message>' stores without sending.";
 
   constexpr char kInletDocOther[] =
-      "The piece of the joined list in this position. Whatever message arrives here is stored "
-      "whole, however many items it carries, and replaces what this inlet was holding; the pieces "
-      "in the other inlets are untouched. Whether writing it releases the list depends on the "
-      "trigger arguments: by default only the leftmost inlet does, an argument naming this inlet's "
-      "index makes it release too, and an argument of -1 makes every inlet release. A bang is "
-      "accepted here regardless and sends the list as it stands without storing anything, which is "
-      "Max's 'outputs the currently stored list from any inlet'. 'set <message>' stores without "
-      "releasing, and 'set' followed by nothing empties this inlet so that it contributes nothing "
-      "at all to the list. A store whose result would not fit the bounded list is refused whole "
-      "and "
-      "counted, leaving every inlet holding what it held.";
+      "The piece in this position. Stores the whole message, whatever its length. Sends the list "
+      "only when a trigger argument names this inlet. A bang sends without storing; 'set "
+      "<message>' stores without sending.";
 
   constexpr char kOutletDoc[] =
-      "The joined list: every inlet's piece laid end to end in inlet order, so its length is the "
-      "sum of the lengths of the pieces rather than the number of inlets. Sent whenever a hot "
-      "inlet "
-      "is written, and whenever any inlet is banged. An inlet no message has reached carries its "
-      "starting value of 0, and an inlet a 'set' has emptied contributes nothing. A result of one "
-      "atom leaves as the int, float or symbol it spells rather than as a list of one, so it "
-      "reaches the inlets an uncollected value would have reached; a result of no atoms at all — "
-      "every inlet emptied — sends nothing rather than an empty message.";
+      "Every inlet's piece, end to end in inlet order. A result of one atom is sent as an int, "
+      "float or symbol; an empty result sends nothing.";
 
 } // namespace
 
@@ -102,63 +75,15 @@ CONSTRUCT() {
   AtomList::ReserveRender(render);
 
   ADD_DESCRIPTION(
-      "Concatenates what several inlets are holding into one list — Max's join, 'combines separate "
-      "untyped items into an output list', and the variable-length counterpart of .pack. The two "
-      "look alike from the outside and are not interchangeable: a .pack slot holds exactly one "
-      "atom of a type its creation argument declared, so its output is always as long as its "
-      "argument list, while a .join inlet holds whatever message arrived at it — however many "
-      "items that was and whatever they spell — and the output is those pieces laid end to end. A "
-      ".join 2 whose inlets hold '1 2' and '3 4' sends '1 2 3 4'; the same two messages into a "
-      ".pack 0 0 send '1 3', because there each item after the first spreads rightwards into the "
-      "neighbouring slot and the surplus is dropped. There is no type coercion at all, which is "
-      "Max's 'separate untyped items': a variable-length piece has no per-item type to declare, "
-      "and declaring one per inlet would say nothing about an inlet holding four items. .unjoin is "
-      "the way back. The first creation argument is the number of inlets, 1 to 256, and with no "
-      "arguments the object is Max's default of two inlets whose starting value is 0 — so a bang "
-      "before anything arrives sends a complete list rather than silence. The arguments after it "
-      "are Max's @triggers attribute, 'designates inputs that automatically trigger output': each "
-      "one names an inlet that releases the list when written, and -1 makes every inlet hot. With "
-      "none of them the leftmost inlet is the hot one, which is the arrangement .pack, .+ and "
-      ".counter already use. Hot-ness being a creation argument is why there is no second "
-      "registered name beside this one the way .pak sits beside .pack: it would be sugar for "
-      "'.join <n> -1'. A bang sends the list as it stands without storing and is accepted on every "
-      "inlet, Max's 'outputs the currently stored list from any inlet', so cold here means "
-      "'writing "
-      "me does not release' rather than 'I am inert'. 'set <message>' performs exactly the store "
-      "the same message without the word would have performed while suppressing only the release, "
-      "and 'set' with nothing after it empties an inlet, which then contributes nothing to the "
-      "list. The joined list leaves as list text, or — when it holds a single atom — as the int, "
-      "float or symbol that atom spells, since a list of one is not a list and this patcher does "
-      "no coercion at an inlet; an object every one of whose inlets has been emptied sends nothing "
-      "at all rather than an empty message. The storage is the bounded pre-allocated list the "
-      "whole family shares: at most 256 atoms spanning at most 1024 characters between them, in "
-      "memory reserved when the object is built, held already concatenated in inlet order with a "
-      "small table saying how many atoms belong to each inlet, so a release has nothing to "
-      "assemble. A store whose result would not fit is refused whole and counted rather than "
-      "losing its tail, because what would be lost is the messages the other inlets are holding "
-      "rather than surplus input; the count is a counter rather than a log line because the "
-      "refusing thread may be the audio callback, while a creation argument that does not fit is "
-      "logged, parameter parsing being control-thread only. Re-typing the creation arguments "
-      "rebuilds the object, since they are the inlet count and the trigger set. Calculate() does "
-      "nothing and no message path allocates, locks or blocks: numbers are rendered into a stack "
-      "buffer, the store is a rebuild inside a list reserved at construction, and the release "
-      "renders into a buffer reserved at the same time. Two threads writing the same object are "
-      "serialised by a single test-and-set guard whose loser is dropped and counted rather than "
-      "made to spin, which is also what stops an object wired back into one of its own inlets from "
-      "recursing on the audio thread.");
+      "Joins the messages held by several inlets into one list, end to end. Unlike .pack, each "
+      "inlet holds a whole message of any length. .unjoin splits a list the other way.");
 
   ADD_CATEGORY(pCategory::LIST);
 
   PARAM_DOC("inlets triggers", "2",
-            "Max's argument list, in Max's order. The first argument is the number of inlets, "
-            "clamped to 1-256 with the clamp logged; with no arguments the object is Max's "
-            "default of two inlets, each starting out holding 0. Every argument after it is Max's "
-            "@triggers attribute, carried here as a positional creation argument because the "
-            "patcher has no attributes: each one names an inlet, counted from 0, that releases the "
-            "list when written, and -1 (or any negative number) makes every inlet hot. With no "
-            "trigger the leftmost inlet is the hot one. An argument that is not a whole number is "
-            "logged and ignored — a bad inlet count leaves the default of 2 in place — and a "
-            "trigger naming an inlet the object does not have is logged and ignored.",
+            "The number of inlets, each starting out holding 0. Any further arguments name the "
+            "inlets, counted from 0, that send the list when written; -1 makes every inlet send. "
+            "Without them only the leftmost inlet sends.",
             "inlets 1-256, then any number of triggers -1 or 0 to inlets-1");
 }
 

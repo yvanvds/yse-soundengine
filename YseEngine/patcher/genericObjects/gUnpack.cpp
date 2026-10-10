@@ -25,28 +25,14 @@ namespace {
   const char* OutletDoc(gUnpack::unpackType type) {
     switch (type) {
     case gUnpack::unpackType::INT:
-      return "The element of the incoming list in this position, as an int — a float is truncated, "
-             "and a symbol is refused, leaving the element carrying the value it already held and "
-             "counting the refusal. Fires only when the list was long enough to reach this "
-             "position, and fires in right-to-left order with every other outlet. A bang fires it "
-             "whatever has arrived, carrying the creation argument until a list overwrites it.";
+      return "The item in this position, as an int; a float is truncated.";
     case gUnpack::unpackType::FLOAT:
-      return "The element of the incoming list in this position, as a float — an int is promoted "
-             "and keeps its decimal point, and a symbol is refused, leaving the element carrying "
-             "the value it already held and counting the refusal. Fires only when the list was "
-             "long enough to reach this position, and fires in right-to-left order with every "
-             "other outlet. A bang fires it whatever has arrived, carrying the creation argument "
-             "until a list overwrites it.";
+      return "The item in this position, as a float.";
     case gUnpack::unpackType::SYMBOL:
     default:
       break;
     }
-    return "The element of the incoming list in this position, verbatim — this outlet was declared "
-           "with a symbol argument, so it converts nothing and passes on whatever arrived, which "
-           "leaves as the int, float or symbol that element spells. Fires only when the list was "
-           "long enough to reach this position, and fires in right-to-left order with every other "
-           "outlet. A bang fires it whatever has arrived, carrying the creation argument until a "
-           "list overwrites it.";
+    return "The item in this position, unchanged, as the int, float or symbol it spells.";
   }
 
   const char* OutletRange(gUnpack::unpackType type) {
@@ -95,72 +81,22 @@ CONSTRUCT() {
   AtomList::ReserveRender(render);
 
   ADD_DESCRIPTION(
-      "Breaks a list into its elements and sends each one out a separate outlet — Max's unpack, "
-      "and the mirror image of .pack. It is the only way a patch gets at the individual elements "
-      "of a list that arrives from somewhere else, including the list payloads the named bus "
-      "delivers, a three-element list being how sound.<name>.position is addressed; without it a "
-      "list can be held, measured and passed along but never taken apart into the numbers a patch "
-      "computes with. There is one outlet per creation argument, and each argument's spelling "
-      "decides what its outlet emits as well as what that element starts as: a whole integer makes "
-      "an int outlet, a token with a decimal point or an exponent makes a float outlet, and "
-      "anything else makes a symbol outlet. With no arguments the object is Max's default, two int "
-      "outlets starting at 0. The type is enforced on the way in, Max's 'the inlet type is forced "
-      "to the outlet type that is defined', and it is .pack's enforcement read backwards: an int "
-      "outlet truncates a float, a float outlet promotes an int and keeps its decimal point, a "
-      "symbol outlet passes on whatever arrived verbatim, and a number outlet handed a symbol "
-      "keeps the value it already held and counts the refusal rather than emitting a 0 that would "
-      "read downstream as a value the list carried. Because the coercion happens on the way in, an "
-      "int outlet only ever sends ints and a float outlet only ever floats, which is what they are "
-      "declared as; a symbol outlet is declared as accepting anything, since it stores what "
-      "arrived and what arrived may spell a number. Outlets fire right to left, Max's universal "
-      "order, and each send completes in full — the whole subgraph behind that outlet, depth first "
-      "— before the next one starts, so the elements to the right land before the leftmost one "
-      "arrives to set the result off. Only the outlets the message actually reached fire: a "
-      "two-item list into a three-outlet .unpack fires outlets 1 and 0 and leaves outlet 2 silent, "
-      "and a bare int or float fires the leftmost outlet only, which is Max's 'the number is sent "
-      "out the left outlet'. Items past the last outlet are dropped and counted. A bang sends the "
-      "set as it stands out every outlet, Max's 'causes each stored item of a list to be sent out "
-      "the corresponding outlet', which is why the object holds the elements rather than "
-      "distributing them straight through; an element no list has reached carries its creation "
-      "argument. There is no 'set' message, Max documents none and there would be nothing for it "
-      "to mean, this object's whole output being the distribution. The held elements are the "
-      "bounded pre-allocated storage the whole list family shares: at most 256 elements spanning "
-      "at most 1024 characters between them, in memory reserved when the object is built. A store "
-      "whose result would not fit is refused whole, counted, and sends nothing at all — unlike "
-      ".pack, which still releases its unchanged list, because here the output is the incoming "
-      "elements and firing the outlets with the values they already held would present stale state "
-      "as the list that just arrived; the count is a counter rather than a log line because the "
-      "refusing thread may be the audio callback, while a creation argument that does not fit is "
-      "logged, parameter parsing being control-thread only. Re-typing the creation arguments "
-      "rebuilds the object, since the arguments are the outlet count and the outlet types. "
-      "Calculate() does nothing and no message path allocates, locks or blocks: numbers are "
-      "rendered into a stack buffer, the store is a rebuild inside a list reserved at "
-      "construction, and the sends render into a buffer reserved at the same time. Two threads "
-      "writing the same object are serialised by a single test-and-set guard whose loser is "
-      "dropped and counted rather than made to spin, which is also what stops an object wired back "
-      "into its own inlet from recursing on the audio thread.");
+      "Splits a list into its items and sends each one out its own outlet, right to left. Each "
+      "creation argument sets an outlet's type and starting value. The reverse of .pack.");
 
   ADD_CATEGORY(pCategory::LIST);
 
   INLET_DOC(0, "in",
-            "The list to break apart. Its first item goes to the leftmost outlet, its second to "
-            "the next one along, and so on for as many outlets as there are; items past the last "
-            "outlet are dropped and counted. An int or a float is a one-item list and so reaches "
-            "the leftmost outlet only. A bang sends the elements as they stand out every outlet, "
-            "including ones no list has reached, which carry their creation argument. Each item is "
-            "converted to the type its outlet was declared with, and an item that cannot be "
-            "converted — a symbol arriving at a number outlet — leaves that element carrying the "
-            "value it already held and is counted.",
+            "The list to split: the first item goes to the leftmost outlet, the second to the "
+            "next, and so on. An int or float is a list of one. A bang sends the stored items out "
+            "every outlet again.",
             "any");
 
   PARAM_DOC("elements", "0 0",
-            "One argument per outlet, and each one is that element's starting value as well as "
-            "its type. A token spelled as a whole integer declares an int outlet, one carrying a "
-            "decimal point or an exponent declares a float outlet, and anything else declares a "
-            "symbol outlet whose starting value is the token itself. With no arguments the object "
-            "is Max's default: two int outlets starting at 0. At most 256 outlets are built, "
-            "spanning at most 1024 characters between them; an argument list that does not fit is "
-            "clamped and the clamp is logged.",
+            "One argument per outlet, setting its type and starting value: a whole number makes an "
+            "int outlet, a number with a decimal point or exponent a float outlet, anything else "
+            "an outlet that passes items unchanged. Without arguments: two int outlets starting at "
+            "0.",
             "one argument per outlet, 1-256; int / float / symbol by spelling");
 }
 

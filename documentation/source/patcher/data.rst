@@ -131,8 +131,8 @@ How names work:
   ``.coll notes`` to a running patch does not reset the collection.
 - **The name is fixed when the object is created.** The name is looked up
   once, on the control thread, because the lookup takes a lock. There is no
-  message that points an object at another name while the patch runs, so
-  Max's ``refer`` is not supported. To change the name, change the object's
+  message that points an object at another name while the patch runs. To
+  change the name, change the object's
   arguments (see :doc:`building`).
 - **Renaming the patcher moves the objects, not the contents.** After
   ``patcher::name()`` gives a running patcher a new name, each named store
@@ -144,8 +144,8 @@ Each ``.coll`` keeps its own read position (the pointer used by ``next``,
 ``prev`` and a bang), so two ``.coll`` objects on one name walk the
 collection independently.
 
-The other stores do not share by name. ``.table`` accepts a name argument
-so that patches from Max still load, but two tables with the same name keep
+The other stores do not share by name. ``.table`` accepts a name argument,
+but two tables with the same name keep
 separate contents. ``.bag`` and ``.table`` can still *send*
 their contents to named receivers: ``send <name>`` delivers them to every
 ``.r <name>`` in the patcher and on the bus.
@@ -215,7 +215,7 @@ number leaves as an int or a float, anything else as a list.
 Nested keys
 ~~~~~~~~~~~
 
-Keys nest with ``::``, as in Max: ``voice::1::freq`` is one entry, three
+Keys nest with ``::``: ``voice::1::freq`` is one entry, three
 levels deep. Inside the object the table is flat and the nesting is part of
 the key. That keeps every change a fixed-size write, which is what makes the
 object safe on the audio thread. The price is that a sub-tree is not a value:
@@ -362,8 +362,7 @@ one is listed under *Saved contents* in :doc:`file_format`.
   they are not empty.
 - ``.table`` saves its values unless it was sent ``embed 0``. The flag itself
   is always saved.
-- ``.funbuff`` and ``.mtr`` save their contents only after ``embed 1``, as in
-  Max.
+- ``.funbuff`` and ``.mtr`` save their contents only after ``embed 1``.
 - ``.bag``, ``.capture``, ``.textfile`` and ``.seq`` save no contents. The
   arguments are still saved, so a ``.textfile notes.txt`` or a
   ``.seq song.mid`` reads its file again when the patch loads (see
