@@ -203,10 +203,15 @@ TEST_SUITE("patcher") {
     Rig rig;
     rig.snap.SetParams("1");
     rig.Block(0.f);
+    // Built outside the probe: a message longer than the library's small-string
+    // buffer (15 chars on libstdc++) allocates when the std::string is made,
+    // which is the caller's cost, not the object's.
+    const std::string offsetMessage = "offset 3";
+    const std::string intervalMessage = "sampleinterval 64";
     {
       TestHelpers::ProbeScope probe;
-      rig.snap.GetInlet(0)->SetMessage("offset 3", YSE::T_DSP);
-      rig.snap.GetInlet(0)->SetMessage("sampleinterval 64", YSE::T_DSP);
+      rig.snap.GetInlet(0)->SetMessage(offsetMessage, YSE::T_DSP);
+      rig.snap.GetInlet(0)->SetMessage(intervalMessage, YSE::T_DSP);
       rig.snap.GetInlet(1)->SetFloat(2.f, YSE::T_DSP);
       rig.Block(1.f);
       rig.snap.GetInlet(0)->SetBang(YSE::T_DSP);
