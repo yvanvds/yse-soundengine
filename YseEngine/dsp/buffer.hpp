@@ -164,6 +164,11 @@ namespace YSE {
        *  re-parked at the same offset on the new storage, clamped to the new
        *  end when the resize shrinks past it.
        *
+       *  Shrinking, and growing back up to the largest length the buffer has
+       *  held, never allocates: the storage keeps its capacity. DSP classes
+       *  rely on this to follow a shorter block on the audio thread (issue
+       *  #1035), so keep it true.
+       *
        *  @param length Target length in samples.
        *  @param value  Value used to initialise newly added samples when
        *                ``length`` exceeds the current size.

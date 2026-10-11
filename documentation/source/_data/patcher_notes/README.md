@@ -19,8 +19,9 @@ part.
 ## Format
 
 One file per category, named after its slug in `_PATCHER_CATEGORIES` in
-`conf.py`: `signal_generators.rst`, `filters.rst`, `math.rst`, `random.rst`,
-`routing.rst`, `control_flow.rst`, `lists.rst`, `strings.rst`,
+`conf.py`: `signal_generators.rst`, `filters.rst`, `delay.rst`,
+`dynamics.rst`, `sampling.rst`, `spectral.rst`, `analysis.rst`, `math.rst`,
+`random.rst`, `routing.rst`, `control_flow.rst`, `lists.rst`, `strings.rst`,
 `collections.rst`, `dictionaries.rst`, `arrays.rst`, `time.rst`,
 `sequencing.rst`, `midi.rst`, `gui.rst`, `input_output.rst`,
 `subpatchers.rst`, `other.rst`. Create a file when its category gets its

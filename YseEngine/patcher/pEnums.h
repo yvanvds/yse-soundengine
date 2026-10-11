@@ -32,6 +32,11 @@ namespace YSE {
       IO, // audio and host I/O (~adc, ~dac, send/receive, print, value)
       ENCAPSULATION, // subpatchers and their boundaries (patcher, inlet, outlet)
       SEQUENCE, // timed recorders / players (seq, mtr, qlist)
+      ANALYSIS, // signal analysis and metering (~snapshot, ~peakamp, ~zerox, ...)
+      DYNAMICS, // dynamics processing (~compressor, ~limiter, ~gate, ...)
+      SAMPLING, // sample buffers: recording and playback (~play, ~record, ~groove, ...)
+      SPECTRAL, // FFT and frequency-domain processing (~fft, ~pfft, ...)
+      DELAY, // delay lines and feedback structures (~tapin, ~tapout, ~comb, ...)
       COUNT_, // sentinel: number of categories, not a valid value; keep last (C API drift guard)
     };
 

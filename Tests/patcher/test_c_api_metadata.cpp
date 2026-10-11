@@ -284,6 +284,11 @@ TEST_SUITE("patcher") {
         {YSE_PCAT_IO, "IO"},
         {YSE_PCAT_ENCAPSULATION, "ENCAPSULATION"},
         {YSE_PCAT_SEQUENCE, "SEQUENCE"},
+        {YSE_PCAT_ANALYSIS, "ANALYSIS"},
+        {YSE_PCAT_DYNAMICS, "DYNAMICS"},
+        {YSE_PCAT_SAMPLING, "SAMPLING"},
+        {YSE_PCAT_SPECTRAL, "SPECTRAL"},
+        {YSE_PCAT_DELAY, "DELAY"},
     };
 
     char* json = yse_patcher_get_metadata_json();

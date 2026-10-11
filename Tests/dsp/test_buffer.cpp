@@ -21,6 +21,7 @@
 
 #include "dsp/buffer.hpp"
 #include "headers/constants.hpp" // YSE::STANDARD_BUFFERSIZE
+#include "support/alloc_probe.hpp"
 
 TEST_SUITE("dsp") {
 
@@ -426,6 +427,24 @@ TEST_SUITE("dsp") {
     b = 0.5f;
     b.getPtr()[5] = 1.0f; // max at index 5, not 0
     CHECK(b.maxValue() == doctest::Approx(1.0f).epsilon(1e-5f));
+  }
+
+  TEST_CASE("buffer: resize within capacity does not allocate (#1035)") {
+    // DSP classes pre-size their output to STANDARD_BUFFERSIZE and follow a
+    // shorter block with resize() on the audio thread. That is only real-time
+    // safe while shrinking and regrowing up to the old length keeps the
+    // storage: the guarantee documented on buffer::resize.
+    YSE::DSP::buffer b(YSE::STANDARD_BUFFERSIZE, 3);
+    b = 0.5f;
+    {
+      TestHelpers::ProbeScope probe;
+      b.resize(1);
+      b.resize(YSE::STANDARD_BUFFERSIZE / 2);
+      b.resize(YSE::STANDARD_BUFFERSIZE);
+      CHECK(TestHelpers::g_alloc_count.load() == 0);
+    }
+    CHECK(b.getLength() == YSE::STANDARD_BUFFERSIZE);
+    CHECK(b.getPtr()[0] == doctest::Approx(0.5f));
   }
 
 } // TEST_SUITE("dsp")
