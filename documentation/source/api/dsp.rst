@@ -73,6 +73,16 @@ Delay
 .. doxygenfile:: dsp/delay/delayTap.hpp
    :project: libYSE
 
+Sample buffers
+--------------
+
+Shared, named, multichannel sample buffers: what ``~buffer`` holds and the
+sampling objects play. Change one from a control thread, read it from the
+audio thread through a ``sampleBufferReader``.
+
+.. doxygenfile:: dsp/sampling/sampleBuffer.hpp
+   :project: libYSE
+
 Filter primitives
 -----------------
 

@@ -14651,6 +14651,52 @@
     ],
     "requires_midi_device": false
   },
+  "~buffer": {
+    "category": "SAMPLING",
+    "description": "A named buffer of audio samples that sampling objects play, record and read. Loads and saves audio files, resizes, clears, fills and normalizes. Buffers are shared by name across every patch and the host program.",
+    "inlets": [
+      {
+        "accepts": [],
+        "doc": "read, replace, readagain, write (writewave, writeaiff, writeflac), clear, fill, apply, normalize, setsize, sizeinsamps, crop, crop_samples, duplicate, sr, and the queries getsamps, getsize, getsr, getchans. Each runs in the background, in the order sent.",
+        "index": 0,
+        "label": "messages",
+        "range": ""
+      }
+    ],
+    "is_dsp": true,
+    "name": "~buffer",
+    "outlets": [
+      {
+        "doc": "A bang when a read, replace or readagain has finished.",
+        "index": 0,
+        "label": "loaded",
+        "range": "bang",
+        "type": "BANG"
+      },
+      {
+        "doc": "The answer to a query: samps <samples>, size <ms>, sr <Hz> or chans <count>.",
+        "index": 1,
+        "label": "info",
+        "range": "list",
+        "type": "LIST"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The name sampling objects and the host use for this buffer. Without one the buffer is private.",
+        "name": "name",
+        "range": "any symbol"
+      },
+      {
+        "default": "",
+        "doc": "Optional: an audio file to load when the object is created, then the size in ms and the number of channels. A number in the file's place is the size.",
+        "name": "file",
+        "range": "file, ms, count"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~clip": {
     "category": "MATH",
     "description": "Hard clipper: limits every sample of an audio signal to the range low to high. Use it to tame stray peaks, or as a distortion stage.",

@@ -140,6 +140,46 @@ TEST_SUITE("patcher") {
     std::filesystem::remove(path, ec);
   }
 
+  // ─── tasks (issue #1039) ────────────────────────────────────────────────────
+
+  TEST_CASE("fileScheduler: a task without a function or with too many bytes is refused (#1039)") {
+    fileScheduler io;
+    Target target;
+    const std::string big(fileScheduler::BYTES_CAPACITY + 1, 'x');
+    auto task = [](char*, std::size_t) { return true; };
+    CHECK_FALSE(io.RequestTask(&target, 0, nullptr, "a", 1));
+    CHECK_FALSE(io.RequestTask(nullptr, 0, task, "a", 1));
+    CHECK_FALSE(io.RequestTask(&target, 0, task, big.data(), big.size()));
+    CHECK_FALSE(io.RequestTask(&target, 0, task, nullptr, 4));
+    CHECK(io.Dropped() == 4);
+    // No arguments at all is a valid task.
+    CHECK(io.RequestTask(&target, 0, task, nullptr, 0));
+    io.WaitIdle();
+  }
+
+  TEST_CASE("fileScheduler: tasks run in request order on a copy of their arguments (#1039)") {
+    // ~buffer relies on the order: `clear` then `fill` then a query must not be
+    // reordered. The arguments are copied at request time, so the caller's
+    // buffer can change at once.
+    static std::string order;
+    order.clear();
+    auto task = [](char* args, std::size_t bytes) {
+      order.append(args, bytes);
+      args[0] = '!'; // a reply, in place
+      return true;
+    };
+    fileScheduler io;
+    Target target;
+    char word[2] = {'a', '\0'};
+    for (char c : {'a', 'b', 'c', 'd'}) {
+      word[0] = c;
+      REQUIRE(io.RequestTask(&target, 0, task, word, 1));
+    }
+    word[0] = 'z';
+    io.WaitIdle();
+    CHECK(order == "abcd");
+  }
+
   // ─── lifetime ───────────────────────────────────────────────────────────────
 
   TEST_CASE("fileScheduler: a patcher has no file table until a file-capable object joins (#683)") {

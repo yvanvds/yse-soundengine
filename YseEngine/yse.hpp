@@ -73,6 +73,7 @@
 #include "dsp/generators/phasor.hpp"
 #include "dsp/delay/delayLine.hpp"
 #include "dsp/delay/delayTap.hpp"
+#include "dsp/sampling/sampleBuffer.hpp"
 #include "dsp/ramp.hpp"
 #include "dsp/envelope.hpp"
 #include "dsp/ADSRenvelope.hpp"

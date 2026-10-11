@@ -12,12 +12,26 @@ namespace YSE {
     class pObject;
     struct GraphState;
 
-    /** @brief Which half of the file surface a request is — ``read`` or
-     *         ``write``. */
+    /** @brief Which kind of request it is — ``read``, ``write``, or a
+     *         ``task`` the requesting object supplied (issue #1039). */
     enum class FILE_OP : std::uint8_t {
       READ,
       WRITE,
+      TASK,
     };
+
+    /**
+     *  @brief Background work a ``TASK`` request runs (issue #1039).
+     *
+     *  Called on the background pool with the slot's copy of the request's
+     *  arguments. It may block, lock and allocate — it is off the audio
+     *  thread — but it must not touch the requesting object, which may be
+     *  gone: everything it needs travels in @p args (a name to look up, a
+     *  path, numbers). It may overwrite @p args with a reply of at most
+     *  @p argBytes bytes, which the completion hands back. Returns the
+     *  result's ``ok``.
+     */
+    using fileTaskFunction = bool (*)(char* args, std::size_t argBytes);
 
     /**
      *  @brief One finished file request, as ``pObject::DeliverFileResult``
@@ -31,7 +45,8 @@ namespace YSE {
      *  file system is installed, or a background pool that never ran the job.
      *
      *  ``bytes`` points into scheduler-owned storage and is only meaningful for
-     *  a successful ``READ``. It is valid for the duration of the callback and
+     *  a successful ``READ``, and for a ``TASK``, where it holds the arguments
+     *  as the task left them. It is valid for the duration of the callback and
      *  not one instruction longer: the slot is released the moment the callback
      *  returns, so a consumer parses out of it rather than keeping the pointer.
      */
@@ -223,6 +238,21 @@ namespace YSE {
                         const char* bytes, std::size_t byteCount);
 
       /**
+       *  @brief Run @p task on the background pool with a copy of @p args,
+       *         and deliver its result like a file request's (issue #1039).
+       *
+       *  For work that is not a plain file read or write but must stay off
+       *  the audio thread: ``~buffer`` decoding an audio file into a
+       *  ``DSP::sampleBuffer``, or resizing one. Same contract as
+       *  ``RequestRead``: any thread, wait-free, no allocation, refused when
+       *  the table is full, @p task is null, or @p argBytes is over
+       *  ``BYTES_CAPACITY``. Tasks run one at a time, in the order they were
+       *  requested, because the background pool has one worker.
+       */
+      bool RequestTask(pObject* target, int tag, fileTaskFunction task, const void* args,
+                       std::size_t argBytes);
+
+      /**
        *  @brief Hand every finished request to its target, each inside its own
        *         ``messageEventScope``.
        *
@@ -297,6 +327,7 @@ namespace YSE {
         std::uint64_t targetTag = 0;
         int tag = 0;
         FILE_OP op = FILE_OP::READ;
+        fileTaskFunction task = nullptr; // TASK only
         bool ok = false;
         std::uint32_t byteCount = 0;
         char path[PATH_CAPACITY] = {};
@@ -308,7 +339,7 @@ namespace YSE {
 
       // Shared claim path behind both Request* fronts.
       bool Arm(pObject* target, int tag, FILE_OP op, const char* path, std::size_t pathLength,
-               const char* bytes, std::size_t byteCount);
+               const char* bytes, std::size_t byteCount, fileTaskFunction task = nullptr);
 
       // Background pool: do @p entry's I/O and publish the outcome.
       void RunSlot(Entry& entry);
