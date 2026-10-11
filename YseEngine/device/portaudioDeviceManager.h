@@ -51,6 +51,14 @@ namespace YSE {
       void rememberOpenedDevice(const std::string& name, const std::string& host, int id,
                                 int channels, int bufferSize);
 
+      // Number of channels in the output array paCallback() is handed (issue
+      // #1028). Set from the stream's channel count before every stream
+      // start; public so the device-layer tests, which drive paCallback() with
+      // plain memory and no stream, can state the width of that memory.
+      void setStreamChannels(int channels) {
+        streamChannels.store(channels, std::memory_order_release);
+      }
+
       // Live device-state getters (see deviceManager.h for contract).
       double getActiveSampleRate() const override;
       int getActiveBufferSize() const override;
@@ -72,6 +80,17 @@ namespace YSE {
       // The remembered device's index in the backend's current enumeration,
       // matched by name and host, or paNoDevice.
       PaDeviceIndex findOpenedDevice() const;
+
+      // Narrow the mixer layout to `outputs` when it is wider (issue #1028).
+      // Called before a stream on a device with that many outputs starts, so
+      // the mix is not rendered for channels the device does not have.
+      // paCallback() clamps its copy to the stream either way.
+      static void fitLayoutToOutputs(int outputs);
+
+      // See setStreamChannels(). Written on the control thread before
+      // Pa_StartStream(), read by paCallback(). Not reset by close(): no
+      // callback runs without a stream, and every start sets it again.
+      std::atomic<int> streamChannels{0};
 
       // Device of the last successful openDevice() (issue #1027). Control
       // thread only.

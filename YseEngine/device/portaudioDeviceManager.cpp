@@ -13,6 +13,7 @@
 #include "portaudioDeviceManager.h"
 #include "internalHeaders.h"
 #include "internal/denormalGuard.h"
+#include <algorithm>
 #include <chrono>
 #include <cmath>
 #ifdef __WINDOWS__
@@ -75,6 +76,16 @@ int YSE::DEVICE::managerObject::paCallback(const void* /*input*/
     return 0;
   }
 
+  // `output` holds one plane per stream channel, and the mixer layout need not
+  // match it (issue #1028): openDevice() changes the layout only after the new
+  // stream has started, and init() opens every output of the default device
+  // under a stereo layout. Copy the channels both have and silence the rest of
+  // the stream; never index past its array. Both counts are stable for the
+  // whole callback — the master is only resized in doOnCallback() above.
+  const UInt streamChannels = (UInt)manager->streamChannels.load(std::memory_order_acquire);
+  const UInt mixChannels = (UInt)manager->master->out.size();
+  const UInt copyChannels = mixChannels < streamChannels ? mixChannels : streamChannels;
+
   UInt pos = 0;
   while (pos < static_cast<UInt>(numSamples)) {
     if (manager->bufferPos == STANDARD_BUFFERSIZE) {
@@ -86,7 +97,11 @@ int YSE::DEVICE::managerObject::paCallback(const void* /*input*/
                     ? (STANDARD_BUFFERSIZE - manager->bufferPos)
                     : ((UInt)numSamples - pos);
 
-    for (UInt i = 0; i < manager->master->out.size(); i++) {
+    for (UInt i = copyChannels; i < streamChannels; i++) {
+      std::fill_n(((Flt**)output)[i] + pos, size, 0.f);
+    }
+
+    for (UInt i = 0; i < copyChannels; i++) {
       UInt l = size;
       Flt* ptr1 = ((Flt**)output)[i] + pos;
       Flt* ptr2 = manager->master->out[i].getPtr() + manager->bufferPos;
@@ -220,6 +235,13 @@ Bool YSE::DEVICE::managerObject::addCallback() {
                                      std::memory_order_release);
   }
 
+  // Every output of the default device is opened, whatever the layout. Bring
+  // a wider layout down to it — a mono default under init()'s stereo layout, or
+  // the default device a reconnect falls back to (issue #1027) — so the mix is
+  // rendered for the outputs that exist (issue #1028).
+  fitLayoutToOutputs(params.channelCount);
+  setStreamChannels(params.channelCount);
+
   err = Pa_StartStream(stream);
   if (err != paNoError) {
     audioDeviceError(err);
@@ -348,6 +370,15 @@ PaDeviceIndex YSE::DEVICE::managerObject::findOpenedDevice() const {
   return paNoDevice;
 }
 
+void YSE::DEVICE::managerObject::fitLayoutToOutputs(int outputs) {
+  // Only ever narrows: a layout narrower than the device is the host's choice
+  // (stereo on an 8-output interface), and paCallback() silences the outputs
+  // it leaves unused.
+  if (outputs > 0 && CHANNEL::Manager().getNumberOfOutputs() > (UInt)outputs) {
+    CHANNEL::Manager().setChannelConf(CT_AUTO, outputs);
+  }
+}
+
 YSE::DEVICE::deviceManager::reopenOutcome
 YSE::DEVICE::managerObject::reopenDevice(bool fallbackToDefault) {
   // A session that never chose a device runs on the default one, so reopening
@@ -373,16 +404,8 @@ YSE::DEVICE::managerObject::reopenDevice(bool fallbackToDefault) {
   INTERNAL::LogImpl().emit(E_WARNING, "Could not reopen audio device " + which +
                                           "; falling back to the default output device.");
 
-  // addCallback() opens every output the default device has, while the mixer
-  // still has the layout of the device that is gone. paCallback() writes one
-  // channel per mixer output, so a mixer wider than the new stream would write
-  // past its channel array. Narrow the layout now, while no stream is running
-  // to read it.
-  const PaDeviceInfo* def = Pa_GetDeviceInfo(Pa_GetDefaultOutputDevice());
-  if (def != nullptr && def->maxOutputChannels > 0 &&
-      CHANNEL::Manager().getNumberOfOutputs() > (UInt)def->maxOutputChannels) {
-    CHANNEL::Manager().setChannelConf(CT_AUTO, def->maxOutputChannels);
-  }
+  // The mixer still has the layout of the device that is gone. addCallback()
+  // narrows it to the default device's outputs when it is wider (issue #1028).
   return addCallback() ? reopenOutcome::fellBack : reopenOutcome::failed;
 }
 
@@ -623,6 +646,13 @@ Bool YSE::DEVICE::managerObject::openStream(int deviceID, int channels, int buff
     activeOutputLatencySamples.store((int)(sinfo->outputLatency * (double)SAMPLERATE),
                                      std::memory_order_release);
   }
+
+  // system::openDevice() applies the requested layout only once this returns,
+  // so the first callbacks still see the previous device's layout; paCallback()
+  // clamps to this count (issue #1028). The layout is not narrowed here: after
+  // openDevice() the caller sets it, and a reopen returns to the channel count
+  // that layout was set for.
+  setStreamChannels(channels);
 
   err = Pa_StartStream(stream);
   if (err != paNoError) {

@@ -849,6 +849,8 @@ TEST_SUITE("devicelayer") {
     auto& master = mgr.getMaster();
     const size_t channels = master.GetBuffers().size();
     REQUIRE(channels > 0);
+    // The planes below are as wide as the mix (issue #1028).
+    mgr.setStreamChannels((int)channels);
 
     const unsigned long kFirst = 100;
     const unsigned long kRest = YSE::STANDARD_BUFFERSIZE - kFirst;
@@ -942,6 +944,8 @@ TEST_SUITE("devicelayer") {
     auto& master = mgr.getMaster();
     const size_t channels = master.GetBuffers().size();
     REQUIRE(channels > 0);
+    // The planes below are as wide as the mix (issue #1028).
+    mgr.setStreamChannels((int)channels);
 
     const unsigned long kFirst = 100;
     const unsigned long kRest = YSE::STANDARD_BUFFERSIZE - kFirst;
@@ -1000,6 +1004,81 @@ TEST_SUITE("devicelayer") {
     YSE::System().closeCurrentDevice();
   }
 
+  // Issue #1028: paCallback() wrote one plane per mixer output into an output
+  // array that has one plane per *stream* channel. The two disagree whenever
+  // the layout is wider than the stream — openDevice() onto a device with fewer
+  // outputs (the layout follows only after the stream started), or init() on a
+  // mono default device under its stereo layout — and the callback then wrote
+  // through pointers past the end of PortAudio's array, on the audio thread.
+  //
+  // Driven as the cases above, with plain memory standing in for the stream.
+  // (1) A one-channel stream under the stereo mix, with a second plane parked
+  //     past the stream's array: before the fix it is overwritten, which fails
+  //     deterministically. (2) The same stream with an array of exactly one
+  //     plane, which an ASan build reports as a heap overflow before the fix.
+  //     (3) The other direction: a stream wider than the mix gets silence on
+  //     the outputs the mix does not have, not whatever the host left there.
+  TEST_CASE("device manager: the audio callback writes no more channels than the stream has "
+            "(issue #1028)") {
+    if (!ensureOffline()) return;
+
+    auto& mgr = YSE::DEVICE::Manager();
+    auto& master = mgr.getMaster();
+    constexpr unsigned long kFrames = YSE::STANDARD_BUFFERSIZE;
+    constexpr float kUntouched = 12345.f;
+
+    YSE::sound s;
+    s.create(g_steady);
+    s.relative(true);
+    s.play();
+    pump();
+    REQUIRE(master.GetBuffers().size() == 2u);
+    YSE::System().closeCurrentDevice(); // start on a block boundary
+
+    // (1)
+    std::vector<float> left(kFrames, 0.f);
+    std::vector<float> beyond(kFrames, kUntouched);
+    float* planes[2] = {left.data(), beyond.data()};
+    mgr.setStreamChannels(1);
+    REQUIRE(YSE::DEVICE::managerObject::paCallback(nullptr, static_cast<void*>(planes), kFrames,
+                                                   nullptr, 0, &mgr) == 0);
+    const float rendered = master.GetBuffers()[0].getPtr()[0];
+    REQUIRE(rendered != 0.f);
+    CHECK(left[0] == doctest::Approx(clampToUnit(rendered)));
+    REQUIRE(beyond[0] == kUntouched);
+    REQUIRE(beyond[kFrames - 1] == kUntouched);
+
+    // (2)
+    {
+      std::vector<float*> exact(1, left.data());
+      std::fill(left.begin(), left.end(), 0.f);
+      CHECK(YSE::DEVICE::managerObject::paCallback(nullptr, static_cast<void*>(exact.data()),
+                                                   kFrames, nullptr, 0, &mgr) == 0);
+      CHECK(left[0] == doctest::Approx(clampToUnit(master.GetBuffers()[0].getPtr()[0])));
+    }
+
+    // (3)
+    std::vector<std::vector<float>> wide(4, std::vector<float>(kFrames, kUntouched));
+    std::vector<float*> widePlanes;
+    widePlanes.reserve(wide.size());
+    for (auto& plane : wide)
+      widePlanes.push_back(plane.data());
+    mgr.setStreamChannels(4);
+    CHECK(YSE::DEVICE::managerObject::paCallback(nullptr, static_cast<void*>(widePlanes.data()),
+                                                 kFrames, nullptr, 0, &mgr) == 0);
+    CHECK(wide[0][0] != kUntouched);
+    CHECK(wide[1][0] != kUntouched);
+    for (size_t c = 2; c < wide.size(); ++c) {
+      INFO("channel " << c);
+      CHECK(wide[c][0] == 0.f);
+      CHECK(wide[c][kFrames - 1] == 0.f);
+    }
+
+    s.stop();
+    pump();
+    YSE::System().closeCurrentDevice();
+  }
+
   // Domain clocks advance per rendered block, not per device callback
   // (issue #944).
   //
@@ -1022,6 +1101,8 @@ TEST_SUITE("devicelayer") {
     auto& mgr = YSE::DEVICE::Manager();
     const size_t channels = mgr.getMaster().GetBuffers().size();
     REQUIRE(channels > 0);
+    // The planes below are as wide as the mix (issue #1028).
+    mgr.setStreamChannels((int)channels);
 
     constexpr unsigned long kCallback = 512; // four engine blocks per callback
     constexpr float kTempo = 120.f;

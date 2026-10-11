@@ -163,6 +163,13 @@ oboe::DataCallbackResult OboeImplementation::onAudioReady(oboe::AudioStream* /*s
   const UInt totalFrames = (UInt)numFrames;
   auto& master = YSE::DEVICE::Manager().getMaster();
   auto& out = master.GetBuffers();
+  // The stream was opened with the master's width at the time, and the layout
+  // can change under it: system::openDevice() sets the requested layout on this
+  // single-device backend without reopening (issue #1028). Read only the mix
+  // channels that exist and write silence to the stream channels past them.
+  const int mixChannels = (int)out.size();
+  const int copyChannels = mixChannels < numChannels ? mixChannels : numChannels;
+  const int silentChannels = numChannels - copyChannels;
 
   while (pos < totalFrames) {
     if (bufferPos == YSE::STANDARD_BUFFERSIZE) {
@@ -174,14 +181,17 @@ oboe::DataCallbackResult OboeImplementation::onAudioReady(oboe::AudioStream* /*s
                     ? (YSE::STANDARD_BUFFERSIZE - bufferPos)
                     : (totalFrames - pos);
 
-    for (int i = 0; i < numChannels; i++) {
+    for (int i = 0; i < copyChannels; i++) {
       sourceChannels[i] = out[i].getPtr() + bufferPos;
     }
 
     UInt l = size;
     while (l--) {
-      for (int i = 0; i < numChannels; i++) {
+      for (int i = 0; i < copyChannels; i++) {
         *dest++ = *sourceChannels[i]++;
+      }
+      for (int i = 0; i < silentChannels; i++) {
+        *dest++ = 0.f;
       }
     }
 
