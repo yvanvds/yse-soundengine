@@ -1,11 +1,11 @@
 <!-- META
-last_updated_commit: c5860752
+last_updated_commit: 1cafe240
 last_updated_at: 2026-10-11
 -->
 
 # YSE Sound Engine — Project Overview
 
-**Version:** 3.0.0 (single source of truth: [`YseEngine/system.hpp`](YseEngine/system.hpp); upgrade guide: [documentation/source/upgrading.rst](documentation/source/upgrading.rst), release notes: [docs/release-notes/v3.0.md](docs/release-notes/v3.0.md))
+**Version:** 3.1.0 (single source of truth: [`YseEngine/system.hpp`](YseEngine/system.hpp); upgrade guide: [documentation/source/upgrading.rst](documentation/source/upgrading.rst), release notes: [docs/release-notes/v3.1.md](docs/release-notes/v3.1.md))
 **Language:** C++17
 **Platforms:** Windows (MSYS2/Clang64, MSVC), Linux (gcc/clang), Android (NDK r27+, API 26+, arm64-v8a + x86_64)
 **Build:** CMake 3.20+ via `CMakePresets.json`; Android wraps the same CMake invocation through Gradle in `Tests/Android/`
@@ -338,7 +338,9 @@ Abstracts the OS audio API behind a single interface.
 - **Desktop:** PortAudio handles Windows (WASAPI/DirectSound/WDM — ASIO is not available with the MSYS2 package; see [issue #38](https://github.com/yvanvds/yse-soundengine/issues/38)) and Linux (ALSA/JACK).
 - **Android:** Oboe 1.9.3 negotiates AAudio on API 26+ (our minSdk) and falls back to OpenSL ES on rare devices where AAudio is unavailable. `androidDeviceManager.cpp` is the platform-specific entry point.
 
-The engine monitors for missed callbacks and can auto-reconnect on device dropout (`system::autoReconnect(bool, int delayMs)`; a newly started stream gets a half-second start-up grace, #681). `cpuLoad()` is measured from the audio callback itself (#82).
+`system::refreshDevices()` enumerates devices without opening a stream — before `init()`, on an `initOffline()` session, or while a device plays — and restarts PortAudio to pick up hot-plugged devices when no stream is open. A refresh replaces the device list, so hosts look devices up again by name and host (#1026).
+
+The engine monitors for missed callbacks and can auto-reconnect on device dropout (`system::autoReconnect(bool, int delayMs[, bool fallbackToDefault, int maxAttempts])`; a newly started stream gets a half-second start-up grace, #681). A reconnect reopens the last opened device by name and host, falls back to the default device only on request, and reports its outcome through `reconnectState()`, `reconnectCount()` and `getActiveDevice()` / `getActiveHost()` (#1027). The PortAudio callback copies only the channels both the speaker layout and the stream have and writes silence to the rest, including when no sound is playing (#1028, #1029). `cpuLoad()` is measured from the audio callback itself (#82).
 
 ---
 
