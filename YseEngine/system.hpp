@@ -201,6 +201,39 @@ namespace YSE {
      */
     const device& getDevice(unsigned int nr);
 
+    /** @brief Enumerate the audio devices without opening a stream.
+     *
+     *  ``init()`` enumerates the devices as a side effect of opening the
+     *  default one, and ``initOffline()`` enumerates none, so this is how a
+     *  host lists them, or resolves a stored device, before opening anything
+     *  (issue #1026). Valid with no session at all, on an ``initOffline()``
+     *  session, and on a running device session.
+     *
+     *  On desktop it starts the audio backend (PortAudio) if it is not running
+     *  yet, without opening a stream. After that, ``openDevice()`` also works
+     *  on an ``initOffline()`` session in a process that never called
+     *  ``init()``. With no stream open, the backend is restarted so the list
+     *  includes devices plugged in or removed since it started. A stream that
+     *  is open is never touched; in that case the list is re-read from the
+     *  backend's enumeration as it stands, which on PortAudio does not see
+     *  hot-plugged devices until the device is closed.
+     *
+     *  The refresh replaces the list: device references and ``deviceSetup``
+     *  objects built from the old list are invalid afterwards, and a device's
+     *  index may now name a different device. Resolve by name and host
+     *  (``device::getName()`` / ``getTypeName()``), then build the setup.
+     *
+     *  Control thread only, not concurrently with other ``system`` calls.
+     *  On bare headless Linux runners, starting PortAudio can hang (the reason
+     *  ``initOffline()`` does not start it), so headless tools should not call
+     *  this.
+     *
+     *  @return ``true`` when the backend was reached and the list is current
+     *          (it may still be empty). ``false`` when the backend could not
+     *          start: the list is then empty and the reason is logged.
+     */
+    bool refreshDevices();
+
     /** @brief Open an audio device.
      *
      *  Allowed on a session started with ``initOffline()``, and a successful
@@ -210,13 +243,12 @@ namespace YSE {
      *  #719). Unlike ``resume()``, this call names the device it wants, so it
      *  is taken at its word.
      *
-     *  On desktop the promotion needs the audio backend to be running already:
+     *  On desktop the promotion needs the audio backend to be running:
      *  ``initOffline()`` does not start PortAudio, and ``openDevice()`` does
-     *  not start it on demand, so the device list is empty and this returns
-     *  ``false`` with a log line in a process that has only ever run offline
-     *  sessions. In a process where an earlier ``init()`` started the backend,
-     *  the device list from that session is still there and the call works
-     *  (issue #972).
+     *  not start it on demand. Call ``refreshDevices()`` first, which starts
+     *  it and enumerates the devices to pick from (issue #1026). Without it,
+     *  a process that has only ever run offline sessions has an empty device
+     *  list and this returns ``false`` with a log line (issue #972).
      *
      *  The stream opens at the session's sample rate, which is locked for the
      *  whole session and need not be the device's default rate (an offline

@@ -124,13 +124,19 @@ below). When it succeeds, the session becomes a device session:
 ``pause()`` and ``resume()`` work on it, and an audio thread now renders the
 mix. **Stop calling** ``renderOffline()`` **after that.**
 
-On desktop this needs the audio backend (PortAudio) to be running already.
+On desktop this needs the audio backend (PortAudio) to be running.
 ``initOffline()`` does not start it, so that headless machines never probe
-audio hardware, and ``openDevice()`` does not start it on demand either. In a
-process that has only ever run offline sessions, the device list is empty and
-``openDevice()`` returns ``false`` with a log line. In a process where an
-earlier ``init()`` started the backend, the device list from that session is
-still there and ``openDevice()`` works.
+audio hardware, and ``openDevice()`` does not start it on demand either. Call
+``System().refreshDevices()`` first: it starts the backend and lists the
+devices without opening one (see `Choosing an audio device`_).
+Without it, a process that has only ever run offline sessions has an empty
+device list, and ``openDevice()`` returns ``false`` with a log line.
+
+.. code-block:: cpp
+
+   YSE::System().initOffline();
+   YSE::System().refreshDevices();
+   // pick a device from getDevice(i), then openDevice(setup, ...)
 
 The stream opens at the offline session's rate: the requested one, or 48 kHz.
 If the device refuses that rate, ``openDevice()`` logs a warning naming both
@@ -167,13 +173,42 @@ devices after ``init()`` and open one with ``openDevice()``:
   ``getDevices()`` returns the whole ``std::vector`` and is only for builds
   that link libYSE statically.
 - ``getDevice(i)`` throws ``std::out_of_range`` for an index at or past
-  ``getNumDevices()``. The list is empty in an offline session and on a
-  machine with no audio hardware, so even index 0 can be out of range.
+  ``getNumDevices()``. The list is empty in an offline session until
+  ``refreshDevices()`` fills it, and on a machine with no audio hardware, so
+  even index 0 can be out of range.
 - The indexed getters on ``YSE::device`` (``getOutputChannelName``,
   ``getAvailableSampleRate``, ``getAvailableBufferSize`` and the input
   equivalent) throw ``std::out_of_range`` in the same way.
 - ``getDefaultDevice()`` and ``getDefaultHost()`` name the platform default
   device and its host API (WASAPI, ALSA, ...).
+
+**Listing devices without opening one.** ``init()`` fills the device list as part of opening the default device, which
+may be the wrong device, held by another application, or at the wrong rate.
+``System().refreshDevices()`` fills it without opening anything, so you can
+find a stored device first and then open exactly that one. It works before
+``init()``, in an offline session and in a running device session:
+
+.. code-block:: cpp
+
+   if (!YSE::System().refreshDevices()) {
+       // The audio backend could not start. The list is empty; the reason
+       // is logged.
+   }
+   for (unsigned int i = 0; i < YSE::System().getNumDevices(); ++i) {
+       const YSE::device& d = YSE::System().getDevice(i);
+       if (d.getName() == storedName && d.getTypeName() == storedHost) { /* found */ }
+   }
+
+- It never touches a stream that is open. With no stream open, the backend
+  restarts so that devices plugged in or removed since it started show up.
+  With a stream open, PortAudio cannot re-scan, so a new device appears only
+  after you close the device and refresh again.
+- The refresh replaces the list. ``YSE::device`` references and
+  ``deviceSetup`` objects built from the old list are invalid afterwards, and
+  an index can now name a different device. Match devices by name and host,
+  not by index.
+- On a bare headless Linux machine, starting PortAudio can hang, so headless
+  tools should not call it.
 
 **Special values on a device.**
 

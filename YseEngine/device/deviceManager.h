@@ -92,6 +92,20 @@ namespace YSE {
        */
       virtual void updateDeviceList() {};
 
+      /* Enumerate the devices without opening a stream (issue #1026), and
+         report whether the backend could be reached to do it. Valid with no
+         session, on an offline session and on a running device session. A
+         backend that probes hardware starts itself here if it is not running
+         yet (PortAudio's Pa_Initialize), which is also what lets openDevice()
+         work on an offline session afterwards; it must leave any open stream
+         alone. On false the device list is empty. Control thread only. The
+         base implementation re-reads the list, which for a backend with a
+         fixed device needs no start. */
+      virtual Bool refreshDevices() {
+        updateDeviceList();
+        return true;
+      }
+
       /* Open the stream described by the setup and report whether a stream is
          actually running afterwards. False means the request was refused or
          failed and the audio path is unchanged: a malformed setup, a device ID

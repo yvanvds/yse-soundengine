@@ -150,10 +150,30 @@ YSE_C_API void yse_system_auto_reconnect(YseSystem* sys, int on, int delay_ms);
 
    yse_system_get_device() is bound-checked: an idx at or beyond
    yse_system_num_devices() returns NULL and sets the last error, so probing
-   or iterating with a stale count is safe. An offline or headless session
-   enumerates no devices at all, which makes index 0 out of range. */
+   or iterating with a stale count is safe. yse_system_init() enumerates the
+   devices; yse_system_init_offline() enumerates none, so an offline session
+   lists nothing until yse_system_refresh_devices() is called, and a headless
+   host may list nothing at all. An empty list makes index 0 out of range. */
 YSE_C_API unsigned int yse_system_num_devices(YseSystem* sys);
 YSE_C_API YseDevice* yse_system_get_device(YseSystem* sys, unsigned int idx);
+/** Enumerate the audio devices without opening a stream (issue #1026). Valid
+   before yse_system_init(), on an offline session and on a running device
+   session. On desktop it starts the audio backend if it is not running, which
+   also lets yse_system_open_device() work on an offline session in a process
+   that never called yse_system_init(). With no stream open the backend is
+   restarted so hot-plugged devices show up; an open stream is never touched,
+   and the list is then re-read from the backend's current enumeration.
+
+   The list is replaced: YseDevice pointers obtained earlier, and setups built
+   from them, are invalid afterwards, and an index may now name a different
+   device. Resolve a stored device by name and host again.
+
+   Returns YSE_OK when the list is current (it may be empty), or
+   YSE_ERR_AUDIO_DEVICE when the backend could not start, with an empty list,
+   the failure in yse_last_error() and the backend's own error text in the
+   log. Starting PortAudio can hang a bare
+   headless Linux runner, so headless tools should not call this. */
+YSE_C_API YseStatus yse_system_refresh_devices(YseSystem* sys);
 /** yse_system_open_device() returns YSE_OK only when a stream was opened for
    `setup`. A setup the engine refuses — no output device, an output device
    whose id is -1 or no longer resolves, a stream open error, or an offline
@@ -162,8 +182,8 @@ YSE_C_API YseDevice* yse_system_get_device(YseSystem* sys, unsigned int idx);
    untouched (issue #900).
 
    On desktop, yse_system_init_offline() does not start the audio backend and
-   open_device does not start it on demand: an offline session can only open a
-   device in a process where an earlier yse_system_init() started it. The
+   open_device does not start it on demand: call yse_system_refresh_devices()
+   first to start it and pick the device from a current list. The
    stream opens at the locked session rate; a device that refuses that rate is
    a logged YSE_ERR_AUDIO_DEVICE (issue #972). */
 YSE_C_API YseStatus yse_system_open_device(YseSystem* sys, const YseDeviceSetup* setup,

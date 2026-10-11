@@ -315,6 +315,11 @@ unsigned int YSE::DEVICE::managerObject::GetCallbacksSinceLastUpdate() {
 
 void YSE::DEVICE::managerObject::updateDeviceList() {
   devices.clear();
+  // The defaults belong to the enumeration they came from. A re-scan that
+  // finds no default output (the device was unplugged since, issue #1026) or
+  // fails outright must not keep reporting the previous one.
+  defaultTypeName.clear();
+  defaultDeviceName.clear();
 
   Int count = Pa_GetDeviceCount();
   if (count < 0) {
@@ -347,12 +352,49 @@ void YSE::DEVICE::managerObject::updateDeviceList() {
   }
 
   const PaHostApiInfo* hostInfo = Pa_GetHostApiInfo(Pa_GetDefaultHostApi());
-  defaultTypeName = hostInfo->name;
+  if (hostInfo != nullptr) defaultTypeName = hostInfo->name;
 
   const PaDeviceInfo* deviceInfo = Pa_GetDeviceInfo(Pa_GetDefaultOutputDevice());
   if (deviceInfo != nullptr) {
     defaultDeviceName = deviceInfo->name;
   }
+}
+
+Bool YSE::DEVICE::managerObject::refreshDevices() {
+  // Enumerate without opening a stream (issue #1026). Until this existed the
+  // list was only filled by init(), so a host that wanted to resolve a stored
+  // device before opening anything had to open the default device first.
+  //
+  // PortAudio enumerates once, in Pa_Initialize, and Pa_GetDeviceCount() keeps
+  // answering from that snapshot. So with the backend running and no stream
+  // open, it is restarted: that is the only way it sees a device plugged in or
+  // removed since it started. Safe because nothing holds a PortAudio object
+  // here — `open` covers a stream that was opened but never started, too — and
+  // addCallback() / openDevice() resolve their device afresh on every open.
+  //
+  // With a stream open the backend is left alone, since a restart would close
+  // it. The list is re-read from the snapshot, which is all PortAudio offers
+  // without closing the stream.
+  if (initDone && !open) terminate();
+
+  if (!initDone) {
+    // Not gated on the session kind: unlike init(false), this is an explicit
+    // request to reach the hardware, so it is allowed to start the backend an
+    // offline session deliberately left down. That also makes openDevice()
+    // work on an offline session in a process that never ran init() (#972).
+    err = Pa_Initialize();
+    if (err != paNoError) {
+      audioDeviceError(err);
+      devices.clear();
+      defaultTypeName.clear();
+      defaultDeviceName.clear();
+      return false;
+    }
+    initDone = true;
+  }
+
+  updateDeviceList();
+  return true;
 }
 
 Bool YSE::DEVICE::managerObject::openDevice(const YSE::deviceSetup& object) {
@@ -376,15 +418,15 @@ Bool YSE::DEVICE::managerObject::openDevice(const YSE::deviceSetup& object) {
   // Nothing to open on the offline engine either — init(false) skips
   // Pa_Initialize on purpose, so there is no stream and no layout to follow.
   // The backend is deliberately not brought up on demand here (issue #972):
-  // the device list a caller picks from is only enumerated by init(), so a
-  // process that has only run offline sessions has no device to name anyway,
-  // and initOffline() stays free of Pa_Initialize, which hangs bare headless
-  // runners. Say so rather than failing silently.
+  // the device a caller names comes from a device list, and only init() or
+  // refreshDevices() enumerate one — both of which start the backend (issue
+  // #1026). initOffline() stays free of Pa_Initialize, which hangs bare
+  // headless runners. Say so rather than failing silently.
   if (!initDone) {
     INTERNAL::LogImpl().emit(E_WARNING,
-                             "Cannot open a device: the audio backend is not running. An "
-                             "initOffline() session can only open a device in a "
-                             "process where an earlier init() started it.");
+                             "Cannot open a device: the audio backend is not running. Call "
+                             "System().refreshDevices() to start it and enumerate the devices "
+                             "before opening one on an initOffline() session.");
     return false;
   }
 

@@ -39,6 +39,7 @@ namespace YSE {
       unsigned int GetCallbacksSinceLastUpdate() override;
 
       void updateDeviceList() override;
+      Bool refreshDevices() override;
       Bool openDevice(const YSE::deviceSetup& object) override;
       Bool addCallback() override;
 

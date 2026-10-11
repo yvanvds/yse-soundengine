@@ -332,6 +332,27 @@ YSE_C_API YseDevice* yse_system_get_device(YseSystem* sys, unsigned int idx) {
   }
 }
 
+YSE_C_API YseStatus yse_system_refresh_devices(YseSystem* sys) {
+  if (!sys) return YSE_ERR_INVALID_HANDLE;
+  try {
+    if (!to_cpp(sys)->refreshDevices()) {
+      // The backend's own error text goes to the log as an audio-device
+      // message; the engine reports the failure itself as a bool.
+      yse_c::set_last_error("yse_system_refresh_devices: the audio backend could not be started "
+                            "(no audio subsystem reachable); the device list is empty and the "
+                            "backend's error is in the engine log");
+      return YSE_ERR_AUDIO_DEVICE;
+    }
+    return YSE_OK;
+  } catch (const std::exception& e) {
+    yse_c::set_last_error(e.what());
+    return YSE_ERR_EXCEPTION;
+  } catch (...) {
+    yse_c::set_last_error("unknown C++ exception in yse_system_refresh_devices");
+    return YSE_ERR_EXCEPTION;
+  }
+}
+
 YSE_C_API YseStatus yse_system_open_device(YseSystem* sys, const YseDeviceSetup* setup,
                                            YseChannelType layout) {
   if (!sys) return YSE_ERR_INVALID_HANDLE;

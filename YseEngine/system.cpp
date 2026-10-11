@@ -531,6 +531,12 @@ const YSE::device& YSE::system::getDevice(unsigned int nr) {
   return DEVICE::Manager().getDeviceList().at(nr);
 }
 
+bool YSE::system::refreshDevices() {
+  // No session gate: listing devices is not acquiring one. The backend leaves
+  // any open stream alone (see managerObject::refreshDevices()).
+  return DEVICE::Manager().refreshDevices();
+}
+
 const std::string& YSE::system::getDefaultDevice() {
   return DEVICE::Manager().getDefaultDeviceName();
 }
