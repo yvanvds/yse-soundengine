@@ -143,6 +143,9 @@ void outlet::SendMessage(const std::string& value, YSE::THREAD thread) {
 }
 
 void outlet::SendBuffer(YSE::DSP::buffer* value, YSE::THREAD thread) {
+  // A link carries no samples (issue #1038); its target must not count it as
+  // a signal arriving.
+  if (link) return;
   SendDepthGuard guard;
   if (!guard.allowed) return;
   const graphReadScope scope(owner);

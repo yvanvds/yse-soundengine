@@ -22,6 +22,7 @@
 #include <mutex>
 #include <string>
 #include <thread>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 #include "../implementations/logImplementation.h"
@@ -730,22 +731,79 @@ void patcherImplementation::ConnectUnlocked(YSE::pHandle* from, int outlet, YSE:
   PATCHER::outlet* out = source->GetOutlet(sourcePin);
   PATCHER::inlet* in = target->GetInlet(targetPin);
   if (out != nullptr && in != nullptr) {
-    // Ask the inlet first: it refuses a second buffer source (and duplicate
-    // edges). Only record the edge on the outlet when the inlet accepted it —
+    // A signal loop is refused here, where the user makes it (issue #1038).
+    // Each object in it would wait for the others to deliver a block first,
+    // so none would ever run, and neither would anything downstream. A loop
+    // is legal only through a link (~tapin -> ~tapout), which reads the past
+    // and holds nothing back. Checking every new cord keeps the signal graph
+    // loop-free, so the traversal needs no check of its own; a saved patch
+    // with a loop loses the cord that closed it, with this message, on load.
+    std::vector<pObject*> loop;
+    if (out->Type() == OUT_TYPE::BUFFER && !out->IsLink() && in->AcceptsDSP() &&
+        SignalPathUnlocked(target, source, loop)) {
+      std::string names;
+      for (pObject* o : loop) {
+        names += std::string(o->Type()) + " #" + std::to_string(o->GetID()) + " -> ";
+      }
+      names += std::string(target->Type()) + " #" + std::to_string(target->GetID());
+      INTERNAL::LogImpl().emit(E_ERROR, "Patcher: connection refused: it would close a signal "
+                                        "loop (" +
+                                            names +
+                                            "). A signal loop needs a delay line: "
+                                            "~tapin -> ~tapout.");
+      return;
+    }
+    // Ask the inlet first: it refuses a duplicate edge and a second link.
+    // Only record the edge on the outlet when the inlet accepted it —
     // a one-sided outlet->inlet edge survives Disconnect/UnwireFromPeers (both
     // clean up from the inlet's records) and gets compiled into every later
     // GraphState, so once the target object is deleted and reclaimed the audio
     // thread reads a freed inlet through the *live* snapshot (issue #237).
     if (target->ConnectInlet(out, targetPin)) {
       source->ConnectOutlet(in, sourcePin);
+    } else if (out->IsLink() && !in->AcceptsLink()) {
+      INTERNAL::LogImpl().emit(E_ERROR, "Patcher: connection refused: a delay-line link only "
+                                        "connects to an inlet that reads the line (the left "
+                                        "inlet of ~tapout)");
     } else {
-      INTERNAL::LogImpl().emit(E_ERROR,
-                               "Patcher: connection refused (duplicate edge or inlet already has "
-                               "a buffer source)");
+      INTERNAL::LogImpl().emit(E_ERROR, "Patcher: connection refused (duplicate edge, or the "
+                                        "inlet already has a delay-line link)");
     }
   } else {
     INTERNAL::LogImpl().emit(E_ERROR, "Patcher: Invalid Connection");
   }
+}
+
+bool patcherImplementation::SignalPathUnlocked(pObject* from, pObject* to,
+                                               std::vector<pObject*>& path) {
+  // Breadth-first over the live signal cords, keeping each object's
+  // predecessor so the loop can be named in the log. Control thread, under
+  // mtx: it may allocate. The predecessor map is only looked up, never
+  // iterated, so address order cannot leak into the result.
+  std::unordered_map<pObject*, pObject*> previous;
+  std::vector<pObject*> frontier{from};
+  previous[from] = nullptr;
+  for (std::size_t next = 0; next < frontier.size(); next++) {
+    pObject* object = frontier[next];
+    if (object == to) {
+      for (pObject* o = to; o != nullptr; o = previous[o])
+        path.push_back(o);
+      std::reverse(path.begin(), path.end());
+      return true;
+    }
+    for (int i = 0; i < object->NumOutputs(); i++) {
+      PATCHER::outlet* out = object->GetOutlet(i);
+      if (out == nullptr || out->Type() != OUT_TYPE::BUFFER || out->IsLink()) continue;
+      for (PATCHER::inlet* in : out->Targets()) {
+        if (!in->AcceptsDSP()) continue;
+        pObject* successor = in->Owner();
+        if (previous.find(successor) != previous.end()) continue;
+        previous[successor] = object;
+        frontier.push_back(successor);
+      }
+    }
+  }
+  return false;
 }
 
 bool patcherImplementation::AcceptsHandlesUnlocked(YSE::pHandle* from, YSE::pHandle* to,
@@ -1108,12 +1166,26 @@ void patcherImplementation::ReplaceObjectUnlocked(YSE::pHandle* handle, const st
     for (PATCHER::outlet* dsp : oldIn->DspSources()) {
       if (freshIn->Connect(dsp)) dsp->Connect(freshIn);
     }
+    if (PATCHER::outlet* link = oldIn->LinkSource()) {
+      if (freshIn->Connect(link)) link->Connect(freshIn);
+    }
   }
   const int outs = std::min(old->NumOutputs(), fresh->NumOutputs());
   for (int o = 0; o < outs; o++) {
     PATCHER::outlet* oldOut = old->GetOutlet(o);
     PATCHER::outlet* freshOut = fresh->GetOutlet(o);
     if (oldOut == nullptr || freshOut == nullptr) continue;
+    if (oldOut->IsLink()) {
+      // An inlet holds one link (issue #1038), and the old outlet still holds
+      // it, so hand it over rather than add a second. A copy, because the
+      // Disconnect erases from the list being walked.
+      const std::vector<PATCHER::inlet*> dests = oldOut->Targets();
+      for (PATCHER::inlet* dest : dests) {
+        dest->Disconnect(oldOut);
+        if (dest->Connect(freshOut)) freshOut->Connect(dest);
+      }
+      continue;
+    }
     for (PATCHER::inlet* dest : oldOut->Targets()) {
       if (dest->Connect(freshOut)) freshOut->Connect(dest);
     }
@@ -2061,6 +2133,7 @@ YSE::PATCHER::GraphState* patcherImplementation::BuildGraph() {
   GraphState* g = new GraphState();
   g->outletTargets.resize(nextOutletId_);
   g->inletDspSources.assign(nextInletId_, 0);
+  g->inletLinkSources.assign(nextInletId_, nullptr);
   g->outletOwner.assign(nextOutletId_, nullptr);
   g->inletOwner.assign(nextInletId_, nullptr);
 
@@ -2087,7 +2160,9 @@ YSE::PATCHER::GraphState* patcherImplementation::BuildGraph() {
       if (out == nullptr) continue;
       int id = out->GraphId();
       if (id >= 0 && id < nextOutletId_) {
-        g->outletTargets[id] = out->Targets();
+        // A link is never pushed (issue #1038): the reader finds its source
+        // through inletLinkSources instead.
+        if (!out->IsLink()) g->outletTargets[id] = out->Targets();
         g->outletOwner[id] = out;
       }
     }
@@ -2097,6 +2172,7 @@ YSE::PATCHER::GraphState* patcherImplementation::BuildGraph() {
       int id = in->GraphId();
       if (id >= 0 && id < nextInletId_) {
         g->inletDspSources[id] = static_cast<unsigned int>(in->DspSources().size());
+        if (in->LinkSource() != nullptr) g->inletLinkSources[id] = in->LinkSource()->Owner();
         g->inletOwner[id] = in;
       }
     }

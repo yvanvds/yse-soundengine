@@ -97,6 +97,7 @@ inlet::inlet(inlet&& other) noexcept
     current(other.current),
     signal(other.signal),
     active(other.active),
+    linkTarget(other.linkTarget),
     position(other.position),
     graphId(other.graphId),
     onInt(std::move(other.onInt)),
@@ -106,12 +107,14 @@ inlet::inlet(inlet&& other) noexcept
     onBuffer(std::move(other.onBuffer)),
     dspConnections(std::move(other.dspConnections)),
     connections(std::move(other.connections)),
+    linkSource(other.linkSource),
     scratch(std::move(other.scratch)),
     docLabel(std::move(other.docLabel)),
     docDescription(std::move(other.docDescription)),
     docRange(std::move(other.docRange)) {
   // `current` may point at the moved scratch; that buffer moved with us.
   other.current = nullptr;
+  other.linkSource = nullptr;
 }
 
 inlet::~inlet() {
@@ -344,6 +347,21 @@ unsigned int inlet::DspSourceCount() const {
   return static_cast<unsigned int>(dspConnections.size());
 }
 
+pObject* inlet::LinkedObject() const {
+  // Same resolution as DspSourceCount above (issues #226, #963).
+  const graphReadScope scope(obj);
+  const auto owned = [this](const GraphState* g) {
+    return g != nullptr && graphId >= 0 &&
+           static_cast<size_t>(graphId) < g->inletLinkSources.size() &&
+           g->inletOwner[graphId] == this;
+  };
+  const GraphState* graph = scope.Graph();
+  if (owned(graph)) return graph->inletLinkSources[graphId];
+  const GraphState* latest = (graph != nullptr && graphId >= 0) ? scope.Latest() : nullptr;
+  if (latest != graph && owned(latest)) return latest->inletLinkSources[graphId];
+  return linkSource != nullptr ? linkSource->Owner() : nullptr;
+}
+
 bool inlet::WaitingForDSP() const {
   if (!signal) return false;
   return dspArrived < DspSourceCount();
@@ -356,6 +374,9 @@ void inlet::UnwireFromPeers() {
   dsp.swap(dspConnections);
   std::vector<outlet*> conns;
   conns.swap(connections);
+  outlet* link = linkSource;
+  linkSource = nullptr;
+  if (link != nullptr) link->Disconnect(this);
   for (unsigned int i = 0; i < dsp.size(); i++) {
     dsp[i]->Disconnect(this);
   }
@@ -365,6 +386,13 @@ void inlet::UnwireFromPeers() {
 }
 
 bool inlet::Connect(outlet* out) {
+  // A link cord (issue #1038) only ends on an inlet that reads one, and there
+  // is one per inlet: a ~tapout reads one delay line.
+  if (out->IsLink()) {
+    if (!linkTarget || linkSource != nullptr) return false;
+    linkSource = out;
+    return true;
+  }
   // Any number of distinct signal sources (issue #1036); the same outlet twice
   // is still one cord, and refused.
   std::vector<outlet*>& list = out->Type() == OUT_TYPE::BUFFER ? dspConnections : connections;
@@ -376,6 +404,11 @@ bool inlet::Connect(outlet* out) {
 }
 
 void inlet::Disconnect(outlet* out) {
+  if (linkSource != nullptr && linkSource == out) {
+    linkSource = nullptr;
+    out->Disconnect(this);
+    return;
+  }
   for (unsigned int i = 0; i < dspConnections.size(); i++) {
     if (dspConnections[i] == out) {
       dspConnections.erase(dspConnections.begin() + i);
