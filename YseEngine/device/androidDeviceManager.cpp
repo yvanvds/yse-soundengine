@@ -51,6 +51,14 @@ void YSE::DEVICE::managerObject::updateDeviceList() {
   devices.push_back(d);
 }
 
+namespace {
+  // The one device this backend has (see updateDeviceList()).
+  void setActive(std::string& name, std::string& host, bool on) {
+    name = on ? "Android Audio" : "";
+    host = on ? "Oboe" : "";
+  }
+} // namespace
+
 void YSE::DEVICE::managerObject::pause() {
   implementation.Suspend();
   // Mirror the PortAudio observable behavior: while paused, the live
@@ -58,13 +66,24 @@ void YSE::DEVICE::managerObject::pause() {
   // would otherwise have to re-negotiate against the device), we only flip
   // the manager's `open` flag the getters gate on. Issue #74.
   open = false;
+  setActive(activeDeviceName, activeDeviceHost, false);
 }
 
 void YSE::DEVICE::managerObject::resume() {
+  (void)reopenDevice(false);
+}
+
+YSE::DEVICE::deviceManager::reopenOutcome
+YSE::DEVICE::managerObject::reopenDevice(bool /*fallbackToDefault*/) {
+  // There is only one device, so it is always the session's own and there is
+  // nothing to fall back to (issue #1027).
   // A restarted stream needs time before its first callback arrives, exactly
   // like a freshly opened one, so it counts as a stream start (issue #681).
-  if (implementation.Resume()) notifyStreamStarted();
+  const bool started = implementation.Resume();
+  if (started) notifyStreamStarted();
   open = true;
+  setActive(activeDeviceName, activeDeviceHost, true);
+  return started ? reopenOutcome::opened : reopenOutcome::failed;
 }
 
 Bool YSE::DEVICE::managerObject::addCallback() {
@@ -73,6 +92,7 @@ Bool YSE::DEVICE::managerObject::addCallback() {
   if (implementation.Start(YSE::DEVICE::Manager().getMaster().GetBuffers().size(),
                            (int32_t)getRequestedSampleRate())) {
     notifyStreamStarted();
+    setActive(activeDeviceName, activeDeviceHost, true);
     return true;
   }
   // No stream is running: system::init() reports that (issue #973).
@@ -120,6 +140,7 @@ void YSE::DEVICE::managerObject::close() {
   implementation.Stop();
   initDone = false;
   open = false;
+  setActive(activeDeviceName, activeDeviceHost, false);
   // YSE::Log().sendMessage("androidDeviceManager: Close done");
 }
 

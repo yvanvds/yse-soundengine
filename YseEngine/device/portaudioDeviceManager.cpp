@@ -13,6 +13,7 @@
 #include "portaudioDeviceManager.h"
 #include "internalHeaders.h"
 #include "internal/denormalGuard.h"
+#include <algorithm>
 #include <chrono>
 #include <cmath>
 #ifdef __WINDOWS__
@@ -70,10 +71,27 @@ int YSE::DEVICE::managerObject::paCallback(const void* /*input*/
     manager->activeBufferSize.store((int)numSamples, std::memory_order_release);
   }
 
+  // `output` holds one plane per stream channel, and the mixer layout need not
+  // match it (issue #1028): openDevice() changes the layout only after the new
+  // stream has started, and init() opens every output of the default device
+  // under a stereo layout. Copy the channels both have and silence the rest of
+  // the stream; never index past its array. Both counts are stable for the
+  // whole callback — the master is only resized in doOnCallback() below.
+  const UInt streamChannels = (UInt)manager->streamChannels.load(std::memory_order_acquire);
+
   if (!manager->doOnCallback(numSamples)) {
+    // Nothing to render, but the callback still owns the whole output buffer:
+    // PortAudio does not guarantee it arrives silent (issue #1029). The Oboe
+    // backend zeroes it on the same path.
+    for (UInt i = 0; i < streamChannels; i++) {
+      std::fill_n(((Flt**)output)[i], numSamples, 0.f);
+    }
     manager->updateCpuLoadEma(cbStart, numSamples);
     return 0;
   }
+
+  const UInt mixChannels = (UInt)manager->master->out.size();
+  const UInt copyChannels = mixChannels < streamChannels ? mixChannels : streamChannels;
 
   UInt pos = 0;
   while (pos < static_cast<UInt>(numSamples)) {
@@ -86,7 +104,11 @@ int YSE::DEVICE::managerObject::paCallback(const void* /*input*/
                     ? (STANDARD_BUFFERSIZE - manager->bufferPos)
                     : ((UInt)numSamples - pos);
 
-    for (UInt i = 0; i < manager->master->out.size(); i++) {
+    for (UInt i = copyChannels; i < streamChannels; i++) {
+      std::fill_n(((Flt**)output)[i] + pos, size, 0.f);
+    }
+
+    for (UInt i = 0; i < copyChannels; i++) {
       UInt l = size;
       Flt* ptr1 = ((Flt**)output)[i] + pos;
       Flt* ptr2 = manager->master->out[i].getPtr() + manager->bufferPos;
@@ -220,6 +242,13 @@ Bool YSE::DEVICE::managerObject::addCallback() {
                                      std::memory_order_release);
   }
 
+  // Every output of the default device is opened, whatever the layout. Bring
+  // a wider layout down to it — a mono default under init()'s stereo layout, or
+  // the default device a reconnect falls back to (issue #1027) — so the mix is
+  // rendered for the outputs that exist (issue #1028).
+  fitLayoutToOutputs(params.channelCount);
+  setStreamChannels(params.channelCount);
+
   err = Pa_StartStream(stream);
   if (err != paNoError) {
     audioDeviceError(err);
@@ -239,6 +268,8 @@ Bool YSE::DEVICE::managerObject::addCallback() {
 
   {
     std::string hostName = Pa_GetHostApiInfo(Pa_GetDeviceInfo(params.device)->hostApi)->name;
+    activeDeviceName = info->name;
+    activeDeviceHost = hostName;
     INTERNAL::LogImpl().emit(E_DEBUG,
                              "Audio device: " + hostName + " @ " + std::to_string(SAMPLERATE) +
                                  " Hz" + ", suggested latency " +
@@ -268,6 +299,8 @@ void YSE::DEVICE::managerObject::close() {
   activeBufferSize.store(0, std::memory_order_release);
   activeOutputLatencySamples.store(0, std::memory_order_release);
   cpuLoadEma.store(0.f, std::memory_order_relaxed);
+  activeDeviceName.clear();
+  activeDeviceHost.clear();
 
   // The stream is very unlikely to have stopped on a block boundary, so
   // bufferPos is left pointing part-way into the last block paCallback
@@ -302,7 +335,85 @@ void YSE::DEVICE::managerObject::pause() {
 }
 
 void YSE::DEVICE::managerObject::resume() {
-  addCallback();
+  (void)reopenDevice(false);
+}
+
+void YSE::DEVICE::managerObject::rememberOpenedDevice(const std::string& name,
+                                                      const std::string& host, int id, int channels,
+                                                      int bufferSize) {
+  hasOpenedDevice = true;
+  openedName = name;
+  openedHost = host;
+  openedID = id;
+  openedChannels = channels;
+  openedBufferSize = bufferSize;
+}
+
+void YSE::DEVICE::managerObject::forgetOpenedDevice() {
+  hasOpenedDevice = false;
+  openedName.clear();
+  openedHost.clear();
+  openedID = paNoDevice;
+  openedChannels = 0;
+  openedBufferSize = 0;
+}
+
+PaDeviceIndex YSE::DEVICE::managerObject::findOpenedDevice() const {
+  // By name and host, not by index alone: a refreshDevices() restarts the
+  // backend and an index can then name a different device (issue #1026). The
+  // remembered index is tried first only because it is usually still right.
+  const auto matches = [this](PaDeviceIndex i) {
+    const PaDeviceInfo* info = Pa_GetDeviceInfo(i);
+    if (info == nullptr || info->maxOutputChannels <= 0) return false;
+    const PaHostApiInfo* hostInfo = Pa_GetHostApiInfo(info->hostApi);
+    return hostInfo != nullptr && openedName == info->name && openedHost == hostInfo->name;
+  };
+  if (matches(openedID)) return openedID;
+  // Negative while the backend is not running, which skips the loop.
+  const PaDeviceIndex count = Pa_GetDeviceCount();
+  for (PaDeviceIndex i = 0; i < count; ++i) {
+    if (matches(i)) return i;
+  }
+  return paNoDevice;
+}
+
+void YSE::DEVICE::managerObject::fitLayoutToOutputs(int outputs) {
+  // Only ever narrows: a layout narrower than the device is the host's choice
+  // (stereo on an 8-output interface), and paCallback() silences the outputs
+  // it leaves unused.
+  if (outputs > 0 && CHANNEL::Manager().getNumberOfOutputs() > (UInt)outputs) {
+    CHANNEL::Manager().setChannelConf(CT_AUTO, outputs);
+  }
+}
+
+YSE::DEVICE::deviceManager::reopenOutcome
+YSE::DEVICE::managerObject::reopenDevice(bool fallbackToDefault) {
+  // A session that never chose a device runs on the default one, so reopening
+  // the default is reopening its own device.
+  if (!hasOpenedDevice) return addCallback() ? reopenOutcome::opened : reopenOutcome::failed;
+
+  // The device the host opened, with the channel count and buffer size it
+  // asked for (issue #1027). This used to go straight to addCallback(), so a
+  // dropout moved a session on an external interface onto the default device.
+  // The rate is the locked session rate, so no request is passed.
+  const PaDeviceIndex id = findOpenedDevice();
+  if (id != paNoDevice && openStream(id, openedChannels, openedBufferSize, 0)) {
+    openedID = id;
+    return reopenOutcome::opened;
+  }
+
+  const std::string which = "\"" + openedName + "\" (" + openedHost + ")";
+  if (!fallbackToDefault) {
+    INTERNAL::LogImpl().emit(E_WARNING, "Could not reopen audio device " + which +
+                                            "; not falling back to the default device.");
+    return reopenOutcome::failed;
+  }
+  INTERNAL::LogImpl().emit(E_WARNING, "Could not reopen audio device " + which +
+                                          "; falling back to the default output device.");
+
+  // The mixer still has the layout of the device that is gone. addCallback()
+  // narrows it to the default device's outputs when it is wider (issue #1028).
+  return addCallback() ? reopenOutcome::fellBack : reopenOutcome::failed;
 }
 
 unsigned int YSE::DEVICE::managerObject::GetCallbacksSinceLastUpdate() {
@@ -315,6 +426,11 @@ unsigned int YSE::DEVICE::managerObject::GetCallbacksSinceLastUpdate() {
 
 void YSE::DEVICE::managerObject::updateDeviceList() {
   devices.clear();
+  // The defaults belong to the enumeration they came from. A re-scan that
+  // finds no default output (the device was unplugged since, issue #1026) or
+  // fails outright must not keep reporting the previous one.
+  defaultTypeName.clear();
+  defaultDeviceName.clear();
 
   Int count = Pa_GetDeviceCount();
   if (count < 0) {
@@ -347,12 +463,49 @@ void YSE::DEVICE::managerObject::updateDeviceList() {
   }
 
   const PaHostApiInfo* hostInfo = Pa_GetHostApiInfo(Pa_GetDefaultHostApi());
-  defaultTypeName = hostInfo->name;
+  if (hostInfo != nullptr) defaultTypeName = hostInfo->name;
 
   const PaDeviceInfo* deviceInfo = Pa_GetDeviceInfo(Pa_GetDefaultOutputDevice());
   if (deviceInfo != nullptr) {
     defaultDeviceName = deviceInfo->name;
   }
+}
+
+Bool YSE::DEVICE::managerObject::refreshDevices() {
+  // Enumerate without opening a stream (issue #1026). Until this existed the
+  // list was only filled by init(), so a host that wanted to resolve a stored
+  // device before opening anything had to open the default device first.
+  //
+  // PortAudio enumerates once, in Pa_Initialize, and Pa_GetDeviceCount() keeps
+  // answering from that snapshot. So with the backend running and no stream
+  // open, it is restarted: that is the only way it sees a device plugged in or
+  // removed since it started. Safe because nothing holds a PortAudio object
+  // here — `open` covers a stream that was opened but never started, too — and
+  // addCallback() / openDevice() resolve their device afresh on every open.
+  //
+  // With a stream open the backend is left alone, since a restart would close
+  // it. The list is re-read from the snapshot, which is all PortAudio offers
+  // without closing the stream.
+  if (initDone && !open) terminate();
+
+  if (!initDone) {
+    // Not gated on the session kind: unlike init(false), this is an explicit
+    // request to reach the hardware, so it is allowed to start the backend an
+    // offline session deliberately left down. That also makes openDevice()
+    // work on an offline session in a process that never ran init() (#972).
+    err = Pa_Initialize();
+    if (err != paNoError) {
+      audioDeviceError(err);
+      devices.clear();
+      defaultTypeName.clear();
+      defaultDeviceName.clear();
+      return false;
+    }
+    initDone = true;
+  }
+
+  updateDeviceList();
+  return true;
 }
 
 Bool YSE::DEVICE::managerObject::openDevice(const YSE::deviceSetup& object) {
@@ -376,15 +529,15 @@ Bool YSE::DEVICE::managerObject::openDevice(const YSE::deviceSetup& object) {
   // Nothing to open on the offline engine either — init(false) skips
   // Pa_Initialize on purpose, so there is no stream and no layout to follow.
   // The backend is deliberately not brought up on demand here (issue #972):
-  // the device list a caller picks from is only enumerated by init(), so a
-  // process that has only run offline sessions has no device to name anyway,
-  // and initOffline() stays free of Pa_Initialize, which hangs bare headless
-  // runners. Say so rather than failing silently.
+  // the device a caller names comes from a device list, and only init() or
+  // refreshDevices() enumerate one — both of which start the backend (issue
+  // #1026). initOffline() stays free of Pa_Initialize, which hangs bare
+  // headless runners. Say so rather than failing silently.
   if (!initDone) {
     INTERNAL::LogImpl().emit(E_WARNING,
-                             "Cannot open a device: the audio backend is not running. An "
-                             "initOffline() session can only open a device in a "
-                             "process where an earlier init() started it.");
+                             "Cannot open a device: the audio backend is not running. Call "
+                             "System().refreshDevices() to start it and enumerate the devices "
+                             "before opening one on an initOffline() session.");
     return false;
   }
 
@@ -402,11 +555,28 @@ Bool YSE::DEVICE::managerObject::openDevice(const YSE::deviceSetup& object) {
     return false;
   }
 
+  const UInt requested = object.sampleRate > 0.0 ? (UInt)std::lround(object.sampleRate) : 0u;
+  if (!openStream(deviceID, object.getOutputChannels(), object.bufferSize, requested)) return false;
+
+  // Remembered by what the backend calls the device rather than by what the
+  // descriptor says, which a host may have built by hand: reopenDevice() looks
+  // it up again by these names (issue #1027).
+  const PaHostApiInfo* hostInfo = Pa_GetHostApiInfo(info->hostApi);
+  rememberOpenedDevice(info->name, hostInfo != nullptr ? hostInfo->name : "", deviceID,
+                       object.getOutputChannels(), object.bufferSize);
+  return true;
+}
+
+Bool YSE::DEVICE::managerObject::openStream(int deviceID, int channels, int bufferSize,
+                                            UInt requested) {
+  const PaDeviceInfo* info = Pa_GetDeviceInfo(deviceID);
+  if (info == nullptr) return false;
+
   close();
 
   PaStreamParameters params;
   params.device = deviceID;
-  params.channelCount = object.getOutputChannels();
+  params.channelCount = channels;
   params.sampleFormat = paFloat32 | paNonInterleaved;
   params.suggestedLatency = info->defaultHighOutputLatency;
 #if defined(PA_USE_ASIO)
@@ -433,7 +603,6 @@ Bool YSE::DEVICE::managerObject::openDevice(const YSE::deviceSetup& object) {
   // asked for the session rate; a device that refuses it is reported below
   // and nothing opens. This used to be a debug assert that the two matched.
   const UInt deviceDefault = (UInt)info->defaultSampleRate;
-  const UInt requested = object.sampleRate > 0.0 ? (UInt)std::lround(object.sampleRate) : 0u;
   if (INTERNAL::Global().isSampleRateLocked()) {
     if (requested != 0 && requested != SAMPLERATE) {
       INTERNAL::LogImpl().emit(
@@ -446,9 +615,8 @@ Bool YSE::DEVICE::managerObject::openDevice(const YSE::deviceSetup& object) {
     SAMPLERATE = requested != 0 ? requested : deviceDefault;
   }
 
-  const unsigned long framesPerBuffer = object.bufferSize == 0
-                                            ? paFramesPerBufferUnspecified
-                                            : static_cast<unsigned long>(object.bufferSize);
+  const unsigned long framesPerBuffer =
+      bufferSize == 0 ? paFramesPerBufferUnspecified : static_cast<unsigned long>(bufferSize);
   err = Pa_OpenStream(&stream, NULL, &params, SAMPLERATE, framesPerBuffer, paNoFlag, paCallback,
                       this);
 
@@ -478,19 +646,29 @@ Bool YSE::DEVICE::managerObject::openDevice(const YSE::deviceSetup& object) {
 
   // Cache live device state. When the caller pinned a non-zero bufferSize we
   // can populate it immediately; otherwise the first paCallback captures it.
-  if (object.bufferSize != 0) {
-    activeBufferSize.store((int)object.bufferSize, std::memory_order_release);
+  if (bufferSize != 0) {
+    activeBufferSize.store(bufferSize, std::memory_order_release);
   }
   if (const PaStreamInfo* sinfo = Pa_GetStreamInfo(stream)) {
     activeOutputLatencySamples.store((int)(sinfo->outputLatency * (double)SAMPLERATE),
                                      std::memory_order_release);
   }
 
+  // system::openDevice() applies the requested layout only once this returns,
+  // so the first callbacks still see the previous device's layout; paCallback()
+  // clamps to this count (issue #1028). The layout is not narrowed here: after
+  // openDevice() the caller sets it, and a reopen returns to the channel count
+  // that layout was set for.
+  setStreamChannels(channels);
+
   err = Pa_StartStream(stream);
   if (err != paNoError) {
     audioDeviceError(err);
     // The stream exists but never started, so no callback will consume the
-    // requested layout: report failure like any other refusal.
+    // requested layout: report failure like any other refusal. Release it as
+    // addCallback() does, so a reopen that falls back next does not open a
+    // second stream over this one (issue #1027).
+    close();
     return false;
   } else
     started = true;
@@ -498,6 +676,9 @@ Bool YSE::DEVICE::managerObject::openDevice(const YSE::deviceSetup& object) {
   // Same start-up window as in addCallback() (issue #681).
   notifyStreamStarted();
 
+  const PaHostApiInfo* hostInfo = Pa_GetHostApiInfo(info->hostApi);
+  activeDeviceName = info->name;
+  activeDeviceHost = hostInfo != nullptr ? hostInfo->name : "";
   return true;
 }
 

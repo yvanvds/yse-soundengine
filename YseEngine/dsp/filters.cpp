@@ -129,10 +129,17 @@ void YSE::DSP::bandPass::calcCoef() {
     oneminusr = omega / q;
   if (oneminusr > 1.0f) oneminusr = 1.0f;
   r = 1.0f - oneminusr;
-  coef1 = 2.0f * qCos(omega) * r;
-  coef2 = -r * r;
+  const Flt c1 = 2.0f * qCos(omega) * r;
+  const Flt c2 = -r * r;
+  coef1 = c1;
+  coef2 = c2;
 
-  gain = 2 * oneminusr * (oneminusr + r * omega);
+  // Normalize to unity gain at the centre frequency (#1022): the output is
+  // gain / D(e^{j omega}) with D(z) = 1 - c1 z^-1 - c2 z^-2, so gain = |D|.
+  // At r = 0 (filter fully open) D = 1, so this is continuous in Q.
+  const Flt re = 1.0f - c1 * cosf(omega) - c2 * cosf(2.0f * omega);
+  const Flt im = c1 * sinf(omega) + c2 * sinf(2.0f * omega);
+  gain = sqrtf(re * re + im * im);
 }
 
 float YSE::DSP::bandPass::qCos(Flt omega) {

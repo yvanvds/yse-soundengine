@@ -656,6 +656,85 @@ TEST_SUITE("devicelayer") {
     CHECK(attempts >= 1);
     CHECK(attempts <= 4);
   }
+
+  // Issue #1027: the reopen behind resume() and the watchdog goes back to the
+  // device the session opened, and only to the default device when asked to.
+  // It used to go straight to addCallback(), which opens
+  // Pa_GetDefaultOutputDevice() whatever the host had chosen.
+  //
+  // Headless, the remembered device stands in for one openDevice() would have
+  // recorded: with PortAudio down nothing resolves, so the opened device
+  // "cannot be reopened" — the dropout case — and what is under test is where
+  // the manager goes next. The default-device attempt is visible by its own
+  // log line, which is the unpatched engine's only path.
+  TEST_CASE("device manager: a reopen goes back to the opened device, not the default "
+            "[issue #1027]") {
+    if (!ensureOffline()) return;
+    if (!ownProcess()) return;
+
+    CapturingLog captured;
+    ScopedSink sink(&captured, YSE::EL_DEBUG);
+    auto& mgr = YSE::DEVICE::Manager();
+    using outcome = YSE::DEVICE::deviceManager::reopenOutcome;
+
+    mgr.rememberOpenedDevice("External Interface", "TestHost", 3, 8, 256);
+    const outcome stayed = mgr.reopenDevice(false);
+    CHECK(stayed == outcome::failed);
+    CHECK(captured.contains("Could not reopen audio device \"External Interface\" (TestHost); "
+                            "not falling back"));
+    CHECK_FALSE(captured.contains("No default audio output device"));
+    CHECK(YSE::System().getActiveSampleRate() == 0.0);
+    CHECK(YSE::System().getActiveDevice().empty());
+
+    // resume() is the same reopen without a fallback.
+    mgr.resume();
+    CHECK_FALSE(captured.contains("No default audio output device"));
+
+    // Opting in reaches the default device, which is not there either.
+    const outcome fellBack = mgr.reopenDevice(true);
+    CHECK(fellBack == outcome::failed);
+    CHECK(captured.contains("falling back to the default output device"));
+    CHECK(captured.contains("No default audio output device"));
+
+    // Forgotten again, a reopen is the default-device session's reopen.
+    mgr.forgetOpenedDevice();
+    const int defaultTries = captured.count("No default audio output device");
+    CHECK(mgr.reopenDevice(false) == outcome::failed);
+    CHECK(captured.count("No default audio output device") == defaultTries + 1);
+    CHECK(YSE::System().getActiveDevice().empty());
+    CHECK(YSE::System().getActiveHost().empty());
+  }
+
+  // Issue #1027, the watchdog's side: an attempt limit, and an outcome a host
+  // can read. On this offline session every attempt opens nothing (resume()'s
+  // session gate refuses), so a limit of 2 must stop the watchdog after exactly
+  // two attempts and leave it reading RS_FAILED. Without the limit the watchdog
+  // fires on every tick of the loop at a zero delay.
+  TEST_CASE("system: autoReconnect gives up after its attempt limit [issue #1027]") {
+    if (!ensureOffline()) return;
+    if (!ownProcess()) return;
+
+    CapturingLog captured;
+    ScopedSink sink(&captured, YSE::EL_DEBUG);
+
+    const unsigned int before = YSE::System().reconnectCount();
+    YSE::System().autoReconnect(true, 0, false, 2);
+    CHECK(YSE::System().reconnectState() == YSE::RS_NONE);
+
+    YSE::System().update();
+    CHECK(YSE::System().reconnectState() == YSE::RS_RECONNECTING);
+    for (int i = 0; i < 20; ++i)
+      YSE::System().update();
+
+    CHECK(YSE::System().reconnectState() == YSE::RS_FAILED);
+    CHECK(YSE::System().reconnectCount() - before == 2u);
+    CHECK(captured.count("no audio device to resume") == 2);
+    CHECK(captured.contains("giving up"));
+
+    // Configuring the watchdog again re-arms it.
+    YSE::System().autoReconnect(false, 0);
+    CHECK(YSE::System().reconnectState() == YSE::RS_NONE);
+  }
 #endif
 
   // A setup that never got a device. deviceSetup's constructor leaves `out`
@@ -753,10 +832,11 @@ TEST_SUITE("devicelayer") {
   // "device" buffer. Two things are asserted, and neither needs a stream:
   //
   //   1. The early-out. With no sound alive, doOnCallback() returns false and
-  //      paCallback must return 0 having touched nothing but its own counters —
-  //      the negotiated framesPerBuffer is still captured (the stream is opened
-  //      with paFramesPerBufferUnspecified, so the first callback is the only
-  //      place that value can come from).
+  //      paCallback must return 0 having rendered nothing and written only
+  //      silence to the output (issue #1029) — the negotiated framesPerBuffer
+  //      is still captured (the stream is opened with
+  //      paFramesPerBufferUnspecified, so the first callback is the only place
+  //      that value can come from).
   //   2. The mix copy. PortAudio is opened non-interleaved, and the copy
   //      clamps to [-1, 1] through an 8-way unrolled loop plus a scalar
   //      remainder, striping a 128-sample engine block across callbacks of an
@@ -770,6 +850,8 @@ TEST_SUITE("devicelayer") {
     auto& master = mgr.getMaster();
     const size_t channels = master.GetBuffers().size();
     REQUIRE(channels > 0);
+    // The planes below are as wide as the mix (issue #1028).
+    mgr.setStreamChannels((int)channels);
 
     const unsigned long kFirst = 100;
     const unsigned long kRest = YSE::STANDARD_BUFFERSIZE - kFirst;
@@ -789,8 +871,15 @@ TEST_SUITE("devicelayer") {
       std::fill(plane.begin(), plane.end(), 12345.f);
     CHECK(YSE::DEVICE::managerObject::paCallback(nullptr, output, kFirst, nullptr, 0, &mgr) == 0);
     CHECK(mgr.getActiveBufferSize() == (int)kFirst);
-    // Nothing was written: the guard returned before the copy loop.
-    CHECK(storage[0][0] == 12345.f);
+    // The callback still owns the whole output buffer: PortAudio does not hand
+    // it in silent, so the idle path writes silence over exactly the frames it
+    // was given on every stream channel, and nothing past them (issue #1029).
+    for (size_t c = 0; c < channels; ++c) {
+      INFO("channel " << c);
+      CHECK(storage[c][0] == 0.f);
+      CHECK(storage[c][kFirst - 1] == 0.f);
+      CHECK(storage[c][kFirst] == 12345.f);
+    }
 
     // (2) Attach a live source so the render/copy path opens.
     YSE::sound s;
@@ -863,6 +952,8 @@ TEST_SUITE("devicelayer") {
     auto& master = mgr.getMaster();
     const size_t channels = master.GetBuffers().size();
     REQUIRE(channels > 0);
+    // The planes below are as wide as the mix (issue #1028).
+    mgr.setStreamChannels((int)channels);
 
     const unsigned long kFirst = 100;
     const unsigned long kRest = YSE::STANDARD_BUFFERSIZE - kFirst;
@@ -921,6 +1012,81 @@ TEST_SUITE("devicelayer") {
     YSE::System().closeCurrentDevice();
   }
 
+  // Issue #1028: paCallback() wrote one plane per mixer output into an output
+  // array that has one plane per *stream* channel. The two disagree whenever
+  // the layout is wider than the stream — openDevice() onto a device with fewer
+  // outputs (the layout follows only after the stream started), or init() on a
+  // mono default device under its stereo layout — and the callback then wrote
+  // through pointers past the end of PortAudio's array, on the audio thread.
+  //
+  // Driven as the cases above, with plain memory standing in for the stream.
+  // (1) A one-channel stream under the stereo mix, with a second plane parked
+  //     past the stream's array: before the fix it is overwritten, which fails
+  //     deterministically. (2) The same stream with an array of exactly one
+  //     plane, which an ASan build reports as a heap overflow before the fix.
+  //     (3) The other direction: a stream wider than the mix gets silence on
+  //     the outputs the mix does not have, not whatever the host left there.
+  TEST_CASE("device manager: the audio callback writes no more channels than the stream has "
+            "(issue #1028)") {
+    if (!ensureOffline()) return;
+
+    auto& mgr = YSE::DEVICE::Manager();
+    auto& master = mgr.getMaster();
+    constexpr unsigned long kFrames = YSE::STANDARD_BUFFERSIZE;
+    constexpr float kUntouched = 12345.f;
+
+    YSE::sound s;
+    s.create(g_steady);
+    s.relative(true);
+    s.play();
+    pump();
+    REQUIRE(master.GetBuffers().size() == 2u);
+    YSE::System().closeCurrentDevice(); // start on a block boundary
+
+    // (1)
+    std::vector<float> left(kFrames, 0.f);
+    std::vector<float> beyond(kFrames, kUntouched);
+    float* planes[2] = {left.data(), beyond.data()};
+    mgr.setStreamChannels(1);
+    REQUIRE(YSE::DEVICE::managerObject::paCallback(nullptr, static_cast<void*>(planes), kFrames,
+                                                   nullptr, 0, &mgr) == 0);
+    const float rendered = master.GetBuffers()[0].getPtr()[0];
+    REQUIRE(rendered != 0.f);
+    CHECK(left[0] == doctest::Approx(clampToUnit(rendered)));
+    REQUIRE(beyond[0] == kUntouched);
+    REQUIRE(beyond[kFrames - 1] == kUntouched);
+
+    // (2)
+    {
+      std::vector<float*> exact(1, left.data());
+      std::fill(left.begin(), left.end(), 0.f);
+      CHECK(YSE::DEVICE::managerObject::paCallback(nullptr, static_cast<void*>(exact.data()),
+                                                   kFrames, nullptr, 0, &mgr) == 0);
+      CHECK(left[0] == doctest::Approx(clampToUnit(master.GetBuffers()[0].getPtr()[0])));
+    }
+
+    // (3)
+    std::vector<std::vector<float>> wide(4, std::vector<float>(kFrames, kUntouched));
+    std::vector<float*> widePlanes;
+    widePlanes.reserve(wide.size());
+    for (auto& plane : wide)
+      widePlanes.push_back(plane.data());
+    mgr.setStreamChannels(4);
+    CHECK(YSE::DEVICE::managerObject::paCallback(nullptr, static_cast<void*>(widePlanes.data()),
+                                                 kFrames, nullptr, 0, &mgr) == 0);
+    CHECK(wide[0][0] != kUntouched);
+    CHECK(wide[1][0] != kUntouched);
+    for (size_t c = 2; c < wide.size(); ++c) {
+      INFO("channel " << c);
+      CHECK(wide[c][0] == 0.f);
+      CHECK(wide[c][kFrames - 1] == 0.f);
+    }
+
+    s.stop();
+    pump();
+    YSE::System().closeCurrentDevice();
+  }
+
   // Domain clocks advance per rendered block, not per device callback
   // (issue #944).
   //
@@ -943,6 +1109,8 @@ TEST_SUITE("devicelayer") {
     auto& mgr = YSE::DEVICE::Manager();
     const size_t channels = mgr.getMaster().GetBuffers().size();
     REQUIRE(channels > 0);
+    // The planes below are as wide as the mix (issue #1028).
+    mgr.setStreamChannels((int)channels);
 
     constexpr unsigned long kCallback = 512; // four engine blocks per callback
     constexpr float kTempo = 120.f;

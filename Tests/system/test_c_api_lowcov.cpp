@@ -185,6 +185,9 @@ TEST_SUITE("capilowcov") {
     yse_system_set_max_sounds(nullptr, 10);
     yse_system_audio_test(nullptr, 1);
     yse_system_auto_reconnect(nullptr, 1, 10);
+    yse_system_auto_reconnect_config(nullptr, 1, 10, 1, 3);
+    CHECK(yse_system_get_reconnect_state(nullptr) == YSE_RS_NONE);
+    CHECK(yse_system_get_reconnect_count(nullptr) == 0u);
     yse_system_close_current_device(nullptr);
     yse_system_set_underwater_depth(nullptr, 0.5f);
     yse_system_underwater_fx(nullptr, nullptr);
@@ -241,6 +244,12 @@ TEST_SUITE("capilowcov") {
     CHECK(buf[0] == '\0');
     dirty();
     CHECK(yse_system_default_host(nullptr, buf, sizeof(buf)) == 0u);
+    CHECK(buf[0] == '\0');
+    dirty();
+    CHECK(yse_system_active_device(nullptr, buf, sizeof(buf)) == 0u);
+    CHECK(buf[0] == '\0');
+    dirty();
+    CHECK(yse_system_active_host(nullptr, buf, sizeof(buf)) == 0u);
     CHECK(buf[0] == '\0');
     dirty();
     CHECK(yse_system_midi_in_device_name(nullptr, 0, buf, sizeof(buf)) == 0u);
@@ -325,6 +334,35 @@ TEST_SUITE("capilowcov") {
     yse_system_resume(sys);
     capilowcov::pump(2);
     CHECK(yse_system_get_sample_rate(sys) > 0.0);
+  }
+
+  // Issue #1027 through the C surface. An offline session has no device to
+  // reopen, so every watchdog attempt fails: with a limit of 1 the first
+  // update gives up, and the state and counter say so. No stream is open, so
+  // the active device and host read empty.
+  TEST_CASE("c-api system: the reconnect watchdog reports its outcome (#1027)") {
+    if (!capilowcov::ensureOffline()) return;
+    YseSystem* sys = yse_system_get();
+
+    const unsigned int before = yse_system_get_reconnect_count(sys);
+    yse_system_auto_reconnect_config(sys, 1, 0, 0, 1);
+    CHECK(yse_system_get_reconnect_state(sys) == YSE_RS_NONE);
+    yse_system_update(sys);
+    yse_system_update(sys);
+    yse_system_update(sys);
+    CHECK(yse_system_get_reconnect_state(sys) == YSE_RS_FAILED);
+    CHECK(yse_system_get_reconnect_count(sys) - before == 1u);
+
+    yse_system_auto_reconnect(sys, 0, 0);
+    CHECK(yse_system_get_reconnect_state(sys) == YSE_RS_NONE);
+
+    char buf[16];
+    std::memset(buf, 'x', sizeof(buf));
+    CHECK(yse_system_active_device(sys, buf, sizeof(buf)) == 0u);
+    CHECK(buf[0] == '\0');
+    std::memset(buf, 'x', sizeof(buf));
+    CHECK(yse_system_active_host(sys, buf, sizeof(buf)) == 0u);
+    CHECK(buf[0] == '\0');
   }
 
   TEST_CASE("c-api system: render thread count applies to an offline session (#861)") {

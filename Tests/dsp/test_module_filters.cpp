@@ -10,6 +10,7 @@
 // portaudioDeviceManager translation unit at static-initialisation time.
 
 #include <doctest/doctest.h>
+#include <algorithm>
 #include <cmath>
 #include "dsp/modules/filters/lowpass.hpp"
 #include "dsp/modules/filters/highpass.hpp"
@@ -269,6 +270,22 @@ TEST_SUITE("dsp") {
     float rmsOn = TestHelpers::measureRms(bufOn[0]);
     float rmsOff = TestHelpers::measureRms(bufOff[0]);
     CHECK(rmsOn > rmsOff);
+  }
+
+  TEST_CASE("bandPassFilter: default filter passes its centre at unity, no boost (#1022)") {
+    // Default 400 Hz / Q 1 used to boost the band ~1.77x (+5 dB).
+    YSE::DSP::MODULES::bandPassFilter bp;
+    const float sr = static_cast<float>(YSE::SAMPLERATE);
+    MULTICHANNELBUFFER buf(1);
+    buf[0].resize(128);
+    float peak = 0.0f;
+    for (int iter = 0; iter < 60; ++iter) {
+      const float phase0 = 2.0f * kPi * 400.0f * static_cast<float>(iter * 128) / sr;
+      fillSine(buf[0], 400.0f, sr, std::fmod(phase0, 2.0f * kPi));
+      bp.process(buf);
+      if (iter >= 50) peak = std::max(peak, maxAbs(buf[0]));
+    }
+    CHECK(peak == doctest::Approx(1.0f).epsilon(0.03));
   }
 
   TEST_CASE("bandPassFilter: output stays bounded across a wide input sweep") {
