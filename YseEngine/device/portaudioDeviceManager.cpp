@@ -71,18 +71,25 @@ int YSE::DEVICE::managerObject::paCallback(const void* /*input*/
     manager->activeBufferSize.store((int)numSamples, std::memory_order_release);
   }
 
-  if (!manager->doOnCallback(numSamples)) {
-    manager->updateCpuLoadEma(cbStart, numSamples);
-    return 0;
-  }
-
   // `output` holds one plane per stream channel, and the mixer layout need not
   // match it (issue #1028): openDevice() changes the layout only after the new
   // stream has started, and init() opens every output of the default device
   // under a stereo layout. Copy the channels both have and silence the rest of
   // the stream; never index past its array. Both counts are stable for the
-  // whole callback — the master is only resized in doOnCallback() above.
+  // whole callback — the master is only resized in doOnCallback() below.
   const UInt streamChannels = (UInt)manager->streamChannels.load(std::memory_order_acquire);
+
+  if (!manager->doOnCallback(numSamples)) {
+    // Nothing to render, but the callback still owns the whole output buffer:
+    // PortAudio does not guarantee it arrives silent (issue #1029). The Oboe
+    // backend zeroes it on the same path.
+    for (UInt i = 0; i < streamChannels; i++) {
+      std::fill_n(((Flt**)output)[i], numSamples, 0.f);
+    }
+    manager->updateCpuLoadEma(cbStart, numSamples);
+    return 0;
+  }
+
   const UInt mixChannels = (UInt)manager->master->out.size();
   const UInt copyChannels = mixChannels < streamChannels ? mixChannels : streamChannels;
 

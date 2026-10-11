@@ -832,10 +832,11 @@ TEST_SUITE("devicelayer") {
   // "device" buffer. Two things are asserted, and neither needs a stream:
   //
   //   1. The early-out. With no sound alive, doOnCallback() returns false and
-  //      paCallback must return 0 having touched nothing but its own counters —
-  //      the negotiated framesPerBuffer is still captured (the stream is opened
-  //      with paFramesPerBufferUnspecified, so the first callback is the only
-  //      place that value can come from).
+  //      paCallback must return 0 having rendered nothing and written only
+  //      silence to the output (issue #1029) — the negotiated framesPerBuffer
+  //      is still captured (the stream is opened with
+  //      paFramesPerBufferUnspecified, so the first callback is the only place
+  //      that value can come from).
   //   2. The mix copy. PortAudio is opened non-interleaved, and the copy
   //      clamps to [-1, 1] through an 8-way unrolled loop plus a scalar
   //      remainder, striping a 128-sample engine block across callbacks of an
@@ -870,8 +871,15 @@ TEST_SUITE("devicelayer") {
       std::fill(plane.begin(), plane.end(), 12345.f);
     CHECK(YSE::DEVICE::managerObject::paCallback(nullptr, output, kFirst, nullptr, 0, &mgr) == 0);
     CHECK(mgr.getActiveBufferSize() == (int)kFirst);
-    // Nothing was written: the guard returned before the copy loop.
-    CHECK(storage[0][0] == 12345.f);
+    // The callback still owns the whole output buffer: PortAudio does not hand
+    // it in silent, so the idle path writes silence over exactly the frames it
+    // was given on every stream channel, and nothing past them (issue #1029).
+    for (size_t c = 0; c < channels; ++c) {
+      INFO("channel " << c);
+      CHECK(storage[c][0] == 0.f);
+      CHECK(storage[c][kFirst - 1] == 0.f);
+      CHECK(storage[c][kFirst] == 12345.f);
+    }
 
     // (2) Attach a live source so the render/copy path opens.
     YSE::sound s;
