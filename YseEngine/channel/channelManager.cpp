@@ -145,6 +145,13 @@ void YSE::CHANNEL::managerObject::update() {
         // thread, BEFORE OBJECT_DELETE makes it eligible for the slow-pool free.
         // Guarantees no live send slot dereferences the freed impl (issue #165 §9).
         ptr->detachSends();
+        // Sever the insert plugin's back-reference here too, not in the
+        // slow-pool destructor (issue #1179, the channel twin of #838). sync()
+        // drops queued messages once the head is gone, so a detach sent just
+        // before the channel was destroyed never applies; the destructor's clear
+        // then raced the user destroying the plugin. The setStatus(OBJECT_DELETE)
+        // store below publishes this to the slow pool.
+        ptr->detachInsertDSP();
         ptr->setStatus(OBJECT_DELETE);
         runDelete = true;
         continue; // c already refers to the successor after erase()

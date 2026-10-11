@@ -64,13 +64,15 @@ YSE::CHANNEL::implementationObject::~implementationObject() noexcept {
       }
     }
 
-    // Sever the insert plugin's back-reference before we die, so a plugin that
-    // outlives this channel (e.g. a process-lifetime static destroyed at exit)
-    // can't write through calledfrom into our freed insert_dsp field. Mirrors
-    // the sound-path guard in ~SOUND::implementationObject (#298).
-    if (insert_dsp != nullptr && insert_dsp->calledfrom != nullptr) {
-      insert_dsp->calledfrom = nullptr;
-    }
+    // Teardown-only fallback (issue #1179): on the normal delete path the
+    // update/audio thread already ran detachInsertDSP() at the
+    // OBJECT_RELEASE→OBJECT_DELETE transition, so insert_dsp is null here and
+    // this slow-pool destructor never touches dspObject::calledfrom while the
+    // user may be destroying the plugin. insert_dsp can still be set only when
+    // the engine is shutting down with the audio thread stopped; severing it
+    // then keeps a plugin that outlives this channel (e.g. a process-lifetime
+    // static) from writing into our freed insert_dsp field (#298).
+    detachInsertDSP();
 
     if (head.load() != nullptr) {
       head.load()->pimpl = nullptr;
@@ -515,6 +517,16 @@ void YSE::CHANNEL::implementationObject::addDSP(DSP::dspObject* ptr) {
   if (insert_dsp != nullptr) {
     insert_dsp->calledfrom = &insert_dsp;
   }
+}
+
+void YSE::CHANNEL::implementationObject::detachInsertDSP() {
+  // Only clear the back-reference while it still points at our own slot: a
+  // plugin already re-attached elsewhere keeps its fresh one (same ownership
+  // test as SOUND::Manager's post_dsp detach, #838).
+  if (insert_dsp != nullptr && insert_dsp->calledfrom == &insert_dsp) {
+    insert_dsp->calledfrom = nullptr;
+  }
+  insert_dsp = nullptr;
 }
 
 void YSE::CHANNEL::implementationObject::processInsertDSP() {
