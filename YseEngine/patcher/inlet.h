@@ -118,6 +118,17 @@ namespace YSE {
       // the input with Signal() when it computes (issue #1036). Allocates the
       // scratch buffer, so call it from the constructor.
       void RegisterSignal();
+      // Lets this inlet take one *link* cord (issue #1038): a cord from an
+      // outlet marked with ADD_OUT_LINK, such as ~tapin's. A link shares a
+      // resource by reference and is not a sample dependency: it is never
+      // pushed, never counted for readiness, and closes no signal loop. The
+      // object reaches the source through LinkedObject().
+      inline void RegisterLink() {
+        linkTarget = true;
+      }
+      inline bool AcceptsLink() const {
+        return linkTarget;
+      }
 
       void SetBang(THREAD thread);
       void SetInt(int value, THREAD thread);
@@ -165,6 +176,28 @@ namespace YSE {
       }
       inline const std::vector<outlet*>& DspSources() const {
         return dspConnections;
+      }
+      // The live link cord into this inlet, or null. Control thread only, like
+      // the two above.
+      inline outlet* LinkSource() const {
+        return linkSource;
+      }
+
+      /**
+       *  @brief The object at the other end of this inlet's link cord, or null
+       *         (issue #1038).
+       *
+       *  Read from the snapshot the calling thread has pinned, as
+       *  WaitingForDSP is, so the audio thread never reads the live wiring.
+       *  The object it returns stays allocated for the block: the reclaimer
+       *  frees nothing a pinned snapshot still names. RT-safe.
+       */
+      pObject* LinkedObject() const;
+
+      // The object this inlet belongs to. Control thread (the signal-loop
+      // check in patcherImplementation::ConnectUnlocked).
+      inline pObject* Owner() const {
+        return obj;
       }
 
       // Drop this inlet's incoming edges and remove it from the outlets that
@@ -218,6 +251,9 @@ namespace YSE {
       DSP::buffer* current;
       bool signal;
       bool active;
+      // See RegisterLink(). At most one link cord, held apart from the signal
+      // and control sources so nothing that counts or pushes those sees it.
+      bool linkTarget = false;
       int position;
       // See GraphId(). -1 = unassigned (standalone object, no patcher).
       int graphId = -1;
@@ -230,6 +266,7 @@ namespace YSE {
 
       std::vector<outlet*> dspConnections;
       std::vector<outlet*> connections;
+      outlet* linkSource = nullptr;
       // Fan-in sum and unconnected constant. Allocated by RegisterBuffer /
       // RegisterSignal on the control thread, pre-sized to
       // STANDARD_BUFFERSIZE; null on a control-only inlet.

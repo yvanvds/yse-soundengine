@@ -23,6 +23,22 @@ namespace YSE {
         return type;
       }
 
+      // A link outlet (issue #1038, ADD_OUT_LINK): a BUFFER outlet whose cord
+      // shares a resource by reference instead of carrying samples, as
+      // ~tapin's shares its delay line with ~tapout. It connects only to an
+      // inlet that accepts links (inlet::RegisterLink), it is never pushed,
+      // and the cord is not a sample dependency, so a loop through it is legal.
+      // Its owner never calls SendBuffer on it.
+      inline bool IsLink() const {
+        return link;
+      }
+      inline void MarkLink() {
+        link = true;
+      }
+      inline pObject* Owner() const {
+        return owner;
+      }
+
       void SendBang(THREAD thread);
       void SendFloat(float value, THREAD thread);
       void SendInt(int value, THREAD thread);
@@ -111,6 +127,8 @@ namespace YSE {
       bool OwnedBy(const GraphState* graph) const;
 
       OUT_TYPE type;
+      // See IsLink().
+      bool link = false;
 
       // The armed slot (issue #1037). See ArmBang above.
       enum class armedKind : unsigned char { NONE, BANG, FLOAT, INT };

@@ -70,6 +70,8 @@ set(YSE_SRCS
   dsp/fm/msfa/dx7note.cc
   dsp/oscillators.cpp
   dsp/generators/phasor.cpp
+  dsp/delay/delayLine.cpp
+  dsp/delay/delayTap.cpp
   dsp/ramp.cpp
   dsp/rawFilters.cpp
   dsp/sample_functions.cpp
@@ -109,6 +111,8 @@ set(YSE_SRCS
   music/scale/scaleInterface.cpp
   music/scale/scaleManager.cpp
   patcher/analysis/dSnapshot.cpp
+  patcher/delay/dTapin.cpp
+  patcher/delay/dTapout.cpp
   patcher/filters/dVcf.cpp
   patcher/filters/pBandpass.cpp
   patcher/filters/pHighpass.cpp
@@ -495,6 +499,8 @@ set_source_files_properties(
   patcher/outlet.cpp
   patcher/parameters.cpp
   patcher/analysis/dSnapshot.cpp
+  patcher/delay/dTapin.cpp
+  patcher/delay/dTapout.cpp
   patcher/filters/dVcf.cpp
   patcher/filters/pBandpass.cpp
   patcher/filters/pHighpass.cpp

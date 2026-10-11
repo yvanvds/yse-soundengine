@@ -15146,6 +15146,81 @@
     ],
     "requires_midi_device": false
   },
+  "~tapin": {
+    "category": "DELAY",
+    "description": "The input of a delay line. Connect its outlet to the left inlet of ~tapout, which reads the line at one or more delay times. Feedback from ~tapout back into ~tapin is allowed.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The signal to record. A number sets the maximum delay in ms (up to the maxdelay argument) and clears the line. Also takes 'clear' and 'freeze <0/1>'.",
+        "index": 0,
+        "label": "in",
+        "range": "any signal"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~tapin",
+    "outlets": [
+      {
+        "doc": "The delay line, shared with ~tapout. Connects only to the left inlet of ~tapout; carries no samples itself.",
+        "index": 0,
+        "label": "line",
+        "range": "",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "100",
+        "doc": "The longest delay in ms. The line's memory is allocated for this, at up to 192 kHz.",
+        "name": "maxdelay",
+        "range": "0 or more"
+      }
+    ],
+    "requires_midi_device": false
+  },
+  "~tapout": {
+    "category": "DELAY",
+    "description": "Reads the delay line of a ~tapin at one or more delay times. One tap per argument, each with its own delay inlet and output. Feedback from an output back into the ~tapin is allowed.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "The link from ~tapin's outlet, and the delay of tap 1. Delay of tap 1 in ms: a signal (interpolated) or a number (a fixed delay used while no signal is connected). A list sets the fixed delays of several taps.",
+        "index": 0,
+        "label": "line, delay 1",
+        "range": "one block - the ~tapin's maximum"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~tapout",
+    "outlets": [
+      {
+        "doc": "The line delayed by tap 1's delay time.",
+        "index": 0,
+        "label": "tap 1",
+        "range": "any signal",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "The starting delay of each tap in ms, one argument per tap (at most 64). The number of arguments is the number of taps.",
+        "name": "delays",
+        "range": "one or more ms values"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~vcf": {
     "category": "FILTER",
     "description": "Resonant bandpass filter whose center frequency is a signal, so it can sweep at audio rate. Sharpness sets how narrow the band is.",

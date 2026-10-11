@@ -67,6 +67,14 @@ namespace YSE {
       // (WaitingForDSP) and the fan-in sum.
       std::vector<unsigned int> inletDspSources;
 
+      // inletLinkSources[inlet.graphId] = the object at the other end of the
+      // inlet's link cord, or null (issue #1038). A link is not a dependency:
+      // it appears in neither ``outletTargets`` nor ``inletDspSources``, so it
+      // never holds an object back and never closes a signal loop. This is
+      // how the reader (~tapout) finds what it shares (~tapin's delay line)
+      // without reading the live wiring.
+      std::vector<pObject*> inletLinkSources;
+
       // outletOwner[id] / inletOwner[id] = the outlet / inlet that held graph id
       // `id` when this snapshot was built, or null for an unused id (issue
       // #963). A lookup only trusts ``outletTargets`` / ``inletDspSources`` for a

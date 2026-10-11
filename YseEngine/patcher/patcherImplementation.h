@@ -511,6 +511,13 @@ namespace YSE {
       pHandle* CreateObjectUnlocked(const std::string& type, const std::string& args);
       void ConnectUnlocked(pHandle* from, int outlet, pHandle* to, int inlet);
 
+      // The signal-loop check (issue #1038), caller holds mtx. Fills `path`
+      // with a chain of signal cords from `from` to `to` (both ends included)
+      // and returns true when one exists, so a new cord to -> from would close
+      // a loop. Only sample-carrying cords count: link cords and control
+      // cords are not dependencies.
+      static bool SignalPathUnlocked(pObject* from, pObject* to, std::vector<pObject*>& path);
+
       // Connect / Disconnect guard (issue #934), caller holds mtx: false, with
       // a log naming `what`, when a handle is null or its object belongs to
       // another patcher.

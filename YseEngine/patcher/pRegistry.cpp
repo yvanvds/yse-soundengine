@@ -118,6 +118,8 @@
 #include "generatorObjects/dNoise.h"
 
 #include "analysis/dSnapshot.h"
+#include "delay/dTapin.h"
+#include "delay/dTapout.h"
 
 #include "guiObjects/gInt.h"
 #include "guiObjects/gFloat.h"
@@ -321,6 +323,8 @@ pRegistry::pRegistry() {
   Add(OBJ::D_NOISE, dNoise::Create);
 
   Add(OBJ::D_SNAPSHOT, dSnapshot::Create);
+  Add(OBJ::D_TAPIN, dTapin::Create);
+  Add(OBJ::D_TAPOUT, dTapout::Create);
 
   Add(OBJ::G_SWITCH, gSwitch::Create);
   Add(OBJ::G_GATE, gGate::Create);

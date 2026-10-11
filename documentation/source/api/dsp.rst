@@ -67,6 +67,12 @@ Delay
 .. doxygenfile:: dsp/delay.hpp
    :project: libYSE
 
+.. doxygenfile:: dsp/delay/delayLine.hpp
+   :project: libYSE
+
+.. doxygenfile:: dsp/delay/delayTap.hpp
+   :project: libYSE
+
 Filter primitives
 -----------------
 

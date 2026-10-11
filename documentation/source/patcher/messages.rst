@@ -133,6 +133,29 @@ A signal inlet (one that takes ``BUFFER``) follows three rules:
 Cords can be drawn and removed while the patch plays. Each block hears the
 cords that existed when it started.
 
+.. _patcher-signal-loops:
+
+Signal loops and feedback
+-------------------------
+
+A signal object computes a block once every cord into it has delivered. In a
+loop of signal cords (``A`` into ``B`` into ``A``) each object waits for the
+other, so none could ever run. ``Connect`` therefore **refuses the cord that
+would close a signal loop**, and logs the loop it would have made, for
+example ``~* #1 -> ~* #2 -> ~* #1``. The rest of the patch keeps sounding. A
+patch file that contains such a loop loses that cord when it is loaded, with
+the same message.
+
+Feedback goes through a delay line instead: ``~tapout`` -> ... -> ``~tapin``
+is allowed. The cord from ``~tapin`` to ``~tapout`` is a *link* that shares
+the line rather than carrying samples, so neither object waits for the
+other. ``~tapout``'s shortest delay is one block, so it always reads audio
+that was recorded before the block started, and the sound is the same
+whichever of the two runs first.
+
+Only signal cords count. A control cord back up the chain (from
+``~snapshot``, say) is not a loop: its message is sent after the block.
+
 Dispatch is synchronous and depth first
 ---------------------------------------
 

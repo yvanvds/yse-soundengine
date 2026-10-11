@@ -12,6 +12,7 @@ namespace YSE {
    *
    *  - DSP generators: ``D_SINE``, ``D_SAW``, ``D_NOISE``, ``D_PHASOR``.
    *  - DSP analysis: ``D_SNAPSHOT``.
+   *  - DSP delay: `D_TAPIN`, `D_TAPOUT`.
    *  - DSP math: ``D_ADD``, ``D_MULTIPLY``, ``D_CLIP``.
    *  - Control math: ``G_ADD``, ``G_DIVIDE``, ``G_REVERSESUBSTRACT``,
    *    ``G_REVERSEDIVIDE``, ``G_MODULO``, ``G_INTDIVIDE``.
@@ -157,6 +158,9 @@ namespace YSE {
     DEFOBJ(D_NOISE, "~noise");
 
     DEFOBJ(D_SNAPSHOT, "~snapshot");
+
+    DEFOBJ(D_TAPIN, "~tapin");
+    DEFOBJ(D_TAPOUT, "~tapout");
 
     DEFOBJ(G_INT, ".i");
     DEFOBJ(G_FLOAT, ".f");

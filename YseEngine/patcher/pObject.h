@@ -810,6 +810,13 @@ namespace YSE {
       std::bind(&className::funcName, this, std::placeholders::_1, std::placeholders::_2))
 
 #define ADD_OUT_BUFFER outputs.emplace_back(this, OUT_TYPE::BUFFER)
+// A link outlet (issue #1038): see outlet::IsLink. Reported as BUFFER, the
+// cord a host draws as a signal cord, as Max draws tapin~ -> tapout~.
+#define ADD_OUT_LINK                                                                               \
+  outputs.emplace_back(this, OUT_TYPE::BUFFER);                                                    \
+  outputs.back().MarkLink()
+// The inlet the last ADD_IN_* added takes a link cord (inlet::RegisterLink).
+#define REG_LINK_IN inputs.back().RegisterLink()
 #define ADD_OUT_FLOAT outputs.emplace_back(this, OUT_TYPE::FLOAT)
 #define ADD_OUT_INT outputs.emplace_back(this, OUT_TYPE::INT)
 #define ADD_OUT_BANG outputs.emplace_back(this, OUT_TYPE::BANG)

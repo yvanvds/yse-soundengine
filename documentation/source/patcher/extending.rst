@@ -605,6 +605,46 @@ report it through ``GetGuiValue()`` (see `GUI objects`_ and the GUI value
 protocol in ``pObject.h``). Arm an outlet only for values the patch itself
 receives.
 
+Feedback and link cords
+~~~~~~~~~~~~~~~~~~~~~~~
+
+The signal graph never has a loop: ``Connect`` refuses a signal cord that
+would close one (issue `#1038
+<https://github.com/yvanvds/yse-soundengine/issues/1038>`_, and
+:ref:`patcher-signal-loops` for what a patch author sees). The traversal
+therefore needs no loop handling of its own.
+
+Feedback goes through objects that share a resource instead of passing
+samples. ``~tapin`` and ``~tapout`` are the reference pair:
+
+- ``ADD_OUT_LINK`` adds a **link outlet**. It reports ``BUFFER``, so a host
+  draws a signal cord, but it carries no samples. It is never pushed
+  (``SendBuffer`` on it does nothing) and it is not a dependency, so it
+  never holds the reader back and never closes a loop.
+- ``REG_LINK_IN`` lets the last inlet added take one link cord, on top of
+  whatever else it takes. A link outlet connects to no other inlet.
+- The reader finds the object at the other end with
+  ``inputs[n].LinkedObject()`` in ``CALC()``. It reads the pinned snapshot,
+  so the object it returns stays allocated for the block. Check its
+  ``Type()`` before casting.
+
+Because the reader does not wait, it may run before or after the writer in
+a block, and that order is not fixed. The shared resource must give the
+same result either way. ``DSP::delayLine`` does it like this: the writer
+calls ``beginBlock()`` in ``ResetDSP()``, at the top of the block, and taps
+read relative to that point and never closer than one block, so they only
+see samples written before the block began. Requests that change the line
+(``clear``, a new length) are applied in the same ``ResetDSP()``, so every
+reader sees them in the same block.
+
+**Named pairs (``~send`` / ``~receive``, #1136).** A pair matched by name
+has no cord, so it needs an ordering of its own. The rule decided in #1038:
+within one patcher, ``~receive`` runs after the ``~send`` objects of its
+name and hears this block's signal, unless that order would close a loop.
+Then, and for a ``~send`` in another patcher, it hears the previous block.
+The order is decided when the graph is rebuilt, the same way for a given
+patch every time, so the sound is deterministic.
+
 Porting an MSP object
 ---------------------
 
