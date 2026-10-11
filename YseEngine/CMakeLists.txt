@@ -108,6 +108,7 @@ set(YSE_SRCS
   music/scale/scaleImplementation.cpp
   music/scale/scaleInterface.cpp
   music/scale/scaleManager.cpp
+  patcher/analysis/dSnapshot.cpp
   patcher/filters/dVcf.cpp
   patcher/filters/pBandpass.cpp
   patcher/filters/pHighpass.cpp
@@ -493,6 +494,7 @@ set_source_files_properties(
   patcher/inlet.cpp
   patcher/outlet.cpp
   patcher/parameters.cpp
+  patcher/analysis/dSnapshot.cpp
   patcher/filters/dVcf.cpp
   patcher/filters/pBandpass.cpp
   patcher/filters/pHighpass.cpp

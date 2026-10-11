@@ -152,6 +152,46 @@ void outlet::SendBuffer(YSE::DSP::buffer* value, YSE::THREAD thread) {
   }
 }
 
+void outlet::ArmBang() {
+  if (type == OUT_TYPE::BUFFER) return;
+  armed = armedKind::BANG;
+  owner->MarkOutletArmed();
+}
+
+void outlet::ArmFloat(float value) {
+  if (type == OUT_TYPE::BUFFER) return;
+  armed = armedKind::FLOAT;
+  armedFloat = value;
+  owner->MarkOutletArmed();
+}
+
+void outlet::ArmInt(int value) {
+  if (type == OUT_TYPE::BUFFER) return;
+  armed = armedKind::INT;
+  armedInt = value;
+  owner->MarkOutletArmed();
+}
+
+void outlet::FlushArmed(YSE::THREAD thread) {
+  // Disarm before sending, so anything armed while the send runs lands in the
+  // next flush instead of being cleared here.
+  const armedKind kind = armed;
+  armed = armedKind::NONE;
+  switch (kind) {
+  case armedKind::BANG:
+    SendBang(thread);
+    break;
+  case armedKind::FLOAT:
+    SendFloat(armedFloat, thread);
+    break;
+  case armedKind::INT:
+    SendInt(armedInt, thread);
+    break;
+  case armedKind::NONE:
+    break;
+  }
+}
+
 void outlet::UnwireFromPeers() {
   // Clear first so any reentrant inlet->Disconnect(this) (the buffer/dsp
   // branch calls back into this outlet) finds nothing to erase mid-iteration.

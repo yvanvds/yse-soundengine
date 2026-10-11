@@ -30,6 +30,36 @@ namespace YSE {
       void SendMessage(const std::string& value, THREAD thread);
       void SendBuffer(DSP::buffer* value, THREAD thread);
 
+      // ─── Armed control output (issue #1037) ─────────────────────────────
+      //
+      // How a signal object sends a control message. CALC() must not call
+      // Send* on a control outlet: that runs the downstream handlers mid
+      // traversal, while other signal objects are still waiting on their
+      // inputs. It arms the outlet instead, and the patcher sends what was
+      // armed once the block's traversal has finished (see
+      // pObject::FlushArmedOutlets for when, in what order and on which
+      // thread).
+      //
+      // One slot per outlet, holding one message. Arming again in the same
+      // block replaces it: the latest float or int wins, and any number of
+      // bangs is one bang. A message carries no sample offset; an object that
+      // needs sample accuracy (an interval, a count) computes it itself and
+      // sends the result.
+      //
+      // Audio thread only, and only the thread rendering the owning patcher:
+      // CALC() writes the slot and the flush, later in the same block, reads
+      // it. Plain fields, no atomics, no allocation. Ignored on a BUFFER
+      // outlet.
+      void ArmBang();
+      void ArmFloat(float value);
+      void ArmInt(int value);
+      inline bool Armed() const {
+        return armed != armedKind::NONE;
+      }
+      // Send what is armed, if anything, and disarm. Called by
+      // pObject::FlushArmedOutlets.
+      void FlushArmed(THREAD thread);
+
       void Connect(inlet* in);
       void Disconnect(inlet* in);
 
@@ -81,6 +111,12 @@ namespace YSE {
       bool OwnedBy(const GraphState* graph) const;
 
       OUT_TYPE type;
+
+      // The armed slot (issue #1037). See ArmBang above.
+      enum class armedKind : unsigned char { NONE, BANG, FLOAT, INT };
+      armedKind armed = armedKind::NONE;
+      float armedFloat = 0.f;
+      int armedInt = 0;
 
       // Owning object; the hop to the patcher's pinned GraphState. Never null
       // for outlets created through the ADD_OUT_* macros.

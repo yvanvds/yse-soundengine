@@ -117,6 +117,8 @@
 #include "generatorObjects/dPhasor.h"
 #include "generatorObjects/dNoise.h"
 
+#include "analysis/dSnapshot.h"
+
 #include "guiObjects/gInt.h"
 #include "guiObjects/gFloat.h"
 #include "guiObjects/gSlider.h"
@@ -317,6 +319,8 @@ pRegistry::pRegistry() {
   Add(OBJ::D_SAW, dSaw::Create);
   Add(OBJ::D_PHASOR, dPhasor::Create);
   Add(OBJ::D_NOISE, dNoise::Create);
+
+  Add(OBJ::D_SNAPSHOT, dSnapshot::Create);
 
   Add(OBJ::G_SWITCH, gSwitch::Create);
   Add(OBJ::G_GATE, gGate::Create);
