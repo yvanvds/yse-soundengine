@@ -29,6 +29,7 @@
 #include "channel/channelManager.h"
 #include "channel/channelMessage.h"
 #include "dsp/dspObject.hpp"
+#include "patcher/pool_blocker.hpp"
 #include "sound/soundManager.h"
 #include "internal/time.h"
 #include "support/null_device.hpp"
@@ -400,6 +401,31 @@ TEST_SUITE("channel") {
     // `calledfrom` clearing is the impl's signal that it has applied the
     // detach and holds no pointer into the module any more (#835).
     CHECK(drainChannelsUntil([] { return gain.calledfrom == nullptr; }));
+  }
+
+  // Issue #1179: a detach queued right before the channel dies is dropped by
+  // sync() (head gone → OBJECT_RELEASE, inbox not drained), so the dying impl
+  // still holds the plugin. Its back-reference must be severed on the update
+  // thread at the release transition, not left to the slow-pool destructor —
+  // that clear raced the user destroying the plugin on another thread (TSan in
+  // channelcapi). The pool is parked, so only the update ticks can clear it.
+  TEST_CASE("channel dsp: released channel severs calledfrom on the update thread (#1179)") {
+    if (!TestHelpers::engineInit()) return;
+    static GainDsp gain(2.0f); // static: see the round-trip case above
+    {
+      YSE::channel c;
+      c.create("dsp_release_channel", YSE::ChannelMaster());
+      c.setDSP(&gain);
+      REQUIRE(drainChannelsUntil([] { return gain.calledfrom != nullptr; }));
+      c.setDSP(nullptr); // queued — the impl never applies it
+    } // ~channel: head nulled with the detach still in the inbox
+
+    // The delete job is only queued by an update tick, so parking now
+    // guarantees it cannot be what clears the back-reference.
+    TestHelpers::PoolBlocker blocker;
+    REQUIRE(blocker.Park());
+    CHECK(drainChannelsUntil([] { return gain.calledfrom == nullptr; }, 50));
+    blocker.Unpark();
   }
 
 } // TEST_SUITE("channel")

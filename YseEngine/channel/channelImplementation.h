@@ -380,6 +380,15 @@ namespace YSE {
       void addDSP(DSP::dspObject* ptr);
 
       /**
+        Drop the insert chain and clear the head's back-reference if it still
+        points at this impl. Run by CHANNEL::Manager on the update/audio thread
+        at OBJECT_RELEASE→OBJECT_DELETE, so the slow-pool destructor never
+        touches the plugin (issue #1179); the destructor calls it again as a
+        teardown-only fallback.
+      */
+      void detachInsertDSP();
+
+      /**
         Run the attached insert chain over `out` in place. Called from the mix
         task pre-fader (before reverb); public so the pre-fader insert
         behaviour can be driven directly in tests after populating `out`.
