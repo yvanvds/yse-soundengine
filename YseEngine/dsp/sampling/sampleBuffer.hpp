@@ -234,6 +234,7 @@ namespace YSE {
       /**
        *  @brief Multiply every channel by a window (Max's ``apply``).
        *
+       *  @param window The window shape.
        *  @param half   Use only the second half of the window, stretched
        *                over the buffer: a fade out.
        *  @param beta   The Kaiser window's beta. Ignored by the others.
@@ -356,6 +357,8 @@ namespace YSE {
        *  @brief The buffer called @p name, created empty (one channel, no
        *         samples) when nobody holds it.
        *
+       *  @param name     The buffer's name. Any string, including one a
+       *                  patch spells as a ``~buffer`` argument.
        *  @param created  When not null, set to whether this call created it.
        */
       static std::shared_ptr<sampleBuffer> acquire(const std::string& name,
