@@ -10,10 +10,8 @@ namespace YSE {
     PATCHER_CLASS(dVcf, YSE::OBJ::D_VCF)
     _NO_MESSAGES
     _DO_CALCULATE
-    _DO_RESET
 
-    _BUFFER_IN(SetInput)
-    _BUFFER_IN(SetCenter)
+    _FLOAT_IN(SetCenter)
     _FLOAT_IN(SetSharpness)
 
   private:
@@ -21,8 +19,7 @@ namespace YSE {
 
     aFlt sharpness;
 
-    DSP::buffer* in;
-    DSP::buffer* center;
+    aFlt center;
   };
 }
 }

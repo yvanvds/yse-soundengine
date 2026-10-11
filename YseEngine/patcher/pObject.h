@@ -751,6 +751,9 @@ namespace YSE {
 #define REG_BUFFER_IN(funcName)                                                                    \
   inputs.back().RegisterBuffer(std::bind(&className::funcName, this, std::placeholders::_1,        \
                                          std::placeholders::_2, std::placeholders::_3))
+// A signal inlet the object reads with inputs[n].Signal(fallback) in CALC()
+// rather than through a buffer handler (issue #1036).
+#define REG_SIGNAL_IN inputs.back().RegisterSignal()
 #define REG_FLOAT_IN(funcName)                                                                     \
   inputs.back().RegisterFloat(std::bind(&className::funcName, this, std::placeholders::_1,         \
                                         std::placeholders::_2, std::placeholders::_3))

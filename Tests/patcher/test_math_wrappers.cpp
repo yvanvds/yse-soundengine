@@ -186,14 +186,16 @@ TEST_SUITE("patcher") {
     CHECK(h->OutputDataType(0) == YSE::OUT_TYPE::BUFFER);
   }
 
-  TEST_CASE("dMultiply: null left buffer produces no output") {
+  TEST_CASE("dMultiply: an unconnected left inlet reads as silence (#1036)") {
     YSE::PATCHER::dMultiply mul;
     BufferSink sink;
     Wire(mul, 0, sink);
+    mul.GetInlet(1)->SetFloat(2.0f, YSE::T_GUI);
 
     mul.Calculate(YSE::T_DSP);
 
-    CHECK(sink.received == nullptr);
+    REQUIRE(sink.received != nullptr);
+    CHECK(sink.received->isSilent());
   }
 
   TEST_CASE("dMultiply: multiplies buffer by scalar") {
@@ -255,7 +257,7 @@ TEST_SUITE("patcher") {
       CHECK(out[i] == doctest::Approx(0.1f * static_cast<float>(i)));
   }
 
-  TEST_CASE("dMultiply: ResetDSP restores null-buffer early-return behaviour") {
+  TEST_CASE("dMultiply: ResetDSP drops last block's input (#1036)") {
     YSE::PATCHER::dMultiply mul;
     BufferSink sink;
     Wire(mul, 0, sink);
@@ -270,7 +272,10 @@ TEST_SUITE("patcher") {
     sink.received = nullptr;
     mul.ResetDSP();
     mul.Calculate(YSE::T_DSP);
-    CHECK(sink.received == nullptr);
+    // Nothing arrived this block, so the left inlet reads as 0, not as last
+    // block's 4.
+    REQUIRE(sink.received != nullptr);
+    CHECK(sink.received->isSilent());
   }
 
 } // TEST_SUITE("patcher")

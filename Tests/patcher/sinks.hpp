@@ -100,7 +100,8 @@ namespace TestHelpers {
 
   private:
     static bool FedByPatcher(const YSE::PATCHER::inlet& in) {
-      if (in.DspSource() != nullptr && in.DspSource()->GraphId() >= 0) return true;
+      for (const YSE::PATCHER::outlet* source : in.DspSources())
+        if (source->GraphId() >= 0) return true;
       for (const YSE::PATCHER::outlet* source : in.Sources())
         if (source->GraphId() >= 0) return true;
       return false;

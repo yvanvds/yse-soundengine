@@ -110,6 +110,29 @@ object's hot inlet (for example the frequency inlet of ``~sine``), the value
 is stored and takes effect in the next audio block. Signal objects only
 compute while a block is rendering.
 
+.. _patcher-signal-inlets:
+
+Signal inlets
+-------------
+
+A signal inlet (one that takes ``BUFFER``) follows three rules:
+
+- **Several cords are summed.** Any number of signal cords may end on one
+  inlet. The object hears their sum, once per block, after the last of them
+  has arrived. ``~dac`` follows the same rule, so several voices can be wired
+  straight into one output channel.
+- **An unconnected signal inlet reads as a constant.** It is the last number
+  sent to that inlet, or else the creation argument, or else 0. ``[~+ 0.25]``
+  with nothing connected outputs 0.25 every block, and ``~vcf`` with only its
+  audio input wired filters at the center frequency set by a number. A signal
+  object with no signal cords into it at all still computes every block.
+- **A connected signal wins over a number.** A number sent to a signal inlet
+  that has a cord does not change the sound. It is stored, and becomes the
+  constant as soon as the last cord is removed.
+
+Cords can be drawn and removed while the patch plays. Each block hears the
+cords that existed when it started.
+
 Dispatch is synchronous and depth first
 ---------------------------------------
 

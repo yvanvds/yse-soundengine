@@ -470,16 +470,13 @@ per block. ``~saw`` is the smallest complete one. Its header:
    PATCHER_CLASS(dSaw, YSE::OBJ::D_SAW)
    _NO_MESSAGES
    _DO_CALCULATE
-   _DO_RESET
 
    _FLOAT_IN(SetFrequency)
-   _BUFFER_IN(SetFrequencyBuffer)
 
    private:
      DSP::saw saw;
 
      aFlt frequency;
-     DSP::buffer* freqBuffer;
    };
 
 And its source:
@@ -488,10 +485,9 @@ And its source:
 
    CONSTRUCT_DSP() {
      frequency = 440.f;
-     freqBuffer = nullptr;
 
      ADD_IN_0;
-     REG_BUFFER_IN(SetFrequencyBuffer);
+     REG_SIGNAL_IN;
      REG_FLOAT_IN(SetFrequency);
 
      ADD_OUT_BUFFER;
@@ -507,21 +503,14 @@ And its source:
      PARAM_DOC("frequency", "440", "Initial frequency in Hz.", "0-20000 Hz");
    }
 
-   RESET() // {
-   freqBuffer = nullptr;
-   }
-
    FLOAT_IN(SetFrequency) {
      frequency = value;
    }
 
-   BUFFER_IN(SetFrequencyBuffer) {
-     freqBuffer = buffer;
-   }
-
    CALC() {
      // DSP::saw is a phasor (0..1). Rescale it in place to a bipolar -1..1 saw.
-     DSP::buffer& out = freqBuffer != nullptr ? saw(*freqBuffer) : saw(frequency);
+     DSP::buffer& out =
+         inputs[0].IsConstant() ? saw(frequency) : saw(inputs[0].Signal(frequency));
      Flt* ptr = out.getPtr();
      for (UInt i = 0; i < out.getLength(); ++i)
        ptr[i] = 2.f * ptr[i] - 1.f;
@@ -531,18 +520,31 @@ And its source:
 How the render drives it:
 
 - ``CONSTRUCT_DSP()`` marks the object as a signal object.
+- ``REG_SIGNAL_IN`` makes the inlet a signal inlet. ``CALC()`` reads it with
+  ``inputs[n].Signal(fallback)``, which never returns null: it is the buffer
+  that arrived, the sum when several cords end on the inlet, or, with no
+  cord, the inlet's own buffer filled with ``fallback``.
+  ``inputs[n].IsConstant()`` says which, so an object can take a scalar path
+  (here ``saw(frequency)``) instead of reading a buffer of identical samples.
+  The rules a patch author sees are in :ref:`patcher-signal-inlets`.
+- Pass the object's float for that inlet as the fallback. The inlet then
+  follows the rule for patch authors: the last number sent to it, else the
+  creation argument (``ADD_PARAM``), else the default. A connected signal
+  wins over it.
 - At the start of every block the patcher calls ``ResetDSP()`` on every
-  object. The base version marks each input buffer as not yet arrived.
-  ``RESET()`` adds your own reset to it. It already contains the opening
-  brace and the call to the base, which is why ``dSaw`` writes ``// {``
-  after it and ends with a plain ``}``.
+  object, which marks each signal inlet as not yet arrived. An object that
+  keeps per-block state of its own adds to it with ``_DO_RESET`` and
+  ``RESET()``. The macro already contains the opening brace and the call to
+  the base, so the body is written ``RESET() // {`` and ends with a plain
+  ``}``.
 - A signal object with no signal cord into it is a **start point**, and the
   patcher calls its ``Calculate()`` directly. Any other signal object
-  computes when its last signal input has arrived. Either way it runs once
-  per block, on the audio thread, and it must send a buffer on every signal
-  outlet.
-- A buffer inlet that also takes a float is the usual pattern: with a cord,
-  the buffer wins; without one, the float is used.
+  computes when every cord into its signal inlets has delivered. Either way
+  it runs once per block, on the audio thread, and it must send a buffer on
+  every signal outlet.
+- ``REG_BUFFER_IN(f)`` registers a handler instead, called with the buffer
+  (or the sum) as it arrives. ``~dac`` uses it to keep its channel
+  pointers; new objects should read ``Signal()``.
 - A number that arrives with ``T_GUI`` on a signal object's hot inlet only
   stores. It does not compute a block early. The next block uses it.
 - ``frequency`` is an ``aFlt`` (an atomic float), because a control thread
@@ -566,9 +568,8 @@ object in two layers, decided in `#1035
 Each object issue under #1034 lists the MSP surface to cover (arguments,
 messages, attributes). Map every item onto a setter of the DSP class and an
 inlet, message or parameter of the wrapper, or say in the PR why it is
-dropped. How a signal inlet falls back to a float, and what an unconnected
-inlet reads, is decided in `#1036
-<https://github.com/yvanvds/yse-soundengine/issues/1036>`_. C API wrappers
+dropped. Signal inlets follow `Signal objects`_: unconnected ones read as
+the wrapper's float, several cords are summed, and a connected signal wins. C API wrappers
 for the DSP classes come later, in one batch (`#1173
 <https://github.com/yvanvds/yse-soundengine/issues/1173>`_).
 

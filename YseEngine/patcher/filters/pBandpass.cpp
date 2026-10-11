@@ -13,7 +13,7 @@ CONSTRUCT_DSP() {
 
   // out 0: audio output
   ADD_IN_0;
-  REG_BUFFER_IN(SetBuffer);
+  REG_SIGNAL_IN;
 
   ADD_IN_1;
   REG_FLOAT_IN(SetFrequency);
@@ -26,7 +26,6 @@ CONSTRUCT_DSP() {
   ADD_PARAM(frequency);
   ADD_PARAM(Q);
 
-  buffer = nullptr;
   // Q 1, as DSP::MODULES::bandPassFilter: at Q 0 DSP::bandPass stops filtering
   // and passes the input at twice its level (#1020).
   frequency = 0.f;
@@ -43,14 +42,6 @@ CONSTRUCT_DSP() {
   PARAM_DOC("Q", "1", "Initial Q / resonance.", "0.1-100");
 }
 
-RESET() // {
-buffer = nullptr;
-}
-
-BUFFER_IN(SetBuffer) {
-  this->buffer = buffer;
-}
-
 FLOAT_IN(SetFrequency) {
   frequency = value;
 }
@@ -60,7 +51,8 @@ FLOAT_IN(SetQ) {
 }
 
 CALC() {
-  if (buffer == nullptr) return;
+  // Unconnected, the input reads as silence (issue #1036).
+  DSP::buffer& in = inputs[0].Signal(0.f);
   filter.set(frequency, Q);
-  outputs[0].SendBuffer(&filter(*buffer), thread);
+  outputs[0].SendBuffer(&filter(in), thread);
 }

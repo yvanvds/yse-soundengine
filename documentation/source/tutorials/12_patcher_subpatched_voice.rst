@@ -98,10 +98,10 @@ Several voices
 ``CreateVoice`` is a function, so a patch can hold as many voices as it
 calls it. Two things to know when you do:
 
-- **A signal inlet takes one cord.** To play several voices through one
-  ``~dac``, add them up with ``~+`` first (or give each its own ``~dac``: a
-  patch's ``~dac`` objects are summed). :doc:`13_patcher_midi_synth` sums
-  four voices with a chain of ``~+``.
+- **A signal inlet sums its cords.** To play several voices through one
+  ``~dac``, wire them all into it, add them up with ``~+`` first, or give
+  each its own ``~dac`` (a patch's ``~dac`` objects are summed too).
+  :doc:`13_patcher_midi_synth` sums four voices with a chain of ``~+``.
 - **Names are not local to a subpatcher.** A ``.r freq`` inside a voice would
   receive every ``freq`` sent to the patcher, in every copy of the voice.
   That is why this voice has an inlet instead of a receiver: a parent can

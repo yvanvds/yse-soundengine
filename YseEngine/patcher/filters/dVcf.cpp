@@ -6,17 +6,18 @@ using namespace YSE::PATCHER;
 
 CONSTRUCT_DSP() {
   // in 0: audio buffer
-  // in 1: center buffer
+  // in 1: center frequency (buffer, or a float while unconnected)
   // in 2: Q / sharpness (float)
 
   // out 0: audio out
   // out 2: audio out
 
   ADD_IN_0;
-  REG_BUFFER_IN(SetInput);
+  REG_SIGNAL_IN;
 
   ADD_IN_1;
-  REG_BUFFER_IN(SetCenter);
+  REG_SIGNAL_IN;
+  REG_FLOAT_IN(SetCenter);
 
   ADD_IN_2;
   REG_FLOAT_IN(SetSharpness);
@@ -25,10 +26,10 @@ CONSTRUCT_DSP() {
   ADD_OUT_BUFFER;
 
   ADD_PARAM(sharpness);
+  ADD_PARAM(center);
 
-  in = nullptr;
-  center = nullptr;
   sharpness = 0.f;
+  center = 0.f;
 
   // A one-pole complex resonator: per sample, the pole sits at angle
   // 2*pi*center/SAMPLERATE with radius 1 - angle/sharpness (clamped to 0-1), so
@@ -39,8 +40,8 @@ CONSTRUCT_DSP() {
   ADD_CATEGORY(pCategory::FILTER);
   INLET_DOC(0, "in", "Audio input.", "-1.0 to 1.0");
   INLET_DOC(1, "center",
-            "Center frequency in Hz, as a signal. Both signal inlets must be "
-            "connected for the filter to run.",
+            "Center frequency in Hz: a signal, or a number used while no signal is "
+            "connected.",
             "0-20000 Hz");
   INLET_DOC(2, "sharpness", "How narrow the band is: higher is narrower. 0 turns filtering off.",
             "0+");
@@ -48,19 +49,12 @@ CONSTRUCT_DSP() {
   OUTLET_DOC(1, "imag", "The imaginary part of the resonator, a lowpass-like response.",
              "-1.0 to 1.0");
   PARAM_DOC("sharpness", "0", "Initial sharpness.", "0+");
+  PARAM_DOC("center", "0", "Center frequency in Hz used while no signal is connected.",
+            "0-20000 Hz");
 }
 
-RESET() // {
-in = nullptr;
-center = nullptr;
-}
-
-BUFFER_IN(SetInput) {
-  this->in = buffer;
-}
-
-BUFFER_IN(SetCenter) {
-  this->center = buffer;
+FLOAT_IN(SetCenter) {
+  this->center = value;
 }
 
 FLOAT_IN(SetSharpness) {
@@ -68,11 +62,10 @@ FLOAT_IN(SetSharpness) {
 }
 
 CALC() {
-  if (in == nullptr) return;
-  if (center == nullptr) return;
-
+  // Either inlet may be unconnected (issue #1036): the input then reads as
+  // silence and the center as its float.
   vcf.sharpness(sharpness);
-  vcf(*in, *center);
+  vcf(inputs[0].Signal(0.f), inputs[1].Signal(center));
   outputs[0].SendBuffer(&vcf.real(), thread);
   outputs[1].SendBuffer(&vcf.imag(), thread);
 }

@@ -43,15 +43,13 @@ namespace YSE {
      *
      *  ### Real-time behaviour
      *
-     *  `Calculate()` is one null check and one send. Nothing here allocates,
-     *  locks or blocks on any thread.
+     *  `Calculate()` is one send of the inlet's buffer (see dInlet.h).
+     *  Nothing here allocates, locks or blocks on any thread.
      */
     PATCHER_CLASS(dOutlet, YSE::OBJ::D_OUTLET)
     _NO_MESSAGES
     _DO_CALCULATE
-    _DO_RESET
 
-    _BUFFER_IN(SetInBuffer)
 
     /**
      *  @brief Which outlet of the enclosing subpatcher this object is.
@@ -71,9 +69,6 @@ namespace YSE {
 
   private:
     std::atomic<int> index{0};
-
-    // Borrowed for the duration of one block — see dInlet.h.
-    DSP::buffer* in;
   };
 
 } // namespace PATCHER

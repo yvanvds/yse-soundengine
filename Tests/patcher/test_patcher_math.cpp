@@ -398,9 +398,10 @@ TEST_SUITE("patcher") {
     CHECK(clip.GetOutputType(0) == YSE::OUT_TYPE::BUFFER);
   }
 
-  TEST_CASE("dClip: null input buffer produces no output (#436)") {
-    // Reachable via CreateObject now, so a ~clip left unconnected on inlet 0
-    // gets Calculate()d with a null buffer every block.
+  TEST_CASE("dClip: an unconnected input reads as silence (#436, #1036)") {
+    // Reachable via CreateObject, so a ~clip left unconnected on inlet 0 gets
+    // Calculate()d every block. It used to see a null buffer (#436); since
+    // #1036 the inlet reads as 0 and the object sends silence.
     YSE::PATCHER::dClip clip;
     BufferSink sink;
     clip.ConnectOutlet(sink.GetInlet(0), 0);
@@ -408,7 +409,8 @@ TEST_SUITE("patcher") {
 
     clip.Calculate(YSE::T_DSP);
 
-    CHECK(sink.received == nullptr);
+    REQUIRE(sink.received != nullptr);
+    CHECK(sink.received->isSilent());
   }
 
   TEST_CASE("dClip: samples outside [-0.5, 0.5] are clamped") {
@@ -470,15 +472,18 @@ TEST_SUITE("patcher") {
     CHECK(h->OutputDataType(0) == YSE::OUT_TYPE::BUFFER);
   }
 
-  TEST_CASE("dSubstract: null left buffer produces no output") {
+  TEST_CASE("dSubstract: an unconnected left inlet reads as 0 (#1036)") {
     YSE::PATCHER::dSubstract sub;
     BufferSink sink;
     sub.ConnectOutlet(sink.GetInlet(0), 0);
     sink.ConnectInlet(sub.GetOutlet(0), 0);
+    sub.GetInlet(1)->SetFloat(0.25f, YSE::T_GUI);
 
     sub.Calculate(YSE::T_DSP);
 
-    CHECK(sink.received == nullptr);
+    REQUIRE(sink.received != nullptr);
+    for (unsigned int i = 0; i < sink.received->getLength(); ++i)
+      CHECK(sink.received->getPtr()[i] == doctest::Approx(-0.25f));
   }
 
   TEST_CASE("dSubstract: subtracts scalar from all buffer samples") {
@@ -572,7 +577,7 @@ TEST_SUITE("patcher") {
     CHECK(h->OutputDataType(0) == YSE::OUT_TYPE::BUFFER);
   }
 
-  TEST_CASE("dDivide: null left buffer produces no output") {
+  TEST_CASE("dDivide: an unconnected left inlet reads as silence (#1036)") {
     YSE::PATCHER::dDivide div;
     BufferSink sink;
     div.ConnectOutlet(sink.GetInlet(0), 0);
@@ -580,7 +585,8 @@ TEST_SUITE("patcher") {
 
     div.Calculate(YSE::T_DSP);
 
-    CHECK(sink.received == nullptr);
+    REQUIRE(sink.received != nullptr);
+    CHECK(sink.received->isSilent());
   }
 
   TEST_CASE("dDivide: divides buffer by scalar") {

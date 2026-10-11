@@ -24,10 +24,8 @@ namespace {
 } // namespace
 
 CONSTRUCT_DSP() {
-  in = nullptr;
-
   ADD_IN_0;
-  REG_BUFFER_IN(SetInBuffer);
+  REG_SIGNAL_IN;
 
   ADD_OUT_BUFFER;
 
@@ -43,25 +41,13 @@ CONSTRUCT_DSP() {
   PARAM_DOC("index", "0", kIndexDoc, "0+");
 }
 
-BUFFER_IN(SetInBuffer) {
-  (void)inlet;
-  (void)thread;
-  in = buffer;
-}
-
-RESET() // {
-in = nullptr;
-}
-
 CALC() {
-  // The whole boundary. `in` is the upstream object's own buffer, alive for
-  // this block, so it is handed straight on — no copy, and no buffer of our
-  // own to copy into. Nothing arrived when the parent left this inlet
-  // unconnected (the object is then a DSP start point and this runs with a null
-  // `in`), in which case the boundary sends nothing, exactly as every other DSP
-  // object does with a missing input.
-  if (in == nullptr) return;
-  outputs[0].SendBuffer(in, thread);
+  // The whole boundary. The inlet's buffer is the upstream object's own
+  // buffer, alive for this block, so it is handed straight on with no copy.
+  // With several cords it is the inlet's sum, and with none (the parent left
+  // the pin unconnected) silence, so everything behind the boundary still
+  // runs, as it would in the parent (issue #1036).
+  outputs[0].SendBuffer(&inputs[0].Signal(0.f), thread);
 }
 
 #undef className

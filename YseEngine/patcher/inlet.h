@@ -2,6 +2,7 @@
 #include "../dsp/buffer.hpp"
 #include <cstdint>
 #include <functional>
+#include <memory>
 #include <string>
 #include <vector>
 #include "../headers/enums.hpp"
@@ -78,15 +79,45 @@ namespace YSE {
     typedef std::function<void(const std::string&, int, THREAD)> listFunc;
     typedef std::function<void(DSP::buffer* buffer, int, THREAD)> bufferFunc;
 
+    /**
+     *  @brief One inlet of a patcher object.
+     *
+     *  Signal inlets follow three rules (issue #1036):
+     *
+     *  - **Fan-in sums.** Any number of signal cords may end on one inlet. One
+     *    source is passed through untouched; several are summed into the
+     *    inlet's own scratch buffer, and the object hears one buffer (one
+     *    buffer handler call) once the last of them has arrived.
+     *  - **An unconnected signal inlet reads as a constant.** ``Signal()``
+     *    returns the scratch buffer filled with the fallback value the object
+     *    passes in: by convention the last float sent to that inlet, else the
+     *    creation argument, else 0. Objects therefore always have a buffer to
+     *    work with, and an object without signal sources is a start point that
+     *    runs every block.
+     *  - **A connected signal wins.** A float sent to a signal inlet with a
+     *    cord on it does not change the audio; the object stores it, and it
+     *    becomes the constant the moment the last cord is removed.
+     */
     struct inlet {
       inlet(pObject* obj, bool active, int position);
       ~inlet();
+      // Inlets live in a std::vector that only grows in the owning object's
+      // constructor, before anything points at them. The scratch buffer is
+      // owned, so an inlet is moved there, never copied.
+      inlet(inlet&& other) noexcept;
+      inlet(const inlet&) = delete;
+      inlet& operator=(const inlet&) = delete;
+      inlet& operator=(inlet&&) = delete;
 
       void RegisterBang(voidFunc f);
       void RegisterFloat(floatFunc f);
       void RegisterInt(intFunc f);
       void RegisterList(listFunc f);
       void RegisterBuffer(bufferFunc f);
+      // Marks this as a signal inlet without a buffer handler: the object reads
+      // the input with Signal() when it computes (issue #1036). Allocates the
+      // scratch buffer, so call it from the constructor.
+      void RegisterSignal();
 
       void SetBang(THREAD thread);
       void SetInt(int value, THREAD thread);
@@ -97,23 +128,43 @@ namespace YSE {
       void SetMessage(const std::string& message, THREAD thread, float value = 0.f);
 
       inline void ResetDSP() {
-        dspReady = false;
+        dspArrived = 0;
+        current = nullptr;
       } // call before parsing patcher objects
-      bool WaitingForDSP() const; // true when no dsp buffer has been received during this frame
+      // True while fewer signal buffers have arrived this block than the inlet
+      // has signal sources.
+      bool WaitingForDSP() const;
       bool HasActiveDSPConnection() const;
       bool AcceptsDSP() const;
+
+      /**
+       *  @brief This block's input on a signal inlet (issue #1036).
+       *
+       *  The buffer that arrived (the sum, with several sources) or, when
+       *  nothing arrived because the inlet is unconnected, the inlet's scratch
+       *  buffer filled with @p fallback at ``STANDARD_BUFFERSIZE`` samples.
+       *  Never null. Audio thread; allocation-free. Only valid on a signal
+       *  inlet (one with RegisterBuffer or RegisterSignal).
+       */
+      DSP::buffer& Signal(Flt fallback);
+
+      /** @brief True when Signal() would return the fallback constant: no
+       *  buffer arrived this block. Lets an object take a scalar fast path. */
+      inline bool IsConstant() const {
+        return current == nullptr;
+      }
 
       bool Connect(outlet* out);
       void Disconnect(outlet* out);
 
       // The live (control-thread) incoming edges: the control-edge sources
-      // and the single DSP source. Read by the structural-replacement rewiring
+      // and the DSP sources. Read by the structural-replacement rewiring
       // of a live SetParams re-parse (issue #234); control thread only.
       inline const std::vector<outlet*>& Sources() const {
         return connections;
       }
-      inline outlet* DspSource() const {
-        return dspConnection;
+      inline const std::vector<outlet*>& DspSources() const {
+        return dspConnections;
       }
 
       // Drop this inlet's incoming edges and remove it from the outlets that
@@ -123,7 +174,7 @@ namespace YSE {
       void UnwireFromPeers();
 
       // Dense, lifetime-stable id assigned when the owning object is added to a
-      // patcher; indexes GraphState::inletHasDsp. -1 until assigned.
+      // patcher; indexes GraphState::inletDspSources. -1 until assigned.
       inline int GraphId() const {
         return graphId;
       }
@@ -155,8 +206,17 @@ namespace YSE {
       unsigned int GetAcceptedTypes() const;
 
     private:
+      // How many signal sources this inlet has in the snapshot the calling
+      // thread reads (see WaitingForDSP), or in the live wiring for a
+      // standalone object.
+      unsigned int DspSourceCount() const;
+
       pObject* obj;
-      bool dspReady;
+      // Signal buffers received this block, and the one the object reads (the
+      // single source's own buffer, or scratch holding the sum).
+      unsigned int dspArrived;
+      DSP::buffer* current;
+      bool signal;
       bool active;
       int position;
       // See GraphId(). -1 = unassigned (standalone object, no patcher).
@@ -168,8 +228,12 @@ namespace YSE {
       listFunc onList;
       bufferFunc onBuffer;
 
-      outlet* dspConnection;
+      std::vector<outlet*> dspConnections;
       std::vector<outlet*> connections;
+      // Fan-in sum and unconnected constant. Allocated by RegisterBuffer /
+      // RegisterSignal on the control thread, pre-sized to
+      // STANDARD_BUFFERSIZE; null on a control-only inlet.
+      std::unique_ptr<DSP::buffer> scratch;
 
       std::string docLabel;
       std::string docDescription;

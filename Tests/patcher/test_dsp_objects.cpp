@@ -266,14 +266,15 @@ TEST_SUITE("patcher") {
     CHECK(h->OutputDataType(0) == YSE::OUT_TYPE::BUFFER);
   }
 
-  TEST_CASE("pBandpass: null input buffer produces no output") {
+  TEST_CASE("pBandpass: an unconnected input reads as silence (#1036)") {
     YSE::PATCHER::pBandpass bp;
     BufferSink sink;
     bp.ConnectOutlet(sink.GetInlet(0), 0);
     sink.ConnectInlet(bp.GetOutlet(0), 0);
 
     bp.Calculate(YSE::T_DSP);
-    CHECK(sink.received == nullptr);
+    REQUIRE(sink.received != nullptr);
+    CHECK(sink.received->isSilent());
   }
 
   TEST_CASE("pBandpass: center-frequency tone is preserved more than far-off tone") {
@@ -350,7 +351,7 @@ TEST_SUITE("patcher") {
     CHECK(peak == doctest::Approx(1.0f).epsilon(0.03));
   }
 
-  TEST_CASE("pBandpass: ResetDSP clears the buffer pointer") {
+  TEST_CASE("pBandpass: ResetDSP drops last block's input (#1036)") {
     YSE::PATCHER::pBandpass bp;
     BufferSink sink;
     bp.ConnectOutlet(sink.GetInlet(0), 0);
@@ -367,8 +368,10 @@ TEST_SUITE("patcher") {
 
     sink.received = nullptr;
     bp.ResetDSP();
+    CHECK(bp.GetInlet(0)->IsConstant());
     bp.Calculate(YSE::T_DSP);
-    CHECK(sink.received == nullptr);
+    // The filter still runs, on silence rather than last block's sine.
+    CHECK(sink.received != nullptr);
   }
 
   // ─── pHighpass ────────────────────────────────────────────────────────────────
@@ -384,14 +387,15 @@ TEST_SUITE("patcher") {
     CHECK(h->OutputDataType(0) == YSE::OUT_TYPE::BUFFER);
   }
 
-  TEST_CASE("pHighpass: null input buffer produces no output") {
+  TEST_CASE("pHighpass: an unconnected input reads as silence (#1036)") {
     YSE::PATCHER::pHighpass hp;
     BufferSink sink;
     hp.ConnectOutlet(sink.GetInlet(0), 0);
     sink.ConnectInlet(hp.GetOutlet(0), 0);
 
     hp.Calculate(YSE::T_DSP);
-    CHECK(sink.received == nullptr);
+    REQUIRE(sink.received != nullptr);
+    CHECK(sink.received->isSilent());
   }
 
   TEST_CASE("pHighpass: attenuates a DC input after settling") {
@@ -440,7 +444,7 @@ TEST_SUITE("patcher") {
     CHECK(TestHelpers::measureRms(*sinkHi.received) > TestHelpers::measureRms(*sinkDC.received));
   }
 
-  TEST_CASE("pHighpass: ResetDSP clears the buffer pointer") {
+  TEST_CASE("pHighpass: ResetDSP drops last block's input (#1036)") {
     YSE::PATCHER::pHighpass hp;
     BufferSink sink;
     hp.ConnectOutlet(sink.GetInlet(0), 0);
@@ -455,8 +459,10 @@ TEST_SUITE("patcher") {
 
     sink.received = nullptr;
     hp.ResetDSP();
+    CHECK(hp.GetInlet(0)->IsConstant());
     hp.Calculate(YSE::T_DSP);
-    CHECK(sink.received == nullptr);
+    // The filter still runs, on silence rather than last block's sine.
+    CHECK(sink.received != nullptr);
   }
 
   // ─── dVcf ─────────────────────────────────────────────────────────────────────
@@ -473,7 +479,7 @@ TEST_SUITE("patcher") {
     CHECK(h->OutputDataType(1) == YSE::OUT_TYPE::BUFFER);
   }
 
-  TEST_CASE("dVcf: null input buffer produces no output") {
+  TEST_CASE("dVcf: an unconnected input reads as silence (#1036)") {
     YSE::PATCHER::dVcf vcf;
     BufferSink out1, out2;
     vcf.ConnectOutlet(out1.GetInlet(0), 0);
@@ -483,28 +489,43 @@ TEST_SUITE("patcher") {
 
     vcf.Calculate(YSE::T_DSP);
 
-    CHECK(out1.received == nullptr);
-    CHECK(out2.received == nullptr);
+    REQUIRE(out1.received != nullptr);
+    REQUIRE(out2.received != nullptr);
+    CHECK(out1.received->isSilent());
+    CHECK(out2.received->isSilent());
   }
 
-  TEST_CASE("dVcf: null center buffer produces no output") {
-    YSE::PATCHER::dVcf vcf;
-    BufferSink out1, out2;
-    vcf.ConnectOutlet(out1.GetInlet(0), 0);
-    out1.ConnectInlet(vcf.GetOutlet(0), 0);
-    vcf.ConnectOutlet(out2.GetInlet(0), 1);
-    out2.ConnectInlet(vcf.GetOutlet(1), 0);
+  TEST_CASE("dVcf: an unconnected center reads as its float (#1036)") {
+    // Only the audio input wired: the filter runs, and filters exactly as if a
+    // constant signal at the center float were connected.
+    YSE::PATCHER::dVcf withFloat, withSignal;
+    BufferSink outFloat, outSignal;
+    withFloat.ConnectOutlet(outFloat.GetInlet(0), 0);
+    outFloat.ConnectInlet(withFloat.GetOutlet(0), 0);
+    withSignal.ConnectOutlet(outSignal.GetInlet(0), 0);
+    outSignal.ConnectInlet(withSignal.GetOutlet(0), 0);
 
-    YSE::DSP::buffer in(128);
+    withFloat.GetInlet(1)->SetFloat(1000.0f, YSE::T_GUI);
+    withFloat.GetInlet(2)->SetFloat(5.0f, YSE::T_GUI);
+    withSignal.GetInlet(2)->SetFloat(5.0f, YSE::T_GUI);
+
+    YSE::DSP::buffer in(128), center(128);
     fillSine(in, 1000.0f);
-    vcf.GetInlet(0)->SetBuffer(&in, YSE::T_GUI);
-    vcf.Calculate(YSE::T_DSP);
+    center = 1000.0f;
+    withFloat.GetInlet(0)->SetBuffer(&in, YSE::T_GUI);
+    withFloat.Calculate(YSE::T_DSP);
+    withSignal.GetInlet(0)->SetBuffer(&in, YSE::T_GUI);
+    withSignal.GetInlet(1)->SetBuffer(&center, YSE::T_GUI);
+    withSignal.Calculate(YSE::T_DSP);
 
-    CHECK(out1.received == nullptr);
-    CHECK(out2.received == nullptr);
+    REQUIRE(outFloat.received != nullptr);
+    REQUIRE(outSignal.received != nullptr);
+    CHECK_FALSE(outFloat.received->isSilent());
+    for (unsigned int i = 0; i < 128; ++i)
+      CHECK(outFloat.received->getPtr()[i] == doctest::Approx(outSignal.received->getPtr()[i]));
   }
 
-  TEST_CASE("dVcf: ResetDSP clears both buffer pointers") {
+  TEST_CASE("dVcf: ResetDSP drops both inputs (#1036)") {
     YSE::PATCHER::dVcf vcf;
     YSE::DSP::buffer in(128), center(128);
     fillSine(in, 1000.0f);
@@ -513,6 +534,8 @@ TEST_SUITE("patcher") {
     vcf.GetInlet(1)->SetBuffer(&center, YSE::T_GUI);
 
     vcf.ResetDSP();
+    CHECK(vcf.GetInlet(0)->IsConstant());
+    CHECK(vcf.GetInlet(1)->IsConstant());
 
     BufferSink out1, out2;
     vcf.ConnectOutlet(out1.GetInlet(0), 0);
@@ -521,8 +544,9 @@ TEST_SUITE("patcher") {
     out2.ConnectInlet(vcf.GetOutlet(1), 0);
     vcf.Calculate(YSE::T_DSP);
 
-    CHECK(out1.received == nullptr);
-    CHECK(out2.received == nullptr);
+    // Last block's sine is gone: the input reads as silence.
+    REQUIRE(out1.received != nullptr);
+    CHECK(out1.received->isSilent());
   }
 
   TEST_CASE("dVcf: emits non-silent buffers on both outlets when fed valid inputs") {

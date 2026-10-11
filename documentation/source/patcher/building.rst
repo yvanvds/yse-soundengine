@@ -86,11 +86,10 @@ Neither call returns a result. When a connection cannot be made, the
 patcher writes a log line and leaves the graph as it was. That happens when:
 
 - the outlet or inlet number does not exist on that object;
-- the same cord already exists (drawing it twice does not double it);
-- the inlet already has a **signal** cord. A signal inlet takes exactly one
-  signal source, so to mix two signals, send them into the two inlets of a
-  ``~+`` and connect its outlet instead. Message inlets accept any number of
-  cords.
+- the same cord already exists (drawing it twice does not double it).
+
+Any inlet accepts any number of cords. Several signal cords into one inlet
+are summed (see :ref:`signal inlets <patcher-signal-inlets>`).
 
 ``Connect`` does not compare types. A cord from an outlet whose messages
 the inlet cannot handle is drawn, but nothing arrives along it (see

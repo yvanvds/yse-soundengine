@@ -15054,9 +15054,10 @@
       },
       {
         "accepts": [
-          "BUFFER"
+          "BUFFER",
+          "FLOAT"
         ],
-        "doc": "Center frequency in Hz, as a signal. Both signal inlets must be connected for the filter to run.",
+        "doc": "Center frequency in Hz: a signal, or a number used while no signal is connected.",
         "index": 1,
         "label": "center",
         "range": "0-20000 Hz"
@@ -15095,6 +15096,12 @@
         "doc": "Initial sharpness.",
         "name": "sharpness",
         "range": "0+"
+      },
+      {
+        "default": "0",
+        "doc": "Center frequency in Hz used while no signal is connected.",
+        "name": "center",
+        "range": "0-20000 Hz"
       }
     ],
     "requires_midi_device": false
