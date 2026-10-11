@@ -45,3 +45,12 @@ audio thread. The format's *byte primitives* are shared, though —
 [#698](https://github.com/yvanvds/yse-soundengine/issues/698) — since they are pure and
 allocation-free and were only ever unshareable because they had been anonymous-namespace statics; it
 is the parsers above them that stay apart.
+
+**Tasks.** A third operation, `RequestTask(target, tag, function, args, bytes)` (issue
+[#1039](https://github.com/yvanvds/yse-soundengine/issues/1039)), runs caller-supplied work on the
+background pool through the same slots, for work that is not a plain file read or write: `~buffer`
+decodes audio files (which do not fit a 128 KiB slot) and edits a `DSP::sampleBuffer` this way. The
+arguments are copied into the slot, the function must not touch the requesting object (it finds what
+it needs by name or id), it may overwrite the arguments with a reply, and the completion hands them
+back like a read's bytes. Tasks run in request order, because the pool has one worker. See
+[sample_buffers.md](sample_buffers.md).

@@ -645,6 +645,52 @@ Then, and for a ``~send`` in another patcher, it hears the previous block.
 The order is decided when the graph is rebuilt, the same way for a given
 patch every time, so the sound is deterministic.
 
+Reading a sample buffer
+~~~~~~~~~~~~~~~~~~~~~~~
+
+The sampling objects (``~play``, ``~groove``, ``~index``, ``~wave`` and the
+rest) read a ``DSP::sampleBuffer`` by name, the buffer ``~buffer`` holds
+(issue `#1039 <https://github.com/yvanvds/yse-soundengine/issues/1039>`_,
+design in ``docs/design/sample_buffers.md``). The buffer can be resized or
+reloaded from another thread at any moment; a ``DSP::sampleBufferReader``
+makes that safe without a lock:
+
+.. code-block:: cpp
+
+   // header
+   DSP::sampleBufferReader reader;
+   std::string bufferName;
+
+   // PARM_PARSE: control thread. Registering the parse callback makes a
+   // name change rebuild the object, so a running block never sees a rebind.
+   PARM_PARSE() {
+     reader.bind(DSP::sampleBufferRegistry::acquire(bufferName));
+   }
+
+   CALC() {
+     DSP::sampleView view = reader.pin();  // once per block
+     if (view.empty()) { /* send silence */ }
+     const Flt* left = view.channel(0);
+     Flt speed = view.sampleRate() / static_cast<Flt>(SAMPLERATE);
+     ...
+   }  // the view goes here, and with it the claim on the samples
+
+The rules:
+
+- **Pin once per block, at the top of** ``CALC()``. The view shows one
+  version of the buffer for the whole block; the next block's ``pin`` sees
+  any change. Never keep a view past the end of ``CALC()``: while it exists
+  the storage it shows cannot be freed.
+- **One reader per object.** A reader is a single claim, so it is pinned
+  from one thread at a time.
+- ``acquire`` creates an empty buffer when the name is not held yet, so the
+  object works before its ``~buffer`` exists and plays silence until it is
+  filled. Names are process-wide, not scoped to the patcher.
+- ``view.sampleRate()`` is the rate the samples are at; play at
+  ``view.sampleRate() / SAMPLERATE``. Cache neither across blocks.
+- The DSP class takes the view (or the reader) per block, not the buffer,
+  so it stays a one-thread class. It never edits the buffer: edits allocate.
+
 Porting an MSP object
 ---------------------
 

@@ -65,12 +65,18 @@ void fileScheduler::fileJob::run() {
 }
 
 bool fileScheduler::Arm(pObject* target, int tag, FILE_OP op, const char* path,
-                        std::size_t pathLength, const char* bytes, std::size_t byteCount) {
-  if (target == nullptr || path == nullptr || pathLength == 0 || pathLength >= PATH_CAPACITY) {
+                        std::size_t pathLength, const char* bytes, std::size_t byteCount,
+                        fileTaskFunction task) {
+  // A task carries its own arguments and needs no path (issue #1039).
+  const bool pathRequired = op != FILE_OP::TASK;
+  if (target == nullptr || pathLength >= PATH_CAPACITY ||
+      (pathRequired && (path == nullptr || pathLength == 0)) ||
+      (op == FILE_OP::TASK && task == nullptr)) {
     dropped_.fetch_add(1, std::memory_order_relaxed);
     return false;
   }
-  if (op == FILE_OP::WRITE && (byteCount > BYTES_CAPACITY || (byteCount > 0 && bytes == nullptr))) {
+  const bool carriesBytes = op != FILE_OP::READ;
+  if (carriesBytes && (byteCount > BYTES_CAPACITY || (byteCount > 0 && bytes == nullptr))) {
     // Refused rather than truncated: half a collection is a different
     // collection, and the caller cannot tell a clipped file from a saved one.
     dropped_.fetch_add(1, std::memory_order_relaxed);
@@ -92,16 +98,17 @@ bool fileScheduler::Arm(pObject* target, int tag, FILE_OP op, const char* path,
     // The slot is ours; nothing else reads or writes its payload while it is
     // CLAIMED. Both copies are bounded memcpys into storage that already
     // exists — no allocation, which is what lets this run on the audio thread.
-    std::memcpy(e.path, path, pathLength);
+    if (pathLength > 0) std::memcpy(e.path, path, pathLength);
     e.path[pathLength] = '\0';
-    if (op == FILE_OP::WRITE && byteCount > 0) {
+    if (carriesBytes && byteCount > 0) {
       std::memcpy(e.bytes, bytes, byteCount);
     }
-    e.byteCount = op == FILE_OP::WRITE ? (std::uint32_t)byteCount : 0;
+    e.byteCount = carriesBytes ? (std::uint32_t)byteCount : 0;
     e.target = target;
     e.targetTag = target->InstanceTag();
     e.tag = tag;
     e.op = op;
+    e.task = task;
     e.ok = false;
 
     // Publish. The release pairs with the job's acquire CAS, which is what
@@ -136,6 +143,12 @@ bool fileScheduler::RequestWrite(pObject* target, int tag, const char* path, std
   return Arm(target, tag, FILE_OP::WRITE, path, pathLength, bytes, byteCount);
 }
 
+bool fileScheduler::RequestTask(pObject* target, int tag, fileTaskFunction task, const void* args,
+                                std::size_t argBytes) {
+  return Arm(target, tag, FILE_OP::TASK, nullptr, 0, static_cast<const char*>(args), argBytes,
+             task);
+}
+
 void fileScheduler::RunSlot(Entry& e) {
   std::uint32_t armed = STATE_ARMED;
   if (!e.state.compare_exchange_strong(armed, STATE_RUNNING, std::memory_order_acquire,
@@ -143,7 +156,17 @@ void fileScheduler::RunSlot(Entry& e) {
     // Already completed as a failure by Arm() because the pool refused it.
     return;
   }
-  e.ok = e.op == FILE_OP::READ ? ReadSlot(e) : WriteSlot(e);
+  switch (e.op) {
+  case FILE_OP::READ:
+    e.ok = ReadSlot(e);
+    break;
+  case FILE_OP::WRITE:
+    e.ok = WriteSlot(e);
+    break;
+  case FILE_OP::TASK:
+    e.ok = e.task(e.bytes, e.byteCount);
+    break;
+  }
   e.state.store(STATE_COMPLETE, std::memory_order_release);
 }
 

@@ -10,6 +10,7 @@ Author:  yvan
 
 #include "internalHeaders.h"
 #include "patcher/time/TimerThread.h"
+#include "dsp/sampling/sampleBuffer.hpp"
 #include "device/portaudioDeviceManager.h"
 
 #include <chrono>
@@ -183,6 +184,11 @@ void YSE::system::update() {
   // run, and the writing — a std::string, a file, possibly a host handler —
   // happens here on the control thread. Cheap when empty: one lock-free peek.
   INTERNAL::RtLog().drain();
+  // Free sample-buffer storage that a change replaced while a reader was
+  // still holding it (issue #1039). The audio thread never frees it; this is
+  // the tick that catches what the change itself could not. Cheap when no
+  // buffer has any waiting: one lock and an empty check.
+  DSP::sampleBufferRegistry::collect();
   // Wake the script thread once per tick so future scheduled work can advance
   // (issue #124 establishes the wake; #126/#127 add the scheduling). No-op
   // unless built with YSE_ENABLE_PYTHON.

@@ -120,6 +120,7 @@
 #include "analysis/dSnapshot.h"
 #include "delay/dTapin.h"
 #include "delay/dTapout.h"
+#include "sampling/dBuffer.h"
 
 #include "guiObjects/gInt.h"
 #include "guiObjects/gFloat.h"
@@ -325,6 +326,7 @@ pRegistry::pRegistry() {
   Add(OBJ::D_SNAPSHOT, dSnapshot::Create);
   Add(OBJ::D_TAPIN, dTapin::Create);
   Add(OBJ::D_TAPOUT, dTapout::Create);
+  Add(OBJ::D_BUFFER, dBuffer::Create);
 
   Add(OBJ::G_SWITCH, gSwitch::Create);
   Add(OBJ::G_GATE, gGate::Create);
