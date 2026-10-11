@@ -31,8 +31,7 @@ FLOAT_IN(SetFrequency) {
 CALC() {
   // DSP::saw is a phasor (0..1). Rescale it in place to a bipolar -1..1 saw.
   // A connected frequency signal wins over the float (issue #1036).
-  DSP::buffer& out =
-      inputs[0].IsConstant() ? saw(frequency) : saw(inputs[0].Signal(frequency));
+  DSP::buffer& out = inputs[0].IsConstant() ? saw(frequency) : saw(inputs[0].Signal(frequency));
   Flt* ptr = out.getPtr();
   for (UInt i = 0; i < out.getLength(); ++i)
     ptr[i] = 2.f * ptr[i] - 1.f;

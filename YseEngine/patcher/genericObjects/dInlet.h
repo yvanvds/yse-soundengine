@@ -94,7 +94,6 @@ namespace YSE {
     _NO_MESSAGES
     _DO_CALCULATE
 
-
     /**
      *  @brief Which inlet of the enclosing subpatcher this object is.
      *

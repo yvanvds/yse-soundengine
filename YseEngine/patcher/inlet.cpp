@@ -333,7 +333,8 @@ unsigned int inlet::DspSourceCount() const {
   // outlet::resolveTargets (see graphReadScope).
   const graphReadScope scope(obj);
   const auto owned = [this](const GraphState* g) {
-    return g != nullptr && graphId >= 0 && static_cast<size_t>(graphId) < g->inletDspSources.size() &&
+    return g != nullptr && graphId >= 0 &&
+           static_cast<size_t>(graphId) < g->inletDspSources.size() &&
            g->inletOwner[graphId] == this;
   };
   const GraphState* graph = scope.Graph();
