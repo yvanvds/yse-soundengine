@@ -32,6 +32,7 @@ namespace YSE {
       virtual void updateDeviceList();
       virtual Bool openDevice(const YSE::deviceSetup& object);
       virtual Bool addCallback();
+      virtual reopenOutcome reopenDevice(bool fallbackToDefault);
       virtual void serviceReconnect();
 
       // Live device-state getters (see deviceManager.h for contract).

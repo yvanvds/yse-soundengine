@@ -19,7 +19,7 @@
 #include <string>
 
 namespace YSE {
-  const std::string VERSION = "3.0.1";
+  const std::string VERSION = "3.1.0";
 
   /** @brief Signature of a user-supplied sound-occlusion callback.
    *
@@ -154,6 +154,13 @@ namespace YSE {
      *  debug log line rather than an open of whatever the platform default
      *  happens to be (issue #719). Use ``openDevice()`` to give an offline
      *  session a device deliberately.
+     *
+     *  After ``openDevice()``, the device restarted is that device, looked up
+     *  again by name and host API, with the channel count and buffer size it
+     *  was opened with. When it cannot be reopened nothing is opened and a
+     *  warning is logged; ``resume()`` never moves the session to another
+     *  device (issue #1027). A session that never called ``openDevice()`` runs
+     *  on the default device and reopens the current default.
      */
     void resume();
 
@@ -201,6 +208,39 @@ namespace YSE {
      */
     const device& getDevice(unsigned int nr);
 
+    /** @brief Enumerate the audio devices without opening a stream.
+     *
+     *  ``init()`` enumerates the devices as a side effect of opening the
+     *  default one, and ``initOffline()`` enumerates none, so this is how a
+     *  host lists them, or resolves a stored device, before opening anything
+     *  (issue #1026). Valid with no session at all, on an ``initOffline()``
+     *  session, and on a running device session.
+     *
+     *  On desktop it starts the audio backend (PortAudio) if it is not running
+     *  yet, without opening a stream. After that, ``openDevice()`` also works
+     *  on an ``initOffline()`` session in a process that never called
+     *  ``init()``. With no stream open, the backend is restarted so the list
+     *  includes devices plugged in or removed since it started. A stream that
+     *  is open is never touched; in that case the list is re-read from the
+     *  backend's enumeration as it stands, which on PortAudio does not see
+     *  hot-plugged devices until the device is closed.
+     *
+     *  The refresh replaces the list: device references and ``deviceSetup``
+     *  objects built from the old list are invalid afterwards, and a device's
+     *  index may now name a different device. Resolve by name and host
+     *  (``device::getName()`` / ``getTypeName()``), then build the setup.
+     *
+     *  Control thread only, not concurrently with other ``system`` calls.
+     *  On bare headless Linux runners, starting PortAudio can hang (the reason
+     *  ``initOffline()`` does not start it), so headless tools should not call
+     *  this.
+     *
+     *  @return ``true`` when the backend was reached and the list is current
+     *          (it may still be empty). ``false`` when the backend could not
+     *          start: the list is then empty and the reason is logged.
+     */
+    bool refreshDevices();
+
     /** @brief Open an audio device.
      *
      *  Allowed on a session started with ``initOffline()``, and a successful
@@ -210,13 +250,12 @@ namespace YSE {
      *  #719). Unlike ``resume()``, this call names the device it wants, so it
      *  is taken at its word.
      *
-     *  On desktop the promotion needs the audio backend to be running already:
+     *  On desktop the promotion needs the audio backend to be running:
      *  ``initOffline()`` does not start PortAudio, and ``openDevice()`` does
-     *  not start it on demand, so the device list is empty and this returns
-     *  ``false`` with a log line in a process that has only ever run offline
-     *  sessions. In a process where an earlier ``init()`` started the backend,
-     *  the device list from that session is still there and the call works
-     *  (issue #972).
+     *  not start it on demand. Call ``refreshDevices()`` first, which starts
+     *  it and enumerates the devices to pick from (issue #1026). Without it,
+     *  a process that has only ever run offline sessions has an empty device
+     *  list and this returns ``false`` with a log line (issue #972).
      *
      *  The stream opens at the session's sample rate, which is locked for the
      *  whole session and need not be the device's default rate (an offline
@@ -272,6 +311,20 @@ namespace YSE {
 
     /** @brief Name of the platform default audio host (e.g. WASAPI, ALSA). */
     const std::string& getDefaultHost();
+
+    /** @brief Name of the device whose output stream is open right now, empty
+     *         when none is.
+     *
+     *  Together with ``getActiveHost()`` this tells a host which device it is
+     *  actually playing on — after ``autoReconnect`` fell back to the default
+     *  device, say (issue #1027). Compare against ``device::getName()`` /
+     *  ``getTypeName()``. Control thread only.
+     */
+    const std::string& getActiveDevice();
+
+    /** @brief Host API (e.g. WASAPI, ALSA) of the device whose output stream is
+     *         open right now, empty when none is. Control thread only. */
+    const std::string& getActiveHost();
 
 #if YSE_ENABLE_MIDI_DEVICE
     /** @brief Number of MIDI input devices available.
@@ -376,7 +429,45 @@ namespace YSE {
      *
      *  The watchdog runs on ``update()``: when the device has delivered no
      *  audio callback for ``delay`` milliseconds it closes and re-opens the
-     *  output stream, which picks up whatever the current default device is.
+     *  output stream on the device the session had, the same way ``resume()``
+     *  does. Same as the four-argument overload with ``fallbackToDefault``
+     *  false and no attempt limit.
+     *
+     *  @param on    When ``true``, the engine attempts to re-open the audio
+     *               device after a disconnection (e.g. headphones unplugged).
+     *  @param delay Milliseconds of silence before a reconnection attempt, and
+     *               the interval between further attempts while the device
+     *               stays unavailable. Negative values are clamped to 0.
+     */
+    system& autoReconnect(bool on, int delay);
+
+    /** @brief Configure automatic device reconnection, with a fallback policy
+     *         and an attempt limit.
+     *
+     *  The watchdog runs on ``update()``: when the device has delivered no
+     *  audio callback for ``delay`` milliseconds it closes the output stream
+     *  and opens it again on the device this session had (issue #1027). That
+     *  is the device of the last successful ``openDevice()``, looked up again
+     *  by name and host API (indices shift when devices are re-enumerated),
+     *  with the output channels and buffer size it was opened with; a session
+     *  that never called ``openDevice()`` runs on the default output device,
+     *  and reopens whatever the default device is at that moment.
+     *
+     *  When the session's device cannot be reopened, nothing is opened and the
+     *  watchdog tries again ``delay`` milliseconds later — unless
+     *  ``fallbackToDefault`` is set, in which case the default output device
+     *  is opened instead, and the speaker layout is narrowed if the default
+     *  device has fewer outputs than the layout. The session does not move
+     *  back by itself when its own device returns.
+     *
+     *  On PortAudio the lookup uses the backend's device enumeration as it
+     *  stands. A device that was unplugged and plugged back in may only be
+     *  found after ``refreshDevices()``, which a host can call while the
+     *  watchdog has no stream open (``reconnectState()`` reads
+     *  ``RS_RECONNECTING``).
+     *
+     *  ``reconnectState()``, ``reconnectCount()``, ``getActiveDevice()`` and
+     *  ``getActiveHost()`` tell the host what happened.
      *
      *  A stream that has just been started is not stalled — the backend's
      *  start call returns before the device delivers its first callback — so a
@@ -391,20 +482,45 @@ namespace YSE {
      *  per interval and can never graft a device onto such a session (issue
      *  #719).
      *
+     *  Calling this resets ``reconnectState()`` to ``RS_NONE`` and re-arms a
+     *  watchdog that gave up.
+     *
      *  @param on    When ``true``, the engine attempts to re-open the audio
      *               device after a disconnection (e.g. headphones unplugged).
      *  @param delay Milliseconds of silence before a reconnection attempt, and
      *               the interval between further attempts while the device
      *               stays unavailable. Negative values are clamped to 0.
+     *  @param fallbackToDefault Open the default output device when the
+     *               session's own device cannot be reopened. Off by default:
+     *               an audio application usually wants to know rather than be
+     *               moved to the built-in output.
+     *  @param maxAttempts Consecutive failed attempts after which the watchdog
+     *               stops trying and ``reconnectState()`` reads ``RS_FAILED``,
+     *               so a machine with no audio hardware does not retry
+     *               forever. 0 or less means no limit.
      *
-     *  @note Up to and including v2.4.0 this value was compared against a
+     *  @note Up to and including v2.4.0 the delay was compared against a
      *        count of ``update()`` calls rather than milliseconds, so the same
      *        number meant a different wait on every host depending on how often
      *        it called ``update()``. It is now the documented millisecond
      *        value: existing callers passing a tick count get a shorter wall
      *        clock wait than before on a host polling slower than 1 kHz.
      */
-    system& autoReconnect(bool on, int delay);
+    system& autoReconnect(bool on, int delay, bool fallbackToDefault, int maxAttempts = 0);
+
+    /** @brief What the reconnection watchdog last did (issue #1027).
+     *
+     *  ``RS_NONE`` until the watchdog acts; it goes back to ``RS_NONE`` on
+     *  ``init()``, a successful ``openDevice()`` and every ``autoReconnect()``
+     *  call. Safe to read from any thread.
+     */
+    RECONNECT_STATE reconnectState();
+
+    /** @brief Number of reconnection attempts the watchdog has made this
+     *         session, successful or not. Lets a host notice a reconnect it
+     *         did not see happen. Reset by ``init()``. Safe to read from any
+     *         thread. */
+    unsigned int reconnectCount();
 
     /** @brief Audio callback wall-clock load as a fraction of the buffer period.
      *
@@ -603,6 +719,15 @@ namespace YSE {
     bool doAutoReconnect = false;
     // Milliseconds. See autoReconnect().
     int reconnectDelay = 0;
+    // See autoReconnect(on, delay, fallbackToDefault, maxAttempts). Control
+    // thread only. `reconnectFailures` counts consecutive failed attempts.
+    bool reconnectFallback = false;
+    int reconnectMaxAttempts = 0;
+    int reconnectFailures = 0;
+    // Written by update() on the control thread, readable from any thread
+    // (issue #1027).
+    std::atomic<int> reconnectStateValue{0};
+    std::atomic<unsigned int> reconnectAttempts{0};
 
     // autoReconnect watchdog state (issue #681), touched only by update() and
     // autoReconnect() on the control thread. `watchdogStreamStarts` is the

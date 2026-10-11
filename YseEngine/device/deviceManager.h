@@ -92,6 +92,20 @@ namespace YSE {
        */
       virtual void updateDeviceList() {};
 
+      /* Enumerate the devices without opening a stream (issue #1026), and
+         report whether the backend could be reached to do it. Valid with no
+         session, on an offline session and on a running device session. A
+         backend that probes hardware starts itself here if it is not running
+         yet (PortAudio's Pa_Initialize), which is also what lets openDevice()
+         work on an offline session afterwards; it must leave any open stream
+         alone. On false the device list is empty. Control thread only. The
+         base implementation re-reads the list, which for a backend with a
+         fixed device needs no start. */
+      virtual Bool refreshDevices() {
+        updateDeviceList();
+        return true;
+      }
+
       /* Open the stream described by the setup and report whether a stream is
          actually running afterwards. False means the request was refused or
          failed and the audio path is unchanged: a malformed setup, a device ID
@@ -114,6 +128,36 @@ namespace YSE {
       virtual Bool addCallback() {
         return false;
       };
+
+      /* Result of reopenDevice(). */
+      enum class reopenOutcome {
+        opened, // the session's own device is running again
+        fellBack, // it could not be, and the default output device was opened
+        failed, // nothing is running
+      };
+
+      /* Open the stream again on the device this session had (issue #1027):
+         the device of the last successful openDevice(), identified by name and
+         host because indices shift when the backend re-enumerates, with its
+         channel count and buffer size. A session that never called openDevice()
+         reopens the default output device, which is the device it had. Only
+         when the session's device cannot be reopened and fallbackToDefault is
+         set is the default device opened instead. Expects no stream to be open
+         (pause() first). Control thread only. */
+      virtual reopenOutcome reopenDevice(bool fallbackToDefault) = 0;
+
+      /* Drop the device remembered by openDevice(), so the next session's
+         reopen goes back to the default device. Called by system::close(). */
+      virtual void forgetOpenedDevice() {}
+
+      /* Name and host API of the device whose stream is currently open; empty
+         when none is (issue #1027). Control thread only. */
+      const std::string& getActiveDeviceName() const {
+        return activeDeviceName;
+      }
+      const std::string& getActiveDeviceHost() const {
+        return activeDeviceHost;
+      }
 
       /* Application-requested sample rate in Hz for the next stream open
          (issue #646). 0 = no request: the backend opens at the device default.
@@ -180,6 +224,11 @@ namespace YSE {
       std::vector<device> devices;
       std::string defaultTypeName;
       std::string defaultDeviceName;
+
+      // See getActiveDeviceName(). Set by the backends when a stream starts,
+      // cleared when it closes. Control thread only.
+      std::string activeDeviceName;
+      std::string activeDeviceHost;
 
       CHANNEL::implementationObject* master;
       int currentInputChannels, currentOutputChannels;

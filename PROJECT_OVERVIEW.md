@@ -1,11 +1,11 @@
 <!-- META
-last_updated_commit: c5860752
+last_updated_commit: 1cafe240
 last_updated_at: 2026-10-11
 -->
 
 # YSE Sound Engine — Project Overview
 
-**Version:** 3.0.0 (single source of truth: [`YseEngine/system.hpp`](YseEngine/system.hpp); upgrade guide: [documentation/source/upgrading.rst](documentation/source/upgrading.rst), release notes: [docs/release-notes/v3.0.md](docs/release-notes/v3.0.md))
+**Version:** 3.1.0 (single source of truth: [`YseEngine/system.hpp`](YseEngine/system.hpp); upgrade guide: [documentation/source/upgrading.rst](documentation/source/upgrading.rst), release notes: [docs/release-notes/v3.1.md](docs/release-notes/v3.1.md))
 **Language:** C++17
 **Platforms:** Windows (MSYS2/Clang64, MSVC), Linux (gcc/clang), Android (NDK r27+, API 26+, arm64-v8a + x86_64)
 **Build:** CMake 3.20+ via `CMakePresets.json`; Android wraps the same CMake invocation through Gradle in `Tests/Android/`
@@ -338,7 +338,9 @@ Abstracts the OS audio API behind a single interface.
 - **Desktop:** PortAudio handles Windows (WASAPI/DirectSound/WDM — ASIO is not available with the MSYS2 package; see [issue #38](https://github.com/yvanvds/yse-soundengine/issues/38)) and Linux (ALSA/JACK).
 - **Android:** Oboe 1.9.3 negotiates AAudio on API 26+ (our minSdk) and falls back to OpenSL ES on rare devices where AAudio is unavailable. `androidDeviceManager.cpp` is the platform-specific entry point.
 
-The engine monitors for missed callbacks and can auto-reconnect on device dropout (`system::autoReconnect(bool, int delayMs)`; a newly started stream gets a half-second start-up grace, #681). `cpuLoad()` is measured from the audio callback itself (#82).
+`system::refreshDevices()` enumerates devices without opening a stream — before `init()`, on an `initOffline()` session, or while a device plays — and restarts PortAudio to pick up hot-plugged devices when no stream is open. A refresh replaces the device list, so hosts look devices up again by name and host (#1026).
+
+The engine monitors for missed callbacks and can auto-reconnect on device dropout (`system::autoReconnect(bool, int delayMs[, bool fallbackToDefault, int maxAttempts])`; a newly started stream gets a half-second start-up grace, #681). A reconnect reopens the last opened device by name and host, falls back to the default device only on request, and reports its outcome through `reconnectState()`, `reconnectCount()` and `getActiveDevice()` / `getActiveHost()` (#1027). The PortAudio callback copies only the channels both the speaker layout and the stream have and writes silence to the rest, including when no sound is playing (#1028, #1029). `cpuLoad()` is measured from the audio callback itself (#82).
 
 ---
 
@@ -573,7 +575,7 @@ Tests/
 `Tests/CMakeLists.txt` registers **44 CTest entries** (43 without `YSE_ENABLE_PYTHON`, which `yse_tests_python` needs; the entries are desktop-only — on Android the APK runs the suite). CTest is the entry point — running `yse_tests` with no `--test-suite=` / `--test-case=` filter is refused (#712; `YSE_TESTS_ALLOW_MONOLITHIC=1` overrides), and `yse_tests_monolithic_refused` pins that refusal.
 
 - `yse_unit_tests` — the catchall: every suite except the ones that drive `System::close()` / `initOffline()`, mutate process-global engine state, or need a device, which each run in their own process.
-- Per-suite entries with CTest labels, e.g. `yse_tests_patcher`, `_patcher_concurrency`, `_channel`, `_rendergolden` (bit-exact multi-worker mix, #857), `_sendstress`, `_synth*`, `_lifecycle`, `_logsafety`, `_devicelayer`, `_offlinesession`, `_capilowcov` / `_capilowcovlife` / `_close_interleaving`, `_clock`, `_clip`, `_probe`, `_contentpack`.
+- Per-suite entries with CTest labels, e.g. `yse_tests_patcher`, `_patcher_concurrency`, `_channel`, `_rendergolden` (bit-exact multi-worker mix, #857), `_sendstress`, `_synth*`, `_lifecycle`, `_logsafety`, `_devicelayer`, `_offlinesession`, `_devicerefresh`, `_capilowcov` / `_capilowcovlife` / `_close_interleaving`, `_clock`, `_clip`, `_probe`, `_contentpack`.
 - `yse_tests_integration` (label `integration`) runs in the default ctest set (since 948e1c77); its cases that need a real audio device return early when none opens, so it passes headless. `ctest --preset tests-debug -L integration` runs it alone.
 
 ### Audio-thread allocation probe

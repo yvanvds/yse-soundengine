@@ -2,7 +2,7 @@
   <img src="logo/yse-logo.svg" alt="libYSE" width="520">
 </p>
 
-# libYSE 3.0
+# libYSE 3.1
 
 libYSE is a cross-platform sound engine written in C++. PortAudio handles audio
 I/O on desktop, Oboe (AAudio + OpenSL ES fallback) on Android, and libsndfile
@@ -61,6 +61,13 @@ sample rate, `init()` failing without a device, patcher bus prefixes, …).
 Read [Upgrading from 2.4 to 3.0](https://yvanvds.github.io/yse-soundengine/upgrading.html)
 before you update; the release notes are
 [docs/release-notes/v3.0.md](docs/release-notes/v3.0.md).
+
+**What's new in 3.1.** Device enumeration without opening a stream,
+autoReconnect that returns to the device you opened and reports what it did,
+and a fix for an out-of-bounds write when the speaker layout is wider than the
+output stream. The C API only gains functions; two behaviours change
+(band-pass level and reconnect target). See
+[docs/release-notes/v3.1.md](docs/release-notes/v3.1.md).
 
 **What is YSE trying to be?** Neither a game-audio engine nor a DAW: an
 authored signal graph played by spatial and physical controllers, built

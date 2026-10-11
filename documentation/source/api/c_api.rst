@@ -279,7 +279,9 @@ that changed since you read it cannot make them read out of bounds
 
 - ``yse_system_get_device(sys, i)`` returns ``NULL`` and sets the last error
   when ``i`` is not below ``yse_system_num_devices()``. An offline session
-  has no devices at all.
+  lists no devices until ``yse_system_refresh_devices()`` enumerates them
+  (`#1026 <https://github.com/yvanvds/yse-soundengine/issues/1026>`_), and
+  a refresh replaces the list, so device pointers from before it are stale.
 - The device descriptor getters (channel names, sample rates, buffer sizes)
   return an empty string or 0 for an index out of range, the same as for a
   ``NULL`` descriptor.

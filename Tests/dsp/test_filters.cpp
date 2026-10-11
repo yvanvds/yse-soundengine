@@ -4,6 +4,7 @@
 // portaudioDeviceManager translation unit at static-initialisation time.
 
 #include <doctest/doctest.h>
+#include <algorithm>
 #include <cmath>
 #include "dsp/filters.hpp"
 #include "dsp/rawFilters.hpp"
@@ -122,6 +123,37 @@ TEST_SUITE("dsp") {
       bp(in); // warm up to steady state
     YSE::DSP::buffer& out = bp(in);
     CHECK(TestHelpers::measureRms(out) > 0.0f);
+  }
+
+  // Steady-state peak of bp's response to a phase-continuous unit sine at freq.
+  static float bandPassSteadyPeak(YSE::DSP::bandPass & bp, float freq) {
+    const float sr = static_cast<float>(YSE::SAMPLERATE);
+    YSE::DSP::buffer in(128);
+    unsigned n = 0;
+    float peak = 0.0f;
+    for (int iter = 0; iter < 60; ++iter) {
+      float* p = in.getPtr();
+      for (unsigned i = 0; i < in.getLength(); ++i, ++n)
+        p[i] = static_cast<float>(std::sin(2.0 * 3.14159265358979 * freq * n / sr));
+      YSE::DSP::buffer& out = bp(in);
+      if (iter >= 50) {
+        const float* op = out.getPtr();
+        for (unsigned i = 0; i < out.getLength(); ++i)
+          peak = std::max(peak, std::abs(op[i]));
+      }
+    }
+    return peak;
+  }
+
+  TEST_CASE("bandPass: unity gain at the centre frequency for every Q (#1022)") {
+    // The Pd bp~ normalization approached 2x (+6 dB) at low Q: 1.77 at Q 1,
+    // and a flat 2x once omega / q clamped. The centre must now pass at unity.
+    for (float q : {0.0f, 0.05f, 0.5f, 1.0f, 2.0f, 5.0f, 20.0f}) {
+      CAPTURE(q);
+      YSE::DSP::bandPass bp;
+      bp.set(1000.0f, q);
+      CHECK(bandPassSteadyPeak(bp, 1000.0f) == doctest::Approx(1.0f).epsilon(0.03));
+    }
   }
 
   // ─── biQuad ───────────────────────────────────────────────────────────────────

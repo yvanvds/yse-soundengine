@@ -27,6 +27,16 @@ typedef enum YseChannelType {
   YSE_CT_CUSTOM = 8
 } YseChannelType;
 
+/** Mirrors YSE::RECONNECT_STATE in headers/enums.hpp: what the
+   yse_system_auto_reconnect() watchdog last did (issue #1027). */
+typedef enum YseReconnectState {
+  YSE_RS_NONE = 0, /**< No attempt since init, a device open, or the last auto_reconnect call. */
+  YSE_RS_RECONNECTING = 1, /**< The last attempt opened nothing; the watchdog tries again. */
+  YSE_RS_RESTORED = 2, /**< The last attempt reopened the session's own device. */
+  YSE_RS_FELL_BACK_TO_DEFAULT = 3, /**< The default output device was opened instead. */
+  YSE_RS_FAILED = 4 /**< The attempt limit was reached; the watchdog stopped trying. */
+} YseReconnectState;
+
 /** Mirrors YSE::ERROR_LEVEL in headers/enums.hpp. */
 typedef enum YseErrorLevel {
   YSE_EL_NONE = 0,

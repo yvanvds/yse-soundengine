@@ -303,6 +303,7 @@ set(YSE_TEST_SOURCES
   system/test_device_layer.cpp
   system/test_system_active_state.cpp
   system/test_offline_session.cpp
+  system/test_device_refresh.cpp
   system/test_lifecycle.cpp
   system/test_render_placement.cpp
   clock/test_domain_clocks.cpp
@@ -416,6 +417,12 @@ if(NOT ANDROID)
   set_source_files_properties(system/test_device_layer.cpp PROPERTIES
     COMPILE_DEFINITIONS PORTAUDIO_BACKEND
   )
+  # test_device_refresh.cpp (issue #1026) checks the engine's device list
+  # against PortAudio's own enumeration, so it includes portaudio.h under the
+  # same gate.
+  set_source_files_properties(system/test_device_refresh.cpp PROPERTIES
+    COMPILE_DEFINITIONS PORTAUDIO_BACKEND
+  )
   target_include_directories(yse_tests PRIVATE ${PortAudio_INCLUDE_DIRS})
 endif()
 
@@ -520,7 +527,10 @@ add_test(
   # for two reasons at once: it drives System::init()/close() cycles, and it
   # needs a process where PortAudio is up — the exact opposite of what
   # `devicelayer` needs. It runs in yse_tests_offlinesession.
-  COMMAND yse_tests --test-suite-exclude=integration,lifecycle,synthlifecycle,synthpositioning,synthhandlers,synthbus,synthcapi,instrumentcapi,midisynth,playersynth,playercapi,sendstress,channelcapi,synthdemos,clock,clip,buscapi,capisurface,logsafety,devicelayer,offlinesession,capilowcov,capilowcovlife --duration=true
+  # `devicerefresh` (issue #1026 device enumeration without a stream) needs a
+  # process where PortAudio has never been initialised, like `devicelayer`, and
+  # drives System::init()/close() cycles. It runs in yse_tests_devicerefresh.
+  COMMAND yse_tests --test-suite-exclude=integration,lifecycle,synthlifecycle,synthpositioning,synthhandlers,synthbus,synthcapi,instrumentcapi,midisynth,playersynth,playercapi,sendstress,channelcapi,synthdemos,clock,clip,buscapi,capisurface,logsafety,devicelayer,offlinesession,devicerefresh,capilowcov,capilowcovlife --duration=true
   WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
 set_tests_properties(yse_unit_tests PROPERTIES TIMEOUT 600)
@@ -862,6 +872,20 @@ add_test(
   WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
 set_tests_properties(yse_tests_offlinesession PROPERTIES LABELS "system;audio-io;lifecycle")
+
+# Device enumeration without opening a stream (issue #1026). Needs a process
+# where PortAudio has never been initialised, because its first case asserts
+# that System().refreshDevices() is what starts it — the same cold-process
+# requirement as `devicelayer`, so the two cannot share a run either (this
+# suite leaves PortAudio up). It also drives System::init()/close() cycles.
+# The cases that open a device skip with a message where none opens; the
+# enumeration and C API cases hold on any host.
+add_test(
+  NAME    yse_tests_devicerefresh
+  COMMAND yse_tests --test-suite=devicerefresh
+  WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+)
+set_tests_properties(yse_tests_devicerefresh PROPERTIES LABELS "system;audio-io;lifecycle")
 
 # Low-coverage C-API surface (issue #568, follow-up to #417). Covers the eight
 # c_api translation units that #566 left below ~50%: yse_dsp.cpp,

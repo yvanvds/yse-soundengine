@@ -38,6 +38,19 @@ namespace YSE {
     CT_COUNT_, ///< Sentinel: the number of layouts, not a valid value.
   };
 
+  /** @brief What the ``autoReconnect`` watchdog last did, read with
+   *         ``System().reconnectState()`` (issue #1027). */
+  enum RECONNECT_STATE {
+    RS_NONE, ///< No attempt since the session started, a device was opened, or
+             ///< ``autoReconnect()`` was last called.
+    RS_RECONNECTING, ///< The last attempt opened nothing; the watchdog tries again.
+    RS_RESTORED, ///< The last attempt reopened the device the session had.
+    RS_FELL_BACK_TO_DEFAULT, ///< The session's device could not be reopened, so
+                             ///< the default output device was opened instead.
+    RS_FAILED, ///< The attempt limit was reached; the watchdog stopped trying.
+    RS_COUNT_, ///< Sentinel: the number of states, not a valid value.
+  };
+
   /** @brief Named reverb presets, applied with ``reverb::setPreset``. */
   enum REVERB_PRESET {
     REVERB_OFF,
