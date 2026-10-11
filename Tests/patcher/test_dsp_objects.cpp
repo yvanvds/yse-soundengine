@@ -2,6 +2,7 @@
 // dVcf, pDac.  No audio device required.
 
 #include <doctest/doctest.h>
+#include <algorithm>
 #include <cmath>
 #include <cstring>
 #include <new>
@@ -16,6 +17,7 @@
 #include "patcher/filters/pHighpass.h"
 #include "patcher/filters/dVcf.h"
 #include "dsp/buffer.hpp"
+#include "headers/constants.hpp"
 #include "support/audio_helpers.hpp"
 #include "patcher/sinks.hpp"
 
@@ -322,6 +324,30 @@ TEST_SUITE("patcher") {
 
     REQUIRE(sink.received != nullptr);
     CHECK(maxAbs(*sink.received) < 0.25f);
+  }
+
+  TEST_CASE("pBandpass: `~bp 1000` passes its centre at unity, no +5 dB boost (#1022)") {
+    YSE::PATCHER::pBandpass bp;
+    BufferSink sink;
+    bp.ConnectOutlet(sink.GetInlet(0), 0);
+    sink.ConnectInlet(bp.GetOutlet(0), 0);
+
+    bp.GetInlet(1)->SetFloat(1000.0f, YSE::T_GUI); // default Q 1
+
+    const double sr = static_cast<double>(YSE::SAMPLERATE);
+    YSE::DSP::buffer in(128);
+    unsigned n = 0;
+    float peak = 0.0f;
+    for (int iter = 0; iter < 60; ++iter) {
+      float* p = in.getPtr();
+      for (unsigned i = 0; i < in.getLength(); ++i, ++n)
+        p[i] = static_cast<float>(std::sin(2.0 * 3.14159265358979 * 1000.0 * n / sr));
+      bp.GetInlet(0)->SetBuffer(&in, YSE::T_GUI);
+      bp.Calculate(YSE::T_DSP);
+      REQUIRE(sink.received != nullptr);
+      if (iter >= 50) peak = std::max(peak, maxAbs(*sink.received));
+    }
+    CHECK(peak == doctest::Approx(1.0f).epsilon(0.03));
   }
 
   TEST_CASE("pBandpass: ResetDSP clears the buffer pointer") {
