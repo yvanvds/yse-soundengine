@@ -123,6 +123,15 @@ void pObject::CalculateIfReady(YSE::THREAD thread) {
   Calculate(thread);
 }
 
+void pObject::FlushArmedOutlets(YSE::THREAD thread) {
+  if (!outletArmed) return;
+  outletArmed = false;
+  messageEventScope event;
+  for (std::size_t i = outputs.size(); i-- > 0;) {
+    outputs[i].FlushArmed(thread);
+  }
+}
+
 void pObject::SetParent(pObject* parent) {
   this->parent = parent;
 }

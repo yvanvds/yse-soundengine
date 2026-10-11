@@ -15092,6 +15092,60 @@
     ],
     "requires_midi_device": false
   },
+  "~snapshot": {
+    "category": "ANALYSIS",
+    "description": "Reports the value of a signal as a number: on a bang, or every interval while reporting is on.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT",
+          "BANG"
+        ],
+        "doc": "The signal to sample. A bang reports the current value; a non-zero number starts interval reporting and 0 stops it. Also takes 'start', 'stop', 'interval <ms>', 'sampleinterval <samples>' and 'offset <index>'.",
+        "index": 0,
+        "label": "signal",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Reporting interval in milliseconds. 0 stops interval reporting.",
+        "index": 1,
+        "label": "interval",
+        "range": "0 or more ms"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~snapshot",
+    "outlets": [
+      {
+        "doc": "The sampled value.",
+        "index": 0,
+        "label": "value",
+        "range": "any float",
+        "type": "FLOAT"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Reporting interval in milliseconds. 0 reports only on a bang. An interval shorter than a block reports once per block.",
+        "name": "interval",
+        "range": "0 or more ms"
+      },
+      {
+        "default": "0",
+        "doc": "Which sample of the block is reported.",
+        "name": "offset",
+        "range": "0-127"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~vcf": {
     "category": "FILTER",
     "description": "Resonant bandpass filter whose center frequency is a signal, so it can sweep at audio rate. Sharpness sets how narrow the band is.",

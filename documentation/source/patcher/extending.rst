@@ -552,6 +552,59 @@ How the render drives it:
 - The output buffer belongs to the object (here, inside ``DSP::saw``). It is
   allocated once, when the object is built.
 
+Control outlets on a signal object
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+A signal object that reports to the message side of a patch (a level, a
+detected edge, the end of a ramp) has a control outlet (``ADD_OUT_FLOAT``,
+``ADD_OUT_INT``, ``ADD_OUT_BANG``). ``CALC()`` never calls ``Send*`` on it.
+A send runs the receiving handlers at once, in the middle of the block's
+traversal, while other signal objects are still waiting for their inputs.
+``CALC()`` **arms** the outlet instead, and the patcher sends what was armed
+when the traversal is done (issue `#1037
+<https://github.com/yvanvds/yse-soundengine/issues/1037>`_). ``~snapshot``
+is the reference object:
+
+.. code-block:: cpp
+
+   CALC() {
+     DSP::buffer& in = inputs[0].Signal(0.f);
+     ...
+     if (samplesLeft <= 0.0) {
+       outputs[0].ArmFloat(sample);  // sent after the block, not now
+       ...
+     }
+   }
+
+The rules:
+
+- **One message per outlet per block.** ``ArmFloat`` and ``ArmInt`` keep the
+  latest value, and any number of ``ArmBang`` calls send one bang. An object
+  that has to report how many things happened sends the count.
+- **No sample offset.** A message does not say where in the block it
+  happened. An object that needs sample accuracy (an interval between two
+  edges) counts samples itself and sends the result.
+- **When.** After the traversal and before the block's output is summed, on
+  the audio thread, dispatched with ``T_GUI`` like the message drains at the
+  top of the block. A control object downstream runs as for any message. A
+  signal object downstream only stores the value and uses it next block.
+- **Order.** Objects flush in storage-ID order, which is the same every time
+  a patch is loaded. Within one object the outlets flush right to left. One
+  object's flush is one logical message event.
+- **Cost.** The patcher only visits signal objects that have a control
+  outlet, and one that armed nothing costs one flag test. Arming and flushing
+  allocate nothing and take no lock.
+- A message handler (a bang asking for a report) is not ``CALC()``, and may
+  send at once, as ``~snapshot``'s bang does.
+- A test drives a standalone object by calling ``Calculate()`` and then
+  ``FlushArmedOutlets(YSE::T_GUI)``, which is what the patcher does.
+
+State that only a host draws, such as a meter's level, a scope's trace or
+the number a ``~number`` box shows, is not a message. Keep it in atomics and
+report it through ``GetGuiValue()`` (see `GUI objects`_ and the GUI value
+protocol in ``pObject.h``). Arm an outlet only for values the patch itself
+receives.
+
 Porting an MSP object
 ---------------------
 
@@ -569,7 +622,10 @@ Each object issue under #1034 lists the MSP surface to cover (arguments,
 messages, attributes). Map every item onto a setter of the DSP class and an
 inlet, message or parameter of the wrapper, or say in the PR why it is
 dropped. Signal inlets follow `Signal objects`_: unconnected ones read as
-the wrapper's float, several cords are summed, and a connected signal wins. C API wrappers
+the wrapper's float, several cords are summed, and a connected signal wins.
+Control outlets follow `Control outlets on a signal object`_: armed in
+``CALC()``, sent after the block, and GUI-only state (meters, scopes) goes
+through ``GetGuiValue()`` rather than an outlet. C API wrappers
 for the DSP classes come later, in one batch (`#1173
 <https://github.com/yvanvds/yse-soundengine/issues/1173>`_).
 

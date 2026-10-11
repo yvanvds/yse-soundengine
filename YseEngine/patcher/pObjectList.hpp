@@ -11,6 +11,7 @@ namespace YSE {
    *  ``.`` marks control-rate objects.
    *
    *  - DSP generators: ``D_SINE``, ``D_SAW``, ``D_NOISE``, ``D_PHASOR``.
+   *  - DSP analysis: ``D_SNAPSHOT``.
    *  - DSP math: ``D_ADD``, ``D_MULTIPLY``, ``D_CLIP``.
    *  - Control math: ``G_ADD``, ``G_DIVIDE``, ``G_REVERSESUBSTRACT``,
    *    ``G_REVERSEDIVIDE``, ``G_MODULO``, ``G_INTDIVIDE``.
@@ -154,6 +155,8 @@ namespace YSE {
     DEFOBJ(D_SAW, "~saw");
     DEFOBJ(D_PHASOR, "~phasor");
     DEFOBJ(D_NOISE, "~noise");
+
+    DEFOBJ(D_SNAPSHOT, "~snapshot");
 
     DEFOBJ(G_INT, ".i");
     DEFOBJ(G_FLOAT, ".f");

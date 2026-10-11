@@ -341,6 +341,46 @@ namespace YSE {
 
       virtual void ResetDSP();
       void CalculateIfReady(THREAD thread);
+
+      // ─── Signal-to-control output (issue #1037) ─────────────────────────
+      //
+      // A signal object sends control messages by arming its outlets in
+      // CALC() (outlet::ArmFloat / ArmInt / ArmBang, see outlet.h), never by
+      // calling Send* there. Sending runs the downstream handlers right away,
+      // in the middle of the DSP traversal, and with T_DSP it makes a signal
+      // object downstream compute again.
+      //
+      // The patcher calls FlushArmedOutlets on its *emitters* (the signal
+      // objects with at least one control outlet, collected in
+      // GraphState::emitters) once per block, after the DSP traversal and
+      // before the block's output is summed:
+      //
+      //  - On the audio thread, with T_GUI, the same dispatch as the value
+      //    and deferred-message drains at the top of the block. A control
+      //    object downstream runs as it would for any message; a signal
+      //    object downstream only stores the value and uses it next block.
+      //  - In storage-ID order, which is fixed for a given patch.
+      //    Within one object, outlets go right to left, as every
+      //    multi-outlet object sends. One object's flush is one logical
+      //    message event.
+      //  - An object that armed nothing costs one flag test.
+      //
+      // Nothing on the path allocates, locks or does I/O beyond what the
+      // downstream handlers do, and they already run on the audio thread
+      // from the drains. The flag and slots are plain fields: CALC() and the
+      // flush both run on the thread rendering the patcher.
+      //
+      // A standalone object outside a patcher is never flushed. A test rig
+      // calls FlushArmedOutlets itself after Calculate.
+      //
+      // State that only a host draws (a meter level, a scope trace) is not a
+      // message: keep it in atomics and report it through GetGuiValue(), per
+      // the GUI value protocol below. Arm an outlet only for what the patch
+      // itself receives.
+      void FlushArmedOutlets(THREAD thread);
+      inline void MarkOutletArmed() {
+        outletArmed = true;
+      }
       bool IsDSPStartPoint();
       inline bool IsDSPObject() {
         return DSP;
@@ -666,6 +706,8 @@ namespace YSE {
       // path's cost depend on nesting depth.
       pObject* container = nullptr;
       bool DSP;
+      // Some outlet holds an armed message (issue #1037). Render thread only.
+      bool outletArmed = false;
 
       // for storage — see GetID() / kNoStorageID above
       int ID = kNoStorageID;

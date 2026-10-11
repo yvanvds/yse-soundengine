@@ -43,6 +43,12 @@ namespace YSE {
       // ``startPoints`` is — ``Calculate`` never scans for them.
       std::vector<pObject*> pollers;
 
+      // Signal objects with at least one control outlet, sorted by storage
+      // ID (issue #1037). After the DSP traversal the patcher sends what each
+      // armed in its CALC(); see pObject::FlushArmedOutlets. Sorted because
+      // ``objects`` follows handle addresses, which differ between runs.
+      std::vector<pObject*> emitters;
+
       // DAC sinks whose channel buffers are summed into the patcher output.
       std::vector<pObject*> dacs;
 

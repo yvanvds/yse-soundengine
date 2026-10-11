@@ -409,6 +409,14 @@ void patcherImplementation::Calculate(YSE::THREAD thread) {
     for (unsigned int i = 0; i < g->startPoints.size(); i++) {
       g->startPoints[i]->Calculate(thread);
     }
+
+    // Then the control messages the signal objects armed while rendering
+    // (issue #1037), now that no signal object is waiting on an input. T_GUI,
+    // like the drains above: a signal object downstream stores the value for
+    // the next block instead of computing this one again.
+    for (unsigned int i = 0; i < g->emitters.size(); i++) {
+      g->emitters[i]->FlushArmedOutlets(YSE::T_GUI);
+    }
   }
 
   // clear output
@@ -2063,6 +2071,14 @@ YSE::PATCHER::GraphState* patcherImplementation::BuildGraph() {
     // Objects driven from outside the patch rather than by an inlet or a DSP
     // edge (issue #529). Collected here so Calculate() never scans for them.
     if (object->WantsBlockPoll()) g->pollers.push_back(object);
+    if (object->IsDSPObject()) {
+      for (int i = 0; i < object->NumOutputs(); i++) {
+        if (object->GetOutputType(i) != YSE::OUT_TYPE::BUFFER) {
+          g->emitters.push_back(object);
+          break;
+        }
+      }
+    }
     if (strcmp(object->Type(), YSE::OBJ::D_DAC) == 0) g->dacs.push_back(object);
     if (strcmp(object->Type(), YSE::OBJ::D_ADC) == 0) g->adcs.push_back(object);
 
@@ -2085,6 +2101,12 @@ YSE::PATCHER::GraphState* patcherImplementation::BuildGraph() {
       }
     }
   }
+  // Flush order (issue #1037): storage IDs are fixed for a given patch, the
+  // handle addresses `objects` is keyed by are not. The check below fires on
+  // any sort of pointers; this one compares IDs, never addresses.
+  // NOLINTNEXTLINE(bugprone-nondeterministic-pointer-iteration-order)
+  std::sort(g->emitters.begin(), g->emitters.end(),
+            [](pObject* a, pObject* b) { return a->GetID() < b->GetID(); });
   return g;
 }
 
