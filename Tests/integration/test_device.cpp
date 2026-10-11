@@ -593,6 +593,97 @@ TEST_SUITE("integration") {
     CHECK(delivering);
   }
 
+  // Issue #1027. The watchdog's reopen went to addCallback(), which hardcodes
+  // Pa_GetDefaultOutputDevice(): a host that had opened another device was moved
+  // onto the default one at its first dropout, with nothing to tell it so.
+  //
+  // Driven on real hardware, because the bug is which device ends up playing.
+  // A device other than the one init() opened is opened through the public
+  // entry point, the stream is then closed under the watchdog (the shape of a
+  // dropout: no callbacks for longer than the delay), and the reopened stream
+  // must be on that device again, with the outcome reported as RS_RESTORED. On
+  // the unpatched engine the reopen lands on the default device. A machine
+  // whose only output device is the default one cannot tell the two apart, and
+  // the case says so rather than passing.
+  TEST_CASE("engine: autoReconnect reopens the opened device, not the default [issue #1027]") {
+    if (!TestHelpers::engineInitWithAudio()) return;
+    const unsigned int n = YSE::System().getNumDevices();
+    if (n == 0) return;
+    REQUIRE(audioStreamRunning());
+
+    const std::string defaultName = YSE::System().getActiveDevice();
+    const std::string defaultHost = YSE::System().getActiveHost();
+    REQUIRE_FALSE(defaultName.empty());
+
+    const auto delivering = [] {
+      return TestHelpers::pacedPump(
+          3000,
+          [] {
+            YSE::System().update();
+            return YSE::System().missedCallbacks() == 0;
+          },
+          [] {}, 1);
+    };
+    const auto openIndex = [](unsigned int i, YSE::CHANNEL_TYPE conf) {
+      YSE::deviceSetup setup;
+      setup.setOutput(YSE::System().getDevice(i));
+      return YSE::System().openDevice(setup, conf);
+    };
+
+    // Any other output device that opens and actually delivers.
+    std::string chosenName, chosenHost;
+    unsigned int defaultIndex = n;
+    for (unsigned int i = 0; i < n; ++i) {
+      const YSE::device& d = YSE::System().getDevice(i);
+      if (d.getNumOutputChannelNames() == 0) continue;
+      if (d.getName() == defaultName && d.getTypeName() == defaultHost) {
+        defaultIndex = i;
+        continue;
+      }
+      if (!chosenName.empty()) continue;
+      if (openIndex(i, YSE::CT_AUTO) && delivering()) {
+        chosenName = d.getName();
+        chosenHost = d.getTypeName();
+      }
+    }
+    REQUIRE(defaultIndex < n);
+
+    if (!chosenName.empty()) {
+      CHECK(YSE::System().getActiveDevice() == chosenName);
+      CHECK(YSE::System().getActiveHost() == chosenHost);
+
+      // The dropout. update() once with the watchdog off, so the callbacks the
+      // chosen device delivered before the pause are drained without a reconnect.
+      YSE::System().pause();
+      YSE::System().update();
+      const unsigned int attemptsBefore = YSE::System().reconnectCount();
+      YSE::System().autoReconnect(true, 50);
+      const bool reopened = TestHelpers::pacedPump(
+          3000,
+          [attemptsBefore] {
+            YSE::System().update();
+            return YSE::System().reconnectCount() != attemptsBefore &&
+                   YSE::System().missedCallbacks() == 0;
+          },
+          [] {}, 1);
+      const YSE::RECONNECT_STATE state = YSE::System().reconnectState();
+      YSE::System().autoReconnect(false, 0, false, 0);
+
+      CHECK(reopened);
+      CHECK(state == YSE::RS_RESTORED);
+      CHECK(YSE::System().getActiveDevice() == chosenName);
+      CHECK(YSE::System().getActiveHost() == chosenHost);
+    } else {
+      MESSAGE("no output device other than the default one opened; issue #1027 not exercised");
+    }
+
+    // autoReconnect() reset the state, and leaves the suite on the device init()
+    // opened, in the stereo layout init() installs.
+    CHECK(YSE::System().reconnectState() == YSE::RS_NONE);
+    REQUIRE(openIndex(defaultIndex, YSE::CT_STEREO));
+    CHECK(delivering());
+  }
+
   // ─── Sound loading and playback ───────────────────────────────────────────────
 
   TEST_CASE("sound: WAV fixture creates a valid sound on a real device") {

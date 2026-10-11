@@ -656,6 +656,85 @@ TEST_SUITE("devicelayer") {
     CHECK(attempts >= 1);
     CHECK(attempts <= 4);
   }
+
+  // Issue #1027: the reopen behind resume() and the watchdog goes back to the
+  // device the session opened, and only to the default device when asked to.
+  // It used to go straight to addCallback(), which opens
+  // Pa_GetDefaultOutputDevice() whatever the host had chosen.
+  //
+  // Headless, the remembered device stands in for one openDevice() would have
+  // recorded: with PortAudio down nothing resolves, so the opened device
+  // "cannot be reopened" — the dropout case — and what is under test is where
+  // the manager goes next. The default-device attempt is visible by its own
+  // log line, which is the unpatched engine's only path.
+  TEST_CASE("device manager: a reopen goes back to the opened device, not the default "
+            "[issue #1027]") {
+    if (!ensureOffline()) return;
+    if (!ownProcess()) return;
+
+    CapturingLog captured;
+    ScopedSink sink(&captured, YSE::EL_DEBUG);
+    auto& mgr = YSE::DEVICE::Manager();
+    using outcome = YSE::DEVICE::deviceManager::reopenOutcome;
+
+    mgr.rememberOpenedDevice("External Interface", "TestHost", 3, 8, 256);
+    const outcome stayed = mgr.reopenDevice(false);
+    CHECK(stayed == outcome::failed);
+    CHECK(captured.contains("Could not reopen audio device \"External Interface\" (TestHost); "
+                            "not falling back"));
+    CHECK_FALSE(captured.contains("No default audio output device"));
+    CHECK(YSE::System().getActiveSampleRate() == 0.0);
+    CHECK(YSE::System().getActiveDevice().empty());
+
+    // resume() is the same reopen without a fallback.
+    mgr.resume();
+    CHECK_FALSE(captured.contains("No default audio output device"));
+
+    // Opting in reaches the default device, which is not there either.
+    const outcome fellBack = mgr.reopenDevice(true);
+    CHECK(fellBack == outcome::failed);
+    CHECK(captured.contains("falling back to the default output device"));
+    CHECK(captured.contains("No default audio output device"));
+
+    // Forgotten again, a reopen is the default-device session's reopen.
+    mgr.forgetOpenedDevice();
+    const int defaultTries = captured.count("No default audio output device");
+    CHECK(mgr.reopenDevice(false) == outcome::failed);
+    CHECK(captured.count("No default audio output device") == defaultTries + 1);
+    CHECK(YSE::System().getActiveDevice().empty());
+    CHECK(YSE::System().getActiveHost().empty());
+  }
+
+  // Issue #1027, the watchdog's side: an attempt limit, and an outcome a host
+  // can read. On this offline session every attempt opens nothing (resume()'s
+  // session gate refuses), so a limit of 2 must stop the watchdog after exactly
+  // two attempts and leave it reading RS_FAILED. Without the limit the watchdog
+  // fires on every tick of the loop at a zero delay.
+  TEST_CASE("system: autoReconnect gives up after its attempt limit [issue #1027]") {
+    if (!ensureOffline()) return;
+    if (!ownProcess()) return;
+
+    CapturingLog captured;
+    ScopedSink sink(&captured, YSE::EL_DEBUG);
+
+    const unsigned int before = YSE::System().reconnectCount();
+    YSE::System().autoReconnect(true, 0, false, 2);
+    CHECK(YSE::System().reconnectState() == YSE::RS_NONE);
+
+    YSE::System().update();
+    CHECK(YSE::System().reconnectState() == YSE::RS_RECONNECTING);
+    for (int i = 0; i < 20; ++i)
+      YSE::System().update();
+
+    CHECK(YSE::System().reconnectState() == YSE::RS_FAILED);
+    CHECK(YSE::System().reconnectCount() - before == 2u);
+    CHECK(captured.count("no audio device to resume") == 2);
+    CHECK(captured.contains("giving up"));
+
+    // Configuring the watchdog again re-arms it.
+    YSE::System().autoReconnect(false, 0);
+    CHECK(YSE::System().reconnectState() == YSE::RS_NONE);
+  }
 #endif
 
   // A setup that never got a device. deviceSetup's constructor leaves `out`

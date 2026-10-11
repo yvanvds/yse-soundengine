@@ -42,6 +42,14 @@ namespace YSE {
       Bool refreshDevices() override;
       Bool openDevice(const YSE::deviceSetup& object) override;
       Bool addCallback() override;
+      reopenOutcome reopenDevice(bool fallbackToDefault) override;
+      void forgetOpenedDevice() override;
+
+      // Record the device reopenDevice() goes back to. openDevice() calls this
+      // after a stream started; public so the device-layer tests can stand in
+      // for a device they cannot open headless.
+      void rememberOpenedDevice(const std::string& name, const std::string& host, int id,
+                                int channels, int bufferSize);
 
       // Live device-state getters (see deviceManager.h for contract).
       double getActiveSampleRate() const override;
@@ -54,6 +62,25 @@ namespace YSE {
 
     private:
       void terminate();
+
+      // Open and start a stream on `deviceID` (already known to resolve) with
+      // `channels` outputs. `bufferSize` 0 lets the backend choose;
+      // `requestedRate` 0 means no rate request. Closes whatever was open
+      // first, and leaves nothing open on failure.
+      Bool openStream(int deviceID, int channels, int bufferSize, UInt requestedRate);
+
+      // The remembered device's index in the backend's current enumeration,
+      // matched by name and host, or paNoDevice.
+      PaDeviceIndex findOpenedDevice() const;
+
+      // Device of the last successful openDevice() (issue #1027). Control
+      // thread only.
+      bool hasOpenedDevice = false;
+      std::string openedName;
+      std::string openedHost;
+      int openedID = paNoDevice;
+      int openedChannels = 0;
+      int openedBufferSize = 0;
 
       // Fold one callback's wall-clock elapsed time into cpuLoadEma.
       // Called by paCallback on every exit path. Single producer (the

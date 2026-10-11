@@ -282,10 +282,26 @@ thread is starved.
 
 **Reconnecting automatically.** ``System().autoReconnect(on, delay)`` makes
 ``update()`` restart the output stream when the device has delivered nothing
-for ``delay`` **milliseconds**. The restart picks up whatever the default
-device is at that moment, so it covers cases like unplugged headphones. While
-the device stays unavailable, the engine tries again every ``delay``
+for ``delay`` **milliseconds**. The restart reopens the device the session
+had: after ``openDevice()``, that device, found again by name and host, with
+the channel count and buffer size you opened it with; otherwise the default
+device as it is at that moment, which covers cases like unplugged headphones.
+While the device stays unavailable, the engine tries again every ``delay``
 milliseconds. A negative delay counts as 0.
+
+``autoReconnect(on, delay, fallbackToDefault, maxAttempts)`` adds two
+choices. With ``fallbackToDefault`` set, a device that cannot be reopened is
+replaced by the default output device rather than retried; without it (the
+default) the session never moves to another device by itself. A positive
+``maxAttempts`` stops the watchdog after that many failed attempts in a row.
+
+To see what happened, read ``reconnectState()`` (``RS_RESTORED``,
+``RS_FELL_BACK_TO_DEFAULT``, ``RS_RECONNECTING``, ``RS_FAILED``, or
+``RS_NONE`` before the first attempt), ``reconnectCount()``, and
+``getActiveDevice()`` / ``getActiveHost()`` for the device that is actually
+playing. On desktop a device that was unplugged and plugged back in may only
+be found again after ``refreshDevices()``, which you can call while the state
+reads ``RS_RECONNECTING``.
 
 - A stream that has just started and has not delivered its first callback
   yet gets at least **half a second** before the watchdog acts, whatever the

@@ -37,6 +37,20 @@ namespace {
   // enough that a device which opens but never delivers is still reconnected
   // promptly. It is a floor under the user's `delay`, not an addition to it.
   constexpr unsigned long long kFirstCallbackGraceMs = 500;
+
+  using reopenOutcome = YSE::DEVICE::deviceManager::reopenOutcome;
+
+  // The body of resume(), shared with the autoReconnect watchdog so both reach
+  // the device through the same session gate (see resume()), and so the
+  // watchdog learns what the reopen achieved (issue #1027).
+  reopenOutcome reopenSessionDevice(bool fallbackToDefault) {
+    if (!YSE::INTERNAL::Global().isDeviceSession()) {
+      YSE::INTERNAL::LogImpl().emit(
+          YSE::E_DEBUG, "resume() ignored: this session has no audio device to resume.");
+      return reopenOutcome::failed;
+    }
+    return YSE::DEVICE::Manager().reopenDevice(fallbackToDefault);
+  }
 } // namespace
 
 YSE::system& YSE::System() {
@@ -84,6 +98,11 @@ Bool YSE::system::initShared(bool openDevice) {
   currentlyMissedCallbacks = 0;
   doAutoReconnect = false;
   reconnectDelay = 0;
+  reconnectFallback = false;
+  reconnectMaxAttempts = 0;
+  reconnectFailures = 0;
+  reconnectStateValue.store(RS_NONE, std::memory_order_relaxed);
+  reconnectAttempts.store(0, std::memory_order_relaxed);
   watchdogStreamStarts = DEVICE::Manager().getStreamStartCount();
   watchdogSinceMs = nowMs();
   watchdogAwaitingFirstCallback = false;
@@ -215,6 +234,9 @@ void YSE::system::update() {
   currentlyMissedCallbacks++;
 
   if (!doAutoReconnect) return;
+  // Gave up after the attempt limit; autoReconnect(), openDevice() or a
+  // successful resume() re-arms it.
+  if (reconnectStateValue.load(std::memory_order_relaxed) == RS_FAILED) return;
 
   // reconnectDelay is milliseconds (see autoReconnect). A stream that has not
   // delivered its first callback yet gets at least the start-up grace, so a
@@ -227,7 +249,26 @@ void YSE::system::update() {
   if (nowMs() - watchdogSinceMs < waitMs) return;
 
   pause();
-  resume();
+  // Back onto the session's own device, not the default one, and with an
+  // outcome the host can read (issue #1027).
+  const reopenOutcome outcome = reopenSessionDevice(reconnectFallback);
+  reconnectAttempts.fetch_add(1, std::memory_order_relaxed);
+  if (outcome == reopenOutcome::failed) {
+    ++reconnectFailures;
+    if (reconnectMaxAttempts > 0 && reconnectFailures >= reconnectMaxAttempts) {
+      reconnectStateValue.store(RS_FAILED, std::memory_order_relaxed);
+      INTERNAL::LogImpl().emit(E_WARNING, "autoReconnect: no audio device reopened after " +
+                                              std::to_string(reconnectFailures) +
+                                              " attempts; giving up.");
+    } else {
+      reconnectStateValue.store(RS_RECONNECTING, std::memory_order_relaxed);
+    }
+  } else {
+    reconnectFailures = 0;
+    reconnectStateValue.store(outcome == reopenOutcome::opened ? RS_RESTORED
+                                                               : RS_FELL_BACK_TO_DEFAULT,
+                              std::memory_order_relaxed);
+  }
   // Restart the interval from here whatever resume() achieved. A stream that
   // came up bumps the stream-start count and re-enters the grace above on the
   // next tick; one that did not (no device to open — the disconnected case
@@ -254,6 +295,9 @@ void YSE::system::close() {
     // session up there is nothing to open a device for.
     INTERNAL::Global().sessionHasDevice = false;
     DEVICE::Manager().close();
+    // So is the device it chose: the next session starts on the default one
+    // and reopens that (issue #1027).
+    DEVICE::Manager().forgetOpenedDevice();
     INTERNAL::Global().close();
     // Drain the sound manager BEFORE the channel manager: a sound impl that
     // never reached OBJECT_DELETE before close() still holds a `parent` pointer
@@ -303,12 +347,15 @@ void YSE::system::resume() {
   // free to forget it (the reasoning that settled issue #716). The watchdog's
   // pause()/resume() pair on an offline session is then two no-ops: pause()
   // closes a stream that does not exist, which it already did.
-  if (!INTERNAL::Global().isDeviceSession()) {
-    INTERNAL::LogImpl().emit(E_DEBUG,
-                             "resume() ignored: this session has no audio device to resume.");
-    return;
-  }
-  DEVICE::Manager().resume();
+  //
+  // The gate lives in reopenSessionDevice(), which the watchdog calls in
+  // place of this so it can see the outcome (issue #1027). A host's resume()
+  // never falls back to another device.
+  if (reopenSessionDevice(false) == reopenOutcome::failed) return;
+  // A device is back, so a watchdog that gave up has something to watch again.
+  reconnectFailures = 0;
+  int failed = RS_FAILED;
+  reconnectStateValue.compare_exchange_strong(failed, RS_NONE, std::memory_order_relaxed);
 }
 
 int YSE::system::missedCallbacks() {
@@ -338,7 +385,16 @@ int YSE::system::activeRenderThreads() {
 }
 
 YSE::system& YSE::system::autoReconnect(bool on, int delay) {
+  return autoReconnect(on, delay, false, 0);
+}
+
+YSE::system& YSE::system::autoReconnect(bool on, int delay, bool fallbackToDefault,
+                                        int maxAttempts) {
   doAutoReconnect = on;
+  reconnectFallback = fallbackToDefault;
+  reconnectMaxAttempts = maxAttempts < 0 ? 0 : maxAttempts;
+  reconnectFailures = 0;
+  reconnectStateValue.store(RS_NONE, std::memory_order_relaxed);
   // Milliseconds, as documented — it used to be compared against a count of
   // empty update() ticks, which made the wait depend on how fast the host
   // happens to poll (issue #681). A negative wait is meaningless; clamp it to
@@ -349,6 +405,14 @@ YSE::system& YSE::system::autoReconnect(bool on, int delay) {
   // immediately on a stale timestamp.
   watchdogSinceMs = nowMs();
   return *this;
+}
+
+YSE::RECONNECT_STATE YSE::system::reconnectState() {
+  return static_cast<RECONNECT_STATE>(reconnectStateValue.load(std::memory_order_relaxed));
+}
+
+unsigned int YSE::system::reconnectCount() {
+  return reconnectAttempts.load(std::memory_order_relaxed);
 }
 
 YSE::system& YSE::system::occlusionCallback(float (*func)(const YSE::Pos&, const YSE::Pos&)) {
@@ -486,6 +550,11 @@ bool YSE::system::openDevice(const deviceSetup& object, CHANNEL_TYPE conf) {
   // caller's, and is stated on renderOffline() in system.hpp.
   INTERNAL::Global().sessionHasDevice = true;
 
+  // The host chose a device: whatever the watchdog reported was about the
+  // previous one, and a watchdog that gave up watches this one (issue #1027).
+  reconnectFailures = 0;
+  reconnectStateValue.store(RS_NONE, std::memory_order_relaxed);
+
   // A backend with a single fixed device (Oboe) reports success without
   // reading the setup at all, so the zero-output guard from #661 still has to
   // stand on its own: a zero-output layout silences the engine on the next
@@ -543,6 +612,14 @@ const std::string& YSE::system::getDefaultDevice() {
 
 const std::string& YSE::system::getDefaultHost() {
   return DEVICE::Manager().getDefaultTypeName();
+}
+
+const std::string& YSE::system::getActiveDevice() {
+  return DEVICE::Manager().getActiveDeviceName();
+}
+
+const std::string& YSE::system::getActiveHost() {
+  return DEVICE::Manager().getActiveDeviceHost();
 }
 
 #if YSE_ENABLE_MIDI_DEVICE

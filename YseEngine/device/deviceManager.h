@@ -129,6 +129,36 @@ namespace YSE {
         return false;
       };
 
+      /* Result of reopenDevice(). */
+      enum class reopenOutcome {
+        opened, // the session's own device is running again
+        fellBack, // it could not be, and the default output device was opened
+        failed, // nothing is running
+      };
+
+      /* Open the stream again on the device this session had (issue #1027):
+         the device of the last successful openDevice(), identified by name and
+         host because indices shift when the backend re-enumerates, with its
+         channel count and buffer size. A session that never called openDevice()
+         reopens the default output device, which is the device it had. Only
+         when the session's device cannot be reopened and fallbackToDefault is
+         set is the default device opened instead. Expects no stream to be open
+         (pause() first). Control thread only. */
+      virtual reopenOutcome reopenDevice(bool fallbackToDefault) = 0;
+
+      /* Drop the device remembered by openDevice(), so the next session's
+         reopen goes back to the default device. Called by system::close(). */
+      virtual void forgetOpenedDevice() {}
+
+      /* Name and host API of the device whose stream is currently open; empty
+         when none is (issue #1027). Control thread only. */
+      const std::string& getActiveDeviceName() const {
+        return activeDeviceName;
+      }
+      const std::string& getActiveDeviceHost() const {
+        return activeDeviceHost;
+      }
+
       /* Application-requested sample rate in Hz for the next stream open
          (issue #646). 0 = no request: the backend opens at the device default.
          The request is an application setting consumed on the init path — the
@@ -194,6 +224,11 @@ namespace YSE {
       std::vector<device> devices;
       std::string defaultTypeName;
       std::string defaultDeviceName;
+
+      // See getActiveDeviceName(). Set by the backends when a stream starts,
+      // cleared when it closes. Control thread only.
+      std::string activeDeviceName;
+      std::string activeDeviceHost;
 
       CHANNEL::implementationObject* master;
       int currentInputChannels, currentOutputChannels;

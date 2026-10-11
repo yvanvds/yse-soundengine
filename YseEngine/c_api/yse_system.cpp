@@ -307,6 +307,40 @@ YSE_C_API void yse_system_auto_reconnect(YseSystem* sys, int on, int delay_ms) {
   to_cpp(sys)->autoReconnect(on != 0, delay_ms);
 }
 
+YSE_C_API void yse_system_auto_reconnect_config(YseSystem* sys, int on, int delay_ms,
+                                                int fallback_to_default, int max_attempts) {
+  if (!sys) return;
+  to_cpp(sys)->autoReconnect(on != 0, delay_ms, fallback_to_default != 0, max_attempts);
+}
+
+YSE_C_API YseReconnectState yse_system_get_reconnect_state(YseSystem* sys) {
+  if (!sys) return YSE_RS_NONE;
+  return static_cast<YseReconnectState>(to_cpp(sys)->reconnectState());
+}
+
+YSE_C_API unsigned int yse_system_get_reconnect_count(YseSystem* sys) {
+  if (!sys) return 0;
+  return to_cpp(sys)->reconnectCount();
+}
+
+YSE_C_API size_t yse_system_active_device(YseSystem* sys, char* buf, size_t cap) {
+  if (!sys) {
+    if (buf && cap > 0) buf[0] = '\0';
+    return 0;
+  }
+  return yse_c::guard_string("yse_system_active_device", buf, cap,
+                             [&] { return copy_string(to_cpp(sys)->getActiveDevice(), buf, cap); });
+}
+
+YSE_C_API size_t yse_system_active_host(YseSystem* sys, char* buf, size_t cap) {
+  if (!sys) {
+    if (buf && cap > 0) buf[0] = '\0';
+    return 0;
+  }
+  return yse_c::guard_string("yse_system_active_host", buf, cap,
+                             [&] { return copy_string(to_cpp(sys)->getActiveHost(), buf, cap); });
+}
+
 // ─── devices ───────────────────────────────────────────────────────────────
 
 YSE_C_API unsigned int yse_system_num_devices(YseSystem* sys) {

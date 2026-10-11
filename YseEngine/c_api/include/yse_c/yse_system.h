@@ -142,8 +142,49 @@ YSE_C_API void yse_system_audio_test(YseSystem* sys, int on);
 
    A stream that has been started but has not delivered its first callback yet
    is not stalled, and is never torn down for it: it gets a half-second start-up
-   grace regardless of delay_ms. */
+   grace regardless of delay_ms.
+
+   The stream is reopened on the device the session had (issue #1027): the
+   device of the last successful yse_system_open_device(), looked up again by
+   name and host, with the channel count and buffer size it was opened with. A
+   session that never opened a device reopens the current default device. When
+   the session's device cannot be reopened nothing is opened and the watchdog
+   tries again later. Same as yse_system_auto_reconnect_config() with no
+   fallback and no attempt limit. */
 YSE_C_API void yse_system_auto_reconnect(YseSystem* sys, int on, int delay_ms);
+
+/** yse_system_auto_reconnect() with a fallback policy and an attempt limit
+   (issue #1027). fallback_to_default != 0 opens the default output device when
+   the session's own device cannot be reopened (the speaker layout is narrowed
+   if the default device has fewer outputs); the session does not move back by
+   itself when its device returns. max_attempts > 0 stops the watchdog after
+   that many consecutive failed attempts, with the state then reading
+   YSE_RS_FAILED; 0 or less retries forever. Every call resets the state to
+   YSE_RS_NONE and re-arms a watchdog that gave up.
+
+   On desktop the device is looked up in the audio backend's enumeration as it
+   stands; a device unplugged and plugged back in may only be found after
+   yse_system_refresh_devices(), which a host can call while the state reads
+   YSE_RS_RECONNECTING (no stream is open then). */
+YSE_C_API void yse_system_auto_reconnect_config(YseSystem* sys, int on, int delay_ms,
+                                                int fallback_to_default, int max_attempts);
+
+/** What the reconnection watchdog last did, and how many attempts it has made
+   this session (successful or not; reset by init). The state goes back to
+   YSE_RS_NONE on init, a successful yse_system_open_device() and every
+   auto_reconnect call. Both may be read from any thread. A NULL handle reads
+   YSE_RS_NONE / 0. */
+YSE_C_API YseReconnectState yse_system_get_reconnect_state(YseSystem* sys);
+YSE_C_API unsigned int yse_system_get_reconnect_count(YseSystem* sys);
+
+/** Name and host API of the device whose output stream is open right now —
+   empty when none is. Compare with yse_device_get_name() /
+   yse_device_get_type_name() to see which device the session is actually on,
+   e.g. after a fallback (issue #1027). snprintf-style: returns the full
+   length, writes at most cap - 1 bytes plus NUL. Call from the thread that
+   drives yse_system_update(). */
+YSE_C_API size_t yse_system_active_device(YseSystem* sys, char* buf, size_t cap);
+YSE_C_API size_t yse_system_active_host(YseSystem* sys, char* buf, size_t cap);
 
 /** Devices. Returned YseDevice* pointers are borrowed from the engine and
    must not be destroyed. See yse_device.h for the descriptor accessors.
