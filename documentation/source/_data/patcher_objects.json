@@ -14967,6 +14967,59 @@
     ],
     "requires_midi_device": false
   },
+  "~phasor": {
+    "category": "OSC",
+    "description": "A ramp from 0 to 1 that wraps around at a given frequency: the phase source for wavetable reads, sequencers and sawtooth shapes. A negative frequency runs it backwards.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Frequency in Hz: a signal, or a number used while no signal is connected. Also takes 'reset' (jump to phaseoffset) and 'phaseoffset <0-1>'.",
+        "index": 0,
+        "label": "freq",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Jumps to this phase now. Does not change phaseoffset.",
+        "index": 1,
+        "label": "phase",
+        "range": "0-1"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~phasor",
+    "outlets": [
+      {
+        "doc": "The phase ramp.",
+        "index": 0,
+        "label": "out",
+        "range": "0-1",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Frequency in Hz used while no signal is connected.",
+        "name": "frequency",
+        "range": "any float"
+      },
+      {
+        "default": "0",
+        "doc": "The phase the ramp starts at, and returns to on 'reset'.",
+        "name": "phaseoffset",
+        "range": "0-1"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~saw": {
     "category": "OSC",
     "description": "Audio-rate sawtooth oscillator. Frequency can be set with a float or modulated with a DSP buffer.",

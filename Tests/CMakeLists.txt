@@ -13,6 +13,7 @@ set(YSE_TEST_SOURCES
   dsp/test_math_scalars.cpp
   dsp/test_math_converters.cpp
   dsp/test_oscillators.cpp
+  dsp/test_phasor.cpp
   dsp/test_smoother.cpp
   utils/test_atomic.cpp
   utils/test_vector.cpp
@@ -153,6 +154,7 @@ set(YSE_TEST_SOURCES
   patcher/test_patcher_bondo.cpp
   patcher/test_patcher_buddy.cpp
   patcher/test_patcher_swap.cpp
+  patcher/test_patcher_phasor.cpp
   patcher/test_patcher_cycle.cpp
   patcher/test_patcher_bucket.cpp
   patcher/test_patcher_spray.cpp
@@ -1233,6 +1235,7 @@ set_source_files_properties(
   patcher/test_patcher_bondo.cpp
   patcher/test_patcher_buddy.cpp
   patcher/test_patcher_swap.cpp
+  patcher/test_patcher_phasor.cpp
   patcher/test_patcher_cycle.cpp
   patcher/test_patcher_bucket.cpp
   patcher/test_patcher_spray.cpp

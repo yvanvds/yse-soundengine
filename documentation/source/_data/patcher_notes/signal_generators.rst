@@ -20,3 +20,23 @@ smooth, sample by sample.
 next target arrives. A new time on its own does not restart it. Any target
 after a ``stop``, even the one the ramp was heading for, starts a new ramp
 from the held value, taking the full ramp time.
+
+.. patcher-object:: ~phasor
+
+The output rises from 0 towards 1 and wraps back to 0, ``frequency`` times a
+second. It is a phase, not an audio sawtooth: use it to read a wavetable,
+step through a sequence, or shape it into other waveforms. A negative
+frequency runs the ramp from 1 down to 0.
+
+- A number at the left inlet sets the frequency while no signal is connected
+  to it. With a signal connected, the signal sets it sample by sample.
+- A number at the right inlet jumps to that phase at the start of the next
+  block. Values outside 0-1 wrap, so ``1.25`` and ``-0.75`` both mean
+  ``0.25``.
+- ``phaseoffset <x>`` sets the phase the ramp starts at when the patch
+  starts, and ``reset`` jumps back to it. A jump from the right inlet does not
+  change ``phaseoffset``.
+
+.. code-block:: text
+
+   [~phasor 2 0.25]   ramps twice a second, starting a quarter of the way up
