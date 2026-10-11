@@ -11,7 +11,7 @@ CONSTRUCT_DSP() {
 
   // out 0: audio output
   ADD_IN_0;
-  REG_BUFFER_IN(SetBuffer);
+  REG_SIGNAL_IN;
 
   ADD_IN_1;
   REG_FLOAT_IN(SetFrequency);
@@ -20,7 +20,6 @@ CONSTRUCT_DSP() {
 
   ADD_PARAM(frequency);
 
-  buffer = nullptr;
   frequency = 0.f;
 
   ADD_DESCRIPTION("Single-pole highpass filter. Attenuates content below the cutoff frequency.");
@@ -31,20 +30,13 @@ CONSTRUCT_DSP() {
   PARAM_DOC("frequency", "0", "Initial cutoff frequency in Hz.", "0-20000 Hz");
 }
 
-RESET() // {
-buffer = nullptr;
-}
-
-BUFFER_IN(SetBuffer) {
-  this->buffer = buffer;
-}
-
 FLOAT_IN(SetFrequency) {
   frequency = value;
 }
 
 CALC() {
-  if (buffer == nullptr) return;
+  // Unconnected, the input reads as silence (issue #1036).
+  DSP::buffer& in = inputs[0].Signal(0.f);
   filter.setFrequency(frequency);
-  outputs[0].SendBuffer(&filter(*buffer), thread);
+  outputs[0].SendBuffer(&filter(in), thread);
 }

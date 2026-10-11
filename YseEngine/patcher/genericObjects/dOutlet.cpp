@@ -25,10 +25,8 @@ namespace {
 } // namespace
 
 CONSTRUCT_DSP() {
-  in = nullptr;
-
   ADD_IN_0;
-  REG_BUFFER_IN(SetInBuffer);
+  REG_SIGNAL_IN;
 
   ADD_OUT_BUFFER;
 
@@ -44,22 +42,10 @@ CONSTRUCT_DSP() {
   PARAM_DOC("index", "0", kIndexDoc, "0+");
 }
 
-BUFFER_IN(SetInBuffer) {
-  (void)inlet;
-  (void)thread;
-  in = buffer;
-}
-
-RESET() // {
-in = nullptr;
-}
-
 CALC() {
-  // See dInlet.cpp — the same forward, in the other direction. A null `in` is
-  // the subpatcher having computed nothing into this outlet this block, and the
-  // boundary then sends nothing.
-  if (in == nullptr) return;
-  outputs[0].SendBuffer(in, thread);
+  // See dInlet.cpp — the same forward, in the other direction. Nothing
+  // computed into this outlet inside the subpatcher reads as silence.
+  outputs[0].SendBuffer(&inputs[0].Signal(0.f), thread);
 }
 
 #undef className

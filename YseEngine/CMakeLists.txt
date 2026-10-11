@@ -69,6 +69,7 @@ set(YSE_SRCS
   dsp/fm/msfa/fm_core.cc
   dsp/fm/msfa/dx7note.cc
   dsp/oscillators.cpp
+  dsp/generators/phasor.cpp
   dsp/ramp.cpp
   dsp/rawFilters.cpp
   dsp/sample_functions.cpp
@@ -113,6 +114,7 @@ set(YSE_SRCS
   patcher/filters/pLowpass.cpp
   patcher/generatorObjects/dNoise.cpp
   patcher/generatorObjects/dSaw.cpp
+  patcher/generatorObjects/dPhasor.cpp
   patcher/generatorObjects/pSine.cpp
   patcher/genericObjects/gAffix.cpp
   patcher/genericObjects/gBag.cpp
@@ -497,6 +499,7 @@ set_source_files_properties(
   patcher/filters/pLowpass.cpp
   patcher/generatorObjects/dNoise.cpp
   patcher/generatorObjects/dSaw.cpp
+  patcher/generatorObjects/dPhasor.cpp
   patcher/generatorObjects/pSine.cpp
   patcher/genericObjects/gAffix.cpp
   patcher/genericObjects/gBag.cpp

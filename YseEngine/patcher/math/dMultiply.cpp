@@ -7,17 +7,15 @@ using namespace YSE::PATCHER;
 CONSTRUCT_DSP() {
 
   // default data
-  leftIn = nullptr;
-  rightIn = nullptr;
   rightFloatIn = 1.f;
 
   // in 0: audio buffer
   ADD_IN_0;
-  REG_BUFFER_IN(SetLeftBuffer);
+  REG_SIGNAL_IN;
 
   // in 1: multiplier (int, float or audio)
   ADD_IN_1;
-  REG_BUFFER_IN(SetRightBuffer);
+  REG_SIGNAL_IN;
   REG_FLOAT_IN(SetRightFloat);
   REG_INT_IN(SetRightInt);
 
@@ -36,14 +34,6 @@ CONSTRUCT_DSP() {
             "any float");
 }
 
-BUFFER_IN(SetLeftBuffer) {
-  leftIn = buffer;
-}
-
-BUFFER_IN(SetRightBuffer) {
-  rightIn = buffer;
-}
-
 FLOAT_IN(SetRightFloat) {
   rightFloatIn = value;
 }
@@ -52,19 +42,15 @@ INT_IN(SetRightInt) {
   rightFloatIn = static_cast<float>(value);
 }
 
-RESET() // {
-leftIn = rightIn = nullptr;
-}
-
 CALC() {
-  if (leftIn == nullptr) return;
+  // Unconnected inlets read as constants (issue #1036): the left as 0, the
+  // right as its float. A connected right signal wins over the float.
+  output = inputs[0].Signal(0.f);
 
-  output = *leftIn;
-
-  if (rightIn == nullptr) {
+  if (inputs[1].IsConstant()) {
     output *= rightFloatIn;
   } else {
-    output *= *rightIn;
+    output *= inputs[1].Signal(rightFloatIn);
   }
 
   outputs[0].SendBuffer(&output, thread);

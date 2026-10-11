@@ -80,15 +80,39 @@ messageEventScope::~messageEventScope() {
 
 inlet::inlet(pObject* obj, bool active, int position)
   : obj(obj),
-    dspReady(false),
+    dspArrived(0),
+    current(nullptr),
+    signal(false),
     active(active),
     position(position),
     onInt(nullptr),
     onBang(nullptr),
     onFloat(nullptr),
     onList(nullptr),
-    onBuffer(nullptr),
-    dspConnection(nullptr) {}
+    onBuffer(nullptr) {}
+
+inlet::inlet(inlet&& other) noexcept
+  : obj(other.obj),
+    dspArrived(other.dspArrived),
+    current(other.current),
+    signal(other.signal),
+    active(other.active),
+    position(other.position),
+    graphId(other.graphId),
+    onInt(std::move(other.onInt)),
+    onBang(std::move(other.onBang)),
+    onFloat(std::move(other.onFloat)),
+    onList(std::move(other.onList)),
+    onBuffer(std::move(other.onBuffer)),
+    dspConnections(std::move(other.dspConnections)),
+    connections(std::move(other.connections)),
+    scratch(std::move(other.scratch)),
+    docLabel(std::move(other.docLabel)),
+    docDescription(std::move(other.docDescription)),
+    docRange(std::move(other.docRange)) {
+  // `current` may point at the moved scratch; that buffer moved with us.
+  other.current = nullptr;
+}
 
 inlet::~inlet() {
   // Delegated for symmetry with ~outlet (issue #537), not because this end was
@@ -119,6 +143,12 @@ void inlet::RegisterList(listFunc f) {
 
 void inlet::RegisterBuffer(bufferFunc f) {
   onBuffer = f;
+  RegisterSignal();
+}
+
+void inlet::RegisterSignal() {
+  signal = true;
+  if (!scratch) scratch = std::make_unique<DSP::buffer>(YSE::STANDARD_BUFFERSIZE);
 }
 
 void inlet::SetInt(int value, YSE::THREAD thread) {
@@ -176,12 +206,42 @@ void inlet::SetBuffer(YSE::DSP::buffer* buffer, YSE::THREAD thread) {
   // can observe. A control message emitted from a DSP handler still opens its
   // own event through the setters above, which is the honest answer for a
   // stimulus this patcher has no scheduler tick to attribute it to.
-  if (onBuffer) {
-    onBuffer(buffer, position, thread);
-    dspReady = true;
-    if (obj->IsDSPObject() && thread == T_GUI) return;
-    obj->CalculateIfReady(thread);
+  if (!signal || buffer == nullptr) return;
+
+  // Fan-in (issue #1036). With one source -- or a direct delivery to an inlet
+  // with none, as a standalone test rig does -- the buffer is passed on as it
+  // is. With several, the first is copied into scratch and the rest added to
+  // it; the object hears nothing until the last one is in. A source that sends
+  // again after the sum was complete (a recalculation inside the block) starts
+  // a new sum. Copy and add stay within scratch's capacity: no allocation.
+  const unsigned int expected = DspSourceCount();
+  if (expected <= 1) {
+    dspArrived++;
+    current = buffer;
+  } else {
+    if (dspArrived >= expected) dspArrived = 0;
+    if (dspArrived == 0) {
+      *scratch = *buffer;
+    } else {
+      *scratch += *buffer;
+    }
+    if (++dspArrived < expected) return;
+    current = scratch.get();
   }
+
+  if (onBuffer) onBuffer(current, position, thread);
+  if (obj->IsDSPObject() && thread == T_GUI) return;
+  obj->CalculateIfReady(thread);
+}
+
+YSE::DSP::buffer& inlet::Signal(Flt fallback) {
+  if (current != nullptr) return *current;
+  // Unconnected (or nothing arrived): the constant. Refilled on every call so
+  // a fallback that changed since the last block is honoured; the resize only
+  // restores a length a fan-in sum may have changed, within capacity.
+  if (scratch->getLength() != YSE::STANDARD_BUFFERSIZE) scratch->resize(YSE::STANDARD_BUFFERSIZE);
+  *scratch = fallback;
+  return *scratch;
 }
 
 // A message box's text, delivered the way Max delivers one (issue #933).
@@ -264,68 +324,64 @@ void inlet::SetMessage(const std::string& message, YSE::THREAD thread, float val
   }
 }
 
-bool inlet::WaitingForDSP() const {
-  // Whether this inlet has an active buffer input comes from a snapshot: the
-  // block's pinned one on the thread rendering it, the pinned published one on
-  // any other thread (issues #226, #962, #963) — never the live
-  // ``dspConnection`` a structural edit on another control thread rewrites.
+unsigned int inlet::DspSourceCount() const {
+  // How many signal sources this inlet has comes from a snapshot: the block's
+  // pinned one on the thread rendering it, the pinned published one on any
+  // other thread (issues #226, #962, #963) -- never the live
+  // ``dspConnections`` a structural edit on another control thread rewrites.
   // An inlet the snapshot does not own takes the same two fallbacks as
   // outlet::resolveTargets (see graphReadScope).
   const graphReadScope scope(obj);
   const auto owned = [this](const GraphState* g) {
-    return g != nullptr && graphId >= 0 && static_cast<size_t>(graphId) < g->inletHasDsp.size() &&
+    return g != nullptr && graphId >= 0 &&
+           static_cast<size_t>(graphId) < g->inletDspSources.size() &&
            g->inletOwner[graphId] == this;
   };
   const GraphState* graph = scope.Graph();
-  bool hasDsp;
-  if (owned(graph)) {
-    hasDsp = graph->inletHasDsp[graphId] != 0;
-  } else {
-    const GraphState* latest = (graph != nullptr && graphId >= 0) ? scope.Latest() : nullptr;
-    if (latest != graph && owned(latest)) {
-      hasDsp = latest->inletHasDsp[graphId] != 0;
-    } else {
-      hasDsp = (dspConnection != nullptr);
-    }
-  }
-  if (!hasDsp) return false;
-  return !dspReady;
+  if (owned(graph)) return graph->inletDspSources[graphId];
+  const GraphState* latest = (graph != nullptr && graphId >= 0) ? scope.Latest() : nullptr;
+  if (latest != graph && owned(latest)) return latest->inletDspSources[graphId];
+  return static_cast<unsigned int>(dspConnections.size());
+}
+
+bool inlet::WaitingForDSP() const {
+  if (!signal) return false;
+  return dspArrived < DspSourceCount();
 }
 
 void inlet::UnwireFromPeers() {
   // Detach from the buffer input and every control-edge source. Clear our own
   // lists first so the peers' Disconnect(this) calls stay consistent.
-  outlet* dsp = dspConnection;
-  dspConnection = nullptr;
+  std::vector<outlet*> dsp;
+  dsp.swap(dspConnections);
   std::vector<outlet*> conns;
   conns.swap(connections);
-  if (dsp != nullptr) dsp->Disconnect(this);
+  for (unsigned int i = 0; i < dsp.size(); i++) {
+    dsp[i]->Disconnect(this);
+  }
   for (unsigned int i = 0; i < conns.size(); i++) {
     conns[i]->Disconnect(this);
   }
 }
 
 bool inlet::Connect(outlet* out) {
-  if (out->Type() == OUT_TYPE::BUFFER) {
-    if (dspConnection == nullptr) {
-      dspConnection = out;
-      return true;
-    } else
-      return false;
-  } else {
-    for (unsigned int i = 0; i < connections.size(); i++) {
-      if (connections[i] == out) return false;
-    }
-    connections.push_back(out);
-    return true;
+  // Any number of distinct signal sources (issue #1036); the same outlet twice
+  // is still one cord, and refused.
+  std::vector<outlet*>& list = out->Type() == OUT_TYPE::BUFFER ? dspConnections : connections;
+  for (unsigned int i = 0; i < list.size(); i++) {
+    if (list[i] == out) return false;
   }
+  list.push_back(out);
+  return true;
 }
 
 void inlet::Disconnect(outlet* out) {
-  if (dspConnection == out) {
-    dspConnection->Disconnect(this);
-    dspConnection = nullptr;
-    return;
+  for (unsigned int i = 0; i < dspConnections.size(); i++) {
+    if (dspConnections[i] == out) {
+      dspConnections.erase(dspConnections.begin() + i);
+      out->Disconnect(this);
+      return;
+    }
   }
   for (unsigned int i = 0; i < connections.size(); i++) {
     if (connections[i] == out) {
@@ -336,12 +392,11 @@ void inlet::Disconnect(outlet* out) {
 }
 
 bool inlet::AcceptsDSP() const {
-  if (onBuffer) return true;
-  return false;
+  return signal;
 }
 
 bool inlet::HasActiveDSPConnection() const {
-  return dspConnection != nullptr;
+  return !dspConnections.empty();
 }
 
 int inlet::GetObjectID() {
@@ -360,7 +415,7 @@ void inlet::SetDoc(const std::string& label, const std::string& doc, const std::
 
 unsigned int inlet::GetAcceptedTypes() const {
   unsigned int mask = IT_NONE;
-  if (onBuffer) mask |= IT_BUFFER;
+  if (signal) mask |= IT_BUFFER;
   if (onFloat) mask |= IT_FLOAT;
   if (onInt) mask |= IT_INT;
   if (onBang) mask |= IT_BANG;

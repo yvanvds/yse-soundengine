@@ -6,10 +6,9 @@ using namespace YSE::PATCHER;
 
 CONSTRUCT_DSP() {
   frequency = 440.f;
-  freqBuffer = nullptr;
 
   ADD_IN_0;
-  REG_BUFFER_IN(SetFrequencyBuffer);
+  REG_SIGNAL_IN;
   REG_FLOAT_IN(SetFrequency);
 
   ADD_OUT_BUFFER;
@@ -25,21 +24,14 @@ CONSTRUCT_DSP() {
   PARAM_DOC("frequency", "440", "Initial frequency in Hz.", "0-20000 Hz");
 }
 
-RESET() // {
-freqBuffer = nullptr;
-}
-
 FLOAT_IN(SetFrequency) {
   frequency = value;
 }
 
-BUFFER_IN(SetFrequencyBuffer) {
-  freqBuffer = buffer;
-}
-
 CALC() {
   // DSP::saw is a phasor (0..1). Rescale it in place to a bipolar -1..1 saw.
-  DSP::buffer& out = freqBuffer != nullptr ? saw(*freqBuffer) : saw(frequency);
+  // A connected frequency signal wins over the float (issue #1036).
+  DSP::buffer& out = inputs[0].IsConstant() ? saw(frequency) : saw(inputs[0].Signal(frequency));
   Flt* ptr = out.getPtr();
   for (UInt i = 0; i < out.getLength(); ++i)
     ptr[i] = 2.f * ptr[i] - 1.f;

@@ -286,7 +286,7 @@ namespace YSE {
 
       // Current outlet / inlet graph-id high-water marks — exactly the sizes
       // BuildGraph gives every new GraphState's id-indexed tables (outletTargets
-      // / inletHasDsp). Recompacted to 0 whenever the patcher goes empty, so
+      // / inletDspSources). Recompacted to 0 whenever the patcher goes empty, so
       // across Clear()/delete-all cycles they track the peak simultaneous object
       // count rather than the lifetime creation count (issue #355). Diagnostics /
       // tests only: takes mtx, so control-thread only.

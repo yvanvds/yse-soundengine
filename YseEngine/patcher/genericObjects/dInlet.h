@@ -25,7 +25,7 @@ namespace YSE {
      *  signal path is already pointer-passing rather than slot assignment: a
      *  DSP object computes into a buffer it owns and hands its address down the
      *  cord with `outlet::SendBuffer`, and every reader — `~+`'s operands,
-     *  `~dac`'s channels — stores that address and reads through it. A
+     *  `~dac`'s channels — reads through that address. A
      *  pass-through therefore has nothing to copy. `Calculate()` sends on the
      *  exact `DSP::buffer*` that arrived, so the object downstream of the
      *  boundary is handed the *same buffer the upstream source produced*, not a
@@ -71,7 +71,7 @@ namespace YSE {
      *  ### Rate mismatch
      *
      *  Wiring a control-rate outlet to this object's inlet is not refused and
-     *  does nothing: the inlet registers only a buffer handler, so a float or a
+     *  does nothing: the inlet is a signal inlet only, so a float or a
      *  bang arriving there is dropped, exactly as it is for any other DSP
      *  object's signal inlet. Use `.inlet` for the pins that carry messages —
      *  a subpatcher is free to have some of each.
@@ -85,16 +85,14 @@ namespace YSE {
      *
      *  ### Real-time behaviour
      *
-     *  `Calculate()` is one null check and one send. Nothing here allocates,
-     *  locks or blocks on any thread, and the object holds no buffer of its own
-     *  to allocate in the first place.
+     *  `Calculate()` is one send of the inlet's buffer: the upstream buffer
+     *  itself, the inlet's sum when several cords arrive, or silence when none
+     *  is connected (issue #1036). Nothing here allocates, locks or blocks on
+     *  any thread.
      */
     PATCHER_CLASS(dInlet, YSE::OBJ::D_INLET)
     _NO_MESSAGES
     _DO_CALCULATE
-    _DO_RESET
-
-    _BUFFER_IN(SetInBuffer)
 
     /**
      *  @brief Which inlet of the enclosing subpatcher this object is.
@@ -114,12 +112,6 @@ namespace YSE {
 
   private:
     std::atomic<int> index{0};
-
-    // The buffer that arrived this block, forwarded unchanged. A borrowed
-    // pointer into the *upstream* object's own buffer, valid for exactly as
-    // long as the block that delivered it — which is why `ResetDSP` nulls it at
-    // the top of every block and why this object owns no buffer of its own.
-    DSP::buffer* in;
   };
 
 } // namespace PATCHER

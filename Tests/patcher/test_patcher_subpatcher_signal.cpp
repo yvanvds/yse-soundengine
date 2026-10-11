@@ -198,12 +198,12 @@ TEST_SUITE("patcher") {
     CHECK(sink2.received == &upstream);
   }
 
-  TEST_CASE("subpatcher signal: a block with nothing on the boundary sends nothing (#764)") {
+  TEST_CASE("subpatcher signal: a block with nothing on the boundary sends silence (#764, #1036)") {
     // `ResetDSP` runs over every object at the top of every block, and a
     // boundary that kept last block's pointer would forward a buffer whose
     // contents belong to a block that has already been rendered — a stale
     // signal rather than silence, and the kind of bug that sounds like a glitch
-    // instead of like nothing.
+    // instead of like nothing. Since #1036 an unfed boundary forwards silence.
     BufferSink sink;
     dInlet in;
     Wire(in, 0, sink, 0);
@@ -215,12 +215,14 @@ TEST_SUITE("patcher") {
     sink.received = nullptr;
     in.ResetDSP();
     in.Calculate(YSE::T_DSP);
-    CHECK(sink.received == nullptr);
+    REQUIRE(sink.received != nullptr);
+    CHECK(sink.received != &upstream);
+    CHECK(sink.received->isSilent());
   }
 
   TEST_CASE("subpatcher signal: the boundary is a DSP start point only when unfed (#764)") {
     // Start-point selection is how the render finds the roots of its push
-    // traversal. An unconnected `~inlet` is a root that produces nothing, which
+    // traversal. An unconnected `~inlet` is a root that produces silence, which
     // is right; a *fed* one must not be a root, or it would be calculated
     // before the object upstream of it had run and would forward last block's
     // pointer — or, after ResetDSP, nothing at all.

@@ -7,7 +7,7 @@ using namespace YSE::PATCHER;
 CONSTRUCT_DSP() {
   // in 0: audio buffer
   ADD_IN_0;
-  REG_BUFFER_IN(SetBuffer);
+  REG_SIGNAL_IN;
 
   // in 1: low value (int or float)
   ADD_IN_1;
@@ -25,7 +25,6 @@ CONSTRUCT_DSP() {
   ADD_PARAM(low);
   ADD_PARAM(high);
 
-  buffer = nullptr;
   low = -1.0f;
   high = 1.0f;
 
@@ -38,14 +37,6 @@ CONSTRUCT_DSP() {
   OUTLET_DOC(0, "out", "The signal limited to low to high.", "low to high");
   PARAM_DOC("low", "-1.0", "Starting lower limit.", "any float");
   PARAM_DOC("high", "1.0", "Starting upper limit.", "any float");
-}
-
-RESET() // {
-buffer = nullptr;
-}
-
-BUFFER_IN(SetBuffer) {
-  this->buffer = buffer;
 }
 
 FLOAT_IN(SetLow) {
@@ -65,8 +56,9 @@ INT_IN(SetIntHigh) {
 }
 
 CALC() {
-  if (buffer == nullptr) return;
+  // Unconnected, the input reads as silence (issue #1036).
+  DSP::buffer& in = inputs[0].Signal(0.f);
 
   clip.set(low, high);
-  outputs[0].SendBuffer(&clip(*buffer), thread);
+  outputs[0].SendBuffer(&clip(in), thread);
 }

@@ -22,7 +22,7 @@ namespace YSE {
     //
     // Objects are stable (allocated once, never rebuilt), so the ``inlet*``
     // and ``pObject*`` pointers stored here stay valid across edits; only the
-    // adjacency is swapped. Indices into ``outletTargets`` / ``inletHasDsp``
+    // adjacency is swapped. Indices into ``outletTargets`` / ``inletDspSources``
     // are the dense, construction-time ``graphId`` stamped on each
     // outlet / inlet — stable for the object's lifetime, so a swap never
     // rewrites them.
@@ -55,14 +55,15 @@ namespace YSE {
       // ids that belong to deleted objects or outlets with no connections.
       std::vector<std::vector<inlet*>> outletTargets;
 
-      // inletHasDsp[inlet.graphId] != 0 when the inlet has an active buffer
-      // input in this snapshot. Replaces the audio-thread reads of
-      // ``inlet::dspConnection`` used by start-point selection / WaitingForDSP.
-      std::vector<char> inletHasDsp;
+      // inletDspSources[inlet.graphId] = how many buffer sources feed the
+      // inlet in this snapshot (issue #1036: several are summed). Replaces the
+      // audio-thread reads of ``inlet::dspConnections`` used by readiness
+      // (WaitingForDSP) and the fan-in sum.
+      std::vector<unsigned int> inletDspSources;
 
       // outletOwner[id] / inletOwner[id] = the outlet / inlet that held graph id
       // `id` when this snapshot was built, or null for an unused id (issue
-      // #963). A lookup only trusts ``outletTargets`` / ``inletHasDsp`` for a
+      // #963). A lookup only trusts ``outletTargets`` / ``inletDspSources`` for a
       // pin that finds itself here. The audio thread only ever reaches pins of
       // objects in its snapshot, so for it the check always passes; a control
       // thread can still hold an object deleted since (a ``.preset`` recall,

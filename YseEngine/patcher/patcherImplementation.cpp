@@ -781,8 +781,8 @@ void patcherImplementation::Disconnect(YSE::pHandle* from, int outlet, YSE::pHan
   if (!AcceptsHandlesUnlocked(from, to, "Disconnect")) return;
   // Mirror ConnectUnlocked's guard: GetOutlet/GetInlet return null for an
   // out-of-range pin. Passing a null outlet into inlet::Disconnect segfaults
-  // (a disconnected inlet has dspConnection == nullptr, so `dspConnection ==
-  // out` is true and it derefs the null outlet), and an out-of-range inlet
+  // (before #1036 a disconnected inlet had dspConnection == nullptr, so
+  // `dspConnection == out` was true and it derefed the null outlet), and an out-of-range inlet
   // indexes inputs[] out of bounds (issue #235).
   // Same façade resolution Connect does (issue #545), and it has to be here
   // too: the edge that exists is the resolved one, so a Disconnect written
@@ -1097,7 +1097,7 @@ void patcherImplementation::ReplaceObjectUnlocked(YSE::pHandle* handle, const st
     for (PATCHER::outlet* src : oldIn->Sources()) {
       if (freshIn->Connect(src)) src->Connect(freshIn);
     }
-    if (PATCHER::outlet* dsp = oldIn->DspSource()) {
+    for (PATCHER::outlet* dsp : oldIn->DspSources()) {
       if (freshIn->Connect(dsp)) dsp->Connect(freshIn);
     }
   }
@@ -2052,7 +2052,7 @@ void patcherImplementation::CompactGraphIdsIfEmpty() {
 YSE::PATCHER::GraphState* patcherImplementation::BuildGraph() {
   GraphState* g = new GraphState();
   g->outletTargets.resize(nextOutletId_);
-  g->inletHasDsp.assign(nextInletId_, 0);
+  g->inletDspSources.assign(nextInletId_, 0);
   g->outletOwner.assign(nextOutletId_, nullptr);
   g->inletOwner.assign(nextInletId_, nullptr);
 
@@ -2080,7 +2080,7 @@ YSE::PATCHER::GraphState* patcherImplementation::BuildGraph() {
       if (in == nullptr) continue;
       int id = in->GraphId();
       if (id >= 0 && id < nextInletId_) {
-        g->inletHasDsp[id] = in->HasActiveDSPConnection() ? 1 : 0;
+        g->inletDspSources[id] = static_cast<unsigned int>(in->DspSources().size());
         g->inletOwner[id] = in;
       }
     }

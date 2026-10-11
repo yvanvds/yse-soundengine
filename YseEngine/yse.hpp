@@ -70,6 +70,7 @@
 #include "dsp/filters.hpp"
 #include "dsp/math.hpp"
 #include "dsp/oscillators.hpp"
+#include "dsp/generators/phasor.hpp"
 #include "dsp/ramp.hpp"
 #include "dsp/envelope.hpp"
 #include "dsp/ADSRenvelope.hpp"

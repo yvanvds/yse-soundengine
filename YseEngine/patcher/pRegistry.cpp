@@ -114,6 +114,7 @@
 
 #include "generatorObjects/pSine.h"
 #include "generatorObjects/dSaw.h"
+#include "generatorObjects/dPhasor.h"
 #include "generatorObjects/dNoise.h"
 
 #include "guiObjects/gInt.h"
@@ -314,6 +315,7 @@ pRegistry::pRegistry() {
 
   Add(OBJ::D_SINE, pSine::Create);
   Add(OBJ::D_SAW, dSaw::Create);
+  Add(OBJ::D_PHASOR, dPhasor::Create);
   Add(OBJ::D_NOISE, dNoise::Create);
 
   Add(OBJ::G_SWITCH, gSwitch::Create);

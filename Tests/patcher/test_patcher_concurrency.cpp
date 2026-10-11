@@ -480,7 +480,7 @@ TEST_SUITE("patcher") {
   }
 
   // Issue #963: a control-thread send walked the live wiring (`outlet::
-  // connections`, `inlet::dspConnection`) while a structural edit on another
+  // connections`, `inlet::dspConnections`) while a structural edit on another
   // control thread rewrote it under mtx — DeleteObject's UnwireFromPeers swaps
   // the vectors out and frees them, Connect's push_back reallocates them. The
   // send takes no lock, so TSan reports the edit's write racing the send's read

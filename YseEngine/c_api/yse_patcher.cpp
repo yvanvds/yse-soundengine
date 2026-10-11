@@ -221,6 +221,16 @@ namespace {
       return YSE_PCAT_ENCAPSULATION;
     case pCategory::SEQUENCE:
       return YSE_PCAT_SEQUENCE;
+    case pCategory::ANALYSIS:
+      return YSE_PCAT_ANALYSIS;
+    case pCategory::DYNAMICS:
+      return YSE_PCAT_DYNAMICS;
+    case pCategory::SAMPLING:
+      return YSE_PCAT_SAMPLING;
+    case pCategory::SPECTRAL:
+      return YSE_PCAT_SPECTRAL;
+    case pCategory::DELAY:
+      return YSE_PCAT_DELAY;
     case pCategory::COUNT_:
       break; // sentinel, not a category (drift guard in yse_enums_check.cpp)
     }
@@ -267,6 +277,16 @@ namespace {
       return "ENCAPSULATION";
     case YSE_PCAT_SEQUENCE:
       return "SEQUENCE";
+    case YSE_PCAT_ANALYSIS:
+      return "ANALYSIS";
+    case YSE_PCAT_DYNAMICS:
+      return "DYNAMICS";
+    case YSE_PCAT_SAMPLING:
+      return "SAMPLING";
+    case YSE_PCAT_SPECTRAL:
+      return "SPECTRAL";
+    case YSE_PCAT_DELAY:
+      return "DELAY";
     }
     return "UNKNOWN";
   }

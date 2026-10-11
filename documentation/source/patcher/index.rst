@@ -20,7 +20,7 @@ The first character of an object's type name tells you which kind it is.
 
 ``~`` **signal objects** (``~sine``, ``~lp``, ``~*``, ``~dac`` …)
    Signal objects run once per audio block and pass whole buffers of samples
-   along their cords. There are 17 of them. Many of their inlets also accept a
+   along their cords. There are 18 of them. Many of their inlets also accept a
    plain number: the inlet of ``~sine`` takes either an audio buffer (for FM)
    or a float frequency.
 

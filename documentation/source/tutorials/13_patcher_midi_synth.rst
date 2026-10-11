@@ -84,9 +84,10 @@ exactly the list a voice takes.
 Mixing
 ~~~~~~
 
-A signal inlet takes one cord, so the four voices are added up with a chain
-of ``~+`` before they reach the ``~dac``. The ``~* 0.25`` keeps four voices
-at full velocity from clipping.
+The four voices are added up with a chain of ``~+`` before they reach the
+``~dac``. Wiring all four into one inlet would sum them too (a signal inlet
+adds every cord into it), but the chain keeps the mix in one place. The
+``~* 0.25`` keeps four voices at full velocity from clipping.
 
 Playing it
 ----------

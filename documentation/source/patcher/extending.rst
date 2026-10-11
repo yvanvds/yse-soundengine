@@ -28,7 +28,8 @@ files. A new object touches the same set:
    * - ``YseEngine/patcher/<folder>/gSwap.h`` and ``.cpp``
      - The object itself. The folder is the family: ``math``,
        ``genericObjects``, ``guiObjects``, ``midi``, ``time``, ``filters``,
-       ``generatorObjects``.
+       ``generatorObjects``, and the topic folders of the MSP port (see
+       `Porting an MSP object`_).
    * - ``YseEngine/patcher/pObjectList.hpp``
      - The type name constant: ``DEFOBJ(G_SWAP, ".swap");``. Also add the
        constant to the grouped list in the comment at the top of the file.
@@ -380,7 +381,8 @@ snapshot, so write it for a patch author, not for a reviewer.
    The reference page and palette group it goes in: ``OSC``, ``FILTER``,
    ``MATH``, ``GUI``, ``TIME``, ``MIDI``, ``ROUTING``, ``CONTROL``, ``LIST``,
    ``STRING``, ``COLLECTION``, ``DICT``, ``ARRAY``, ``RANDOM``, ``IO``,
-   ``ENCAPSULATION`` or ``SEQUENCE``. ``GENERIC`` is refused by a test. Pick
+   ``ENCAPSULATION``, ``SEQUENCE``, ``DELAY``, ``DYNAMICS``, ``SAMPLING``,
+   ``SPECTRAL`` or ``ANALYSIS``. ``GENERIC`` is refused by a test. Pick
    the closest real category instead.
 ``INLET_DOC(index, label, doc, range)`` and ``OUTLET_DOC(...)``
    One for every pin the constructor creates. The label is a short name
@@ -468,16 +470,13 @@ per block. ``~saw`` is the smallest complete one. Its header:
    PATCHER_CLASS(dSaw, YSE::OBJ::D_SAW)
    _NO_MESSAGES
    _DO_CALCULATE
-   _DO_RESET
 
    _FLOAT_IN(SetFrequency)
-   _BUFFER_IN(SetFrequencyBuffer)
 
    private:
      DSP::saw saw;
 
      aFlt frequency;
-     DSP::buffer* freqBuffer;
    };
 
 And its source:
@@ -486,10 +485,9 @@ And its source:
 
    CONSTRUCT_DSP() {
      frequency = 440.f;
-     freqBuffer = nullptr;
 
      ADD_IN_0;
-     REG_BUFFER_IN(SetFrequencyBuffer);
+     REG_SIGNAL_IN;
      REG_FLOAT_IN(SetFrequency);
 
      ADD_OUT_BUFFER;
@@ -505,21 +503,14 @@ And its source:
      PARAM_DOC("frequency", "440", "Initial frequency in Hz.", "0-20000 Hz");
    }
 
-   RESET() // {
-   freqBuffer = nullptr;
-   }
-
    FLOAT_IN(SetFrequency) {
      frequency = value;
    }
 
-   BUFFER_IN(SetFrequencyBuffer) {
-     freqBuffer = buffer;
-   }
-
    CALC() {
      // DSP::saw is a phasor (0..1). Rescale it in place to a bipolar -1..1 saw.
-     DSP::buffer& out = freqBuffer != nullptr ? saw(*freqBuffer) : saw(frequency);
+     DSP::buffer& out =
+         inputs[0].IsConstant() ? saw(frequency) : saw(inputs[0].Signal(frequency));
      Flt* ptr = out.getPtr();
      for (UInt i = 0; i < out.getLength(); ++i)
        ptr[i] = 2.f * ptr[i] - 1.f;
@@ -529,24 +520,202 @@ And its source:
 How the render drives it:
 
 - ``CONSTRUCT_DSP()`` marks the object as a signal object.
+- ``REG_SIGNAL_IN`` makes the inlet a signal inlet. ``CALC()`` reads it with
+  ``inputs[n].Signal(fallback)``, which never returns null: it is the buffer
+  that arrived, the sum when several cords end on the inlet, or, with no
+  cord, the inlet's own buffer filled with ``fallback``.
+  ``inputs[n].IsConstant()`` says which, so an object can take a scalar path
+  (here ``saw(frequency)``) instead of reading a buffer of identical samples.
+  The rules a patch author sees are in :ref:`patcher-signal-inlets`.
+- Pass the object's float for that inlet as the fallback. The inlet then
+  follows the rule for patch authors: the last number sent to it, else the
+  creation argument (``ADD_PARAM``), else the default. A connected signal
+  wins over it.
 - At the start of every block the patcher calls ``ResetDSP()`` on every
-  object. The base version marks each input buffer as not yet arrived.
-  ``RESET()`` adds your own reset to it. It already contains the opening
-  brace and the call to the base, which is why ``dSaw`` writes ``// {``
-  after it and ends with a plain ``}``.
+  object, which marks each signal inlet as not yet arrived. An object that
+  keeps per-block state of its own adds to it with ``_DO_RESET`` and
+  ``RESET()``. The macro already contains the opening brace and the call to
+  the base, so the body is written ``RESET() // {`` and ends with a plain
+  ``}``.
 - A signal object with no signal cord into it is a **start point**, and the
   patcher calls its ``Calculate()`` directly. Any other signal object
-  computes when its last signal input has arrived. Either way it runs once
-  per block, on the audio thread, and it must send a buffer on every signal
-  outlet.
-- A buffer inlet that also takes a float is the usual pattern: with a cord,
-  the buffer wins; without one, the float is used.
+  computes when every cord into its signal inlets has delivered. Either way
+  it runs once per block, on the audio thread, and it must send a buffer on
+  every signal outlet.
+- ``REG_BUFFER_IN(f)`` registers a handler instead, called with the buffer
+  (or the sum) as it arrives. ``~dac`` uses it to keep its channel
+  pointers; new objects should read ``Signal()``.
 - A number that arrives with ``T_GUI`` on a signal object's hot inlet only
   stores. It does not compute a block early. The next block uses it.
 - ``frequency`` is an ``aFlt`` (an atomic float), because a control thread
   writes it while the audio thread reads it.
 - The output buffer belongs to the object (here, inside ``DSP::saw``). It is
   allocated once, when the object is built.
+
+Porting an MSP object
+---------------------
+
+The MSP port (issue `#1034
+<https://github.com/yvanvds/yse-soundengine/issues/1034>`_) builds every
+object in two layers, decided in `#1035
+<https://github.com/yvanvds/yse-soundengine/issues/1035>`_:
+
+- A public ``YSE::DSP`` class does all the signal processing. It works from
+  C++ without a patcher.
+- A thin ``~`` object maps inlets, outlets and parameters onto that class,
+  the way ``~vcf`` wraps ``DSP::vcf``. The wrapper contains no sample math.
+
+Each object issue under #1034 lists the MSP surface to cover (arguments,
+messages, attributes). Map every item onto a setter of the DSP class and an
+inlet, message or parameter of the wrapper, or say in the PR why it is
+dropped. Signal inlets follow `Signal objects`_: unconnected ones read as
+the wrapper's float, several cords are summed, and a connected signal wins. C API wrappers
+for the DSP classes come later, in one batch (`#1173
+<https://github.com/yvanvds/yse-soundengine/issues/1173>`_).
+
+Where the files go
+~~~~~~~~~~~~~~~~~~
+
+.. list-table::
+   :header-rows: 1
+   :widths: 44 56
+
+   * - File
+     - Rule
+   * - ``YseEngine/dsp/<topic>/<class>.hpp`` and ``.cpp``
+     - One pair per class, or per small family that shares code (the
+       comparison operators). ``<topic>`` is one of ``operators``,
+       ``generators``, ``filters``, ``delay``, ``dynamics``, ``sampling``,
+       ``spectral``, ``analysis``. The existing flat files in ``dsp/`` stay
+       where they are.
+   * - ``YseEngine/yse.hpp``
+     - An ``#include`` of every new public header, so ``#include "yse.hpp"``
+       is all a C++ user needs.
+   * - ``YseEngine/CMakeLists.txt``
+     - The DSP ``.cpp`` in ``YSE_SRCS`` only. The wrapper ``.cpp`` goes in
+       both lists, as for any patcher object.
+   * - ``YseEngine/patcher/<folder>/d<Name>.h`` and ``.cpp``
+     - The wrapper. Operators go in ``math``, generators in
+       ``generatorObjects``, filters in ``filters``. The other topics get a
+       folder of their own with the topic's name (``patcher/analysis/``).
+
+What the DSP class looks like
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Follow the existing classes in ``dsp/oscillators.hpp`` and
+``dsp/filters.hpp``:
+
+- **Names.** The class is a lowerCamel noun for what it is
+  (``DSP::phasor``, ``DSP::stateVariableFilter``), not the MSP name. It is
+  declared ``class API`` in ``namespace YSE::DSP`` and documented in its
+  header with Doxygen comments.
+- **Per block.** ``buffer& operator()(buffer& in)`` processes one block and
+  returns a reference to an output buffer the class owns. The reference
+  stays valid until the next call.
+- **Modulated parameters.** A parameter that MSP accepts as a signal gets a
+  scalar and a buffer overload, as ``saw(Flt)`` and ``saw(buffer&)`` do. A
+  parameter that is only ever a number gets a plain setter.
+- **Per sample.** Where the algorithm is naturally per sample (filters,
+  envelope followers), add ``Flt process(Flt)`` as well, and build
+  ``operator()`` on it.
+- **More than one output.** ``operator()`` returns the first output. The
+  others are named accessors returning ``buffer&`` (``peak()``,
+  ``index()``), filled by the same call.
+- **One thread.** The class is not thread-safe and holds plain ``Flt``
+  members. The wrapper owns the ``aFlt`` atomics that the control thread
+  writes, and passes their values into the class at the start of
+  ``CALC()``.
+
+Parameters and smoothing
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+There is no smoothing by default: a patch that needs clean modulation feeds
+a signal into the inlet, or uses ``~line``. A class whose parameter would
+click or zipper when it jumps (a gain, a cutoff) smooths it itself, with
+``onePoleCoef`` and ``onePoleSmooth`` from ``dsp/smoother.hpp``, and says
+so in its header. Compute the coefficient at block rate, never per sample.
+The wrapper never smooths.
+
+Sample rate
+~~~~~~~~~~~
+
+Never derive state once from ``SAMPLERATE`` in the constructor. The engine
+can restart at another rate, and state baked at the old rate goes wrong
+silently (issues #634 and #636). Instead the class remembers the rate it
+built its state for, and rebuilds when the rate changes:
+
+.. code-block:: cpp
+
+   buffer& phasor::operator()(Flt frequency) {
+     if (builtRate != SAMPLERATE) prepare();  // recompute rate-derived state
+     ...
+   }
+
+That is one compare per block. ``ADSRenvelope`` already works this way. The rebuild must itself follow the rules below. Anything
+that would need an allocation at the new rate (a delay line sized in
+seconds) is sized in the constructor for the highest rate the class
+supports, and the rebuild only changes how much of it is used.
+
+Real-time rules
+~~~~~~~~~~~~~~~
+
+Processing never allocates, locks or blocks on I/O. In practice:
+
+- The constructor sizes the output buffers, and any internal state, to
+  ``STANDARD_BUFFERSIZE``. A delay or a sample buffer takes its maximum size
+  as a constructor argument.
+- A shorter block resizes the output down with ``buffer::resize``. Resizing
+  within the capacity the buffer has held never allocates; a test in
+  ``Tests/dsp/test_buffer.cpp`` keeps that true.
+- A block is at most ``STANDARD_BUFFERSIZE`` samples, which is what the
+  patcher always delivers. A C++ caller with a longer block calls the class
+  once per slice of ``STANDARD_BUFFERSIZE`` samples and copies each result
+  out. The class never grows its output to fit a longer input.
+
+Patcher names
+~~~~~~~~~~~~~
+
+- The type name is ``~`` plus the MSP name without its trailing ``~``:
+  ``phasor~`` becomes ``~phasor``. Operators follow ``~+``: ``~!-``,
+  ``~==``.
+- Names that already exist keep their name: ``~saw``, ``~line``, ``~dac``,
+  ``~adc``, ``~noise``, ``~clip``, ``~+``, ``~-``, ``~*`` and ``~/`` will
+  be brought in line with MSP behaviour by their own issues. ``~sine``, ``~lp``, ``~hp``, ``~bp``
+  and ``~vcf`` keep their Pd-style behaviour, next to the new ``~cycle``,
+  ``~onepole`` and ``~reson``.
+- MSP aliases (``s~``, ``r~``) are not registered. Each object has one name.
+- The class, constant and files follow `Names`_: ``dPhasor``,
+  ``YSE::OBJ::D_PHASOR``, ``dPhasor.h``.
+
+Categories
+~~~~~~~~~~
+
+Use the closest of: ``OSC`` (generators), ``FILTER``, ``MATH`` (operators
+and conversions), ``DELAY`` (delay lines, taps, combs), ``DYNAMICS``
+(compressors, limiters, gates, envelope followers), ``SAMPLING`` (recording
+into and playing back from buffers), ``SPECTRAL`` (FFT and
+frequency-domain work), ``ANALYSIS`` (levels, pitch, zero crossings,
+snapshots), ``IO`` and ``ROUTING``. Each has a notes file in
+``documentation/source/_data/patcher_notes/``.
+
+Tests
+~~~~~
+
+Two test files per port:
+
+- ``Tests/dsp/test_<class>.cpp``, in ``TEST_SUITE("dsp")``, tests the class
+  without a patcher against reference output: an impulse response, a known
+  sine, or values in closed form. It also changes ``SAMPLERATE`` after
+  construction (restore it with a guard, as
+  ``test_lfo_rate_robustness.cpp`` does) and checks that the class follows,
+  and runs blocks inside a ``TestHelpers::ProbeScope`` to check that
+  nothing allocates.
+- ``Tests/patcher/test_patcher_<name>.cpp`` tests the wrapper as any object
+  (see `The object's own test file`_), through ``Tests/patcher/sinks.hpp``.
+  It only needs to show that the pins and parameters reach the class; the
+  sample math is already covered.
+
+Both files go in both lists in ``Tests/CMakeLists.txt``.
 
 Optional hooks
 --------------
@@ -710,10 +879,14 @@ for its metadata calls (``yse_patcher_get_type_count``,
 rest; see :doc:`c_api`). Your object appears there as soon as it is
 registered, with the documentation from its constructor.
 
-Only a new **category** needs C API work: ``pCategory`` has a mirror in the
-C header (``YsePCategory``), a name in ``tools/dump_patcher_metadata`` and a
-page in ``documentation/source/conf.py``. Adding a category is a change of its
-own, not part of adding an object.
+Only a new **category** needs C API work. A new ``pCategory`` value goes
+before ``COUNT_`` and needs a mirror in ``YsePCategory`` (``yse_enums.h``,
+with the next number), a ``YSE_ASSERT_ENUM`` line in ``yse_enums_check.cpp``,
+both switches in ``c_api/yse_patcher.cpp``, a name in
+``tools/dump_patcher_metadata``, the name table in
+``Tests/patcher/test_c_api_metadata.cpp``, an entry in
+``_PATCHER_CATEGORIES`` in ``documentation/source/conf.py`` and a notes file.
+Adding a category is a change of its own, not part of adding an object.
 
 Tests
 -----
@@ -853,3 +1026,5 @@ Checklist
 - [ ] The ``.cpp`` in both lists in ``YseEngine/CMakeLists.txt``.
 - [ ] ``test_patcher_x.cpp`` in both lists in ``Tests/CMakeLists.txt``.
 - [ ] ``python yse.py dump-patcher-meta`` run and the JSON committed.
+- [ ] For an MSP port: the DSP class and its test as well, following
+  `Porting an MSP object`_.

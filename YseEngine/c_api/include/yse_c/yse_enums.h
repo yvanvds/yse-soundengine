@@ -141,7 +141,12 @@ typedef enum YsePCategory {
   YSE_PCAT_RANDOM = 15, /**< Random and probabilistic sources. */
   YSE_PCAT_IO = 16, /**< Audio and host I/O (~adc, ~dac, .s, .r, .print, ...). */
   YSE_PCAT_ENCAPSULATION = 17, /**< Subpatchers and their inlets/outlets. */
-  YSE_PCAT_SEQUENCE = 18 /**< Timed recorders / players (.seq, .mtr, .qlist). */
+  YSE_PCAT_SEQUENCE = 18, /**< Timed recorders / players (.seq, .mtr, .qlist). */
+  YSE_PCAT_ANALYSIS = 19, /**< Signal analysis and metering (~snapshot, ~peakamp, ~zerox, ...). */
+  YSE_PCAT_DYNAMICS = 20, /**< Dynamics processing (~compressor, ~limiter, ~gate, ...). */
+  YSE_PCAT_SAMPLING = 21, /**< Recording into and playing from buffers (~play, ~groove, ...). */
+  YSE_PCAT_SPECTRAL = 22, /**< FFT and frequency-domain processing (~fft, ~pfft, ...). */
+  YSE_PCAT_DELAY = 23 /**< Delay lines and feedback structures (~tapin, ~tapout, ~comb, ...). */
 } YsePCategory;
 
 /** Bitmask of message types an inlet accepts; mirrors

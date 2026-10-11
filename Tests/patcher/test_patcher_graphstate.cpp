@@ -222,9 +222,9 @@ TEST_SUITE("patcher") {
   // ---- One-sided edges from refused connections (issue #237) ----
 
   TEST_CASE("connect: a refused buffer connection leaves no one-sided outlet edge") {
-    // An inlet holds at most one buffer source (dspConnection is a single
-    // slot), so a second buffer connection into the same inlet is refused on
-    // the inlet side. The outlet must not record the edge in that case: a
+    // A buffer cord the inlet already has is refused on the inlet side (since
+    // #1036 a *different* source is accepted and summed, so the duplicate is
+    // what is left to refuse). The outlet must not record the edge then: a
     // one-sided outlet->inlet edge is invisible to Disconnect and
     // UnwireFromPeers (both clean up from the inlet's records), so it gets
     // compiled into every GraphState built after the target object is deleted
@@ -238,10 +238,14 @@ TEST_SUITE("patcher") {
     p.Connect(noiseA, 0, sw, 0);
     CHECK(noiseA->GetConnections(0) == 1);
 
-    // Second buffer source into the same inlet: refused by the inlet, so the
-    // outlet side must stay clean too.
+    // The same cord again: refused by the inlet, so the outlet side must not
+    // gain a second edge to it.
+    p.Connect(noiseA, 0, sw, 0);
+    CHECK(noiseA->GetConnections(0) == 1);
+
+    // A second source is a fan-in, accepted on both sides.
     p.Connect(noiseB, 0, sw, 0);
-    CHECK(noiseB->GetConnections(0) == 0);
+    CHECK(noiseB->GetConnections(0) == 1);
   }
 
   TEST_CASE("teardown: an outlet's destructor detaches every peer, not every second one (#537)") {
@@ -353,7 +357,7 @@ TEST_SUITE("patcher") {
 
   TEST_CASE("graphids: repeated Clear + rebuild reuses the id space") {
     // graphId is a per-patcher monotonic counter that sizes every new
-    // GraphState's id-indexed tables (outletTargets / inletHasDsp). Without
+    // GraphState's id-indexed tables (outletTargets / inletDspSources). Without
     // recompaction the counters — and thus each snapshot's tables and per-edit
     // rebuild cost — grow with the *total* objects ever created, unbounded over a
     // long live-coding / preset-reload session. Recompacting when the patcher

@@ -68,6 +68,11 @@ const char * CategoryName(pCategory c) {
         case pCategory::IO:      return "IO";
         case pCategory::ENCAPSULATION: return "ENCAPSULATION";
         case pCategory::SEQUENCE: return "SEQUENCE";
+        case pCategory::ANALYSIS: return "ANALYSIS";
+        case pCategory::DYNAMICS: return "DYNAMICS";
+        case pCategory::SAMPLING: return "SAMPLING";
+        case pCategory::SPECTRAL: return "SPECTRAL";
+        case pCategory::DELAY:   return "DELAY";
         case pCategory::COUNT_:  break; // sentinel, not a category
     }
     return "UNKNOWN";

@@ -9,10 +9,9 @@ using namespace YSE::PATCHER;
 
 CONSTRUCT_DSP() {
   frequency = 440.f;
-  freqBuffer = nullptr;
 
   ADD_IN_0;
-  REG_BUFFER_IN(SetFrequencyBuffer);
+  REG_SIGNAL_IN;
   REG_FLOAT_IN(SetFrequency);
 
   ADD_OUT_BUFFER;
@@ -28,21 +27,15 @@ CONSTRUCT_DSP() {
   PARAM_DOC("frequency", "440", "Initial frequency in Hz.", "0-20000 Hz");
 }
 
-RESET() // {
-freqBuffer = nullptr;
-}
-
 FLOAT_IN(SetFrequency) {
   frequency = value;
 }
 
-BUFFER_IN(SetFrequencyBuffer) {
-  freqBuffer = buffer;
-}
-
 CALC() {
-  if (freqBuffer != nullptr) {
-    outputs[0].SendBuffer(&sine(*freqBuffer), thread);
+  // A connected frequency signal wins; unconnected, the float is the constant
+  // and the scalar overload computes it without a buffer (issue #1036).
+  if (!inputs[0].IsConstant()) {
+    outputs[0].SendBuffer(&sine(inputs[0].Signal(frequency)), thread);
   } else {
     DSP::buffer& buffer = sine(frequency);
     outputs[0].SendBuffer(&buffer, thread);
