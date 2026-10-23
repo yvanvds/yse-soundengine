@@ -10,7 +10,8 @@ namespace YSE {
    *  raw string literal. The ``~`` prefix marks DSP / audio-rate objects,
    *  ``.`` marks control-rate objects.
    *
-   *  - DSP generators: ``D_SINE``, ``D_SAW``, ``D_NOISE``, ``D_PHASOR``.
+   *  - DSP generators: ``D_SINE``, ``D_SAW``, ``D_NOISE``, ``D_PHASOR``,
+   *    ``D_SIG`` (a number as a constant signal).
    *  - DSP analysis: ``D_SNAPSHOT``.
    *  - DSP delay: `D_TAPIN`, `D_TAPOUT`.
    *  - DSP sampling: ``D_BUFFER``.
@@ -172,6 +173,7 @@ namespace YSE {
     DEFOBJ(D_SAW, "~saw");
     DEFOBJ(D_PHASOR, "~phasor");
     DEFOBJ(D_NOISE, "~noise");
+    DEFOBJ(D_SIG, "~sig");
 
     DEFOBJ(D_SNAPSHOT, "~snapshot");
 

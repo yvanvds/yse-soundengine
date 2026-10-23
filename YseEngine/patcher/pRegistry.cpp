@@ -116,6 +116,7 @@
 #include "generatorObjects/dSaw.h"
 #include "generatorObjects/dPhasor.h"
 #include "generatorObjects/dNoise.h"
+#include "generatorObjects/dSig.h"
 
 #include "analysis/dSnapshot.h"
 #include "delay/dTapin.h"
@@ -332,6 +333,7 @@ pRegistry::pRegistry() {
   Add(OBJ::D_SAW, dSaw::Create);
   Add(OBJ::D_PHASOR, dPhasor::Create);
   Add(OBJ::D_NOISE, dNoise::Create);
+  Add(OBJ::D_SIG, dSig::Create);
 
   Add(OBJ::D_SNAPSHOT, dSnapshot::Create);
   Add(OBJ::D_TAPIN, dTapin::Create);

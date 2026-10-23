@@ -174,6 +174,7 @@ set(YSE_TEST_SOURCES
   patcher/test_patcher_signal_convert.cpp
   patcher/test_patcher_signal_polar.cpp
   patcher/test_patcher_signal_arithmetic.cpp
+  patcher/test_patcher_signal_sig.cpp
   patcher/test_patcher_signal_loops.cpp
   patcher/test_patcher_tapin_tapout.cpp
   patcher/test_patcher_buffer.cpp
@@ -1269,6 +1270,7 @@ set_source_files_properties(
   patcher/test_patcher_signal_convert.cpp
   patcher/test_patcher_signal_polar.cpp
   patcher/test_patcher_signal_arithmetic.cpp
+  patcher/test_patcher_signal_sig.cpp
   patcher/test_patcher_signal_loops.cpp
   patcher/test_patcher_tapin_tapout.cpp
   patcher/test_patcher_buffer.cpp

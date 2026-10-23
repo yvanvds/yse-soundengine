@@ -16841,6 +16841,44 @@
     ],
     "requires_midi_device": false
   },
+  "~sig": {
+    "category": "OSC",
+    "description": "Turns numbers into constant audio signals: one outlet per argument, each holding its value until a number changes it.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "A number sets the leftmost outlet; a list sets the outlets from the leftmost on; 'set <index> <value>' sets one outlet (0 is the leftmost). A connected signal is ignored and only makes ~sig run after its source.",
+        "index": 0,
+        "label": "in",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~sig",
+    "outlets": [
+      {
+        "doc": "Constant signal holding the value of outlet 0.",
+        "index": 0,
+        "label": "out 0",
+        "range": "any float",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "The starting value of each outlet, one argument per outlet (at most 64). The number of arguments is the number of outlets.",
+        "name": "values",
+        "range": "one or more numbers"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~sine": {
     "category": "OSC",
     "description": "Audio-rate sine oscillator. Frequency can be set with a float or modulated with a DSP buffer.",
