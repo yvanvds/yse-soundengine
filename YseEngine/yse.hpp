@@ -72,6 +72,7 @@
 #include "dsp/oscillators.hpp"
 #include "dsp/generators/phasor.hpp"
 #include "dsp/generators/cycle.hpp"
+#include "dsp/generators/pinkNoise.hpp"
 #include "dsp/operators/arithmetic.hpp"
 #include "dsp/operators/accumulator.hpp"
 #include "dsp/operators/compare.hpp"

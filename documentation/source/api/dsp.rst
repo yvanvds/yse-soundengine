@@ -37,6 +37,9 @@ Generators
 .. doxygenfile:: dsp/generators/cycle.hpp
    :project: libYSE
 
+.. doxygenfile:: dsp/generators/pinkNoise.hpp
+   :project: libYSE
+
 .. doxygenfile:: dsp/lfo.hpp
    :project: libYSE
 

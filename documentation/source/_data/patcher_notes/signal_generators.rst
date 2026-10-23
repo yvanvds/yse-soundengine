@@ -67,3 +67,15 @@ buffer, change the argument.
 
    [~cycle 220]               a 220 Hz cosine
    [~cycle 110 wave 0 -1]     plays the whole of buffer "wave" as one cycle
+
+.. patcher-object:: ~pink
+
+Noise with the same energy in every octave: the level falls by 3 dB per
+octave, where ``~noise`` (white noise) has the same energy per hertz and so
+sounds brighter. Pink noise sounds like wind or rain, and it is the usual
+signal for checking a room or a speaker by ear. It has no inlets; the output
+is about -14 dBFS RMS and stays within -1 to 1.
+
+.. code-block:: text
+
+   [~pink] -> [~lp 400]   a soft wind texture

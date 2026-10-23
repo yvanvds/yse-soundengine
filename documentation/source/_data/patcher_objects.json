@@ -16676,6 +16676,24 @@
     ],
     "requires_midi_device": false
   },
+  "~pink": {
+    "category": "OSC",
+    "description": "Pink-noise generator: random samples with equal energy in every octave (-3 dB per octave). Sends a new block on every audio block.",
+    "inlets": [],
+    "is_dsp": true,
+    "name": "~pink",
+    "outlets": [
+      {
+        "doc": "Pink-noise audio output, about -14 dBFS RMS.",
+        "index": 0,
+        "label": "out",
+        "range": "-1.0 to 1.0",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [],
+    "requires_midi_device": false
+  },
   "~poltocar": {
     "category": "MATH",
     "description": "Converts a signal pair from polar to Cartesian form: the magnitude and phase in, the real and imaginary parts out. The inverse of ~cartopol.",
