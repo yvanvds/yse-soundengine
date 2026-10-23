@@ -13,6 +13,8 @@
 
 #include "../headers/types.hpp"
 #include "../utils/mpmcQueue.hpp"
+#include <atomic>
+#include <cstdint>
 #include <forward_list>
 #include "thread.h"
 
@@ -36,20 +38,30 @@ namespace YSE {
       void stop() {
         shouldStop = true;
       }
+      // Mark the job queued. Called by threadPool::addJob right before the ring
+      // push; wait-free, so safe on the audio thread. Each call adds one to the
+      // queued count, so a start() that lands while a worker is still inside
+      // run() survives that worker's epilogue (issue #1190).
       void start() {
         shouldStop = false;
-        isDone = false;
-        inQueue = true;
+        queued.fetch_add(1);
       }
       void activate(); // this is called by the threadPoolThread
+      // True while the job is waiting in the ring or running.
       bool isQueued() {
-        return inQueue;
+        return queued.load() != 0;
       }
 
     private:
+      // Subtract `n` from `queued`, clamped at zero. shutdown() zeroes the count
+      // of a job it drains, which may be running on a worker at that moment.
+      void release(std::uint32_t n);
+
       aBool shouldStop;
-      aBool inQueue;
-      aBool isDone;
+      // Outstanding start()s not yet consumed by an activate(). Replaces the
+      // former inQueue/isDone pair, whose epilogue stores overwrote a start()
+      // made while run() was still executing (issue #1190).
+      std::atomic<std::uint32_t> queued;
       friend class threadPool;
     };
 
