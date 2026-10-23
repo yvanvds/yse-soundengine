@@ -78,6 +78,7 @@
 #include "dsp/operators/rounding.hpp"
 #include "dsp/operators/bitwise.hpp"
 #include "dsp/operators/units.hpp"
+#include "dsp/operators/polar.hpp"
 #include "dsp/delay/delayLine.hpp"
 #include "dsp/delay/delayTap.hpp"
 #include "dsp/sampling/sampleBuffer.hpp"

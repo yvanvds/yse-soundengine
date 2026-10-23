@@ -77,6 +77,7 @@ set(YSE_SRCS
   dsp/operators/rounding.cpp
   dsp/operators/bitwise.cpp
   dsp/operators/units.cpp
+  dsp/operators/polar.cpp
   dsp/delay/delayLine.cpp
   dsp/delay/delayTap.cpp
   dsp/ramp.cpp
@@ -282,6 +283,7 @@ set(YSE_SRCS
   patcher/math/dSignalMath.cpp
   patcher/math/dBitwise.cpp
   patcher/math/dConvert.cpp
+  patcher/math/dPolar.cpp
   patcher/math/dMultiply.cpp
   patcher/math/dSubstract.cpp
   patcher/math/gAccum.cpp
@@ -667,6 +669,7 @@ set_source_files_properties(
   patcher/math/dSignalMath.cpp
   patcher/math/dBitwise.cpp
   patcher/math/dConvert.cpp
+  patcher/math/dPolar.cpp
   patcher/math/dMultiply.cpp
   patcher/math/dSubstract.cpp
   patcher/math/gAccum.cpp

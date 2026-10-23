@@ -15760,6 +15760,61 @@
     ],
     "requires_midi_device": false
   },
+  "~cartopol": {
+    "category": "MATH",
+    "description": "Converts a signal pair from Cartesian to polar form: the real and imaginary parts in, the magnitude and phase out. On the two outputs of a Hilbert transform it gives the envelope and the instantaneous phase.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The real part (x): a signal, or a number used while no signal is connected.",
+        "index": 0,
+        "label": "real",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The imaginary part (y): a signal, or a number used while no signal is connected.",
+        "index": 1,
+        "label": "imaginary",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~cartopol",
+    "outlets": [
+      {
+        "doc": "The distance of (real, imaginary) from the origin.",
+        "index": 0,
+        "label": "magnitude",
+        "range": "0 or higher",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "The angle of (real, imaginary) in radians, from the positive real axis.",
+        "index": 1,
+        "label": "phase",
+        "range": "-pi to pi",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Imaginary part used while no signal is connected to the right inlet.",
+        "name": "imaginary",
+        "range": "any float"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~clip": {
     "category": "MATH",
     "description": "Hard clipper: limits every sample of an audio signal to the range low to high. Use it to tame stray peaks, or as a distortion stage.",
@@ -16464,6 +16519,36 @@
     ],
     "requires_midi_device": false
   },
+  "~phasewrap": {
+    "category": "MATH",
+    "description": "Wraps the input, an angle in radians, into -pi to pi by adding or removing whole turns. Use it on a phase difference or an accumulated phase.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "An angle in radians: a signal, or a number used while no signal is connected.",
+        "index": 0,
+        "label": "in",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~phasewrap",
+    "outlets": [
+      {
+        "doc": "The input wrapped into -pi to pi; pi itself gives -pi.",
+        "index": 0,
+        "label": "out",
+        "range": "-pi to pi",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [],
+    "requires_midi_device": false
+  },
   "~phasor": {
     "category": "OSC",
     "description": "A ramp from 0 to 1 that wraps around at a given frequency: the phase source for wavetable reads, sequencers and sawtooth shapes. A negative frequency runs it backwards.",
@@ -16513,6 +16598,61 @@
         "doc": "The phase the ramp starts at, and returns to on 'reset'.",
         "name": "phaseoffset",
         "range": "0-1"
+      }
+    ],
+    "requires_midi_device": false
+  },
+  "~poltocar": {
+    "category": "MATH",
+    "description": "Converts a signal pair from polar to Cartesian form: the magnitude and phase in, the real and imaginary parts out. The inverse of ~cartopol.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The distance from the origin: a signal, or a number used while no signal is connected.",
+        "index": 0,
+        "label": "magnitude",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The angle in radians: a signal, or a number used while no signal is connected.",
+        "index": 1,
+        "label": "phase",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~poltocar",
+    "outlets": [
+      {
+        "doc": "The real part: magnitude times the cosine of the phase.",
+        "index": 0,
+        "label": "real",
+        "range": "any float",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "The imaginary part: magnitude times the sine of the phase.",
+        "index": 1,
+        "label": "imaginary",
+        "range": "any float",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Phase in radians used while no signal is connected to the right inlet.",
+        "name": "phase",
+        "range": "any float"
       }
     ],
     "requires_midi_device": false

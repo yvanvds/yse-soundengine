@@ -173,6 +173,7 @@
 #include "math/dSignalMath.h"
 #include "math/dBitwise.h"
 #include "math/dConvert.h"
+#include "math/dPolar.h"
 #include "math/dMultiply.h"
 #include "math/pMidiToFrequency.h"
 #include "math/pFrequencyToMidi.h"
@@ -964,6 +965,9 @@ pRegistry::pRegistry() {
   Add(OBJ::D_DBTOA, dDbtoA::Create);
   Add(OBJ::D_MSTOSAMPS, dMsToSamps::Create);
   Add(OBJ::D_SAMPSTOMS, dSampsToMs::Create);
+  Add(OBJ::D_CARTOPOL, dCarToPol::Create);
+  Add(OBJ::D_POLTOCAR, dPolToCar::Create);
+  Add(OBJ::D_PHASEWRAP, dPhaseWrap::Create);
   Add(OBJ::D_CLIP, dClip::Create);
 
   // Generic GUI
