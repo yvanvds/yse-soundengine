@@ -15974,6 +15974,72 @@
     "params": [],
     "requires_midi_device": false
   },
+  "~cycle": {
+    "category": "OSC",
+    "description": "A wavetable oscillator: a cosine by default, or one cycle read from a named sample buffer. The phase inlet is added to the running phase, for phase modulation.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Frequency in Hz: a signal, or a number used while no signal is connected. Also takes 'reset [phase]', 'frequency <hz>', 'phase <0-1>', 'buffer_offset <n>' and 'buffer_sizeinsamps <n>'.",
+        "index": 0,
+        "label": "freq",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Phase in cycles added to the running phase: a signal for phase modulation, or a number used while no signal is connected.",
+        "index": 1,
+        "label": "phase",
+        "range": "0-1"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~cycle",
+    "outlets": [
+      {
+        "doc": "The waveform.",
+        "index": 0,
+        "label": "out",
+        "range": "-1 to 1",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Frequency in Hz used while no signal is connected.",
+        "name": "frequency",
+        "range": "any float"
+      },
+      {
+        "default": "",
+        "doc": "Name of a sample buffer whose first channel is the waveform. None uses the built-in cosine.",
+        "name": "buffer",
+        "range": "buffer name"
+      },
+      {
+        "default": "0",
+        "doc": "The first sample of the buffer the waveform starts at.",
+        "name": "offset",
+        "range": "0 or higher"
+      },
+      {
+        "default": "0",
+        "doc": "How many buffer samples make up the waveform: 0 is 512, -1 the rest of the buffer.",
+        "name": "size",
+        "range": "-1, 0 or higher"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~dac": {
     "category": "IO",
     "description": "The patch's audio output. Each inlet is one output channel, passed on to the sound or insert that hosts the patcher. A patch is silent until a signal reaches this object.",

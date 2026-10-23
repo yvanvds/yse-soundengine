@@ -70,6 +70,7 @@ set(YSE_SRCS
   dsp/fm/msfa/dx7note.cc
   dsp/oscillators.cpp
   dsp/generators/phasor.cpp
+  dsp/generators/cycle.cpp
   dsp/operators/arithmetic.cpp
   dsp/operators/accumulator.cpp
   dsp/operators/compare.cpp
@@ -130,6 +131,7 @@ set(YSE_SRCS
   patcher/generatorObjects/dNoise.cpp
   patcher/generatorObjects/dSaw.cpp
   patcher/generatorObjects/dPhasor.cpp
+  patcher/generatorObjects/dCycle.cpp
   patcher/generatorObjects/pSine.cpp
   patcher/generatorObjects/dSig.cpp
   patcher/genericObjects/gAffix.cpp
@@ -530,6 +532,7 @@ set_source_files_properties(
   patcher/generatorObjects/dNoise.cpp
   patcher/generatorObjects/dSaw.cpp
   patcher/generatorObjects/dPhasor.cpp
+  patcher/generatorObjects/dCycle.cpp
   patcher/generatorObjects/pSine.cpp
   patcher/generatorObjects/dSig.cpp
   patcher/genericObjects/gAffix.cpp

@@ -40,3 +40,30 @@ frequency runs the ramp from 1 down to 0.
 .. code-block:: text
 
    [~phasor 2 0.25]   ramps twice a second, starting a quarter of the way up
+
+.. patcher-object:: ~cycle
+
+A cosine at ``frequency`` Hz, read from a 16384-point table with linear
+interpolation. At phase 0 the output is 1.
+
+- A number at the left inlet sets the frequency while no signal is connected
+  to it; a connected signal sets it sample by sample.
+- The right inlet is a phase in cycles, added to the running phase. A number
+  is a fixed offset (``0.25`` turns the cosine into a sine); a signal is phase
+  modulation, which sounds like FM.
+- ``reset <phase>`` restarts the running phase there at the next block
+  (``reset`` alone restarts at 0), so several oscillators can be brought in
+  step. ``frequency <hz>`` and ``phase <x>`` set the two numbers by name.
+
+With a buffer name as the second argument the waveform is the first channel
+of that sample buffer instead: ``offset`` samples in, ``size`` samples long
+(0 means 512, -1 the rest of the buffer, and it stops at the buffer's end).
+``buffer_offset <n>`` and ``buffer_sizeinsamps <n>`` change those two while
+the patch runs. The buffer is read fresh every block, so a new file or an
+edit is heard at once; an empty buffer gives silence. To switch to another
+buffer, change the argument.
+
+.. code-block:: text
+
+   [~cycle 220]               a 220 Hz cosine
+   [~cycle 110 wave 0 -1]     plays the whole of buffer "wave" as one cycle
