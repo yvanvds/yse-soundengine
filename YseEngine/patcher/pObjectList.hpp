@@ -14,7 +14,8 @@ namespace YSE {
    *  - DSP analysis: ``D_SNAPSHOT``.
    *  - DSP delay: `D_TAPIN`, `D_TAPOUT`.
    *  - DSP sampling: ``D_BUFFER``.
-   *  - DSP math: ``D_ADD``, ``D_MULTIPLY``, ``D_CLIP``.
+   *  - DSP math: ``D_ADD``, ``D_MULTIPLY``, ``D_CLIP``, ``D_REVERSESUBSTRACT``,
+   *    ``D_REVERSEDIVIDE``, ``D_MODULO``.
    *  - Control math: ``G_ADD``, ``G_DIVIDE``, ``G_REVERSESUBSTRACT``,
    *    ``G_REVERSEDIVIDE``, ``G_MODULO``, ``G_INTDIVIDE``.
    *  - Operand order: ``G_SWAP``.
@@ -904,6 +905,9 @@ namespace YSE {
     DEFOBJ(D_SUBSTRACT, "~-");
     DEFOBJ(D_MULTIPLY, "~*");
     DEFOBJ(D_DIVIDE, "~/");
+    DEFOBJ(D_REVERSESUBSTRACT, "~!-");
+    DEFOBJ(D_REVERSEDIVIDE, "~!/");
+    DEFOBJ(D_MODULO, "~%");
 
     DEFOBJ(D_CLIP, "~clip");
 

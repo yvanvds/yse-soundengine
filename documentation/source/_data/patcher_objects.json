@@ -14383,6 +14383,150 @@
     "params": [],
     "requires_midi_device": false
   },
+  "~!-": {
+    "category": "MATH",
+    "description": "Subtracts the left signal from the right one: ~- with the inlets reversed. With a right number of 1 it turns a 0-1 envelope or ramp upside down.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The value subtracted: a signal, or a number used while no signal is connected.",
+        "index": 0,
+        "label": "left",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The value subtracted from: a signal, or a number used while no signal is connected.",
+        "index": 1,
+        "label": "right",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~!-",
+    "outlets": [
+      {
+        "doc": "right - left.",
+        "index": 0,
+        "label": "out",
+        "range": "any float",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Number used while no signal is connected to the right inlet.",
+        "name": "right",
+        "range": "any float"
+      }
+    ],
+    "requires_midi_device": false
+  },
+  "~!/": {
+    "category": "MATH",
+    "description": "Divides the right signal by the left one: ~/ with the inlets reversed. With a right number of 1 it gives the reciprocal. A left sample of 0 gives 0.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The divisor: a signal, or a number used while no signal is connected. 0 makes the result 0.",
+        "index": 0,
+        "label": "left",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The value divided: a signal, or a number used while no signal is connected.",
+        "index": 1,
+        "label": "right",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~!/",
+    "outlets": [
+      {
+        "doc": "right / left, or 0 where left is 0.",
+        "index": 0,
+        "label": "out",
+        "range": "any float",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "1",
+        "doc": "Number used while no signal is connected to the right inlet.",
+        "name": "right",
+        "range": "any float"
+      }
+    ],
+    "requires_midi_device": false
+  },
+  "~%": {
+    "category": "MATH",
+    "description": "Divides the left signal by the right one and outputs the remainder, with the sign of the left signal. Wraps phases and indexes. A divisor of 0 gives 0.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The value divided: a signal, or a number used while no signal is connected.",
+        "index": 0,
+        "label": "left",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The divisor: a signal, or a number used while no signal is connected. 0 makes the result 0.",
+        "index": 1,
+        "label": "right",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~%",
+    "outlets": [
+      {
+        "doc": "The remainder of left / right, with the sign of left, or 0 where right is 0.",
+        "index": 0,
+        "label": "out",
+        "range": "any float",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "1",
+        "doc": "Divisor used while no signal is connected to the right inlet.",
+        "name": "right",
+        "range": "any float"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~*": {
     "category": "MATH",
     "description": "Multiplies an audio signal by another audio signal or by a float: a gain stage, or a ring modulator.",

@@ -71,6 +71,7 @@
 #include "dsp/math.hpp"
 #include "dsp/oscillators.hpp"
 #include "dsp/generators/phasor.hpp"
+#include "dsp/operators/arithmetic.hpp"
 #include "dsp/delay/delayLine.hpp"
 #include "dsp/delay/delayTap.hpp"
 #include "dsp/sampling/sampleBuffer.hpp"
