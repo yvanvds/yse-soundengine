@@ -14619,6 +14619,53 @@
     ],
     "requires_midi_device": false
   },
+  "~+=": {
+    "category": "MATH",
+    "description": "Adds up its input sample by sample and outputs the running sum: turns a constant into a ramp, counts samples, or integrates a rate.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT",
+          "BANG"
+        ],
+        "doc": "The signal summed: a signal, or a number used while no signal is connected. A bang sets the sum to 0; 'set <x>' sets it to x.",
+        "index": 0,
+        "label": "in",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER"
+        ],
+        "doc": "Reset signal: the sum restarts from 0 at every sample where it is not 0.",
+        "index": 1,
+        "label": "reset",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~+=",
+    "outlets": [
+      {
+        "doc": "The sum of every input sample so far.",
+        "index": 0,
+        "label": "out",
+        "range": "any float",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "The sum the object starts from.",
+        "name": "initial",
+        "range": "any float"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~-": {
     "category": "MATH",
     "description": "Subtracts an audio signal, or a float, from an audio signal.",

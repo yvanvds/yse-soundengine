@@ -167,6 +167,7 @@
 #include "math/dReverseSubstract.h"
 #include "math/dReverseDivide.h"
 #include "math/dModulo.h"
+#include "math/dPlusEquals.h"
 #include "math/dMultiply.h"
 #include "math/pMidiToFrequency.h"
 #include "math/pFrequencyToMidi.h"
@@ -917,6 +918,7 @@ pRegistry::pRegistry() {
   Add(OBJ::D_REVERSESUBSTRACT, dReverseSubstract::Create);
   Add(OBJ::D_REVERSEDIVIDE, dReverseDivide::Create);
   Add(OBJ::D_MODULO, dModulo::Create);
+  Add(OBJ::D_PLUSEQUALS, dPlusEquals::Create);
   Add(OBJ::D_CLIP, dClip::Create);
 
   // Generic GUI
