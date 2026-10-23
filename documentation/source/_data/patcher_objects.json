@@ -14479,6 +14479,60 @@
     ],
     "requires_midi_device": false
   },
+  "~!=": {
+    "category": "MATH",
+    "description": "Outputs 1 where the left signal differs from the right one (by more than fuzzy), otherwise 0.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The signal compared: a signal, or a number used while no signal is connected.",
+        "index": 0,
+        "label": "left",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "What the left signal is compared with: a signal, or a number used while no signal is connected.",
+        "index": 1,
+        "label": "right",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~!=",
+    "outlets": [
+      {
+        "doc": "1 where left != right, 0 elsewhere.",
+        "index": 0,
+        "label": "out",
+        "range": "0 or 1",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Right operand used while no signal is connected to the right inlet.",
+        "name": "right",
+        "range": "any float"
+      },
+      {
+        "default": "0",
+        "doc": "Equality tolerance: values this close or closer count as equal. 0 compares exactly.",
+        "name": "fuzzy",
+        "range": ">= 0"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~%": {
     "category": "MATH",
     "description": "Divides the left signal by the right one and outputs the remainder, with the sign of the left signal. Wraps phases and indexes. A divisor of 0 gives 0.",
@@ -14754,6 +14808,264 @@
         "doc": "Float used while no audio is connected to the right inlet. 0 leaves the signal unchanged.",
         "name": "right",
         "range": "any non-zero float"
+      }
+    ],
+    "requires_midi_device": false
+  },
+  "~<": {
+    "category": "MATH",
+    "description": "Outputs 1 where the left signal is less than the right one, otherwise 0. Turns a signal into a gate below a threshold.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The signal compared: a signal, or a number used while no signal is connected.",
+        "index": 0,
+        "label": "left",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "What the left signal is compared with: a signal, or a number used while no signal is connected.",
+        "index": 1,
+        "label": "right",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~<",
+    "outlets": [
+      {
+        "doc": "1 where left < right, 0 elsewhere.",
+        "index": 0,
+        "label": "out",
+        "range": "0 or 1",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Right operand used while no signal is connected to the right inlet.",
+        "name": "right",
+        "range": "any float"
+      }
+    ],
+    "requires_midi_device": false
+  },
+  "~<=": {
+    "category": "MATH",
+    "description": "Outputs 1 where the left signal is less than or equal to the right one (within fuzzy), otherwise 0.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The signal compared: a signal, or a number used while no signal is connected.",
+        "index": 0,
+        "label": "left",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "What the left signal is compared with: a signal, or a number used while no signal is connected.",
+        "index": 1,
+        "label": "right",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~<=",
+    "outlets": [
+      {
+        "doc": "1 where left <= right, 0 elsewhere.",
+        "index": 0,
+        "label": "out",
+        "range": "0 or 1",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Right operand used while no signal is connected to the right inlet.",
+        "name": "right",
+        "range": "any float"
+      },
+      {
+        "default": "0",
+        "doc": "Equality tolerance: values this close or closer count as equal. 0 compares exactly.",
+        "name": "fuzzy",
+        "range": ">= 0"
+      }
+    ],
+    "requires_midi_device": false
+  },
+  "~==": {
+    "category": "MATH",
+    "description": "Outputs 1 where the left signal equals the right one (within fuzzy), otherwise 0.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The signal compared: a signal, or a number used while no signal is connected.",
+        "index": 0,
+        "label": "left",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "What the left signal is compared with: a signal, or a number used while no signal is connected.",
+        "index": 1,
+        "label": "right",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~==",
+    "outlets": [
+      {
+        "doc": "1 where left == right, 0 elsewhere.",
+        "index": 0,
+        "label": "out",
+        "range": "0 or 1",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Right operand used while no signal is connected to the right inlet.",
+        "name": "right",
+        "range": "any float"
+      },
+      {
+        "default": "0",
+        "doc": "Equality tolerance: values this close or closer count as equal. 0 compares exactly.",
+        "name": "fuzzy",
+        "range": ">= 0"
+      }
+    ],
+    "requires_midi_device": false
+  },
+  "~>": {
+    "category": "MATH",
+    "description": "Outputs 1 where the left signal is greater than the right one, otherwise 0. Turns a signal into a gate above a threshold.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The signal compared: a signal, or a number used while no signal is connected.",
+        "index": 0,
+        "label": "left",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "What the left signal is compared with: a signal, or a number used while no signal is connected.",
+        "index": 1,
+        "label": "right",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~>",
+    "outlets": [
+      {
+        "doc": "1 where left > right, 0 elsewhere.",
+        "index": 0,
+        "label": "out",
+        "range": "0 or 1",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Right operand used while no signal is connected to the right inlet.",
+        "name": "right",
+        "range": "any float"
+      }
+    ],
+    "requires_midi_device": false
+  },
+  "~>=": {
+    "category": "MATH",
+    "description": "Outputs 1 where the left signal is greater than or equal to the right one (within fuzzy), otherwise 0.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The signal compared: a signal, or a number used while no signal is connected.",
+        "index": 0,
+        "label": "left",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "What the left signal is compared with: a signal, or a number used while no signal is connected.",
+        "index": 1,
+        "label": "right",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~>=",
+    "outlets": [
+      {
+        "doc": "1 where left >= right, 0 elsewhere.",
+        "index": 0,
+        "label": "out",
+        "range": "0 or 1",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Right operand used while no signal is connected to the right inlet.",
+        "name": "right",
+        "range": "any float"
+      },
+      {
+        "default": "0",
+        "doc": "Equality tolerance: values this close or closer count as equal. 0 compares exactly.",
+        "name": "fuzzy",
+        "range": ">= 0"
       }
     ],
     "requires_midi_device": false
@@ -15147,6 +15459,102 @@
         "doc": "Initial cutoff frequency in Hz.",
         "name": "frequency",
         "range": "0-20000 Hz"
+      }
+    ],
+    "requires_midi_device": false
+  },
+  "~maximum": {
+    "category": "MATH",
+    "description": "Outputs the larger of the two inputs, sample by sample. With a number it limits the signal from below; against 0 it is a half-wave rectifier.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The signal compared: a signal, or a number used while no signal is connected.",
+        "index": 0,
+        "label": "left",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "What the left signal is compared with: a signal, or a number used while no signal is connected.",
+        "index": 1,
+        "label": "right",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~maximum",
+    "outlets": [
+      {
+        "doc": "The larger of left and right at each sample.",
+        "index": 0,
+        "label": "out",
+        "range": "any float",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Right operand used while no signal is connected to the right inlet.",
+        "name": "right",
+        "range": "any float"
+      }
+    ],
+    "requires_midi_device": false
+  },
+  "~minimum": {
+    "category": "MATH",
+    "description": "Outputs the smaller of the two inputs, sample by sample. With a number it limits the signal from above.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The signal compared: a signal, or a number used while no signal is connected.",
+        "index": 0,
+        "label": "left",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "What the left signal is compared with: a signal, or a number used while no signal is connected.",
+        "index": 1,
+        "label": "right",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~minimum",
+    "outlets": [
+      {
+        "doc": "The smaller of left and right at each sample.",
+        "index": 0,
+        "label": "out",
+        "range": "any float",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Right operand used while no signal is connected to the right inlet.",
+        "name": "right",
+        "range": "any float"
       }
     ],
     "requires_midi_device": false

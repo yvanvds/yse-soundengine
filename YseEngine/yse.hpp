@@ -73,6 +73,7 @@
 #include "dsp/generators/phasor.hpp"
 #include "dsp/operators/arithmetic.hpp"
 #include "dsp/operators/accumulator.hpp"
+#include "dsp/operators/compare.hpp"
 #include "dsp/delay/delayLine.hpp"
 #include "dsp/delay/delayTap.hpp"
 #include "dsp/sampling/sampleBuffer.hpp"

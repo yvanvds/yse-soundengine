@@ -168,6 +168,7 @@
 #include "math/dReverseDivide.h"
 #include "math/dModulo.h"
 #include "math/dPlusEquals.h"
+#include "math/dCompare.h"
 #include "math/dMultiply.h"
 #include "math/pMidiToFrequency.h"
 #include "math/pFrequencyToMidi.h"
@@ -919,6 +920,14 @@ pRegistry::pRegistry() {
   Add(OBJ::D_REVERSEDIVIDE, dReverseDivide::Create);
   Add(OBJ::D_MODULO, dModulo::Create);
   Add(OBJ::D_PLUSEQUALS, dPlusEquals::Create);
+  Add(OBJ::D_EQUAL, dEqual::Create);
+  Add(OBJ::D_NOTEQUAL, dNotEqual::Create);
+  Add(OBJ::D_GREATER, dGreater::Create);
+  Add(OBJ::D_GREATEREQUAL, dGreaterEqual::Create);
+  Add(OBJ::D_LESS, dLess::Create);
+  Add(OBJ::D_LESSEQUAL, dLessEqual::Create);
+  Add(OBJ::D_MINIMUM, dMinimum::Create);
+  Add(OBJ::D_MAXIMUM, dMaximum::Create);
   Add(OBJ::D_CLIP, dClip::Create);
 
   // Generic GUI

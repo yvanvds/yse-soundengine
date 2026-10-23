@@ -16,6 +16,10 @@ namespace YSE {
    *  - DSP sampling: ``D_BUFFER``.
    *  - DSP math: ``D_ADD``, ``D_MULTIPLY``, ``D_CLIP``, ``D_REVERSESUBSTRACT``,
    *    ``D_REVERSEDIVIDE``, ``D_MODULO``, ``D_PLUSEQUALS``.
+   *  - DSP comparison: ``D_EQUAL``,
+   * ``D_NOTEQUAL``, ``D_GREATER``, ``D_GREATEREQUAL``,
+   *    ``D_LESS``, ``D_LESSEQUAL``,
+   * ``D_MINIMUM``, ``D_MAXIMUM``.
    *  - Control math: ``G_ADD``, ``G_DIVIDE``, ``G_REVERSESUBSTRACT``,
    *    ``G_REVERSEDIVIDE``, ``G_MODULO``, ``G_INTDIVIDE``.
    *  - Operand order: ``G_SWAP``.
@@ -909,6 +913,14 @@ namespace YSE {
     DEFOBJ(D_REVERSEDIVIDE, "~!/");
     DEFOBJ(D_MODULO, "~%");
     DEFOBJ(D_PLUSEQUALS, "~+=");
+    DEFOBJ(D_EQUAL, "~==");
+    DEFOBJ(D_NOTEQUAL, "~!=");
+    DEFOBJ(D_GREATER, "~>");
+    DEFOBJ(D_GREATEREQUAL, "~>=");
+    DEFOBJ(D_LESS, "~<");
+    DEFOBJ(D_LESSEQUAL, "~<=");
+    DEFOBJ(D_MINIMUM, "~minimum");
+    DEFOBJ(D_MAXIMUM, "~maximum");
 
     DEFOBJ(D_CLIP, "~clip");
 

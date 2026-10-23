@@ -72,6 +72,7 @@ set(YSE_SRCS
   dsp/generators/phasor.cpp
   dsp/operators/arithmetic.cpp
   dsp/operators/accumulator.cpp
+  dsp/operators/compare.cpp
   dsp/delay/delayLine.cpp
   dsp/delay/delayTap.cpp
   dsp/ramp.cpp
@@ -272,6 +273,7 @@ set(YSE_SRCS
   patcher/math/dReverseDivide.cpp
   patcher/math/dModulo.cpp
   patcher/math/dPlusEquals.cpp
+  patcher/math/dCompare.cpp
   patcher/math/dMultiply.cpp
   patcher/math/dSubstract.cpp
   patcher/math/gAccum.cpp
@@ -652,6 +654,7 @@ set_source_files_properties(
   patcher/math/dReverseDivide.cpp
   patcher/math/dModulo.cpp
   patcher/math/dPlusEquals.cpp
+  patcher/math/dCompare.cpp
   patcher/math/dMultiply.cpp
   patcher/math/dSubstract.cpp
   patcher/math/gAccum.cpp
