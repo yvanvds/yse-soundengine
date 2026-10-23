@@ -94,7 +94,8 @@ namespace YSE {
       /** @brief Multiply every sample by ``f``. */
       buffer& operator*=(Flt f);
 
-      /** @brief Divide every sample by ``f``. */
+      /** @brief Divide every sample by ``f``. A divisor of 0 sets every sample
+       *         to 0 rather than to an infinity. */
       buffer& operator/=(Flt f);
 
       /** @brief Sample-wise add ``s`` into this buffer. */
@@ -106,7 +107,8 @@ namespace YSE {
       /** @brief Sample-wise multiply this buffer by ``s``. */
       buffer& operator*=(const buffer& s);
 
-      /** @brief Sample-wise divide this buffer by ``s``. */
+      /** @brief Sample-wise divide this buffer by ``s``. A sample of ``s``
+       *         that is 0 gives 0 rather than an infinity. */
       buffer& operator/=(const buffer& s);
 
       /** @brief Copy-assign from another buffer.

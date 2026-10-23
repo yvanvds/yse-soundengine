@@ -14583,13 +14583,15 @@
   },
   "~*": {
     "category": "MATH",
-    "description": "Multiplies an audio signal by another audio signal or by a float: a gain stage, or a ring modulator.",
+    "description": "Multiplies an audio signal by another audio signal or by a number: a gain stage, or a ring modulator.",
     "inlets": [
       {
         "accepts": [
-          "BUFFER"
+          "BUFFER",
+          "FLOAT",
+          "INT"
         ],
-        "doc": "Audio signal.",
+        "doc": "Audio signal, or a number used while no audio is connected.",
         "index": 0,
         "label": "left",
         "range": "any float"
@@ -14619,8 +14621,8 @@
     ],
     "params": [
       {
-        "default": "1.0",
-        "doc": "Float used while no audio is connected to the right inlet.",
+        "default": "1",
+        "doc": "Number used while no audio is connected to the right inlet.",
         "name": "right",
         "range": "any float"
       }
@@ -14629,13 +14631,15 @@
   },
   "~+": {
     "category": "MATH",
-    "description": "Adds two audio signals, or adds a float to an audio signal.",
+    "description": "Adds two audio signals, or adds a number to an audio signal.",
     "inlets": [
       {
         "accepts": [
-          "BUFFER"
+          "BUFFER",
+          "FLOAT",
+          "INT"
         ],
-        "doc": "Audio signal.",
+        "doc": "Audio signal, or a number used while no audio is connected.",
         "index": 0,
         "label": "left",
         "range": "any float"
@@ -14666,7 +14670,7 @@
     "params": [
       {
         "default": "0",
-        "doc": "Float used while no audio is connected to the right inlet.",
+        "doc": "Number used while no audio is connected to the right inlet.",
         "name": "right",
         "range": "any float"
       }
@@ -14722,13 +14726,15 @@
   },
   "~-": {
     "category": "MATH",
-    "description": "Subtracts an audio signal, or a float, from an audio signal.",
+    "description": "Subtracts an audio signal, or a number, from an audio signal.",
     "inlets": [
       {
         "accepts": [
-          "BUFFER"
+          "BUFFER",
+          "FLOAT",
+          "INT"
         ],
-        "doc": "Audio signal.",
+        "doc": "Audio signal, or a number used while no audio is connected.",
         "index": 0,
         "label": "left",
         "range": "any float"
@@ -14759,7 +14765,7 @@
     "params": [
       {
         "default": "0",
-        "doc": "Float used while no audio is connected to the right inlet.",
+        "doc": "Number used while no audio is connected to the right inlet.",
         "name": "right",
         "range": "any float"
       }
@@ -14768,13 +14774,15 @@
   },
   "~/": {
     "category": "MATH",
-    "description": "Divides an audio signal by another audio signal or by a float. A float of 0 leaves the signal unchanged.",
+    "description": "Divides an audio signal by another audio signal or by a number. A divisor of 0 gives 0.",
     "inlets": [
       {
         "accepts": [
-          "BUFFER"
+          "BUFFER",
+          "FLOAT",
+          "INT"
         ],
-        "doc": "Audio signal.",
+        "doc": "Audio signal, or a number used while no audio is connected.",
         "index": 0,
         "label": "left",
         "range": "any float"
@@ -14785,17 +14793,17 @@
           "FLOAT",
           "INT"
         ],
-        "doc": "Audio signal, or a number used while no audio is connected. A number of 0 leaves the signal unchanged.",
+        "doc": "Audio signal, or a number used while no audio is connected. A divisor of 0 gives 0.",
         "index": 1,
         "label": "right",
-        "range": "any non-zero float"
+        "range": "any float"
       }
     ],
     "is_dsp": true,
     "name": "~/",
     "outlets": [
       {
-        "doc": "left / right.",
+        "doc": "left / right, or 0 where right is 0.",
         "index": 0,
         "label": "out",
         "range": "any float",
@@ -14804,10 +14812,10 @@
     ],
     "params": [
       {
-        "default": "1.0",
-        "doc": "Float used while no audio is connected to the right inlet. 0 leaves the signal unchanged.",
+        "default": "1",
+        "doc": "Number used while no audio is connected to the right inlet. 0 makes the result 0.",
         "name": "right",
-        "range": "any non-zero float"
+        "range": "any float"
       }
     ],
     "requires_midi_device": false
