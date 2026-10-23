@@ -15070,6 +15070,66 @@
     ],
     "requires_midi_device": false
   },
+  "~acos": {
+    "category": "MATH",
+    "description": "Outputs the arc-cosine of the input in radians. Input outside -1..1 is clamped to it, so no NaN reaches the graph.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The input: a signal, or a number used while no signal is connected.",
+        "index": 0,
+        "label": "in",
+        "range": "-1 to 1 (clamped)"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~acos",
+    "outlets": [
+      {
+        "doc": "The angle whose cosine is the input.",
+        "index": 0,
+        "label": "out",
+        "range": "0 to pi",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [],
+    "requires_midi_device": false
+  },
+  "~acosh": {
+    "category": "MATH",
+    "description": "Outputs the hyperbolic arc-cosine of the input. Input below 1 is clamped to 1 (giving 0), so no NaN reaches the graph.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The input: a signal, or a number used while no signal is connected.",
+        "index": 0,
+        "label": "in",
+        "range": ">= 1 (clamped)"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~acosh",
+    "outlets": [
+      {
+        "doc": "The hyperbolic arc-cosine of the input.",
+        "index": 0,
+        "label": "out",
+        "range": ">= 0",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [],
+    "requires_midi_device": false
+  },
   "~adc": {
     "category": "IO",
     "description": "The patch's audio input. When the patcher runs as an insert effect, each outlet carries one channel of the audio it processes.",
@@ -15089,6 +15149,174 @@
         "index": 1,
         "label": "out",
         "range": "-1.0 to 1.0",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [],
+    "requires_midi_device": false
+  },
+  "~asin": {
+    "category": "MATH",
+    "description": "Outputs the arc-sine of the input in radians. Input outside -1..1 is clamped to it, so no NaN reaches the graph.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The input: a signal, or a number used while no signal is connected.",
+        "index": 0,
+        "label": "in",
+        "range": "-1 to 1 (clamped)"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~asin",
+    "outlets": [
+      {
+        "doc": "The angle whose sine is the input.",
+        "index": 0,
+        "label": "out",
+        "range": "-pi/2 to pi/2",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [],
+    "requires_midi_device": false
+  },
+  "~asinh": {
+    "category": "MATH",
+    "description": "Outputs the hyperbolic arc-sine of the input.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The input: a signal, or a number used while no signal is connected.",
+        "index": 0,
+        "label": "in",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~asinh",
+    "outlets": [
+      {
+        "doc": "The hyperbolic arc-sine of the input.",
+        "index": 0,
+        "label": "out",
+        "range": "any float",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [],
+    "requires_midi_device": false
+  },
+  "~atan": {
+    "category": "MATH",
+    "description": "Outputs the arc-tangent of the input in radians.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The input: a signal, or a number used while no signal is connected.",
+        "index": 0,
+        "label": "in",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~atan",
+    "outlets": [
+      {
+        "doc": "The angle whose tangent is the input.",
+        "index": 0,
+        "label": "out",
+        "range": "-pi/2 to pi/2",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [],
+    "requires_midi_device": false
+  },
+  "~atan2": {
+    "category": "MATH",
+    "description": "Outputs the angle of the point (x, y) in radians: the two-argument arc-tangent, correct in all four quadrants. The origin gives 0.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The y coordinate: a signal, or a number used while no signal is connected.",
+        "index": 0,
+        "label": "y",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The x coordinate: a signal, or a number used while no signal is connected.",
+        "index": 1,
+        "label": "x",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~atan2",
+    "outlets": [
+      {
+        "doc": "The angle of (x, y), measured from the positive x axis.",
+        "index": 0,
+        "label": "out",
+        "range": "-pi to pi",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "x coordinate used while no signal is connected to the right inlet.",
+        "name": "x",
+        "range": "any float"
+      }
+    ],
+    "requires_midi_device": false
+  },
+  "~atanh": {
+    "category": "MATH",
+    "description": "Outputs the hyperbolic arc-tangent of the input. Input is clamped just inside -1..1, so 1 gives about 8.66 instead of infinity.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The input: a signal, or a number used while no signal is connected.",
+        "index": 0,
+        "label": "in",
+        "range": "-1 to 1 (clamped)"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~atanh",
+    "outlets": [
+      {
+        "doc": "The hyperbolic arc-tangent of the input.",
+        "index": 0,
+        "label": "out",
+        "range": "about -8.66 to 8.66",
         "type": "BUFFER"
       }
     ],
@@ -15259,6 +15487,96 @@
         "range": "any float"
       }
     ],
+    "requires_midi_device": false
+  },
+  "~cos": {
+    "category": "MATH",
+    "description": "Outputs the cosine of a phase: 0 to 1 is one full cycle. Turns a ~phasor ramp into a cosine wave. Use ~cosx for an angle in radians.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "A phase, 0 to 1 per cycle: a signal, or a number used while no signal is connected.",
+        "index": 0,
+        "label": "in",
+        "range": "any float, wraps every 1"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~cos",
+    "outlets": [
+      {
+        "doc": "The cosine of 2 pi times the phase.",
+        "index": 0,
+        "label": "out",
+        "range": "-1 to 1",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [],
+    "requires_midi_device": false
+  },
+  "~cosh": {
+    "category": "MATH",
+    "description": "Outputs the hyperbolic cosine of the input. The input is clamped to -88..88 so the result stays finite.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The input: a signal, or a number used while no signal is connected.",
+        "index": 0,
+        "label": "in",
+        "range": "-88 to 88 (clamped)"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~cosh",
+    "outlets": [
+      {
+        "doc": "The hyperbolic cosine of the input.",
+        "index": 0,
+        "label": "out",
+        "range": ">= 1",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [],
+    "requires_midi_device": false
+  },
+  "~cosx": {
+    "category": "MATH",
+    "description": "Outputs the cosine of the input, an angle in radians.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "An angle in radians: a signal, or a number used while no signal is connected.",
+        "index": 0,
+        "label": "in",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~cosx",
+    "outlets": [
+      {
+        "doc": "The cosine of the input.",
+        "index": 0,
+        "label": "out",
+        "range": "-1 to 1",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [],
     "requires_midi_device": false
   },
   "~dac": {
@@ -15737,6 +16055,66 @@
     ],
     "requires_midi_device": false
   },
+  "~sinh": {
+    "category": "MATH",
+    "description": "Outputs the hyperbolic sine of the input. The input is clamped to -88..88 so the result stays finite.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The input: a signal, or a number used while no signal is connected.",
+        "index": 0,
+        "label": "in",
+        "range": "-88 to 88 (clamped)"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~sinh",
+    "outlets": [
+      {
+        "doc": "The hyperbolic sine of the input.",
+        "index": 0,
+        "label": "out",
+        "range": "any float",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [],
+    "requires_midi_device": false
+  },
+  "~sinx": {
+    "category": "MATH",
+    "description": "Outputs the sine of the input, an angle in radians.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "An angle in radians: a signal, or a number used while no signal is connected.",
+        "index": 0,
+        "label": "in",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~sinx",
+    "outlets": [
+      {
+        "doc": "The sine of the input.",
+        "index": 0,
+        "label": "out",
+        "range": "-1 to 1",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [],
+    "requires_midi_device": false
+  },
   "~snapshot": {
     "category": "ANALYSIS",
     "description": "Reports the value of a signal as a number: on a bang, or every interval while reporting is on.",
@@ -15789,6 +16167,66 @@
         "range": "0-127"
       }
     ],
+    "requires_midi_device": false
+  },
+  "~tanh": {
+    "category": "MATH",
+    "description": "Outputs the hyperbolic tangent of the input: a smooth soft clipper that bends any signal into -1..1. Scale the signal up first to drive it harder.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The input: a signal, or a number used while no signal is connected.",
+        "index": 0,
+        "label": "in",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~tanh",
+    "outlets": [
+      {
+        "doc": "The hyperbolic tangent of the input.",
+        "index": 0,
+        "label": "out",
+        "range": "-1 to 1",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [],
+    "requires_midi_device": false
+  },
+  "~tanx": {
+    "category": "MATH",
+    "description": "Outputs the tangent of the input, an angle in radians. Near odd multiples of pi/2 the result is very large.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "An angle in radians: a signal, or a number used while no signal is connected.",
+        "index": 0,
+        "label": "in",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~tanx",
+    "outlets": [
+      {
+        "doc": "The tangent of the input.",
+        "index": 0,
+        "label": "out",
+        "range": "any float",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [],
     "requires_midi_device": false
   },
   "~tapin": {

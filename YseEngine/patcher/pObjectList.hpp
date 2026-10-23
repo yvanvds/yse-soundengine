@@ -20,6 +20,9 @@ namespace YSE {
    * ``D_NOTEQUAL``, ``D_GREATER``, ``D_GREATEREQUAL``,
    *    ``D_LESS``, ``D_LESSEQUAL``,
    * ``D_MINIMUM``, ``D_MAXIMUM``.
+   *  - DSP trigonometry: ``D_COS`` (0..1 phase), ``D_COSX``, ``D_SINX``,
+   *    ``D_TANX``, ``D_ACOS``, ``D_ASIN``, ``D_ATAN``, ``D_ATAN2``, ``D_COSH``,
+   *    ``D_SINH``, ``D_TANH``, ``D_ACOSH``, ``D_ASINH``, ``D_ATANH``.
    *  - Control math: ``G_ADD``, ``G_DIVIDE``, ``G_REVERSESUBSTRACT``,
    *    ``G_REVERSEDIVIDE``, ``G_MODULO``, ``G_INTDIVIDE``.
    *  - Operand order: ``G_SWAP``.
@@ -921,6 +924,20 @@ namespace YSE {
     DEFOBJ(D_LESSEQUAL, "~<=");
     DEFOBJ(D_MINIMUM, "~minimum");
     DEFOBJ(D_MAXIMUM, "~maximum");
+    DEFOBJ(D_COS, "~cos");
+    DEFOBJ(D_COSX, "~cosx");
+    DEFOBJ(D_SINX, "~sinx");
+    DEFOBJ(D_TANX, "~tanx");
+    DEFOBJ(D_ACOS, "~acos");
+    DEFOBJ(D_ASIN, "~asin");
+    DEFOBJ(D_ATAN, "~atan");
+    DEFOBJ(D_ATAN2, "~atan2");
+    DEFOBJ(D_COSH, "~cosh");
+    DEFOBJ(D_SINH, "~sinh");
+    DEFOBJ(D_TANH, "~tanh");
+    DEFOBJ(D_ACOSH, "~acosh");
+    DEFOBJ(D_ASINH, "~asinh");
+    DEFOBJ(D_ATANH, "~atanh");
 
     DEFOBJ(D_CLIP, "~clip");
 

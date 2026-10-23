@@ -169,6 +169,7 @@
 #include "math/dModulo.h"
 #include "math/dPlusEquals.h"
 #include "math/dCompare.h"
+#include "math/dTrig.h"
 #include "math/dMultiply.h"
 #include "math/pMidiToFrequency.h"
 #include "math/pFrequencyToMidi.h"
@@ -928,6 +929,20 @@ pRegistry::pRegistry() {
   Add(OBJ::D_LESSEQUAL, dLessEqual::Create);
   Add(OBJ::D_MINIMUM, dMinimum::Create);
   Add(OBJ::D_MAXIMUM, dMaximum::Create);
+  Add(OBJ::D_COS, dCos::Create);
+  Add(OBJ::D_COSX, dCosx::Create);
+  Add(OBJ::D_SINX, dSinx::Create);
+  Add(OBJ::D_TANX, dTanx::Create);
+  Add(OBJ::D_ACOS, dAcos::Create);
+  Add(OBJ::D_ASIN, dAsin::Create);
+  Add(OBJ::D_ATAN, dAtan::Create);
+  Add(OBJ::D_ATAN2, dAtan2::Create);
+  Add(OBJ::D_COSH, dCosh::Create);
+  Add(OBJ::D_SINH, dSinh::Create);
+  Add(OBJ::D_TANH, dTanh::Create);
+  Add(OBJ::D_ACOSH, dAcosh::Create);
+  Add(OBJ::D_ASINH, dAsinh::Create);
+  Add(OBJ::D_ATANH, dAtanh::Create);
   Add(OBJ::D_CLIP, dClip::Create);
 
   // Generic GUI

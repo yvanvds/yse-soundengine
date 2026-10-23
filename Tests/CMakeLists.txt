@@ -17,6 +17,7 @@ set(YSE_TEST_SOURCES
   dsp/test_arithmetic_operators.cpp
   dsp/test_accumulator.cpp
   dsp/test_compare.cpp
+  dsp/test_trig.cpp
   dsp/test_delayLine.cpp
   dsp/test_sampleBuffer.cpp
   dsp/test_smoother.cpp
@@ -163,6 +164,7 @@ set(YSE_TEST_SOURCES
   patcher/test_patcher_reverse_modulo.cpp
   patcher/test_patcher_plusequals.cpp
   patcher/test_patcher_compare.cpp
+  patcher/test_patcher_signal_trig.cpp
   patcher/test_patcher_signal_loops.cpp
   patcher/test_patcher_tapin_tapout.cpp
   patcher/test_patcher_buffer.cpp
@@ -1252,6 +1254,7 @@ set_source_files_properties(
   patcher/test_patcher_reverse_modulo.cpp
   patcher/test_patcher_plusequals.cpp
   patcher/test_patcher_compare.cpp
+  patcher/test_patcher_signal_trig.cpp
   patcher/test_patcher_signal_loops.cpp
   patcher/test_patcher_tapin_tapout.cpp
   patcher/test_patcher_buffer.cpp
