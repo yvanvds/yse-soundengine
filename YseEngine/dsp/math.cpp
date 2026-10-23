@@ -129,7 +129,9 @@ YSE::DSP::buffer& YSE::DSP::sqrt::operator()(YSE::DSP::buffer& in) {
   while (length--) {
     Flt f = *inPtr;
     Int l = *(Int*)(inPtr++);
-    if (f < 0)
+    // Negative, NaN and infinite input give 0, so no NaN or infinity leaves
+    // (#1050).
+    if (!(f >= 0) || !std::isfinite(f))
       *outPtr++ = 0;
     else {
       Flt g = rsqrt_exptab[(l >> 23) & 0xff] * rsqrt_mantissatab[(l >> 13) & 0x3ff];
@@ -162,20 +164,50 @@ YSE::DSP::buffer& YSE::DSP::wrap::operator()(YSE::DSP::buffer& in) {
 
 /*******************************************************************************************/
 
+namespace {
+  // The tuning as used for one block (#1052): a base of 0 or below, or not
+  // finite, is 440 Hz; a reference that is not finite is note 69.
+  inline Flt TuningBase(Flt base) {
+    return (base > 0.f && std::isfinite(base)) ? base : 440.f;
+  }
+
+  inline Flt TuningRef(Flt ref) {
+    return std::isfinite(ref) ? ref : 69.f;
+  }
+
+  constexpr Flt kSemitone = 0.0577622650467f; // ln(2) / 12
+  constexpr Flt kSemitonesPerLn = 17.3123404907f; // 12 / ln(2)
+} // namespace
+
+YSE::DSP::midiToFreq& YSE::DSP::midiToFreq::setBase(Flt value) {
+  base = value;
+  return *this;
+}
+
+YSE::DSP::midiToFreq& YSE::DSP::midiToFreq::setRef(Flt value) {
+  ref = value;
+  return *this;
+}
+
 YSE::DSP::buffer& YSE::DSP::midiToFreq::operator()(YSE::DSP::buffer& in) {
   if (in.getLength() != buffer.getLength()) buffer.resize(in.getLength());
-  Flt* inPtr = in.getPtr();
+  const Flt* inPtr = in.getPtr();
   Flt* outPtr = buffer.getPtr();
-  UInt length = in.getLength();
+  const UInt length = in.getLength();
+  const Flt b = TuningBase(base);
+  const Flt r = TuningRef(ref);
 
-  for (; length--; inPtr++, outPtr++) {
-    Flt f = *inPtr;
-    if (f < -1500)
-      *outPtr = 0;
-    else {
-      if (f > 1499) f = 1499;
-      *outPtr = 8.17579891564f * ::exp(.0577622650f * f);
+  for (UInt i = 0; i < length; ++i) {
+    Flt d = inPtr[i] - r;
+    // -1569 / +1430 semitones around note 69 is the -1500..1499 clamp the
+    // class always had. NaN fails the first compare and gives 0.
+    if (!(d >= -1569.f)) {
+      outPtr[i] = 0.f;
+      continue;
     }
+    if (d > 1430.f) d = 1430.f;
+    const Flt f = b * std::exp(kSemitone * d);
+    outPtr[i] = std::isfinite(f) ? f : 0.f;
   }
 
   return buffer;
@@ -183,19 +215,35 @@ YSE::DSP::buffer& YSE::DSP::midiToFreq::operator()(YSE::DSP::buffer& in) {
 
 /*******************************************************************************************/
 
+YSE::DSP::freqToMidi& YSE::DSP::freqToMidi::setBase(Flt value) {
+  base = value;
+  return *this;
+}
+
+YSE::DSP::freqToMidi& YSE::DSP::freqToMidi::setRef(Flt value) {
+  ref = value;
+  return *this;
+}
+
 YSE::DSP::buffer& YSE::DSP::freqToMidi::operator()(YSE::DSP::buffer& in) {
   if (in.getLength() != buffer.getLength()) buffer.resize(in.getLength());
-  Flt* inPtr = in.getPtr();
+  const Flt* inPtr = in.getPtr();
   Flt* outPtr = buffer.getPtr();
-  UInt length = in.getLength();
+  const UInt length = in.getLength();
+  const Flt logBase = std::log(TuningBase(base));
+  const Flt r = TuningRef(ref);
 
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wunused-value"
-  for (; length--; *inPtr++, *outPtr++) {
-    Flt f = *inPtr;
-    *outPtr = (f > 0 ? 17.3123405046f * ::log(.12231220585f * f) : -1500);
+  for (UInt i = 0; i < length; ++i) {
+    Flt f = inPtr[i];
+    // 0, below 0 and NaN have no pitch (#1017); infinity is clamped so the
+    // logarithm stays finite.
+    if (!(f > 0.f)) {
+      outPtr[i] = -1500.f;
+      continue;
+    }
+    if (f > std::numeric_limits<Flt>::max()) f = std::numeric_limits<Flt>::max();
+    outPtr[i] = r + kSemitonesPerLn * (std::log(f) - logBase);
   }
-#pragma clang diagnostic pop
   return buffer;
 }
 
@@ -302,12 +350,12 @@ YSE::DSP::buffer& YSE::DSP::pow::operator()(YSE::DSP::buffer& in1, YSE::DSP::buf
   Flt* outPtr = buffer.getPtr();
   UInt length = in1.getLength();
 
+  // A base of 0 or below gives 0, and so does a result past the float range
+  // (or a NaN operand): no NaN or infinity leaves (#1050).
   while (length--) {
     Flt f = *in1Ptr++;
-    if (f > 0)
-      *outPtr = ::pow(f, *in2Ptr);
-    else
-      *outPtr = 0;
+    Flt r = f > 0 ? ::pow(f, *in2Ptr) : 0;
+    *outPtr = std::isfinite(r) ? r : 0;
     outPtr++;
     in2Ptr++;
   }
@@ -338,14 +386,15 @@ YSE::DSP::buffer& YSE::DSP::log::operator()(YSE::DSP::buffer& in1, YSE::DSP::buf
   Flt* outPtr = buffer.getPtr();
   UInt length = in1.getLength();
 
+  // An input of 0 or below has no logarithm: it gives 0. A base of 0 or
+  // below, or of 1, has none either: the natural logarithm is used instead.
+  // Anything still not finite (a NaN, an infinite input) gives 0, so no NaN
+  // or infinity leaves (#1050).
   while (length--) {
     Flt f = *in1Ptr++, g = *in2Ptr++;
-    if (f <= 0)
-      *outPtr = ::log(f);
-    else if (g <= 0)
-      *outPtr = ::log(f);
-    else
-      *outPtr = ::log(f) / ::log(g);
+    Flt r = 0;
+    if (f > 0) r = (g > 0 && g != 1) ? ::log(f) / ::log(g) : ::log(f);
+    *outPtr = std::isfinite(r) ? r : 0;
     outPtr++;
   }
 

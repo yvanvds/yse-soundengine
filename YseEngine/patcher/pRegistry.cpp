@@ -164,6 +164,15 @@
 #include "math/dClip.h"
 #include "math/dSubstract.h"
 #include "math/dDivide.h"
+#include "math/dReverseSubstract.h"
+#include "math/dReverseDivide.h"
+#include "math/dModulo.h"
+#include "math/dPlusEquals.h"
+#include "math/dCompare.h"
+#include "math/dTrig.h"
+#include "math/dSignalMath.h"
+#include "math/dBitwise.h"
+#include "math/dConvert.h"
 #include "math/dMultiply.h"
 #include "math/pMidiToFrequency.h"
 #include "math/pFrequencyToMidi.h"
@@ -911,6 +920,50 @@ pRegistry::pRegistry() {
   Add(OBJ::D_SUBSTRACT, dSubstract::Create);
   Add(OBJ::D_MULTIPLY, dMultiply::Create);
   Add(OBJ::D_DIVIDE, dDivide::Create);
+  Add(OBJ::D_REVERSESUBSTRACT, dReverseSubstract::Create);
+  Add(OBJ::D_REVERSEDIVIDE, dReverseDivide::Create);
+  Add(OBJ::D_MODULO, dModulo::Create);
+  Add(OBJ::D_PLUSEQUALS, dPlusEquals::Create);
+  Add(OBJ::D_EQUAL, dEqual::Create);
+  Add(OBJ::D_NOTEQUAL, dNotEqual::Create);
+  Add(OBJ::D_GREATER, dGreater::Create);
+  Add(OBJ::D_GREATEREQUAL, dGreaterEqual::Create);
+  Add(OBJ::D_LESS, dLess::Create);
+  Add(OBJ::D_LESSEQUAL, dLessEqual::Create);
+  Add(OBJ::D_MINIMUM, dMinimum::Create);
+  Add(OBJ::D_MAXIMUM, dMaximum::Create);
+  Add(OBJ::D_COS, dCos::Create);
+  Add(OBJ::D_COSX, dCosx::Create);
+  Add(OBJ::D_SINX, dSinx::Create);
+  Add(OBJ::D_TANX, dTanx::Create);
+  Add(OBJ::D_ACOS, dAcos::Create);
+  Add(OBJ::D_ASIN, dAsin::Create);
+  Add(OBJ::D_ATAN, dAtan::Create);
+  Add(OBJ::D_ATAN2, dAtan2::Create);
+  Add(OBJ::D_COSH, dCosh::Create);
+  Add(OBJ::D_SINH, dSinh::Create);
+  Add(OBJ::D_TANH, dTanh::Create);
+  Add(OBJ::D_ACOSH, dAcosh::Create);
+  Add(OBJ::D_ASINH, dAsinh::Create);
+  Add(OBJ::D_ATANH, dAtanh::Create);
+  Add(OBJ::D_ABS, dAbs::Create);
+  Add(OBJ::D_SQRT, dSqrt::Create);
+  Add(OBJ::D_POW, dPow::Create);
+  Add(OBJ::D_LOG, dLog::Create);
+  Add(OBJ::D_ROUND, dRound::Create);
+  Add(OBJ::D_TRUNC, dTrunc::Create);
+  Add(OBJ::D_BITAND, dBitAnd::Create);
+  Add(OBJ::D_BITOR, dBitOr::Create);
+  Add(OBJ::D_BITXOR, dBitXor::Create);
+  Add(OBJ::D_BITNOT, dBitNot::Create);
+  Add(OBJ::D_BITSHIFT, dBitShift::Create);
+  Add(OBJ::D_BITSAFE, dBitSafe::Create);
+  Add(OBJ::D_MTOF, dMtof::Create);
+  Add(OBJ::D_FTOM, dFtom::Create);
+  Add(OBJ::D_ATODB, dAtoDb::Create);
+  Add(OBJ::D_DBTOA, dDbtoA::Create);
+  Add(OBJ::D_MSTOSAMPS, dMsToSamps::Create);
+  Add(OBJ::D_SAMPSTOMS, dSampsToMs::Create);
   Add(OBJ::D_CLIP, dClip::Create);
 
   // Generic GUI

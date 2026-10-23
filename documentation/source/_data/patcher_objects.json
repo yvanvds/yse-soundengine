@@ -14383,6 +14383,204 @@
     "params": [],
     "requires_midi_device": false
   },
+  "~!-": {
+    "category": "MATH",
+    "description": "Subtracts the left signal from the right one: ~- with the inlets reversed. With a right number of 1 it turns a 0-1 envelope or ramp upside down.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The value subtracted: a signal, or a number used while no signal is connected.",
+        "index": 0,
+        "label": "left",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The value subtracted from: a signal, or a number used while no signal is connected.",
+        "index": 1,
+        "label": "right",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~!-",
+    "outlets": [
+      {
+        "doc": "right - left.",
+        "index": 0,
+        "label": "out",
+        "range": "any float",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Number used while no signal is connected to the right inlet.",
+        "name": "right",
+        "range": "any float"
+      }
+    ],
+    "requires_midi_device": false
+  },
+  "~!/": {
+    "category": "MATH",
+    "description": "Divides the right signal by the left one: ~/ with the inlets reversed. With a right number of 1 it gives the reciprocal. A left sample of 0 gives 0.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The divisor: a signal, or a number used while no signal is connected. 0 makes the result 0.",
+        "index": 0,
+        "label": "left",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The value divided: a signal, or a number used while no signal is connected.",
+        "index": 1,
+        "label": "right",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~!/",
+    "outlets": [
+      {
+        "doc": "right / left, or 0 where left is 0.",
+        "index": 0,
+        "label": "out",
+        "range": "any float",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "1",
+        "doc": "Number used while no signal is connected to the right inlet.",
+        "name": "right",
+        "range": "any float"
+      }
+    ],
+    "requires_midi_device": false
+  },
+  "~!=": {
+    "category": "MATH",
+    "description": "Outputs 1 where the left signal differs from the right one (by more than fuzzy), otherwise 0.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The signal compared: a signal, or a number used while no signal is connected.",
+        "index": 0,
+        "label": "left",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "What the left signal is compared with: a signal, or a number used while no signal is connected.",
+        "index": 1,
+        "label": "right",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~!=",
+    "outlets": [
+      {
+        "doc": "1 where left != right, 0 elsewhere.",
+        "index": 0,
+        "label": "out",
+        "range": "0 or 1",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Right operand used while no signal is connected to the right inlet.",
+        "name": "right",
+        "range": "any float"
+      },
+      {
+        "default": "0",
+        "doc": "Equality tolerance: values this close or closer count as equal. 0 compares exactly.",
+        "name": "fuzzy",
+        "range": ">= 0"
+      }
+    ],
+    "requires_midi_device": false
+  },
+  "~%": {
+    "category": "MATH",
+    "description": "Divides the left signal by the right one and outputs the remainder, with the sign of the left signal. Wraps phases and indexes. A divisor of 0 gives 0.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The value divided: a signal, or a number used while no signal is connected.",
+        "index": 0,
+        "label": "left",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The divisor: a signal, or a number used while no signal is connected. 0 makes the result 0.",
+        "index": 1,
+        "label": "right",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~%",
+    "outlets": [
+      {
+        "doc": "The remainder of left / right, with the sign of left, or 0 where right is 0.",
+        "index": 0,
+        "label": "out",
+        "range": "any float",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "1",
+        "doc": "Divisor used while no signal is connected to the right inlet.",
+        "name": "right",
+        "range": "any float"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~*": {
     "category": "MATH",
     "description": "Multiplies an audio signal by another audio signal or by a float: a gain stage, or a ring modulator.",
@@ -14470,6 +14668,53 @@
         "default": "0",
         "doc": "Float used while no audio is connected to the right inlet.",
         "name": "right",
+        "range": "any float"
+      }
+    ],
+    "requires_midi_device": false
+  },
+  "~+=": {
+    "category": "MATH",
+    "description": "Adds up its input sample by sample and outputs the running sum: turns a constant into a ramp, counts samples, or integrates a rate.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT",
+          "BANG"
+        ],
+        "doc": "The signal summed: a signal, or a number used while no signal is connected. A bang sets the sum to 0; 'set <x>' sets it to x.",
+        "index": 0,
+        "label": "in",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER"
+        ],
+        "doc": "Reset signal: the sum restarts from 0 at every sample where it is not 0.",
+        "index": 1,
+        "label": "reset",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~+=",
+    "outlets": [
+      {
+        "doc": "The sum of every input sample so far.",
+        "index": 0,
+        "label": "out",
+        "range": "any float",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "The sum the object starts from.",
+        "name": "initial",
         "range": "any float"
       }
     ],
@@ -14567,6 +14812,354 @@
     ],
     "requires_midi_device": false
   },
+  "~<": {
+    "category": "MATH",
+    "description": "Outputs 1 where the left signal is less than the right one, otherwise 0. Turns a signal into a gate below a threshold.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The signal compared: a signal, or a number used while no signal is connected.",
+        "index": 0,
+        "label": "left",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "What the left signal is compared with: a signal, or a number used while no signal is connected.",
+        "index": 1,
+        "label": "right",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~<",
+    "outlets": [
+      {
+        "doc": "1 where left < right, 0 elsewhere.",
+        "index": 0,
+        "label": "out",
+        "range": "0 or 1",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Right operand used while no signal is connected to the right inlet.",
+        "name": "right",
+        "range": "any float"
+      }
+    ],
+    "requires_midi_device": false
+  },
+  "~<=": {
+    "category": "MATH",
+    "description": "Outputs 1 where the left signal is less than or equal to the right one (within fuzzy), otherwise 0.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The signal compared: a signal, or a number used while no signal is connected.",
+        "index": 0,
+        "label": "left",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "What the left signal is compared with: a signal, or a number used while no signal is connected.",
+        "index": 1,
+        "label": "right",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~<=",
+    "outlets": [
+      {
+        "doc": "1 where left <= right, 0 elsewhere.",
+        "index": 0,
+        "label": "out",
+        "range": "0 or 1",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Right operand used while no signal is connected to the right inlet.",
+        "name": "right",
+        "range": "any float"
+      },
+      {
+        "default": "0",
+        "doc": "Equality tolerance: values this close or closer count as equal. 0 compares exactly.",
+        "name": "fuzzy",
+        "range": ">= 0"
+      }
+    ],
+    "requires_midi_device": false
+  },
+  "~==": {
+    "category": "MATH",
+    "description": "Outputs 1 where the left signal equals the right one (within fuzzy), otherwise 0.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The signal compared: a signal, or a number used while no signal is connected.",
+        "index": 0,
+        "label": "left",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "What the left signal is compared with: a signal, or a number used while no signal is connected.",
+        "index": 1,
+        "label": "right",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~==",
+    "outlets": [
+      {
+        "doc": "1 where left == right, 0 elsewhere.",
+        "index": 0,
+        "label": "out",
+        "range": "0 or 1",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Right operand used while no signal is connected to the right inlet.",
+        "name": "right",
+        "range": "any float"
+      },
+      {
+        "default": "0",
+        "doc": "Equality tolerance: values this close or closer count as equal. 0 compares exactly.",
+        "name": "fuzzy",
+        "range": ">= 0"
+      }
+    ],
+    "requires_midi_device": false
+  },
+  "~>": {
+    "category": "MATH",
+    "description": "Outputs 1 where the left signal is greater than the right one, otherwise 0. Turns a signal into a gate above a threshold.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The signal compared: a signal, or a number used while no signal is connected.",
+        "index": 0,
+        "label": "left",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "What the left signal is compared with: a signal, or a number used while no signal is connected.",
+        "index": 1,
+        "label": "right",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~>",
+    "outlets": [
+      {
+        "doc": "1 where left > right, 0 elsewhere.",
+        "index": 0,
+        "label": "out",
+        "range": "0 or 1",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Right operand used while no signal is connected to the right inlet.",
+        "name": "right",
+        "range": "any float"
+      }
+    ],
+    "requires_midi_device": false
+  },
+  "~>=": {
+    "category": "MATH",
+    "description": "Outputs 1 where the left signal is greater than or equal to the right one (within fuzzy), otherwise 0.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The signal compared: a signal, or a number used while no signal is connected.",
+        "index": 0,
+        "label": "left",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "What the left signal is compared with: a signal, or a number used while no signal is connected.",
+        "index": 1,
+        "label": "right",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~>=",
+    "outlets": [
+      {
+        "doc": "1 where left >= right, 0 elsewhere.",
+        "index": 0,
+        "label": "out",
+        "range": "0 or 1",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Right operand used while no signal is connected to the right inlet.",
+        "name": "right",
+        "range": "any float"
+      },
+      {
+        "default": "0",
+        "doc": "Equality tolerance: values this close or closer count as equal. 0 compares exactly.",
+        "name": "fuzzy",
+        "range": ">= 0"
+      }
+    ],
+    "requires_midi_device": false
+  },
+  "~abs": {
+    "category": "MATH",
+    "description": "Outputs the absolute value of the input: negative samples are made positive. A full-wave rectifier.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The input: a signal, or a number used while no signal is connected.",
+        "index": 0,
+        "label": "in",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~abs",
+    "outlets": [
+      {
+        "doc": "The absolute value of the input.",
+        "index": 0,
+        "label": "out",
+        "range": ">= 0",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [],
+    "requires_midi_device": false
+  },
+  "~acos": {
+    "category": "MATH",
+    "description": "Outputs the arc-cosine of the input in radians. Input outside -1..1 is clamped to it, so no NaN reaches the graph.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The input: a signal, or a number used while no signal is connected.",
+        "index": 0,
+        "label": "in",
+        "range": "-1 to 1 (clamped)"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~acos",
+    "outlets": [
+      {
+        "doc": "The angle whose cosine is the input.",
+        "index": 0,
+        "label": "out",
+        "range": "0 to pi",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [],
+    "requires_midi_device": false
+  },
+  "~acosh": {
+    "category": "MATH",
+    "description": "Outputs the hyperbolic arc-cosine of the input. Input below 1 is clamped to 1 (giving 0), so no NaN reaches the graph.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The input: a signal, or a number used while no signal is connected.",
+        "index": 0,
+        "label": "in",
+        "range": ">= 1 (clamped)"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~acosh",
+    "outlets": [
+      {
+        "doc": "The hyperbolic arc-cosine of the input.",
+        "index": 0,
+        "label": "out",
+        "range": ">= 0",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [],
+    "requires_midi_device": false
+  },
   "~adc": {
     "category": "IO",
     "description": "The patch's audio input. When the patcher runs as an insert effect, each outlet carries one channel of the audio it processes.",
@@ -14590,6 +15183,476 @@
       }
     ],
     "params": [],
+    "requires_midi_device": false
+  },
+  "~asin": {
+    "category": "MATH",
+    "description": "Outputs the arc-sine of the input in radians. Input outside -1..1 is clamped to it, so no NaN reaches the graph.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The input: a signal, or a number used while no signal is connected.",
+        "index": 0,
+        "label": "in",
+        "range": "-1 to 1 (clamped)"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~asin",
+    "outlets": [
+      {
+        "doc": "The angle whose sine is the input.",
+        "index": 0,
+        "label": "out",
+        "range": "-pi/2 to pi/2",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [],
+    "requires_midi_device": false
+  },
+  "~asinh": {
+    "category": "MATH",
+    "description": "Outputs the hyperbolic arc-sine of the input.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The input: a signal, or a number used while no signal is connected.",
+        "index": 0,
+        "label": "in",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~asinh",
+    "outlets": [
+      {
+        "doc": "The hyperbolic arc-sine of the input.",
+        "index": 0,
+        "label": "out",
+        "range": "any float",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [],
+    "requires_midi_device": false
+  },
+  "~atan": {
+    "category": "MATH",
+    "description": "Outputs the arc-tangent of the input in radians.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The input: a signal, or a number used while no signal is connected.",
+        "index": 0,
+        "label": "in",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~atan",
+    "outlets": [
+      {
+        "doc": "The angle whose tangent is the input.",
+        "index": 0,
+        "label": "out",
+        "range": "-pi/2 to pi/2",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [],
+    "requires_midi_device": false
+  },
+  "~atan2": {
+    "category": "MATH",
+    "description": "Outputs the angle of the point (x, y) in radians: the two-argument arc-tangent, correct in all four quadrants. The origin gives 0.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The y coordinate: a signal, or a number used while no signal is connected.",
+        "index": 0,
+        "label": "y",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The x coordinate: a signal, or a number used while no signal is connected.",
+        "index": 1,
+        "label": "x",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~atan2",
+    "outlets": [
+      {
+        "doc": "The angle of (x, y), measured from the positive x axis.",
+        "index": 0,
+        "label": "out",
+        "range": "-pi to pi",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "x coordinate used while no signal is connected to the right inlet.",
+        "name": "x",
+        "range": "any float"
+      }
+    ],
+    "requires_midi_device": false
+  },
+  "~atanh": {
+    "category": "MATH",
+    "description": "Outputs the hyperbolic arc-tangent of the input. Input is clamped just inside -1..1, so 1 gives about 8.66 instead of infinity.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The input: a signal, or a number used while no signal is connected.",
+        "index": 0,
+        "label": "in",
+        "range": "-1 to 1 (clamped)"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~atanh",
+    "outlets": [
+      {
+        "doc": "The hyperbolic arc-tangent of the input.",
+        "index": 0,
+        "label": "out",
+        "range": "about -8.66 to 8.66",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [],
+    "requires_midi_device": false
+  },
+  "~atodb": {
+    "category": "MATH",
+    "description": "Converts a linear amplitude to decibels full scale at signal rate: 1 is 0 dB, 0.5 is about -6 dB. The sign is ignored, and 0 gives -999 dB.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The input: a signal, or a number used while no signal is connected.",
+        "index": 0,
+        "label": "in",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~atodb",
+    "outlets": [
+      {
+        "doc": "The level in dB.",
+        "index": 0,
+        "label": "out",
+        "range": "-999 dB or higher",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [],
+    "requires_midi_device": false
+  },
+  "~bitand": {
+    "category": "MATH",
+    "description": "Bitwise and of the input with a mask or a second signal: a bit stays 1 only where both have a 1. Clearing low mantissa bits is a coarse bitcrusher. Samples are 32-bit floats, read as raw bit patterns or converted to integers (see mode).",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The input: a signal, or a number used while no signal is connected. 'bits' and up to 32 ones and zeros (most significant first) set the mask; 'mode 0-3' sets the mode.",
+        "index": 0,
+        "label": "in",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The mask: an int is used as a 32-bit pattern, a float is read as the mode reads the right operand. A connected signal is used sample by sample instead.",
+        "index": 1,
+        "label": "mask",
+        "range": "any int or float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~bitand",
+    "outlets": [
+      {
+        "doc": "The bitwise and of the input and the mask.",
+        "index": 0,
+        "label": "out",
+        "range": "any float, never NaN or infinity",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "32-bit mask used while no signal is connected to the right inlet.",
+        "name": "mask",
+        "range": "any int"
+      },
+      {
+        "default": "0",
+        "doc": "0: both operands as raw float bits. 1: both converted to integers. 2: input raw, mask integer. 3: input integer, mask raw.",
+        "name": "mode",
+        "range": "0 to 3"
+      }
+    ],
+    "requires_midi_device": false
+  },
+  "~bitnot": {
+    "category": "MATH",
+    "description": "Inverts every bit of the input. Samples are 32-bit floats: in mode 0 the raw bit pattern is flipped (a result that would be NaN or infinity gives 0), in mode 1 the sample is converted to an integer n first and gives -n - 1.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The input: a signal, or a number used while no signal is connected. 'mode 0' or 'mode 1' sets the mode.",
+        "index": 0,
+        "label": "in",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~bitnot",
+    "outlets": [
+      {
+        "doc": "The input with every bit inverted.",
+        "index": 0,
+        "label": "out",
+        "range": "any float, never NaN or infinity",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "0 reads samples as raw 32-bit float patterns, 1 converts them to integers first.",
+        "name": "mode",
+        "range": "0 or 1"
+      }
+    ],
+    "requires_midi_device": false
+  },
+  "~bitor": {
+    "category": "MATH",
+    "description": "Bitwise or of the input with a mask or a second signal: a bit is 1 where either has a 1. Samples are 32-bit floats, read as raw bit patterns or converted to integers (see mode). A result that would be NaN or infinity gives 0.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The input: a signal, or a number used while no signal is connected. 'bits' and up to 32 ones and zeros (most significant first) set the mask; 'mode 0-3' sets the mode.",
+        "index": 0,
+        "label": "in",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The mask: an int is used as a 32-bit pattern, a float is read as the mode reads the right operand. A connected signal is used sample by sample instead.",
+        "index": 1,
+        "label": "mask",
+        "range": "any int or float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~bitor",
+    "outlets": [
+      {
+        "doc": "The bitwise or of the input and the mask.",
+        "index": 0,
+        "label": "out",
+        "range": "any float, never NaN or infinity",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "32-bit mask used while no signal is connected to the right inlet.",
+        "name": "mask",
+        "range": "any int"
+      },
+      {
+        "default": "0",
+        "doc": "0: both operands as raw float bits. 1: both converted to integers. 2: input raw, mask integer. 3: input integer, mask raw.",
+        "name": "mode",
+        "range": "0 to 3"
+      }
+    ],
+    "requires_midi_device": false
+  },
+  "~bitsafe": {
+    "category": "MATH",
+    "description": "Replaces NaN and infinite samples with 0 and passes every other sample through. Put it at the end of a feedback chain so one bad sample cannot stay in the loop.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The input: a signal, or a number used while no signal is connected.",
+        "index": 0,
+        "label": "in",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~bitsafe",
+    "outlets": [
+      {
+        "doc": "The input with NaN and infinity replaced by 0.",
+        "index": 0,
+        "label": "out",
+        "range": "any finite float",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [],
+    "requires_midi_device": false
+  },
+  "~bitshift": {
+    "category": "MATH",
+    "description": "Shifts the bits of the input: positive shifts left, negative right. Samples are 32-bit floats: mode 0 shifts the raw bit pattern (a NaN or infinite result gives 0), mode 1 converts to an integer first, so each bit left doubles it and each bit right halves it.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The input: a signal, or a number used while no signal is connected. 'shift n' sets the shift, 'mode 0' or 'mode 1' the mode.",
+        "index": 0,
+        "label": "in",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~bitshift",
+    "outlets": [
+      {
+        "doc": "The input with its bits shifted.",
+        "index": 0,
+        "label": "out",
+        "range": "any float, never NaN or infinity",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Bits to shift: positive moves left, negative moves right.",
+        "name": "shift",
+        "range": "-32 to 32 (beyond empties the word)"
+      },
+      {
+        "default": "0",
+        "doc": "0 reads samples as raw 32-bit float patterns, 1 converts them to integers first.",
+        "name": "mode",
+        "range": "0 or 1"
+      }
+    ],
+    "requires_midi_device": false
+  },
+  "~bitxor": {
+    "category": "MATH",
+    "description": "Bitwise exclusive-or of the input with a mask or a second signal: a bit is 1 where exactly one has a 1. Samples are 32-bit floats, read as raw bit patterns or converted to integers (see mode). A result that would be NaN or infinity gives 0.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The input: a signal, or a number used while no signal is connected. 'bits' and up to 32 ones and zeros (most significant first) set the mask; 'mode 0-3' sets the mode.",
+        "index": 0,
+        "label": "in",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The mask: an int is used as a 32-bit pattern, a float is read as the mode reads the right operand. A connected signal is used sample by sample instead.",
+        "index": 1,
+        "label": "mask",
+        "range": "any int or float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~bitxor",
+    "outlets": [
+      {
+        "doc": "The bitwise exclusive-or of the input and the mask.",
+        "index": 0,
+        "label": "out",
+        "range": "any float, never NaN or infinity",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "32-bit mask used while no signal is connected to the right inlet.",
+        "name": "mask",
+        "range": "any int"
+      },
+      {
+        "default": "0",
+        "doc": "0: both operands as raw float bits. 1: both converted to integers. 2: input raw, mask integer. 3: input integer, mask raw.",
+        "name": "mode",
+        "range": "0 to 3"
+      }
+    ],
     "requires_midi_device": false
   },
   "~bp": {
@@ -14758,6 +15821,96 @@
     ],
     "requires_midi_device": false
   },
+  "~cos": {
+    "category": "MATH",
+    "description": "Outputs the cosine of a phase: 0 to 1 is one full cycle. Turns a ~phasor ramp into a cosine wave. Use ~cosx for an angle in radians.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "A phase, 0 to 1 per cycle: a signal, or a number used while no signal is connected.",
+        "index": 0,
+        "label": "in",
+        "range": "any float, wraps every 1"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~cos",
+    "outlets": [
+      {
+        "doc": "The cosine of 2 pi times the phase.",
+        "index": 0,
+        "label": "out",
+        "range": "-1 to 1",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [],
+    "requires_midi_device": false
+  },
+  "~cosh": {
+    "category": "MATH",
+    "description": "Outputs the hyperbolic cosine of the input. The input is clamped to -88..88 so the result stays finite.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The input: a signal, or a number used while no signal is connected.",
+        "index": 0,
+        "label": "in",
+        "range": "-88 to 88 (clamped)"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~cosh",
+    "outlets": [
+      {
+        "doc": "The hyperbolic cosine of the input.",
+        "index": 0,
+        "label": "out",
+        "range": ">= 1",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [],
+    "requires_midi_device": false
+  },
+  "~cosx": {
+    "category": "MATH",
+    "description": "Outputs the cosine of the input, an angle in radians.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "An angle in radians: a signal, or a number used while no signal is connected.",
+        "index": 0,
+        "label": "in",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~cosx",
+    "outlets": [
+      {
+        "doc": "The cosine of the input.",
+        "index": 0,
+        "label": "out",
+        "range": "-1 to 1",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [],
+    "requires_midi_device": false
+  },
   "~dac": {
     "category": "IO",
     "description": "The patch's audio output. Each inlet is one output channel, passed on to the sound or insert that hosts the patcher. A patch is silent until a signal reaches this object.",
@@ -14785,6 +15938,79 @@
     "name": "~dac",
     "outlets": [],
     "params": [],
+    "requires_midi_device": false
+  },
+  "~dbtoa": {
+    "category": "MATH",
+    "description": "Converts decibels full scale to a linear amplitude at signal rate: 0 dB is 1, -6 dB about 0.5. -999 dB or less gives 0.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The input: a signal, or a number used while no signal is connected.",
+        "index": 0,
+        "label": "in",
+        "range": "any float in dB"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~dbtoa",
+    "outlets": [
+      {
+        "doc": "The linear amplitude.",
+        "index": 0,
+        "label": "out",
+        "range": "0 or higher",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [],
+    "requires_midi_device": false
+  },
+  "~ftom": {
+    "category": "MATH",
+    "description": "Converts a frequency in Hz to a MIDI note number at signal rate. The inverse of ~mtof, with the same base and ref tuning. A frequency of 0 or below gives -1500.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "A frequency in Hz: a signal, or a number used while no signal is connected. 'base <Hz>' and 'ref <note>' retune.",
+        "index": 0,
+        "label": "in",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~ftom",
+    "outlets": [
+      {
+        "doc": "The MIDI note number, with fractions. Never NaN or infinity.",
+        "index": 0,
+        "label": "out",
+        "range": "-1500 or higher",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "440",
+        "doc": "Frequency of the reference note, in Hz. 0 or below counts as 440. Also set with 'base <Hz>'.",
+        "name": "base",
+        "range": "above 0 Hz"
+      },
+      {
+        "default": "69",
+        "doc": "The MIDI note that sounds at the base frequency. Also set with 'ref <note>'.",
+        "name": "ref",
+        "range": "any float"
+      }
+    ],
     "requires_midi_device": false
   },
   "~hp": {
@@ -14916,6 +16142,54 @@
     ],
     "requires_midi_device": false
   },
+  "~log": {
+    "category": "MATH",
+    "description": "Outputs the logarithm of the input in the given base (e by default). An input of 0 or below gives 0, so no NaN or infinity reaches the graph; a base of 0 or below, or of 1, falls back to the natural logarithm.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The input: a signal, or a number used while no signal is connected.",
+        "index": 0,
+        "label": "in",
+        "range": "> 0 (0 and below give 0)"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The base: a signal, or a number used while no signal is connected.",
+        "index": 1,
+        "label": "base",
+        "range": "> 0, not 1"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~log",
+    "outlets": [
+      {
+        "doc": "The logarithm of the input.",
+        "index": 0,
+        "label": "out",
+        "range": "any float",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "2.718282",
+        "doc": "Base used while no signal is connected to the right inlet.",
+        "name": "base",
+        "range": "> 0, not 1"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~lp": {
     "category": "FILTER",
     "description": "Single-pole lowpass filter. Attenuates content above the cutoff frequency.",
@@ -14956,6 +16230,183 @@
         "doc": "Initial cutoff frequency in Hz.",
         "name": "frequency",
         "range": "0-20000 Hz"
+      }
+    ],
+    "requires_midi_device": false
+  },
+  "~maximum": {
+    "category": "MATH",
+    "description": "Outputs the larger of the two inputs, sample by sample. With a number it limits the signal from below; against 0 it is a half-wave rectifier.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The signal compared: a signal, or a number used while no signal is connected.",
+        "index": 0,
+        "label": "left",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "What the left signal is compared with: a signal, or a number used while no signal is connected.",
+        "index": 1,
+        "label": "right",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~maximum",
+    "outlets": [
+      {
+        "doc": "The larger of left and right at each sample.",
+        "index": 0,
+        "label": "out",
+        "range": "any float",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Right operand used while no signal is connected to the right inlet.",
+        "name": "right",
+        "range": "any float"
+      }
+    ],
+    "requires_midi_device": false
+  },
+  "~minimum": {
+    "category": "MATH",
+    "description": "Outputs the smaller of the two inputs, sample by sample. With a number it limits the signal from above.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The signal compared: a signal, or a number used while no signal is connected.",
+        "index": 0,
+        "label": "left",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "What the left signal is compared with: a signal, or a number used while no signal is connected.",
+        "index": 1,
+        "label": "right",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~minimum",
+    "outlets": [
+      {
+        "doc": "The smaller of left and right at each sample.",
+        "index": 0,
+        "label": "out",
+        "range": "any float",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Right operand used while no signal is connected to the right inlet.",
+        "name": "right",
+        "range": "any float"
+      }
+    ],
+    "requires_midi_device": false
+  },
+  "~mstosamps": {
+    "category": "MATH",
+    "description": "Converts milliseconds to samples at the current sample rate. A number or list in is also converted at once and sent from the right outlet.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "Milliseconds: a signal, or a number used while no signal is connected. A number or list is also converted to the right outlet.",
+        "index": 0,
+        "label": "in",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~mstosamps",
+    "outlets": [
+      {
+        "doc": "The time in samples.",
+        "index": 0,
+        "label": "out",
+        "range": "any float",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "Numbers and lists in, converted to samples.",
+        "index": 1,
+        "label": "number",
+        "range": "any float",
+        "type": "ANY"
+      }
+    ],
+    "params": [],
+    "requires_midi_device": false
+  },
+  "~mtof": {
+    "category": "MATH",
+    "description": "Converts a MIDI note number to a frequency in Hz at signal rate, for pitch-modulated oscillators. Equal temperament, tuned with base (440 Hz) and ref (note 69).",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "A MIDI note number, fractions allowed: a signal, or a number used while no signal is connected. 'base <Hz>' and 'ref <note>' retune.",
+        "index": 0,
+        "label": "in",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~mtof",
+    "outlets": [
+      {
+        "doc": "The frequency of the note. Never NaN or infinity.",
+        "index": 0,
+        "label": "out",
+        "range": "0 Hz or higher",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "440",
+        "doc": "Frequency of the reference note, in Hz. 0 or below counts as 440. Also set with 'base <Hz>'.",
+        "name": "base",
+        "range": "above 0 Hz"
+      },
+      {
+        "default": "69",
+        "doc": "The MIDI note that sounds at the base frequency. Also set with 'ref <note>'.",
+        "name": "ref",
+        "range": "any float"
       }
     ],
     "requires_midi_device": false
@@ -15066,6 +16517,146 @@
     ],
     "requires_midi_device": false
   },
+  "~pow": {
+    "category": "MATH",
+    "description": "Raises the base (right inlet) to the power of the exponent (left inlet): the order is the reverse of .pow. A base of 0 or below, or a result too large for a float, gives 0.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The exponent: a signal, or a number used while no signal is connected.",
+        "index": 0,
+        "label": "exponent",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The base: a signal, or a number used while no signal is connected.",
+        "index": 1,
+        "label": "base",
+        "range": "> 0 (0 and below give 0)"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~pow",
+    "outlets": [
+      {
+        "doc": "The base to the power of the exponent.",
+        "index": 0,
+        "label": "out",
+        "range": ">= 0",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Base used while no signal is connected to the right inlet.",
+        "name": "base",
+        "range": "> 0 (0 and below give 0)"
+      }
+    ],
+    "requires_midi_device": false
+  },
+  "~round": {
+    "category": "MATH",
+    "description": "Rounds the input to a multiple of the step: a step of 1, the default, rounds to whole numbers. Rounds to the nearest multiple (halfway values away from zero), or down with 'nearest 0'. A step of 0 passes the input through.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The input: a signal, or a number used while no signal is connected. 'nearest 1' rounds to the nearest multiple, 'nearest 0' rounds down.",
+        "index": 0,
+        "label": "in",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The step: a signal, or a number used while no signal is connected.",
+        "index": 1,
+        "label": "step",
+        "range": "any float, 0 = off"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~round",
+    "outlets": [
+      {
+        "doc": "The input rounded to a multiple of the step.",
+        "index": 0,
+        "label": "out",
+        "range": "any float",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "1",
+        "doc": "Step used while no signal is connected to the right inlet. 0 passes the input through.",
+        "name": "step",
+        "range": "any float"
+      },
+      {
+        "default": "1",
+        "doc": "1 rounds to the nearest multiple, 0 rounds down.",
+        "name": "nearest",
+        "range": "0 or 1"
+      }
+    ],
+    "requires_midi_device": false
+  },
+  "~sampstoms": {
+    "category": "MATH",
+    "description": "Converts samples to milliseconds at the current sample rate. A number or list in is also converted at once and sent from the right outlet.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "Samples: a signal, or a number used while no signal is connected. A number or list is also converted to the right outlet.",
+        "index": 0,
+        "label": "in",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~sampstoms",
+    "outlets": [
+      {
+        "doc": "The time in milliseconds.",
+        "index": 0,
+        "label": "out",
+        "range": "any float",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "Numbers and lists in, converted to milliseconds.",
+        "index": 1,
+        "label": "number",
+        "range": "any float",
+        "type": "ANY"
+      }
+    ],
+    "params": [],
+    "requires_midi_device": false
+  },
   "~saw": {
     "category": "OSC",
     "description": "Audio-rate sawtooth oscillator. Frequency can be set with a float or modulated with a DSP buffer.",
@@ -15138,6 +16729,66 @@
     ],
     "requires_midi_device": false
   },
+  "~sinh": {
+    "category": "MATH",
+    "description": "Outputs the hyperbolic sine of the input. The input is clamped to -88..88 so the result stays finite.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The input: a signal, or a number used while no signal is connected.",
+        "index": 0,
+        "label": "in",
+        "range": "-88 to 88 (clamped)"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~sinh",
+    "outlets": [
+      {
+        "doc": "The hyperbolic sine of the input.",
+        "index": 0,
+        "label": "out",
+        "range": "any float",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [],
+    "requires_midi_device": false
+  },
+  "~sinx": {
+    "category": "MATH",
+    "description": "Outputs the sine of the input, an angle in radians.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "An angle in radians: a signal, or a number used while no signal is connected.",
+        "index": 0,
+        "label": "in",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~sinx",
+    "outlets": [
+      {
+        "doc": "The sine of the input.",
+        "index": 0,
+        "label": "out",
+        "range": "-1 to 1",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [],
+    "requires_midi_device": false
+  },
   "~snapshot": {
     "category": "ANALYSIS",
     "description": "Reports the value of a signal as a number: on a bang, or every interval while reporting is on.",
@@ -15190,6 +16841,96 @@
         "range": "0-127"
       }
     ],
+    "requires_midi_device": false
+  },
+  "~sqrt": {
+    "category": "MATH",
+    "description": "Outputs the square root of the input. Negative input gives 0, so no NaN reaches the graph.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The input: a signal, or a number used while no signal is connected.",
+        "index": 0,
+        "label": "in",
+        "range": ">= 0 (below gives 0)"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~sqrt",
+    "outlets": [
+      {
+        "doc": "The square root of the input.",
+        "index": 0,
+        "label": "out",
+        "range": ">= 0",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [],
+    "requires_midi_device": false
+  },
+  "~tanh": {
+    "category": "MATH",
+    "description": "Outputs the hyperbolic tangent of the input: a smooth soft clipper that bends any signal into -1..1. Scale the signal up first to drive it harder.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The input: a signal, or a number used while no signal is connected.",
+        "index": 0,
+        "label": "in",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~tanh",
+    "outlets": [
+      {
+        "doc": "The hyperbolic tangent of the input.",
+        "index": 0,
+        "label": "out",
+        "range": "-1 to 1",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [],
+    "requires_midi_device": false
+  },
+  "~tanx": {
+    "category": "MATH",
+    "description": "Outputs the tangent of the input, an angle in radians. Near odd multiples of pi/2 the result is very large.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "An angle in radians: a signal, or a number used while no signal is connected.",
+        "index": 0,
+        "label": "in",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~tanx",
+    "outlets": [
+      {
+        "doc": "The tangent of the input.",
+        "index": 0,
+        "label": "out",
+        "range": "any float",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [],
     "requires_midi_device": false
   },
   "~tapin": {
@@ -15265,6 +17006,36 @@
         "range": "one or more ms values"
       }
     ],
+    "requires_midi_device": false
+  },
+  "~trunc": {
+    "category": "MATH",
+    "description": "Outputs the input without its fractional part, rounding toward zero: 1.7 gives 1 and -1.7 gives -1.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The input: a signal, or a number used while no signal is connected.",
+        "index": 0,
+        "label": "in",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~trunc",
+    "outlets": [
+      {
+        "doc": "The input truncated toward zero.",
+        "index": 0,
+        "label": "out",
+        "range": "any whole number",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [],
     "requires_midi_device": false
   },
   "~vcf": {

@@ -70,6 +70,13 @@ set(YSE_SRCS
   dsp/fm/msfa/dx7note.cc
   dsp/oscillators.cpp
   dsp/generators/phasor.cpp
+  dsp/operators/arithmetic.cpp
+  dsp/operators/accumulator.cpp
+  dsp/operators/compare.cpp
+  dsp/operators/trig.cpp
+  dsp/operators/rounding.cpp
+  dsp/operators/bitwise.cpp
+  dsp/operators/units.cpp
   dsp/delay/delayLine.cpp
   dsp/delay/delayTap.cpp
   dsp/ramp.cpp
@@ -266,6 +273,15 @@ set(YSE_SRCS
   patcher/math/dAdd.cpp
   patcher/math/dClip.cpp
   patcher/math/dDivide.cpp
+  patcher/math/dReverseSubstract.cpp
+  patcher/math/dReverseDivide.cpp
+  patcher/math/dModulo.cpp
+  patcher/math/dPlusEquals.cpp
+  patcher/math/dCompare.cpp
+  patcher/math/dTrig.cpp
+  patcher/math/dSignalMath.cpp
+  patcher/math/dBitwise.cpp
+  patcher/math/dConvert.cpp
   patcher/math/dMultiply.cpp
   patcher/math/dSubstract.cpp
   patcher/math/gAccum.cpp
@@ -642,6 +658,15 @@ set_source_files_properties(
   patcher/math/dAdd.cpp
   patcher/math/dClip.cpp
   patcher/math/dDivide.cpp
+  patcher/math/dReverseSubstract.cpp
+  patcher/math/dReverseDivide.cpp
+  patcher/math/dModulo.cpp
+  patcher/math/dPlusEquals.cpp
+  patcher/math/dCompare.cpp
+  patcher/math/dTrig.cpp
+  patcher/math/dSignalMath.cpp
+  patcher/math/dBitwise.cpp
+  patcher/math/dConvert.cpp
   patcher/math/dMultiply.cpp
   patcher/math/dSubstract.cpp
   patcher/math/gAccum.cpp

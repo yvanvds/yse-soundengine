@@ -14,7 +14,21 @@ namespace YSE {
    *  - DSP analysis: ``D_SNAPSHOT``.
    *  - DSP delay: `D_TAPIN`, `D_TAPOUT`.
    *  - DSP sampling: ``D_BUFFER``.
-   *  - DSP math: ``D_ADD``, ``D_MULTIPLY``, ``D_CLIP``.
+   *  - DSP math: ``D_ADD``, ``D_MULTIPLY``, ``D_CLIP``, ``D_REVERSESUBSTRACT``,
+   *    ``D_REVERSEDIVIDE``, ``D_MODULO``, ``D_PLUSEQUALS``.
+   *  - DSP comparison: ``D_EQUAL``,
+   * ``D_NOTEQUAL``, ``D_GREATER``, ``D_GREATEREQUAL``,
+   *    ``D_LESS``, ``D_LESSEQUAL``,
+   * ``D_MINIMUM``, ``D_MAXIMUM``.
+   *  - DSP trigonometry: ``D_COS`` (0..1 phase), ``D_COSX``, ``D_SINX``,
+   *    ``D_TANX``, ``D_ACOS``, ``D_ASIN``, ``D_ATAN``, ``D_ATAN2``, ``D_COSH``,
+   *    `D_SINH`, `D_TANH`, `D_ACOSH`, `D_ASINH`, `D_ATANH`.
+   *  - DSP elementary math: `D_ABS`, `D_SQRT`, `D_POW` (exponent left,
+   *    base right, as Max's `pow~`), `D_LOG`, `D_ROUND`, `D_TRUNC`.
+   *  - DSP bitwise: `D_BITAND`, `D_BITOR`, `D_BITXOR`, `D_BITNOT`,
+   *    `D_BITSHIFT`, `D_BITSAFE` (32-bit float patterns or integers).
+   *  - DSP conversion: `D_MTOF`, `D_FTOM`, `D_ATODB`, `D_DBTOA` (dBFS,
+   *    0 dB = 1), `D_MSTOSAMPS`, `D_SAMPSTOMS` (live sample rate).
    *  - Control math: ``G_ADD``, ``G_DIVIDE``, ``G_REVERSESUBSTRACT``,
    *    ``G_REVERSEDIVIDE``, ``G_MODULO``, ``G_INTDIVIDE``.
    *  - Operand order: ``G_SWAP``.
@@ -904,6 +918,50 @@ namespace YSE {
     DEFOBJ(D_SUBSTRACT, "~-");
     DEFOBJ(D_MULTIPLY, "~*");
     DEFOBJ(D_DIVIDE, "~/");
+    DEFOBJ(D_REVERSESUBSTRACT, "~!-");
+    DEFOBJ(D_REVERSEDIVIDE, "~!/");
+    DEFOBJ(D_MODULO, "~%");
+    DEFOBJ(D_PLUSEQUALS, "~+=");
+    DEFOBJ(D_EQUAL, "~==");
+    DEFOBJ(D_NOTEQUAL, "~!=");
+    DEFOBJ(D_GREATER, "~>");
+    DEFOBJ(D_GREATEREQUAL, "~>=");
+    DEFOBJ(D_LESS, "~<");
+    DEFOBJ(D_LESSEQUAL, "~<=");
+    DEFOBJ(D_MINIMUM, "~minimum");
+    DEFOBJ(D_MAXIMUM, "~maximum");
+    DEFOBJ(D_COS, "~cos");
+    DEFOBJ(D_COSX, "~cosx");
+    DEFOBJ(D_SINX, "~sinx");
+    DEFOBJ(D_TANX, "~tanx");
+    DEFOBJ(D_ACOS, "~acos");
+    DEFOBJ(D_ASIN, "~asin");
+    DEFOBJ(D_ATAN, "~atan");
+    DEFOBJ(D_ATAN2, "~atan2");
+    DEFOBJ(D_COSH, "~cosh");
+    DEFOBJ(D_SINH, "~sinh");
+    DEFOBJ(D_TANH, "~tanh");
+    DEFOBJ(D_ACOSH, "~acosh");
+    DEFOBJ(D_ASINH, "~asinh");
+    DEFOBJ(D_ATANH, "~atanh");
+    DEFOBJ(D_ABS, "~abs");
+    DEFOBJ(D_SQRT, "~sqrt");
+    DEFOBJ(D_POW, "~pow");
+    DEFOBJ(D_LOG, "~log");
+    DEFOBJ(D_ROUND, "~round");
+    DEFOBJ(D_TRUNC, "~trunc");
+    DEFOBJ(D_BITAND, "~bitand");
+    DEFOBJ(D_BITOR, "~bitor");
+    DEFOBJ(D_BITXOR, "~bitxor");
+    DEFOBJ(D_BITNOT, "~bitnot");
+    DEFOBJ(D_BITSHIFT, "~bitshift");
+    DEFOBJ(D_BITSAFE, "~bitsafe");
+    DEFOBJ(D_MTOF, "~mtof");
+    DEFOBJ(D_FTOM, "~ftom");
+    DEFOBJ(D_ATODB, "~atodb");
+    DEFOBJ(D_DBTOA, "~dbtoa");
+    DEFOBJ(D_MSTOSAMPS, "~mstosamps");
+    DEFOBJ(D_SAMPSTOMS, "~sampstoms");
 
     DEFOBJ(D_CLIP, "~clip");
 
