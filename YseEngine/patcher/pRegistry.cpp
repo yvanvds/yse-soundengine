@@ -172,6 +172,7 @@
 #include "math/dTrig.h"
 #include "math/dSignalMath.h"
 #include "math/dBitwise.h"
+#include "math/dConvert.h"
 #include "math/dMultiply.h"
 #include "math/pMidiToFrequency.h"
 #include "math/pFrequencyToMidi.h"
@@ -957,6 +958,12 @@ pRegistry::pRegistry() {
   Add(OBJ::D_BITNOT, dBitNot::Create);
   Add(OBJ::D_BITSHIFT, dBitShift::Create);
   Add(OBJ::D_BITSAFE, dBitSafe::Create);
+  Add(OBJ::D_MTOF, dMtof::Create);
+  Add(OBJ::D_FTOM, dFtom::Create);
+  Add(OBJ::D_ATODB, dAtoDb::Create);
+  Add(OBJ::D_DBTOA, dDbtoA::Create);
+  Add(OBJ::D_MSTOSAMPS, dMsToSamps::Create);
+  Add(OBJ::D_SAMPSTOMS, dSampsToMs::Create);
   Add(OBJ::D_CLIP, dClip::Create);
 
   // Generic GUI

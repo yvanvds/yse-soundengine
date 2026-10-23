@@ -100,23 +100,71 @@ namespace YSE {
       YSE::DSP::buffer buffer;
     };
 
-    /** @brief Per-sample MIDI note → Hz conversion. Buffer-rate counterpart of ``MidiToFreq``. */
+    /**
+     *  @brief Per-sample MIDI note → Hz conversion. Buffer-rate counterpart of ``MidiToFreq``.
+     *
+     *  Twelve-tone equal temperament tuned so that the reference note
+     *  (``setRef``, default 69) sounds at the base frequency (``setBase``,
+     *  default 440 Hz): ``base * 2 ** ((note - ref) / 12)``. A base of 0 or
+     *  below, or not finite, counts as 440; a reference that is not finite
+     *  counts as 69. Notes more than 1569 semitones below the reference
+     *  (and NaN) give 0 Hz; notes more than 1430 above it are clamped
+     *  there; a result past the float range gives 0. No NaN or infinity
+     *  leaves this class. The setters are atomic and may be called from any
+     *  thread; processing allocates nothing for blocks of up to
+     *  ``STANDARD_BUFFERSIZE`` samples.
+     */
     class API midiToFreq {
     public:
+      /** @brief The frequency of the reference note, in Hz. */
+      midiToFreq& setBase(Flt value);
+      Flt getBase() const {
+        return base;
+      }
+
+      /** @brief The MIDI note that sounds at the base frequency. */
+      midiToFreq& setRef(Flt value);
+      Flt getRef() const {
+        return ref;
+      }
+
       /** @brief Process ``in`` in place. */
       YSE::DSP::buffer& operator()(YSE::DSP::buffer& in);
 
     private:
+      aFlt base{440.f};
+      aFlt ref{69.f};
       YSE::DSP::buffer buffer;
     };
 
-    /** @brief Per-sample Hz → MIDI note conversion. Buffer-rate counterpart of ``FreqToMidi``. */
+    /**
+     *  @brief Per-sample Hz → MIDI note conversion. Buffer-rate counterpart of ``FreqToMidi``.
+     *
+     *  The inverse of ``midiToFreq``, with the same ``setBase`` / ``setRef``
+     *  tuning: ``ref + 12 * log2(freq / base)``. A frequency of 0 or below
+     *  (and NaN) gives -1500 and an infinite one is clamped to the largest
+     *  float, so no NaN or infinity leaves this class.
+     */
     class API freqToMidi {
     public:
+      /** @brief The frequency of the reference note, in Hz. */
+      freqToMidi& setBase(Flt value);
+      Flt getBase() const {
+        return base;
+      }
+
+      /** @brief The MIDI note that sounds at the base frequency. */
+      freqToMidi& setRef(Flt value);
+      Flt getRef() const {
+        return ref;
+      }
+
       /** @brief Process ``in`` in place. */
       YSE::DSP::buffer& operator()(YSE::DSP::buffer& in);
 
     private:
+      aFlt base{440.f};
+      aFlt ref{69.f};
       YSE::DSP::buffer buffer;
     };
 

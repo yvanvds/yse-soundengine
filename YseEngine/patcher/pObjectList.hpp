@@ -27,6 +27,8 @@ namespace YSE {
    *    base right, as Max's `pow~`), `D_LOG`, `D_ROUND`, `D_TRUNC`.
    *  - DSP bitwise: `D_BITAND`, `D_BITOR`, `D_BITXOR`, `D_BITNOT`,
    *    `D_BITSHIFT`, `D_BITSAFE` (32-bit float patterns or integers).
+   *  - DSP conversion: `D_MTOF`, `D_FTOM`, `D_ATODB`, `D_DBTOA` (dBFS,
+   *    0 dB = 1), `D_MSTOSAMPS`, `D_SAMPSTOMS` (live sample rate).
    *  - Control math: ``G_ADD``, ``G_DIVIDE``, ``G_REVERSESUBSTRACT``,
    *    ``G_REVERSEDIVIDE``, ``G_MODULO``, ``G_INTDIVIDE``.
    *  - Operand order: ``G_SWAP``.
@@ -954,6 +956,12 @@ namespace YSE {
     DEFOBJ(D_BITNOT, "~bitnot");
     DEFOBJ(D_BITSHIFT, "~bitshift");
     DEFOBJ(D_BITSAFE, "~bitsafe");
+    DEFOBJ(D_MTOF, "~mtof");
+    DEFOBJ(D_FTOM, "~ftom");
+    DEFOBJ(D_ATODB, "~atodb");
+    DEFOBJ(D_DBTOA, "~dbtoa");
+    DEFOBJ(D_MSTOSAMPS, "~mstosamps");
+    DEFOBJ(D_SAMPSTOMS, "~sampstoms");
 
     DEFOBJ(D_CLIP, "~clip");
 

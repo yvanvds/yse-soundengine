@@ -164,20 +164,50 @@ YSE::DSP::buffer& YSE::DSP::wrap::operator()(YSE::DSP::buffer& in) {
 
 /*******************************************************************************************/
 
+namespace {
+  // The tuning as used for one block (#1052): a base of 0 or below, or not
+  // finite, is 440 Hz; a reference that is not finite is note 69.
+  inline Flt TuningBase(Flt base) {
+    return (base > 0.f && std::isfinite(base)) ? base : 440.f;
+  }
+
+  inline Flt TuningRef(Flt ref) {
+    return std::isfinite(ref) ? ref : 69.f;
+  }
+
+  constexpr Flt kSemitone = 0.0577622650467f; // ln(2) / 12
+  constexpr Flt kSemitonesPerLn = 17.3123404907f; // 12 / ln(2)
+} // namespace
+
+YSE::DSP::midiToFreq& YSE::DSP::midiToFreq::setBase(Flt value) {
+  base = value;
+  return *this;
+}
+
+YSE::DSP::midiToFreq& YSE::DSP::midiToFreq::setRef(Flt value) {
+  ref = value;
+  return *this;
+}
+
 YSE::DSP::buffer& YSE::DSP::midiToFreq::operator()(YSE::DSP::buffer& in) {
   if (in.getLength() != buffer.getLength()) buffer.resize(in.getLength());
-  Flt* inPtr = in.getPtr();
+  const Flt* inPtr = in.getPtr();
   Flt* outPtr = buffer.getPtr();
-  UInt length = in.getLength();
+  const UInt length = in.getLength();
+  const Flt b = TuningBase(base);
+  const Flt r = TuningRef(ref);
 
-  for (; length--; inPtr++, outPtr++) {
-    Flt f = *inPtr;
-    if (f < -1500)
-      *outPtr = 0;
-    else {
-      if (f > 1499) f = 1499;
-      *outPtr = 8.17579891564f * ::exp(.0577622650f * f);
+  for (UInt i = 0; i < length; ++i) {
+    Flt d = inPtr[i] - r;
+    // -1569 / +1430 semitones around note 69 is the -1500..1499 clamp the
+    // class always had. NaN fails the first compare and gives 0.
+    if (!(d >= -1569.f)) {
+      outPtr[i] = 0.f;
+      continue;
     }
+    if (d > 1430.f) d = 1430.f;
+    const Flt f = b * std::exp(kSemitone * d);
+    outPtr[i] = std::isfinite(f) ? f : 0.f;
   }
 
   return buffer;
@@ -185,19 +215,35 @@ YSE::DSP::buffer& YSE::DSP::midiToFreq::operator()(YSE::DSP::buffer& in) {
 
 /*******************************************************************************************/
 
+YSE::DSP::freqToMidi& YSE::DSP::freqToMidi::setBase(Flt value) {
+  base = value;
+  return *this;
+}
+
+YSE::DSP::freqToMidi& YSE::DSP::freqToMidi::setRef(Flt value) {
+  ref = value;
+  return *this;
+}
+
 YSE::DSP::buffer& YSE::DSP::freqToMidi::operator()(YSE::DSP::buffer& in) {
   if (in.getLength() != buffer.getLength()) buffer.resize(in.getLength());
-  Flt* inPtr = in.getPtr();
+  const Flt* inPtr = in.getPtr();
   Flt* outPtr = buffer.getPtr();
-  UInt length = in.getLength();
+  const UInt length = in.getLength();
+  const Flt logBase = std::log(TuningBase(base));
+  const Flt r = TuningRef(ref);
 
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wunused-value"
-  for (; length--; *inPtr++, *outPtr++) {
-    Flt f = *inPtr;
-    *outPtr = (f > 0 ? 17.3123405046f * ::log(.12231220585f * f) : -1500);
+  for (UInt i = 0; i < length; ++i) {
+    Flt f = inPtr[i];
+    // 0, below 0 and NaN have no pitch (#1017); infinity is clamped so the
+    // logarithm stays finite.
+    if (!(f > 0.f)) {
+      outPtr[i] = -1500.f;
+      continue;
+    }
+    if (f > std::numeric_limits<Flt>::max()) f = std::numeric_limits<Flt>::max();
+    outPtr[i] = r + kSemitonesPerLn * (std::log(f) - logBase);
   }
-#pragma clang diagnostic pop
   return buffer;
 }
 
