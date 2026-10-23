@@ -33,22 +33,20 @@ namespace {
   }
 } // namespace
 
-YSE::INTERNAL::threadPoolJob::threadPoolJob() : shouldStop(false), inQueue(false), isDone(false) {}
+YSE::INTERNAL::threadPoolJob::threadPoolJob() : shouldStop(false), queued(0) {}
 
 YSE::INTERNAL::threadPoolJob::~threadPoolJob() {
   join();
 }
 
 void YSE::INTERNAL::threadPoolJob::join() {
-  // Wait on inQueue, not isDone (issue #239). activate() (and shutdown()) write
-  // inQueue=false *after* isDone=true, so inQueue is the worker's genuinely last
-  // store into this job. Spinning on isDone let join() return in the window
-  // between those two stores; the owner could then destroy the job while the
-  // worker still had inQueue=false pending, landing that store in freed (or
-  // reused) memory — a teardown use-after-free the TSan CI caught on the patcher
-  // suite. Waiting on inQueue guarantees the worker is completely finished with
-  // this job's memory before join() returns. A job that was never queued has
-  // inQueue==false and returns immediately.
+  // Wait for the queued count to reach zero. The worker's subtraction in
+  // release() is its genuinely last store into this job (issue #239: an earlier
+  // join() returned before the worker's final store, which then landed in freed
+  // memory). A job that was never queued has a zero count and returns
+  // immediately. A start() made while run() is executing keeps the count above
+  // zero, so join() also waits for the extra run that start() asked for
+  // (issue #1190).
   //
   // Background jobs are joined from control threads and teardown paths, never
   // from the audio callback, so the wait may yield. (The render path's
@@ -56,7 +54,7 @@ void YSE::INTERNAL::threadPoolJob::join() {
   // runs on the renderScheduler, issue #859.)
   constexpr int YIELD_AFTER = 8192;
   int spins = 0;
-  while (inQueue) {
+  while (isQueued()) {
     if (spins < YIELD_AFTER) {
       cpuRelax();
       ++spins;
@@ -66,16 +64,34 @@ void YSE::INTERNAL::threadPoolJob::join() {
   }
 }
 
+void YSE::INTERNAL::threadPoolJob::release(std::uint32_t n) {
+  // A plain fetch_sub could wrap: shutdown() zeroes the count of a job it
+  // drains from the ring even if a worker is running that job right now, and
+  // that worker then subtracts its own snapshot. Clamp at zero instead.
+  // Lock-free; only contended by a concurrent start() or shutdown().
+  std::uint32_t cur = queued.load();
+  while (!queued.compare_exchange_weak(cur, cur > n ? cur - n : 0)) {}
+}
+
 void YSE::INTERNAL::threadPoolJob::activate() {
-  // Only run when the job is live, but ALWAYS clear the queued flags on the way
-  // out — even on the stopped/already-done early-out. join() waits on inQueue
-  // (issue #239), so an activate() that returned without clearing it would leave
-  // a stopped-but-queued job spinning any future join() forever (issue #285).
-  // Preserve the #239 store order: isDone must land before inQueue so a racing
-  // join()'s trailing store can't land in freed memory.
-  if (!shouldStop && !isDone) run();
-  isDone = true;
-  inQueue = false;
+  // Snapshot the outstanding start()s, run once for all of them, then subtract
+  // exactly that snapshot (issue #1190). A start() that lands while run() is
+  // executing is not in the snapshot, so it leaves the count above zero: its
+  // own ring entry is popped next and runs run() again, and join()/isQueued()
+  // keep reporting the job as queued until it has. The old inQueue/isDone
+  // epilogue overwrote such a start() instead, and the re-pushed entry was then
+  // skipped as already done.
+  //
+  // A snapshot of zero means an earlier activate() already ran for this entry
+  // (the job was pushed twice before a worker reached it), so there is nothing
+  // to do. A stopped job is not run, but the count is still released on the way
+  // out, or a later join() would spin forever (issue #285).
+  const std::uint32_t n = queued.load();
+  if (n == 0) return;
+  if (!shouldStop) run();
+  // Last store into this job: once the count reaches zero, join() may return and
+  // the owner may destroy it (issue #239).
+  release(n);
 }
 
 YSE::INTERNAL::threadPoolThread::threadPoolThread(threadPool* pool) : pool(pool) {}
@@ -111,16 +127,12 @@ void YSE::INTERNAL::threadPool::shutdown() {
   active = false;
 
   // Release any queued jobs so a pending join() returns instead of spinning
-  // forever. Marking inQueue=false is enough (join() exits on !inQueue); we do
-  // not run them. getJob() stops popping once active is false.
+  // forever. Zeroing the queued count is enough (join() exits on zero); we do
+  // not run them. getJob() stops popping once active is false. The store is the
+  // last one this drain makes into the job (issue #239).
   threadPoolJob* job = nullptr;
   while (jobs.try_pop(job)) {
-    // inQueue must be the last store, matching activate() and join()'s wait
-    // flag (issue #239): a join() racing this drain returns only once inQueue is
-    // clear, so isDone must land first or the trailing store lands in freed
-    // memory.
-    job->isDone = true;
-    job->inQueue = false;
+    job->queued.store(0);
   }
 
   for (auto i = threads.begin(); i != threads.end(); ++i) {
@@ -139,11 +151,11 @@ void YSE::INTERNAL::threadPool::addJob(threadPoolJob* job) {
   if (jobs.try_push(job)) return;
 
   // Ring full. Never run inline (the caller may be the audio thread and the
-  // work touches disk): clear the queued flag and drop it; the manager/refill
-  // schedulers are self-healing and re-enqueue next tick. Effectively
-  // unreachable at the chosen capacity.
+  // work touches disk): take back this push's count and drop it; the
+  // manager/refill schedulers are self-healing and re-enqueue next tick.
+  // Effectively unreachable at the chosen capacity.
   assert(false && "background threadPool ring overflow");
-  job->inQueue = false;
+  job->release(1);
 }
 
 YSE::INTERNAL::threadPoolJob* YSE::INTERNAL::threadPool::getJob() {

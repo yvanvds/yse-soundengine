@@ -989,6 +989,43 @@ TEST_SUITE("patcher") {
       CHECK(values[i] >= values[i - 1]);
   }
 
+  TEST_CASE("concurrency: back-to-back bridge requests are never lost (#1190)") {
+    // What `gClocker::Start` does from the audio thread: a RequestStop and a
+    // RequestStart on one slot in a row. RunSlot clears `pending` inside the
+    // pool job's run(), so the second request can push the job again while the
+    // worker is still inside it. Before #1190 the worker's activate() epilogue
+    // then overwrote that push: the re-queued entry was skipped as already done,
+    // the request was never reconciled, and `pending` stayed set, so every later
+    // request on the slot coalesced into a job that would never run.
+    //
+    // The window is a few instructions wide, so this hammers it: a requester
+    // that issues pairs as fast as it can tends to win `pending` right after the
+    // worker clears it. Whatever happened in between, a final stop and a final
+    // start, each joined, must leave the timer off and then on.
+    auto noop = [](void*) {};
+    YSE::PATCHER::timerBridge& bridge = YSE::PATCHER::TimerBridge();
+    const std::size_t before = YSE::PATCHER::TimerThread().size();
+    const YSE::PATCHER::timerBridge::Handle h = bridge.Claim(noop, nullptr);
+    REQUIRE(h != 0);
+
+    constexpr int kRounds = 2000;
+    for (int i = 0; i < kRounds; i++) {
+      bridge.RequestStop(h);
+      bridge.RequestStart(h, kNeverFires);
+    }
+
+    bridge.RequestStop(h);
+    bridge.WaitIdle();
+    CHECK(YSE::PATCHER::TimerThread().size() == before);
+
+    bridge.RequestStart(h, kNeverFires);
+    bridge.WaitIdle();
+    CHECK(YSE::PATCHER::TimerThread().size() == before + 1);
+
+    bridge.Release(h);
+    CHECK(YSE::PATCHER::TimerThread().size() == before);
+  }
+
 } // TEST_SUITE
 
 // ─── the beat engine (issue #725) ────────────────────────────────────────────
