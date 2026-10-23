@@ -76,6 +76,7 @@
 #include "dsp/operators/compare.hpp"
 #include "dsp/operators/trig.hpp"
 #include "dsp/operators/rounding.hpp"
+#include "dsp/operators/bitwise.hpp"
 #include "dsp/delay/delayLine.hpp"
 #include "dsp/delay/delayTap.hpp"
 #include "dsp/sampling/sampleBuffer.hpp"

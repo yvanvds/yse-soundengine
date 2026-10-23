@@ -15353,6 +15353,278 @@
     "params": [],
     "requires_midi_device": false
   },
+  "~bitand": {
+    "category": "MATH",
+    "description": "Bitwise and of the input with a mask or a second signal: a bit stays 1 only where both have a 1. Clearing low mantissa bits is a coarse bitcrusher. Samples are 32-bit floats, read as raw bit patterns or converted to integers (see mode).",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The input: a signal, or a number used while no signal is connected. 'bits' and up to 32 ones and zeros (most significant first) set the mask; 'mode 0-3' sets the mode.",
+        "index": 0,
+        "label": "in",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The mask: an int is used as a 32-bit pattern, a float is read as the mode reads the right operand. A connected signal is used sample by sample instead.",
+        "index": 1,
+        "label": "mask",
+        "range": "any int or float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~bitand",
+    "outlets": [
+      {
+        "doc": "The bitwise and of the input and the mask.",
+        "index": 0,
+        "label": "out",
+        "range": "any float, never NaN or infinity",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "32-bit mask used while no signal is connected to the right inlet.",
+        "name": "mask",
+        "range": "any int"
+      },
+      {
+        "default": "0",
+        "doc": "0: both operands as raw float bits. 1: both converted to integers. 2: input raw, mask integer. 3: input integer, mask raw.",
+        "name": "mode",
+        "range": "0 to 3"
+      }
+    ],
+    "requires_midi_device": false
+  },
+  "~bitnot": {
+    "category": "MATH",
+    "description": "Inverts every bit of the input. Samples are 32-bit floats: in mode 0 the raw bit pattern is flipped (a result that would be NaN or infinity gives 0), in mode 1 the sample is converted to an integer n first and gives -n - 1.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The input: a signal, or a number used while no signal is connected. 'mode 0' or 'mode 1' sets the mode.",
+        "index": 0,
+        "label": "in",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~bitnot",
+    "outlets": [
+      {
+        "doc": "The input with every bit inverted.",
+        "index": 0,
+        "label": "out",
+        "range": "any float, never NaN or infinity",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "0 reads samples as raw 32-bit float patterns, 1 converts them to integers first.",
+        "name": "mode",
+        "range": "0 or 1"
+      }
+    ],
+    "requires_midi_device": false
+  },
+  "~bitor": {
+    "category": "MATH",
+    "description": "Bitwise or of the input with a mask or a second signal: a bit is 1 where either has a 1. Samples are 32-bit floats, read as raw bit patterns or converted to integers (see mode). A result that would be NaN or infinity gives 0.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The input: a signal, or a number used while no signal is connected. 'bits' and up to 32 ones and zeros (most significant first) set the mask; 'mode 0-3' sets the mode.",
+        "index": 0,
+        "label": "in",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The mask: an int is used as a 32-bit pattern, a float is read as the mode reads the right operand. A connected signal is used sample by sample instead.",
+        "index": 1,
+        "label": "mask",
+        "range": "any int or float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~bitor",
+    "outlets": [
+      {
+        "doc": "The bitwise or of the input and the mask.",
+        "index": 0,
+        "label": "out",
+        "range": "any float, never NaN or infinity",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "32-bit mask used while no signal is connected to the right inlet.",
+        "name": "mask",
+        "range": "any int"
+      },
+      {
+        "default": "0",
+        "doc": "0: both operands as raw float bits. 1: both converted to integers. 2: input raw, mask integer. 3: input integer, mask raw.",
+        "name": "mode",
+        "range": "0 to 3"
+      }
+    ],
+    "requires_midi_device": false
+  },
+  "~bitsafe": {
+    "category": "MATH",
+    "description": "Replaces NaN and infinite samples with 0 and passes every other sample through. Put it at the end of a feedback chain so one bad sample cannot stay in the loop.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The input: a signal, or a number used while no signal is connected.",
+        "index": 0,
+        "label": "in",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~bitsafe",
+    "outlets": [
+      {
+        "doc": "The input with NaN and infinity replaced by 0.",
+        "index": 0,
+        "label": "out",
+        "range": "any finite float",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [],
+    "requires_midi_device": false
+  },
+  "~bitshift": {
+    "category": "MATH",
+    "description": "Shifts the bits of the input: positive shifts left, negative right. Samples are 32-bit floats: mode 0 shifts the raw bit pattern (a NaN or infinite result gives 0), mode 1 converts to an integer first, so each bit left doubles it and each bit right halves it.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The input: a signal, or a number used while no signal is connected. 'shift n' sets the shift, 'mode 0' or 'mode 1' the mode.",
+        "index": 0,
+        "label": "in",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~bitshift",
+    "outlets": [
+      {
+        "doc": "The input with its bits shifted.",
+        "index": 0,
+        "label": "out",
+        "range": "any float, never NaN or infinity",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Bits to shift: positive moves left, negative moves right.",
+        "name": "shift",
+        "range": "-32 to 32 (beyond empties the word)"
+      },
+      {
+        "default": "0",
+        "doc": "0 reads samples as raw 32-bit float patterns, 1 converts them to integers first.",
+        "name": "mode",
+        "range": "0 or 1"
+      }
+    ],
+    "requires_midi_device": false
+  },
+  "~bitxor": {
+    "category": "MATH",
+    "description": "Bitwise exclusive-or of the input with a mask or a second signal: a bit is 1 where exactly one has a 1. Samples are 32-bit floats, read as raw bit patterns or converted to integers (see mode). A result that would be NaN or infinity gives 0.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The input: a signal, or a number used while no signal is connected. 'bits' and up to 32 ones and zeros (most significant first) set the mask; 'mode 0-3' sets the mode.",
+        "index": 0,
+        "label": "in",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The mask: an int is used as a 32-bit pattern, a float is read as the mode reads the right operand. A connected signal is used sample by sample instead.",
+        "index": 1,
+        "label": "mask",
+        "range": "any int or float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~bitxor",
+    "outlets": [
+      {
+        "doc": "The bitwise exclusive-or of the input and the mask.",
+        "index": 0,
+        "label": "out",
+        "range": "any float, never NaN or infinity",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "32-bit mask used while no signal is connected to the right inlet.",
+        "name": "mask",
+        "range": "any int"
+      },
+      {
+        "default": "0",
+        "doc": "0: both operands as raw float bits. 1: both converted to integers. 2: input raw, mask integer. 3: input integer, mask raw.",
+        "name": "mode",
+        "range": "0 to 3"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~bp": {
     "category": "FILTER",
     "description": "Bandpass filter. Passes a frequency band centered on 'frequency' with bandwidth shaped by 'Q' (resonance).",

@@ -25,6 +25,8 @@ namespace YSE {
    *    `D_SINH`, `D_TANH`, `D_ACOSH`, `D_ASINH`, `D_ATANH`.
    *  - DSP elementary math: `D_ABS`, `D_SQRT`, `D_POW` (exponent left,
    *    base right, as Max's `pow~`), `D_LOG`, `D_ROUND`, `D_TRUNC`.
+   *  - DSP bitwise: `D_BITAND`, `D_BITOR`, `D_BITXOR`, `D_BITNOT`,
+   *    `D_BITSHIFT`, `D_BITSAFE` (32-bit float patterns or integers).
    *  - Control math: ``G_ADD``, ``G_DIVIDE``, ``G_REVERSESUBSTRACT``,
    *    ``G_REVERSEDIVIDE``, ``G_MODULO``, ``G_INTDIVIDE``.
    *  - Operand order: ``G_SWAP``.
@@ -946,6 +948,12 @@ namespace YSE {
     DEFOBJ(D_LOG, "~log");
     DEFOBJ(D_ROUND, "~round");
     DEFOBJ(D_TRUNC, "~trunc");
+    DEFOBJ(D_BITAND, "~bitand");
+    DEFOBJ(D_BITOR, "~bitor");
+    DEFOBJ(D_BITXOR, "~bitxor");
+    DEFOBJ(D_BITNOT, "~bitnot");
+    DEFOBJ(D_BITSHIFT, "~bitshift");
+    DEFOBJ(D_BITSAFE, "~bitsafe");
 
     DEFOBJ(D_CLIP, "~clip");
 

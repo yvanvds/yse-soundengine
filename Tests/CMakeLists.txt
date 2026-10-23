@@ -19,6 +19,7 @@ set(YSE_TEST_SOURCES
   dsp/test_compare.cpp
   dsp/test_trig.cpp
   dsp/test_rounding.cpp
+  dsp/test_bitwise.cpp
   dsp/test_delayLine.cpp
   dsp/test_sampleBuffer.cpp
   dsp/test_smoother.cpp
@@ -167,6 +168,7 @@ set(YSE_TEST_SOURCES
   patcher/test_patcher_signal_compare.cpp
   patcher/test_patcher_signal_trig.cpp
   patcher/test_patcher_signal_math.cpp
+  patcher/test_patcher_signal_bitwise.cpp
   patcher/test_patcher_signal_loops.cpp
   patcher/test_patcher_tapin_tapout.cpp
   patcher/test_patcher_buffer.cpp
@@ -1258,6 +1260,7 @@ set_source_files_properties(
   patcher/test_patcher_signal_compare.cpp
   patcher/test_patcher_signal_trig.cpp
   patcher/test_patcher_signal_math.cpp
+  patcher/test_patcher_signal_bitwise.cpp
   patcher/test_patcher_signal_loops.cpp
   patcher/test_patcher_tapin_tapout.cpp
   patcher/test_patcher_buffer.cpp
