@@ -22,7 +22,9 @@ namespace YSE {
    * ``D_MINIMUM``, ``D_MAXIMUM``.
    *  - DSP trigonometry: ``D_COS`` (0..1 phase), ``D_COSX``, ``D_SINX``,
    *    ``D_TANX``, ``D_ACOS``, ``D_ASIN``, ``D_ATAN``, ``D_ATAN2``, ``D_COSH``,
-   *    ``D_SINH``, ``D_TANH``, ``D_ACOSH``, ``D_ASINH``, ``D_ATANH``.
+   *    `D_SINH`, `D_TANH`, `D_ACOSH`, `D_ASINH`, `D_ATANH`.
+   *  - DSP elementary math: `D_ABS`, `D_SQRT`, `D_POW` (exponent left,
+   *    base right, as Max's `pow~`), `D_LOG`, `D_ROUND`, `D_TRUNC`.
    *  - Control math: ``G_ADD``, ``G_DIVIDE``, ``G_REVERSESUBSTRACT``,
    *    ``G_REVERSEDIVIDE``, ``G_MODULO``, ``G_INTDIVIDE``.
    *  - Operand order: ``G_SWAP``.
@@ -938,6 +940,12 @@ namespace YSE {
     DEFOBJ(D_ACOSH, "~acosh");
     DEFOBJ(D_ASINH, "~asinh");
     DEFOBJ(D_ATANH, "~atanh");
+    DEFOBJ(D_ABS, "~abs");
+    DEFOBJ(D_SQRT, "~sqrt");
+    DEFOBJ(D_POW, "~pow");
+    DEFOBJ(D_LOG, "~log");
+    DEFOBJ(D_ROUND, "~round");
+    DEFOBJ(D_TRUNC, "~trunc");
 
     DEFOBJ(D_CLIP, "~clip");
 

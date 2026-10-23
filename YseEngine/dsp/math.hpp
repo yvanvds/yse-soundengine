@@ -77,7 +77,8 @@ namespace YSE {
      *  @brief Fast square root (~8 mantissa bits of precision).
      *
      *  Same trade-off as ``rSqrt`` — cheaper than the standard library, less
-     *  precise. Use in DSP paths where speed matters.
+     *  precise. Use in DSP paths where speed matters. Negative, NaN and
+     *  infinite input give 0, so no NaN or infinity leaves this class.
      */
     class API sqrt {
     public:
@@ -159,11 +160,19 @@ namespace YSE {
       YSE::DSP::buffer buffer;
     };
 
-    /** @brief Per-sample power: ``in1[i] ** in2[i]``. */
+    /**
+     *  @brief Per-sample power: ``base[i] ** exponent[i]``.
+     *
+     *  The base comes first. A base of 0 or below gives 0 (there is no real
+     *  power of a negative base for most exponents), and so does a result
+     *  past the float range or a NaN operand: no NaN or infinity leaves this
+     *  class. The patcher's ``~pow`` takes the two the other way round, as
+     *  Max's ``pow~`` does; the class does not.
+     */
     class API pow {
     public:
-      /** @brief Compute ``in1[i] ** in2[i]`` in place. */
-      YSE::DSP::buffer& operator()(YSE::DSP::buffer& in1, YSE::DSP::buffer& in2);
+      /** @brief Compute ``base[i] ** exponent[i]``. */
+      YSE::DSP::buffer& operator()(YSE::DSP::buffer& base, YSE::DSP::buffer& exponent);
 
     private:
       YSE::DSP::buffer buffer;
@@ -179,11 +188,18 @@ namespace YSE {
       YSE::DSP::buffer buffer;
     };
 
-    /** @brief Per-sample logarithm with arbitrary base (``log_{in2}(in1)``). */
+    /**
+     *  @brief Per-sample logarithm with arbitrary base (``log_{base}(in)``).
+     *
+     *  An input of 0 or below has no logarithm and gives 0. A base of 0 or
+     *  below, or of 1, falls back to the natural logarithm. Anything still
+     *  not finite (a NaN, an infinite input) gives 0, so no NaN or infinity
+     *  leaves this class.
+     */
     class API log {
     public:
-      /** @brief Compute ``log_{in2}(in1)`` in place. */
-      YSE::DSP::buffer& operator()(YSE::DSP::buffer& in1, YSE::DSP::buffer& in2);
+      /** @brief Compute ``log_{base[i]}(in[i])``. */
+      YSE::DSP::buffer& operator()(YSE::DSP::buffer& in, YSE::DSP::buffer& base);
 
     private:
       YSE::DSP::buffer buffer;

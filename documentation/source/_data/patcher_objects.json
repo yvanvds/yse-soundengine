@@ -15070,6 +15070,36 @@
     ],
     "requires_midi_device": false
   },
+  "~abs": {
+    "category": "MATH",
+    "description": "Outputs the absolute value of the input: negative samples are made positive. A full-wave rectifier.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The input: a signal, or a number used while no signal is connected.",
+        "index": 0,
+        "label": "in",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~abs",
+    "outlets": [
+      {
+        "doc": "The absolute value of the input.",
+        "index": 0,
+        "label": "out",
+        "range": ">= 0",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [],
+    "requires_midi_device": false
+  },
   "~acos": {
     "category": "MATH",
     "description": "Outputs the arc-cosine of the input in radians. Input outside -1..1 is clamped to it, so no NaN reaches the graph.",
@@ -15737,6 +15767,54 @@
     ],
     "requires_midi_device": false
   },
+  "~log": {
+    "category": "MATH",
+    "description": "Outputs the logarithm of the input in the given base (e by default). An input of 0 or below gives 0, so no NaN or infinity reaches the graph; a base of 0 or below, or of 1, falls back to the natural logarithm.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The input: a signal, or a number used while no signal is connected.",
+        "index": 0,
+        "label": "in",
+        "range": "> 0 (0 and below give 0)"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The base: a signal, or a number used while no signal is connected.",
+        "index": 1,
+        "label": "base",
+        "range": "> 0, not 1"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~log",
+    "outlets": [
+      {
+        "doc": "The logarithm of the input.",
+        "index": 0,
+        "label": "out",
+        "range": "any float",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "2.718282",
+        "doc": "Base used while no signal is connected to the right inlet.",
+        "name": "base",
+        "range": "> 0, not 1"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~lp": {
     "category": "FILTER",
     "description": "Single-pole lowpass filter. Attenuates content above the cutoff frequency.",
@@ -15983,6 +16061,108 @@
     ],
     "requires_midi_device": false
   },
+  "~pow": {
+    "category": "MATH",
+    "description": "Raises the base (right inlet) to the power of the exponent (left inlet): the order is the reverse of .pow. A base of 0 or below, or a result too large for a float, gives 0.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The exponent: a signal, or a number used while no signal is connected.",
+        "index": 0,
+        "label": "exponent",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The base: a signal, or a number used while no signal is connected.",
+        "index": 1,
+        "label": "base",
+        "range": "> 0 (0 and below give 0)"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~pow",
+    "outlets": [
+      {
+        "doc": "The base to the power of the exponent.",
+        "index": 0,
+        "label": "out",
+        "range": ">= 0",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Base used while no signal is connected to the right inlet.",
+        "name": "base",
+        "range": "> 0 (0 and below give 0)"
+      }
+    ],
+    "requires_midi_device": false
+  },
+  "~round": {
+    "category": "MATH",
+    "description": "Rounds the input to a multiple of the step: a step of 1, the default, rounds to whole numbers. Rounds to the nearest multiple (halfway values away from zero), or down with 'nearest 0'. A step of 0 passes the input through.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The input: a signal, or a number used while no signal is connected. 'nearest 1' rounds to the nearest multiple, 'nearest 0' rounds down.",
+        "index": 0,
+        "label": "in",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The step: a signal, or a number used while no signal is connected.",
+        "index": 1,
+        "label": "step",
+        "range": "any float, 0 = off"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~round",
+    "outlets": [
+      {
+        "doc": "The input rounded to a multiple of the step.",
+        "index": 0,
+        "label": "out",
+        "range": "any float",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "1",
+        "doc": "Step used while no signal is connected to the right inlet. 0 passes the input through.",
+        "name": "step",
+        "range": "any float"
+      },
+      {
+        "default": "1",
+        "doc": "1 rounds to the nearest multiple, 0 rounds down.",
+        "name": "nearest",
+        "range": "0 or 1"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~saw": {
     "category": "OSC",
     "description": "Audio-rate sawtooth oscillator. Frequency can be set with a float or modulated with a DSP buffer.",
@@ -16169,6 +16349,36 @@
     ],
     "requires_midi_device": false
   },
+  "~sqrt": {
+    "category": "MATH",
+    "description": "Outputs the square root of the input. Negative input gives 0, so no NaN reaches the graph.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The input: a signal, or a number used while no signal is connected.",
+        "index": 0,
+        "label": "in",
+        "range": ">= 0 (below gives 0)"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~sqrt",
+    "outlets": [
+      {
+        "doc": "The square root of the input.",
+        "index": 0,
+        "label": "out",
+        "range": ">= 0",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [],
+    "requires_midi_device": false
+  },
   "~tanh": {
     "category": "MATH",
     "description": "Outputs the hyperbolic tangent of the input: a smooth soft clipper that bends any signal into -1..1. Scale the signal up first to drive it harder.",
@@ -16302,6 +16512,36 @@
         "range": "one or more ms values"
       }
     ],
+    "requires_midi_device": false
+  },
+  "~trunc": {
+    "category": "MATH",
+    "description": "Outputs the input without its fractional part, rounding toward zero: 1.7 gives 1 and -1.7 gives -1.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The input: a signal, or a number used while no signal is connected.",
+        "index": 0,
+        "label": "in",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~trunc",
+    "outlets": [
+      {
+        "doc": "The input truncated toward zero.",
+        "index": 0,
+        "label": "out",
+        "range": "any whole number",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [],
     "requires_midi_device": false
   },
   "~vcf": {

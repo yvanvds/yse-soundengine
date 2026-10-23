@@ -129,7 +129,9 @@ YSE::DSP::buffer& YSE::DSP::sqrt::operator()(YSE::DSP::buffer& in) {
   while (length--) {
     Flt f = *inPtr;
     Int l = *(Int*)(inPtr++);
-    if (f < 0)
+    // Negative, NaN and infinite input give 0, so no NaN or infinity leaves
+    // (#1050).
+    if (!(f >= 0) || !std::isfinite(f))
       *outPtr++ = 0;
     else {
       Flt g = rsqrt_exptab[(l >> 23) & 0xff] * rsqrt_mantissatab[(l >> 13) & 0x3ff];
@@ -302,12 +304,12 @@ YSE::DSP::buffer& YSE::DSP::pow::operator()(YSE::DSP::buffer& in1, YSE::DSP::buf
   Flt* outPtr = buffer.getPtr();
   UInt length = in1.getLength();
 
+  // A base of 0 or below gives 0, and so does a result past the float range
+  // (or a NaN operand): no NaN or infinity leaves (#1050).
   while (length--) {
     Flt f = *in1Ptr++;
-    if (f > 0)
-      *outPtr = ::pow(f, *in2Ptr);
-    else
-      *outPtr = 0;
+    Flt r = f > 0 ? ::pow(f, *in2Ptr) : 0;
+    *outPtr = std::isfinite(r) ? r : 0;
     outPtr++;
     in2Ptr++;
   }
@@ -338,14 +340,15 @@ YSE::DSP::buffer& YSE::DSP::log::operator()(YSE::DSP::buffer& in1, YSE::DSP::buf
   Flt* outPtr = buffer.getPtr();
   UInt length = in1.getLength();
 
+  // An input of 0 or below has no logarithm: it gives 0. A base of 0 or
+  // below, or of 1, has none either: the natural logarithm is used instead.
+  // Anything still not finite (a NaN, an infinite input) gives 0, so no NaN
+  // or infinity leaves (#1050).
   while (length--) {
     Flt f = *in1Ptr++, g = *in2Ptr++;
-    if (f <= 0)
-      *outPtr = ::log(f);
-    else if (g <= 0)
-      *outPtr = ::log(f);
-    else
-      *outPtr = ::log(f) / ::log(g);
+    Flt r = 0;
+    if (f > 0) r = (g > 0 && g != 1) ? ::log(f) / ::log(g) : ::log(f);
+    *outPtr = std::isfinite(r) ? r : 0;
     outPtr++;
   }
 

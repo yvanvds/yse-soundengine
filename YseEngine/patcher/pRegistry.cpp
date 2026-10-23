@@ -170,6 +170,7 @@
 #include "math/dPlusEquals.h"
 #include "math/dCompare.h"
 #include "math/dTrig.h"
+#include "math/dSignalMath.h"
 #include "math/dMultiply.h"
 #include "math/pMidiToFrequency.h"
 #include "math/pFrequencyToMidi.h"
@@ -943,6 +944,12 @@ pRegistry::pRegistry() {
   Add(OBJ::D_ACOSH, dAcosh::Create);
   Add(OBJ::D_ASINH, dAsinh::Create);
   Add(OBJ::D_ATANH, dAtanh::Create);
+  Add(OBJ::D_ABS, dAbs::Create);
+  Add(OBJ::D_SQRT, dSqrt::Create);
+  Add(OBJ::D_POW, dPow::Create);
+  Add(OBJ::D_LOG, dLog::Create);
+  Add(OBJ::D_ROUND, dRound::Create);
+  Add(OBJ::D_TRUNC, dTrunc::Create);
   Add(OBJ::D_CLIP, dClip::Create);
 
   // Generic GUI

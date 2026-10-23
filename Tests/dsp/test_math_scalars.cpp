@@ -11,6 +11,7 @@
 
 #include <doctest/doctest.h>
 #include <cmath>
+#include <limits>
 #include "dsp/math_functions.h"
 #include "dsp/math.hpp"
 
@@ -482,16 +483,15 @@ TEST_SUITE("dsp") {
     CHECK(out.getPtr()[1] == doctest::Approx(2.0f).epsilon(1e-4f));
   }
 
-  TEST_CASE("log class: f<=0 falls back to natural log of f") {
-    // The branch in math.cpp:329 returns ::log(f) when f<=0 (NaN/-inf path).
-    YSE::DSP::buffer in1(1), in2(1);
+  TEST_CASE("log class: an input of 0 or below gives 0, never NaN or -inf (#1050)") {
+    YSE::DSP::buffer in1(2), in2(2);
     in1.getPtr()[0] = -1.0f;
-    in2.getPtr()[0] = 10.0f;
+    in1.getPtr()[1] = 0.0f;
+    in2 = 10.0f;
     YSE::DSP::log l;
     YSE::DSP::buffer& out = l(in1, in2);
-    // log(-1) is NaN — we just verify the branch ran (i.e. result is not the
-    // natural-log change-of-base value that would be produced for f>0).
-    CHECK_FALSE(out.getPtr()[0] > 0.0f);
+    CHECK(out.getPtr()[0] == 0.0f);
+    CHECK(out.getPtr()[1] == 0.0f);
   }
 
   TEST_CASE("log class: g<=0 falls back to natural log of f") {
@@ -516,6 +516,49 @@ TEST_SUITE("dsp") {
     CHECK(out.getPtr()[1] == 0.0f);
     CHECK(out.getPtr()[2] == 1.5f);
     CHECK(out.getPtr()[3] == 7.25f);
+  }
+
+  // --- no NaN or infinity out of sqrt / pow / log (#1050, the ~sqrt ~pow ~log
+  // wrappers) ---
+
+  TEST_CASE("sqrt class: NaN and infinite input give 0 (#1050)") {
+    YSE::DSP::buffer in(3);
+    in.getPtr()[0] = std::numeric_limits<float>::quiet_NaN();
+    in.getPtr()[1] = std::numeric_limits<float>::infinity();
+    in.getPtr()[2] = -std::numeric_limits<float>::infinity();
+    YSE::DSP::sqrt s;
+    YSE::DSP::buffer& out = s(in);
+    for (unsigned i = 0; i < 3; ++i)
+      CHECK(out.getPtr()[i] == 0.0f);
+  }
+
+  TEST_CASE("pow class: overflow and NaN operands give 0 (#1050)") {
+    YSE::DSP::buffer base(3), exponent(3);
+    base.getPtr()[0] = 10.0f;
+    exponent.getPtr()[0] = 100.0f; // 1e100 overflows a float
+    base.getPtr()[1] = std::numeric_limits<float>::quiet_NaN();
+    exponent.getPtr()[1] = 2.0f;
+    base.getPtr()[2] = 2.0f;
+    exponent.getPtr()[2] = std::numeric_limits<float>::quiet_NaN();
+    YSE::DSP::pow p;
+    YSE::DSP::buffer& out = p(base, exponent);
+    for (unsigned i = 0; i < 3; ++i)
+      CHECK(out.getPtr()[i] == 0.0f);
+  }
+
+  TEST_CASE("log class: a base of 1 falls back to the natural log; non-finite gives 0 (#1050)") {
+    YSE::DSP::buffer in1(3), in2(3);
+    in1.getPtr()[0] = std::exp(2.0f);
+    in2.getPtr()[0] = 1.0f; // log base 1 is undefined: natural log
+    in1.getPtr()[1] = std::numeric_limits<float>::infinity();
+    in2.getPtr()[1] = 10.0f;
+    in1.getPtr()[2] = std::numeric_limits<float>::quiet_NaN();
+    in2.getPtr()[2] = 10.0f;
+    YSE::DSP::log l;
+    YSE::DSP::buffer& out = l(in1, in2);
+    CHECK(out.getPtr()[0] == doctest::Approx(2.0f).epsilon(1e-5f));
+    CHECK(out.getPtr()[1] == 0.0f);
+    CHECK(out.getPtr()[2] == 0.0f);
   }
 
   // --- inverter ---
