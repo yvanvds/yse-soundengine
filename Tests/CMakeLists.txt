@@ -163,7 +163,7 @@ set(YSE_TEST_SOURCES
   patcher/test_patcher_phasor.cpp
   patcher/test_patcher_reverse_modulo.cpp
   patcher/test_patcher_plusequals.cpp
-  patcher/test_patcher_compare.cpp
+  patcher/test_patcher_signal_compare.cpp
   patcher/test_patcher_signal_trig.cpp
   patcher/test_patcher_signal_loops.cpp
   patcher/test_patcher_tapin_tapout.cpp
@@ -1253,7 +1253,7 @@ set_source_files_properties(
   patcher/test_patcher_phasor.cpp
   patcher/test_patcher_reverse_modulo.cpp
   patcher/test_patcher_plusequals.cpp
-  patcher/test_patcher_compare.cpp
+  patcher/test_patcher_signal_compare.cpp
   patcher/test_patcher_signal_trig.cpp
   patcher/test_patcher_signal_loops.cpp
   patcher/test_patcher_tapin_tapout.cpp
