@@ -17871,6 +17871,44 @@
     ],
     "requires_midi_device": false
   },
+  "~snowfall": {
+    "category": "OSC",
+    "description": "A particle of one to four values that moves while a 0-1 ramp runs: it starts when the ramp starts and ends when it resets, bouncing, wrapping or stopping at its boundaries. One voice of a cloud of overlapping events.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "The ramp that starts and ends each particle, usually a ~phasor (unconnected, the last number sent here, 0 at first). A particle starts when the ramp rises above 0 or wraps, and ends when it wraps or goes to 0. With a value per dimension: 'direction' the speed in units per second, 'directiondev' a random deviation around it, 'energyramp' how much the ramp speeds the motion up (1: twice as fast at its end), 'initial' the starting value, 'initialdev' a random deviation around it, 'min' and 'max' the boundaries, 'scalemin' and 'scalemax' the output at them, 'squish' the speed factor of a bounce, 'wanderprob' the 0-1 chance of a reversal at each update, 'endvalue' the output once a particle ends. With one value: 'interval <ms>' the time between updates (0: none), 'intervaldev <ms>' a random deviation around it, 'boundarymode <0-3>' at a boundary (0 bounce, 1 end, 2 wrap to the other side, 3 stay), 'endmode <0-1>' the output once a particle ends (0 the end value, 1 the last value), 'startmode <0-1>' where a particle starts (0 the initial value, 1 where the last one left).",
+        "index": 0,
+        "label": "ramp",
+        "range": "0-1"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~snowfall",
+    "outlets": [
+      {
+        "doc": "The value of dimension 1 of the particle, scaled to scalemin - scalemax; once it ends, the end value or the last value.",
+        "index": 0,
+        "label": "out",
+        "range": "",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "1",
+        "doc": "The number of dimensions and outlets, 1 to 4 (also 'dimensions <n>'; set only here). The keywords of the inlet's messages follow it, with their values (defaults: direction 1, deviations 0, energyramp 0, initial 0, min 0, max 1, scalemin 0, scalemax 1, squish 1, wanderprob 0, endvalue 0, interval 100, boundarymode 0, endmode 0, startmode 0). Messages are not saved.",
+        "name": "dimensions",
+        "range": "1-4, then keywords"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~sqrt": {
     "category": "MATH",
     "description": "Outputs the square root of the input. Negative input gives 0, so no NaN reaches the graph.",

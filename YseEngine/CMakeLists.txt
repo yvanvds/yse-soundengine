@@ -94,6 +94,7 @@ set(YSE_SRCS
   dsp/generators/stepFunction.cpp
   dsp/generators/sampleHoldMemory.cpp
   dsp/generators/signalStash.cpp
+  dsp/generators/snowfall.cpp
   dsp/operators/arithmetic.cpp
   dsp/operators/accumulator.cpp
   dsp/operators/compare.cpp
@@ -179,6 +180,7 @@ set(YSE_SRCS
   patcher/generatorObjects/dStepFun.cpp
   patcher/generatorObjects/dSwing.cpp
   patcher/generatorObjects/dTwist.cpp
+  patcher/generatorObjects/dSnowfall.cpp
   patcher/generatorObjects/dPhasor.cpp
   patcher/generatorObjects/dCycle.cpp
   patcher/generatorObjects/pSine.cpp
@@ -606,6 +608,7 @@ set_source_files_properties(
   patcher/generatorObjects/dStepFun.cpp
   patcher/generatorObjects/dSwing.cpp
   patcher/generatorObjects/dTwist.cpp
+  patcher/generatorObjects/dSnowfall.cpp
   patcher/generatorObjects/dPhasor.cpp
   patcher/generatorObjects/dCycle.cpp
   patcher/generatorObjects/pSine.cpp

@@ -106,6 +106,9 @@ Generators
 .. doxygenfile:: dsp/generators/signalStash.hpp
    :project: libYSE
 
+.. doxygenfile:: dsp/generators/snowfall.hpp
+   :project: libYSE
+
 .. doxygenfile:: dsp/lfo.hpp
    :project: libYSE
 

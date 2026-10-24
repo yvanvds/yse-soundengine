@@ -533,3 +533,39 @@ and they are saved with the patch.
 .. code-block:: text
 
    [~phasor 1] -> [~twist 0.5] -> [~techno]   steps that bunch up late in each cycle
+
+.. patcher-object:: ~snowfall
+
+A particle of one to four values, its dimensions, that moves while a 0-1
+ramp runs: one voice of a cloud of drifting, overlapping events. Give each
+voice its own ``~phasor`` and use the outputs as pitch, pan, filter or grain
+position. The first argument sets the number of dimensions, and of outlets.
+
+A particle starts when the ramp rises above 0 or wraps, and ends when it
+wraps (the next one starts at once) or goes back to 0. A number in the inlet
+works as a gate: above 0 starts a particle, 0 ends it.
+
+Each dimension starts at ``initial`` and moves at ``direction`` units per
+second; ``initialdev`` and ``directiondev`` add a random deviation either
+way. ``energyramp`` speeds the motion up as the ramp rises: at 1 it is twice
+as fast at the end of the cycle as at its start. Every ``interval`` ms (100,
+plus a random ``intervaldev``) the speed is drawn again, and with the
+probability ``wanderprob`` the direction reverses.
+
+``min`` and ``max`` bound each dimension. ``boundarymode`` says what happens
+there: 0 bounces back (``squish`` multiplies the speed at each bounce), 1
+ends the particle, 2 wraps to the other boundary, 3 stays at the boundary.
+The output maps ``min`` - ``max`` onto ``scalemin`` - ``scalemax``. Once a
+particle ends, ``endmode 0`` outputs ``endvalue`` and ``endmode 1`` holds
+the last value; ``startmode 1`` starts the next particle where the last one
+left instead of at ``initial``.
+
+The messages that take a value per dimension take up to four numbers, one
+for each dimension in order: ``direction 0.5 -0.2`` moves the first dimension
+up and the second down. The arguments are the number of dimensions, then any
+of the messages as keywords, and they are saved with the patch:
+
+.. code-block:: text
+
+   [~phasor 0.5] -> [~snowfall 2 direction 0.3 -0.1 directiondev 0.2 0.2]
+                     two values drifting on every two-second cycle

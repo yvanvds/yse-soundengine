@@ -64,6 +64,7 @@ set(YSE_TEST_SOURCES
   dsp/test_sample_hold.cpp
   dsp/test_sample_hold_memory.cpp
   dsp/test_signal_stash.cpp
+  dsp/test_snowfall.cpp
   dsp/test_delay.cpp
   dsp/test_envelope.cpp
   dsp/test_lfo_rate_robustness.cpp
@@ -215,6 +216,7 @@ set(YSE_TEST_SOURCES
   patcher/test_patcher_signal_sah.cpp
   patcher/test_patcher_signal_sash.cpp
   patcher/test_patcher_signal_stash.cpp
+  patcher/test_patcher_signal_snowfall.cpp
   patcher/test_patcher_reverse_modulo.cpp
   patcher/test_patcher_plusequals.cpp
   patcher/test_patcher_signal_compare.cpp
@@ -1336,6 +1338,7 @@ set_source_files_properties(
   patcher/test_patcher_signal_sah.cpp
   patcher/test_patcher_signal_sash.cpp
   patcher/test_patcher_signal_stash.cpp
+  patcher/test_patcher_signal_snowfall.cpp
   patcher/test_patcher_reverse_modulo.cpp
   patcher/test_patcher_plusequals.cpp
   patcher/test_patcher_signal_compare.cpp
