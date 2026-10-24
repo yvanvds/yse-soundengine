@@ -457,3 +457,22 @@ The arguments are ``curvemode`` (2, which reads pairs), ``loop`` (0) and
 .. code-block:: text
 
    [~phasor 1] -> [~stepdiv] -> [~techno]   one ramp per step, per cycle
+
+.. patcher-object:: ~swing
+
+Follows a 0-1 ramp, usually a ``~phasor``, and splits each of its cycles
+into two full ramps of unequal length, in phase with it: swing or shuffle on
+a phasor clock. A number, or ``swing <value>``, sets the share of the cycle
+the first ramp takes, from 0.15 to 0.85. At 0.5 both ramps are equal; at
+0.75 the first lasts three quarters of the cycle and the second one quarter.
+
+A new swing applies at once, so the output can jump halfway through a ramp.
+With ``syncupdate 1`` it waits until the input ramp wraps, so every ramp
+keeps the length it started with.
+
+The arguments are ``swing`` (0.5) and ``syncupdate`` (0), and they are saved
+with the patch.
+
+.. code-block:: text
+
+   [~phasor 1] -> [~swing 0.66] -> [~techno]   two swung steps per master ramp

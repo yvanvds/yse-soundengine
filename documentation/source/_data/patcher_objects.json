@@ -17922,6 +17922,49 @@
     ],
     "requires_midi_device": false
   },
+  "~swing": {
+    "category": "OSC",
+    "description": "Splits each cycle of a 0-1 ramp such as a ~phasor into two full ramps of unequal length, in phase with it: swing or shuffle on a phasor clock.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The ramp to swing, a signal from 0 to 1 (unconnected reads 0). A number sets the swing. 'swing <value>'; 'syncupdate <0|1>'.",
+        "index": 0,
+        "label": "phase",
+        "range": "0-1"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~swing",
+    "outlets": [
+      {
+        "doc": "Two ramps per input cycle, the first lasting the swing share of it.",
+        "index": 0,
+        "label": "out",
+        "range": "0-1",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "0.5",
+        "doc": "Share of the input cycle taken by the first ramp; 0.5 makes two equal ramps.",
+        "name": "swing",
+        "range": "0.15-0.85"
+      },
+      {
+        "default": "0",
+        "doc": "0: a new swing applies at once; 1: it waits for the input to wrap, so no ramp changes length halfway.",
+        "name": "syncupdate",
+        "range": "0-1"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~tanh": {
     "category": "MATH",
     "description": "Outputs the hyperbolic tangent of the input: a smooth soft clipper that bends any signal into -1..1. Scale the signal up first to drive it harder.",

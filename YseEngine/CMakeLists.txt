@@ -86,6 +86,7 @@ set(YSE_SRCS
   dsp/generators/phasorRate.cpp
   dsp/generators/phasorSubdiv.cpp
   dsp/generators/phasorStepDiv.cpp
+  dsp/generators/phasorSwing.cpp
   dsp/operators/arithmetic.cpp
   dsp/operators/accumulator.cpp
   dsp/operators/compare.cpp
@@ -162,6 +163,7 @@ set(YSE_SRCS
   patcher/generatorObjects/dRate.cpp
   patcher/generatorObjects/dSubdiv.cpp
   patcher/generatorObjects/dStepDiv.cpp
+  patcher/generatorObjects/dSwing.cpp
   patcher/generatorObjects/dPhasor.cpp
   patcher/generatorObjects/dCycle.cpp
   patcher/generatorObjects/pSine.cpp
@@ -580,6 +582,7 @@ set_source_files_properties(
   patcher/generatorObjects/dRate.cpp
   patcher/generatorObjects/dSubdiv.cpp
   patcher/generatorObjects/dStepDiv.cpp
+  patcher/generatorObjects/dSwing.cpp
   patcher/generatorObjects/dPhasor.cpp
   patcher/generatorObjects/dCycle.cpp
   patcher/generatorObjects/pSine.cpp
