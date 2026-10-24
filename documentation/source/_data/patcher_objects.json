@@ -17120,6 +17120,112 @@
     ],
     "requires_midi_device": false
   },
+  "~ramp": {
+    "category": "OSC",
+    "description": "A single ramp from a start to an end value, started sample-accurately when a trigger signal goes from 0 to non-zero. For one-shot envelopes driven at audio rate.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "A signal; a ramp starts when it goes from 0 to non-zero (unconnected reads 0). A number sets the duration. 'duration <ms>', 'start <x>', 'end <x>', 'curve <x>', 'mode <0|1>', 'reset <0|1>' and 'retrigger <0|1>' set the attributes (not saved); 'interval <n>' is accepted and ignored.",
+        "index": 0,
+        "label": "trigger",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The ramp's length in milliseconds: a signal, or a number used while no signal is connected.",
+        "index": 1,
+        "label": "duration",
+        "range": "0 or more ms"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The value the ramp starts from: a signal, or a number used while no signal is connected.",
+        "index": 2,
+        "label": "start",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The value the ramp ends on: a signal, or a number used while no signal is connected.",
+        "index": 3,
+        "label": "end",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~ramp",
+    "outlets": [
+      {
+        "doc": "The ramp.",
+        "index": 0,
+        "label": "out",
+        "range": "start to end",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "100",
+        "doc": "Ramp length in milliseconds, used while inlet 1 is unconnected.",
+        "name": "duration",
+        "range": "0 or more"
+      },
+      {
+        "default": "0",
+        "doc": "Start value, used while inlet 2 is unconnected.",
+        "name": "start",
+        "range": "any float"
+      },
+      {
+        "default": "1",
+        "doc": "End value, used while inlet 3 is unconnected.",
+        "name": "end",
+        "range": "any float"
+      },
+      {
+        "default": "0",
+        "doc": "Curvature: 0 is linear; below 0 a rising ramp runs above the straight line, above 0 below it.",
+        "name": "curve",
+        "range": "-1 to 1"
+      },
+      {
+        "default": "0",
+        "doc": "0: the duration is read when the ramp starts; 1: it is read continuously and a change stretches what is left of the ramp.",
+        "name": "mode",
+        "range": "0-1"
+      },
+      {
+        "default": "0",
+        "doc": "1: the output returns to 0 when the ramp ends; 0: it holds the end.",
+        "name": "reset",
+        "range": "0-1"
+      },
+      {
+        "default": "0",
+        "doc": "1: a trigger restarts a running ramp; 0: it is ignored.",
+        "name": "retrigger",
+        "range": "0-1"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~rand": {
     "category": "OSC",
     "description": "Band-limited random signal: picks a new random value at a given frequency and glides to it in a straight line. Smooth random modulation for vibrato drift or a wandering filter.",

@@ -336,3 +336,35 @@ the envelope.
 .. code-block:: text
 
    [.function] (ramp outlet) -> [~shape] <- [~phasor 2]   one envelope per half second
+
+.. patcher-object:: ~ramp
+
+A single ramp from a start to an end value, started sample-accurately when the
+signal in its left inlet goes from 0 to non-zero: a one-shot envelope driven
+at audio rate, by a ``~click``, a ``~sig`` or a comparison such as ``~>``.
+The other three inlets are the duration in milliseconds, the start value and
+the end value, each a signal or a number used while no signal is connected. A
+number in the left inlet also sets the duration, as in Max.
+
+``curve`` (-1 to 1) bends the ramp the way ``~shape`` and ``.function`` bend
+their segments: 0 is linear, below 0 a rising ramp runs above the straight
+line and above 0 below it. Max draws the curve as short straight segments of
+``interval`` samples; ``~ramp`` computes it exactly at every sample and accepts
+``interval`` only so Max patches load.
+
+With ``mode`` 0 the duration is read when the ramp starts. With ``mode`` 1 it
+is read all the time and a change stretches or shrinks what is left: a
+1000 ms ramp changed to 1500 ms after 400 ms runs 1100 ms more. ``reset 1``
+returns the output to 0 when the ramp ends (otherwise it holds the end
+value), and ``retrigger 1`` lets a new trigger restart a ramp that is still
+running (otherwise it is ignored). The start and end values are read at every
+sample, so a running ramp follows them.
+
+The arguments are ``duration`` (Max's argument, 100 ms by default), then
+``start`` (0), ``end`` (1), ``curve``, ``mode``, ``reset`` and ``retrigger``
+(all 0), which Max keeps as attributes. The messages change them while it
+plays but are not saved with the patch.
+
+.. code-block:: text
+
+   [~click] -> [~ramp 50 1 0 0.5] -> [~*] (right inlet)   a 50 ms curved decay per click

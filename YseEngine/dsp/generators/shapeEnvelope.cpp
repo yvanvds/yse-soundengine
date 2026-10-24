@@ -1,4 +1,5 @@
 #include "shapeEnvelope.hpp"
+#include "curveBend.hpp"
 
 #include <cmath>
 #include <utility>
@@ -27,21 +28,8 @@ namespace {
     return value;
   }
 
-  // The exponent for curvature `c`, as `.function` bends its segments:
-  // (1 + c) / (1 - c), infinite at +1 (hold until the end), 0 at -1 (jump
-  // at the start).
-  inline Flt Exponent(Flt c) {
-    if (c >= 1.f) return INFINITY;
-    if (c <= -1.f) return 0.f;
-    return (1.f + c) / (1.f - c);
-  }
-
-  inline Flt Bend(Flt f, Flt exponent) {
-    if (exponent == 1.f) return f;
-    if (std::isinf(exponent)) return f >= 1.f ? 1.f : 0.f;
-    if (exponent == 0.f) return f > 0.f ? 1.f : 0.f;
-    return std::pow(f, exponent);
-  }
+  using YSE::DSP::curveBend::Bend;
+  using YSE::DSP::curveBend::Exponent;
 } // namespace
 
 namespace YSE {

@@ -70,6 +70,9 @@ Generators
 .. doxygenfile:: dsp/generators/shapeEnvelope.hpp
    :project: libYSE
 
+.. doxygenfile:: dsp/generators/triggeredRamp.hpp
+   :project: libYSE
+
 .. doxygenfile:: dsp/lfo.hpp
    :project: libYSE
 

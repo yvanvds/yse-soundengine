@@ -82,6 +82,7 @@
 #include "dsp/generators/techno.hpp"
 #include "dsp/generators/updown.hpp"
 #include "dsp/generators/shapeEnvelope.hpp"
+#include "dsp/generators/triggeredRamp.hpp"
 #include "dsp/generators/bandLimitedRandom.hpp"
 #include "dsp/operators/arithmetic.hpp"
 #include "dsp/operators/accumulator.hpp"

@@ -124,6 +124,7 @@
 #include "generatorObjects/dTechno.h"
 #include "generatorObjects/dUpdown.h"
 #include "generatorObjects/dShape.h"
+#include "generatorObjects/dRamp.h"
 #include "generatorObjects/dPhasor.h"
 #include "generatorObjects/dCycle.h"
 #include "generatorObjects/dNoise.h"
@@ -361,6 +362,7 @@ pRegistry::pRegistry() {
   Add(OBJ::D_TECHNO, dTechno::Create);
   Add(OBJ::D_UPDOWN, dUpdown::Create);
   Add(OBJ::D_SHAPE, dShape::Create);
+  Add(OBJ::D_RAMP, dRamp::Create);
   Add(OBJ::D_SIG, dSig::Create);
 
   Add(OBJ::D_SNAPSHOT, dSnapshot::Create);

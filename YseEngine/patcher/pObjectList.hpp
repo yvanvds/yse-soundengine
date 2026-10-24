@@ -21,7 +21,8 @@ namespace YSE {
    *    counter), ``D_TECHNO`` (a step sequencer read by a 0..1 phase), ``D_UPDOWN``
    *    (a
    * trapezoid envelope with fixed attack and release times), ``D_SHAPE`` (a
-   * breakpoint envelope played over the length of a ramp).
+   * breakpoint envelope played over the length of a ramp), ``D_RAMP`` (a single
+   * ramp started by a trigger signal).
    *  - DSP analysis: ``D_SNAPSHOT``.
    *  - DSP delay: `D_TAPIN`, `D_TAPOUT`.
    *  - DSP sampling: ``D_BUFFER``.
@@ -199,6 +200,7 @@ namespace YSE {
     DEFOBJ(D_TECHNO, "~techno");
     DEFOBJ(D_UPDOWN, "~updown");
     DEFOBJ(D_SHAPE, "~shape");
+    DEFOBJ(D_RAMP, "~ramp");
 
     DEFOBJ(D_SNAPSHOT, "~snapshot");
 
