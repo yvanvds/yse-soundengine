@@ -328,3 +328,38 @@ inlet reads 0.
 
    [~noise] -> [~biquad 0.0572 0.1144 0.0572 -1.219 0.4477] -> [~dac]
    a Butterworth lowpass at 4 kHz (44.1 kHz rate); send a new list to move it
+
+.. patcher-object:: ~allpass
+
+A Schroeder allpass: a delay line with a feedforward and a feedback path of
+opposite gain.
+
+.. code-block:: text
+
+   y(n) = -g x(n) + x(n-D) + g y(n-D)
+
+Every frequency passes at the same level and only the phase changes, so a
+click comes out as a train of echoes ``D`` apart, each ``g`` times the one
+before. Several in series, with delays that share no common factor, are the
+diffuser at the front of a classic reverb. A gain of 0 is a plain delay.
+
+The creation arguments are the maximum delay in ms, the delay in ms and the
+gain (``~allpass 50 12.5 0.7``); they default to 10, 0 and 0. The maximum
+sizes the delay lines when the object is made, for rates up to 192 kHz, so
+nothing is allocated while it runs; changing it rebuilds the object. The delay
+and the gain are numbers or signals in the two right inlets, read per sample,
+or a list of up to two numbers in any inlet. A connected signal wins over the
+number, which is used again once the cord is gone.
+
+The delay follows the sample rate and is interpolated between samples, so it
+can be swept; at a fractional delay the very top of the spectrum is slightly
+dulled. It is held between one sample and the maximum. The gain is held
+between -1 and 1. At exactly 1 or -1 the filter passes the signal times
+``-gain``, with nothing of its earlier state left ringing. ``clear`` in any
+inlet silences the delay lines. An input sample that is not a finite number
+reads as 0. Unconnected, the left inlet reads 0.
+
+.. code-block:: text
+
+   [~click] -> [~allpass 50 4.7 0.7] -> [~allpass 50 3.6 0.7] -> [~dac]
+   a short burst of diffuse echoes; add stages with other delays to thicken it

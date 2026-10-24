@@ -15193,6 +15193,63 @@
     "params": [],
     "requires_midi_device": false
   },
+  "~allpass": {
+    "category": "FILTER",
+    "description": "Schroeder allpass filter, y(n) = -g x(n) + x(n-D) + g y(n-D), on an interpolated delay line with the delay in ms and the gain each a number or a signal read per sample: every frequency passes, only the phase changes. For reverb diffusers and phase smearing.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER"
+        ],
+        "doc": "The signal to filter (unconnected reads 0). 'clear' silences the delay lines; a list of up to two numbers (delay in ms, gain) sets the numbers the other inlets read.",
+        "index": 0,
+        "label": "in",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The delay in ms, a number or a signal read per sample (unconnected, the last number sent here or the creation argument). Fractional delays are interpolated. Clamped to one sample at the least and the maximum delay at the most. 'clear' and a list of two numbers act as in the left inlet.",
+        "index": 1,
+        "label": "delay",
+        "range": "1 sample to the maximum delay"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The gain, a number or a signal read per sample (unconnected, the last number sent here or the creation argument): how much of each echo feeds back. 0 is a plain delay; at 1 or -1 the filter passes the signal times -gain. Clamped to -1 to 1. 'clear' and a list of two numbers act as in the left inlet.",
+        "index": 2,
+        "label": "gain",
+        "range": "-1 to 1"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~allpass",
+    "outlets": [
+      {
+        "doc": "The filtered signal.",
+        "index": 0,
+        "label": "out",
+        "range": "",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "10",
+        "doc": "The maximum delay in ms, the initial delay in ms and the gain, up to three numbers ('~allpass 50 12.5 0.7'; they default to 10, 0 and 0). The maximum delay sizes the delay lines, for up to 192 kHz, and is clamped to 0-60000. Later numbers and messages do not change what is saved.",
+        "name": "maxdelay",
+        "range": "a maximum delay, a delay, then a gain"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~asin": {
     "category": "MATH",
     "description": "Outputs the arc-sine of the input in radians. Input outside -1..1 is clamped to it, so no NaN reaches the graph.",
