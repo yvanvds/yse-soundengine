@@ -70,3 +70,43 @@ the patch, later messages are not.
 .. code-block:: text
 
    [~noise] -> [~sah]   right inlet: [~phasor 4]   four new values a second
+
+.. patcher-object:: ~sash
+
+A sample and hold with a memory. Recording and playback have separate
+triggers: each time the middle inlet rises above ``samplelevel``, the left
+inlet is written into the next place of the memory, and the right inlet
+picks which stored value comes out. With ``size 8`` it remembers the last
+eight sampled values, so a random melody can loop instead of changing on
+every step.
+
+``mode`` sets how the right inlet picks the value:
+
+- 0, the default: each time it rises above ``advancelevel`` the output moves
+  to another place, as ``dir`` says: 0 the next one (the default), 1 the one
+  before, 2 any place at random, 3 a random place not played since every
+  place last came round.
+- 1: its whole value is the place to play, wrapped into the size, so
+  -1 is the last.
+- 2: it is a 0-1 phase divided into ``size`` equal parts and the part it is
+  in is played. A ``~phasor`` then plays the whole memory once per cycle.
+
+A list of numbers in the left inlet fills the memory and sets the size to
+its length. That is how to play a fixed sequence with nothing connected to
+the middle inlet. Recording comes before playback in each sample, so with
+the default size of 1 and one trigger on both inlets, ``~sash`` behaves as a
+plain sample and hold.
+
+The two levels are 0.5 by default. A ``~phasor`` therefore triggers halfway
+through each cycle, and a 0/1 pulse triggers on each rise. A number in the
+middle or right inlet sets ``samplelevel`` or ``advancelevel``. The memory
+holds up to ``maxsize`` values (default 1000), and only a creation argument
+can set that. Unconnected, the left inlet reads the last number sent to it
+and the triggers read 0. The creation arguments are keyword pairs
+(``~sash size 8 mode 2``). They are saved with the patch; later messages
+and the memory are not.
+
+.. code-block:: text
+
+   [~noise] -> [~sash size 8]   middle: [~phasor 0.5]   right: [~phasor 4]
+   eight remembered values loop at four steps a second, one replaced every two seconds

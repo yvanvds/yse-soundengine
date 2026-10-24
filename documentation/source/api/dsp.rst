@@ -100,6 +100,9 @@ Generators
 .. doxygenfile:: dsp/generators/stepFunction.hpp
    :project: libYSE
 
+.. doxygenfile:: dsp/generators/sampleHoldMemory.hpp
+   :project: libYSE
+
 .. doxygenfile:: dsp/lfo.hpp
    :project: libYSE
 

@@ -92,6 +92,7 @@ set(YSE_SRCS
   dsp/generators/phasorWhere.cpp
   dsp/generators/stepCounter.cpp
   dsp/generators/stepFunction.cpp
+  dsp/generators/sampleHoldMemory.cpp
   dsp/operators/arithmetic.cpp
   dsp/operators/accumulator.cpp
   dsp/operators/compare.cpp
@@ -150,6 +151,7 @@ set(YSE_SRCS
   patcher/sampling/dBuffer.cpp
   patcher/filters/dVcf.cpp
   patcher/filters/dSah.cpp
+  patcher/filters/dSash.cpp
   patcher/filters/pBandpass.cpp
   patcher/filters/pHighpass.cpp
   patcher/filters/pLowpass.cpp
@@ -575,6 +577,7 @@ set_source_files_properties(
   patcher/sampling/dBuffer.cpp
   patcher/filters/dVcf.cpp
   patcher/filters/dSah.cpp
+  patcher/filters/dSash.cpp
   patcher/filters/pBandpass.cpp
   patcher/filters/pHighpass.cpp
   patcher/filters/pLowpass.cpp
