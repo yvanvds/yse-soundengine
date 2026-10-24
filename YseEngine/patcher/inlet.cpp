@@ -199,7 +199,17 @@ void inlet::SetList(const std::string& value, YSE::THREAD thread) {
       if (obj->IsDSPObject() && thread == T_GUI) return;
       obj->CalculateIfReady(thread);
     }
+    return;
   }
+  // No list handler, but a command channel (issue #1195). Text a host passes
+  // through a receive arrives here as a list, so `set 440 0.5` into
+  // `[.receive] -> [~oscbank]` used to be dropped while the same text from a
+  // `.m` reached the object. Read it as the message it spells instead, by the
+  // rules SetMessage below applies to a message box's text. An inlet with a
+  // list handler keeps every list, word-first or not. SetMessage only comes
+  // back here when onList is set, so this cannot recurse. RT-safe: the text is
+  // passed on by reference.
+  if (obj->HandlesMessages()) SetMessage(value, thread);
 }
 
 void inlet::SetBuffer(YSE::DSP::buffer* buffer, YSE::THREAD thread) {

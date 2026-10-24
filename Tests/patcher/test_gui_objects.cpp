@@ -8,6 +8,7 @@
 #include <doctest/doctest.h>
 #include <string>
 #include "patcher/patcher.hpp"
+#include "patcher/patcherImplementation.h"
 #include "patcher/pHandle.hpp"
 #include "patcher/pObjectList.hpp"
 #include "patcher/guiObjects/gButton.h"
@@ -237,8 +238,6 @@ TEST_SUITE("patcher") {
 
   TEST_CASE("gMessage: bang dispatches the stored message via SendMessage") {
     YSE::PATCHER::gMessage msg;
-    // Parameters::Set splits on spaces; only a single token reaches the
-    // message STRING param.  Multi-token messages must arrive via SetList.
     msg.SetParams("payload");
     MessageSink sink;
     msg.ConnectOutlet(sink.GetInlet(0), 0);
@@ -247,6 +246,68 @@ TEST_SUITE("patcher") {
     msg.GetInlet(0)->SetBang(YSE::T_GUI);
     CHECK(sink.gotMessage);
     CHECK(sink.received == "payload");
+  }
+
+  TEST_CASE("gMessage: the whole creation text is the stored message (#1194)") {
+    YSE::PATCHER::gMessage msg;
+    MessageSink sink;
+    msg.ConnectOutlet(sink.GetInlet(0), 0);
+    sink.ConnectInlet(msg.GetOutlet(0), 0);
+
+    // Every word, joined with single spaces as a list message is tokenized.
+    msg.SetParams("  set 440\t0.5  ");
+    CHECK(msg.GetGuiValue() == "set 440 0.5");
+    msg.GetInlet(0)->SetBang(YSE::T_GUI);
+    CHECK(sink.received == "set 440 0.5");
+
+    // A re-parse replaces the text rather than appending to it, and an empty
+    // argument leaves an empty box.
+    msg.SetParams("stop");
+    CHECK(msg.GetGuiValue() == "stop");
+    msg.SetParams("");
+    CHECK(msg.GetGuiValue().empty());
+  }
+
+  TEST_CASE("message box: a multi-word box survives a JSON round trip and sends every word "
+            "(#1194)") {
+    std::string dump;
+    {
+      YSE::PATCHER::patcherImplementation src(2, nullptr);
+      YSE::pHandle* recv = src.CreateObject(YSE::OBJ::G_RECEIVE, "go1194");
+      YSE::pHandle* msg = src.CreateObject(YSE::OBJ::G_MESSAGE, "note 60 100");
+      YSE::pHandle* route = src.CreateObject(YSE::OBJ::G_ROUTE, "note");
+      YSE::pHandle* out = src.CreateObject(YSE::OBJ::G_LIST, "");
+      REQUIRE(recv != nullptr);
+      REQUIRE(msg != nullptr);
+      REQUIRE(route != nullptr);
+      REQUIRE(out != nullptr);
+      src.Connect(recv, 0, msg, 0);
+      src.Connect(msg, 0, route, 0);
+      src.Connect(route, 0, out, 0);
+      dump = src.DumpJSON();
+    }
+    YSE::PATCHER::patcherImplementation dst(2, nullptr);
+    dst.ParseJSON(dump);
+
+    YSE::pHandle* box = nullptr;
+    YSE::pHandle* out = nullptr;
+    for (unsigned int i = 0; i < dst.Objects(); i++) {
+      YSE::pHandle* h = dst.GetHandleFromList(i);
+      if (std::string(h->Type()) == ".m") box = h;
+      if (std::string(h->Type()) == ".l") out = h;
+    }
+    REQUIRE(box != nullptr);
+    REQUIRE(out != nullptr);
+    // REQUIRE is not noreturn to the static analyzer, which otherwise takes the
+    // path where the loop found nothing.
+    if (box == nullptr || out == nullptr) return;
+    CHECK(box->GetGuiValue() == "note 60 100");
+
+    REQUIRE(dst.PassBang("go1194", YSE::T_GUI));
+    // The bang is queued for the receive and delivered at the top of a block.
+    dst.Calculate(YSE::T_DSP);
+    // .route strips the word it matched and passes the rest on.
+    CHECK(out->GetGuiValue() == "60 100");
   }
 
   TEST_CASE("gMessage: list-in updates the stored message") {
@@ -406,6 +467,53 @@ TEST_SUITE("patcher") {
     // channel, so an object that relied on it keeps what it took before.
     probe.GetInlet(0)->SetMessage("60", YSE::T_GUI);
     CHECK(probe.command == "60");
+  }
+
+  // A command-channel object with a float handler and no list handler — the
+  // shape of `~oscbank` / `~click`, which take `set ...` only as a command.
+  struct CommandOnlyProbe : TestHelpers::SinkBase {
+    std::string command;
+    int commands = 0;
+    float number = 0.f;
+    CommandOnlyProbe() : SinkBase(false) {
+      inputs.emplace_back(this, true, 0);
+      inputs.back().RegisterFloat([this](float v, int, YSE::THREAD) { number = v; });
+    }
+    const char* Type() const override {
+      return "command_only_probe";
+    }
+    void Calculate(YSE::THREAD) override {}
+    void SetMessage(const std::string& message, float) override {
+      command = message;
+      commands++;
+    }
+    bool HandlesMessages() const override {
+      return true;
+    }
+  };
+
+  TEST_CASE("list: an inlet without a list handler hands it to the command channel (#1195)") {
+    CommandOnlyProbe probe;
+    probe.GetInlet(0)->SetList("set 440 0.5", YSE::T_GUI);
+    CHECK(probe.command == "set 440 0.5");
+    CHECK(probe.commands == 1);
+
+    // Read as the message it spells: a single number reaches the float handler.
+    probe.GetInlet(0)->SetList("0.25", YSE::T_GUI);
+    CHECK(probe.number == doctest::Approx(0.25f));
+    CHECK(probe.commands == 1);
+
+    // An inlet with a list handler keeps every list, word-first or not.
+    CommandProbe listed;
+    listed.GetInlet(0)->SetList("note 60 100", YSE::T_GUI);
+    CHECK(listed.list == "note 60 100");
+    CHECK(listed.command.empty());
+
+    // No list handler and no command channel: still dropped, no calculate.
+    TypedProbe floatOnly(true);
+    floatOnly.GetInlet(0)->SetList("set 1 2", YSE::T_GUI);
+    CHECK_FALSE(floatOnly.seen.gotFloat);
+    CHECK(floatOnly.calculated == 0);
   }
 
   TEST_CASE("message box: its text reaches ordinary objects in a real patch (#933)") {

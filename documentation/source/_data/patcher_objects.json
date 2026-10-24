@@ -15823,6 +15823,44 @@
     ],
     "requires_midi_device": false
   },
+  "~click": {
+    "category": "OSC",
+    "description": "Outputs an impulse, or a short stored waveform, each time it is banged: an excitation for filters and resonators such as a Karplus-Strong string.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT",
+          "BANG"
+        ],
+        "doc": "A bang plays the waveform once; a number plays it scaled by that number; 'set <values...>' stores a new waveform of up to 256 values ('set' alone is the single-sample impulse again). A signal triggers it at every sample where it moves from 0 to a value that is not 0. A bang or a number lands at the start of the next block; the signal is sample-accurate.",
+        "index": 0,
+        "label": "trigger",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~click",
+    "outlets": [
+      {
+        "doc": "The waveform after each trigger, silence in between.",
+        "index": 0,
+        "label": "out",
+        "range": "any float",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "1",
+        "doc": "The waveform played on a trigger, up to 256 values. None is the single-sample impulse 1. A set message does not change what is saved.",
+        "name": "waveform",
+        "range": "list of floats, usually 0 to 1"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~clip": {
     "category": "MATH",
     "description": "Hard clipper: limits every sample of an audio signal to the range low to high. Use it to tame stray peaks, or as a distortion stage.",
@@ -16221,6 +16259,136 @@
     ],
     "requires_midi_device": false
   },
+  "~ioscbank": {
+    "category": "OSC",
+    "description": "A bank of sine oscillators with smoothed frequency and magnitude changes, summed into one signal, reading its table between points for a cleaner sine: additive synthesis, and resynthesis from analysis data.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Frequency in Hz of the oscillator the index names. A signal sets it sample by sample; a number sets it once while no inlet carries a signal. Also takes 'set f m f m ...', 'clear', 'silence', 'size <n>', 'freqsmooth <n>', 'magsmooth <n>' and 'framesync <0/1>'.",
+        "index": 0,
+        "label": "freq",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Magnitude (amplitude) of the oscillator the index names: a signal, or a number.",
+        "index": 1,
+        "label": "magnitude",
+        "range": "0-1"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "With framesync 1 only: the phase the oscillator the index names jumps to when its frame takes effect. A signal, or a number.",
+        "index": 2,
+        "label": "phase",
+        "range": "0-1"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The oscillator the other inlets set, from 0. A signal (one oscillator per sample, as an analysis frame arrives), or a number naming the oscillator later numbers set.",
+        "index": 3,
+        "label": "index",
+        "range": "0 to oscillators - 1"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~ioscbank",
+    "outlets": [
+      {
+        "doc": "The sum of every oscillator: magnitude times sine.",
+        "index": 0,
+        "label": "out",
+        "range": "any float",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "64",
+        "doc": "How many oscillators the bank allocates; 'size' runs fewer. Changing it rebuilds the object.",
+        "name": "oscillators",
+        "range": "1-4096"
+      },
+      {
+        "default": "1",
+        "doc": "Samples over which a new frequency is ramped to; 0 or 1 jumps.",
+        "name": "freqsmooth",
+        "range": "0 or more"
+      },
+      {
+        "default": "0",
+        "doc": "Samples over which a new magnitude is ramped to; 0 or 1 jumps.",
+        "name": "magsmooth",
+        "range": "0 or more"
+      }
+    ],
+    "requires_midi_device": false
+  },
+  "~kink": {
+    "category": "OSC",
+    "description": "Phase distortion: bends a 0-1 ramp, such as a ~phasor, so it reaches 0.5 faster or slower than the input, then runs on to 1 in the same cycle. Read a cosine with it for phase distortion synthesis.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The phase to bend, a ramp from 0 to 1: a signal, or a number used while no signal is connected.",
+        "index": 0,
+        "label": "phase",
+        "range": "0-1"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Slope multiplier of the rise to 0.5: 1 leaves the ramp unchanged, above 1 rises faster, below 1 slower. A signal, or a number used while no signal is connected.",
+        "index": 1,
+        "label": "slope",
+        "range": "0 or higher"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~kink",
+    "outlets": [
+      {
+        "doc": "The bent phase.",
+        "index": 0,
+        "label": "out",
+        "range": "0-1",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "1",
+        "doc": "Slope multiplier used while no signal is connected.",
+        "name": "slope",
+        "range": "0 or higher"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~line": {
     "category": "OSC",
     "description": "Linear-ramp generator. Ramps an audio-rate value toward a target over a given time in ms.",
@@ -16558,6 +16726,94 @@
     "params": [],
     "requires_midi_device": false
   },
+  "~oscbank": {
+    "category": "OSC",
+    "description": "A bank of sine oscillators with smoothed frequency and magnitude changes, summed into one signal, reading its table without interpolation (cheaper; set the table size with tabpoints): additive synthesis, and resynthesis from analysis data.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Frequency in Hz of the oscillator the index names. A signal sets it sample by sample; a number sets it once while no inlet carries a signal. Also takes 'set f m f m ...', 'clear', 'silence', 'size <n>', 'freqsmooth <n>', 'magsmooth <n>' and 'framesync <0/1>', and 'tabpoints <n>'.",
+        "index": 0,
+        "label": "freq",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Magnitude (amplitude) of the oscillator the index names: a signal, or a number.",
+        "index": 1,
+        "label": "magnitude",
+        "range": "0-1"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "With framesync 1 only: the phase the oscillator the index names jumps to when its frame takes effect. A signal, or a number.",
+        "index": 2,
+        "label": "phase",
+        "range": "0-1"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The oscillator the other inlets set, from 0. A signal (one oscillator per sample, as an analysis frame arrives), or a number naming the oscillator later numbers set.",
+        "index": 3,
+        "label": "index",
+        "range": "0 to oscillators - 1"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~oscbank",
+    "outlets": [
+      {
+        "doc": "The sum of every oscillator: magnitude times sine.",
+        "index": 0,
+        "label": "out",
+        "range": "any float",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "64",
+        "doc": "How many oscillators the bank allocates; 'size' runs fewer. Changing it rebuilds the object.",
+        "name": "oscillators",
+        "range": "1-4096"
+      },
+      {
+        "default": "1",
+        "doc": "Samples over which a new frequency is ramped to; 0 or 1 jumps.",
+        "name": "freqsmooth",
+        "range": "0 or more"
+      },
+      {
+        "default": "0",
+        "doc": "Samples over which a new magnitude is ramped to; 0 or 1 jumps.",
+        "name": "magsmooth",
+        "range": "0 or more"
+      },
+      {
+        "default": "4096",
+        "doc": "Points in the sine table, rounded to a power of two: more is cleaner.",
+        "name": "tablesize",
+        "range": "2-65536"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~outlet": {
     "category": "ENCAPSULATION",
     "description": "A signal outlet of the subpatcher it is in. With index N, the signal that arrives here leaves the subpatcher through its outlet N.",
@@ -16834,6 +17090,69 @@
     ],
     "requires_midi_device": false
   },
+  "~rect": {
+    "category": "OSC",
+    "description": "Antialiased rectangle (pulse) oscillator switching between 1 and -1. A width of 0.5 is a square wave; sweep the width for pulse-width modulation. A sync signal restarts the cycle, for hard sync.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Frequency in Hz: a signal (FM), or a number used while no signal is connected. Also takes 'synctrig <x>', the level the sync signal must rise across.",
+        "index": 0,
+        "label": "freq",
+        "range": "0-20000 Hz"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Pulse width: the part of each cycle spent at 1. A signal for pulse-width modulation, or a number used while no signal is connected. Wrapped into 0-1.",
+        "index": 1,
+        "label": "width",
+        "range": "0-1"
+      },
+      {
+        "accepts": [
+          "BUFFER"
+        ],
+        "doc": "Optional sync signal: the cycle restarts whenever it rises across the sync threshold (0.5 unless set with synctrig), as a ~phasor of another frequency does.",
+        "index": 2,
+        "label": "sync",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~rect",
+    "outlets": [
+      {
+        "doc": "Band-limited rectangle wave.",
+        "index": 0,
+        "label": "out",
+        "range": "-1.0 to 1.0",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Frequency in Hz used while no signal is connected.",
+        "name": "frequency",
+        "range": "0-20000 Hz"
+      },
+      {
+        "default": "0.5",
+        "doc": "Pulse width used while no signal is connected.",
+        "name": "width",
+        "range": "0-1"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~round": {
     "category": "MATH",
     "description": "Rounds the input to a multiple of the step: a step of 1, the default, rounds to whole numbers. Rounds to the nearest multiple (halfway values away from zero), or down with 'nearest 0'. A step of 0 passes the input through.",
@@ -16928,24 +17247,34 @@
   },
   "~saw": {
     "category": "OSC",
-    "description": "Audio-rate sawtooth oscillator. Frequency can be set with a float or modulated with a DSP buffer.",
+    "description": "Antialiased sawtooth oscillator, rising from -1 to 1 once per cycle: every harmonic, for bright subtractive-synthesis sounds. A sync signal restarts the cycle, for hard sync.",
     "inlets": [
       {
         "accepts": [
           "BUFFER",
-          "FLOAT"
+          "FLOAT",
+          "INT"
         ],
-        "doc": "Oscillator frequency in Hz. Accepts a DSP buffer (FM) or a float.",
+        "doc": "Frequency in Hz: a signal (FM), or a number used while no signal is connected. A negative frequency runs the ramp backwards. Also takes 'synctrig <x>', the level the sync signal must rise across.",
         "index": 0,
         "label": "freq",
         "range": "0-20000 Hz"
+      },
+      {
+        "accepts": [
+          "BUFFER"
+        ],
+        "doc": "Optional sync signal: the cycle restarts whenever it rises across the sync threshold (0.5 unless set with synctrig), as a ~phasor of another frequency does.",
+        "index": 1,
+        "label": "sync",
+        "range": "any float"
       }
     ],
     "is_dsp": true,
     "name": "~saw",
     "outlets": [
       {
-        "doc": "Sawtooth wave audio output.",
+        "doc": "Band-limited sawtooth wave.",
         "index": 0,
         "label": "out",
         "range": "-1.0 to 1.0",
@@ -16955,7 +17284,7 @@
     "params": [
       {
         "default": "440",
-        "doc": "Initial frequency in Hz.",
+        "doc": "Frequency in Hz used while no signal is connected.",
         "name": "frequency",
         "range": "0-20000 Hz"
       }
@@ -17311,6 +17640,212 @@
         "doc": "The starting delay of each tap in ms, one argument per tap (at most 64). The number of arguments is the number of taps.",
         "name": "delays",
         "range": "one or more ms values"
+      }
+    ],
+    "requires_midi_device": false
+  },
+  "~trapezoid": {
+    "category": "OSC",
+    "description": "A trapezoid read by a 0-1 phase such as a ~phasor: it rises from lo to hi by the ramp-up point, holds hi until the ramp-down point, then falls back to lo. For LFO shapes and envelopes.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The phase: a signal, or a number used while no signal is connected. Wrapped into 0-1, or clipped with wrapmode 0. 'lo <x>', 'hi <x>' and 'wrapmode <0|1>' set the range and the wrap mode (not saved).",
+        "index": 0,
+        "label": "phase",
+        "range": "0-1"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Ramp-up point, where the rise reaches hi: a signal, or a number used while no signal is connected. Held within 0-1.",
+        "index": 1,
+        "label": "up",
+        "range": "0-1"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Ramp-down point, where the fall starts: a signal, or a number used while no signal is connected. Held within 0-1, and no earlier than the ramp-up point.",
+        "index": 2,
+        "label": "down",
+        "range": "0-1"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~trapezoid",
+    "outlets": [
+      {
+        "doc": "The trapezoid, from lo to hi.",
+        "index": 0,
+        "label": "out",
+        "range": "lo to hi",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "0.1",
+        "doc": "Ramp-up point used while no signal is connected.",
+        "name": "up",
+        "range": "0-1"
+      },
+      {
+        "default": "0.9",
+        "doc": "Ramp-down point used while no signal is connected.",
+        "name": "down",
+        "range": "0-1"
+      },
+      {
+        "default": "0",
+        "doc": "Output value outside the ramps' tops: the start and end of the cycle.",
+        "name": "lo",
+        "range": "any float"
+      },
+      {
+        "default": "1",
+        "doc": "Output value on the plateau.",
+        "name": "hi",
+        "range": "any float"
+      },
+      {
+        "default": "1",
+        "doc": "1 wraps a phase outside 0-1 to its fractional part, 0 clips it to 0-1.",
+        "name": "wrapmode",
+        "range": "0 or 1"
+      }
+    ],
+    "requires_midi_device": false
+  },
+  "~tri": {
+    "category": "OSC",
+    "description": "Antialiased triangle oscillator. A duty cycle of 0.5 is a symmetric triangle; towards 0.05 or 0.95 it leans into a sawtooth and brightens. A sync signal restarts the cycle, for hard sync.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Frequency in Hz: a signal (FM), or a number used while no signal is connected. Also takes 'synctrig <x>', the level the sync signal must rise across.",
+        "index": 0,
+        "label": "freq",
+        "range": "0-20000 Hz"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Duty cycle: the part of each cycle spent rising. A signal, or a number used while no signal is connected. Wrapped into 0-1, then held within 0.05-0.95.",
+        "index": 1,
+        "label": "duty",
+        "range": "0.05-0.95"
+      },
+      {
+        "accepts": [
+          "BUFFER"
+        ],
+        "doc": "Optional sync signal: the cycle restarts whenever it rises across the sync threshold (0.5 unless set with synctrig), as a ~phasor of another frequency does.",
+        "index": 2,
+        "label": "sync",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~tri",
+    "outlets": [
+      {
+        "doc": "Band-limited triangle wave.",
+        "index": 0,
+        "label": "out",
+        "range": "-1.0 to 1.0",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Frequency in Hz used while no signal is connected.",
+        "name": "frequency",
+        "range": "0-20000 Hz"
+      },
+      {
+        "default": "0.5",
+        "doc": "Duty cycle used while no signal is connected.",
+        "name": "duty",
+        "range": "0.05-0.95"
+      }
+    ],
+    "requires_midi_device": false
+  },
+  "~triangle": {
+    "category": "OSC",
+    "description": "A triangle read by a 0-1 phase such as a ~phasor: it rises from lo to hi at the peak position, then falls back to lo. A peak of 0.5 is symmetric, 0 a falling ramp, 1 a rising sawtooth. For LFO shapes and envelopes.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The phase, wrapped into 0-1: a signal, or a number used while no signal is connected. 'lo <x>' and 'hi <x>' set the output range (not saved).",
+        "index": 0,
+        "label": "phase",
+        "range": "0-1"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Where in the cycle the peak is: a signal, or a number used while no signal is connected. Held within 0-1.",
+        "index": 1,
+        "label": "peak",
+        "range": "0-1"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~triangle",
+    "outlets": [
+      {
+        "doc": "The triangle, from lo to hi.",
+        "index": 0,
+        "label": "out",
+        "range": "lo to hi",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "0.5",
+        "doc": "Peak position used while no signal is connected.",
+        "name": "peak",
+        "range": "0-1"
+      },
+      {
+        "default": "-1",
+        "doc": "Output value at the start and end of the cycle.",
+        "name": "lo",
+        "range": "any float"
+      },
+      {
+        "default": "1",
+        "doc": "Output value at the peak.",
+        "name": "hi",
+        "range": "any float"
       }
     ],
     "requires_midi_device": false

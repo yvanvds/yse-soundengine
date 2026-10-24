@@ -114,6 +114,12 @@
 
 #include "generatorObjects/pSine.h"
 #include "generatorObjects/dSaw.h"
+#include "generatorObjects/dRect.h"
+#include "generatorObjects/dTri.h"
+#include "generatorObjects/dClick.h"
+#include "generatorObjects/dKink.h"
+#include "generatorObjects/dOscbank.h"
+#include "generatorObjects/dPhaseShapes.h"
 #include "generatorObjects/dPhasor.h"
 #include "generatorObjects/dCycle.h"
 #include "generatorObjects/dNoise.h"
@@ -334,11 +340,19 @@ pRegistry::pRegistry() {
 
   Add(OBJ::D_SINE, pSine::Create);
   Add(OBJ::D_SAW, dSaw::Create);
+  Add(OBJ::D_RECT, dRect::Create);
+  Add(OBJ::D_TRI, dTri::Create);
   Add(OBJ::D_PHASOR, dPhasor::Create);
   Add(OBJ::D_CYCLE, dCycle::Create);
   Add(OBJ::D_NOISE, dNoise::Create);
   Add(OBJ::D_PINK, dPink::Create);
   Add(OBJ::D_RAND, dRand::Create);
+  Add(OBJ::D_CLICK, dClick::Create);
+  Add(OBJ::D_KINK, dKink::Create);
+  Add(OBJ::D_OSCBANK, dOscbank::Create);
+  Add(OBJ::D_IOSCBANK, dIoscbank::Create);
+  Add(OBJ::D_TRIANGLE, dTriangle::Create);
+  Add(OBJ::D_TRAPEZOID, dTrapezoid::Create);
   Add(OBJ::D_SIG, dSig::Create);
 
   Add(OBJ::D_SNAPSHOT, dSnapshot::Create);

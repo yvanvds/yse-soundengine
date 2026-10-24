@@ -12,6 +12,11 @@ namespace YSE {
    *
    *  - DSP generators: ``D_SINE``, ``D_SAW``, ``D_NOISE``, ``D_PHASOR``, ``D_CYCLE``,
    *    ``D_PINK`` (pink noise), ``D_RAND`` (interpolated random signal),
+   *    ``D_RECT`` and ``D_TRI`` (antialiased pulse and triangle; ``D_SAW`` is
+   *    antialiased too), ``D_CLICK`` (an impulse or short waveform on a bang),
+   *    `D_KINK` (phase distortion of a 0..1 ramp),
+   *    ``D_OSCBANK`` and ``D_IOSCBANK`` (additive oscillator banks),
+   *    ``D_TRIANGLE`` and ``D_TRAPEZOID`` (shapes read by a 0..1 phase),
    *    ``D_SIG`` (a number as a constant signal).
    *  - DSP analysis: ``D_SNAPSHOT``.
    *  - DSP delay: `D_TAPIN`, `D_TAPOUT`.
@@ -172,11 +177,19 @@ namespace YSE {
 
     DEFOBJ(D_SINE, "~sine");
     DEFOBJ(D_SAW, "~saw");
+    DEFOBJ(D_RECT, "~rect");
+    DEFOBJ(D_TRI, "~tri");
     DEFOBJ(D_PHASOR, "~phasor");
     DEFOBJ(D_CYCLE, "~cycle");
     DEFOBJ(D_NOISE, "~noise");
     DEFOBJ(D_PINK, "~pink");
     DEFOBJ(D_RAND, "~rand");
+    DEFOBJ(D_CLICK, "~click");
+    DEFOBJ(D_KINK, "~kink");
+    DEFOBJ(D_OSCBANK, "~oscbank");
+    DEFOBJ(D_IOSCBANK, "~ioscbank");
+    DEFOBJ(D_TRIANGLE, "~triangle");
+    DEFOBJ(D_TRAPEZOID, "~trapezoid");
     DEFOBJ(D_SIG, "~sig");
 
     DEFOBJ(D_SNAPSHOT, "~snapshot");
