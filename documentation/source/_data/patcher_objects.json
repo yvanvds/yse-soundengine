@@ -16554,6 +16554,63 @@
     ],
     "requires_midi_device": false
   },
+  "~lores": {
+    "category": "FILTER",
+    "description": "Two-pole resonant lowpass filter, 12 dB per octave, with a cutoff in Hz and a resonance from 0 to 1: the classic synth filter, from a flat roll-off to a ringing peak at the cutoff.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER"
+        ],
+        "doc": "The signal to filter (unconnected reads 0). 'clear' sets the filter state to 0; 'cutoff <x>' and 'resonance <x>' set the numbers the other inlets read.",
+        "index": 0,
+        "label": "in",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The cutoff in Hz, a number or a signal read per sample (unconnected, the last number sent here or the creation argument). Clamped to half the sample rate; 0 passes nothing. Takes the same words as the left inlet.",
+        "index": 1,
+        "label": "cutoff",
+        "range": "0 to samplerate/2 Hz"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The resonance, a number or a signal read per sample (unconnected, the last number sent here or the creation argument): 0 is a flat roll-off, values toward 1 a sharper peak at the cutoff, clamped to 0.999. Takes the same words as the left inlet.",
+        "index": 2,
+        "label": "resonance",
+        "range": "0-1"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~lores",
+    "outlets": [
+      {
+        "doc": "The filtered signal.",
+        "index": 0,
+        "label": "out",
+        "range": "",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "The cutoff in Hz and the resonance, two numbers ('~lores 800 0.7'; the resonance defaults to 0), or 'cutoff <x>' and 'resonance <x>'. Later numbers and messages do not change what is saved.",
+        "name": "cutoff",
+        "range": "a cutoff, then a resonance"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~lp": {
     "category": "FILTER",
     "description": "Single-pole lowpass filter. Attenuates content above the cutoff frequency.",

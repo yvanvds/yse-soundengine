@@ -211,6 +211,7 @@
 #include "filters/dSash.h"
 #include "filters/dStash.h"
 #include "filters/dOnePole.h"
+#include "filters/dLores.h"
 
 #include "math/gAdd.h"
 #include "math/gDivide.h"
@@ -1303,6 +1304,7 @@ pRegistry::pRegistry() {
   Add(OBJ::D_SASH, dSash::Create);
   Add(OBJ::D_STASH, dStash::Create);
   Add(OBJ::D_ONEPOLE, dOnePole::Create);
+  Add(OBJ::D_LORES, dLores::Create);
 
   // The MIDI sender family. Unconditional since issue #746: these format
   // bytes onto a list outlet and open nothing, so there is no platform they

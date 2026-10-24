@@ -28,6 +28,7 @@ set(YSE_SRCS
   dsp/fileBuffer.cpp
   dsp/filters.cpp
   dsp/filters/onePole.cpp
+  dsp/filters/lores.cpp
   dsp/fourier/fft.cpp
   dsp/fourier/mayer.cpp
   dsp/interpolate4.cpp
@@ -157,6 +158,7 @@ set(YSE_SRCS
   patcher/filters/dSash.cpp
   patcher/filters/dStash.cpp
   patcher/filters/dOnePole.cpp
+  patcher/filters/dLores.cpp
   patcher/filters/pBandpass.cpp
   patcher/filters/pHighpass.cpp
   patcher/filters/pLowpass.cpp
@@ -586,6 +588,7 @@ set_source_files_properties(
   patcher/filters/dSash.cpp
   patcher/filters/dStash.cpp
   patcher/filters/dOnePole.cpp
+  patcher/filters/dLores.cpp
   patcher/filters/pBandpass.cpp
   patcher/filters/pHighpass.cpp
   patcher/filters/pLowpass.cpp

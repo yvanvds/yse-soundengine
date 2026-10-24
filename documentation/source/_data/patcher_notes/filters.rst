@@ -195,3 +195,29 @@ is not a finite number is skipped. Unconnected, the left inlet reads 0.
 .. code-block:: text
 
    [~noise] -> [~onepole 500] -> [~dac]   a soft rumble
+
+.. patcher-object:: ~lores
+
+A resonant lowpass with two poles, rolling off 12 dB per octave above the
+cutoff: the classic synth filter. Give it a cutoff in Hz and a resonance from
+0 to 1, as creation arguments (``~lores 800 0.7``), as numbers or signals in
+the middle and right inlets, or as ``cutoff <x>`` and ``resonance <x>`` in
+any inlet. Both are read per sample when a signal drives them, so an envelope
+or an LFO can sweep the cutoff smoothly.
+
+Resonance 0 is a flat roll-off with no peak. Toward 1 a peak grows at the
+cutoff (about 17 dB at 0.9) and the filter rings, until near 1 a click makes
+it sing at the cutoff for a long time. The resonance stops at 0.999, and the
+filter stays stable all the way there. Below the cutoff the gain is 1, so
+the loudness of the bass does not change as the resonance does; the peak
+adds to it.
+
+The cutoff runs from 0, where nothing gets through, to half the sample
+rate, and follows the sample rate when that changes. ``clear`` sets the
+filter state to 0, silencing a ringing filter at once. An input sample that
+is not a finite number is skipped. Unconnected, the left inlet reads 0.
+
+.. code-block:: text
+
+   [~saw 110] -> [~lores 600 0.85] -> [~dac]
+   a buzzy bass with a resonant edge; sweep the middle inlet for a wah
