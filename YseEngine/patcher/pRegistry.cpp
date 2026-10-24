@@ -117,6 +117,7 @@
 #include "generatorObjects/dRect.h"
 #include "generatorObjects/dTri.h"
 #include "generatorObjects/dClick.h"
+#include "generatorObjects/dKink.h"
 #include "generatorObjects/dPhasor.h"
 #include "generatorObjects/dCycle.h"
 #include "generatorObjects/dNoise.h"
@@ -345,6 +346,7 @@ pRegistry::pRegistry() {
   Add(OBJ::D_PINK, dPink::Create);
   Add(OBJ::D_RAND, dRand::Create);
   Add(OBJ::D_CLICK, dClick::Create);
+  Add(OBJ::D_KINK, dKink::Create);
   Add(OBJ::D_SIG, dSig::Create);
 
   Add(OBJ::D_SNAPSHOT, dSnapshot::Create);

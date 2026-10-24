@@ -49,6 +49,9 @@ Generators
 .. doxygenfile:: dsp/generators/click.hpp
    :project: libYSE
 
+.. doxygenfile:: dsp/generators/kink.hpp
+   :project: libYSE
+
 .. doxygenfile:: dsp/lfo.hpp
    :project: libYSE
 

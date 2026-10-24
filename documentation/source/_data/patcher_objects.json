@@ -16259,6 +16259,54 @@
     ],
     "requires_midi_device": false
   },
+  "~kink": {
+    "category": "OSC",
+    "description": "Phase distortion: bends a 0-1 ramp, such as a ~phasor, so it reaches 0.5 faster or slower than the input, then runs on to 1 in the same cycle. Read a cosine with it for phase distortion synthesis.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The phase to bend, a ramp from 0 to 1: a signal, or a number used while no signal is connected.",
+        "index": 0,
+        "label": "phase",
+        "range": "0-1"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Slope multiplier of the rise to 0.5: 1 leaves the ramp unchanged, above 1 rises faster, below 1 slower. A signal, or a number used while no signal is connected.",
+        "index": 1,
+        "label": "slope",
+        "range": "0 or higher"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~kink",
+    "outlets": [
+      {
+        "doc": "The bent phase.",
+        "index": 0,
+        "label": "out",
+        "range": "0-1",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "1",
+        "doc": "Slope multiplier used while no signal is connected.",
+        "name": "slope",
+        "range": "0 or higher"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~line": {
     "category": "OSC",
     "description": "Linear-ramp generator. Ramps an audio-rate value toward a target over a given time in ms.",

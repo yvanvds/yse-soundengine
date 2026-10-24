@@ -164,3 +164,24 @@ with the patch; the arguments are.
 .. code-block:: text
 
    [.metro 250] -> [~click 1 0.5 0.25] -> [~lp 800]   a soft tick four times a second
+
+.. patcher-object:: ~kink
+
+Bends a phase, a ramp from 0 to 1 such as the output of ``~phasor``. The
+ramp is multiplied by the slope until it reaches 0.5; from there a second,
+straight line takes it on to 1, so the bent ramp still runs from 0 to 1 in
+the same cycle, with a kink where the two lines meet. A slope of 1 changes
+nothing; a larger slope reaches 0.5 sooner and then rises more slowly. At a
+slope of 0.5 or less the ramp never reaches 0.5 and there is no second line:
+the output is the input times the slope.
+
+Read a cosine with the bent phase and the waveform's first half is squeezed
+and its second half stretched: the more slope, the brighter the sound. This
+is phase distortion synthesis. Sweep the slope with a signal for a filter-like
+sweep without a filter.
+
+Inputs outside 0-1 are not wrapped; they follow the same two lines.
+
+.. code-block:: text
+
+   [~phasor 110] -> [~kink 3] -> [~cycle 0] (right inlet)   a bright 110 Hz tone
