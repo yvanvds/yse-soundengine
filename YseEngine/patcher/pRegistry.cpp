@@ -208,6 +208,7 @@
 #include "filters/dVcf.h"
 #include "filters/dSah.h"
 #include "filters/dSash.h"
+#include "filters/dStash.h"
 
 #include "math/gAdd.h"
 #include "math/gDivide.h"
@@ -1297,6 +1298,7 @@ pRegistry::pRegistry() {
   Add(OBJ::D_VCF, dVcf::Create);
   Add(OBJ::D_SAH, dSah::Create);
   Add(OBJ::D_SASH, dSash::Create);
+  Add(OBJ::D_STASH, dStash::Create);
 
   // The MIDI sender family. Unconditional since issue #746: these format
   // bytes onto a list outlet and open nothing, so there is no platform they

@@ -13,6 +13,7 @@
 #include <math.h>
 #include "../headers/constants.hpp"
 #include "generators/phaseStep.hpp"
+#include "generators/triggerCondition.hpp"
 #include "../utils/misc.hpp"
 
 YSE::DSP::filterBase::filterBase()
@@ -400,41 +401,19 @@ YSE::DSP::sampleHold& YSE::DSP::sampleHold::duration(UInt samplesToHold) {
   return (*this);
 }
 
+// The trigger modes are numbered as triggerCondition::Meets reads them
+// (shared with signalStash, #1084); anything past PHASE is a decrease.
+static_assert(YSE::DSP::sampleHold::ASCENDING == 0 && YSE::DSP::sampleHold::DESCENDING == 1 &&
+                  YSE::DSP::sampleHold::BOTH == 2 && YSE::DSP::sampleHold::EQUALS == 3 &&
+                  YSE::DSP::sampleHold::ZERO_TO_NONZERO == 4 &&
+                  YSE::DSP::sampleHold::NONZERO_TO_ZERO == 5 && YSE::DSP::sampleHold::PHASE == 6 &&
+                  YSE::DSP::sampleHold::DECREASE == 7,
+              "sampleHold's trigger modes match triggerCondition::Meets");
+
 namespace {
   // Whether the control step from `previous` to `current` meets `mode`.
-  bool Triggers(int mode, Flt previous, Flt current, Flt threshold, Dbl wrappedThreshold) {
-    switch (mode) {
-    case YSE::DSP::sampleHold::ASCENDING:
-      return previous <= threshold && current > threshold;
-    case YSE::DSP::sampleHold::DESCENDING:
-      return previous >= threshold && current < threshold;
-    case YSE::DSP::sampleHold::BOTH:
-      return (previous <= threshold && current > threshold) ||
-             (previous >= threshold && current < threshold);
-    case YSE::DSP::sampleHold::EQUALS:
-      return current == threshold;
-    case YSE::DSP::sampleHold::ZERO_TO_NONZERO:
-      return previous == 0.f && current != 0.f;
-    case YSE::DSP::sampleHold::NONZERO_TO_ZERO:
-      return previous != 0.f && current == 0.f;
-    case YSE::DSP::sampleHold::PHASE: {
-      // As phasorWhat reads a ramp: both are phases, the step is taken the
-      // short way round, and a rise passes t when a <= t < b (or t + 1 past
-      // a forward wrap), a fall when b < t <= a (or t - 1 past a backward
-      // wrap).
-      const Dbl a = YSE::DSP::phaseStep::Wrap(static_cast<Dbl>(previous));
-      const Dbl x = YSE::DSP::phaseStep::Wrap(static_cast<Dbl>(current));
-      const YSE::DSP::phaseStep::step s =
-          YSE::DSP::phaseStep::Of(static_cast<Flt>(a), static_cast<Flt>(x));
-      const Dbl b = a + s.delta;
-      const Dbl t = wrappedThreshold;
-      if (s.delta > 0.0) return (a <= t && t < b) || (a <= t + 1.0 && t + 1.0 < b);
-      if (s.delta < 0.0) return (b < t && t <= a) || (b < t - 1.0 && t - 1.0 <= a);
-      return false;
-    }
-    default: // DECREASE
-      return current < previous;
-    }
+  inline bool Triggers(int mode, Flt previous, Flt current, Flt threshold, Dbl wrappedThreshold) {
+    return YSE::DSP::triggerCondition::Meets(mode, previous, current, threshold, wrappedThreshold);
   }
 } // namespace
 

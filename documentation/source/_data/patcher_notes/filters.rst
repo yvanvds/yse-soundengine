@@ -110,3 +110,58 @@ and the memory are not.
 
    [~noise] -> [~sash size 8]   middle: [~phasor 0.5]   right: [~phasor 4]
    eight remembered values loop at four steps a second, one replaced every two seconds
+
+.. patcher-object:: ~stash
+
+Stores signal values in a memory of places and plays them back. It has four
+inlets: the signal to record, a sample trigger, an advance trigger and a
+write index. Depending on its settings it works as a sample and hold that
+remembers, an interpolating lookup table or an audio-rate step sequencer.
+
+**Recording.** When the second inlet's trigger fires, the left inlet is
+written into the memory. ``writemode`` says where:
+
+- 0, the default: the next place, wrapping at the size.
+- 1: the place the right inlet names.
+- 2: the right inlet as a 0-1 share of the size.
+
+**Playback.** ``mode`` says what the third inlet does:
+
+- 0, the default: it is a trigger, and each time it fires the output moves to
+  another place, as ``dir`` says. 0 is the next place (the default), 1 the
+  one before, 2 any place at random, 3 a random place not played since every
+  place last came round.
+- 1: its value is the place to read.
+- 2: it is a 0-1 share of the size. A ``~phasor`` then plays the whole memory
+  once per cycle.
+
+Both triggers fire as ``sampletriggermode`` and ``advancetriggermode`` say,
+with the numbering ``~sah`` uses. The default, 0, fires on a rise above the
+level (``samplelevel`` and ``advancelevel``, 0.5 by default). 6 fires when
+the trigger passes the level as a phase, so ``advancetriggermode 6
+advancelevel 0`` steps once per cycle of a ``~phasor``.
+
+``interp`` decides how an index between two places is read: 0 rounds it
+down, 1 mixes the two places, 2 rounds to the nearest. ``extend`` decides
+how an index outside the memory is read: 0 reads 0, 1 the first or last
+place, 2 (the default) wraps it into the size, 3 leaves the output as it
+was. ``duration <n>`` makes each new output last n samples and then drop to
+0, so ``duration 1`` turns the steps into impulses.
+
+A list of numbers in the left inlet fills the memory and sets the size to
+its length. A single number is written at the write position. A number in
+the right inlet sets that position, and a bang there moves it one place on.
+A bang in the second inlet records the first sample of the next block. A
+bang in the third inlet advances the output. A number in the second or third
+inlet sets ``samplelevel`` or ``advancelevel``.
+
+The memory holds up to ``maxsize`` values (default 1000). Only a creation
+argument can set that. Unconnected, the left and right inlets read the last
+number sent to them and the triggers read 0. The creation arguments are the
+two levels, then keyword pairs (``~stash 0.5 0.5 size 8 mode 2``). They are
+saved with the patch; later messages and the memory are not.
+
+.. code-block:: text
+
+   the list 0 3 7 10 -> [~stash advancetriggermode 6 advancelevel 0]   third: [~phasor 8]
+   a four-step sequence at eight steps a second, as a signal

@@ -103,6 +103,9 @@ Generators
 .. doxygenfile:: dsp/generators/sampleHoldMemory.hpp
    :project: libYSE
 
+.. doxygenfile:: dsp/generators/signalStash.hpp
+   :project: libYSE
+
 .. doxygenfile:: dsp/lfo.hpp
    :project: libYSE
 

@@ -17901,6 +17901,80 @@
     "params": [],
     "requires_midi_device": false
   },
+  "~stash": {
+    "category": "FILTER",
+    "description": "Stores signal values into a memory of places and recalls them: a sample and hold that remembers, an interpolating lookup table, or an audio-rate step sequencer.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "The signal to record (unconnected, the last number sent here, 0 at first). A number is also written at the write position; a list of numbers fills the memory and sets the size to its length. 'samplelevel <x>' and 'advancelevel <x>' set the trigger levels; 'sampletriggermode <0-6>' and 'advancetriggermode <0-6>' when a trigger fires (0 rising above its level, 1 falling below it, 2 either, 3 equal to it, 4 from zero to nonzero, 5 from nonzero to zero, 6 passing it as a phase); 'dir <0-3>' how an advance moves (0 forward, 1 backward, 2 random, 3 random without repeats until every place has played); 'mode <0-2>' (or 'advancemode') what the advance inlet does (0 a trigger that advances, 1 the place to read, 2 a 0-1 share of the size); 'writemode <0-2>' where a recording goes (0 the next place, 1 the place the write index names, 2 the write index as a 0-1 share of the size); 'extend <0-3>' an index outside the memory (0 reads 0, 1 the first or last place, 2 wraps, 3 changes nothing); 'interp <0-2>' an index between places (0 rounds down, 1 mixes the two, 2 rounds); 'duration <n>' (or 'dur') above 0 a new output lasts n samples, then 0; 'size <n>' the places in use, 1 to maxsize.",
+        "index": 0,
+        "label": "in",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT",
+          "BANG"
+        ],
+        "doc": "The sample trigger: when it fires, the input is recorded (unconnected reads 0). A number sets samplelevel; a bang records the first sample of the next block.",
+        "index": 1,
+        "label": "sample",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT",
+          "BANG"
+        ],
+        "doc": "The advance trigger, or the place to read in modes 1 and 2 (unconnected reads 0). A number sets advancelevel; a bang advances the output.",
+        "index": 2,
+        "label": "advance",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT",
+          "BANG"
+        ],
+        "doc": "The write index in writemodes 1 and 2 (unconnected, the last number sent here, 0 at first). A number also sets the write position that numbers in the left inlet write; a bang moves it one place on.",
+        "index": 3,
+        "label": "write",
+        "range": ""
+      }
+    ],
+    "is_dsp": true,
+    "name": "~stash",
+    "outlets": [
+      {
+        "doc": "The value read from the memory.",
+        "index": 0,
+        "label": "out",
+        "range": "",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "0.5",
+        "doc": "The sample level, the first number; a second number is the advance level (default 0.5 and 0.5). The keywords of the left inlet's messages set those attributes (defaults: trigger modes 0, dir 0, mode 0, writemode 0, extend 2, interp 0, duration 0, size 1), and 'maxsize <n>' the capacity (default 1000, set only here). Messages and the memory are not saved.",
+        "name": "samplelevel",
+        "range": "numbers, then keywords"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~stepcounter": {
     "category": "ANALYSIS",
     "description": "Counts the jumps in a signal, such as the resets of a ~phasor, through a sequence of counts and sends an impulse each time a count is reached: a sequence of durations in beats from a steady clock.",

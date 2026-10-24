@@ -93,6 +93,7 @@
 #include "dsp/generators/stepCounter.hpp"
 #include "dsp/generators/stepFunction.hpp"
 #include "dsp/generators/sampleHoldMemory.hpp"
+#include "dsp/generators/signalStash.hpp"
 #include "dsp/generators/bandLimitedRandom.hpp"
 #include "dsp/operators/arithmetic.hpp"
 #include "dsp/operators/accumulator.hpp"
