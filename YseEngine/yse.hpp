@@ -87,6 +87,7 @@
 #include "dsp/generators/phasorSubdiv.hpp"
 #include "dsp/generators/phasorStepDiv.hpp"
 #include "dsp/generators/phasorSwing.hpp"
+#include "dsp/generators/phasorTwist.hpp"
 #include "dsp/generators/bandLimitedRandom.hpp"
 #include "dsp/operators/arithmetic.hpp"
 #include "dsp/operators/accumulator.hpp"

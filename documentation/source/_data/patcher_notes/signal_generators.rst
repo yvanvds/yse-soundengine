@@ -476,3 +476,26 @@ with the patch.
 .. code-block:: text
 
    [~phasor 1] -> [~swing 0.66] -> [~techno]   two swung steps per master ramp
+
+.. patcher-object:: ~twist
+
+Follows a 0-1 ramp, usually a ``~phasor``, and bends it into an exponential
+curve with the same start and end, in phase with it: a clock that speeds up
+or slows down within each cycle, or a curved envelope from a phasor. A
+number, or ``curve <value>``, sets the curvature from -1 to 1. At 0 the ramp
+passes unchanged; above 0 it starts slow and speeds up, below 0 it starts
+fast and slows down, and the bend gets much steeper towards -1 and 1.
+
+With ``shapemode 1`` (the default) a falling ramp is bent the same way as a
+rising one; with ``shapemode 0`` it follows the rising curve backwards.
+
+A new curve applies at once, so the output can jump. With ``syncupdate 1``
+it waits until the input ramp wraps or turns around, so the output stays
+smooth.
+
+The arguments are ``curve`` (0), ``shapemode`` (1) and ``syncupdate`` (0),
+and they are saved with the patch.
+
+.. code-block:: text
+
+   [~phasor 1] -> [~twist 0.5] -> [~techno]   steps that bunch up late in each cycle

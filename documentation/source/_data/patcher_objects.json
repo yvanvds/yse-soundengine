@@ -18387,6 +18387,55 @@
     "params": [],
     "requires_midi_device": false
   },
+  "~twist": {
+    "category": "OSC",
+    "description": "Bends a linear 0-1 ramp such as a ~phasor into an exponential curve, in phase with it: accelerating or slowing clocks and curved envelopes.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The ramp to bend, a signal from 0 to 1 (unconnected reads 0). A number sets the curve. 'curve <value>'; 'shapemode <0|1>'; 'syncupdate <0|1>'.",
+        "index": 0,
+        "label": "phase",
+        "range": "0-1"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~twist",
+    "outlets": [
+      {
+        "doc": "The curved ramp, from 0 to 1 with the same start and end as the input.",
+        "index": 0,
+        "label": "out",
+        "range": "0-1",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Curvature: 0 is linear, above 0 starts slow and speeds up, below 0 starts fast and slows down; steeper towards -1 and 1.",
+        "name": "curve",
+        "range": "-1 to 1"
+      },
+      {
+        "default": "1",
+        "doc": "1: a falling ramp is bent the same way as a rising one; 0: it follows the rising curve backwards.",
+        "name": "shapemode",
+        "range": "0-1"
+      },
+      {
+        "default": "0",
+        "doc": "0: a new curve applies at once; 1: it waits for the input ramp to wrap or turn, so the output never jumps.",
+        "name": "syncupdate",
+        "range": "0-1"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~updown": {
     "category": "OSC",
     "description": "A trapezoid envelope driven by a ramp such as a ~phasor, or by a gate: it rises in a fixed time when the ramp starts and falls in a fixed time to end at 0 where the ramp ends, however fast the ramp runs. For click-free gating.",
