@@ -84,6 +84,7 @@
 #include "dsp/generators/shapeEnvelope.hpp"
 #include "dsp/generators/triggeredRamp.hpp"
 #include "dsp/generators/phasorRate.hpp"
+#include "dsp/generators/phasorSubdiv.hpp"
 #include "dsp/generators/bandLimitedRandom.hpp"
 #include "dsp/operators/arithmetic.hpp"
 #include "dsp/operators/accumulator.hpp"

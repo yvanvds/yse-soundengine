@@ -395,3 +395,35 @@ they are saved with the patch.
 .. code-block:: text
 
    [~phasor 0.5] -> [~rate 0.25] -> [~techno]   four sequencer passes per master ramp
+
+.. patcher-object:: ~subdiv
+
+Follows a 0-1 ramp, usually a ``~phasor``, and splits each of its cycles into
+a whole number of shorter ramps, in phase with it: tuplets, ratchets and
+uneven grooves from one master ramp. A number, or ``div <n>``, sets the number
+of subdivisions (1 to 16384). The right outlet is a signal with the number of
+the step playing.
+
+``pattern <steps...>`` gives the steps uneven lengths, counted in
+subdivisions: with 3 subdivisions, ``pattern 1 2`` plays a ramp of a third
+of the cycle, then one of two thirds. A pattern that does not fill a whole
+number of cycles is padded with one last step that does, and a pattern
+longer than one cycle spans several. ``pattern`` alone clears it.
+
+``prob <chances...>`` gives each step a chance to play, 0 to 1, cycling on
+its own. A step that does not play outputs 0, and the index either keeps the
+last step that played (``silentmode 0``) or reads -1 (``silentmode 1``).
+With ``lockprob 0`` the chances count subdivisions, so each keeps its place
+on the grid; with ``lockprob 1`` they count the steps of the pattern.
+``prob none`` clears them.
+
+``syncupdate`` decides when a new subdivision or pattern lands: at once
+(0), when the next output step starts (1) or when the input next wraps (2).
+
+The arguments are ``div`` (1), ``syncupdate`` (0), ``silentmode`` (0) and
+``lockprob`` (0), and they are saved with the patch. The two patterns are
+not.
+
+.. code-block:: text
+
+   [~phasor 0.5] -> [~subdiv 3] -> [~techno]   a triplet pass per master ramp

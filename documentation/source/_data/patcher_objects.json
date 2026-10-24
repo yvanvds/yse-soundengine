@@ -17792,6 +17792,68 @@
     "params": [],
     "requires_midi_device": false
   },
+  "~subdiv": {
+    "category": "OSC",
+    "description": "Splits each cycle of a 0-1 ramp such as a ~phasor into a whole number of shorter ramps, in phase with it: tuplets and ratchets. Duration and probability patterns make uneven and skipped steps.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The ramp to subdivide, a signal from 0 to 1 (unconnected reads 0). A number sets the subdivisions. 'div <n>'; 'pattern <steps...>' sets step lengths in subdivisions (none clears); 'prob <chances...>' sets a chance 0-1 per step ('prob none' clears); 'lockprob <0|1>'; 'silentmode <0|1>'; 'syncupdate <0|1|2>'.",
+        "index": 0,
+        "label": "phase",
+        "range": "0-1"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~subdiv",
+    "outlets": [
+      {
+        "doc": "The sub-ramps; 0 during a step that does not play.",
+        "index": 0,
+        "label": "out",
+        "range": "0-1",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "The number of the step playing. During a step that does not play, the last one that did (silentmode 0) or -1 (silentmode 1).",
+        "index": 1,
+        "label": "index",
+        "range": "-1 or more",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "1",
+        "doc": "Subdivisions of each input cycle.",
+        "name": "div",
+        "range": "1-16384"
+      },
+      {
+        "default": "0",
+        "doc": "When a new div or pattern lands: 0 at once, 1 when the next output step starts, 2 when the input next wraps.",
+        "name": "syncupdate",
+        "range": "0-2"
+      },
+      {
+        "default": "0",
+        "doc": "Index output of a step that does not play: 0 the last step that played, 1 -1.",
+        "name": "silentmode",
+        "range": "0-1"
+      },
+      {
+        "default": "0",
+        "doc": "0: probabilities count subdivisions, so they keep their place on the grid; 1: they count steps of the duration pattern.",
+        "name": "lockprob",
+        "range": "0-1"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~tanh": {
     "category": "MATH",
     "description": "Outputs the hyperbolic tangent of the input: a smooth soft clipper that bends any signal into -1..1. Scale the signal up first to drive it harder.",
