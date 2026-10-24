@@ -236,3 +236,38 @@ frequency and magnitude smoothing.
 
    [~sig 330] -> [~ioscbank 1 1 64] (left inlet)
    [~sig 0.5] -> [~ioscbank] (second inlet)   one sine, fading in over 64 samples
+
+.. patcher-object:: ~triangle
+
+Reads a triangle with a phase, a ramp from 0 to 1 such as the output of
+``~phasor``. The output rises in a straight line from ``lo`` to ``hi`` at the
+peak position, then falls back to ``lo`` by the end of the cycle. A peak of
+0.5 is a symmetric triangle; towards 0 it becomes a falling ramp, towards 1 a
+rising sawtooth. Driven by a slow ``~phasor`` it is an LFO; driven once
+through a cycle by a ramp, an attack-release envelope.
+
+The phase is wrapped, so 1.25 reads as 0.25. The arguments are the peak
+position and the range (-1 to 1 by default); ``lo <x>`` and ``hi <x>`` change
+the range while it plays, but are not saved with the patch.
+
+.. code-block:: text
+
+   [~phasor 2] -> [~triangle 0.2 0 1] -> [~*] (right inlet)   a fast-rise, slow-fall tremolo
+
+.. patcher-object:: ~trapezoid
+
+Reads a trapezoid with a phase: a straight rise from ``lo`` to ``hi`` up to
+the ramp-up point, ``hi`` held until the ramp-down point, then a straight fall
+back to ``lo`` by the end of the cycle. The defaults 0.1 and 0.9 give a
+trapezoid with short ramps; 0.5 and 0.5 a triangle; 0 and 0 a falling ramp. A
+ramp-down point before the ramp-up point is moved to it.
+
+The phase is wrapped to its fractional part by default (``wrapmode 1``), so
+-0.4 reads as 0.6; with ``wrapmode 0`` it is clipped to 0-1 instead, so a
+one-shot ramp that runs past 1 stays at ``lo``. The arguments are the
+ramp-up and ramp-down points, the range (0 to 1 by default) and the wrap
+mode. ``lo``, ``hi`` and ``wrapmode`` messages are not saved with the patch.
+
+.. code-block:: text
+
+   [~phasor 2] -> [~trapezoid 0.05 0.5] -> [~*] (right inlet)   a gate with soft edges, twice a second

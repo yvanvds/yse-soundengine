@@ -55,6 +55,9 @@ Generators
 .. doxygenfile:: dsp/generators/oscillatorBank.hpp
    :project: libYSE
 
+.. doxygenfile:: dsp/generators/phaseShapes.hpp
+   :project: libYSE
+
 .. doxygenfile:: dsp/lfo.hpp
    :project: libYSE
 

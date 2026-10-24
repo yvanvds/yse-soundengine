@@ -17644,6 +17644,89 @@
     ],
     "requires_midi_device": false
   },
+  "~trapezoid": {
+    "category": "OSC",
+    "description": "A trapezoid read by a 0-1 phase such as a ~phasor: it rises from lo to hi by the ramp-up point, holds hi until the ramp-down point, then falls back to lo. For LFO shapes and envelopes.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The phase: a signal, or a number used while no signal is connected. Wrapped into 0-1, or clipped with wrapmode 0. 'lo <x>', 'hi <x>' and 'wrapmode <0|1>' set the range and the wrap mode (not saved).",
+        "index": 0,
+        "label": "phase",
+        "range": "0-1"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Ramp-up point, where the rise reaches hi: a signal, or a number used while no signal is connected. Held within 0-1.",
+        "index": 1,
+        "label": "up",
+        "range": "0-1"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Ramp-down point, where the fall starts: a signal, or a number used while no signal is connected. Held within 0-1, and no earlier than the ramp-up point.",
+        "index": 2,
+        "label": "down",
+        "range": "0-1"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~trapezoid",
+    "outlets": [
+      {
+        "doc": "The trapezoid, from lo to hi.",
+        "index": 0,
+        "label": "out",
+        "range": "lo to hi",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "0.1",
+        "doc": "Ramp-up point used while no signal is connected.",
+        "name": "up",
+        "range": "0-1"
+      },
+      {
+        "default": "0.9",
+        "doc": "Ramp-down point used while no signal is connected.",
+        "name": "down",
+        "range": "0-1"
+      },
+      {
+        "default": "0",
+        "doc": "Output value outside the ramps' tops: the start and end of the cycle.",
+        "name": "lo",
+        "range": "any float"
+      },
+      {
+        "default": "1",
+        "doc": "Output value on the plateau.",
+        "name": "hi",
+        "range": "any float"
+      },
+      {
+        "default": "1",
+        "doc": "1 wraps a phase outside 0-1 to its fractional part, 0 clips it to 0-1.",
+        "name": "wrapmode",
+        "range": "0 or 1"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~tri": {
     "category": "OSC",
     "description": "Antialiased triangle oscillator. A duty cycle of 0.5 is a symmetric triangle; towards 0.05 or 0.95 it leans into a sawtooth and brightens. A sync signal restarts the cycle, for hard sync.",
@@ -17703,6 +17786,66 @@
         "doc": "Duty cycle used while no signal is connected.",
         "name": "duty",
         "range": "0.05-0.95"
+      }
+    ],
+    "requires_midi_device": false
+  },
+  "~triangle": {
+    "category": "OSC",
+    "description": "A triangle read by a 0-1 phase such as a ~phasor: it rises from lo to hi at the peak position, then falls back to lo. A peak of 0.5 is symmetric, 0 a falling ramp, 1 a rising sawtooth. For LFO shapes and envelopes.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The phase, wrapped into 0-1: a signal, or a number used while no signal is connected. 'lo <x>' and 'hi <x>' set the output range (not saved).",
+        "index": 0,
+        "label": "phase",
+        "range": "0-1"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Where in the cycle the peak is: a signal, or a number used while no signal is connected. Held within 0-1.",
+        "index": 1,
+        "label": "peak",
+        "range": "0-1"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~triangle",
+    "outlets": [
+      {
+        "doc": "The triangle, from lo to hi.",
+        "index": 0,
+        "label": "out",
+        "range": "lo to hi",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "0.5",
+        "doc": "Peak position used while no signal is connected.",
+        "name": "peak",
+        "range": "0-1"
+      },
+      {
+        "default": "-1",
+        "doc": "Output value at the start and end of the cycle.",
+        "name": "lo",
+        "range": "any float"
+      },
+      {
+        "default": "1",
+        "doc": "Output value at the peak.",
+        "name": "hi",
+        "range": "any float"
       }
     ],
     "requires_midi_device": false
