@@ -16793,6 +16793,52 @@
     "params": [],
     "requires_midi_device": false
   },
+  "~onepole": {
+    "category": "FILTER",
+    "description": "Single-pole lowpass filter, 6 dB per octave, with its cutoff in Hz or on a 0-1 scale: cheap smoothing of a control signal or a gentle roll-off of harsh highs.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER"
+        ],
+        "doc": "The signal to filter (unconnected reads 0). 'hz', 'linear' and 'radians' set how the frequency is read; 'clear' sets the filter state to 0.",
+        "index": 0,
+        "label": "in",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The cutoff, a number or a signal read once per block (unconnected, the last number sent here or the creation argument). In hz mode 0 to a quarter of the sample rate; in linear mode 0-1 across that range; in radians mode 0-1 as the filter coefficient. Takes the same words as the left inlet.",
+        "index": 1,
+        "label": "frequency",
+        "range": "0 to samplerate/4 Hz, or 0-1"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~onepole",
+    "outlets": [
+      {
+        "doc": "The filtered signal.",
+        "index": 0,
+        "label": "out",
+        "range": "",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "The cutoff, the first number, read in the mode a word among the arguments names: 'hz' (the default), 'linear' or 'radians', e.g. '~onepole 0.5 linear'. Later numbers and messages do not change what is saved.",
+        "name": "frequency",
+        "range": "a number, then a mode word"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~oscbank": {
     "category": "OSC",
     "description": "A bank of sine oscillators with smoothed frequency and magnitude changes, summed into one signal, reading its table without interpolation (cheaper; set the table size with tabpoints): additive synthesis, and resynthesis from analysis data.",

@@ -68,6 +68,7 @@
 #include "dsp/delay.hpp"
 #include "dsp/dspObject.hpp"
 #include "dsp/filters.hpp"
+#include "dsp/filters/onePole.hpp"
 #include "dsp/math.hpp"
 #include "dsp/oscillators.hpp"
 #include "dsp/generators/phasor.hpp"

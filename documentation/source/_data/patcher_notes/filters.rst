@@ -165,3 +165,33 @@ saved with the patch; later messages and the memory are not.
 
    the list 0 3 7 10 -> [~stash advancetriggermode 6 advancelevel 0]   third: [~phasor 8]
    a four-step sequence at eight steps a second, as a signal
+
+.. patcher-object:: ~onepole
+
+The cheapest lowpass: each output sample moves a fraction ``a0`` of the way
+from the previous output toward the input, rolling off 6 dB per octave.
+Use it to take the edge off a bright signal or to smooth a control signal.
+The cutoff in the right inlet (a number, or a signal read once per block)
+or the first creation argument defaults to 0, where nothing gets through:
+give it a cutoff (``~onepole 1000``).
+
+The frequency is read in one of three modes, set by a word in either inlet
+or among the arguments (``~onepole 0.5 linear``):
+
+- ``hz`` (or ``Hz``), the default: a cutoff in Hz from 0 to a quarter of the
+  sample rate, where the filter is fully open;
+  ``a0 = sin(2 * pi * frequency / samplerate)``.
+- ``linear``: 0-1 across that same range, so 0.5 is an eighth of the sample
+  rate.
+- ``radians``: 0-1 sets ``a0`` itself. The cutoff rises slowly at first and
+  quickly near 1, a curve closer to how pitch is heard.
+
+Values outside the range are clamped. Unlike ``~lp``, whose cutoff is a
+low-frequency approximation that runs out near a sixth of the sample rate,
+the cutoff here holds up to a quarter of it, and it follows the sample rate
+when that changes. ``clear`` sets the filter state to 0. An input sample that
+is not a finite number is skipped. Unconnected, the left inlet reads 0.
+
+.. code-block:: text
+
+   [~noise] -> [~onepole 500] -> [~dac]   a soft rumble
