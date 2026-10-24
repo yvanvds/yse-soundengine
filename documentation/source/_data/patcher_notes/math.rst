@@ -676,8 +676,7 @@ result is ``outLow``. The inlets work as described under ``.+``.
 - A new number takes effect at the next audio block and is not smoothed, so a
   large jump can click. Ramp it with ``~line`` instead.
 - When no argument is given, ``~+`` and ``~-`` use 0 and ``~*`` and ``~/``
-  use 1, so a bare object passes the signal through unchanged. Max's
-  ``times~`` uses 0 here.
+  use 1, so a bare object passes the signal through unchanged.
 
 .. code-block:: text
 
