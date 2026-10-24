@@ -17998,6 +17998,62 @@
     "params": [],
     "requires_midi_device": false
   },
+  "~updown": {
+    "category": "OSC",
+    "description": "A trapezoid envelope driven by a ramp such as a ~phasor, or by a gate: it rises in a fixed time when the ramp starts and falls in a fixed time to end at 0 where the ramp ends, however fast the ramp runs. For click-free gating.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT",
+          "BANG"
+        ],
+        "doc": "A 0-1 or 1-0 ramp, or a gate: a signal, or a number used while no signal is connected. The rise starts when it leaves 0 or jumps by more than reset; while it is 0 the envelope falls to 0. bang restarts the rise from 0. 'up <ms>', 'down <ms>', 'level <x>' and 'reset <x>' set the attributes (not saved).",
+        "index": 0,
+        "label": "ramp",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~updown",
+    "outlets": [
+      {
+        "doc": "The envelope, from 0 to level.",
+        "index": 0,
+        "label": "out",
+        "range": "0 to level",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "10",
+        "doc": "Rise time in milliseconds; 0 is instant.",
+        "name": "up",
+        "range": "0 or more"
+      },
+      {
+        "default": "10",
+        "doc": "Fall time in milliseconds, timed to reach 0 where the ramp ends; 0 is instant.",
+        "name": "down",
+        "range": "0 or more"
+      },
+      {
+        "default": "1",
+        "doc": "The envelope's top value.",
+        "name": "level",
+        "range": "any float"
+      },
+      {
+        "default": "0.5",
+        "doc": "How far the input must jump between two samples to count as a reset.",
+        "name": "reset",
+        "range": "0 or more"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~vcf": {
     "category": "FILTER",
     "description": "Resonant bandpass filter whose center frequency is a signal, so it can sweep at audio rate. Sharpness sets how narrow the band is.",

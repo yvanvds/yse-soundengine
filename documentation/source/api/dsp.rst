@@ -64,6 +64,9 @@ Generators
 .. doxygenfile:: dsp/generators/techno.hpp
    :project: libYSE
 
+.. doxygenfile:: dsp/generators/updown.hpp
+   :project: libYSE
+
 .. doxygenfile:: dsp/lfo.hpp
    :project: libYSE
 

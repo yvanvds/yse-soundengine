@@ -278,3 +278,28 @@ mode. ``lo``, ``hi`` and ``wrapmode`` messages are not saved with the patch.
 .. code-block:: text
 
    [~phasor 2] -> [~trapezoid 0.05 0.5] -> [~*] (right inlet)   a gate with soft edges, twice a second
+
+.. patcher-object:: ~updown
+
+A trapezoid envelope whose edges take a fixed time, however fast the ramp
+that drives it runs. Where ``~trapezoid`` places its ramps at fractions of the
+cycle, ``~updown`` rises over ``up`` milliseconds when the input leaves 0 or
+the ramp resets (jumps by more than ``reset``, 0.5 by default), and falls over
+``down`` milliseconds so that it reaches 0 just as the ramp ends. It predicts
+the end from the ramp's slope, so it works for rising (0-1) and falling (1-0)
+ramps alike.
+
+The envelope only ever moves at the up and down rates, so a ramp that resets
+early, a gate that closes half-way or a time changed while it plays never
+makes it jump. Fed a gate instead of a ramp (any constant non-zero number or
+signal) it rises and holds ``level``, and falls when the gate goes back to 0.
+``bang`` restarts the rise from 0.
+
+The arguments are ``up``, ``down`` (10 ms each by default; Max documents no
+default), ``level`` (1) and ``reset`` (0.5). Max's ``updown~`` takes no
+arguments; the ``up``, ``down``, ``level`` and ``reset`` messages change the
+attributes while it plays but are not saved with the patch.
+
+.. code-block:: text
+
+   [~phasor 4] -> [~updown 5 20] -> [~*] (right inlet)   click-free 4 Hz chopping with 5 ms attacks
