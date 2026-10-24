@@ -73,7 +73,11 @@ namespace YSE {
    *  - Bitwise: ``G_BITAND``, ``G_BITOR``, ``G_SHIFTLEFT``, ``G_SHIFTRIGHT``.
    *  - DSP filters: ``D_LOWPASS``, ``D_HIGHPASS``, ``D_BANDPASS``, ``D_VCF``,
    *    ``D_SAH`` (sample and hold), ``D_SASH`` (sample and hold with memory),
-   *    ``D_STASH`` (store and recall signal values).
+   *    ``D_STASH`` (store and recall signal values),
+   *    ``D_ONEPOLE`` (single-pole lowpass), ``D_LORES`` (resonant lowpass),
+   *    ``D_RESON`` (resonant bandpass), ``D_SVF`` (state-variable filter),
+   *    ``D_BIQUAD`` (coefficient-driven biquad), ``D_ALLPASS`` (Schroeder
+   *    allpass).
    *  - I/O: ``D_DAC``, ``D_ADC``, ``D_LINE``.
    *  - Control: ``G_INT``, ``G_FLOAT``, ``G_SLIDER``, ``G_RSLIDER``,
    *    ``G_XYSLIDER``, ``G_MULTISLIDER``, ``G_MATRIXCTRL``, ``G_FUNCTION``,
@@ -1035,6 +1039,12 @@ namespace YSE {
     DEFOBJ(D_SAH, "~sah");
     DEFOBJ(D_SASH, "~sash");
     DEFOBJ(D_STASH, "~stash");
+    DEFOBJ(D_ONEPOLE, "~onepole");
+    DEFOBJ(D_LORES, "~lores");
+    DEFOBJ(D_RESON, "~reson");
+    DEFOBJ(D_SVF, "~svf");
+    DEFOBJ(D_BIQUAD, "~biquad");
+    DEFOBJ(D_ALLPASS, "~allpass");
 
     DEFOBJ(M_OUT, ".midiout");
     DEFOBJ(M_IN, ".midiin");

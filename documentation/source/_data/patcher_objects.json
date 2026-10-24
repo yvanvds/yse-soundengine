@@ -15193,6 +15193,63 @@
     "params": [],
     "requires_midi_device": false
   },
+  "~allpass": {
+    "category": "FILTER",
+    "description": "Schroeder allpass filter, y(n) = -g x(n) + x(n-D) + g y(n-D), on an interpolated delay line with the delay in ms and the gain each a number or a signal read per sample: every frequency passes, only the phase changes. For reverb diffusers and phase smearing.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER"
+        ],
+        "doc": "The signal to filter (unconnected reads 0). 'clear' silences the delay lines; a list of up to two numbers (delay in ms, gain) sets the numbers the other inlets read.",
+        "index": 0,
+        "label": "in",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The delay in ms, a number or a signal read per sample (unconnected, the last number sent here or the creation argument). Fractional delays are interpolated. Clamped to one sample at the least and the maximum delay at the most. 'clear' and a list of two numbers act as in the left inlet.",
+        "index": 1,
+        "label": "delay",
+        "range": "1 sample to the maximum delay"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The gain, a number or a signal read per sample (unconnected, the last number sent here or the creation argument): how much of each echo feeds back. 0 is a plain delay; at 1 or -1 the filter passes the signal times -gain. Clamped to -1 to 1. 'clear' and a list of two numbers act as in the left inlet.",
+        "index": 2,
+        "label": "gain",
+        "range": "-1 to 1"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~allpass",
+    "outlets": [
+      {
+        "doc": "The filtered signal.",
+        "index": 0,
+        "label": "out",
+        "range": "",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "10",
+        "doc": "The maximum delay in ms, the initial delay in ms and the gain, up to three numbers ('~allpass 50 12.5 0.7'; they default to 10, 0 and 0). The maximum delay sizes the delay lines, for up to 192 kHz, and is clamped to 0-60000. Later numbers and messages do not change what is saved.",
+        "name": "maxdelay",
+        "range": "a maximum delay, a delay, then a gain"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~asin": {
     "category": "MATH",
     "description": "Outputs the arc-sine of the input in radians. Input outside -1..1 is clamped to it, so no NaN reaches the graph.",
@@ -15389,6 +15446,96 @@
       }
     ],
     "params": [],
+    "requires_midi_device": false
+  },
+  "~biquad": {
+    "category": "FILTER",
+    "description": "Two-pole, two-zero filter driven directly by five coefficients, y(n) = a0 x(n) + a1 x(n-1) + a2 x(n-2) - b1 y(n-1) - b2 y(n-2), each a number or a signal read per sample: any biquad design, or a ringing oscillator.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER"
+        ],
+        "doc": "The signal to filter (unconnected reads 0). 'clear' sets the previous inputs and outputs to 0 (it recovers a filter made to explode); 'smooth 0' or 'smooth 1' turns the smoothing of number changes off or on; 'stoke <y1> <y2> <x1> <x2>' preloads the previous outputs and inputs (missing ones 0); a list of up to five numbers (a0, a1, a2, b1, b2) sets the numbers the coefficient inlets read.",
+        "index": 0,
+        "label": "in",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The coefficient a0 of the current input, a number or a signal read per sample (unconnected, the last number sent here or the creation argument). Takes the same words as the left inlet.",
+        "index": 1,
+        "label": "a0",
+        "range": "any number"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The coefficient a1 of the previous input, a number or a signal read per sample (unconnected, the last number sent here or the creation argument). Takes the same words as the left inlet.",
+        "index": 2,
+        "label": "a1",
+        "range": "any number"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The coefficient a2 of the input two samples back, a number or a signal read per sample (unconnected, the last number sent here or the creation argument). Takes the same words as the left inlet.",
+        "index": 3,
+        "label": "a2",
+        "range": "any number"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The coefficient b1 of the previous output, subtracted, a number or a signal read per sample (unconnected, the last number sent here or the creation argument). Takes the same words as the left inlet.",
+        "index": 4,
+        "label": "b1",
+        "range": "any number; stable inside the triangle |b2| < 1, |b1| < 1 + b2"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The coefficient b2 of the output two samples back, subtracted, a number or a signal read per sample (unconnected, the last number sent here or the creation argument). Takes the same words as the left inlet.",
+        "index": 5,
+        "label": "b2",
+        "range": "any number; stable inside the triangle |b2| < 1, |b1| < 1 + b2"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~biquad",
+    "outlets": [
+      {
+        "doc": "The filtered signal.",
+        "index": 0,
+        "label": "out",
+        "range": "",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Up to five coefficients, a0 a1 a2 b1 b2 ('~biquad 0.5 0 0 -0.5 0'; they default to 0), and 'smooth 0' to turn the smoothing of number changes off (it is on by default). Later numbers and messages do not change what is saved.",
+        "name": "a0",
+        "range": "the coefficients a0 a1 a2 b1 b2, then smooth 0 or 1"
+      }
+    ],
     "requires_midi_device": false
   },
   "~bitand": {
@@ -16554,6 +16701,63 @@
     ],
     "requires_midi_device": false
   },
+  "~lores": {
+    "category": "FILTER",
+    "description": "Two-pole resonant lowpass filter, 12 dB per octave, with a cutoff in Hz and a resonance from 0 to 1: the classic synth filter, from a flat roll-off to a ringing peak at the cutoff.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER"
+        ],
+        "doc": "The signal to filter (unconnected reads 0). 'clear' sets the filter state to 0; 'cutoff <x>' and 'resonance <x>' set the numbers the other inlets read.",
+        "index": 0,
+        "label": "in",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The cutoff in Hz, a number or a signal read per sample (unconnected, the last number sent here or the creation argument). Clamped to half the sample rate; 0 passes nothing. Takes the same words as the left inlet.",
+        "index": 1,
+        "label": "cutoff",
+        "range": "0 to samplerate/2 Hz"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The resonance, a number or a signal read per sample (unconnected, the last number sent here or the creation argument): 0 is a flat roll-off, values toward 1 a sharper peak at the cutoff, clamped to 0.999. Takes the same words as the left inlet.",
+        "index": 2,
+        "label": "resonance",
+        "range": "0-1"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~lores",
+    "outlets": [
+      {
+        "doc": "The filtered signal.",
+        "index": 0,
+        "label": "out",
+        "range": "",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "The cutoff in Hz and the resonance, two numbers ('~lores 800 0.7'; the resonance defaults to 0), or 'cutoff <x>' and 'resonance <x>'. Later numbers and messages do not change what is saved.",
+        "name": "cutoff",
+        "range": "a cutoff, then a resonance"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~lp": {
     "category": "FILTER",
     "description": "Single-pole lowpass filter. Attenuates content above the cutoff frequency.",
@@ -16791,6 +16995,52 @@
       }
     ],
     "params": [],
+    "requires_midi_device": false
+  },
+  "~onepole": {
+    "category": "FILTER",
+    "description": "Single-pole lowpass filter, 6 dB per octave, with its cutoff in Hz or on a 0-1 scale: cheap smoothing of a control signal or a gentle roll-off of harsh highs.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER"
+        ],
+        "doc": "The signal to filter (unconnected reads 0). 'hz', 'linear' and 'radians' set how the frequency is read; 'clear' sets the filter state to 0.",
+        "index": 0,
+        "label": "in",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The cutoff, a number or a signal read once per block (unconnected, the last number sent here or the creation argument). In hz mode 0 to a quarter of the sample rate; in linear mode 0-1 across that range; in radians mode 0-1 as the filter coefficient. Takes the same words as the left inlet.",
+        "index": 1,
+        "label": "frequency",
+        "range": "0 to samplerate/4 Hz, or 0-1"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~onepole",
+    "outlets": [
+      {
+        "doc": "The filtered signal.",
+        "index": 0,
+        "label": "out",
+        "range": "",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "The cutoff, the first number, read in the mode a word among the arguments names: 'hz' (the default), 'linear' or 'radians', e.g. '~onepole 0.5 linear'. Later numbers and messages do not change what is saved.",
+        "name": "frequency",
+        "range": "a number, then a mode word"
+      }
+    ],
     "requires_midi_device": false
   },
   "~oscbank": {
@@ -17382,6 +17632,74 @@
         "doc": "Pulse width used while no signal is connected.",
         "name": "width",
         "range": "0-1"
+      }
+    ],
+    "requires_midi_device": false
+  },
+  "~reson": {
+    "category": "FILTER",
+    "description": "Resonant bandpass filter with a gain, a center frequency in Hz and a Q, all settable per sample: formants, modal synthesis, resonators. The gain at the center frequency is the gain set, whatever the frequency and the Q.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER"
+        ],
+        "doc": "The signal to filter (unconnected reads 0). 'clear' sets the filter state to 0; 'gain <x>', 'cf <x>' (or 'freq <x>') and 'q <x>', or a list of up to three numbers (gain, center frequency, Q), set the numbers the other inlets read.",
+        "index": 0,
+        "label": "in",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The gain at the center frequency, a number or a signal read per sample (unconnected, the last number sent here or the creation argument). Takes the same words as the left inlet.",
+        "index": 1,
+        "label": "gain",
+        "range": "any number, usually 0-1"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The center frequency in Hz, a number or a signal read per sample (unconnected, the last number sent here or the creation argument). Clamped to half the sample rate; 0 passes nothing. Takes the same words as the left inlet.",
+        "index": 2,
+        "label": "cf",
+        "range": "0 to samplerate/2 Hz"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The Q, the center frequency over the bandwidth, a number or a signal read per sample (unconnected, the last number sent here or the creation argument): higher is narrower and rings longer. Clamped to 0.01-10000. Takes the same words as the left inlet.",
+        "index": 3,
+        "label": "q",
+        "range": "0.01-10000"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~reson",
+    "outlets": [
+      {
+        "doc": "The filtered signal.",
+        "index": 0,
+        "label": "out",
+        "range": "",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "The gain, the center frequency in Hz and the Q, up to three numbers ('~reson 1 800 20'; they default to 0, 0 and 0.01), or 'gain <x>', 'cf <x>' and 'q <x>'. Later numbers and messages do not change what is saved.",
+        "name": "gain",
+        "range": "a gain, a center frequency, then a Q"
       }
     ],
     "requires_midi_device": false
@@ -18241,6 +18559,84 @@
         "doc": "0: probabilities count subdivisions, so they keep their place on the grid; 1: they count steps of the duration pattern.",
         "name": "lockprob",
         "range": "0-1"
+      }
+    ],
+    "requires_midi_device": false
+  },
+  "~svf": {
+    "category": "FILTER",
+    "description": "State-variable filter giving a lowpass, a highpass, a bandpass and a notch output at once from one center frequency and one resonance, with the frequency in Hz or on a 0-1 scale. Stable at every setting.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER"
+        ],
+        "doc": "The signal to filter (unconnected reads 0). 'hz', 'linear' and 'radians' set how the frequency is read; 'clear' sets the filter state to 0; 'freq <x>' (or 'cf <x>') and 'q <x>' (or 'resonance <x>'), or a list of up to two numbers (frequency, resonance), set the numbers the other inlets read.",
+        "index": 0,
+        "label": "in",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The center frequency, a number or a signal read per sample (unconnected, the last number sent here or the creation argument). In hz mode 0 to a quarter of the sample rate; in linear mode 0-1 across that range; in radians mode 0-1 as the sine of the frequency in radians per sample. Takes the same words as the left inlet.",
+        "index": 1,
+        "label": "frequency",
+        "range": "0 to samplerate/4 Hz, or 0-1"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The resonance, a number or a signal read per sample (unconnected, the last number sent here or the creation argument): 0 is no peak, 0.5 a Q of 1, 1 a Q of 1000. Clamped to 0-1. Takes the same words as the left inlet.",
+        "index": 2,
+        "label": "resonance",
+        "range": "0-1"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~svf",
+    "outlets": [
+      {
+        "doc": "The lowpass output.",
+        "index": 0,
+        "label": "lowpass",
+        "range": "",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "The highpass output.",
+        "index": 1,
+        "label": "highpass",
+        "range": "",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "The bandpass output, with a gain of the Q at the center.",
+        "index": 2,
+        "label": "bandpass",
+        "range": "",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "The notch (band-reject) output.",
+        "index": 3,
+        "label": "notch",
+        "range": "",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "The center frequency and the resonance, up to two numbers (they default to 0 and 0.01), and a mode word: 'hz' (the default), 'linear' or 'radians', e.g. '~svf 0.25 0.8 linear'; or 'freq <x>' and 'q <x>'. Later numbers and messages do not change what is saved.",
+        "name": "frequency",
+        "range": "a frequency, a resonance, then a mode word"
       }
     ],
     "requires_midi_device": false
