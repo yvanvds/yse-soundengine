@@ -81,6 +81,7 @@ set(YSE_SRCS
   dsp/generators/sampleCounter.cpp
   dsp/generators/techno.cpp
   dsp/generators/updown.cpp
+  dsp/generators/shapeEnvelope.cpp
   dsp/operators/arithmetic.cpp
   dsp/operators/accumulator.cpp
   dsp/operators/compare.cpp
@@ -152,6 +153,7 @@ set(YSE_SRCS
   patcher/generatorObjects/dCount.cpp
   patcher/generatorObjects/dTechno.cpp
   patcher/generatorObjects/dUpdown.cpp
+  patcher/generatorObjects/dShape.cpp
   patcher/generatorObjects/dPhasor.cpp
   patcher/generatorObjects/dCycle.cpp
   patcher/generatorObjects/pSine.cpp
@@ -565,6 +567,7 @@ set_source_files_properties(
   patcher/generatorObjects/dCount.cpp
   patcher/generatorObjects/dTechno.cpp
   patcher/generatorObjects/dUpdown.cpp
+  patcher/generatorObjects/dShape.cpp
   patcher/generatorObjects/dPhasor.cpp
   patcher/generatorObjects/dCycle.cpp
   patcher/generatorObjects/pSine.cpp

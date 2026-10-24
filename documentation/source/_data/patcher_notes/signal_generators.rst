@@ -303,3 +303,36 @@ attributes while it plays but are not saved with the patch.
 .. code-block:: text
 
    [~phasor 4] -> [~updown 5 20] -> [~*] (right inlet)   click-free 4 Hz chopping with 5 ms attacks
+
+.. patcher-object:: ~shape
+
+A breakpoint envelope played over the length of a ramp. Where ``.line`` takes
+its times as milliseconds, ``~shape`` treats them as proportions: one cycle of
+the ``~phasor`` (or any 0-1 or 1-0 ramp) that drives it is one pass through
+the whole envelope, so the same shape plays faster or slower with the ramp's
+frequency and every pass starts sample-accurately when the ramp starts (leaves
+0 or wraps).
+
+The envelope is a list in ``.line``'s format: ``<value> <time>`` pairs, each
+the next target and the time to reach it, optionally led by the starting
+value. That is what ``.function`` sends from its ramp outlet. A number on its
+own is the starting value for the next list and changes nothing by itself.
+With ``curvemode`` 1 the list is ``<value> <time> <curve>`` triplets, the
+curve (-1 to 1) bending the segment the way ``.function`` bends its own: 0 is
+linear, a positive curve leaves slowly and arrives quickly. With ``curvemode``
+0 curves play as straight lines; 2 (Max's Auto) reads pairs and plays curves.
+
+``constant <n>`` plays the first ``n`` segments at their own times in
+milliseconds, however long the ramp is (rising ramps only), and scales the
+rest into what is left of the ramp: a fixed-length attack on an envelope whose
+release follows the note. ``syncupdate 1`` makes a new list wait for the ramp
+to start again, so a pass never changes shape half-way.
+
+The arguments are ``constant``, ``curvemode`` and ``syncupdate`` (all 0 by
+default). Max's ``shape~`` takes no arguments; the messages change the
+attributes while it plays but are not saved with the patch, and neither is
+the envelope.
+
+.. code-block:: text
+
+   [.function] (ramp outlet) -> [~shape] <- [~phasor 2]   one envelope per half second
