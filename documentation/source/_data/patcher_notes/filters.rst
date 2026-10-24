@@ -289,3 +289,42 @@ reads 0.
 
    [~saw 110] -> [~svf 800 0.9] -> (third outlet) -> [~dac]
    a resonant band; sweep the middle inlet, or take the notch from the fourth
+
+.. patcher-object:: ~biquad
+
+A two-pole, two-zero filter driven directly by its five coefficients:
+
+.. code-block:: text
+
+   y(n) = a0 x(n) + a1 x(n-1) + a2 x(n-2) - b1 y(n-1) - b2 y(n-2)
+
+The feedback coefficients b1 and b2 are subtracted, so the signs differ from
+the textbooks that add them. A lowpass from the usual design with
+``k = tan(pi f / samplerate)`` and ``n = 1 / (1 + k/Q + k^2)`` is
+``a0 = n k^2``, ``a1 = 2 a0``, ``a2 = a0``, ``b1 = 2 n (k^2 - 1)`` and
+``b2 = n (1 - k/Q + k^2)``. Set the coefficients as creation arguments
+(``~biquad 0.5 0 0 -0.5 0``), as numbers or signals in the five right inlets,
+or as a list of up to five numbers in any inlet. A connected signal is read
+per sample and wins over the number, which is used again once the cord is
+gone. All five default to 0, which passes nothing.
+
+A change of the numbers moves each coefficient in a straight line to its new
+value over 64 samples, so a new list does not click; ``smooth 0`` in any
+inlet or among the arguments makes changes apply at once, ``smooth 1`` turns
+the smoothing back on. The coefficients first set apply from the first
+sample. Signals are never smoothed.
+
+The coefficients are not checked for stability. The filter is stable while
+``|b2| < 1`` and ``|b1| < 1 + b2``; outside that it grows. Lower the
+coefficients again and send ``clear``, which sets the previous inputs and
+outputs to 0. An output too large for a float starts the filter again from
+silence. ``stoke <y1> <y2> <x1> <x2>`` preloads the previous outputs and
+inputs (missing values are 0), so a filter with its poles on the unit circle
+rings as a sine from the first sample. Nothing depends on the sample rate. An
+input sample that is not a finite number is skipped. Unconnected, the left
+inlet reads 0.
+
+.. code-block:: text
+
+   [~noise] -> [~biquad 0.0572 0.1144 0.0572 -1.219 0.4477] -> [~dac]
+   a Butterworth lowpass at 4 kHz (44.1 kHz rate); send a new list to move it

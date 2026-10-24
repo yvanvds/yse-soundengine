@@ -107,9 +107,113 @@ namespace YSE {
      *  notch, peak, low-shelf, high-shelf) and tune frequency, Q, and peak
      *  gain. See `earlevel.com/main/2010/12/20/biquad-calculator/` for an
      *  interactive parameter visualiser.
+     *
+     *  **The coefficient path** (issue #1090, behind ``~biquad``, ported from
+     *  Max's ``biquad~``) drives the filter directly by five coefficients, in
+     *  that object's naming and signs:
+     *
+     *  ``y(n) = a0 x(n) + a1 x(n-1) + a2 x(n-2) - b1 y(n-1) - b2 y(n-2)``
+     *
+     *  so the feedback coefficients are subtracted (``setRaw()`` takes them
+     *  with the opposite sign, as Pure Data's ``biquad~`` does). The type
+     *  modes' coefficients map onto it as ``a0 a1 a2`` = the feedforward and
+     *  ``b1 b2`` = the feedback of the usual textbook normalisation, e.g. a
+     *  low-pass is ``coefficients(n k^2, 2 n k^2, n k^2, 2 n (k^2 - 1),
+     *  n (1 - k/Q + k^2))`` with ``k = tan(pi f / samplerate)`` and
+     *  ``n = 1 / (1 + k/Q + k^2)``.
+     *
+     *  It is selected by ``coefficients()``, ``process()`` and the
+     *  coefficient-signal call, and left again by any of the type setters or
+     *  ``setRaw()``; ``operator()(buffer&)`` runs whichever was selected last.
+     *  The type path is unchanged by it. The coefficient path:
+     *
+     *  - runs the equation above as written (direct form I), with the two
+     *    previous inputs and outputs as its state, in double precision;
+     *  - takes any finite coefficients and does not check stability, as
+     *    ``biquad~`` does not: feedback coefficients that make the filter
+     *    explode can be lowered again and the state recovered with
+     *    ``clear()``. An output that overflows a float, or is not a finite
+     *    number, zeroes the state (the sample outputs 0), so a blown-up
+     *    filter starts again instead of latching infinity;
+     *  - smooths a change of the coefficients by ``smooth()`` (on by
+     *    default): each moves in a straight line from its value to the new
+     *    one over the next ``SMOOTH_SAMPLES`` samples, reaching it on the
+     *    last of them, so a list of coefficients does
+     *    not click. With smoothing off a change applies at the next sample.
+     *    A change made before the path has processed its first sample
+     *    applies at once either way, so the first coefficients set are the
+     *    starting ones;
+     *  - reads a coefficient given as a signal per sample, unsmoothed; it
+     *    becomes that coefficient's value, from which a later scalar
+     *    ``coefficients()`` moves;
+     *  - ignores a coefficient that is not a finite number (keeping that
+     *    coefficient's value), and skips an input sample that is not one
+     *    (the output and state hold);
+     *  - can be preloaded with ``stoke()``, which sets the previous outputs
+     *    and inputs, so a filter with poles on the unit circle rings as an
+     *    oscillator from its first sample.
+     *
+     *  Nothing on the coefficient path depends on the sample rate. Its
+     *  setters are for the thread that processes (or between blocks). A
+     *  block call on the coefficient path processes at most
+     *  ``STANDARD_BUFFERSIZE`` samples and allocates nothing.
      */
     class API biQuad : public filterBase {
     public:
+      /** @brief Samples over which a smoothed coefficient change moves. */
+      static constexpr UInt SMOOTH_SAMPLES = 64;
+
+      /** @brief The five coefficients of the coefficient path, named and
+       *         signed as in the class description. */
+      struct coefficientSet {
+        Flt a0 = 0.f;
+        Flt a1 = 0.f;
+        Flt a2 = 0.f;
+        Flt b1 = 0.f;
+        Flt b2 = 0.f;
+      };
+
+      biQuad();
+      biQuad(const biQuad&);
+      biQuad& operator=(const biQuad&) = delete;
+      ~biQuad() override = default;
+
+      /** @brief Selects the coefficient path with these coefficients (the
+       *         class description gives the equation, smoothing and
+       *         non-finite handling). */
+      biQuad& coefficients(Flt a0, Flt a1, Flt a2, Flt b1, Flt b2);
+
+      /** @brief The coefficients the coefficient path moves towards (the
+       *         last set or read from a signal). */
+      coefficientSet coefficients() const;
+
+      /** @brief Turns smoothing of coefficient changes on or off. */
+      biQuad& smooth(Bool on);
+
+      /** @brief Whether coefficient changes are smoothed. */
+      Bool smooth() const {
+        return smoothing;
+      }
+
+      /** @brief Sets the state of both paths to 0: the previous inputs and
+       *         outputs. Coefficients are kept. */
+      biQuad& clear();
+
+      /** @brief Sets the coefficient path's previous outputs y(n-1), y(n-2)
+       *         and inputs x(n-1), x(n-2). Non-finite values are read as 0. */
+      biQuad& stoke(Flt y1, Flt y2 = 0.f, Flt x1 = 0.f, Flt x2 = 0.f);
+
+      /** @brief One sample on the coefficient path (selects it). */
+      Flt process(Flt in);
+
+      /** @brief One block on the coefficient path (selects it), each
+       *         coefficient read per sample from its buffer, or from the
+       *         scalar coefficients (smoothed) where the pointer is null. A
+       *         buffer must be at least as long as @p in. */
+      YSE::DSP::buffer& operator()(YSE::DSP::buffer& in, YSE::DSP::buffer* a0, YSE::DSP::buffer* a1,
+                                   YSE::DSP::buffer* a2, YSE::DSP::buffer* b1,
+                                   YSE::DSP::buffer* b2);
+
       /** @brief Configure the filter in one call.
        *
        *  @param type      Filter mode (low-pass, high-pass, peak, shelf, ...).
@@ -145,7 +249,29 @@ namespace YSE {
 
     private:
       void calc();
+      // One sample of the coefficient path at the current coefficients.
+      Flt Step(Flt in);
+      // Moves the smoothed coefficients one sample on.
+      void Advance();
       BQ_TYPE type;
+
+      // Which path operator()(buffer&) runs: set by the coefficient path,
+      // cleared by the type setters and setRaw() (any thread).
+      aBool direct{false};
+
+      // The coefficient path (processing thread). current[] is in use,
+      // target[] where it is going, step[] the per-sample move while
+      // `ramp` samples remain. Order: a0 a1 a2 b1 b2.
+      Dbl current[5] = {0.0, 0.0, 0.0, 0.0, 0.0};
+      Dbl target[5] = {0.0, 0.0, 0.0, 0.0, 0.0};
+      Dbl step[5] = {0.0, 0.0, 0.0, 0.0, 0.0};
+      UInt ramp = 0;
+      Bool smoothing = true;
+      Bool started = false;
+      Dbl x1 = 0.0;
+      Dbl x2 = 0.0;
+      Dbl y1 = 0.0;
+      Dbl y2 = 0.0;
     };
 
     /**

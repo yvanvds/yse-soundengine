@@ -15391,6 +15391,96 @@
     "params": [],
     "requires_midi_device": false
   },
+  "~biquad": {
+    "category": "FILTER",
+    "description": "Two-pole, two-zero filter driven directly by five coefficients, y(n) = a0 x(n) + a1 x(n-1) + a2 x(n-2) - b1 y(n-1) - b2 y(n-2), each a number or a signal read per sample: any biquad design, or a ringing oscillator.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER"
+        ],
+        "doc": "The signal to filter (unconnected reads 0). 'clear' sets the previous inputs and outputs to 0 (it recovers a filter made to explode); 'smooth 0' or 'smooth 1' turns the smoothing of number changes off or on; 'stoke <y1> <y2> <x1> <x2>' preloads the previous outputs and inputs (missing ones 0); a list of up to five numbers (a0, a1, a2, b1, b2) sets the numbers the coefficient inlets read.",
+        "index": 0,
+        "label": "in",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The coefficient a0 of the current input, a number or a signal read per sample (unconnected, the last number sent here or the creation argument). Takes the same words as the left inlet.",
+        "index": 1,
+        "label": "a0",
+        "range": "any number"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The coefficient a1 of the previous input, a number or a signal read per sample (unconnected, the last number sent here or the creation argument). Takes the same words as the left inlet.",
+        "index": 2,
+        "label": "a1",
+        "range": "any number"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The coefficient a2 of the input two samples back, a number or a signal read per sample (unconnected, the last number sent here or the creation argument). Takes the same words as the left inlet.",
+        "index": 3,
+        "label": "a2",
+        "range": "any number"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The coefficient b1 of the previous output, subtracted, a number or a signal read per sample (unconnected, the last number sent here or the creation argument). Takes the same words as the left inlet.",
+        "index": 4,
+        "label": "b1",
+        "range": "any number; stable inside the triangle |b2| < 1, |b1| < 1 + b2"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The coefficient b2 of the output two samples back, subtracted, a number or a signal read per sample (unconnected, the last number sent here or the creation argument). Takes the same words as the left inlet.",
+        "index": 5,
+        "label": "b2",
+        "range": "any number; stable inside the triangle |b2| < 1, |b1| < 1 + b2"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~biquad",
+    "outlets": [
+      {
+        "doc": "The filtered signal.",
+        "index": 0,
+        "label": "out",
+        "range": "",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Up to five coefficients, a0 a1 a2 b1 b2 ('~biquad 0.5 0 0 -0.5 0'; they default to 0), and 'smooth 0' to turn the smoothing of number changes off (it is on by default). Later numbers and messages do not change what is saved.",
+        "name": "a0",
+        "range": "the coefficients a0 a1 a2 b1 b2, then smooth 0 or 1"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~bitand": {
     "category": "MATH",
     "description": "Bitwise and of the input with a mask or a second signal: a bit stays 1 only where both have a 1. Clearing low mantissa bits is a coarse bitcrusher. Samples are 32-bit floats, read as raw bit patterns or converted to integers (see mode).",

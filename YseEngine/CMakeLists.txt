@@ -163,6 +163,7 @@ set(YSE_SRCS
   patcher/filters/dLores.cpp
   patcher/filters/dReson.cpp
   patcher/filters/dSvf.cpp
+  patcher/filters/dBiquad.cpp
   patcher/filters/pBandpass.cpp
   patcher/filters/pHighpass.cpp
   patcher/filters/pLowpass.cpp
@@ -595,6 +596,7 @@ set_source_files_properties(
   patcher/filters/dLores.cpp
   patcher/filters/dReson.cpp
   patcher/filters/dSvf.cpp
+  patcher/filters/dBiquad.cpp
   patcher/filters/pBandpass.cpp
   patcher/filters/pHighpass.cpp
   patcher/filters/pLowpass.cpp
