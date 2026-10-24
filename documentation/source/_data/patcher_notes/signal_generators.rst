@@ -295,10 +295,10 @@ makes it jump. Fed a gate instead of a ramp (any constant non-zero number or
 signal) it rises and holds ``level``, and falls when the gate goes back to 0.
 ``bang`` restarts the rise from 0.
 
-The arguments are ``up``, ``down`` (10 ms each by default; Max documents no
-default), ``level`` (1) and ``reset`` (0.5). Max's ``updown~`` takes no
-arguments; the ``up``, ``down``, ``level`` and ``reset`` messages change the
-attributes while it plays but are not saved with the patch.
+The arguments are ``up``, ``down`` (10 ms each by default), ``level`` (1) and
+``reset`` (0.5), and they are saved with the patch. The ``up``, ``down``,
+``level`` and ``reset`` messages change the same settings while it plays but
+are not saved.
 
 .. code-block:: text
 
@@ -320,7 +320,7 @@ own is the starting value for the next list and changes nothing by itself.
 With ``curvemode`` 1 the list is ``<value> <time> <curve>`` triplets, the
 curve (-1 to 1) bending the segment the way ``.function`` bends its own: 0 is
 linear, a positive curve leaves slowly and arrives quickly. With ``curvemode``
-0 curves play as straight lines; 2 (Max's Auto) reads pairs and plays curves.
+0 curves play as straight lines; 2 reads pairs and still plays curves.
 
 ``constant <n>`` plays the first ``n`` segments at their own times in
 milliseconds, however long the ramp is (rising ramps only), and scales the
@@ -329,9 +329,8 @@ release follows the note. ``syncupdate 1`` makes a new list wait for the ramp
 to start again, so a pass never changes shape half-way.
 
 The arguments are ``constant``, ``curvemode`` and ``syncupdate`` (all 0 by
-default). Max's ``shape~`` takes no arguments; the messages change the
-attributes while it plays but are not saved with the patch, and neither is
-the envelope.
+default), and they are saved with the patch. The messages change the same
+settings while it plays but are not saved, and neither is the envelope.
 
 .. code-block:: text
 
@@ -344,13 +343,12 @@ signal in its left inlet goes from 0 to non-zero: a one-shot envelope driven
 at audio rate, by a ``~click``, a ``~sig`` or a comparison such as ``~>``.
 The other three inlets are the duration in milliseconds, the start value and
 the end value, each a signal or a number used while no signal is connected. A
-number in the left inlet also sets the duration, as in Max.
+number in the left inlet also sets the duration.
 
 ``curve`` (-1 to 1) bends the ramp the way ``~shape`` and ``.function`` bend
 their segments: 0 is linear, below 0 a rising ramp runs above the straight
-line and above 0 below it. Max draws the curve as short straight segments of
-``interval`` samples; ``~ramp`` computes it exactly at every sample and accepts
-``interval`` only so Max patches load.
+line and above 0 below it. The curve is computed exactly at every sample; an
+``interval <n>`` message is accepted and changes nothing.
 
 With ``mode`` 0 the duration is read when the ramp starts. With ``mode`` 1 it
 is read all the time and a change stretches or shrinks what is left: a
@@ -360,10 +358,10 @@ value), and ``retrigger 1`` lets a new trigger restart a ramp that is still
 running (otherwise it is ignored). The start and end values are read at every
 sample, so a running ramp follows them.
 
-The arguments are ``duration`` (Max's argument, 100 ms by default), then
-``start`` (0), ``end`` (1), ``curve``, ``mode``, ``reset`` and ``retrigger``
-(all 0), which Max keeps as attributes. The messages change them while it
-plays but are not saved with the patch.
+The arguments are ``duration`` (100 ms by default), ``start`` (0), ``end``
+(1), ``curve``, ``mode``, ``reset`` and ``retrigger`` (all 0), and they are
+saved with the patch. The messages change the same settings while it plays
+but are not saved.
 
 .. code-block:: text
 
