@@ -17489,6 +17489,74 @@
     ],
     "requires_midi_device": false
   },
+  "~reson": {
+    "category": "FILTER",
+    "description": "Resonant bandpass filter with a gain, a center frequency in Hz and a Q, all settable per sample: formants, modal synthesis, resonators. The gain at the center frequency is the gain set, whatever the frequency and the Q.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER"
+        ],
+        "doc": "The signal to filter (unconnected reads 0). 'clear' sets the filter state to 0; 'gain <x>', 'cf <x>' (or 'freq <x>') and 'q <x>', or a list of up to three numbers (gain, center frequency, Q), set the numbers the other inlets read.",
+        "index": 0,
+        "label": "in",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The gain at the center frequency, a number or a signal read per sample (unconnected, the last number sent here or the creation argument). Takes the same words as the left inlet.",
+        "index": 1,
+        "label": "gain",
+        "range": "any number, usually 0-1"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The center frequency in Hz, a number or a signal read per sample (unconnected, the last number sent here or the creation argument). Clamped to half the sample rate; 0 passes nothing. Takes the same words as the left inlet.",
+        "index": 2,
+        "label": "cf",
+        "range": "0 to samplerate/2 Hz"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The Q, the center frequency over the bandwidth, a number or a signal read per sample (unconnected, the last number sent here or the creation argument): higher is narrower and rings longer. Clamped to 0.01-10000. Takes the same words as the left inlet.",
+        "index": 3,
+        "label": "q",
+        "range": "0.01-10000"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~reson",
+    "outlets": [
+      {
+        "doc": "The filtered signal.",
+        "index": 0,
+        "label": "out",
+        "range": "",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "The gain, the center frequency in Hz and the Q, up to three numbers ('~reson 1 800 20'; they default to 0, 0 and 0.01), or 'gain <x>', 'cf <x>' and 'q <x>'. Later numbers and messages do not change what is saved.",
+        "name": "gain",
+        "range": "a gain, a center frequency, then a Q"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~round": {
     "category": "MATH",
     "description": "Rounds the input to a multiple of the step: a step of 1, the default, rounds to whole numbers. Rounds to the nearest multiple (halfway values away from zero), or down with 'nearest 0'. A step of 0 passes the input through.",

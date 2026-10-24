@@ -67,6 +67,7 @@ set(YSE_TEST_SOURCES
   dsp/test_snowfall.cpp
   dsp/test_one_pole.cpp
   dsp/test_lores.cpp
+  dsp/test_reson.cpp
   dsp/test_delay.cpp
   dsp/test_envelope.cpp
   dsp/test_lfo_rate_robustness.cpp
@@ -221,6 +222,7 @@ set(YSE_TEST_SOURCES
   patcher/test_patcher_signal_snowfall.cpp
   patcher/test_patcher_signal_onepole.cpp
   patcher/test_patcher_signal_lores.cpp
+  patcher/test_patcher_signal_reson.cpp
   patcher/test_patcher_reverse_modulo.cpp
   patcher/test_patcher_plusequals.cpp
   patcher/test_patcher_signal_compare.cpp
@@ -1345,6 +1347,7 @@ set_source_files_properties(
   patcher/test_patcher_signal_snowfall.cpp
   patcher/test_patcher_signal_onepole.cpp
   patcher/test_patcher_signal_lores.cpp
+  patcher/test_patcher_signal_reson.cpp
   patcher/test_patcher_reverse_modulo.cpp
   patcher/test_patcher_plusequals.cpp
   patcher/test_patcher_signal_compare.cpp

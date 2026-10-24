@@ -221,3 +221,34 @@ is not a finite number is skipped. Unconnected, the left inlet reads 0.
 
    [~saw 110] -> [~lores 600 0.85] -> [~dac]
    a buzzy bass with a resonant edge; sweep the middle inlet for a wah
+
+.. patcher-object:: ~reson
+
+A resonant bandpass: it lets through a band around a center frequency and
+rings there, more narrowly and for longer as the Q rises. Give it a gain, a
+center frequency in Hz and a Q (the center frequency over the bandwidth), as
+creation arguments (``~reson 1 800 20``), as numbers or signals in the three
+right inlets, as ``gain <x>``, ``cf <x>`` and ``q <x>``, or as a list of up
+to three numbers in any inlet. All three are read per sample when a signal
+drives them, so a bank of them can glide between vowel formants.
+
+The gain is the level at the center frequency, whatever the frequency and
+the Q, so sweeping either keeps the resonance at the same loudness. Below and
+above the band two zeros pull the response down towards 0 Hz and half the
+sample rate, the more so the higher the Q; it differs from ``~bp`` in that,
+and in how it sets its gain. The filter follows the
+constant-gain resonator of Smith and Angell, with the equation the original
+object documents.
+
+The center frequency runs from 0, where nothing gets through, to half the
+sample rate, and follows the sample rate when that changes. The Q runs from
+0.01 to 10000 and the filter stays stable over the whole range. The defaults
+are a gain of 0, a center frequency of 0 and a Q of 0.01, so set at least the
+first two. ``clear`` sets the filter state to 0, silencing a ringing filter
+at once. An input sample that is not a finite number is skipped. Unconnected,
+the left inlet reads 0.
+
+.. code-block:: text
+
+   [~noise] -> [~reson 1 700 30] -> [~dac]
+   a whistling tone at 700 Hz; raise the Q for a purer pitch
