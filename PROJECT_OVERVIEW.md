@@ -106,6 +106,7 @@ python yse.py format               # clang-format -i over YseEngine/ and Tests/
 python yse.py package              # release archive in dist/ (consumed by CI); --platform, --android-libs
 python yse.py release patch --bump-only  # bump VERSION + commit on release/vX.Y.Z-prep; `release --tag <commit>` tags + pushes; --dry-run
 python yse.py dump-patcher-meta    # regenerate documentation/source/_data/patcher_objects.json
+python yse.py docs                 # Doxygen + Sphinx -W in documentation/, the CI docs job locally (#1201)
 ```
 
 Direct `cmake -B build ...` invocations remain fully valid — the presets are additive.
