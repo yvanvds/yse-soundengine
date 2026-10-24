@@ -168,6 +168,22 @@ namespace YSE {
        */
       oscillatorBank& setTable(const Flt* samples, UInt count);
 
+      /**
+       *  @brief Use a table made elsewhere, without copying it: @p samples
+       *         and the bank's table storage swap places (issue #1196).
+       *
+       *  For a waveform prepared off the audio thread and handed over at a
+       *  block boundary: the first ``tableSize()`` values of @p samples are
+       *  the table, taken as they are (the caller makes them finite numbers),
+       *  and @p samples gets the storage the bank had, to be freed wherever
+       *  the caller frees things. Refused, changing nothing, when @p samples
+       *  holds fewer than ``tableSize()`` values. Allocates and frees
+       *  nothing, so the audio thread may call it.
+       *
+       *  @return Whether the table was taken.
+       */
+      bool swapTable(std::vector<Flt>& samples);
+
       /** @brief Whether the table is one from ``setTable``. */
       bool customTable() const {
         return custom;

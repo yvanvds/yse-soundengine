@@ -16269,7 +16269,7 @@
           "FLOAT",
           "INT"
         ],
-        "doc": "Frequency in Hz of the oscillator the index names. A signal sets it sample by sample; a number sets it once while no inlet carries a signal. Also takes 'set f m f m ...', 'clear', 'silence', 'size <n>', 'freqsmooth <n>', 'magsmooth <n>' and 'framesync <0/1>'.",
+        "doc": "Frequency in Hz of the oscillator the index names. A signal sets it sample by sample; a number sets it once while no inlet carries a signal. Also takes 'set f m f m ...', 'clear', 'silence', 'size <n>', 'freqsmooth <n>', 'magsmooth <n>' and 'framesync <0/1>', and 'copybuf <buffer> [offset]' to make the table from a buffer's first channel (in the background, from a later block; not saved with the patch).",
         "index": 0,
         "label": "freq",
         "range": "any float"
@@ -16736,7 +16736,7 @@
           "FLOAT",
           "INT"
         ],
-        "doc": "Frequency in Hz of the oscillator the index names. A signal sets it sample by sample; a number sets it once while no inlet carries a signal. Also takes 'set f m f m ...', 'clear', 'silence', 'size <n>', 'freqsmooth <n>', 'magsmooth <n>' and 'framesync <0/1>', and 'tabpoints <n>'.",
+        "doc": "Frequency in Hz of the oscillator the index names. A signal sets it sample by sample; a number sets it once while no inlet carries a signal. Also takes 'set f m f m ...', 'clear', 'silence', 'size <n>', 'freqsmooth <n>', 'magsmooth <n>' and 'framesync <0/1>', 'tabpoints <n>', and 'copybuf <buffer> [offset]' to make the table from a buffer's first channel (in the background, from a later block; not saved with the patch).",
         "index": 0,
         "label": "freq",
         "range": "any float"
