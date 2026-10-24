@@ -284,33 +284,24 @@ TEST_SUITE("patcher") {
     CHECK(obj.Dropped() == 300 - 256 + 1);
   }
 
-  TEST_CASE("~oscbank / ~ioscbank: in a rendered patch, set from message boxes banged through "
-            "receives and driven by signals, after a JSON round trip (#1061)") {
+  TEST_CASE("~oscbank / ~ioscbank: in a rendered patch, set by commands passed through a "
+            "receive and driven by signals, after a JSON round trip (#1061, #1195)") {
     TestHelpers::ScopedSampleRate rate(44100);
     std::string dump;
     {
       patcherImplementation src(2, nullptr);
-      YSE::pHandle* recv = src.CreateObject(YSE::OBJ::G_RECEIVE, "set1061");
-      YSE::pHandle* setBox = src.CreateObject(YSE::OBJ::G_MESSAGE, "set 440 0.5 880 0.25");
-      YSE::pHandle* hush = src.CreateObject(YSE::OBJ::G_RECEIVE, "hush1061");
-      YSE::pHandle* hushBox = src.CreateObject(YSE::OBJ::G_MESSAGE, "silence");
+      YSE::pHandle* recv = src.CreateObject(YSE::OBJ::G_RECEIVE, "bank1061");
       YSE::pHandle* stepped = src.CreateObject(YSE::OBJ::D_OSCBANK, "4 1 0 1024");
       YSE::pHandle* freq = src.CreateObject(YSE::OBJ::D_SIG, "330");
       YSE::pHandle* mag = src.CreateObject(YSE::OBJ::D_SIG, "0.5");
       YSE::pHandle* smooth = src.CreateObject(YSE::OBJ::D_IOSCBANK, "2 1 64");
       YSE::pHandle* dac = src.CreateObject(YSE::OBJ::D_DAC, "");
       REQUIRE(recv != nullptr);
-      REQUIRE(setBox != nullptr);
-      REQUIRE(hush != nullptr);
-      REQUIRE(hushBox != nullptr);
       REQUIRE(stepped != nullptr);
       REQUIRE(freq != nullptr);
       REQUIRE(mag != nullptr);
       REQUIRE(smooth != nullptr);
-      src.Connect(recv, 0, setBox, 0);
-      src.Connect(setBox, 0, stepped, 0);
-      src.Connect(hush, 0, hushBox, 0);
-      src.Connect(hushBox, 0, stepped, 0);
+      src.Connect(recv, 0, stepped, 0);
       src.Connect(freq, 0, smooth, 0);
       src.Connect(mag, 0, smooth, 1);
       src.Connect(stepped, 0, dac, 0);
@@ -333,11 +324,11 @@ TEST_SUITE("patcher") {
     for (int block = 0; block < 6; ++block) {
       CAPTURE(block);
       if (block == 2) {
-        REQUIRE(dst.PassBang("set1061", YSE::T_GUI));
+        REQUIRE(dst.PassData("set 440 0.5 880 0.25", "bank1061", YSE::T_GUI));
         steppedReference.setPairs(pairs, 2);
       }
       if (block == 4) {
-        REQUIRE(dst.PassBang("hush1061", YSE::T_GUI));
+        REQUIRE(dst.PassData("silence", "bank1061", YSE::T_GUI));
         steppedReference.silence();
       }
       dst.Calculate(YSE::T_DSP);

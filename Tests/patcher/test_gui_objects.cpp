@@ -469,6 +469,53 @@ TEST_SUITE("patcher") {
     CHECK(probe.command == "60");
   }
 
+  // A command-channel object with a float handler and no list handler — the
+  // shape of `~oscbank` / `~click`, which take `set ...` only as a command.
+  struct CommandOnlyProbe : TestHelpers::SinkBase {
+    std::string command;
+    int commands = 0;
+    float number = 0.f;
+    CommandOnlyProbe() : SinkBase(false) {
+      inputs.emplace_back(this, true, 0);
+      inputs.back().RegisterFloat([this](float v, int, YSE::THREAD) { number = v; });
+    }
+    const char* Type() const override {
+      return "command_only_probe";
+    }
+    void Calculate(YSE::THREAD) override {}
+    void SetMessage(const std::string& message, float) override {
+      command = message;
+      commands++;
+    }
+    bool HandlesMessages() const override {
+      return true;
+    }
+  };
+
+  TEST_CASE("list: an inlet without a list handler hands it to the command channel (#1195)") {
+    CommandOnlyProbe probe;
+    probe.GetInlet(0)->SetList("set 440 0.5", YSE::T_GUI);
+    CHECK(probe.command == "set 440 0.5");
+    CHECK(probe.commands == 1);
+
+    // Read as the message it spells: a single number reaches the float handler.
+    probe.GetInlet(0)->SetList("0.25", YSE::T_GUI);
+    CHECK(probe.number == doctest::Approx(0.25f));
+    CHECK(probe.commands == 1);
+
+    // An inlet with a list handler keeps every list, word-first or not.
+    CommandProbe listed;
+    listed.GetInlet(0)->SetList("note 60 100", YSE::T_GUI);
+    CHECK(listed.list == "note 60 100");
+    CHECK(listed.command.empty());
+
+    // No list handler and no command channel: still dropped, no calculate.
+    TypedProbe floatOnly(true);
+    floatOnly.GetInlet(0)->SetList("set 1 2", YSE::T_GUI);
+    CHECK_FALSE(floatOnly.seen.gotFloat);
+    CHECK(floatOnly.calculated == 0);
+  }
+
   TEST_CASE("message box: its text reaches ordinary objects in a real patch (#933)") {
     YSE::patcher p;
     p.create(2);

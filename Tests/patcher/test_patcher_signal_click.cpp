@@ -224,6 +224,14 @@ TEST_SUITE("patcher") {
     dst.Calculate(YSE::T_DSP);
     CheckHead(dst.output[0], {2.f});
     CheckHead(dst.output[1], {1.f, 0.5f});
+
+    // A set command through the receive reshapes both, without a message box
+    // (#1195); the next bang plays the new waveform.
+    REQUIRE(dst.PassData("set 0.75 0.5 0.25", "hit1058", YSE::T_GUI));
+    REQUIRE(dst.PassBang("hit1058", YSE::T_GUI));
+    dst.Calculate(YSE::T_DSP);
+    CheckHead(dst.output[0], {0.75f, 0.5f, 0.25f});
+    CheckHead(dst.output[1], {0.75f, 0.5f, 0.25f});
   }
 
   TEST_CASE("~click: triggers, set and blocks on the audio thread allocate nothing (#1058)") {
