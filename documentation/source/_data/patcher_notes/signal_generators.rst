@@ -217,7 +217,14 @@ frequency to 0. ``~oscbank`` reads its sine table without interpolation, so
 its size matters: the fourth argument, or ``tabpoints <n>``, sets it to a
 power of two (4096 by default). ``~ioscbank`` interpolates and needs no
 choice. Messages are not saved with the patch; the arguments are.
-``copybuf`` (a waveform from a buffer) is not available yet (issue #1196).
+
+``copybuf <buffer> [offset]`` makes the table, shared by every oscillator,
+from the first channel of a ``~buffer``, starting at sample ``offset``. The
+table keeps its size; samples the buffer does not have are 0. A name no
+buffer has changes nothing, and a later ``tabpoints`` goes back to the sine.
+The copy is made in the background and takes effect at the start of a later
+block, so the audio never stops for it; like the other messages it is not
+saved with the patch.
 
 .. code-block:: text
 

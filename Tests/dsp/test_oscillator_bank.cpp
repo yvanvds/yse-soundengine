@@ -392,6 +392,48 @@ TEST_SUITE("dsp") {
     CHECK(bank.tableSize() == 8);
   }
 
+  TEST_CASE("oscillatorBank: swapTable takes a table without copying or allocating (#1196)") {
+    TestHelpers::ScopedSampleRate rate(48000);
+    oscillatorBank bank(1);
+    bank.tableSize(4);
+    bank.set(0, 12000.f, 1.f); // one point per sample
+
+    // Too short for the table: refused, nothing changes.
+    std::vector<float> shortTable = {9.f, 9.f, 9.f};
+    CHECK_FALSE(bank.swapTable(shortTable));
+    CHECK_FALSE(bank.customTable());
+    CHECK(shortTable.size() == 3);
+
+    // Longer than the table is fine: the first four points are read.
+    std::vector<float> staged = {1.f, 2.f, 3.f, 4.f, 5.f, 6.f};
+    const float* storage = staged.data();
+    std::vector<float> second = {-1.f, -2.f, -3.f, -4.f};
+    {
+      TestHelpers::ProbeScope probe;
+      CHECK(bank.swapTable(staged));
+      CHECK(TestHelpers::g_alloc_count.load() == 0);
+    }
+    CHECK(bank.customTable());
+    CHECK(staged.empty()); // the bank's storage, which it never had
+    buffer& out = bank(8);
+    const float expected[] = {1.f, 2.f, 3.f, 4.f, 1.f, 2.f, 3.f, 4.f};
+    for (unsigned int i = 0; i < 8; ++i)
+      CHECK(out.getPtr()[i] == expected[i]);
+
+    // Swapping again hands back the first table's storage, unfreed.
+    {
+      TestHelpers::ProbeScope probe;
+      CHECK(bank.swapTable(second));
+      CHECK(TestHelpers::g_alloc_count.load() == 0);
+    }
+    CHECK(second.data() == storage);
+    CHECK(bank(1).getPtr()[0] == -1.f);
+
+    // tableSize goes back to the sine, as it does after setTable.
+    bank.tableSize(4);
+    CHECK_FALSE(bank.customTable());
+  }
+
   TEST_CASE("oscillatorBank: non-finite values are 0 (#1061)") {
     const float nan = std::numeric_limits<float>::quiet_NaN();
     const float inf = std::numeric_limits<float>::infinity();

@@ -104,6 +104,14 @@ namespace YSE {
       return *this;
     }
 
+    bool oscillatorBank::swapTable(std::vector<Flt>& samples) {
+      if (samples.size() < tablePoints) return false;
+      table.swap(samples);
+      custom = true;
+      stride = 1;
+      return true;
+    }
+
     void oscillatorBank::Retarget(ramp& r, Flt target, UInt samples) {
       target = Finite(target);
       if (target == r.target) return;
