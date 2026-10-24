@@ -125,6 +125,11 @@
 #include "generatorObjects/dUpdown.h"
 #include "generatorObjects/dShape.h"
 #include "generatorObjects/dRamp.h"
+#include "generatorObjects/dRate.h"
+#include "generatorObjects/dSubdiv.h"
+#include "generatorObjects/dStepDiv.h"
+#include "generatorObjects/dSwing.h"
+#include "generatorObjects/dTwist.h"
 #include "generatorObjects/dPhasor.h"
 #include "generatorObjects/dCycle.h"
 #include "generatorObjects/dNoise.h"
@@ -133,6 +138,7 @@
 #include "generatorObjects/dSig.h"
 
 #include "analysis/dSnapshot.h"
+#include "analysis/dWhere.h"
 #include "delay/dTapin.h"
 #include "delay/dTapout.h"
 #include "sampling/dBuffer.h"
@@ -363,9 +369,15 @@ pRegistry::pRegistry() {
   Add(OBJ::D_UPDOWN, dUpdown::Create);
   Add(OBJ::D_SHAPE, dShape::Create);
   Add(OBJ::D_RAMP, dRamp::Create);
+  Add(OBJ::D_RATE, dRate::Create);
+  Add(OBJ::D_SUBDIV, dSubdiv::Create);
+  Add(OBJ::D_STEPDIV, dStepDiv::Create);
+  Add(OBJ::D_SWING, dSwing::Create);
+  Add(OBJ::D_TWIST, dTwist::Create);
   Add(OBJ::D_SIG, dSig::Create);
 
   Add(OBJ::D_SNAPSHOT, dSnapshot::Create);
+  Add(OBJ::D_WHERE, dWhere::Create);
   Add(OBJ::D_TAPIN, dTapin::Create);
   Add(OBJ::D_TAPOUT, dTapout::Create);
   Add(OBJ::D_BUFFER, dBuffer::Create);

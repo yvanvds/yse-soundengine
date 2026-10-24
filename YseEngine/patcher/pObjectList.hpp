@@ -22,8 +22,13 @@ namespace YSE {
    *    (a
    * trapezoid envelope with fixed attack and release times), ``D_SHAPE`` (a
    * breakpoint envelope played over the length of a ramp), ``D_RAMP`` (a single
-   * ramp started by a trigger signal).
-   *  - DSP analysis: ``D_SNAPSHOT``.
+   * ramp started by a trigger signal), ``D_RATE`` (a 0..1 ramp time-scaled in
+   * phase with its input), ``D_SUBDIV`` (each cycle of a 0..1 ramp split into
+   * whole-number sub-ramps), ``D_STEPDIV`` (a 0..1 ramp per step of a stepped
+   * function), ``D_SWING`` (each cycle of a 0..1 ramp split into two unequal
+   * ramps), ``D_TWIST`` (a 0..1 ramp bent into an exponential curve).
+   *  - DSP analysis: ``D_SNAPSHOT``, ``D_WHERE`` (elapsed and remaining time
+   *    of a 0..1 ramp's cycle).
    *  - DSP delay: `D_TAPIN`, `D_TAPOUT`.
    *  - DSP sampling: ``D_BUFFER``.
    *  - DSP math: ``D_ADD``, ``D_MULTIPLY``, ``D_CLIP``, ``D_REVERSESUBSTRACT``,
@@ -201,8 +206,14 @@ namespace YSE {
     DEFOBJ(D_UPDOWN, "~updown");
     DEFOBJ(D_SHAPE, "~shape");
     DEFOBJ(D_RAMP, "~ramp");
+    DEFOBJ(D_RATE, "~rate");
+    DEFOBJ(D_SUBDIV, "~subdiv");
+    DEFOBJ(D_STEPDIV, "~stepdiv");
+    DEFOBJ(D_SWING, "~swing");
+    DEFOBJ(D_TWIST, "~twist");
 
     DEFOBJ(D_SNAPSHOT, "~snapshot");
+    DEFOBJ(D_WHERE, "~where");
 
     DEFOBJ(D_TAPIN, "~tapin");
     DEFOBJ(D_TAPOUT, "~tapout");

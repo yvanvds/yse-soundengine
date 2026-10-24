@@ -17263,6 +17263,66 @@
     ],
     "requires_midi_device": false
   },
+  "~rate": {
+    "category": "OSC",
+    "description": "Time-scales a 0-1 ramp such as a ~phasor: a multiplier below 1 makes several ramps per input cycle, above 1 one ramp over several, kept in phase with the input. Derives faster and slower clocks from one master ramp.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The ramp to follow, a signal from 0 to 1 (unconnected reads 0). A number jumps the output to it. 'goto <value> [<time>]' jumps now, or when the input reaches time; 'reset' restarts in phase on the next input wrap; 'oneshot <0|1>'; 'sync <0|1|2>' or 'sync <cycle|lock|off>'.",
+        "index": 0,
+        "label": "phase",
+        "range": "0-1"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Cycle-length multiplier: below 1 faster, above 1 slower, negative backwards; 0 is ignored. A signal, or a number used while no signal is connected.",
+        "index": 1,
+        "label": "multiplier",
+        "range": "any non-zero float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~rate",
+    "outlets": [
+      {
+        "doc": "The time-scaled ramp.",
+        "index": 0,
+        "label": "out",
+        "range": "0-1",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "1",
+        "doc": "Cycle-length multiplier used while no signal is connected.",
+        "name": "multiplier",
+        "range": "any non-zero float"
+      },
+      {
+        "default": "2",
+        "doc": "0 (cycle): back in phase at every input wrap; 1 (lock): back in phase when the multiplier changes; 2 (off): never, a new multiplier only changes the speed.",
+        "name": "sync",
+        "range": "0-2"
+      },
+      {
+        "default": "0",
+        "doc": "1: stop after one output ramp and hold until a goto or reset.",
+        "name": "oneshot",
+        "range": "0-1"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~rect": {
     "category": "OSC",
     "description": "Antialiased rectangle (pulse) oscillator switching between 1 and -1. A width of 0.5 is a square wave; sweep the width for pulse-width modulation. A sync signal restarts the cycle, for hard sync.",
@@ -17732,6 +17792,179 @@
     "params": [],
     "requires_midi_device": false
   },
+  "~stepdiv": {
+    "category": "OSC",
+    "description": "Plays a fresh 0-1 ramp for each step of a stepped function, with the step number beside it: per-step envelopes in a sequence. The steps share each cycle of an input ramp such as a ~phasor, or run free over times in milliseconds.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "A 0-1 ramp to divide; with none connected the steps run free over their times in ms. A bang starts the free-running steps. A number is a pattern of one step; a list is a breakpoint function as .function sends it, whose times become the steps. 'pattern <times...>' (none clears); 'what <onsets...>' gives the moments the steps end instead; 'curvemode <0|1|2>'; 'loop <0|1>'; 'syncupdate <0|1>'.",
+        "index": 0,
+        "label": "phase",
+        "range": "0-1"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Jumps the free-running steps to the start of this step and plays on.",
+        "index": 1,
+        "label": "step",
+        "range": "0 or more"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~stepdiv",
+    "outlets": [
+      {
+        "doc": "A 0-1 ramp per step. Free running and stopped: 0 before the first start, 1 after the last step.",
+        "index": 0,
+        "label": "out",
+        "range": "0-1",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "The number of the step playing, its place in the pattern.",
+        "index": 1,
+        "label": "index",
+        "range": "0 or more",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "2",
+        "doc": "How a list is read: 0 value-time pairs, 1 value-time-curve triples, 2 auto (pairs, as .function sends).",
+        "name": "curvemode",
+        "range": "0-2"
+      },
+      {
+        "default": "0",
+        "doc": "1: free-running steps start again after the last one.",
+        "name": "loop",
+        "range": "0-1"
+      },
+      {
+        "default": "0",
+        "doc": "1: a new pattern waits for the input ramp to wrap, or for the free-running steps to end or restart.",
+        "name": "syncupdate",
+        "range": "0-1"
+      }
+    ],
+    "requires_midi_device": false
+  },
+  "~subdiv": {
+    "category": "OSC",
+    "description": "Splits each cycle of a 0-1 ramp such as a ~phasor into a whole number of shorter ramps, in phase with it: tuplets and ratchets. Duration and probability patterns make uneven and skipped steps.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The ramp to subdivide, a signal from 0 to 1 (unconnected reads 0). A number sets the subdivisions. 'div <n>'; 'pattern <steps...>' sets step lengths in subdivisions (none clears); 'prob <chances...>' sets a chance 0-1 per step ('prob none' clears); 'lockprob <0|1>'; 'silentmode <0|1>'; 'syncupdate <0|1|2>'.",
+        "index": 0,
+        "label": "phase",
+        "range": "0-1"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~subdiv",
+    "outlets": [
+      {
+        "doc": "The sub-ramps; 0 during a step that does not play.",
+        "index": 0,
+        "label": "out",
+        "range": "0-1",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "The number of the step playing. During a step that does not play, the last one that did (silentmode 0) or -1 (silentmode 1).",
+        "index": 1,
+        "label": "index",
+        "range": "-1 or more",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "1",
+        "doc": "Subdivisions of each input cycle.",
+        "name": "div",
+        "range": "1-16384"
+      },
+      {
+        "default": "0",
+        "doc": "When a new div or pattern lands: 0 at once, 1 when the next output step starts, 2 when the input next wraps.",
+        "name": "syncupdate",
+        "range": "0-2"
+      },
+      {
+        "default": "0",
+        "doc": "Index output of a step that does not play: 0 the last step that played, 1 -1.",
+        "name": "silentmode",
+        "range": "0-1"
+      },
+      {
+        "default": "0",
+        "doc": "0: probabilities count subdivisions, so they keep their place on the grid; 1: they count steps of the duration pattern.",
+        "name": "lockprob",
+        "range": "0-1"
+      }
+    ],
+    "requires_midi_device": false
+  },
+  "~swing": {
+    "category": "OSC",
+    "description": "Splits each cycle of a 0-1 ramp such as a ~phasor into two full ramps of unequal length, in phase with it: swing or shuffle on a phasor clock.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The ramp to swing, a signal from 0 to 1 (unconnected reads 0). A number sets the swing. 'swing <value>'; 'syncupdate <0|1>'.",
+        "index": 0,
+        "label": "phase",
+        "range": "0-1"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~swing",
+    "outlets": [
+      {
+        "doc": "Two ramps per input cycle, the first lasting the swing share of it.",
+        "index": 0,
+        "label": "out",
+        "range": "0-1",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "0.5",
+        "doc": "Share of the input cycle taken by the first ramp; 0.5 makes two equal ramps.",
+        "name": "swing",
+        "range": "0.15-0.85"
+      },
+      {
+        "default": "0",
+        "doc": "0: a new swing applies at once; 1: it waits for the input to wrap, so no ramp changes length halfway.",
+        "name": "syncupdate",
+        "range": "0-1"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~tanh": {
     "category": "MATH",
     "description": "Outputs the hyperbolic tangent of the input: a smooth soft clipper that bends any signal into -1..1. Scale the signal up first to drive it harder.",
@@ -18154,6 +18387,55 @@
     "params": [],
     "requires_midi_device": false
   },
+  "~twist": {
+    "category": "OSC",
+    "description": "Bends a linear 0-1 ramp such as a ~phasor into an exponential curve, in phase with it: accelerating or slowing clocks and curved envelopes.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The ramp to bend, a signal from 0 to 1 (unconnected reads 0). A number sets the curve. 'curve <value>'; 'shapemode <0|1>'; 'syncupdate <0|1>'.",
+        "index": 0,
+        "label": "phase",
+        "range": "0-1"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~twist",
+    "outlets": [
+      {
+        "doc": "The curved ramp, from 0 to 1 with the same start and end as the input.",
+        "index": 0,
+        "label": "out",
+        "range": "0-1",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Curvature: 0 is linear, above 0 starts slow and speeds up, below 0 starts fast and slows down; steeper towards -1 and 1.",
+        "name": "curve",
+        "range": "-1 to 1"
+      },
+      {
+        "default": "1",
+        "doc": "1: a falling ramp is bent the same way as a rising one; 0: it follows the rising curve backwards.",
+        "name": "shapemode",
+        "range": "0-1"
+      },
+      {
+        "default": "0",
+        "doc": "0: a new curve applies at once; 1: it waits for the input ramp to wrap or turn, so the output never jumps.",
+        "name": "syncupdate",
+        "range": "0-1"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~updown": {
     "category": "OSC",
     "description": "A trapezoid envelope driven by a ramp such as a ~phasor, or by a gate: it rises in a fixed time when the ramp starts and falls in a fixed time to end at 0 where the ramp ends, however fast the ramp runs. For click-free gating.",
@@ -18275,6 +18557,41 @@
         "range": "0-20000 Hz"
       }
     ],
+    "requires_midi_device": false
+  },
+  "~where": {
+    "category": "ANALYSIS",
+    "description": "Reports the time since a 0-1 ramp such as a ~phasor last started its cycle, and the time it will take to finish it, as signals in milliseconds: events at set times within a cycle.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER"
+        ],
+        "doc": "The ramp to measure, a signal from 0 to 1, rising or falling (unconnected reads 0).",
+        "index": 0,
+        "label": "phase",
+        "range": "0-1"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~where",
+    "outlets": [
+      {
+        "doc": "Time since the ramp last started its cycle, in ms.",
+        "index": 0,
+        "label": "elapsed",
+        "range": "0 or higher",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "Time until the ramp ends its cycle, in ms, predicted from its current speed.",
+        "index": 1,
+        "label": "remaining",
+        "range": "0 or higher",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [],
     "requires_midi_device": false
   }
 }

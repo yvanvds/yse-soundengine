@@ -73,6 +73,24 @@ Generators
 .. doxygenfile:: dsp/generators/triggeredRamp.hpp
    :project: libYSE
 
+.. doxygenfile:: dsp/generators/phasorRate.hpp
+   :project: libYSE
+
+.. doxygenfile:: dsp/generators/phasorSubdiv.hpp
+   :project: libYSE
+
+.. doxygenfile:: dsp/generators/phasorStepDiv.hpp
+   :project: libYSE
+
+.. doxygenfile:: dsp/generators/phasorSwing.hpp
+   :project: libYSE
+
+.. doxygenfile:: dsp/generators/phasorTwist.hpp
+   :project: libYSE
+
+.. doxygenfile:: dsp/generators/phasorWhere.hpp
+   :project: libYSE
+
 .. doxygenfile:: dsp/lfo.hpp
    :project: libYSE
 

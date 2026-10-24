@@ -366,3 +366,136 @@ but are not saved.
 .. code-block:: text
 
    [~click] -> [~ramp 50 1 0 0.5] -> [~*] (right inlet)   a 50 ms curved decay per click
+
+.. patcher-object:: ~rate
+
+Follows a 0-1 ramp, usually a ``~phasor``, and plays a faster or slower ramp
+that stays in phase with it: several clocks derived from one master ramp.
+The multiplier in the right inlet scales the length of a cycle, so 0.25 plays
+four ramps per input ramp and 2 one ramp over two input ramps. A negative
+multiplier runs backwards; 0 is ignored and the last multiplier stays.
+
+In phase means both ramps start a new cycle together whenever their periods
+line up. A steady multiplier keeps them so; ``sync`` decides what happens when
+a new multiplier breaks it. With ``sync 2`` (``off``, the default) the speed
+changes and the ramp runs on without a jump. With ``sync 1`` (``lock``) the
+output jumps to the in-phase position at once. With ``sync 0`` (``cycle``)
+the speed changes at once and the output jumps back in phase when the input
+next wraps.
+
+A number in the left inlet, or ``goto <value>``, jumps the output to that
+value now; ``goto <value> <time>`` does so when the input reaches ``time``.
+``reset`` restarts in phase on the next input wrap. With ``oneshot 1`` the
+output stops at the end of its ramp and holds there until a ``goto`` or a
+``reset``.
+
+The arguments are ``multiplier`` (1), ``sync`` (2) and ``oneshot`` (0), and
+they are saved with the patch.
+
+.. code-block:: text
+
+   [~phasor 0.5] -> [~rate 0.25] -> [~techno]   four sequencer passes per master ramp
+
+.. patcher-object:: ~subdiv
+
+Follows a 0-1 ramp, usually a ``~phasor``, and splits each of its cycles into
+a whole number of shorter ramps, in phase with it: tuplets, ratchets and
+uneven grooves from one master ramp. A number, or ``div <n>``, sets the number
+of subdivisions (1 to 16384). The right outlet is a signal with the number of
+the step playing.
+
+``pattern <steps...>`` gives the steps uneven lengths, counted in
+subdivisions: with 3 subdivisions, ``pattern 1 2`` plays a ramp of a third
+of the cycle, then one of two thirds. A pattern that does not fill a whole
+number of cycles is padded with one last step that does, and a pattern
+longer than one cycle spans several. ``pattern`` alone clears it.
+
+``prob <chances...>`` gives each step a chance to play, 0 to 1, cycling on
+its own. A step that does not play outputs 0, and the index either keeps the
+last step that played (``silentmode 0``) or reads -1 (``silentmode 1``).
+With ``lockprob 0`` the chances count subdivisions, so each keeps its place
+on the grid; with ``lockprob 1`` they count the steps of the pattern.
+``prob none`` clears them.
+
+``syncupdate`` decides when a new subdivision or pattern lands: at once
+(0), when the next output step starts (1) or when the input next wraps (2).
+
+The arguments are ``div`` (1), ``syncupdate`` (0), ``silentmode`` (0) and
+``lockprob`` (0), and they are saved with the patch. The two patterns are
+not.
+
+.. code-block:: text
+
+   [~phasor 0.5] -> [~subdiv 3] -> [~techno]   a triplet pass per master ramp
+
+.. patcher-object:: ~stepdiv
+
+Plays a fresh 0-1 ramp for each step of a stepped function, and sends the
+number of the step playing from its right outlet: per-step envelopes in a
+sequence. The steps come from a list of times. ``pattern 50 25`` gives two
+steps; a list in line format, as ``.function`` sends on a bang, gives the
+times of its breakpoints (``curvemode 1`` reads value-time-curve triples);
+a single number is a pattern of one step. ``what <onsets...>`` gives the
+moments the steps end instead, from the start: ``what 0.25 0.5 0.75`` makes
+four equal steps.
+
+With a ramp such as a ``~phasor`` connected, the steps share each of its
+cycles by their times: ``pattern 50 25`` plays a ramp over the first two
+thirds of the cycle and one over the last third. With nothing connected,
+the times are milliseconds and a bang plays the steps once, or over and over
+with ``loop 1``. A number in the right inlet jumps to that step. When the
+steps have run out the ramp holds at 1.
+
+A step of time 0 never plays but keeps its number, so with a function's
+list the index is the number of the breakpoint the ramp travels to.
+``syncupdate 1`` holds a new pattern back until the input ramp wraps, or
+until the free-running steps end or restart.
+
+The arguments are ``curvemode`` (2, which reads pairs), ``loop`` (0) and
+``syncupdate`` (0), and they are saved with the patch. The pattern is not.
+
+.. code-block:: text
+
+   [~phasor 1] -> [~stepdiv] -> [~techno]   one ramp per step, per cycle
+
+.. patcher-object:: ~swing
+
+Follows a 0-1 ramp, usually a ``~phasor``, and splits each of its cycles
+into two full ramps of unequal length, in phase with it: swing or shuffle on
+a phasor clock. A number, or ``swing <value>``, sets the share of the cycle
+the first ramp takes, from 0.15 to 0.85. At 0.5 both ramps are equal; at
+0.75 the first lasts three quarters of the cycle and the second one quarter.
+
+A new swing applies at once, so the output can jump halfway through a ramp.
+With ``syncupdate 1`` it waits until the input ramp wraps, so every ramp
+keeps the length it started with.
+
+The arguments are ``swing`` (0.5) and ``syncupdate`` (0), and they are saved
+with the patch.
+
+.. code-block:: text
+
+   [~phasor 1] -> [~swing 0.66] -> [~techno]   two swung steps per master ramp
+
+.. patcher-object:: ~twist
+
+Follows a 0-1 ramp, usually a ``~phasor``, and bends it into an exponential
+curve with the same start and end, in phase with it: a clock that speeds up
+or slows down within each cycle, or a curved envelope from a phasor. A
+number, or ``curve <value>``, sets the curvature from -1 to 1. At 0 the ramp
+passes unchanged; above 0 it starts slow and speeds up, below 0 it starts
+fast and slows down, and the bend gets much steeper towards -1 and 1.
+
+With ``shapemode 1`` (the default) a falling ramp is bent the same way as a
+rising one; with ``shapemode 0`` it follows the rising curve backwards.
+
+A new curve applies at once, so the output can jump. With ``syncupdate 1``
+it waits until the input ramp wraps or turns around, so the output stays
+smooth.
+
+The arguments are ``curve`` (0), ``shapemode`` (1) and ``syncupdate`` (0),
+and they are saved with the patch.
+
+.. code-block:: text
+
+   [~phasor 1] -> [~twist 0.5] -> [~techno]   steps that bunch up late in each cycle
