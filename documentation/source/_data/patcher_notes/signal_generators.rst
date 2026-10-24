@@ -366,3 +366,32 @@ but are not saved.
 .. code-block:: text
 
    [~click] -> [~ramp 50 1 0 0.5] -> [~*] (right inlet)   a 50 ms curved decay per click
+
+.. patcher-object:: ~rate
+
+Follows a 0-1 ramp, usually a ``~phasor``, and plays a faster or slower ramp
+that stays in phase with it: several clocks derived from one master ramp.
+The multiplier in the right inlet scales the length of a cycle, so 0.25 plays
+four ramps per input ramp and 2 one ramp over two input ramps. A negative
+multiplier runs backwards; 0 is ignored and the last multiplier stays.
+
+In phase means both ramps start a new cycle together whenever their periods
+line up. A steady multiplier keeps them so; ``sync`` decides what happens when
+a new multiplier breaks it. With ``sync 2`` (``off``, the default) the speed
+changes and the ramp runs on without a jump. With ``sync 1`` (``lock``) the
+output jumps to the in-phase position at once. With ``sync 0`` (``cycle``)
+the speed changes at once and the output jumps back in phase when the input
+next wraps.
+
+A number in the left inlet, or ``goto <value>``, jumps the output to that
+value now; ``goto <value> <time>`` does so when the input reaches ``time``.
+``reset`` restarts in phase on the next input wrap. With ``oneshot 1`` the
+output stops at the end of its ramp and holds there until a ``goto`` or a
+``reset``.
+
+The arguments are ``multiplier`` (1), ``sync`` (2) and ``oneshot`` (0), and
+they are saved with the patch.
+
+.. code-block:: text
+
+   [~phasor 0.5] -> [~rate 0.25] -> [~techno]   four sequencer passes per master ramp

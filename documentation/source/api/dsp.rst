@@ -73,6 +73,9 @@ Generators
 .. doxygenfile:: dsp/generators/triggeredRamp.hpp
    :project: libYSE
 
+.. doxygenfile:: dsp/generators/phasorRate.hpp
+   :project: libYSE
+
 .. doxygenfile:: dsp/lfo.hpp
    :project: libYSE
 

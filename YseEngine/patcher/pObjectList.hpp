@@ -22,7 +22,8 @@ namespace YSE {
    *    (a
    * trapezoid envelope with fixed attack and release times), ``D_SHAPE`` (a
    * breakpoint envelope played over the length of a ramp), ``D_RAMP`` (a single
-   * ramp started by a trigger signal).
+   * ramp started by a trigger signal), ``D_RATE`` (a 0..1 ramp time-scaled in
+   * phase with its input).
    *  - DSP analysis: ``D_SNAPSHOT``.
    *  - DSP delay: `D_TAPIN`, `D_TAPOUT`.
    *  - DSP sampling: ``D_BUFFER``.
@@ -201,6 +202,7 @@ namespace YSE {
     DEFOBJ(D_UPDOWN, "~updown");
     DEFOBJ(D_SHAPE, "~shape");
     DEFOBJ(D_RAMP, "~ramp");
+    DEFOBJ(D_RATE, "~rate");
 
     DEFOBJ(D_SNAPSHOT, "~snapshot");
 
