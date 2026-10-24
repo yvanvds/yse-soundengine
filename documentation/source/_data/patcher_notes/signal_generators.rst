@@ -458,6 +458,40 @@ The arguments are ``curvemode`` (2, which reads pairs), ``loop`` (0) and
 
    [~phasor 1] -> [~stepdiv] -> [~techno]   one ramp per step, per cycle
 
+.. patcher-object:: ~stepfun
+
+Plays a breakpoint function one segment per cycle of an input ramp: stepped
+modulation and pitch sequences timed by a ``~phasor``. The pattern is a list
+of values. Step ``k`` travels from value ``k - 1`` to value ``k`` as the
+ramp goes from 0 to 1, and step 0 from the last value to the first, so the
+pattern loops without a jump. Each forward wrap of the ramp moves to the
+next step, each backward wrap (a falling ramp) to the one before. A bent
+ramp bends the output the same way.
+
+``pattern <values...>`` sets the values, up to 64. A list is a breakpoint
+function in line format, as ``.function`` sends it, whose values become the
+pattern; its times are ignored, as the ramp does the timing. ``curvemode 1``
+reads value-time-curve triples and sets the curves too, ``curvemode 0`` and
+2 (auto, the default) read pairs. A single number makes the pattern that one
+value, and is the first value of a list that follows it at once.
+``curvepattern <curves...>`` bends each step, from -1 to 1: 0 is linear, a
+positive curve moves late and a negative one early.
+
+The right inlet sets the step. Connect ``~stepdiv``'s index to it, and its
+ramp to the left inlet, to play the function with the times of its steps:
+``~stepdiv`` numbers its steps by the breakpoint each ramp travels to, which
+is the numbering here. A number in the right inlet, or ``step <n>``, sets the
+step when nothing is connected there; a bang goes back to step 0.
+``syncupdate`` says when a new pattern takes effect: 0 at once, 1 when the
+ramp wraps, 2 when the sequence ends. The creation arguments are the first
+pattern, with ``curvepattern`` (the numbers after it are curves, until
+``pattern``), ``curvemode`` and ``syncupdate`` among them if needed. They are
+saved with the patch, later messages are not.
+
+.. code-block:: text
+
+   [~phasor 2] -> [~stepfun 0 1 0.5]   0.5 to 0, 0 to 1, 1 to 0.5, twice a second
+
 .. patcher-object:: ~swing
 
 Follows a 0-1 ramp, usually a ``~phasor``, and splits each of its cycles
@@ -499,3 +533,39 @@ and they are saved with the patch.
 .. code-block:: text
 
    [~phasor 1] -> [~twist 0.5] -> [~techno]   steps that bunch up late in each cycle
+
+.. patcher-object:: ~snowfall
+
+A particle of one to four values, its dimensions, that moves while a 0-1
+ramp runs: one voice of a cloud of drifting, overlapping events. Give each
+voice its own ``~phasor`` and use the outputs as pitch, pan, filter or grain
+position. The first argument sets the number of dimensions, and of outlets.
+
+A particle starts when the ramp rises above 0 or wraps, and ends when it
+wraps (the next one starts at once) or goes back to 0. A number in the inlet
+works as a gate: above 0 starts a particle, 0 ends it.
+
+Each dimension starts at ``initial`` and moves at ``direction`` units per
+second; ``initialdev`` and ``directiondev`` add a random deviation either
+way. ``energyramp`` speeds the motion up as the ramp rises: at 1 it is twice
+as fast at the end of the cycle as at its start. Every ``interval`` ms (100,
+plus a random ``intervaldev``) the speed is drawn again, and with the
+probability ``wanderprob`` the direction reverses.
+
+``min`` and ``max`` bound each dimension. ``boundarymode`` says what happens
+there: 0 bounces back (``squish`` multiplies the speed at each bounce), 1
+ends the particle, 2 wraps to the other boundary, 3 stays at the boundary.
+The output maps ``min`` - ``max`` onto ``scalemin`` - ``scalemax``. Once a
+particle ends, ``endmode 0`` outputs ``endvalue`` and ``endmode 1`` holds
+the last value; ``startmode 1`` starts the next particle where the last one
+left instead of at ``initial``.
+
+The messages that take a value per dimension take up to four numbers, one
+for each dimension in order: ``direction 0.5 -0.2`` moves the first dimension
+up and the second down. The arguments are the number of dimensions, then any
+of the messages as keywords, and they are saved with the patch:
+
+.. code-block:: text
+
+   [~phasor 0.5] -> [~snowfall 2 direction 0.3 -0.1 directiondev 0.2 0.2]
+                     two values drifting on every two-second cycle

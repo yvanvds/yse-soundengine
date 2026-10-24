@@ -25,10 +25,15 @@ namespace YSE {
    * ramp started by a trigger signal), ``D_RATE`` (a 0..1 ramp time-scaled in
    * phase with its input), ``D_SUBDIV`` (each cycle of a 0..1 ramp split into
    * whole-number sub-ramps), ``D_STEPDIV`` (a 0..1 ramp per step of a stepped
-   * function), ``D_SWING`` (each cycle of a 0..1 ramp split into two unequal
-   * ramps), ``D_TWIST`` (a 0..1 ramp bent into an exponential curve).
+   * function), ``D_STEPFUN`` (a breakpoint function played one segment per
+   * cycle of a 0..1 ramp), ``D_SWING`` (each cycle of a 0..1 ramp split into two unequal
+   * ramps), ``D_TWIST`` (a 0..1 ramp bent into an exponential curve),
+   * ``D_SNOWFALL`` (a particle of one to four values moving while a 0..1 ramp
+   * runs).
    *  - DSP analysis: ``D_SNAPSHOT``, ``D_WHERE`` (elapsed and remaining time
-   *    of a 0..1 ramp's cycle).
+   *    of a 0..1 ramp's cycle), ``D_WHAT`` (an impulse each time a 0..1 ramp
+   *    passes one of a list of values), ``D_STEPCOUNTER`` (the jumps of a
+   *    signal counted through a sequence of counts).
    *  - DSP delay: `D_TAPIN`, `D_TAPOUT`.
    *  - DSP sampling: ``D_BUFFER``.
    *  - DSP math: ``D_ADD``, ``D_MULTIPLY``, ``D_CLIP``, ``D_REVERSESUBSTRACT``,
@@ -66,7 +71,9 @@ namespace YSE {
    *  - Change detection: ``G_CHANGE``.
    *  - Zero-crossing edges: ``G_TOGEDGE``.
    *  - Bitwise: ``G_BITAND``, ``G_BITOR``, ``G_SHIFTLEFT``, ``G_SHIFTRIGHT``.
-   *  - DSP filters: ``D_LOWPASS``, ``D_HIGHPASS``, ``D_BANDPASS``, ``D_VCF``.
+   *  - DSP filters: ``D_LOWPASS``, ``D_HIGHPASS``, ``D_BANDPASS``, ``D_VCF``,
+   *    ``D_SAH`` (sample and hold), ``D_SASH`` (sample and hold with memory),
+   *    ``D_STASH`` (store and recall signal values).
    *  - I/O: ``D_DAC``, ``D_ADC``, ``D_LINE``.
    *  - Control: ``G_INT``, ``G_FLOAT``, ``G_SLIDER``, ``G_RSLIDER``,
    *    ``G_XYSLIDER``, ``G_MULTISLIDER``, ``G_MATRIXCTRL``, ``G_FUNCTION``,
@@ -209,11 +216,15 @@ namespace YSE {
     DEFOBJ(D_RATE, "~rate");
     DEFOBJ(D_SUBDIV, "~subdiv");
     DEFOBJ(D_STEPDIV, "~stepdiv");
+    DEFOBJ(D_STEPFUN, "~stepfun");
     DEFOBJ(D_SWING, "~swing");
     DEFOBJ(D_TWIST, "~twist");
+    DEFOBJ(D_SNOWFALL, "~snowfall");
 
     DEFOBJ(D_SNAPSHOT, "~snapshot");
     DEFOBJ(D_WHERE, "~where");
+    DEFOBJ(D_WHAT, "~what");
+    DEFOBJ(D_STEPCOUNTER, "~stepcounter");
 
     DEFOBJ(D_TAPIN, "~tapin");
     DEFOBJ(D_TAPOUT, "~tapout");
@@ -1021,6 +1032,9 @@ namespace YSE {
     DEFOBJ(D_HIGHPASS, "~hp");
     DEFOBJ(D_BANDPASS, "~bp");
     DEFOBJ(D_VCF, "~vcf");
+    DEFOBJ(D_SAH, "~sah");
+    DEFOBJ(D_SASH, "~sash");
+    DEFOBJ(D_STASH, "~stash");
 
     DEFOBJ(M_OUT, ".midiout");
     DEFOBJ(M_IN, ".midiin");

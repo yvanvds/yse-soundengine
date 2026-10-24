@@ -17440,6 +17440,55 @@
     ],
     "requires_midi_device": false
   },
+  "~sah": {
+    "category": "FILTER",
+    "description": "Samples its input each time a trigger signal crosses a threshold and holds that value until the next trigger: classic sample-and-hold modulation, or latching one value per step of a ~phasor.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "The signal to sample (unconnected, the last number sent here, 0 at first). 'thresh <x>' sets the threshold; 'triggermode <0-6>' (0 rising above the threshold, 1 falling below it, 2 either, 3 equal to it, 4 from zero to nonzero, 5 from nonzero to zero, 6 passing it as a phase, so threshold 0 triggers at each reset of a ~phasor); 'duration <samples>' or 'dur <samples>' (above 0, the held value lasts that many samples, then 0).",
+        "index": 0,
+        "label": "in",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The trigger signal compared with the threshold (unconnected reads 0). A number sets the threshold.",
+        "index": 1,
+        "label": "trigger",
+        "range": ""
+      }
+    ],
+    "is_dsp": true,
+    "name": "~sah",
+    "outlets": [
+      {
+        "doc": "The value held since the last trigger.",
+        "index": 0,
+        "label": "out",
+        "range": "",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "The threshold, the first number. 'thresh <x>', 'triggermode <n>' and 'duration <n>' (or 'dur <n>') among the arguments set those attributes (default 0, 0 and 0). Messages do not change what is saved.",
+        "name": "thresh",
+        "range": "a number, then keywords"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~sampstoms": {
     "category": "MATH",
     "description": "Converts samples to milliseconds at the current sample rate. A number or list in is also converted at once and sent from the right outlet.",
@@ -17476,6 +17525,66 @@
       }
     ],
     "params": [],
+    "requires_midi_device": false
+  },
+  "~sash": {
+    "category": "FILTER",
+    "description": "Sample and hold with memory: records its input into a ring of stored values on one trigger and plays them back on another, so a sequence of sampled values can loop, such as a random melody that repeats.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "The signal to sample (unconnected, the last number sent here, 0 at first). A list of numbers fills the memory and sets the size to its length. 'samplelevel <x>' and 'advancelevel <x>' set the two trigger levels; 'dir <0-3>' (how an advance moves: 0 forward, 1 backward, 2 random, 3 random without repeats until every value has played); 'mode <0-2>' (how the advance trigger is read: 0 rising above advancelevel, 1 its whole value is the place to read, 2 a 0-1 phase divided into size parts); 'size <n>' (the number of values in use, 1 to maxsize).",
+        "index": 0,
+        "label": "in",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The sample trigger: rising above samplelevel records the input into the next place (unconnected reads 0). A number sets samplelevel.",
+        "index": 1,
+        "label": "sample",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The advance trigger, read as mode says, which picks the place played (unconnected reads 0). A number sets advancelevel.",
+        "index": 2,
+        "label": "advance",
+        "range": ""
+      }
+    ],
+    "is_dsp": true,
+    "name": "~sash",
+    "outlets": [
+      {
+        "doc": "The value at the place played.",
+        "index": 0,
+        "label": "out",
+        "range": "",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "Keywords and their numbers: 'samplelevel <x>', 'advancelevel <x>' (default 0.5 and 0.5), 'dir <n>', 'mode <n>' (default 0 and 0), 'size <n>' (default 1) and 'maxsize <n>' (the capacity, default 1000, set only here). Messages and the memory are not saved.",
+        "name": "attributes",
+        "range": "keywords and numbers"
+      }
+    ],
     "requires_midi_device": false
   },
   "~saw": {
@@ -17762,6 +17871,44 @@
     ],
     "requires_midi_device": false
   },
+  "~snowfall": {
+    "category": "OSC",
+    "description": "A particle of one to four values that moves while a 0-1 ramp runs: it starts when the ramp starts and ends when it resets, bouncing, wrapping or stopping at its boundaries. One voice of a cloud of overlapping events.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "The ramp that starts and ends each particle, usually a ~phasor (unconnected, the last number sent here, 0 at first). A particle starts when the ramp rises above 0 or wraps, and ends when it wraps or goes to 0. With a value per dimension: 'direction' the speed in units per second, 'directiondev' a random deviation around it, 'energyramp' how much the ramp speeds the motion up (1: twice as fast at its end), 'initial' the starting value, 'initialdev' a random deviation around it, 'min' and 'max' the boundaries, 'scalemin' and 'scalemax' the output at them, 'squish' the speed factor of a bounce, 'wanderprob' the 0-1 chance of a reversal at each update, 'endvalue' the output once a particle ends. With one value: 'interval <ms>' the time between updates (0: none), 'intervaldev <ms>' a random deviation around it, 'boundarymode <0-3>' at a boundary (0 bounce, 1 end, 2 wrap to the other side, 3 stay), 'endmode <0-1>' the output once a particle ends (0 the end value, 1 the last value), 'startmode <0-1>' where a particle starts (0 the initial value, 1 where the last one left).",
+        "index": 0,
+        "label": "ramp",
+        "range": "0-1"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~snowfall",
+    "outlets": [
+      {
+        "doc": "The value of dimension 1 of the particle, scaled to scalemin - scalemax; once it ends, the end value or the last value.",
+        "index": 0,
+        "label": "out",
+        "range": "",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "1",
+        "doc": "The number of dimensions and outlets, 1 to 4 (also 'dimensions <n>'; set only here). The keywords of the inlet's messages follow it, with their values (defaults: direction 1, deviations 0, energyramp 0, initial 0, min 0, max 1, scalemin 0, scalemax 1, squish 1, wanderprob 0, endvalue 0, interval 100, boundarymode 0, endmode 0, startmode 0). Messages are not saved.",
+        "name": "dimensions",
+        "range": "1-4, then keywords"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~sqrt": {
     "category": "MATH",
     "description": "Outputs the square root of the input. Negative input gives 0, so no NaN reaches the graph.",
@@ -17790,6 +17937,132 @@
       }
     ],
     "params": [],
+    "requires_midi_device": false
+  },
+  "~stash": {
+    "category": "FILTER",
+    "description": "Stores signal values into a memory of places and recalls them: a sample and hold that remembers, an interpolating lookup table, or an audio-rate step sequencer.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "The signal to record (unconnected, the last number sent here, 0 at first). A number is also written at the write position; a list of numbers fills the memory and sets the size to its length. 'samplelevel <x>' and 'advancelevel <x>' set the trigger levels; 'sampletriggermode <0-6>' and 'advancetriggermode <0-6>' when a trigger fires (0 rising above its level, 1 falling below it, 2 either, 3 equal to it, 4 from zero to nonzero, 5 from nonzero to zero, 6 passing it as a phase); 'dir <0-3>' how an advance moves (0 forward, 1 backward, 2 random, 3 random without repeats until every place has played); 'mode <0-2>' (or 'advancemode') what the advance inlet does (0 a trigger that advances, 1 the place to read, 2 a 0-1 share of the size); 'writemode <0-2>' where a recording goes (0 the next place, 1 the place the write index names, 2 the write index as a 0-1 share of the size); 'extend <0-3>' an index outside the memory (0 reads 0, 1 the first or last place, 2 wraps, 3 changes nothing); 'interp <0-2>' an index between places (0 rounds down, 1 mixes the two, 2 rounds); 'duration <n>' (or 'dur') above 0 a new output lasts n samples, then 0; 'size <n>' the places in use, 1 to maxsize.",
+        "index": 0,
+        "label": "in",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT",
+          "BANG"
+        ],
+        "doc": "The sample trigger: when it fires, the input is recorded (unconnected reads 0). A number sets samplelevel; a bang records the first sample of the next block.",
+        "index": 1,
+        "label": "sample",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT",
+          "BANG"
+        ],
+        "doc": "The advance trigger, or the place to read in modes 1 and 2 (unconnected reads 0). A number sets advancelevel; a bang advances the output.",
+        "index": 2,
+        "label": "advance",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT",
+          "BANG"
+        ],
+        "doc": "The write index in writemodes 1 and 2 (unconnected, the last number sent here, 0 at first). A number also sets the write position that numbers in the left inlet write; a bang moves it one place on.",
+        "index": 3,
+        "label": "write",
+        "range": ""
+      }
+    ],
+    "is_dsp": true,
+    "name": "~stash",
+    "outlets": [
+      {
+        "doc": "The value read from the memory.",
+        "index": 0,
+        "label": "out",
+        "range": "",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "0.5",
+        "doc": "The sample level, the first number; a second number is the advance level (default 0.5 and 0.5). The keywords of the left inlet's messages set those attributes (defaults: trigger modes 0, dir 0, mode 0, writemode 0, extend 2, interp 0, duration 0, size 1), and 'maxsize <n>' the capacity (default 1000, set only here). Messages and the memory are not saved.",
+        "name": "samplelevel",
+        "range": "numbers, then keywords"
+      }
+    ],
+    "requires_midi_device": false
+  },
+  "~stepcounter": {
+    "category": "ANALYSIS",
+    "description": "Counts the jumps in a signal, such as the resets of a ~phasor, through a sequence of counts and sends an impulse each time a count is reached: a sequence of durations in beats from a steady clock.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "The signal to count the jumps of, usually a ~phasor (unconnected reads 0). A jump is a change of at least the threshold from one sample to the next. A number replaces the sequence with that one count; a list replaces it with its numbers. 'seq <counts...>' does the same (none empties it); 'reset' starts over; 'direction <0|1|2>' (both, up, down); 'startmode <0|1>' (1: the first jump fires and starts the sequence); 'syncupdate <0|1|2>' (a new sequence at once, after the step, after the sequence); 'thresh <x>' (the smallest jump).",
+        "index": 0,
+        "label": "in",
+        "range": ""
+      }
+    ],
+    "is_dsp": true,
+    "name": "~stepcounter",
+    "outlets": [
+      {
+        "doc": "1 for one sample each time a step's count is reached, 0 otherwise.",
+        "index": 0,
+        "label": "out",
+        "range": "0-1",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "The jumps counted in the step playing, from 0.",
+        "index": 1,
+        "label": "count",
+        "range": "0 or more",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "The index of the step playing, its place in the sequence.",
+        "index": 2,
+        "label": "step",
+        "range": "0 or more",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The counts of the sequence, up to 64, each rounded and at least 1; empty, every jump is a step. 'direction <n>', 'startmode <n>', 'syncupdate <n>' and 'thresh <x>' among them set those attributes (default 0, 1, 0 and 0.75). Messages do not change what is saved.",
+        "name": "seq",
+        "range": "list of whole numbers, 1 or more"
+      }
+    ],
     "requires_midi_device": false
   },
   "~stepdiv": {
@@ -17856,6 +18129,56 @@
         "doc": "1: a new pattern waits for the input ramp to wrap, or for the free-running steps to end or restart.",
         "name": "syncupdate",
         "range": "0-1"
+      }
+    ],
+    "requires_midi_device": false
+  },
+  "~stepfun": {
+    "category": "OSC",
+    "description": "Plays a breakpoint function one segment per cycle of an input ramp such as a ~phasor: each cycle travels from one value of the pattern to the next, for stepped modulation and pitch sequences.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "The 0-1 ramp that times the segments (unconnected reads 0). Each forward wrap moves to the next step, each backward wrap to the one before. A bang goes back to step 0. A number makes the pattern that one value, and is the first value of a list that follows it. A list is a breakpoint function as .function sends it, whose values become the pattern. 'pattern <values...>' and 'curvepattern <curves...>' (none clears); 'step <n>'; 'curvemode <0|1|2>'; 'syncupdate <0|1|2>'.",
+        "index": 0,
+        "label": "phase",
+        "range": "0-1"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The step to play, a signal such as ~stepdiv's index, rounded down and wrapped into the pattern; while connected it replaces the counting of the ramp's cycles. A number sets the step when no signal is connected.",
+        "index": 1,
+        "label": "step",
+        "range": "0 or more"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~stepfun",
+    "outlets": [
+      {
+        "doc": "The function: step k travels from value k-1 to value k as the ramp goes from 0 to 1, step 0 from the last value to the first.",
+        "index": 0,
+        "label": "out",
+        "range": "",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The values of the pattern, up to 64. 'curvepattern' makes the numbers after it the curves of the steps (-1 to 1, 0 linear) and 'pattern' makes them values again; 'curvemode <n>' (how a list is read: 0 value-time pairs, 1 value-time-curve triples, 2 auto, pairs as .function sends; default 2) and 'syncupdate <n>' (a new pattern lands 0 at once, 1 when the ramp wraps, 2 when the sequence ends; default 0) set those attributes. Messages do not change what is saved.",
+        "name": "pattern",
+        "range": "list of numbers"
       }
     ],
     "requires_midi_device": false
@@ -18555,6 +18878,44 @@
         "doc": "Center frequency in Hz used while no signal is connected.",
         "name": "center",
         "range": "0-20000 Hz"
+      }
+    ],
+    "requires_midi_device": false
+  },
+  "~what": {
+    "category": "ANALYSIS",
+    "description": "Sends an impulse, a 1 for one sample, each time a 0-1 ramp such as a ~phasor passes one of a list of phase values: rhythmic triggers on a phasor clock.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "The ramp to watch, a signal from 0 to 1, rising or falling (unconnected reads 0). A number replaces the values with that one value; a list replaces them with its numbers. 'matches <values...>' does the same (none empties the list); 'clear' empties it; 'triggermode <0|1|2|3>' (rising, falling, both, exactly equal); 'syncupdate <0|1>' (1: a new list waits for the ramp to wrap).",
+        "index": 0,
+        "label": "phase",
+        "range": "0-1"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~what",
+    "outlets": [
+      {
+        "doc": "1 for one sample each time the ramp passes a value, 0 otherwise.",
+        "index": 0,
+        "label": "out",
+        "range": "0-1",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The phase values to watch, up to 64, each wrapped into 0-1. 'triggermode <n>' and 'syncupdate <n>' among them set those modes (default 2 and 0). Messages do not change what is saved.",
+        "name": "values",
+        "range": "list of floats, 0 to 1"
       }
     ],
     "requires_midi_device": false

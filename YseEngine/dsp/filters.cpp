@@ -9,7 +9,11 @@
 */
 
 #include "filters.hpp"
+#include <cmath>
 #include <math.h>
+#include "../headers/constants.hpp"
+#include "generators/phaseStep.hpp"
+#include "generators/triggerCondition.hpp"
 #include "../utils/misc.hpp"
 
 YSE::DSP::filterBase::filterBase()
@@ -369,7 +373,8 @@ void YSE::DSP::biQuad::calc() {
 
 /*******************************************************************************************/
 
-YSE::DSP::sampleHold::sampleHold() : lastIn(0), lastOut(0) {}
+YSE::DSP::sampleHold::sampleHold()
+  : lastIn(0), lastOut(0), thresh(0), mode(DECREASE), length(0), samples(STANDARD_BUFFERSIZE) {}
 
 YSE::DSP::sampleHold& YSE::DSP::sampleHold::reset(Flt value) {
   lastIn = value;
@@ -381,26 +386,73 @@ YSE::DSP::sampleHold& YSE::DSP::sampleHold::set(Flt value) {
   return (*this);
 }
 
-YSE::DSP::buffer& YSE::DSP::sampleHold::operator()(YSE::DSP::buffer& in, YSE::DSP::buffer& signal) {
-  if (in.getLength() != samples.getLength()) samples.resize(in.getLength());
+YSE::DSP::sampleHold& YSE::DSP::sampleHold::threshold(Flt value) {
+  thresh = value;
+  return (*this);
+}
 
-  Flt* inPtr = in.getPtr();
-  Flt* sigPtr = signal.getPtr();
+YSE::DSP::sampleHold& YSE::DSP::sampleHold::triggerMode(TRIGGER_MODE m) {
+  mode = m;
+  return (*this);
+}
+
+YSE::DSP::sampleHold& YSE::DSP::sampleHold::duration(UInt samplesToHold) {
+  length = samplesToHold;
+  return (*this);
+}
+
+// The trigger modes are numbered as triggerCondition::Meets reads them
+// (shared with signalStash, #1084); anything past PHASE is a decrease.
+static_assert(YSE::DSP::sampleHold::ASCENDING == 0 && YSE::DSP::sampleHold::DESCENDING == 1 &&
+                  YSE::DSP::sampleHold::BOTH == 2 && YSE::DSP::sampleHold::EQUALS == 3 &&
+                  YSE::DSP::sampleHold::ZERO_TO_NONZERO == 4 &&
+                  YSE::DSP::sampleHold::NONZERO_TO_ZERO == 5 && YSE::DSP::sampleHold::PHASE == 6 &&
+                  YSE::DSP::sampleHold::DECREASE == 7,
+              "sampleHold's trigger modes match triggerCondition::Meets");
+
+namespace {
+  // Whether the control step from `previous` to `current` meets `mode`.
+  inline bool Triggers(int mode, Flt previous, Flt current, Flt threshold, Dbl wrappedThreshold) {
+    return YSE::DSP::triggerCondition::Meets(mode, previous, current, threshold, wrappedThreshold);
+  }
+} // namespace
+
+YSE::DSP::buffer& YSE::DSP::sampleHold::operator()(YSE::DSP::buffer& in, YSE::DSP::buffer& signal) {
+  UInt n = in.getLength() < signal.getLength() ? in.getLength() : signal.getLength();
+  if (n > STANDARD_BUFFERSIZE) n = STANDARD_BUFFERSIZE;
+  // Within the capacity set in the constructor: no allocation.
+  if (samples.getLength() != n) samples.resize(n);
+
+  const Flt* inPtr = in.getPtr();
+  const Flt* sigPtr = signal.getPtr();
   Flt* outPtr = samples.getPtr();
-  UInt length = in.getLength();
 
   // it's a bad idea to parse the whole buffer with atomics, so make a copy first
   Flt li = lastIn;
   Flt lo = lastOut;
+  const Flt th = thresh;
+  const int m = mode;
+  const UInt hold = length;
+  const Dbl wrapped = phaseStep::Wrap(static_cast<Dbl>(th));
 
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wunused-value"
-  for (UInt i = 0; i < length; i++, *inPtr++) {
-    if (*sigPtr < li) lo = *inPtr;
-    *outPtr++ = lo;
-    li = *sigPtr++;
+  for (UInt i = 0; i < n; i++) {
+    const Flt control = sigPtr[i];
+    if (std::isfinite(control)) {
+      if (Triggers(m, li, control, th, wrapped)) {
+        lo = inPtr[i];
+        remaining = hold;
+      }
+      li = control;
+    }
+    if (hold == 0) {
+      outPtr[i] = lo;
+    } else if (remaining > 0) {
+      outPtr[i] = lo;
+      remaining--;
+    } else {
+      outPtr[i] = 0.f;
+    }
   }
-#pragma clang diagnostic pop
   lastIn = li;
   lastOut = lo;
 
