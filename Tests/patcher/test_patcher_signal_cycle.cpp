@@ -13,6 +13,7 @@
 #include "dsp/sampling/sampleBuffer.hpp"
 #include "headers/constants.hpp"
 #include "patcher/generatorObjects/dCycle.h"
+#include "patcher/io/fileScheduler.h"
 #include "patcher/pHandle.hpp"
 #include "patcher/pObjectList.hpp"
 #include "patcher/pRegistry.h"
@@ -59,6 +60,39 @@ namespace {
   YSE::PATCHER::pObject* Object(patcherImplementation& p, YSE::pHandle* h) {
     return p.GetObjectFromID(h->GetID());
   }
+
+  // A still ~cycle (frequency 0) at phase 0.5 into a dac, so output[0][0] is
+  // the table's middle point, for the rebinding messages (#1192).
+  struct RebindRig {
+    patcherImplementation p{1, nullptr};
+    YSE::pHandle* handle = nullptr;
+    dCycle* osc = nullptr;
+
+    explicit RebindRig(const std::string& args) {
+      handle = p.CreateObject(YSE::OBJ::D_CYCLE, args);
+      REQUIRE(handle != nullptr);
+      YSE::pHandle* dac = p.CreateObject(YSE::OBJ::D_DAC, "");
+      p.Connect(handle, 0, dac, 0);
+      osc = static_cast<dCycle*>(Object(p, handle));
+      osc->GetInlet(1)->SetFloat(0.5f, YSE::T_GUI);
+    }
+
+    void Message(const std::string& text, YSE::THREAD thread = YSE::T_GUI) {
+      osc->GetInlet(0)->SetMessage(text, thread);
+    }
+
+    // The bind task runs on the background pool; the next block takes the
+    // table, and the task that frees the old one runs after it.
+    float Settle() {
+      YSE::PATCHER::fileScheduler* io = p.FileIO();
+      REQUIRE(io != nullptr);
+      io->WaitIdle();
+      p.Calculate(YSE::T_DSP);
+      const float first = p.output[0].getPtr()[0];
+      io->WaitIdle();
+      return first;
+    }
+  };
 } // namespace
 
 TEST_SUITE("patcher") {
@@ -156,9 +190,11 @@ TEST_SUITE("patcher") {
     CHECK(Near(sink.received->getPtr()[0], 0.0));
     CHECK(Near(sink.received->getPtr()[127], 0.0)); // frequency 0: still
 
-    // Unknown words and missing numbers change nothing.
+    // Unknown words and missing numbers change nothing, and outside a
+    // patcher neither does a rebind (#1192: it needs the file scheduler).
     osc.GetInlet(0)->SetMessage("frequency", YSE::T_GUI);
     osc.GetInlet(0)->SetMessage("set nothing", YSE::T_GUI);
+    CHECK_FALSE(osc.UsesBuffer());
     osc.Calculate(YSE::T_DSP);
     CHECK(Near(sink.received->getPtr()[0], 0.0));
   }
@@ -348,6 +384,185 @@ TEST_SUITE("patcher") {
     stop.store(true);
     control.join();
     CHECK(whole);
+  }
+
+  // ─── set / setall / buffer (#1192) ──────────────────────────────────────────
+
+  TEST_CASE("~cycle: set, setall and buffer rebind the table (#1192)") {
+    std::shared_ptr<sampleBuffer> a = RampBuffer("cycle_1192_a", 1024);
+    std::shared_ptr<sampleBuffer> b = RampBuffer("cycle_1192_b", 1024);
+    b->applyOffset(1000.f); // 1000, 1001, ...
+    RebindRig r("0");
+    r.p.Calculate(YSE::T_DSP);
+    CHECK(Near(r.p.output[0].getPtr()[0], -1.0)); // the cosine at 0.5
+    CHECK_FALSE(r.osc->UsesBuffer());
+
+    // set <name> <offset>: 512 points from 100, the middle one is 356.
+    r.Message("set cycle_1192_a 100");
+    CHECK(r.Settle() == doctest::Approx(356.f));
+    CHECK(r.osc->UsesBuffer());
+    CHECK(r.osc->Buffer() == a);
+    CHECK_FALSE(r.osc->ReleasePending()); // the cosine's table is freed
+
+    // buffer <name>: the other buffer, offset and size as they were.
+    r.Message("buffer cycle_1192_b");
+    CHECK(r.Settle() == doctest::Approx(1356.f));
+    CHECK(r.osc->Buffer() == b);
+
+    // setall <name>: all 1024 points, from 0.
+    r.Message("setall cycle_1192_a");
+    CHECK(r.Settle() == doctest::Approx(512.f));
+    // ...until buffer_sizeinsamps gives a fixed size back.
+    r.Message("buffer_sizeinsamps 64");
+    r.p.Calculate(YSE::T_DSP);
+    CHECK(r.p.output[0].getPtr()[0] == doctest::Approx(32.f));
+
+    // set without an offset starts at 0; the size stays.
+    r.Message("set cycle_1192_b");
+    CHECK(r.Settle() == doctest::Approx(1032.f));
+
+    // set with no name: back to the cosine.
+    r.Message("set");
+    CHECK(Near(r.Settle(), -1.0));
+    CHECK_FALSE(r.osc->UsesBuffer());
+    CHECK(r.osc->Buffer() == nullptr);
+    CHECK_FALSE(r.osc->ReleasePending());
+    CHECK(r.p.FileIO()->Dropped() == 0);
+  }
+
+  TEST_CASE("~cycle: of rebinds sent before a block the last wins, with their offsets (#1192)") {
+    std::shared_ptr<sampleBuffer> a = RampBuffer("cycle_1192_last_a", 1024);
+    std::shared_ptr<sampleBuffer> b = RampBuffer("cycle_1192_last_b", 1024);
+    b->applyOffset(1000.f);
+    RebindRig r("0");
+    r.p.Calculate(YSE::T_DSP);
+    // Both tasks run before the block: the second replaces the first's table
+    // but keeps the offset it would have brought.
+    r.Message("set cycle_1192_last_a 200");
+    r.Message("buffer cycle_1192_last_b");
+    CHECK(r.Settle() == doctest::Approx(1456.f));
+    CHECK(r.osc->Buffer() == b);
+  }
+
+  TEST_CASE("~cycle: malformed rebinds change nothing (#1192)") {
+    std::shared_ptr<sampleBuffer> a = RampBuffer("cycle_1192_bad", 1024);
+    RebindRig r("0 cycle_1192_bad");
+    CHECK(r.Settle() == doctest::Approx(256.f));
+    r.Message("setall");
+    r.Message("buffer");
+    r.Message("set " + std::string(YSE::PATCHER::fileScheduler::PATH_CAPACITY, 'x'));
+    CHECK(r.Settle() == doctest::Approx(256.f));
+    CHECK(r.osc->Buffer() == a);
+    CHECK(r.p.FileIO()->Dropped() == 0);
+  }
+
+  TEST_CASE("~cycle: a rebind is not saved by DumpJSON (#1192)") {
+    std::shared_ptr<sampleBuffer> a = RampBuffer("cycle_1192_json_a", 1024);
+    std::shared_ptr<sampleBuffer> b = RampBuffer("cycle_1192_json_b", 1024);
+    b->applyOffset(1000.f);
+    RebindRig r("0 cycle_1192_json_a 100");
+    const std::string before = r.p.DumpJSON();
+    r.Message("set cycle_1192_json_b 300");
+    CHECK(r.Settle() == doctest::Approx(1556.f));
+    // The creation arguments are what is saved, so a reload reads them again.
+    CHECK(r.p.DumpJSON() == before);
+    patcherImplementation dst(1, nullptr);
+    dst.ParseJSON(before);
+    dst.Calculate(YSE::T_DSP);
+    CHECK(dst.output[0].getPtr()[0] == doctest::Approx(100.f)); // phase 0: point 100 of a
+  }
+
+  TEST_CASE("~cycle: a rebind in flight survives the object's deletion (#1192)") {
+    std::shared_ptr<sampleBuffer> a = RampBuffer("cycle_1192_deleted", 64);
+    const long held = a.use_count();
+    {
+      RebindRig r("0");
+      r.Message("set cycle_1192_deleted");
+      r.p.DeleteObject(r.handle);
+      r.p.FileIO()->WaitIdle();
+      r.p.Calculate(YSE::T_DSP);
+      r.p.FileIO()->WaitIdle();
+    }
+    // Whatever the task bound was freed with the object: nothing still holds
+    // the buffer.
+    CHECK(a.use_count() == held);
+  }
+
+  TEST_CASE("~cycle: rebinding allocates nothing on the audio thread (#1192)") {
+    std::shared_ptr<sampleBuffer> a = RampBuffer("cycle_1192_alloc_a", 1024);
+    std::shared_ptr<sampleBuffer> b = RampBuffer("cycle_1192_alloc_b", 1024);
+    b->applyOffset(1000.f);
+    RebindRig r("0 cycle_1192_alloc_a");
+    r.Settle();
+    // Built before the probe: the strings themselves allocate.
+    const std::vector<std::string> messages = {
+        "set cycle_1192_alloc_b 100", "setall cycle_1192_alloc_a", "buffer cycle_1192_alloc_b"};
+    for (const std::string& m : messages) {
+      CAPTURE(m);
+      {
+        TestHelpers::ProbeScope probe;
+        r.Message(m, YSE::T_DSP);
+        CHECK(TestHelpers::g_alloc_count.load() == 0);
+      }
+      r.p.FileIO()->WaitIdle();
+      {
+        // The block that takes the new table and asks for the old one to go.
+        TestHelpers::ProbeScope probe;
+        r.p.Calculate(YSE::T_DSP);
+        CHECK(TestHelpers::g_alloc_count.load() == 0);
+      }
+      r.p.FileIO()->WaitIdle();
+      CHECK_FALSE(r.osc->ReleasePending());
+    }
+    CHECK(r.osc->Buffer() == b);
+    CHECK(r.p.output[0].getPtr()[0] == doctest::Approx(1512.f)); // b, all of it
+  }
+
+  TEST_CASE("~cycle: a control thread rebinds while the audio thread renders (#1192)") {
+    // Two constant tables of different lengths: every block reads one whole
+    // table, never freed or half-made memory. Under ASan or TSan a broken
+    // handoff shows up here.
+    std::shared_ptr<sampleBuffer> ones = sampleBufferRegistry::acquire("cycle_1192_race_1");
+    ones->setSize(256, 1);
+    ones->fill(1.f);
+    std::shared_ptr<sampleBuffer> twos = sampleBufferRegistry::acquire("cycle_1192_race_2");
+    twos->setSize(1024, 1);
+    twos->fill(2.f);
+    RebindRig r(std::to_string(HundredSampleFrequency()) + " cycle_1192_race_1 0 -1");
+    const std::string toOnes = "set cycle_1192_race_1";
+    const std::string toTwos = "buffer cycle_1192_race_2";
+
+    std::atomic<bool> stop{false};
+    std::thread control([&] {
+      int n = 0;
+      while (!stop.load()) {
+        r.Message((n++ % 2) != 0 ? toOnes : toTwos);
+        std::this_thread::yield();
+      }
+    });
+
+    bool whole = true;
+    int switches = 0;
+    float last = 1.f;
+    for (int block = 0; block < 20000 && (block < 2000 || switches == 0); ++block) {
+      r.p.Calculate(YSE::T_DSP);
+      const float* out = r.p.output[0].getPtr();
+      const float v = out[0];
+      if (!(v == 1.f || v == 2.f)) whole = false;
+      for (unsigned int i = 1; i < YSE::STANDARD_BUFFERSIZE; ++i)
+        if (out[i] != v) whole = false;
+      if (v != last) switches++;
+      last = v;
+    }
+    stop.store(true);
+    control.join();
+    CHECK(whole);
+    CHECK(switches > 0);
+
+    // Quiet again, everything let go is freed.
+    r.Settle();
+    r.Settle();
+    CHECK_FALSE(r.osc->ReleasePending());
   }
 
 } // TEST_SUITE("patcher")

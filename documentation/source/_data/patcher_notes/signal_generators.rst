@@ -60,8 +60,15 @@ of that sample buffer instead: ``offset`` samples in, ``size`` samples long
 (0 means 512, -1 the rest of the buffer, and it stops at the buffer's end).
 ``buffer_offset <n>`` and ``buffer_sizeinsamps <n>`` change those two while
 the patch runs. The buffer is read fresh every block, so a new file or an
-edit is heard at once; an empty buffer gives silence. To switch to another
-buffer, change the argument.
+edit is heard at once; an empty buffer gives silence.
+
+To switch buffers while the patch runs, send ``set <name> [offset]`` (from
+``offset``, 0 if not given; the size stays), ``setall <name>`` (the whole
+buffer, from 0) or ``buffer <name>`` (offset and size stay). ``set`` alone
+goes back to the cosine. The new buffer is looked up in the background and
+heard from a later block on, without a gap; the phase runs on. A switch is
+not saved with the patch: saving keeps the buffer argument, so a reloaded
+patch starts from that again.
 
 .. code-block:: text
 

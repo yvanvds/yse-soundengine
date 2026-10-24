@@ -15984,7 +15984,7 @@
           "FLOAT",
           "INT"
         ],
-        "doc": "Frequency in Hz: a signal, or a number used while no signal is connected. Also takes 'reset [phase]', 'frequency <hz>', 'phase <0-1>', 'buffer_offset <n>' and 'buffer_sizeinsamps <n>'.",
+        "doc": "Frequency in Hz: a signal, or a number used while no signal is connected. Also takes 'reset [phase]', 'frequency <hz>', 'phase <0-1>', 'buffer_offset <n>', 'buffer_sizeinsamps <n>', and 'set [name] [offset]', 'setall <name>' and 'buffer <name>' to read another buffer (in the background, from a later block; not saved with the patch).",
         "index": 0,
         "label": "freq",
         "range": "any float"
@@ -16021,7 +16021,7 @@
       },
       {
         "default": "",
-        "doc": "Name of a sample buffer whose first channel is the waveform. None uses the built-in cosine.",
+        "doc": "Name of a sample buffer whose first channel is the waveform. None uses the built-in cosine. A set, setall or buffer message does not change what is saved.",
         "name": "buffer",
         "range": "buffer name"
       },
