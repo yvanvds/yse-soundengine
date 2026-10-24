@@ -94,6 +94,9 @@ Generators
 .. doxygenfile:: dsp/generators/phasorWhere.hpp
    :project: libYSE
 
+.. doxygenfile:: dsp/generators/stepCounter.hpp
+   :project: libYSE
+
 .. doxygenfile:: dsp/lfo.hpp
    :project: libYSE
 

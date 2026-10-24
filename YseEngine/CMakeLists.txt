@@ -90,6 +90,7 @@ set(YSE_SRCS
   dsp/generators/phasorTwist.cpp
   dsp/generators/phasorWhat.cpp
   dsp/generators/phasorWhere.cpp
+  dsp/generators/stepCounter.cpp
   dsp/operators/arithmetic.cpp
   dsp/operators/accumulator.cpp
   dsp/operators/compare.cpp
@@ -140,6 +141,7 @@ set(YSE_SRCS
   music/scale/scaleInterface.cpp
   music/scale/scaleManager.cpp
   patcher/analysis/dSnapshot.cpp
+  patcher/analysis/dStepCounter.cpp
   patcher/analysis/dWhat.cpp
   patcher/analysis/dWhere.cpp
   patcher/delay/dTapin.cpp
@@ -562,6 +564,7 @@ set_source_files_properties(
   patcher/outlet.cpp
   patcher/parameters.cpp
   patcher/analysis/dSnapshot.cpp
+  patcher/analysis/dStepCounter.cpp
   patcher/analysis/dWhat.cpp
   patcher/analysis/dWhere.cpp
   patcher/delay/dTapin.cpp

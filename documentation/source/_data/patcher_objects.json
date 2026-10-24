@@ -17792,6 +17792,58 @@
     "params": [],
     "requires_midi_device": false
   },
+  "~stepcounter": {
+    "category": "ANALYSIS",
+    "description": "Counts the jumps in a signal, such as the resets of a ~phasor, through a sequence of counts and sends an impulse each time a count is reached: a sequence of durations in beats from a steady clock.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "The signal to count the jumps of, usually a ~phasor (unconnected reads 0). A jump is a change of at least the threshold from one sample to the next. A number replaces the sequence with that one count; a list replaces it with its numbers. 'seq <counts...>' does the same (none empties it); 'reset' starts over; 'direction <0|1|2>' (both, up, down); 'startmode <0|1>' (1: the first jump fires and starts the sequence); 'syncupdate <0|1|2>' (a new sequence at once, after the step, after the sequence); 'thresh <x>' (the smallest jump).",
+        "index": 0,
+        "label": "in",
+        "range": ""
+      }
+    ],
+    "is_dsp": true,
+    "name": "~stepcounter",
+    "outlets": [
+      {
+        "doc": "1 for one sample each time a step's count is reached, 0 otherwise.",
+        "index": 0,
+        "label": "out",
+        "range": "0-1",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "The jumps counted in the step playing, from 0.",
+        "index": 1,
+        "label": "count",
+        "range": "0 or more",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "The index of the step playing, its place in the sequence.",
+        "index": 2,
+        "label": "step",
+        "range": "0 or more",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The counts of the sequence, up to 64, each rounded and at least 1; empty, every jump is a step. 'direction <n>', 'startmode <n>', 'syncupdate <n>' and 'thresh <x>' among them set those attributes (default 0, 1, 0 and 0.75). Messages do not change what is saved.",
+        "name": "seq",
+        "range": "list of whole numbers, 1 or more"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~stepdiv": {
     "category": "OSC",
     "description": "Plays a fresh 0-1 ramp for each step of a stepped function, with the step number beside it: per-step envelopes in a sequence. The steps share each cycle of an input ramp such as a ~phasor, or run free over times in milliseconds.",
