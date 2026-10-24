@@ -61,6 +61,9 @@ Generators
 .. doxygenfile:: dsp/generators/sampleCounter.hpp
    :project: libYSE
 
+.. doxygenfile:: dsp/generators/techno.hpp
+   :project: libYSE
+
 .. doxygenfile:: dsp/lfo.hpp
    :project: libYSE
 

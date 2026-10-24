@@ -17711,6 +17711,57 @@
     ],
     "requires_midi_device": false
   },
+  "~techno": {
+    "category": "SEQUENCE",
+    "description": "A step sequencer read by a 0-1 phase signal: per step a pitch, an amplitude, a pitch slide and attack and decay shapes, out as pitch and envelope signals. For drum patterns and acid lines at sample accuracy.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The phase over the whole sequence, clamped to 0-1 (a ~phasor); a number while no signal is connected. Also takes 'pitch', 'amplitude', 'curve', 'attack', 'decay' and 'pos', each '<step> <value>', 'length <n>' and 'repeatpos <v> ...'.",
+        "index": 0,
+        "label": "phase",
+        "range": "0-1"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~techno",
+    "outlets": [
+      {
+        "doc": "The current step's pitch in Hz, sliding from the previous one's.",
+        "index": 0,
+        "label": "pitch",
+        "range": "any float",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "The amplitude envelope: the step's note decaying and the next one's rising.",
+        "index": 1,
+        "label": "amplitude",
+        "range": "any float",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "Where the sequence is, in steps: the step plus how far through it.",
+        "index": 2,
+        "label": "position",
+        "range": "0 to length",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "16",
+        "doc": "How many steps the sequencer has room for; 'length' uses fewer. Changing it rebuilds the object.",
+        "name": "steps",
+        "range": "1-1024"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~trapezoid": {
     "category": "OSC",
     "description": "A trapezoid read by a 0-1 phase such as a ~phasor: it rises from lo to hi by the ramp-up point, holds hi until the ramp-down point, then falls back to lo. For LFO shapes and envelopes.",

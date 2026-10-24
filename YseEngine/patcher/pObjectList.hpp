@@ -18,7 +18,7 @@ namespace YSE {
    *    ``D_OSCBANK`` and ``D_IOSCBANK`` (additive oscillator banks),
    *    ``D_TRIANGLE`` and ``D_TRAPEZOID`` (shapes read by a 0..1 phase),
    *    ``D_SIG`` (a number as a constant signal), ``D_COUNT`` (a sample
-   *    counter).
+   *    counter), ``D_TECHNO`` (a step sequencer read by a 0..1 phase).
    *  - DSP analysis: ``D_SNAPSHOT``.
    *  - DSP delay: `D_TAPIN`, `D_TAPOUT`.
    *  - DSP sampling: ``D_BUFFER``.
@@ -193,6 +193,7 @@ namespace YSE {
     DEFOBJ(D_TRAPEZOID, "~trapezoid");
     DEFOBJ(D_SIG, "~sig");
     DEFOBJ(D_COUNT, "~count");
+    DEFOBJ(D_TECHNO, "~techno");
 
     DEFOBJ(D_SNAPSHOT, "~snapshot");
 

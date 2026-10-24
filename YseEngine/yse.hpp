@@ -79,6 +79,7 @@
 #include "dsp/generators/oscillatorBank.hpp"
 #include "dsp/generators/phaseShapes.hpp"
 #include "dsp/generators/sampleCounter.hpp"
+#include "dsp/generators/techno.hpp"
 #include "dsp/generators/bandLimitedRandom.hpp"
 #include "dsp/operators/arithmetic.hpp"
 #include "dsp/operators/accumulator.hpp"

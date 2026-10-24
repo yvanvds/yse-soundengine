@@ -23,6 +23,7 @@ set(YSE_TEST_SOURCES
   dsp/test_oscillator_bank.cpp
   dsp/test_phase_shapes.cpp
   dsp/test_sample_counter.cpp
+  dsp/test_techno.cpp
   dsp/test_arithmetic_operators.cpp
   dsp/test_accumulator.cpp
   dsp/test_compare.cpp
@@ -183,6 +184,7 @@ set(YSE_TEST_SOURCES
   patcher/test_patcher_signal_oscbank.cpp
   patcher/test_patcher_signal_phase_shapes.cpp
   patcher/test_patcher_signal_count.cpp
+  patcher/test_patcher_signal_techno.cpp
   patcher/test_patcher_reverse_modulo.cpp
   patcher/test_patcher_plusequals.cpp
   patcher/test_patcher_signal_compare.cpp
@@ -1288,6 +1290,7 @@ set_source_files_properties(
   patcher/test_patcher_signal_oscbank.cpp
   patcher/test_patcher_signal_phase_shapes.cpp
   patcher/test_patcher_signal_count.cpp
+  patcher/test_patcher_signal_techno.cpp
   patcher/test_patcher_reverse_modulo.cpp
   patcher/test_patcher_plusequals.cpp
   patcher/test_patcher_signal_compare.cpp
