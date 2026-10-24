@@ -8,6 +8,7 @@
 #include <doctest/doctest.h>
 #include <string>
 #include "patcher/patcher.hpp"
+#include "patcher/patcherImplementation.h"
 #include "patcher/pHandle.hpp"
 #include "patcher/pObjectList.hpp"
 #include "patcher/guiObjects/gButton.h"
@@ -237,8 +238,6 @@ TEST_SUITE("patcher") {
 
   TEST_CASE("gMessage: bang dispatches the stored message via SendMessage") {
     YSE::PATCHER::gMessage msg;
-    // Parameters::Set splits on spaces; only a single token reaches the
-    // message STRING param.  Multi-token messages must arrive via SetList.
     msg.SetParams("payload");
     MessageSink sink;
     msg.ConnectOutlet(sink.GetInlet(0), 0);
@@ -247,6 +246,68 @@ TEST_SUITE("patcher") {
     msg.GetInlet(0)->SetBang(YSE::T_GUI);
     CHECK(sink.gotMessage);
     CHECK(sink.received == "payload");
+  }
+
+  TEST_CASE("gMessage: the whole creation text is the stored message (#1194)") {
+    YSE::PATCHER::gMessage msg;
+    MessageSink sink;
+    msg.ConnectOutlet(sink.GetInlet(0), 0);
+    sink.ConnectInlet(msg.GetOutlet(0), 0);
+
+    // Every word, joined with single spaces as a list message is tokenized.
+    msg.SetParams("  set 440\t0.5  ");
+    CHECK(msg.GetGuiValue() == "set 440 0.5");
+    msg.GetInlet(0)->SetBang(YSE::T_GUI);
+    CHECK(sink.received == "set 440 0.5");
+
+    // A re-parse replaces the text rather than appending to it, and an empty
+    // argument leaves an empty box.
+    msg.SetParams("stop");
+    CHECK(msg.GetGuiValue() == "stop");
+    msg.SetParams("");
+    CHECK(msg.GetGuiValue().empty());
+  }
+
+  TEST_CASE("message box: a multi-word box survives a JSON round trip and sends every word "
+            "(#1194)") {
+    std::string dump;
+    {
+      YSE::PATCHER::patcherImplementation src(2, nullptr);
+      YSE::pHandle* recv = src.CreateObject(YSE::OBJ::G_RECEIVE, "go1194");
+      YSE::pHandle* msg = src.CreateObject(YSE::OBJ::G_MESSAGE, "note 60 100");
+      YSE::pHandle* route = src.CreateObject(YSE::OBJ::G_ROUTE, "note");
+      YSE::pHandle* out = src.CreateObject(YSE::OBJ::G_LIST, "");
+      REQUIRE(recv != nullptr);
+      REQUIRE(msg != nullptr);
+      REQUIRE(route != nullptr);
+      REQUIRE(out != nullptr);
+      src.Connect(recv, 0, msg, 0);
+      src.Connect(msg, 0, route, 0);
+      src.Connect(route, 0, out, 0);
+      dump = src.DumpJSON();
+    }
+    YSE::PATCHER::patcherImplementation dst(2, nullptr);
+    dst.ParseJSON(dump);
+
+    YSE::pHandle* box = nullptr;
+    YSE::pHandle* out = nullptr;
+    for (unsigned int i = 0; i < dst.Objects(); i++) {
+      YSE::pHandle* h = dst.GetHandleFromList(i);
+      if (std::string(h->Type()) == ".m") box = h;
+      if (std::string(h->Type()) == ".l") out = h;
+    }
+    REQUIRE(box != nullptr);
+    REQUIRE(out != nullptr);
+    // REQUIRE is not noreturn to the static analyzer, which otherwise takes the
+    // path where the loop found nothing.
+    if (box == nullptr || out == nullptr) return;
+    CHECK(box->GetGuiValue() == "note 60 100");
+
+    REQUIRE(dst.PassBang("go1194", YSE::T_GUI));
+    // The bang is queued for the receive and delivered at the top of a block.
+    dst.Calculate(YSE::T_DSP);
+    // .route strips the word it matched and passes the rest on.
+    CHECK(out->GetGuiValue() == "60 100");
   }
 
   TEST_CASE("gMessage: list-in updates the stored message") {

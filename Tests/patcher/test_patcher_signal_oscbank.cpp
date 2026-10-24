@@ -291,9 +291,7 @@ TEST_SUITE("patcher") {
     {
       patcherImplementation src(2, nullptr);
       YSE::pHandle* recv = src.CreateObject(YSE::OBJ::G_RECEIVE, "set1061");
-      // A creation argument is one word, so the set box gets its text
-      // through the receive (a list replaces it silently) and a bang sends it.
-      YSE::pHandle* setBox = src.CreateObject(YSE::OBJ::G_MESSAGE, "");
+      YSE::pHandle* setBox = src.CreateObject(YSE::OBJ::G_MESSAGE, "set 440 0.5 880 0.25");
       YSE::pHandle* hush = src.CreateObject(YSE::OBJ::G_RECEIVE, "hush1061");
       YSE::pHandle* hushBox = src.CreateObject(YSE::OBJ::G_MESSAGE, "silence");
       YSE::pHandle* stepped = src.CreateObject(YSE::OBJ::D_OSCBANK, "4 1 0 1024");
@@ -335,7 +333,6 @@ TEST_SUITE("patcher") {
     for (int block = 0; block < 6; ++block) {
       CAPTURE(block);
       if (block == 2) {
-        REQUIRE(dst.PassData(std::string("set 440 0.5 880 0.25"), "set1061", YSE::T_GUI));
         REQUIRE(dst.PassBang("set1061", YSE::T_GUI));
         steppedReference.setPairs(pairs, 2);
       }
