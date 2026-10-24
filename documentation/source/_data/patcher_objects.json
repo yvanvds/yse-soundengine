@@ -14583,13 +14583,15 @@
   },
   "~*": {
     "category": "MATH",
-    "description": "Multiplies an audio signal by another audio signal or by a float: a gain stage, or a ring modulator.",
+    "description": "Multiplies an audio signal by another audio signal or by a number: a gain stage, or a ring modulator.",
     "inlets": [
       {
         "accepts": [
-          "BUFFER"
+          "BUFFER",
+          "FLOAT",
+          "INT"
         ],
-        "doc": "Audio signal.",
+        "doc": "Audio signal, or a number used while no audio is connected.",
         "index": 0,
         "label": "left",
         "range": "any float"
@@ -14619,8 +14621,8 @@
     ],
     "params": [
       {
-        "default": "1.0",
-        "doc": "Float used while no audio is connected to the right inlet.",
+        "default": "1",
+        "doc": "Number used while no audio is connected to the right inlet.",
         "name": "right",
         "range": "any float"
       }
@@ -14629,13 +14631,15 @@
   },
   "~+": {
     "category": "MATH",
-    "description": "Adds two audio signals, or adds a float to an audio signal.",
+    "description": "Adds two audio signals, or adds a number to an audio signal.",
     "inlets": [
       {
         "accepts": [
-          "BUFFER"
+          "BUFFER",
+          "FLOAT",
+          "INT"
         ],
-        "doc": "Audio signal.",
+        "doc": "Audio signal, or a number used while no audio is connected.",
         "index": 0,
         "label": "left",
         "range": "any float"
@@ -14666,7 +14670,7 @@
     "params": [
       {
         "default": "0",
-        "doc": "Float used while no audio is connected to the right inlet.",
+        "doc": "Number used while no audio is connected to the right inlet.",
         "name": "right",
         "range": "any float"
       }
@@ -14722,13 +14726,15 @@
   },
   "~-": {
     "category": "MATH",
-    "description": "Subtracts an audio signal, or a float, from an audio signal.",
+    "description": "Subtracts an audio signal, or a number, from an audio signal.",
     "inlets": [
       {
         "accepts": [
-          "BUFFER"
+          "BUFFER",
+          "FLOAT",
+          "INT"
         ],
-        "doc": "Audio signal.",
+        "doc": "Audio signal, or a number used while no audio is connected.",
         "index": 0,
         "label": "left",
         "range": "any float"
@@ -14759,7 +14765,7 @@
     "params": [
       {
         "default": "0",
-        "doc": "Float used while no audio is connected to the right inlet.",
+        "doc": "Number used while no audio is connected to the right inlet.",
         "name": "right",
         "range": "any float"
       }
@@ -14768,13 +14774,15 @@
   },
   "~/": {
     "category": "MATH",
-    "description": "Divides an audio signal by another audio signal or by a float. A float of 0 leaves the signal unchanged.",
+    "description": "Divides an audio signal by another audio signal or by a number. A divisor of 0 gives 0.",
     "inlets": [
       {
         "accepts": [
-          "BUFFER"
+          "BUFFER",
+          "FLOAT",
+          "INT"
         ],
-        "doc": "Audio signal.",
+        "doc": "Audio signal, or a number used while no audio is connected.",
         "index": 0,
         "label": "left",
         "range": "any float"
@@ -14785,17 +14793,17 @@
           "FLOAT",
           "INT"
         ],
-        "doc": "Audio signal, or a number used while no audio is connected. A number of 0 leaves the signal unchanged.",
+        "doc": "Audio signal, or a number used while no audio is connected. A divisor of 0 gives 0.",
         "index": 1,
         "label": "right",
-        "range": "any non-zero float"
+        "range": "any float"
       }
     ],
     "is_dsp": true,
     "name": "~/",
     "outlets": [
       {
-        "doc": "left / right.",
+        "doc": "left / right, or 0 where right is 0.",
         "index": 0,
         "label": "out",
         "range": "any float",
@@ -14804,10 +14812,10 @@
     ],
     "params": [
       {
-        "default": "1.0",
-        "doc": "Float used while no audio is connected to the right inlet. 0 leaves the signal unchanged.",
+        "default": "1",
+        "doc": "Number used while no audio is connected to the right inlet. 0 makes the result 0.",
         "name": "right",
-        "range": "any non-zero float"
+        "range": "any float"
       }
     ],
     "requires_midi_device": false
@@ -15760,6 +15768,61 @@
     ],
     "requires_midi_device": false
   },
+  "~cartopol": {
+    "category": "MATH",
+    "description": "Converts a signal pair from Cartesian to polar form: the real and imaginary parts in, the magnitude and phase out. On the two outputs of a Hilbert transform it gives the envelope and the instantaneous phase.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The real part (x): a signal, or a number used while no signal is connected.",
+        "index": 0,
+        "label": "real",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The imaginary part (y): a signal, or a number used while no signal is connected.",
+        "index": 1,
+        "label": "imaginary",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~cartopol",
+    "outlets": [
+      {
+        "doc": "The distance of (real, imaginary) from the origin.",
+        "index": 0,
+        "label": "magnitude",
+        "range": "0 or higher",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "The angle of (real, imaginary) in radians, from the positive real axis.",
+        "index": 1,
+        "label": "phase",
+        "range": "-pi to pi",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Imaginary part used while no signal is connected to the right inlet.",
+        "name": "imaginary",
+        "range": "any float"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~clip": {
     "category": "MATH",
     "description": "Hard clipper: limits every sample of an audio signal to the range low to high. Use it to tame stray peaks, or as a distortion stage.",
@@ -15909,6 +15972,72 @@
       }
     ],
     "params": [],
+    "requires_midi_device": false
+  },
+  "~cycle": {
+    "category": "OSC",
+    "description": "A wavetable oscillator: a cosine by default, or one cycle read from a named sample buffer. The phase inlet is added to the running phase, for phase modulation.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Frequency in Hz: a signal, or a number used while no signal is connected. Also takes 'reset [phase]', 'frequency <hz>', 'phase <0-1>', 'buffer_offset <n>', 'buffer_sizeinsamps <n>', and 'set [name] [offset]', 'setall <name>' and 'buffer <name>' to read another buffer (in the background, from a later block; not saved with the patch).",
+        "index": 0,
+        "label": "freq",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Phase in cycles added to the running phase: a signal for phase modulation, or a number used while no signal is connected.",
+        "index": 1,
+        "label": "phase",
+        "range": "0-1"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~cycle",
+    "outlets": [
+      {
+        "doc": "The waveform.",
+        "index": 0,
+        "label": "out",
+        "range": "-1 to 1",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Frequency in Hz used while no signal is connected.",
+        "name": "frequency",
+        "range": "any float"
+      },
+      {
+        "default": "",
+        "doc": "Name of a sample buffer whose first channel is the waveform. None uses the built-in cosine. A set, setall or buffer message does not change what is saved.",
+        "name": "buffer",
+        "range": "buffer name"
+      },
+      {
+        "default": "0",
+        "doc": "The first sample of the buffer the waveform starts at.",
+        "name": "offset",
+        "range": "0 or higher"
+      },
+      {
+        "default": "0",
+        "doc": "How many buffer samples make up the waveform: 0 is 512, -1 the rest of the buffer.",
+        "name": "size",
+        "range": "-1, 0 or higher"
+      }
+    ],
     "requires_midi_device": false
   },
   "~dac": {
@@ -16464,6 +16593,36 @@
     ],
     "requires_midi_device": false
   },
+  "~phasewrap": {
+    "category": "MATH",
+    "description": "Wraps the input, an angle in radians, into -pi to pi by adding or removing whole turns. Use it on a phase difference or an accumulated phase.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "An angle in radians: a signal, or a number used while no signal is connected.",
+        "index": 0,
+        "label": "in",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~phasewrap",
+    "outlets": [
+      {
+        "doc": "The input wrapped into -pi to pi; pi itself gives -pi.",
+        "index": 0,
+        "label": "out",
+        "range": "-pi to pi",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [],
+    "requires_midi_device": false
+  },
   "~phasor": {
     "category": "OSC",
     "description": "A ramp from 0 to 1 that wraps around at a given frequency: the phase source for wavetable reads, sequencers and sawtooth shapes. A negative frequency runs it backwards.",
@@ -16517,6 +16676,79 @@
     ],
     "requires_midi_device": false
   },
+  "~pink": {
+    "category": "OSC",
+    "description": "Pink-noise generator: random samples with equal energy in every octave (-3 dB per octave). Sends a new block on every audio block.",
+    "inlets": [],
+    "is_dsp": true,
+    "name": "~pink",
+    "outlets": [
+      {
+        "doc": "Pink-noise audio output, about -14 dBFS RMS.",
+        "index": 0,
+        "label": "out",
+        "range": "-1.0 to 1.0",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [],
+    "requires_midi_device": false
+  },
+  "~poltocar": {
+    "category": "MATH",
+    "description": "Converts a signal pair from polar to Cartesian form: the magnitude and phase in, the real and imaginary parts out. The inverse of ~cartopol.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The distance from the origin: a signal, or a number used while no signal is connected.",
+        "index": 0,
+        "label": "magnitude",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The angle in radians: a signal, or a number used while no signal is connected.",
+        "index": 1,
+        "label": "phase",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~poltocar",
+    "outlets": [
+      {
+        "doc": "The real part: magnitude times the cosine of the phase.",
+        "index": 0,
+        "label": "real",
+        "range": "any float",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "The imaginary part: magnitude times the sine of the phase.",
+        "index": 1,
+        "label": "imaginary",
+        "range": "any float",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Phase in radians used while no signal is connected to the right inlet.",
+        "name": "phase",
+        "range": "any float"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~pow": {
     "category": "MATH",
     "description": "Raises the base (right inlet) to the power of the exponent (left inlet): the order is the reverse of .pow. A base of 0 or below, or a result too large for a float, gives 0.",
@@ -16561,6 +16793,43 @@
         "doc": "Base used while no signal is connected to the right inlet.",
         "name": "base",
         "range": "> 0 (0 and below give 0)"
+      }
+    ],
+    "requires_midi_device": false
+  },
+  "~rand": {
+    "category": "OSC",
+    "description": "Band-limited random signal: picks a new random value at a given frequency and glides to it in a straight line. Smooth random modulation for vibrato drift or a wandering filter.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "How often a new random value is picked, in Hz: a signal, or a number used while no signal is connected. The sign is ignored; 0 holds the current value.",
+        "index": 0,
+        "label": "freq",
+        "range": "0 to the sample rate"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~rand",
+    "outlets": [
+      {
+        "doc": "The random signal, starting at 0.",
+        "index": 0,
+        "label": "out",
+        "range": "-1 to 1",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Frequency in Hz used while no signal is connected.",
+        "name": "frequency",
+        "range": "0 to the sample rate"
       }
     ],
     "requires_midi_device": false
@@ -16689,6 +16958,44 @@
         "doc": "Initial frequency in Hz.",
         "name": "frequency",
         "range": "0-20000 Hz"
+      }
+    ],
+    "requires_midi_device": false
+  },
+  "~sig": {
+    "category": "OSC",
+    "description": "Turns numbers into constant audio signals: one outlet per argument, each holding its value until a number changes it.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "A number sets the leftmost outlet; a list sets the outlets from the leftmost on; 'set <index> <value>' sets one outlet (0 is the leftmost). A connected signal is ignored and only makes ~sig run after its source.",
+        "index": 0,
+        "label": "in",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~sig",
+    "outlets": [
+      {
+        "doc": "Constant signal holding the value of outlet 0.",
+        "index": 0,
+        "label": "out 0",
+        "range": "any float",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "The starting value of each outlet, one argument per outlet (at most 64). The number of arguments is the number of outlets.",
+        "name": "values",
+        "range": "one or more numbers"
       }
     ],
     "requires_midi_device": false

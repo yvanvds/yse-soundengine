@@ -34,6 +34,15 @@ Generators
 .. doxygenfile:: dsp/generators/phasor.hpp
    :project: libYSE
 
+.. doxygenfile:: dsp/generators/cycle.hpp
+   :project: libYSE
+
+.. doxygenfile:: dsp/generators/pinkNoise.hpp
+   :project: libYSE
+
+.. doxygenfile:: dsp/generators/bandLimitedRandom.hpp
+   :project: libYSE
+
 .. doxygenfile:: dsp/lfo.hpp
    :project: libYSE
 

@@ -115,7 +115,11 @@
 #include "generatorObjects/pSine.h"
 #include "generatorObjects/dSaw.h"
 #include "generatorObjects/dPhasor.h"
+#include "generatorObjects/dCycle.h"
 #include "generatorObjects/dNoise.h"
+#include "generatorObjects/dPink.h"
+#include "generatorObjects/dRand.h"
+#include "generatorObjects/dSig.h"
 
 #include "analysis/dSnapshot.h"
 #include "delay/dTapin.h"
@@ -173,6 +177,7 @@
 #include "math/dSignalMath.h"
 #include "math/dBitwise.h"
 #include "math/dConvert.h"
+#include "math/dPolar.h"
 #include "math/dMultiply.h"
 #include "math/pMidiToFrequency.h"
 #include "math/pFrequencyToMidi.h"
@@ -330,7 +335,11 @@ pRegistry::pRegistry() {
   Add(OBJ::D_SINE, pSine::Create);
   Add(OBJ::D_SAW, dSaw::Create);
   Add(OBJ::D_PHASOR, dPhasor::Create);
+  Add(OBJ::D_CYCLE, dCycle::Create);
   Add(OBJ::D_NOISE, dNoise::Create);
+  Add(OBJ::D_PINK, dPink::Create);
+  Add(OBJ::D_RAND, dRand::Create);
+  Add(OBJ::D_SIG, dSig::Create);
 
   Add(OBJ::D_SNAPSHOT, dSnapshot::Create);
   Add(OBJ::D_TAPIN, dTapin::Create);
@@ -964,6 +973,9 @@ pRegistry::pRegistry() {
   Add(OBJ::D_DBTOA, dDbtoA::Create);
   Add(OBJ::D_MSTOSAMPS, dMsToSamps::Create);
   Add(OBJ::D_SAMPSTOMS, dSampsToMs::Create);
+  Add(OBJ::D_CARTOPOL, dCarToPol::Create);
+  Add(OBJ::D_POLTOCAR, dPolToCar::Create);
+  Add(OBJ::D_PHASEWRAP, dPhaseWrap::Create);
   Add(OBJ::D_CLIP, dClip::Create);
 
   // Generic GUI

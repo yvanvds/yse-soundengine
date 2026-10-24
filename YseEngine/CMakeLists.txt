@@ -70,6 +70,9 @@ set(YSE_SRCS
   dsp/fm/msfa/dx7note.cc
   dsp/oscillators.cpp
   dsp/generators/phasor.cpp
+  dsp/generators/cycle.cpp
+  dsp/generators/pinkNoise.cpp
+  dsp/generators/bandLimitedRandom.cpp
   dsp/operators/arithmetic.cpp
   dsp/operators/accumulator.cpp
   dsp/operators/compare.cpp
@@ -77,6 +80,7 @@ set(YSE_SRCS
   dsp/operators/rounding.cpp
   dsp/operators/bitwise.cpp
   dsp/operators/units.cpp
+  dsp/operators/polar.cpp
   dsp/delay/delayLine.cpp
   dsp/delay/delayTap.cpp
   dsp/ramp.cpp
@@ -127,9 +131,13 @@ set(YSE_SRCS
   patcher/filters/pHighpass.cpp
   patcher/filters/pLowpass.cpp
   patcher/generatorObjects/dNoise.cpp
+  patcher/generatorObjects/dPink.cpp
+  patcher/generatorObjects/dRand.cpp
   patcher/generatorObjects/dSaw.cpp
   patcher/generatorObjects/dPhasor.cpp
+  patcher/generatorObjects/dCycle.cpp
   patcher/generatorObjects/pSine.cpp
+  patcher/generatorObjects/dSig.cpp
   patcher/genericObjects/gAffix.cpp
   patcher/genericObjects/gBag.cpp
   patcher/genericObjects/gBangBang.cpp
@@ -282,6 +290,7 @@ set(YSE_SRCS
   patcher/math/dSignalMath.cpp
   patcher/math/dBitwise.cpp
   patcher/math/dConvert.cpp
+  patcher/math/dPolar.cpp
   patcher/math/dMultiply.cpp
   patcher/math/dSubstract.cpp
   patcher/math/gAccum.cpp
@@ -525,9 +534,13 @@ set_source_files_properties(
   patcher/filters/pHighpass.cpp
   patcher/filters/pLowpass.cpp
   patcher/generatorObjects/dNoise.cpp
+  patcher/generatorObjects/dPink.cpp
+  patcher/generatorObjects/dRand.cpp
   patcher/generatorObjects/dSaw.cpp
   patcher/generatorObjects/dPhasor.cpp
+  patcher/generatorObjects/dCycle.cpp
   patcher/generatorObjects/pSine.cpp
+  patcher/generatorObjects/dSig.cpp
   patcher/genericObjects/gAffix.cpp
   patcher/genericObjects/gBag.cpp
   patcher/genericObjects/gBangBang.cpp
@@ -667,6 +680,7 @@ set_source_files_properties(
   patcher/math/dSignalMath.cpp
   patcher/math/dBitwise.cpp
   patcher/math/dConvert.cpp
+  patcher/math/dPolar.cpp
   patcher/math/dMultiply.cpp
   patcher/math/dSubstract.cpp
   patcher/math/gAccum.cpp

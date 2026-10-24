@@ -14,6 +14,9 @@ set(YSE_TEST_SOURCES
   dsp/test_math_converters.cpp
   dsp/test_oscillators.cpp
   dsp/test_phasor.cpp
+  dsp/test_cycle.cpp
+  dsp/test_pink_noise.cpp
+  dsp/test_band_limited_random.cpp
   dsp/test_arithmetic_operators.cpp
   dsp/test_accumulator.cpp
   dsp/test_compare.cpp
@@ -21,6 +24,7 @@ set(YSE_TEST_SOURCES
   dsp/test_rounding.cpp
   dsp/test_bitwise.cpp
   dsp/test_units.cpp
+  dsp/test_polar.cpp
   dsp/test_delayLine.cpp
   dsp/test_sampleBuffer.cpp
   dsp/test_smoother.cpp
@@ -164,6 +168,9 @@ set(YSE_TEST_SOURCES
   patcher/test_patcher_buddy.cpp
   patcher/test_patcher_swap.cpp
   patcher/test_patcher_phasor.cpp
+  patcher/test_patcher_signal_cycle.cpp
+  patcher/test_patcher_signal_pink.cpp
+  patcher/test_patcher_signal_rand.cpp
   patcher/test_patcher_reverse_modulo.cpp
   patcher/test_patcher_plusequals.cpp
   patcher/test_patcher_signal_compare.cpp
@@ -171,6 +178,9 @@ set(YSE_TEST_SOURCES
   patcher/test_patcher_signal_math.cpp
   patcher/test_patcher_signal_bitwise.cpp
   patcher/test_patcher_signal_convert.cpp
+  patcher/test_patcher_signal_polar.cpp
+  patcher/test_patcher_signal_arithmetic.cpp
+  patcher/test_patcher_signal_sig.cpp
   patcher/test_patcher_signal_loops.cpp
   patcher/test_patcher_tapin_tapout.cpp
   patcher/test_patcher_buffer.cpp
@@ -1257,6 +1267,9 @@ set_source_files_properties(
   patcher/test_patcher_buddy.cpp
   patcher/test_patcher_swap.cpp
   patcher/test_patcher_phasor.cpp
+  patcher/test_patcher_signal_cycle.cpp
+  patcher/test_patcher_signal_pink.cpp
+  patcher/test_patcher_signal_rand.cpp
   patcher/test_patcher_reverse_modulo.cpp
   patcher/test_patcher_plusequals.cpp
   patcher/test_patcher_signal_compare.cpp
@@ -1264,6 +1277,9 @@ set_source_files_properties(
   patcher/test_patcher_signal_math.cpp
   patcher/test_patcher_signal_bitwise.cpp
   patcher/test_patcher_signal_convert.cpp
+  patcher/test_patcher_signal_polar.cpp
+  patcher/test_patcher_signal_arithmetic.cpp
+  patcher/test_patcher_signal_sig.cpp
   patcher/test_patcher_signal_loops.cpp
   patcher/test_patcher_tapin_tapout.cpp
   patcher/test_patcher_buffer.cpp

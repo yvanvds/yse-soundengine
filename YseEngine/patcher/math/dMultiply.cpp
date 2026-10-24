@@ -1,4 +1,5 @@
 #include "dMultiply.h"
+#include "../pObjectList.hpp"
 
 using namespace YSE::PATCHER;
 
@@ -7,13 +8,16 @@ using namespace YSE::PATCHER;
 CONSTRUCT_DSP() {
 
   // default data
-  rightFloatIn = 1.f;
+  leftFloatIn = 0.f;
+  rightFloatIn = 1.f; // the identity of multiplication; Max uses 0, see dMultiply.h
 
-  // in 0: audio buffer
+  // in 0: multiplicand (signal, float or int)
   ADD_IN_0;
   REG_SIGNAL_IN;
+  REG_FLOAT_IN(SetLeftFloat);
+  REG_INT_IN(SetLeftInt);
 
-  // in 1: multiplier (int, float or audio)
+  // in 1: multiplier (signal, float or int)
   ADD_IN_1;
   REG_SIGNAL_IN;
   REG_FLOAT_IN(SetRightFloat);
@@ -24,14 +28,22 @@ CONSTRUCT_DSP() {
 
   ADD_PARAM(rightFloatIn);
 
-  ADD_DESCRIPTION("Multiplies an audio signal by another audio signal or by a float: a gain "
+  ADD_DESCRIPTION("Multiplies an audio signal by another audio signal or by a number: a gain "
                   "stage, or a ring modulator.");
   ADD_CATEGORY(pCategory::MATH);
-  INLET_DOC(0, "left", "Audio signal.", "any float");
+  INLET_DOC(0, "left", "Audio signal, or a number used while no audio is connected.", "any float");
   INLET_DOC(1, "right", "Audio signal, or a number used while no audio is connected.", "any float");
   OUTLET_DOC(0, "out", "left * right.", "any float");
-  PARAM_DOC("right", "1.0", "Float used while no audio is connected to the right inlet.",
+  PARAM_DOC("right", "1", "Number used while no audio is connected to the right inlet.",
             "any float");
+}
+
+FLOAT_IN(SetLeftFloat) {
+  leftFloatIn = value;
+}
+
+INT_IN(SetLeftInt) {
+  leftFloatIn = static_cast<float>(value);
 }
 
 FLOAT_IN(SetRightFloat) {
@@ -43,9 +55,8 @@ INT_IN(SetRightInt) {
 }
 
 CALC() {
-  // Unconnected inlets read as constants (issue #1036): the left as 0, the
-  // right as its float. A connected right signal wins over the float.
-  output = inputs[0].Signal(0.f);
+  // Unconnected inlets read as their numbers; a connected signal wins (#1036).
+  output = inputs[0].Signal(leftFloatIn);
 
   if (inputs[1].IsConstant()) {
     output *= rightFloatIn;
@@ -55,3 +66,5 @@ CALC() {
 
   outputs[0].SendBuffer(&output, thread);
 }
+
+#undef className

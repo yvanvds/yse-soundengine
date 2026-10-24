@@ -10,7 +10,9 @@ namespace YSE {
    *  raw string literal. The ``~`` prefix marks DSP / audio-rate objects,
    *  ``.`` marks control-rate objects.
    *
-   *  - DSP generators: ``D_SINE``, ``D_SAW``, ``D_NOISE``, ``D_PHASOR``.
+   *  - DSP generators: ``D_SINE``, ``D_SAW``, ``D_NOISE``, ``D_PHASOR``, ``D_CYCLE``,
+   *    ``D_PINK`` (pink noise), ``D_RAND`` (interpolated random signal),
+   *    ``D_SIG`` (a number as a constant signal).
    *  - DSP analysis: ``D_SNAPSHOT``.
    *  - DSP delay: `D_TAPIN`, `D_TAPOUT`.
    *  - DSP sampling: ``D_BUFFER``.
@@ -29,6 +31,7 @@ namespace YSE {
    *    `D_BITSHIFT`, `D_BITSAFE` (32-bit float patterns or integers).
    *  - DSP conversion: `D_MTOF`, `D_FTOM`, `D_ATODB`, `D_DBTOA` (dBFS,
    *    0 dB = 1), `D_MSTOSAMPS`, `D_SAMPSTOMS` (live sample rate).
+   *  - DSP polar: `D_CARTOPOL`, `D_POLTOCAR`, `D_PHASEWRAP` (-pi..pi).
    *  - Control math: ``G_ADD``, ``G_DIVIDE``, ``G_REVERSESUBSTRACT``,
    *    ``G_REVERSEDIVIDE``, ``G_MODULO``, ``G_INTDIVIDE``.
    *  - Operand order: ``G_SWAP``.
@@ -170,7 +173,11 @@ namespace YSE {
     DEFOBJ(D_SINE, "~sine");
     DEFOBJ(D_SAW, "~saw");
     DEFOBJ(D_PHASOR, "~phasor");
+    DEFOBJ(D_CYCLE, "~cycle");
     DEFOBJ(D_NOISE, "~noise");
+    DEFOBJ(D_PINK, "~pink");
+    DEFOBJ(D_RAND, "~rand");
+    DEFOBJ(D_SIG, "~sig");
 
     DEFOBJ(D_SNAPSHOT, "~snapshot");
 
@@ -962,6 +969,9 @@ namespace YSE {
     DEFOBJ(D_DBTOA, "~dbtoa");
     DEFOBJ(D_MSTOSAMPS, "~mstosamps");
     DEFOBJ(D_SAMPSTOMS, "~sampstoms");
+    DEFOBJ(D_CARTOPOL, "~cartopol");
+    DEFOBJ(D_POLTOCAR, "~poltocar");
+    DEFOBJ(D_PHASEWRAP, "~phasewrap");
 
     DEFOBJ(D_CLIP, "~clip");
 

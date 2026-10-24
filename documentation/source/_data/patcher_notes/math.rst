@@ -668,11 +668,11 @@ result is ``outLow``. The inlets work as described under ``.+``.
 
 ``~+``, ``~-``, ``~*`` and ``~/`` share these rules:
 
-- The left inlet takes the audio signal. Nothing comes out while no audio
-  reaches it.
-- The right inlet takes an audio signal or a number, int or float. While
-  audio is connected there, it is used sample by sample; otherwise the last
-  number is used, or the argument until a number arrives.
+- Both inlets take an audio signal or a number, int or float. While audio is
+  connected to an inlet, it is used sample by sample and a number sent there
+  is kept for later; otherwise the last number is used. The left number
+  starts at 0. The right one starts at the argument, which is saved with the
+  patch; a number sent to the inlet later is not.
 - A new number takes effect at the next audio block and is not smoothed, so a
   large jump can click. Ramp it with ``~line`` instead.
 - When no argument is given, ``~+`` and ``~-`` use 0 and ``~*`` and ``~/``
@@ -681,12 +681,14 @@ result is ``outLow``. The inlets work as described under ``.+``.
 .. code-block:: text
 
    [~* 0.5]   halves the signal's level
+   [~/]       1 on the left inlet, audio on the right: the reciprocal of the audio
 
 .. patcher-object:: ~/
 
-A number of 0 on the right inlet leaves the signal unchanged. An audio divisor
-that reaches 0 produces infinite samples, so keep it away from 0. The other
-rules are described under ``~*``.
+A divisor of 0 gives 0, whether it is a number on the right inlet or a sample
+of the audio connected there, so a silent divisor cannot put an infinity into
+the signal chain. A divisor merely close to 0 still gives a large value. The
+other rules are described under ``~*``.
 
 .. patcher-object:: ~clip
 
