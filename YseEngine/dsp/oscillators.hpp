@@ -29,10 +29,9 @@ namespace YSE {
      *  @brief Naive (non band-limited) rising ramp, like Pd's ``phasor~``.
      *
      *  Outputs 0 to 1, not -1 to 1: callers use it as a phase (the reverb
-     *  feeds it to ``cosine``). The patcher's ``~saw`` rescales it to -1..1.
-     *  Cheap; aliases at high pitches. Use the wavetable-driven
-     *  ``oscillator`` with a band-limited ``wavetable::createSaw`` table for
-     *  alias-free output.
+     *  feeds it to ``cosine``). Cheap; aliases at high pitches. For an audio
+     *  sawtooth use ``blSaw`` (antialiased, -1..1), which the patcher's
+     *  ``~saw`` wraps.
      */
     class API saw {
     public:

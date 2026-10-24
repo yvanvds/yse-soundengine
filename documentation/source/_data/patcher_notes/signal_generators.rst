@@ -41,6 +41,55 @@ frequency runs the ramp from 1 down to 0.
 
    [~phasor 2 0.25]   ramps twice a second, starting a quarter of the way up
 
+.. patcher-object:: ~saw
+
+A sawtooth that rises from -1 to 1 once per cycle and drops back: every
+harmonic, the bright starting point of subtractive synthesis. The drop is
+antialiased, so high notes do not fill with folded, out-of-tune tones.
+Earlier versions of ``~saw`` were a plain ramp, which aliased audibly at high
+pitches; patches that use it now sound cleaner and a little softer at the
+top. Without an argument the frequency is 440 Hz.
+
+- A number at the left inlet sets the frequency while no signal is connected
+  to it; a connected signal sets it sample by sample (FM). A negative
+  frequency runs the ramp backwards.
+- The right inlet is a sync input. Whenever its signal rises across 0.5 the
+  cycle restarts, so a ``~phasor`` at a lower frequency hard-syncs the
+  oscillator. ``synctrig <x>`` at the left inlet moves the level from 0.5.
+  The restart itself is not antialiased.
+
+.. code-block:: text
+
+   [~phasor 110] -> right inlet of [~saw 330]   a hard-synced saw; sweep 330
+                                                 for the classic sync lead
+
+.. patcher-object:: ~rect
+
+A pulse wave: 1 for the first ``width`` of each cycle, -1 for the rest, with
+both edges antialiased. A width of 0.5 is a square wave, hollow and woody;
+narrow pulses sound thin and nasal. A signal at the middle inlet sweeps the
+width (pulse-width modulation), the chorused sound of analog string pads.
+The width wraps into 0-1. Any width but 0.5 carries a DC offset, as the
+analog original does. Frequency, the sync inlet (on the right) and
+``synctrig`` work as for ``~saw``.
+
+.. code-block:: text
+
+   [~rand 0.5] -> [~* 0.2] -> [~+ 0.5] -> middle inlet of [~rect 110]
+
+.. patcher-object:: ~tri
+
+A triangle wave, rising for the first ``duty`` of each cycle and falling for
+the rest, with the corners antialiased. At 0.5 it is symmetric, soft and
+flute-like; towards 0.05 or 0.95 it leans into a sawtooth and gets brighter.
+The duty, at the middle inlet, wraps into 0-1 and is then held within
+0.05-0.95. Frequency, the sync inlet (on the right) and ``synctrig`` work as
+for ``~saw``.
+
+.. code-block:: text
+
+   [~tri 220 0.5]   a soft 220 Hz triangle
+
 .. patcher-object:: ~cycle
 
 A cosine at ``frequency`` Hz, read from a 16384-point table with linear

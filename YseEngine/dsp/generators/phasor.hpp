@@ -25,8 +25,8 @@ namespace YSE {
      *  The phase source behind wavetable reads, sequencers and anything else
      *  that needs to know "where in the cycle" it is. The output is the phase
      *  itself, not a bipolar audio saw, and it is not band-limited: it jumps
-     *  from just under 1 to 0 once per cycle. For an alias-free sawtooth use
-     *  ``oscillator`` with ``wavetable::createSaw``.
+     *  from just under 1 to 0 once per cycle. For an antialiased sawtooth use
+     *  ``blSaw``.
      *
      *  A negative frequency runs the ramp backwards, from 1 down to 0. The
      *  phase is kept in double precision, so a slow ramp does not drift over

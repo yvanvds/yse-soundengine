@@ -6,7 +6,7 @@ walks through how the existing objects are built: the class and its macros,
 inlets and outlets, creation arguments, the documentation every object
 carries, signal objects, the optional hooks, registration, and the tests. It
 uses two real objects as examples: ``.swap`` (a control object, ``gSwap``) and
-``~saw`` (a signal object, ``dSaw``).
+``~rand`` (a signal object, ``dRand``).
 
 Read :doc:`realtime` first. It explains which thread a handler runs on and the
 rules that follow from that. This page does not repeat them. It shows how an
@@ -463,19 +463,19 @@ Signal objects
 --------------
 
 A signal object passes a buffer of 128 samples along each signal cord, once
-per block. ``~saw`` is the smallest complete one. Its header:
+per block. ``~rand`` is a small complete one. Its header:
 
 .. code-block:: cpp
 
-   PATCHER_CLASS(dSaw, YSE::OBJ::D_SAW)
+   PATCHER_CLASS(dRand, YSE::OBJ::D_RAND)
    _NO_MESSAGES
    _DO_CALCULATE
 
    _FLOAT_IN(SetFrequency)
+   _INT_IN(SetFrequencyInt)
 
    private:
-     DSP::saw saw;
-
+     DSP::bandLimitedRandom random;
      aFlt frequency;
    };
 
@@ -484,36 +484,44 @@ And its source:
 .. code-block:: cpp
 
    CONSTRUCT_DSP() {
-     frequency = 440.f;
+     frequency = 0.f;
 
+     // in 0: frequency (signal, float or int)
      ADD_IN_0;
      REG_SIGNAL_IN;
      REG_FLOAT_IN(SetFrequency);
+     REG_INT_IN(SetFrequencyInt);
 
+     // out 0: the random signal
      ADD_OUT_BUFFER;
 
      ADD_PARAM(frequency);
 
-     ADD_DESCRIPTION("Audio-rate sawtooth oscillator. Frequency can be set with a float or modulated "
-                     "with a DSP buffer.");
+     ADD_DESCRIPTION("Band-limited random signal: picks a new random value at a given frequency and "
+                     "glides to it in a straight line. Smooth random modulation for vibrato drift or "
+                     "a wandering filter.");
      ADD_CATEGORY(pCategory::OSC);
-     INLET_DOC(0, "freq", "Oscillator frequency in Hz. Accepts a DSP buffer (FM) or a float.",
-               "0-20000 Hz");
-     OUTLET_DOC(0, "out", "Sawtooth wave audio output.", "-1.0 to 1.0");
-     PARAM_DOC("frequency", "440", "Initial frequency in Hz.", "0-20000 Hz");
+     INLET_DOC(0, "freq",
+               "How often a new random value is picked, in Hz: a signal, or a number used while no "
+               "signal is connected. The sign is ignored; 0 holds the current value.",
+               "0 to the sample rate");
+     OUTLET_DOC(0, "out", "The random signal, starting at 0.", "-1 to 1");
+     PARAM_DOC("frequency", "0", "Frequency in Hz used while no signal is connected.",
+               "0 to the sample rate");
    }
 
    FLOAT_IN(SetFrequency) {
      frequency = value;
    }
 
+   INT_IN(SetFrequencyInt) {
+     frequency = static_cast<float>(value);
+   }
+
    CALC() {
-     // DSP::saw is a phasor (0..1). Rescale it in place to a bipolar -1..1 saw.
+     // A connected frequency signal wins over the number (issue #1036).
      DSP::buffer& out =
-         inputs[0].IsConstant() ? saw(frequency) : saw(inputs[0].Signal(frequency));
-     Flt* ptr = out.getPtr();
-     for (UInt i = 0; i < out.getLength(); ++i)
-       ptr[i] = 2.f * ptr[i] - 1.f;
+         inputs[0].IsConstant() ? random(frequency) : random(inputs[0].Signal(frequency));
      outputs[0].SendBuffer(&out, thread);
    }
 
@@ -525,7 +533,7 @@ How the render drives it:
   that arrived, the sum when several cords end on the inlet, or, with no
   cord, the inlet's own buffer filled with ``fallback``.
   ``inputs[n].IsConstant()`` says which, so an object can take a scalar path
-  (here ``saw(frequency)``) instead of reading a buffer of identical samples.
+  (here ``random(frequency)``) instead of reading a buffer of identical samples.
   The rules a patch author sees are in :ref:`patcher-signal-inlets`.
 - Pass the object's float for that inlet as the fallback. The inlet then
   follows the rule for patch authors: the last number sent to it, else the
@@ -549,7 +557,7 @@ How the render drives it:
   stores. It does not compute a block early. The next block uses it.
 - ``frequency`` is an ``aFlt`` (an atomic float), because a control thread
   writes it while the audio thread reads it.
-- The output buffer belongs to the object (here, inside ``DSP::saw``). It is
+- The output buffer belongs to the object (here, inside ``DSP::bandLimitedRandom``). It is
   allocated once, when the object is built.
 
 Control outlets on a signal object

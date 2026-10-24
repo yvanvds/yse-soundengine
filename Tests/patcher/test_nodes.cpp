@@ -42,7 +42,7 @@ TEST_SUITE("patcher") {
     YSE::pHandle* h = p.CreateObject(YSE::OBJ::D_SAW);
     REQUIRE(h != nullptr);
     CHECK(std::string(h->Type()) == "~saw");
-    CHECK(h->GetInputs() == 1);
+    CHECK(h->GetInputs() == 2); // frequency, sync (#1055)
     CHECK(h->GetOutputs() == 1);
     CHECK(h->OutputDataType(0) == YSE::OUT_TYPE::BUFFER);
   }
@@ -188,8 +188,10 @@ TEST_SUITE("patcher") {
     REQUIRE(sink.received != nullptr);
     const float* ptr = sink.received->getPtr();
     unsigned int len = sink.received->getLength();
-    // The ramp starts at phase 0, which a bipolar saw puts at -1.
-    CHECK(ptr[0] == doctest::Approx(-1.0f));
+    // The ramp starts at phase 0, the jump from 1 to -1, which the
+    // band-limited saw (#1055) puts halfway, at 0; the next sample is near -1.
+    CHECK(ptr[0] == doctest::Approx(0.0f));
+    CHECK(ptr[1] < -0.9f);
     for (unsigned int i = 0; i < len; ++i) {
       CHECK(ptr[i] >= -1.0f);
       CHECK(ptr[i] <= 1.0f);
