@@ -120,6 +120,7 @@
 #include "generatorObjects/dKink.h"
 #include "generatorObjects/dOscbank.h"
 #include "generatorObjects/dPhaseShapes.h"
+#include "generatorObjects/dCount.h"
 #include "generatorObjects/dPhasor.h"
 #include "generatorObjects/dCycle.h"
 #include "generatorObjects/dNoise.h"
@@ -353,6 +354,7 @@ pRegistry::pRegistry() {
   Add(OBJ::D_IOSCBANK, dIoscbank::Create);
   Add(OBJ::D_TRIANGLE, dTriangle::Create);
   Add(OBJ::D_TRAPEZOID, dTrapezoid::Create);
+  Add(OBJ::D_COUNT, dCount::Create);
   Add(OBJ::D_SIG, dSig::Create);
 
   Add(OBJ::D_SNAPSHOT, dSnapshot::Create);

@@ -16012,6 +16012,73 @@
     "params": [],
     "requires_midi_device": false
   },
+  "~count": {
+    "category": "TIME",
+    "description": "A signal counting samples: it goes up by 1 at every sample from its initial value, and can loop below a limit. For indexing into buffers and sample-accurate timers.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT",
+          "BANG"
+        ],
+        "doc": "A signal counts while it is not 0. bang restarts from the initial value; an int sets it and restarts; a float, 'min <n>' and 'set <n>' set it without a restart; 'stop' stops; '<initial> <limit> <enable>' sets all three.",
+        "index": 0,
+        "label": "enable",
+        "range": "any"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The count limit, never output: the count goes back to the initial value instead. 0 means no limit. Does not restart.",
+        "index": 1,
+        "label": "limit",
+        "range": "integer"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~count",
+    "outlets": [
+      {
+        "doc": "The count, or the initial value while stopped.",
+        "index": 0,
+        "label": "count",
+        "range": "integer",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "How many times the count has gone back to the initial value.",
+        "index": 1,
+        "label": "carry",
+        "range": "0 or more",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "The value counting starts from and goes back to.",
+        "name": "initial",
+        "range": "integer"
+      },
+      {
+        "default": "0",
+        "doc": "The count limit, never output; 0 means no limit.",
+        "name": "limit",
+        "range": "integer"
+      },
+      {
+        "default": "0",
+        "doc": "1 counts from the start, 0 waits for a bang.",
+        "name": "enable",
+        "range": "0 or 1"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~cycle": {
     "category": "OSC",
     "description": "A wavetable oscillator: a cosine by default, or one cycle read from a named sample buffer. The phase inlet is added to the running phase, for phase modulation.",

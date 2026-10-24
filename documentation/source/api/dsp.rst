@@ -58,6 +58,9 @@ Generators
 .. doxygenfile:: dsp/generators/phaseShapes.hpp
    :project: libYSE
 
+.. doxygenfile:: dsp/generators/sampleCounter.hpp
+   :project: libYSE
+
 .. doxygenfile:: dsp/lfo.hpp
    :project: libYSE
 

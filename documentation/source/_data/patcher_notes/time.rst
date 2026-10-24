@@ -491,3 +491,39 @@ clock name as a creation argument:
 
 See :doc:`/patcher/time` for clocks and the limits on how many a patcher can
 use.
+
+.. patcher-object:: ~count
+
+Outputs a signal that goes up by 1 at every sample, for reading a buffer
+sample by sample or timing events to the sample. A new counter waits at its
+initial value; with a third argument of 1 it counts from the start.
+
+**Messages (left inlet)**
+
+- bang: count from the initial value.
+- an int: make it the initial value and count from it.
+- a float, ``min <n>`` or ``set <n>``: change the initial value without
+  restarting (while stopped, the output changes to it).
+- ``stop``: stop and go back to the initial value.
+- ``<initial> <limit> <enable>``: set all three; enable 1 counts from the
+  initial value, 0 stops. Two numbers set the initial value and the limit
+  only.
+
+A signal in the left inlet counts while it is not 0: each time it turns
+non-zero the count restarts from the initial value, and where it is 0 the
+output is the initial value.
+
+**Limit.** A number in the right inlet, or the second argument, makes the
+counter loop: the count goes back to the initial value instead of reaching
+the limit, so ``[~count 0 4 1]`` counts 0 1 2 3 0 1 2 3. 0 means no limit.
+The right outlet counts how many times the count has gone back since it last
+started.
+
+The count is exact up to 16777216 (about 6 minutes at 44.1 kHz); past that a
+float signal rounds it. A fourth argument (autoreset) is accepted and has no
+effect: the counter starts from its initial value when it is created.
+Messages are not saved with the patch; the arguments are.
+
+.. code-block:: text
+
+   [~count 0 44100 1] -> [~/ 44100.]   a 0-1 ramp, once a second at 44.1 kHz
