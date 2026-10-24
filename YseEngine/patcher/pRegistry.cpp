@@ -128,8 +128,10 @@
 #include "generatorObjects/dRate.h"
 #include "generatorObjects/dSubdiv.h"
 #include "generatorObjects/dStepDiv.h"
+#include "generatorObjects/dStepFun.h"
 #include "generatorObjects/dSwing.h"
 #include "generatorObjects/dTwist.h"
+#include "generatorObjects/dSnowfall.h"
 #include "generatorObjects/dPhasor.h"
 #include "generatorObjects/dCycle.h"
 #include "generatorObjects/dNoise.h"
@@ -139,6 +141,8 @@
 
 #include "analysis/dSnapshot.h"
 #include "analysis/dWhere.h"
+#include "analysis/dWhat.h"
+#include "analysis/dStepCounter.h"
 #include "delay/dTapin.h"
 #include "delay/dTapout.h"
 #include "sampling/dBuffer.h"
@@ -203,6 +207,9 @@
 #include "filters/pHighpass.h"
 #include "filters/pLowpass.h"
 #include "filters/dVcf.h"
+#include "filters/dSah.h"
+#include "filters/dSash.h"
+#include "filters/dStash.h"
 
 #include "math/gAdd.h"
 #include "math/gDivide.h"
@@ -372,12 +379,16 @@ pRegistry::pRegistry() {
   Add(OBJ::D_RATE, dRate::Create);
   Add(OBJ::D_SUBDIV, dSubdiv::Create);
   Add(OBJ::D_STEPDIV, dStepDiv::Create);
+  Add(OBJ::D_STEPFUN, dStepFun::Create);
   Add(OBJ::D_SWING, dSwing::Create);
   Add(OBJ::D_TWIST, dTwist::Create);
+  Add(OBJ::D_SNOWFALL, dSnowfall::Create);
   Add(OBJ::D_SIG, dSig::Create);
 
   Add(OBJ::D_SNAPSHOT, dSnapshot::Create);
   Add(OBJ::D_WHERE, dWhere::Create);
+  Add(OBJ::D_WHAT, dWhat::Create);
+  Add(OBJ::D_STEPCOUNTER, dStepCounter::Create);
   Add(OBJ::D_TAPIN, dTapin::Create);
   Add(OBJ::D_TAPOUT, dTapout::Create);
   Add(OBJ::D_BUFFER, dBuffer::Create);
@@ -1287,6 +1298,9 @@ pRegistry::pRegistry() {
   Add(OBJ::D_BANDPASS, pBandpass::Create);
   Add(OBJ::D_HIGHPASS, pHighpass::Create);
   Add(OBJ::D_VCF, dVcf::Create);
+  Add(OBJ::D_SAH, dSah::Create);
+  Add(OBJ::D_SASH, dSash::Create);
+  Add(OBJ::D_STASH, dStash::Create);
 
   // The MIDI sender family. Unconditional since issue #746: these format
   // bytes onto a list outlet and open nothing, so there is no platform they

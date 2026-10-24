@@ -88,7 +88,25 @@ Generators
 .. doxygenfile:: dsp/generators/phasorTwist.hpp
    :project: libYSE
 
+.. doxygenfile:: dsp/generators/phasorWhat.hpp
+   :project: libYSE
+
 .. doxygenfile:: dsp/generators/phasorWhere.hpp
+   :project: libYSE
+
+.. doxygenfile:: dsp/generators/stepCounter.hpp
+   :project: libYSE
+
+.. doxygenfile:: dsp/generators/stepFunction.hpp
+   :project: libYSE
+
+.. doxygenfile:: dsp/generators/sampleHoldMemory.hpp
+   :project: libYSE
+
+.. doxygenfile:: dsp/generators/signalStash.hpp
+   :project: libYSE
+
+.. doxygenfile:: dsp/generators/snowfall.hpp
    :project: libYSE
 
 .. doxygenfile:: dsp/lfo.hpp

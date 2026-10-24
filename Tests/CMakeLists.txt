@@ -32,7 +32,10 @@ set(YSE_TEST_SOURCES
   dsp/test_phasor_stepdiv.cpp
   dsp/test_phasor_swing.cpp
   dsp/test_phasor_twist.cpp
+  dsp/test_phasor_what.cpp
   dsp/test_phasor_where.cpp
+  dsp/test_step_counter.cpp
+  dsp/test_step_function.cpp
   dsp/test_arithmetic_operators.cpp
   dsp/test_accumulator.cpp
   dsp/test_compare.cpp
@@ -58,6 +61,10 @@ set(YSE_TEST_SOURCES
   internal/test_log_sink_concurrency.cpp
   internal/test_time.cpp
   dsp/test_filters.cpp
+  dsp/test_sample_hold.cpp
+  dsp/test_sample_hold_memory.cpp
+  dsp/test_signal_stash.cpp
+  dsp/test_snowfall.cpp
   dsp/test_delay.cpp
   dsp/test_envelope.cpp
   dsp/test_lfo_rate_robustness.cpp
@@ -199,10 +206,17 @@ set(YSE_TEST_SOURCES
   patcher/test_patcher_signal_ramp.cpp
   patcher/test_patcher_signal_rate.cpp
   patcher/test_patcher_signal_subdiv.cpp
+  patcher/test_patcher_signal_stepcounter.cpp
   patcher/test_patcher_signal_stepdiv.cpp
+  patcher/test_patcher_signal_stepfun.cpp
   patcher/test_patcher_signal_swing.cpp
   patcher/test_patcher_signal_twist.cpp
+  patcher/test_patcher_signal_what.cpp
   patcher/test_patcher_signal_where.cpp
+  patcher/test_patcher_signal_sah.cpp
+  patcher/test_patcher_signal_sash.cpp
+  patcher/test_patcher_signal_stash.cpp
+  patcher/test_patcher_signal_snowfall.cpp
   patcher/test_patcher_reverse_modulo.cpp
   patcher/test_patcher_plusequals.cpp
   patcher/test_patcher_signal_compare.cpp
@@ -1314,10 +1328,17 @@ set_source_files_properties(
   patcher/test_patcher_signal_ramp.cpp
   patcher/test_patcher_signal_rate.cpp
   patcher/test_patcher_signal_subdiv.cpp
+  patcher/test_patcher_signal_stepcounter.cpp
   patcher/test_patcher_signal_stepdiv.cpp
+  patcher/test_patcher_signal_stepfun.cpp
   patcher/test_patcher_signal_swing.cpp
   patcher/test_patcher_signal_twist.cpp
+  patcher/test_patcher_signal_what.cpp
   patcher/test_patcher_signal_where.cpp
+  patcher/test_patcher_signal_sah.cpp
+  patcher/test_patcher_signal_sash.cpp
+  patcher/test_patcher_signal_stash.cpp
+  patcher/test_patcher_signal_snowfall.cpp
   patcher/test_patcher_reverse_modulo.cpp
   patcher/test_patcher_plusequals.cpp
   patcher/test_patcher_signal_compare.cpp

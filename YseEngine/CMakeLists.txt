@@ -88,7 +88,13 @@ set(YSE_SRCS
   dsp/generators/phasorStepDiv.cpp
   dsp/generators/phasorSwing.cpp
   dsp/generators/phasorTwist.cpp
+  dsp/generators/phasorWhat.cpp
   dsp/generators/phasorWhere.cpp
+  dsp/generators/stepCounter.cpp
+  dsp/generators/stepFunction.cpp
+  dsp/generators/sampleHoldMemory.cpp
+  dsp/generators/signalStash.cpp
+  dsp/generators/snowfall.cpp
   dsp/operators/arithmetic.cpp
   dsp/operators/accumulator.cpp
   dsp/operators/compare.cpp
@@ -139,11 +145,16 @@ set(YSE_SRCS
   music/scale/scaleInterface.cpp
   music/scale/scaleManager.cpp
   patcher/analysis/dSnapshot.cpp
+  patcher/analysis/dStepCounter.cpp
+  patcher/analysis/dWhat.cpp
   patcher/analysis/dWhere.cpp
   patcher/delay/dTapin.cpp
   patcher/delay/dTapout.cpp
   patcher/sampling/dBuffer.cpp
   patcher/filters/dVcf.cpp
+  patcher/filters/dSah.cpp
+  patcher/filters/dSash.cpp
+  patcher/filters/dStash.cpp
   patcher/filters/pBandpass.cpp
   patcher/filters/pHighpass.cpp
   patcher/filters/pLowpass.cpp
@@ -166,8 +177,10 @@ set(YSE_SRCS
   patcher/generatorObjects/dRate.cpp
   patcher/generatorObjects/dSubdiv.cpp
   patcher/generatorObjects/dStepDiv.cpp
+  patcher/generatorObjects/dStepFun.cpp
   patcher/generatorObjects/dSwing.cpp
   patcher/generatorObjects/dTwist.cpp
+  patcher/generatorObjects/dSnowfall.cpp
   patcher/generatorObjects/dPhasor.cpp
   patcher/generatorObjects/dCycle.cpp
   patcher/generatorObjects/pSine.cpp
@@ -560,11 +573,16 @@ set_source_files_properties(
   patcher/outlet.cpp
   patcher/parameters.cpp
   patcher/analysis/dSnapshot.cpp
+  patcher/analysis/dStepCounter.cpp
+  patcher/analysis/dWhat.cpp
   patcher/analysis/dWhere.cpp
   patcher/delay/dTapin.cpp
   patcher/delay/dTapout.cpp
   patcher/sampling/dBuffer.cpp
   patcher/filters/dVcf.cpp
+  patcher/filters/dSah.cpp
+  patcher/filters/dSash.cpp
+  patcher/filters/dStash.cpp
   patcher/filters/pBandpass.cpp
   patcher/filters/pHighpass.cpp
   patcher/filters/pLowpass.cpp
@@ -587,8 +605,10 @@ set_source_files_properties(
   patcher/generatorObjects/dRate.cpp
   patcher/generatorObjects/dSubdiv.cpp
   patcher/generatorObjects/dStepDiv.cpp
+  patcher/generatorObjects/dStepFun.cpp
   patcher/generatorObjects/dSwing.cpp
   patcher/generatorObjects/dTwist.cpp
+  patcher/generatorObjects/dSnowfall.cpp
   patcher/generatorObjects/dPhasor.cpp
   patcher/generatorObjects/dCycle.cpp
   patcher/generatorObjects/pSine.cpp
