@@ -72,6 +72,7 @@ set(YSE_SRCS
   dsp/generators/phasor.cpp
   dsp/generators/cycle.cpp
   dsp/generators/pinkNoise.cpp
+  dsp/generators/bandLimitedRandom.cpp
   dsp/operators/arithmetic.cpp
   dsp/operators/accumulator.cpp
   dsp/operators/compare.cpp
@@ -131,6 +132,7 @@ set(YSE_SRCS
   patcher/filters/pLowpass.cpp
   patcher/generatorObjects/dNoise.cpp
   patcher/generatorObjects/dPink.cpp
+  patcher/generatorObjects/dRand.cpp
   patcher/generatorObjects/dSaw.cpp
   patcher/generatorObjects/dPhasor.cpp
   patcher/generatorObjects/dCycle.cpp
@@ -533,6 +535,7 @@ set_source_files_properties(
   patcher/filters/pLowpass.cpp
   patcher/generatorObjects/dNoise.cpp
   patcher/generatorObjects/dPink.cpp
+  patcher/generatorObjects/dRand.cpp
   patcher/generatorObjects/dSaw.cpp
   patcher/generatorObjects/dPhasor.cpp
   patcher/generatorObjects/dCycle.cpp

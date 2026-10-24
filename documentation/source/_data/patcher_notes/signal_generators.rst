@@ -79,3 +79,16 @@ is about -14 dBFS RMS and stays within -1 to 1.
 .. code-block:: text
 
    [~pink] -> [~lp 400]   a soft wind texture
+
+.. patcher-object:: ~rand
+
+A random signal that moves smoothly: at the given frequency it picks a new
+random value between -1 and 1 and glides to it in a straight line. Slow
+rates make gentle drift for vibrato, a filter cutoff or a pan position;
+audio rates give a rough noise whose energy lies below the frequency. The
+frequency is a number or a signal; its sign is ignored and 0 holds the
+current value. The output starts at 0.
+
+.. code-block:: text
+
+   [~rand 3] -> [~* 0.01]   a slow random drift, scaled down for vibrato

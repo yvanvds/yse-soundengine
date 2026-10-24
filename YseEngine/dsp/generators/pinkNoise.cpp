@@ -1,14 +1,11 @@
 #include "pinkNoise.hpp"
+#include "whiteSource.hpp"
 
 namespace {
-  // Same generator and mapping as DSP::noise (dsp/oscillators.cpp), in
-  // unsigned arithmetic so the wrap-around is defined: the low 31 bits,
-  // centred, give a white sample in [-1, 1).
+  // Same generator and mapping as DSP::noise, shared with
+  // DSP::bandLimitedRandom (whiteSource.hpp).
   inline Dbl White(std::uint32_t& state) {
-    const auto bits = static_cast<std::int32_t>(state & 0x7fffffffu);
-    const Dbl sample = static_cast<Dbl>(bits - 0x40000000) * (1.0 / 0x40000000);
-    state = state * 435898247u + 382842987u;
-    return sample;
+    return YSE::DSP::detail::NextWhite(state);
   }
 
   inline UInt Clamp(UInt length) {

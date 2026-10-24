@@ -118,6 +118,7 @@
 #include "generatorObjects/dCycle.h"
 #include "generatorObjects/dNoise.h"
 #include "generatorObjects/dPink.h"
+#include "generatorObjects/dRand.h"
 #include "generatorObjects/dSig.h"
 
 #include "analysis/dSnapshot.h"
@@ -337,6 +338,7 @@ pRegistry::pRegistry() {
   Add(OBJ::D_CYCLE, dCycle::Create);
   Add(OBJ::D_NOISE, dNoise::Create);
   Add(OBJ::D_PINK, dPink::Create);
+  Add(OBJ::D_RAND, dRand::Create);
   Add(OBJ::D_SIG, dSig::Create);
 
   Add(OBJ::D_SNAPSHOT, dSnapshot::Create);

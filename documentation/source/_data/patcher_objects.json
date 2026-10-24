@@ -16797,6 +16797,43 @@
     ],
     "requires_midi_device": false
   },
+  "~rand": {
+    "category": "OSC",
+    "description": "Band-limited random signal: picks a new random value at a given frequency and glides to it in a straight line. Smooth random modulation for vibrato drift or a wandering filter.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "How often a new random value is picked, in Hz: a signal, or a number used while no signal is connected. The sign is ignored; 0 holds the current value.",
+        "index": 0,
+        "label": "freq",
+        "range": "0 to the sample rate"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~rand",
+    "outlets": [
+      {
+        "doc": "The random signal, starting at 0.",
+        "index": 0,
+        "label": "out",
+        "range": "-1 to 1",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Frequency in Hz used while no signal is connected.",
+        "name": "frequency",
+        "range": "0 to the sample rate"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~round": {
     "category": "MATH",
     "description": "Rounds the input to a multiple of the step: a step of 1, the default, rounds to whole numbers. Rounds to the nearest multiple (halfway values away from zero), or down with 'nearest 0'. A step of 0 passes the input through.",
