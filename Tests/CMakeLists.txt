@@ -61,6 +61,7 @@ set(YSE_TEST_SOURCES
   internal/test_log_sink_concurrency.cpp
   internal/test_time.cpp
   dsp/test_filters.cpp
+  dsp/test_sample_hold.cpp
   dsp/test_delay.cpp
   dsp/test_envelope.cpp
   dsp/test_lfo_rate_robustness.cpp
@@ -209,6 +210,7 @@ set(YSE_TEST_SOURCES
   patcher/test_patcher_signal_twist.cpp
   patcher/test_patcher_signal_what.cpp
   patcher/test_patcher_signal_where.cpp
+  patcher/test_patcher_signal_sah.cpp
   patcher/test_patcher_reverse_modulo.cpp
   patcher/test_patcher_plusequals.cpp
   patcher/test_patcher_signal_compare.cpp
@@ -1327,6 +1329,7 @@ set_source_files_properties(
   patcher/test_patcher_signal_twist.cpp
   patcher/test_patcher_signal_what.cpp
   patcher/test_patcher_signal_where.cpp
+  patcher/test_patcher_signal_sah.cpp
   patcher/test_patcher_reverse_modulo.cpp
   patcher/test_patcher_plusequals.cpp
   patcher/test_patcher_signal_compare.cpp

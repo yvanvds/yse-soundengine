@@ -17440,6 +17440,55 @@
     ],
     "requires_midi_device": false
   },
+  "~sah": {
+    "category": "FILTER",
+    "description": "Samples its input each time a trigger signal crosses a threshold and holds that value until the next trigger: classic sample-and-hold modulation, or latching one value per step of a ~phasor.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "The signal to sample (unconnected, the last number sent here, 0 at first). 'thresh <x>' sets the threshold; 'triggermode <0-6>' (0 rising above the threshold, 1 falling below it, 2 either, 3 equal to it, 4 from zero to nonzero, 5 from nonzero to zero, 6 passing it as a phase, so threshold 0 triggers at each reset of a ~phasor); 'duration <samples>' or 'dur <samples>' (above 0, the held value lasts that many samples, then 0).",
+        "index": 0,
+        "label": "in",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The trigger signal compared with the threshold (unconnected reads 0). A number sets the threshold.",
+        "index": 1,
+        "label": "trigger",
+        "range": ""
+      }
+    ],
+    "is_dsp": true,
+    "name": "~sah",
+    "outlets": [
+      {
+        "doc": "The value held since the last trigger.",
+        "index": 0,
+        "label": "out",
+        "range": "",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "The threshold, the first number. 'thresh <x>', 'triggermode <n>' and 'duration <n>' (or 'dur <n>') among the arguments set those attributes (default 0, 0 and 0). Messages do not change what is saved.",
+        "name": "thresh",
+        "range": "a number, then keywords"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~sampstoms": {
     "category": "MATH",
     "description": "Converts samples to milliseconds at the current sample rate. A number or list in is also converted at once and sent from the right outlet.",

@@ -149,6 +149,7 @@ set(YSE_SRCS
   patcher/delay/dTapout.cpp
   patcher/sampling/dBuffer.cpp
   patcher/filters/dVcf.cpp
+  patcher/filters/dSah.cpp
   patcher/filters/pBandpass.cpp
   patcher/filters/pHighpass.cpp
   patcher/filters/pLowpass.cpp
@@ -573,6 +574,7 @@ set_source_files_properties(
   patcher/delay/dTapout.cpp
   patcher/sampling/dBuffer.cpp
   patcher/filters/dVcf.cpp
+  patcher/filters/dSah.cpp
   patcher/filters/pBandpass.cpp
   patcher/filters/pHighpass.cpp
   patcher/filters/pLowpass.cpp

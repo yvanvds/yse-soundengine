@@ -206,6 +206,7 @@
 #include "filters/pHighpass.h"
 #include "filters/pLowpass.h"
 #include "filters/dVcf.h"
+#include "filters/dSah.h"
 
 #include "math/gAdd.h"
 #include "math/gDivide.h"
@@ -1293,6 +1294,7 @@ pRegistry::pRegistry() {
   Add(OBJ::D_BANDPASS, pBandpass::Create);
   Add(OBJ::D_HIGHPASS, pHighpass::Create);
   Add(OBJ::D_VCF, dVcf::Create);
+  Add(OBJ::D_SAH, dSah::Create);
 
   // The MIDI sender family. Unconditional since issue #746: these format
   // bytes onto a list outlet and open nothing, so there is no platform they

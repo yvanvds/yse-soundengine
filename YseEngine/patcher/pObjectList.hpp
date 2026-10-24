@@ -69,7 +69,8 @@ namespace YSE {
    *  - Change detection: ``G_CHANGE``.
    *  - Zero-crossing edges: ``G_TOGEDGE``.
    *  - Bitwise: ``G_BITAND``, ``G_BITOR``, ``G_SHIFTLEFT``, ``G_SHIFTRIGHT``.
-   *  - DSP filters: ``D_LOWPASS``, ``D_HIGHPASS``, ``D_BANDPASS``, ``D_VCF``.
+   *  - DSP filters: ``D_LOWPASS``, ``D_HIGHPASS``, ``D_BANDPASS``, ``D_VCF``,
+   *    ``D_SAH`` (sample and hold).
    *  - I/O: ``D_DAC``, ``D_ADC``, ``D_LINE``.
    *  - Control: ``G_INT``, ``G_FLOAT``, ``G_SLIDER``, ``G_RSLIDER``,
    *    ``G_XYSLIDER``, ``G_MULTISLIDER``, ``G_MATRIXCTRL``, ``G_FUNCTION``,
@@ -1027,6 +1028,7 @@ namespace YSE {
     DEFOBJ(D_HIGHPASS, "~hp");
     DEFOBJ(D_BANDPASS, "~bp");
     DEFOBJ(D_VCF, "~vcf");
+    DEFOBJ(D_SAH, "~sah");
 
     DEFOBJ(M_OUT, ".midiout");
     DEFOBJ(M_IN, ".midiin");
