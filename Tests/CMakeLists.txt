@@ -29,6 +29,7 @@ set(YSE_TEST_SOURCES
   dsp/test_triggered_ramp.cpp
   dsp/test_phasor_rate.cpp
   dsp/test_phasor_subdiv.cpp
+  dsp/test_phasor_stepdiv.cpp
   dsp/test_arithmetic_operators.cpp
   dsp/test_accumulator.cpp
   dsp/test_compare.cpp
@@ -195,6 +196,7 @@ set(YSE_TEST_SOURCES
   patcher/test_patcher_signal_ramp.cpp
   patcher/test_patcher_signal_rate.cpp
   patcher/test_patcher_signal_subdiv.cpp
+  patcher/test_patcher_signal_stepdiv.cpp
   patcher/test_patcher_reverse_modulo.cpp
   patcher/test_patcher_plusequals.cpp
   patcher/test_patcher_signal_compare.cpp
@@ -1306,6 +1308,7 @@ set_source_files_properties(
   patcher/test_patcher_signal_ramp.cpp
   patcher/test_patcher_signal_rate.cpp
   patcher/test_patcher_signal_subdiv.cpp
+  patcher/test_patcher_signal_stepdiv.cpp
   patcher/test_patcher_reverse_modulo.cpp
   patcher/test_patcher_plusequals.cpp
   patcher/test_patcher_signal_compare.cpp

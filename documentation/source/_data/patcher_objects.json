@@ -17792,6 +17792,74 @@
     "params": [],
     "requires_midi_device": false
   },
+  "~stepdiv": {
+    "category": "OSC",
+    "description": "Plays a fresh 0-1 ramp for each step of a stepped function, with the step number beside it: per-step envelopes in a sequence. The steps share each cycle of an input ramp such as a ~phasor, or run free over times in milliseconds.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "A 0-1 ramp to divide; with none connected the steps run free over their times in ms. A bang starts the free-running steps. A number is a pattern of one step; a list is a breakpoint function as .function sends it, whose times become the steps. 'pattern <times...>' (none clears); 'what <onsets...>' gives the moments the steps end instead; 'curvemode <0|1|2>'; 'loop <0|1>'; 'syncupdate <0|1>'.",
+        "index": 0,
+        "label": "phase",
+        "range": "0-1"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Jumps the free-running steps to the start of this step and plays on.",
+        "index": 1,
+        "label": "step",
+        "range": "0 or more"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~stepdiv",
+    "outlets": [
+      {
+        "doc": "A 0-1 ramp per step. Free running and stopped: 0 before the first start, 1 after the last step.",
+        "index": 0,
+        "label": "out",
+        "range": "0-1",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "The number of the step playing, its place in the pattern.",
+        "index": 1,
+        "label": "index",
+        "range": "0 or more",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "2",
+        "doc": "How a list is read: 0 value-time pairs, 1 value-time-curve triples, 2 auto (pairs, as .function sends).",
+        "name": "curvemode",
+        "range": "0-2"
+      },
+      {
+        "default": "0",
+        "doc": "1: free-running steps start again after the last one.",
+        "name": "loop",
+        "range": "0-1"
+      },
+      {
+        "default": "0",
+        "doc": "1: a new pattern waits for the input ramp to wrap, or for the free-running steps to end or restart.",
+        "name": "syncupdate",
+        "range": "0-1"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~subdiv": {
     "category": "OSC",
     "description": "Splits each cycle of a 0-1 ramp such as a ~phasor into a whole number of shorter ramps, in phase with it: tuplets and ratchets. Duration and probability patterns make uneven and skipped steps.",

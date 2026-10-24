@@ -79,6 +79,9 @@ Generators
 .. doxygenfile:: dsp/generators/phasorSubdiv.hpp
    :project: libYSE
 
+.. doxygenfile:: dsp/generators/phasorStepDiv.hpp
+   :project: libYSE
+
 .. doxygenfile:: dsp/lfo.hpp
    :project: libYSE
 

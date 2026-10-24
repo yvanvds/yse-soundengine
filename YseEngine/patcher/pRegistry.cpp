@@ -127,6 +127,7 @@
 #include "generatorObjects/dRamp.h"
 #include "generatorObjects/dRate.h"
 #include "generatorObjects/dSubdiv.h"
+#include "generatorObjects/dStepDiv.h"
 #include "generatorObjects/dPhasor.h"
 #include "generatorObjects/dCycle.h"
 #include "generatorObjects/dNoise.h"
@@ -367,6 +368,7 @@ pRegistry::pRegistry() {
   Add(OBJ::D_RAMP, dRamp::Create);
   Add(OBJ::D_RATE, dRate::Create);
   Add(OBJ::D_SUBDIV, dSubdiv::Create);
+  Add(OBJ::D_STEPDIV, dStepDiv::Create);
   Add(OBJ::D_SIG, dSig::Create);
 
   Add(OBJ::D_SNAPSHOT, dSnapshot::Create);

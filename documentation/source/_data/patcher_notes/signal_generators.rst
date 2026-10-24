@@ -427,3 +427,33 @@ not.
 .. code-block:: text
 
    [~phasor 0.5] -> [~subdiv 3] -> [~techno]   a triplet pass per master ramp
+
+.. patcher-object:: ~stepdiv
+
+Plays a fresh 0-1 ramp for each step of a stepped function, and sends the
+number of the step playing from its right outlet: per-step envelopes in a
+sequence. The steps come from a list of times. ``pattern 50 25`` gives two
+steps; a list in line format, as ``.function`` sends on a bang, gives the
+times of its breakpoints (``curvemode 1`` reads value-time-curve triples);
+a single number is a pattern of one step. ``what <onsets...>`` gives the
+moments the steps end instead, from the start: ``what 0.25 0.5 0.75`` makes
+four equal steps.
+
+With a ramp such as a ``~phasor`` connected, the steps share each of its
+cycles by their times: ``pattern 50 25`` plays a ramp over the first two
+thirds of the cycle and one over the last third. With nothing connected,
+the times are milliseconds and a bang plays the steps once, or over and over
+with ``loop 1``. A number in the right inlet jumps to that step. When the
+steps have run out the ramp holds at 1.
+
+A step of time 0 never plays but keeps its number, so with a function's
+list the index is the number of the breakpoint the ramp travels to.
+``syncupdate 1`` holds a new pattern back until the input ramp wraps, or
+until the free-running steps end or restart.
+
+The arguments are ``curvemode`` (2, which reads pairs), ``loop`` (0) and
+``syncupdate`` (0), and they are saved with the patch. The pattern is not.
+
+.. code-block:: text
+
+   [~phasor 1] -> [~stepdiv] -> [~techno]   one ramp per step, per cycle

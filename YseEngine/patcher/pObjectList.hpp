@@ -24,7 +24,8 @@ namespace YSE {
    * breakpoint envelope played over the length of a ramp), ``D_RAMP`` (a single
    * ramp started by a trigger signal), ``D_RATE`` (a 0..1 ramp time-scaled in
    * phase with its input), ``D_SUBDIV`` (each cycle of a 0..1 ramp split into
-   * whole-number sub-ramps).
+   * whole-number sub-ramps), ``D_STEPDIV`` (a 0..1 ramp per step of a stepped
+   * function).
    *  - DSP analysis: ``D_SNAPSHOT``.
    *  - DSP delay: `D_TAPIN`, `D_TAPOUT`.
    *  - DSP sampling: ``D_BUFFER``.
@@ -205,6 +206,7 @@ namespace YSE {
     DEFOBJ(D_RAMP, "~ramp");
     DEFOBJ(D_RATE, "~rate");
     DEFOBJ(D_SUBDIV, "~subdiv");
+    DEFOBJ(D_STEPDIV, "~stepdiv");
 
     DEFOBJ(D_SNAPSHOT, "~snapshot");
 
