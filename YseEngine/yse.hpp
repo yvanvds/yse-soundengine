@@ -74,6 +74,7 @@
 #include "dsp/generators/cycle.hpp"
 #include "dsp/generators/pinkNoise.hpp"
 #include "dsp/generators/bandLimitedOscillators.hpp"
+#include "dsp/generators/click.hpp"
 #include "dsp/generators/bandLimitedRandom.hpp"
 #include "dsp/operators/arithmetic.hpp"
 #include "dsp/operators/accumulator.hpp"

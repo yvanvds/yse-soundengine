@@ -46,6 +46,9 @@ Generators
 .. doxygenfile:: dsp/generators/bandLimitedOscillators.hpp
    :project: libYSE
 
+.. doxygenfile:: dsp/generators/click.hpp
+   :project: libYSE
+
 .. doxygenfile:: dsp/lfo.hpp
    :project: libYSE
 

@@ -74,6 +74,7 @@ set(YSE_SRCS
   dsp/generators/pinkNoise.cpp
   dsp/generators/bandLimitedRandom.cpp
   dsp/generators/bandLimitedOscillators.cpp
+  dsp/generators/click.cpp
   dsp/operators/arithmetic.cpp
   dsp/operators/accumulator.cpp
   dsp/operators/compare.cpp
@@ -137,6 +138,7 @@ set(YSE_SRCS
   patcher/generatorObjects/dSaw.cpp
   patcher/generatorObjects/dRect.cpp
   patcher/generatorObjects/dTri.cpp
+  patcher/generatorObjects/dClick.cpp
   patcher/generatorObjects/dPhasor.cpp
   patcher/generatorObjects/dCycle.cpp
   patcher/generatorObjects/pSine.cpp
@@ -542,6 +544,7 @@ set_source_files_properties(
   patcher/generatorObjects/dSaw.cpp
   patcher/generatorObjects/dRect.cpp
   patcher/generatorObjects/dTri.cpp
+  patcher/generatorObjects/dClick.cpp
   patcher/generatorObjects/dPhasor.cpp
   patcher/generatorObjects/dCycle.cpp
   patcher/generatorObjects/pSine.cpp

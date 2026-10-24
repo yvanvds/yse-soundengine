@@ -13,7 +13,7 @@ namespace YSE {
    *  - DSP generators: ``D_SINE``, ``D_SAW``, ``D_NOISE``, ``D_PHASOR``, ``D_CYCLE``,
    *    ``D_PINK`` (pink noise), ``D_RAND`` (interpolated random signal),
    *    ``D_RECT`` and ``D_TRI`` (antialiased pulse and triangle; ``D_SAW`` is
-   *    antialiased too),
+   *    antialiased too), ``D_CLICK`` (an impulse or short waveform on a bang),
    *    ``D_SIG`` (a number as a constant signal).
    *  - DSP analysis: ``D_SNAPSHOT``.
    *  - DSP delay: `D_TAPIN`, `D_TAPOUT`.
@@ -181,6 +181,7 @@ namespace YSE {
     DEFOBJ(D_NOISE, "~noise");
     DEFOBJ(D_PINK, "~pink");
     DEFOBJ(D_RAND, "~rand");
+    DEFOBJ(D_CLICK, "~click");
     DEFOBJ(D_SIG, "~sig");
 
     DEFOBJ(D_SNAPSHOT, "~snapshot");

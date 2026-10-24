@@ -148,3 +148,19 @@ current value. The output starts at 0.
 .. code-block:: text
 
    [~rand 3] -> [~* 0.01]   a slow random drift, scaled down for vibrato
+
+.. patcher-object:: ~click
+
+An impulse: each bang outputs a single sample of 1, followed by silence. A
+number plays it scaled by that number. The creation arguments, or
+``set <values...>``, store a short waveform of up to 256 values to play
+instead (``set`` alone goes back to the single sample). A click is the usual
+excitation for a filter or a resonator: its response is the filter's own
+sound. A bang or a number lands at the start of the next audio block; for a
+trigger on an exact sample, connect a signal, which plays the waveform at
+every sample where it moves from 0 to another value. A ``set`` is not saved
+with the patch; the arguments are.
+
+.. code-block:: text
+
+   [.metro 250] -> [~click 1 0.5 0.25] -> [~lp 800]   a soft tick four times a second

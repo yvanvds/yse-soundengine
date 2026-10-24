@@ -15823,6 +15823,44 @@
     ],
     "requires_midi_device": false
   },
+  "~click": {
+    "category": "OSC",
+    "description": "Outputs an impulse, or a short stored waveform, each time it is banged: an excitation for filters and resonators such as a Karplus-Strong string.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT",
+          "BANG"
+        ],
+        "doc": "A bang plays the waveform once; a number plays it scaled by that number; 'set <values...>' stores a new waveform of up to 256 values ('set' alone is the single-sample impulse again). A signal triggers it at every sample where it moves from 0 to a value that is not 0. A bang or a number lands at the start of the next block; the signal is sample-accurate.",
+        "index": 0,
+        "label": "trigger",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~click",
+    "outlets": [
+      {
+        "doc": "The waveform after each trigger, silence in between.",
+        "index": 0,
+        "label": "out",
+        "range": "any float",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "1",
+        "doc": "The waveform played on a trigger, up to 256 values. None is the single-sample impulse 1. A set message does not change what is saved.",
+        "name": "waveform",
+        "range": "list of floats, usually 0 to 1"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~clip": {
     "category": "MATH",
     "description": "Hard clipper: limits every sample of an audio signal to the range low to high. Use it to tame stray peaks, or as a distortion stage.",
