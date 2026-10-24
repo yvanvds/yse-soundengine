@@ -27,7 +27,8 @@ namespace YSE {
    * whole-number sub-ramps), ``D_STEPDIV`` (a 0..1 ramp per step of a stepped
    * function), ``D_SWING`` (each cycle of a 0..1 ramp split into two unequal
    * ramps), ``D_TWIST`` (a 0..1 ramp bent into an exponential curve).
-   *  - DSP analysis: ``D_SNAPSHOT``.
+   *  - DSP analysis: ``D_SNAPSHOT``, ``D_WHERE`` (elapsed and remaining time
+   *    of a 0..1 ramp's cycle).
    *  - DSP delay: `D_TAPIN`, `D_TAPOUT`.
    *  - DSP sampling: ``D_BUFFER``.
    *  - DSP math: ``D_ADD``, ``D_MULTIPLY``, ``D_CLIP``, ``D_REVERSESUBSTRACT``,
@@ -212,6 +213,7 @@ namespace YSE {
     DEFOBJ(D_TWIST, "~twist");
 
     DEFOBJ(D_SNAPSHOT, "~snapshot");
+    DEFOBJ(D_WHERE, "~where");
 
     DEFOBJ(D_TAPIN, "~tapin");
     DEFOBJ(D_TAPOUT, "~tapout");

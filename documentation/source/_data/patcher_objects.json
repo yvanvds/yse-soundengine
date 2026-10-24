@@ -18558,5 +18558,40 @@
       }
     ],
     "requires_midi_device": false
+  },
+  "~where": {
+    "category": "ANALYSIS",
+    "description": "Reports the time since a 0-1 ramp such as a ~phasor last started its cycle, and the time it will take to finish it, as signals in milliseconds: events at set times within a cycle.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER"
+        ],
+        "doc": "The ramp to measure, a signal from 0 to 1, rising or falling (unconnected reads 0).",
+        "index": 0,
+        "label": "phase",
+        "range": "0-1"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~where",
+    "outlets": [
+      {
+        "doc": "Time since the ramp last started its cycle, in ms.",
+        "index": 0,
+        "label": "elapsed",
+        "range": "0 or higher",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "Time until the ramp ends its cycle, in ms, predicted from its current speed.",
+        "index": 1,
+        "label": "remaining",
+        "range": "0 or higher",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [],
+    "requires_midi_device": false
   }
 }

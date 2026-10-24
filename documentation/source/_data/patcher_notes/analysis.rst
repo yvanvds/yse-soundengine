@@ -21,3 +21,27 @@ messages.
 .. code-block:: text
 
    [~snapshot 100]   reports its input ten times a second
+
+.. patcher-object:: ~where
+
+Measures a 0-1 ramp, usually a ``~phasor``, in time rather than phase. The
+left outlet gives the time since the ramp last started its cycle and the
+right outlet the time until it ends it, both in milliseconds. To make
+something happen 30 ms before each reset, wait for the right outlet to drop
+to 30 or below.
+
+The elapsed time is counted from the moment the ramp wrapped, between two
+samples if need be, and keeps counting if the ramp slows down or stops. The
+remaining time is a prediction from how fast the ramp moved on its last
+step, so it follows a change of speed at once; while the ramp stands still
+it keeps its last value. At a constant speed the two add up to the length of
+a cycle.
+
+A falling ramp, from a ``~phasor`` with a negative frequency, works the same
+way: its cycle starts at 1 and ends at 0. When the ramp turns around without
+wrapping, or first starts to move, the elapsed time is estimated from its
+speed. Both outlets give 0 until the input first moves.
+
+.. code-block:: text
+
+   [~phasor 2] -> [~where]   right outlet: 500 at each reset, falling to 0

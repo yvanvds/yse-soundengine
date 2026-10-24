@@ -88,6 +88,9 @@ Generators
 .. doxygenfile:: dsp/generators/phasorTwist.hpp
    :project: libYSE
 
+.. doxygenfile:: dsp/generators/phasorWhere.hpp
+   :project: libYSE
+
 .. doxygenfile:: dsp/lfo.hpp
    :project: libYSE
 
