@@ -278,3 +278,91 @@ mode. ``lo``, ``hi`` and ``wrapmode`` messages are not saved with the patch.
 .. code-block:: text
 
    [~phasor 2] -> [~trapezoid 0.05 0.5] -> [~*] (right inlet)   a gate with soft edges, twice a second
+
+.. patcher-object:: ~updown
+
+A trapezoid envelope whose edges take a fixed time, however fast the ramp
+that drives it runs. Where ``~trapezoid`` places its ramps at fractions of the
+cycle, ``~updown`` rises over ``up`` milliseconds when the input leaves 0 or
+the ramp resets (jumps by more than ``reset``, 0.5 by default), and falls over
+``down`` milliseconds so that it reaches 0 just as the ramp ends. It predicts
+the end from the ramp's slope, so it works for rising (0-1) and falling (1-0)
+ramps alike.
+
+The envelope only ever moves at the up and down rates, so a ramp that resets
+early, a gate that closes half-way or a time changed while it plays never
+makes it jump. Fed a gate instead of a ramp (any constant non-zero number or
+signal) it rises and holds ``level``, and falls when the gate goes back to 0.
+``bang`` restarts the rise from 0.
+
+The arguments are ``up``, ``down`` (10 ms each by default), ``level`` (1) and
+``reset`` (0.5), and they are saved with the patch. The ``up``, ``down``,
+``level`` and ``reset`` messages change the same settings while it plays but
+are not saved.
+
+.. code-block:: text
+
+   [~phasor 4] -> [~updown 5 20] -> [~*] (right inlet)   click-free 4 Hz chopping with 5 ms attacks
+
+.. patcher-object:: ~shape
+
+A breakpoint envelope played over the length of a ramp. Where ``.line`` takes
+its times as milliseconds, ``~shape`` treats them as proportions: one cycle of
+the ``~phasor`` (or any 0-1 or 1-0 ramp) that drives it is one pass through
+the whole envelope, so the same shape plays faster or slower with the ramp's
+frequency and every pass starts sample-accurately when the ramp starts (leaves
+0 or wraps).
+
+The envelope is a list in ``.line``'s format: ``<value> <time>`` pairs, each
+the next target and the time to reach it, optionally led by the starting
+value. That is what ``.function`` sends from its ramp outlet. A number on its
+own is the starting value for the next list and changes nothing by itself.
+With ``curvemode`` 1 the list is ``<value> <time> <curve>`` triplets, the
+curve (-1 to 1) bending the segment the way ``.function`` bends its own: 0 is
+linear, a positive curve leaves slowly and arrives quickly. With ``curvemode``
+0 curves play as straight lines; 2 reads pairs and still plays curves.
+
+``constant <n>`` plays the first ``n`` segments at their own times in
+milliseconds, however long the ramp is (rising ramps only), and scales the
+rest into what is left of the ramp: a fixed-length attack on an envelope whose
+release follows the note. ``syncupdate 1`` makes a new list wait for the ramp
+to start again, so a pass never changes shape half-way.
+
+The arguments are ``constant``, ``curvemode`` and ``syncupdate`` (all 0 by
+default), and they are saved with the patch. The messages change the same
+settings while it plays but are not saved, and neither is the envelope.
+
+.. code-block:: text
+
+   [.function] (ramp outlet) -> [~shape] <- [~phasor 2]   one envelope per half second
+
+.. patcher-object:: ~ramp
+
+A single ramp from a start to an end value, started sample-accurately when the
+signal in its left inlet goes from 0 to non-zero: a one-shot envelope driven
+at audio rate, by a ``~click``, a ``~sig`` or a comparison such as ``~>``.
+The other three inlets are the duration in milliseconds, the start value and
+the end value, each a signal or a number used while no signal is connected. A
+number in the left inlet also sets the duration.
+
+``curve`` (-1 to 1) bends the ramp the way ``~shape`` and ``.function`` bend
+their segments: 0 is linear, below 0 a rising ramp runs above the straight
+line and above 0 below it. The curve is computed exactly at every sample; an
+``interval <n>`` message is accepted and changes nothing.
+
+With ``mode`` 0 the duration is read when the ramp starts. With ``mode`` 1 it
+is read all the time and a change stretches or shrinks what is left: a
+1000 ms ramp changed to 1500 ms after 400 ms runs 1100 ms more. ``reset 1``
+returns the output to 0 when the ramp ends (otherwise it holds the end
+value), and ``retrigger 1`` lets a new trigger restart a ramp that is still
+running (otherwise it is ignored). The start and end values are read at every
+sample, so a running ramp follows them.
+
+The arguments are ``duration`` (100 ms by default), ``start`` (0), ``end``
+(1), ``curve``, ``mode``, ``reset`` and ``retrigger`` (all 0), and they are
+saved with the patch. The messages change the same settings while it plays
+but are not saved.
+
+.. code-block:: text
+
+   [~click] -> [~ramp 50 1 0 0.5] -> [~*] (right inlet)   a 50 ms curved decay per click

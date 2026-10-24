@@ -16012,6 +16012,73 @@
     "params": [],
     "requires_midi_device": false
   },
+  "~count": {
+    "category": "TIME",
+    "description": "A signal counting samples: it goes up by 1 at every sample from its initial value, and can loop below a limit. For indexing into buffers and sample-accurate timers.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT",
+          "BANG"
+        ],
+        "doc": "A signal counts while it is not 0. bang restarts from the initial value; an int sets it and restarts; a float, 'min <n>' and 'set <n>' set it without a restart; 'stop' stops; '<initial> <limit> <enable>' sets all three.",
+        "index": 0,
+        "label": "enable",
+        "range": "any"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The count limit, never output: the count goes back to the initial value instead. 0 means no limit. Does not restart.",
+        "index": 1,
+        "label": "limit",
+        "range": "integer"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~count",
+    "outlets": [
+      {
+        "doc": "The count, or the initial value while stopped.",
+        "index": 0,
+        "label": "count",
+        "range": "integer",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "How many times the count has gone back to the initial value.",
+        "index": 1,
+        "label": "carry",
+        "range": "0 or more",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "The value counting starts from and goes back to.",
+        "name": "initial",
+        "range": "integer"
+      },
+      {
+        "default": "0",
+        "doc": "The count limit, never output; 0 means no limit.",
+        "name": "limit",
+        "range": "integer"
+      },
+      {
+        "default": "0",
+        "doc": "1 counts from the start, 0 waits for a bang.",
+        "name": "enable",
+        "range": "0 or 1"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~cycle": {
     "category": "OSC",
     "description": "A wavetable oscillator: a cosine by default, or one cycle read from a named sample buffer. The phase inlet is added to the running phase, for phase modulation.",
@@ -17053,6 +17120,112 @@
     ],
     "requires_midi_device": false
   },
+  "~ramp": {
+    "category": "OSC",
+    "description": "A single ramp from a start to an end value, started sample-accurately when a trigger signal goes from 0 to non-zero. For one-shot envelopes driven at audio rate.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "A signal; a ramp starts when it goes from 0 to non-zero (unconnected reads 0). A number sets the duration. 'duration <ms>', 'start <x>', 'end <x>', 'curve <x>', 'mode <0|1>', 'reset <0|1>' and 'retrigger <0|1>' set the attributes (not saved); 'interval <n>' is accepted and ignored.",
+        "index": 0,
+        "label": "trigger",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The ramp's length in milliseconds: a signal, or a number used while no signal is connected.",
+        "index": 1,
+        "label": "duration",
+        "range": "0 or more ms"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The value the ramp starts from: a signal, or a number used while no signal is connected.",
+        "index": 2,
+        "label": "start",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The value the ramp ends on: a signal, or a number used while no signal is connected.",
+        "index": 3,
+        "label": "end",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~ramp",
+    "outlets": [
+      {
+        "doc": "The ramp.",
+        "index": 0,
+        "label": "out",
+        "range": "start to end",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "100",
+        "doc": "Ramp length in milliseconds, used while inlet 1 is unconnected.",
+        "name": "duration",
+        "range": "0 or more"
+      },
+      {
+        "default": "0",
+        "doc": "Start value, used while inlet 2 is unconnected.",
+        "name": "start",
+        "range": "any float"
+      },
+      {
+        "default": "1",
+        "doc": "End value, used while inlet 3 is unconnected.",
+        "name": "end",
+        "range": "any float"
+      },
+      {
+        "default": "0",
+        "doc": "Curvature: 0 is linear; below 0 a rising ramp runs above the straight line, above 0 below it.",
+        "name": "curve",
+        "range": "-1 to 1"
+      },
+      {
+        "default": "0",
+        "doc": "0: the duration is read when the ramp starts; 1: it is read continuously and a change stretches what is left of the ramp.",
+        "name": "mode",
+        "range": "0-1"
+      },
+      {
+        "default": "0",
+        "doc": "1: the output returns to 0 when the ramp ends; 0: it holds the end.",
+        "name": "reset",
+        "range": "0-1"
+      },
+      {
+        "default": "0",
+        "doc": "1: a trigger restarts a running ramp; 0: it is ignored.",
+        "name": "retrigger",
+        "range": "0-1"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~rand": {
     "category": "OSC",
     "description": "Band-limited random signal: picks a new random value at a given frequency and glides to it in a straight line. Smooth random modulation for vibrato drift or a wandering filter.",
@@ -17287,6 +17460,56 @@
         "doc": "Frequency in Hz used while no signal is connected.",
         "name": "frequency",
         "range": "0-20000 Hz"
+      }
+    ],
+    "requires_midi_device": false
+  },
+  "~shape": {
+    "category": "OSC",
+    "description": "A breakpoint envelope played over the length of a ramp such as a ~phasor: one cycle of the ramp is one pass through the envelope, so its length follows the ramp's frequency. For envelopes whose shape is fixed and whose length follows tempo or note length.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "A 0-1 or 1-0 ramp signal; the envelope starts when it leaves 0 or resets. A number is the initial value for the next list. A list sets the envelope: 'value time' pairs (as .function sends them), or 'value time curve' triplets with curvemode 1, optionally led by the initial value. 'constant <n>', 'curvemode <n>' and 'syncupdate <0|1>' set the attributes (not saved).",
+        "index": 0,
+        "label": "ramp",
+        "range": "0-1"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~shape",
+    "outlets": [
+      {
+        "doc": "The envelope's value at the ramp's position.",
+        "index": 0,
+        "label": "out",
+        "range": "any float",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "How many leading segments play at their own times in milliseconds (a rising ramp only); the rest are scaled into the remainder of the ramp.",
+        "name": "constant",
+        "range": "0 or more"
+      },
+      {
+        "default": "0",
+        "doc": "0: lists are pairs, curves play linear; 1: lists are triplets with a curvature (-1 to 1); 2: lists are pairs, curves play.",
+        "name": "curvemode",
+        "range": "0-2"
+      },
+      {
+        "default": "0",
+        "doc": "1: a new envelope waits until the ramp starts again; 0: it applies at once.",
+        "name": "syncupdate",
+        "range": "0-1"
       }
     ],
     "requires_midi_device": false
@@ -17644,6 +17867,57 @@
     ],
     "requires_midi_device": false
   },
+  "~techno": {
+    "category": "SEQUENCE",
+    "description": "A step sequencer read by a 0-1 phase signal: per step a pitch, an amplitude, a pitch slide and attack and decay shapes, out as pitch and envelope signals. For drum patterns and acid lines at sample accuracy.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The phase over the whole sequence, clamped to 0-1 (a ~phasor); a number while no signal is connected. Also takes 'pitch', 'amplitude', 'curve', 'attack', 'decay' and 'pos', each '<step> <value>', 'length <n>' and 'repeatpos <v> ...'.",
+        "index": 0,
+        "label": "phase",
+        "range": "0-1"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~techno",
+    "outlets": [
+      {
+        "doc": "The current step's pitch in Hz, sliding from the previous one's.",
+        "index": 0,
+        "label": "pitch",
+        "range": "any float",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "The amplitude envelope: the step's note decaying and the next one's rising.",
+        "index": 1,
+        "label": "amplitude",
+        "range": "any float",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "Where the sequence is, in steps: the step plus how far through it.",
+        "index": 2,
+        "label": "position",
+        "range": "0 to length",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "16",
+        "doc": "How many steps the sequencer has room for; 'length' uses fewer. Changing it rebuilds the object.",
+        "name": "steps",
+        "range": "1-1024"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~trapezoid": {
     "category": "OSC",
     "description": "A trapezoid read by a 0-1 phase such as a ~phasor: it rises from lo to hi by the ramp-up point, holds hi until the ramp-down point, then falls back to lo. For LFO shapes and envelopes.",
@@ -17878,6 +18152,62 @@
       }
     ],
     "params": [],
+    "requires_midi_device": false
+  },
+  "~updown": {
+    "category": "OSC",
+    "description": "A trapezoid envelope driven by a ramp such as a ~phasor, or by a gate: it rises in a fixed time when the ramp starts and falls in a fixed time to end at 0 where the ramp ends, however fast the ramp runs. For click-free gating.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT",
+          "BANG"
+        ],
+        "doc": "A 0-1 or 1-0 ramp, or a gate: a signal, or a number used while no signal is connected. The rise starts when it leaves 0 or jumps by more than reset; while it is 0 the envelope falls to 0. bang restarts the rise from 0. 'up <ms>', 'down <ms>', 'level <x>' and 'reset <x>' set the attributes (not saved).",
+        "index": 0,
+        "label": "ramp",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~updown",
+    "outlets": [
+      {
+        "doc": "The envelope, from 0 to level.",
+        "index": 0,
+        "label": "out",
+        "range": "0 to level",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "10",
+        "doc": "Rise time in milliseconds; 0 is instant.",
+        "name": "up",
+        "range": "0 or more"
+      },
+      {
+        "default": "10",
+        "doc": "Fall time in milliseconds, timed to reach 0 where the ramp ends; 0 is instant.",
+        "name": "down",
+        "range": "0 or more"
+      },
+      {
+        "default": "1",
+        "doc": "The envelope's top value.",
+        "name": "level",
+        "range": "any float"
+      },
+      {
+        "default": "0.5",
+        "doc": "How far the input must jump between two samples to count as a reset.",
+        "name": "reset",
+        "range": "0 or more"
+      }
+    ],
     "requires_midi_device": false
   },
   "~vcf": {

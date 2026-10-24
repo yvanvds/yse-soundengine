@@ -17,7 +17,12 @@ namespace YSE {
    *    `D_KINK` (phase distortion of a 0..1 ramp),
    *    ``D_OSCBANK`` and ``D_IOSCBANK`` (additive oscillator banks),
    *    ``D_TRIANGLE`` and ``D_TRAPEZOID`` (shapes read by a 0..1 phase),
-   *    ``D_SIG`` (a number as a constant signal).
+   *    ``D_SIG`` (a number as a constant signal), ``D_COUNT`` (a sample
+   *    counter), ``D_TECHNO`` (a step sequencer read by a 0..1 phase), ``D_UPDOWN``
+   *    (a
+   * trapezoid envelope with fixed attack and release times), ``D_SHAPE`` (a
+   * breakpoint envelope played over the length of a ramp), ``D_RAMP`` (a single
+   * ramp started by a trigger signal).
    *  - DSP analysis: ``D_SNAPSHOT``.
    *  - DSP delay: `D_TAPIN`, `D_TAPOUT`.
    *  - DSP sampling: ``D_BUFFER``.
@@ -191,6 +196,11 @@ namespace YSE {
     DEFOBJ(D_TRIANGLE, "~triangle");
     DEFOBJ(D_TRAPEZOID, "~trapezoid");
     DEFOBJ(D_SIG, "~sig");
+    DEFOBJ(D_COUNT, "~count");
+    DEFOBJ(D_TECHNO, "~techno");
+    DEFOBJ(D_UPDOWN, "~updown");
+    DEFOBJ(D_SHAPE, "~shape");
+    DEFOBJ(D_RAMP, "~ramp");
 
     DEFOBJ(D_SNAPSHOT, "~snapshot");
 

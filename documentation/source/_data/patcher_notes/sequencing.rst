@@ -210,3 +210,55 @@ passing during playback updates ``tempo``.
 4096 events, where each byte is one event: about 1365 three-byte messages.
 Further bytes are not recorded. ``dump``, ``print`` and ``sequencetempo`` are
 accepted and do nothing; there is no editing window.
+
+
+.. patcher-object:: ~techno
+
+A step sequencer that runs at signal rate: a phase from 0 to 1 (usually a
+``~phasor``) goes in, and a pitch signal, an amplitude envelope and the
+position in the sequence come out. Multiply an oscillator at the pitch by the
+envelope for drum patterns or an acid line, timed to the sample.
+
+The argument is how many steps the sequencer has room for (16 by default, up
+to 1024). It starts with one step; ``length <n>`` uses the first ``n``.
+
+**Messages**
+
+Each takes a step number (from 0) and a value. A step number past the room
+the argument made is ignored.
+
+- ``pitch <step> <Hz>``: the step's pitch. 440 to start with.
+- ``amplitude <step> <a>``: the envelope's value where the step starts. 1
+  to start with.
+- ``curve <step> <e>``: how the pitch slides from the previous step's over
+  the step: 1 is a straight slide, 0.5 a square-root curve, 2 a parabolic
+  one. 0 (the start) jumps with no slide.
+- ``decay <step> <e>``: how the step's note dies away to 0 by the next step.
+  1 (the start) is a straight line, larger is quicker, 0 never decays.
+- ``attack <step> <e>``: how the step's note rises from 0 over the step
+  before it. 1 (the start) is a straight line, larger rises later and
+  sharper.
+- ``pos <step> <start>``: where the step starts, as a fraction of the whole
+  sequence. A step cannot move before the previous step or past the next.
+- ``length <n>``: how many steps the sequence has. Changing it spaces the
+  steps evenly again, so send ``pos`` and ``repeatpos`` after it.
+- ``repeatpos <v> ...``: start positions repeated over the sequence, for
+  swing and other uneven spacing. With ``n`` values the sequence is cut into
+  segments of ``n + 1`` steps, which must divide the length; the values,
+  increasing and between 0 and 1, are where steps 1 to ``n`` of each
+  segment start within it. ``repeatpos 0.66`` swings every pair of steps.
+
+A number in the inlet is a constant phase while no signal is connected.
+Outside 0 to 1 the phase is clamped.
+
+**Outputs**
+
+The envelope is the current step's note decaying plus the next step's note
+rising, so with gentle shapes on both the two notes overlap. The position
+counts steps: 2.5 is halfway through step 2.
+
+Messages are not saved with the patch; the argument is.
+
+.. code-block:: text
+
+   [~phasor 2] -> [~techno 8] -> pitch -> [~saw] -> [~*] <- envelope
