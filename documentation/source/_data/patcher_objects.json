@@ -16259,6 +16259,88 @@
     ],
     "requires_midi_device": false
   },
+  "~ioscbank": {
+    "category": "OSC",
+    "description": "A bank of sine oscillators with smoothed frequency and magnitude changes, summed into one signal, reading its table between points for a cleaner sine: additive synthesis, and resynthesis from analysis data.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Frequency in Hz of the oscillator the index names. A signal sets it sample by sample; a number sets it once while no inlet carries a signal. Also takes 'set f m f m ...', 'clear', 'silence', 'size <n>', 'freqsmooth <n>', 'magsmooth <n>' and 'framesync <0/1>'.",
+        "index": 0,
+        "label": "freq",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Magnitude (amplitude) of the oscillator the index names: a signal, or a number.",
+        "index": 1,
+        "label": "magnitude",
+        "range": "0-1"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "With framesync 1 only: the phase the oscillator the index names jumps to when its frame takes effect. A signal, or a number.",
+        "index": 2,
+        "label": "phase",
+        "range": "0-1"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The oscillator the other inlets set, from 0. A signal (one oscillator per sample, as an analysis frame arrives), or a number naming the oscillator later numbers set.",
+        "index": 3,
+        "label": "index",
+        "range": "0 to oscillators - 1"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~ioscbank",
+    "outlets": [
+      {
+        "doc": "The sum of every oscillator: magnitude times sine.",
+        "index": 0,
+        "label": "out",
+        "range": "any float",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "64",
+        "doc": "How many oscillators the bank allocates; 'size' runs fewer. Changing it rebuilds the object.",
+        "name": "oscillators",
+        "range": "1-4096"
+      },
+      {
+        "default": "1",
+        "doc": "Samples over which a new frequency is ramped to; 0 or 1 jumps.",
+        "name": "freqsmooth",
+        "range": "0 or more"
+      },
+      {
+        "default": "0",
+        "doc": "Samples over which a new magnitude is ramped to; 0 or 1 jumps.",
+        "name": "magsmooth",
+        "range": "0 or more"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~kink": {
     "category": "OSC",
     "description": "Phase distortion: bends a 0-1 ramp, such as a ~phasor, so it reaches 0.5 faster or slower than the input, then runs on to 1 in the same cycle. Read a cosine with it for phase distortion synthesis.",
@@ -16642,6 +16724,94 @@
       }
     ],
     "params": [],
+    "requires_midi_device": false
+  },
+  "~oscbank": {
+    "category": "OSC",
+    "description": "A bank of sine oscillators with smoothed frequency and magnitude changes, summed into one signal, reading its table without interpolation (cheaper; set the table size with tabpoints): additive synthesis, and resynthesis from analysis data.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Frequency in Hz of the oscillator the index names. A signal sets it sample by sample; a number sets it once while no inlet carries a signal. Also takes 'set f m f m ...', 'clear', 'silence', 'size <n>', 'freqsmooth <n>', 'magsmooth <n>' and 'framesync <0/1>', and 'tabpoints <n>'.",
+        "index": 0,
+        "label": "freq",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Magnitude (amplitude) of the oscillator the index names: a signal, or a number.",
+        "index": 1,
+        "label": "magnitude",
+        "range": "0-1"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "With framesync 1 only: the phase the oscillator the index names jumps to when its frame takes effect. A signal, or a number.",
+        "index": 2,
+        "label": "phase",
+        "range": "0-1"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The oscillator the other inlets set, from 0. A signal (one oscillator per sample, as an analysis frame arrives), or a number naming the oscillator later numbers set.",
+        "index": 3,
+        "label": "index",
+        "range": "0 to oscillators - 1"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~oscbank",
+    "outlets": [
+      {
+        "doc": "The sum of every oscillator: magnitude times sine.",
+        "index": 0,
+        "label": "out",
+        "range": "any float",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "64",
+        "doc": "How many oscillators the bank allocates; 'size' runs fewer. Changing it rebuilds the object.",
+        "name": "oscillators",
+        "range": "1-4096"
+      },
+      {
+        "default": "1",
+        "doc": "Samples over which a new frequency is ramped to; 0 or 1 jumps.",
+        "name": "freqsmooth",
+        "range": "0 or more"
+      },
+      {
+        "default": "0",
+        "doc": "Samples over which a new magnitude is ramped to; 0 or 1 jumps.",
+        "name": "magsmooth",
+        "range": "0 or more"
+      },
+      {
+        "default": "4096",
+        "doc": "Points in the sine table, rounded to a power of two: more is cleaner.",
+        "name": "tablesize",
+        "range": "2-65536"
+      }
+    ],
     "requires_midi_device": false
   },
   "~outlet": {

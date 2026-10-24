@@ -185,3 +185,54 @@ Inputs outside 0-1 are not wrapped; they follow the same two lines.
 .. code-block:: text
 
    [~phasor 110] -> [~kink 3] -> [~cycle 0] (right inlet)   a bright 110 Hz tone
+
+.. patcher-object:: ~oscbank
+
+A bank of sine oscillators, summed into one signal: additive synthesis, and
+resynthesis from analysis data. The first argument is how many oscillators
+the bank has room for (64 by default, up to 4096); ``size <n>`` runs fewer.
+
+Each oscillator has a frequency and a magnitude. The fourth inlet names an
+oscillator by number, from 0; the first two set its frequency and magnitude.
+Numbers do this one at a time, in the order they arrive, so a loop that sends
+an index, a frequency and a magnitude for each partial sets them all.
+Signals do it sample by sample: at every sample, the oscillator the index
+signal names gets that sample's frequency and magnitude. That is how an
+analysis stream with one bin per sample drives the bank. An unconnected inlet
+reads its last number. ``set f m f m ...`` sets the first oscillators from a
+list of pairs and fades all others out.
+
+A new frequency or magnitude is not jumped to but ramped to, in a straight
+line over the number of samples the second and third arguments give
+(``freqsmooth`` and ``magsmooth``; 0 or 1 jumps). This smooths the steps
+between analysis frames.
+
+With ``framesync 1`` values sent by signal are held back, and all of them
+take effect together at the next sample whose index is 0: the start of the
+next frame. Only then does the phase inlet do anything: a phase sent to an
+oscillator is jumped to when its frame takes effect.
+
+``silence`` mutes every oscillator at once; ``clear`` also sets every
+frequency to 0. ``~oscbank`` reads its sine table without interpolation, so
+its size matters: the fourth argument, or ``tabpoints <n>``, sets it to a
+power of two (4096 by default). ``~ioscbank`` interpolates and needs no
+choice. Messages are not saved with the patch; the arguments are.
+``copybuf`` (a waveform from a buffer) is not available yet (issue #1196).
+
+.. code-block:: text
+
+   [~phasor 0.5] -> [~* 300] -> [~+ 200] -> [~oscbank 1 1 0 256] -> [~dac]
+   [~sig 0.3] -> [~oscbank] (second inlet)   a sweep through a coarse 256-point sine
+
+.. patcher-object:: ~ioscbank
+
+The interpolating ``~oscbank``: the same inlets, messages and smoothing, but
+the sine table is read between its points, so each oscillator is a clean
+sine at a little more cost. There is no table size to choose, and no
+``tabpoints``. The arguments are the number of oscillators and the
+frequency and magnitude smoothing.
+
+.. code-block:: text
+
+   [~sig 330] -> [~ioscbank 1 1 64] (left inlet)
+   [~sig 0.5] -> [~ioscbank] (second inlet)   one sine, fading in over 64 samples
