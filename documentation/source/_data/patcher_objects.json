@@ -17912,6 +17912,56 @@
     ],
     "requires_midi_device": false
   },
+  "~stepfun": {
+    "category": "OSC",
+    "description": "Plays a breakpoint function one segment per cycle of an input ramp such as a ~phasor: each cycle travels from one value of the pattern to the next, for stepped modulation and pitch sequences.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "The 0-1 ramp that times the segments (unconnected reads 0). Each forward wrap moves to the next step, each backward wrap to the one before. A bang goes back to step 0. A number makes the pattern that one value, and is the first value of a list that follows it. A list is a breakpoint function as .function sends it, whose values become the pattern. 'pattern <values...>' and 'curvepattern <curves...>' (none clears); 'step <n>'; 'curvemode <0|1|2>'; 'syncupdate <0|1|2>'.",
+        "index": 0,
+        "label": "phase",
+        "range": "0-1"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The step to play, a signal such as ~stepdiv's index, rounded down and wrapped into the pattern; while connected it replaces the counting of the ramp's cycles. A number sets the step when no signal is connected.",
+        "index": 1,
+        "label": "step",
+        "range": "0 or more"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~stepfun",
+    "outlets": [
+      {
+        "doc": "The function: step k travels from value k-1 to value k as the ramp goes from 0 to 1, step 0 from the last value to the first.",
+        "index": 0,
+        "label": "out",
+        "range": "",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The values of the pattern, up to 64. 'curvepattern' makes the numbers after it the curves of the steps (-1 to 1, 0 linear) and 'pattern' makes them values again; 'curvemode <n>' (how a list is read: 0 value-time pairs, 1 value-time-curve triples, 2 auto, pairs as .function sends; default 2) and 'syncupdate <n>' (a new pattern lands 0 at once, 1 when the ramp wraps, 2 when the sequence ends; default 0) set those attributes. Messages do not change what is saved.",
+        "name": "pattern",
+        "range": "list of numbers"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~subdiv": {
     "category": "OSC",
     "description": "Splits each cycle of a 0-1 ramp such as a ~phasor into a whole number of shorter ramps, in phase with it: tuplets and ratchets. Duration and probability patterns make uneven and skipped steps.",

@@ -25,7 +25,8 @@ namespace YSE {
    * ramp started by a trigger signal), ``D_RATE`` (a 0..1 ramp time-scaled in
    * phase with its input), ``D_SUBDIV`` (each cycle of a 0..1 ramp split into
    * whole-number sub-ramps), ``D_STEPDIV`` (a 0..1 ramp per step of a stepped
-   * function), ``D_SWING`` (each cycle of a 0..1 ramp split into two unequal
+   * function), ``D_STEPFUN`` (a breakpoint function played one segment per
+   * cycle of a 0..1 ramp), ``D_SWING`` (each cycle of a 0..1 ramp split into two unequal
    * ramps), ``D_TWIST`` (a 0..1 ramp bent into an exponential curve).
    *  - DSP analysis: ``D_SNAPSHOT``, ``D_WHERE`` (elapsed and remaining time
    *    of a 0..1 ramp's cycle), ``D_WHAT`` (an impulse each time a 0..1 ramp
@@ -211,6 +212,7 @@ namespace YSE {
     DEFOBJ(D_RATE, "~rate");
     DEFOBJ(D_SUBDIV, "~subdiv");
     DEFOBJ(D_STEPDIV, "~stepdiv");
+    DEFOBJ(D_STEPFUN, "~stepfun");
     DEFOBJ(D_SWING, "~swing");
     DEFOBJ(D_TWIST, "~twist");
 

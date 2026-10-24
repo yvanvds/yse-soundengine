@@ -97,6 +97,9 @@ Generators
 .. doxygenfile:: dsp/generators/stepCounter.hpp
    :project: libYSE
 
+.. doxygenfile:: dsp/generators/stepFunction.hpp
+   :project: libYSE
+
 .. doxygenfile:: dsp/lfo.hpp
    :project: libYSE
 
