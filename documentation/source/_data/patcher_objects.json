@@ -18559,6 +18559,44 @@
     ],
     "requires_midi_device": false
   },
+  "~what": {
+    "category": "ANALYSIS",
+    "description": "Sends an impulse, a 1 for one sample, each time a 0-1 ramp such as a ~phasor passes one of a list of phase values: rhythmic triggers on a phasor clock.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "The ramp to watch, a signal from 0 to 1, rising or falling (unconnected reads 0). A number replaces the values with that one value; a list replaces them with its numbers. 'matches <values...>' does the same (none empties the list); 'clear' empties it; 'triggermode <0|1|2|3>' (rising, falling, both, exactly equal); 'syncupdate <0|1>' (1: a new list waits for the ramp to wrap).",
+        "index": 0,
+        "label": "phase",
+        "range": "0-1"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~what",
+    "outlets": [
+      {
+        "doc": "1 for one sample each time the ramp passes a value, 0 otherwise.",
+        "index": 0,
+        "label": "out",
+        "range": "0-1",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The phase values to watch, up to 64, each wrapped into 0-1. 'triggermode <n>' and 'syncupdate <n>' among them set those modes (default 2 and 0). Messages do not change what is saved.",
+        "name": "values",
+        "range": "list of floats, 0 to 1"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~where": {
     "category": "ANALYSIS",
     "description": "Reports the time since a 0-1 ramp such as a ~phasor last started its cycle, and the time it will take to finish it, as signals in milliseconds: events at set times within a cycle.",

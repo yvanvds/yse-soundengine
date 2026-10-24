@@ -28,7 +28,8 @@ namespace YSE {
    * function), ``D_SWING`` (each cycle of a 0..1 ramp split into two unequal
    * ramps), ``D_TWIST`` (a 0..1 ramp bent into an exponential curve).
    *  - DSP analysis: ``D_SNAPSHOT``, ``D_WHERE`` (elapsed and remaining time
-   *    of a 0..1 ramp's cycle).
+   *    of a 0..1 ramp's cycle), ``D_WHAT`` (an impulse each time a 0..1 ramp
+   *    passes one of a list of values).
    *  - DSP delay: `D_TAPIN`, `D_TAPOUT`.
    *  - DSP sampling: ``D_BUFFER``.
    *  - DSP math: ``D_ADD``, ``D_MULTIPLY``, ``D_CLIP``, ``D_REVERSESUBSTRACT``,
@@ -214,6 +215,7 @@ namespace YSE {
 
     DEFOBJ(D_SNAPSHOT, "~snapshot");
     DEFOBJ(D_WHERE, "~where");
+    DEFOBJ(D_WHAT, "~what");
 
     DEFOBJ(D_TAPIN, "~tapin");
     DEFOBJ(D_TAPOUT, "~tapout");
