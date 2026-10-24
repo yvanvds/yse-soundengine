@@ -71,6 +71,7 @@
 #include "dsp/filters/onePole.hpp"
 #include "dsp/filters/lores.hpp"
 #include "dsp/filters/reson.hpp"
+#include "dsp/filters/stateVariableFilter.hpp"
 #include "dsp/math.hpp"
 #include "dsp/oscillators.hpp"
 #include "dsp/generators/phasor.hpp"

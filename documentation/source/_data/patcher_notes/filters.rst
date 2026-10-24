@@ -252,3 +252,40 @@ the left inlet reads 0.
 
    [~noise] -> [~reson 1 700 30] -> [~dac]
    a whistling tone at 700 Hz; raise the Q for a purer pitch
+
+.. patcher-object:: ~svf
+
+A state-variable filter: one center frequency and one resonance drive four
+outputs at once, a lowpass, a highpass, a bandpass and a notch, from left to
+right. Set the frequency and the resonance as creation arguments
+(``~svf 1000 0.8``), as numbers or signals in the two right inlets, as
+``freq <x>`` and ``q <x>``, or as a list of two numbers in any inlet. Signals
+are read per sample, so the filter can be swept at audio rate.
+
+The frequency is read in one of three modes, chosen by ``hz`` (the default),
+``linear`` or ``radians`` in any inlet or among the arguments. In hz mode it
+runs from 0 to a quarter of the sample rate. In linear mode 0 to 1 covers that
+same range evenly. In radians mode 0 to 1 is the sine of the frequency in
+radians per sample, as for ``~onepole``. A frequency of 0 silences the
+lowpass and the bandpass and passes the input through the highpass and the
+notch.
+
+The resonance runs from 0 to 1. At 0 there is no peak (a Q of 0.5); at 0.5 the Q is
+1; towards 1 the peak sharpens to a Q of 1000, which still dies away. At the center frequency the lowpass,
+highpass and bandpass all have a gain of the Q, and the notch lets nothing
+through. The defaults are a frequency of 0 and a resonance of 0.01.
+
+The responses are those of Hal Chamberlin's state-variable filter, computed
+in the zero-delay-feedback form of Zavalishin and Simper. That form stays
+stable at every frequency and resonance and puts the center frequency
+exactly where it is set, so near the top of the range it can sound slightly
+different from Chamberlin's original arrangement. The mapping from the
+resonance to the Q is this object's own. The coefficients follow the sample
+rate when that changes. ``clear`` sets the filter state to 0. An input
+sample that is not a finite number is skipped. Unconnected, the left inlet
+reads 0.
+
+.. code-block:: text
+
+   [~saw 110] -> [~svf 800 0.9] -> (third outlet) -> [~dac]
+   a resonant band; sweep the middle inlet, or take the notch from the fourth
