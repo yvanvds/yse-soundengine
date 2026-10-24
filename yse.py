@@ -16,6 +16,7 @@ are propagated unchanged.
 import argparse
 import datetime
 import fnmatch
+import importlib.util
 import io
 import json
 import os
@@ -850,6 +851,30 @@ def cmd_dump_patcher_meta(args):
     if result.returncode != 0:
         sys.exit(result.returncode)
     print(f"\nPatcher metadata snapshot written to {out_path}")
+
+
+def cmd_docs(args):
+    # Same two steps as the "Build (Doxygen + Sphinx)" job in
+    # .github/workflows/documentation.yml, so the conf.py checks (the
+    # patcher-notes forbidden-word rule among them) fail here before CI.
+    # See #1201.
+    docs_dir = ROOT / "documentation"
+    doxygen = shutil.which("doxygen")
+    if doxygen is None:
+        print("error: doxygen not found on PATH (CI pins 1.17.0; older versions "
+              "emit a different warning set).")
+        print("  Install: https://www.doxygen.nl/download.html")
+        sys.exit(1)
+    if importlib.util.find_spec("sphinx") is None:
+        print("error: Sphinx is not installed for this Python.")
+        print(f"  Install: {Path(sys.executable).name} -m pip install -r "
+              "documentation/requirements.txt")
+        sys.exit(1)
+
+    run([doxygen, "Doxyfile"], cwd=docs_dir)
+    run([sys.executable, "-m", "sphinx", "-W", "--keep-going",
+         "-b", "html", "source", "build/html"], cwd=docs_dir)
+    print(f"\nDocs built cleanly: {docs_dir / 'build' / 'html' / 'index.html'}")
 
 
 def cmd_format(args):
@@ -1689,7 +1714,8 @@ def build_parser():
   python yse.py analyze YseEngine/sound.cpp  same, limited to a single file
   python yse.py format             run clang-format on YseEngine/ and Tests/
   python yse.py dump-patcher-meta  regenerate documentation/source/_data/patcher_objects.json
-  python yse.py package            build a release archive in dist/ (used by CI)
+  python yse.py docs               Doxygen + Sphinx -W, the same docs build CI runs
+  python yse.py package          build a release archive in dist/ (used by CI)
   python yse.py package --platform linux    explicit target platform
   python yse.py package --platform android --android-libs <dir>   multi-ABI bundle from CI per-ABI artefacts
   python yse.py release patch --bump-only   on release/vX.Y.Z-prep: bump VERSION + commit (no tag/push)
@@ -1907,6 +1933,24 @@ def build_parser():
         help="Override the output path (default: documentation/source/_data/patcher_objects.json)",
     )
     p.set_defaults(func=cmd_dump_patcher_meta)
+
+    # docs
+    p = sub.add_parser(
+        "docs",
+        help="Build the docs exactly as CI does (Doxygen + Sphinx -W)",
+        description=(
+            "Runs `doxygen Doxyfile` and then `sphinx-build -W --keep-going -b "
+            "html source build/html` in documentation/, the same steps as the "
+            "Build (Doxygen + Sphinx) CI job.  Any Doxygen or Sphinx warning "
+            "fails the command, including the conf.py checks on "
+            "documentation/source/_data/patcher_notes/ (unknown, duplicate or "
+            "miscategorised objects, or notes that name Max).  Run it after "
+            "touching documentation/ or any patcher object's metadata or notes.  "
+            "Requires doxygen on PATH (CI pins 1.17.0) and the packages in "
+            "documentation/requirements.txt."
+        ),
+    )
+    p.set_defaults(func=cmd_docs)
 
     # format
     p = sub.add_parser(

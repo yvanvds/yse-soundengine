@@ -241,6 +241,7 @@ python yse.py clean              # remove build directories (asks first; --yes s
 python yse.py analyze [path]     # run clang-tidy; path narrows scope (default: full tree)
 python yse.py format             # clang-format on YseEngine/ and Tests/
 python yse.py dump-patcher-meta  # regenerate the patcher object metadata the docs render
+python yse.py docs               # Doxygen + Sphinx -W, the same docs build CI runs
 python yse.py package            # build a release archive in dist/ (used by CI)
 python yse.py release patch --bump-only  # maintainers: bump + commit on release/vX.Y.Z-prep; then release --tag <commit>
 ```
@@ -349,6 +350,9 @@ cd documentation
 make html        # Linux/macOS/MSYS2: doxygen XML + sphinx HTML
 make.bat html    # Windows cmd
 ```
+
+`python yse.py docs` (from the repo root) runs the same build with Sphinx's
+`-W --keep-going`, as CI does, so any warning fails it.
 
 The HTML lands in `documentation/build/html/`. Preview it with the
 built-in server:

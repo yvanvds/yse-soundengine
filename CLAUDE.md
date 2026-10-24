@@ -35,6 +35,12 @@ session start. Pair with [PROJECT_OVERVIEW.md](PROJECT_OVERVIEW.md).
    before the commit, fixing or with a focused `// NOLINT(check-name): why`
    when the check is genuinely wrong for that line. The `fix-issues` skill
    governs how to triage findings.
+7. **Build the docs when they change.** A commit that touches
+   `documentation/`, a patcher object's metadata macros, or its notes under
+   `documentation/source/_data/patcher_notes/` runs `python yse.py docs`
+   (Doxygen + Sphinx `-W`, the CI docs job) and must build cleanly. The
+   `conf.py` patcher-notes rules, such as no mention of Max, run only there,
+   and `test`, `analyze` and `format` never run them (#1201).
 
 ## Issue templates
 
@@ -79,6 +85,7 @@ python yse.py bench              # bench preset (Release) + run yse_benchmarks; 
 python yse.py run Demo00         # run a demo from build-debug/bin/
 python yse.py analyze            # clang-tidy
 python yse.py format             # clang-format -i
+python yse.py docs               # Doxygen + Sphinx -W, the CI docs job (patcher-notes rules included)
 python yse.py coverage           # gcovr (Linux) / llvm-cov (Windows)
 ```
 
