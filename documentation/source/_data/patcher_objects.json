@@ -16347,6 +16347,59 @@
     ],
     "requires_midi_device": false
   },
+  "~cross": {
+    "category": "FILTER",
+    "description": "Third-order crossover: splits a signal at one cutoff into a lowpass and a highpass band, 18 dB per octave each, that add back up to a flat response. For multiband processing.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER"
+        ],
+        "doc": "The signal to split (unconnected reads 0). 'clear' sets the filter state to 0; a number sets the cutoff the right inlet reads.",
+        "index": 0,
+        "label": "in",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The cutoff in Hz for both bands, a number or a signal read per sample (unconnected, the last number sent here or the creation argument). Clamped to 0.49 times the sample rate; at 0 the lowpass is silent and the highpass passes the input. Takes the same words as the left inlet.",
+        "index": 1,
+        "label": "cutoff",
+        "range": "0 to 0.49 * samplerate Hz"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~cross",
+    "outlets": [
+      {
+        "doc": "The band below the cutoff, 3 dB down at the cutoff.",
+        "index": 0,
+        "label": "lowpass",
+        "range": "",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "The band above the cutoff, 3 dB down at the cutoff.",
+        "index": 1,
+        "label": "highpass",
+        "range": "",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "1000",
+        "doc": "The cutoff in Hz ('~cross 800'). Later numbers and messages do not change what is saved.",
+        "name": "cutoff",
+        "range": "0 to 0.49 * samplerate Hz"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~cycle": {
     "category": "OSC",
     "description": "A wavetable oscillator: a cosine by default, or one cycle read from a named sample buffer. The phase inlet is added to the running phase, for phase modulation.",

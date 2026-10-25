@@ -453,3 +453,29 @@ coefficients. The coefficients follow the sample rate as it is now.
    [~noise] -> [~biquad] -> [~dac]
    a resonance sweeping from 300 Hz to 2300 Hz every five seconds; send the
    Q to the right inlet of ~filtercoeff
+
+.. patcher-object:: ~cross
+
+Splits a signal at one cutoff into two bands: everything below it on the left
+outlet, everything above it on the right. Each band rolls off 18 dB per
+octave past the cutoff and is 3 dB down at it. Added back together, the two
+bands give the input again at its full level at every frequency; only the
+phase shifts a little around the cutoff. That makes ``~cross`` the building
+block for multiband processing: treat the bass and the treble apart, then mix
+them.
+
+Give the cutoff in Hz as a creation argument (``~cross 800``, 1000 when there
+is none), as a number or a signal in the right inlet, or as a number through
+a receive. A signal is read per sample, so the split point can move smoothly.
+The cutoff runs from 0, where the left outlet is silent and the right one
+passes the input unchanged, to 0.49 times the sample rate, and follows the
+sample rate when that changes. ``clear`` sets the filter state to 0. An input
+sample that is not a finite number is skipped. Unconnected, the left inlet
+reads 0.
+
+.. code-block:: text
+
+   [~noise] -> [~cross 300]
+   [~cross 300] left outlet -> [~* 1.5] -> [~dac]
+   [~cross 300] right outlet -> [~* 0.5] -> [~dac]
+   the same noise with the bass lifted and the treble lowered
