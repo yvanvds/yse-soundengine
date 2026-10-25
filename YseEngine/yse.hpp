@@ -77,6 +77,7 @@
 #include "dsp/filters/filterCoefficients.hpp"
 #include "dsp/filters/crossover.hpp"
 #include "dsp/filters/filterBank.hpp"
+#include "dsp/filters/phaseShift.hpp"
 #include "dsp/math.hpp"
 #include "dsp/oscillators.hpp"
 #include "dsp/generators/phasor.hpp"

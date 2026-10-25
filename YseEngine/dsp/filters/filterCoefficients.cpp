@@ -23,11 +23,23 @@ namespace YSE {
 
     filterCoefficients::coefficientSet
     filterCoefficients::Compute(TYPE type, Flt frequency, Flt gain, Flt q, Flt sampleRate) {
+      const preciseSet precise = ComputePrecise(type, frequency, gain, q, sampleRate);
       coefficientSet out;
+      out.a0 = static_cast<Flt>(precise.a0);
+      out.a1 = static_cast<Flt>(precise.a1);
+      out.a2 = static_cast<Flt>(precise.a2);
+      out.b1 = static_cast<Flt>(precise.b1);
+      out.b2 = static_cast<Flt>(precise.b2);
+      return out;
+    }
+
+    filterCoefficients::preciseSet
+    filterCoefficients::ComputePrecise(TYPE type, Flt frequency, Flt gain, Flt q, Flt sampleRate) {
+      preciseSet out;
       // As an int: a TYPE cast from any number reaches here.
       const int index = static_cast<int>(type);
       if (index <= OFF || index >= TYPE_COUNT) {
-        out.a0 = 1.f;
+        out.a0 = 1.0;
         return out;
       }
       if (!(sampleRate > 0.f) || !std::isfinite(sampleRate) || !std::isfinite(frequency) ||
@@ -146,11 +158,11 @@ namespace YSE {
 
       const Dbl norm = 1.0 / a0;
       const Dbl g = scaled ? static_cast<Dbl>(gain) : 1.0;
-      out.a0 = static_cast<Flt>(g * b0 * norm);
-      out.a1 = static_cast<Flt>(g * b1 * norm);
-      out.a2 = static_cast<Flt>(g * b2 * norm);
-      out.b1 = static_cast<Flt>(a1 * norm);
-      out.b2 = static_cast<Flt>(a2 * norm);
+      out.a0 = g * b0 * norm;
+      out.a1 = g * b1 * norm;
+      out.a2 = g * b2 * norm;
+      out.b1 = a1 * norm;
+      out.b2 = a2 * norm;
       return out;
     }
 

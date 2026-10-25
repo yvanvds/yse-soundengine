@@ -537,3 +537,28 @@ not a finite number is skipped. Unconnected, the inlet reads 0.
    [~noise] -> [~* ] left inlet; [~cartopol] left outlet -> [~* ] right inlet
    [~* ] -> [~dac]
    noise that follows the loudness of the input
+
+.. patcher-object:: ~phaseshift
+
+Shifts the phase of a signal without changing its level. Frequencies well
+below the center frequency pass almost unchanged, the center frequency comes
+out inverted (180 degrees behind) and frequencies well above it come out a
+whole cycle behind. The Q sets how quickly the phase turns around the center:
+a high Q turns it over a narrow band. ``clear`` sets the filter state to 0.
+A number or a list of up to two numbers in any inlet sets the center
+frequency and the Q; a single number in a right inlet sets that inlet's
+value. The creation arguments are the center frequency and the Q; they
+default to 1000 Hz and 1.
+
+On its own the effect is hard to hear. Mix the output with the input and the
+center frequency cancels: that is one stage of a phaser. Chain several
+``~phaseshift`` objects and sweep their center frequency with an LFO for a
+deeper effect. An input sample that is not a finite number is skipped.
+Unconnected, the left inlet reads 0.
+
+.. code-block:: text
+
+   [~saw 110] -> [~phaseshift 800 2] -> [~+ ] right inlet
+   [~saw 110] -> [~+ ] left inlet
+   [~+ ] -> [~dac]
+   a notch at 800 Hz in the sawtooth

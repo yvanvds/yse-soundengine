@@ -77,6 +77,7 @@ set(YSE_TEST_SOURCES
   dsp/test_crossover.cpp
   dsp/test_filter_bank.cpp
   dsp/test_hilbert.cpp
+  dsp/test_phase_shift.cpp
   dsp/test_delay.cpp
   dsp/test_envelope.cpp
   dsp/test_lfo_rate_robustness.cpp
@@ -241,6 +242,7 @@ set(YSE_TEST_SOURCES
   patcher/test_patcher_signal_cross.cpp
   patcher/test_patcher_signal_fffb.cpp
   patcher/test_patcher_signal_hilbert.cpp
+  patcher/test_patcher_signal_phaseshift.cpp
   patcher/test_patcher_reverse_modulo.cpp
   patcher/test_patcher_plusequals.cpp
   patcher/test_patcher_signal_compare.cpp
@@ -1375,6 +1377,7 @@ set_source_files_properties(
   patcher/test_patcher_signal_cross.cpp
   patcher/test_patcher_signal_fffb.cpp
   patcher/test_patcher_signal_hilbert.cpp
+  patcher/test_patcher_signal_phaseshift.cpp
   patcher/test_patcher_reverse_modulo.cpp
   patcher/test_patcher_plusequals.cpp
   patcher/test_patcher_signal_compare.cpp

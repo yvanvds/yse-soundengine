@@ -568,4 +568,31 @@ TEST_SUITE("dsp") {
     }
   }
 
+  TEST_CASE("filterCoefficients: Compute is ComputePrecise rounded to floats (#1098)") {
+    for (int t = -1; t <= filterCoefficients::TYPE_COUNT; ++t) {
+      for (const float hz : {0.f, 1.f, 440.f, 9000.f, 23999.f}) {
+        for (const float q : {0.01f, 0.7f, 20.f, 10000.f}) {
+          CAPTURE(t);
+          CAPTURE(hz);
+          CAPTURE(q);
+          const auto type = static_cast<filterCoefficients::TYPE>(t);
+          const filterCoefficients::coefficientSet c =
+              filterCoefficients::Compute(type, hz, 2.f, q, 48000.f);
+          const filterCoefficients::preciseSet p =
+              filterCoefficients::ComputePrecise(type, hz, 2.f, q, 48000.f);
+          CHECK(c.a0 == static_cast<float>(p.a0));
+          CHECK(c.a1 == static_cast<float>(p.a1));
+          CHECK(c.a2 == static_cast<float>(p.a2));
+          CHECK(c.b1 == static_cast<float>(p.b1));
+          CHECK(c.b2 == static_cast<float>(p.b2));
+        }
+      }
+    }
+    // Not finite: all 0 in both.
+    const filterCoefficients::preciseSet zero = filterCoefficients::ComputePrecise(
+        filterCoefficients::ALLPASS, std::nanf(""), 1.f, 1.f, 48000.f);
+    CHECK(zero.a0 == 0.0);
+    CHECK(zero.b2 == 0.0);
+  }
+
 } // TEST_SUITE("dsp")

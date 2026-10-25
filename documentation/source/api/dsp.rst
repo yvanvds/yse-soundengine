@@ -157,6 +157,9 @@ Filters
 .. doxygenfile:: dsp/filters/filterBank.hpp
    :project: libYSE
 
+.. doxygenfile:: dsp/filters/phaseShift.hpp
+   :project: libYSE
+
 The resonant ladder low-pass that ``SYNTH::vaVoice`` uses also works on its
 own in any DSP path:
 

@@ -133,6 +133,21 @@ namespace YSE {
        *         passes), except for ``OFF``. A type out of range is ``OFF``. */
       static coefficientSet Compute(TYPE type, Flt frequency, Flt gain, Flt q, Flt sampleRate);
 
+      /** @brief The five coefficients in double precision, as computed
+       *         before ``Compute`` rounds them to floats. */
+      struct preciseSet {
+        Dbl a0 = 0.0;
+        Dbl a1 = 0.0;
+        Dbl a2 = 0.0;
+        Dbl b1 = 0.0;
+        Dbl b2 = 0.0;
+      };
+
+      /** @brief ``Compute`` without the rounding to floats, for a filter that
+       *         runs in double precision (``phaseShift``): with a high Q near
+       *         0 Hz a float puts the poles on the unit circle. */
+      static preciseSet ComputePrecise(TYPE type, Flt frequency, Flt gain, Flt q, Flt sampleRate);
+
       /** @brief Starts as a Butterworth lowpass at 1000 Hz, gain 1. */
       filterCoefficients();
 
