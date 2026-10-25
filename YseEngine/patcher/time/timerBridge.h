@@ -153,6 +153,32 @@ namespace YSE {
       void RequestPeriod(Handle handle, timerThread::millisec periodMs);
       /** @} */
 
+      /** @name Re-asserting an interval from inside the timer's own callback.
+       *
+       *  An owner whose interval can also be stored by a route that notifies
+       *  nobody (a live SetParams) re-asserts it on every tick. A plain
+       *  ``RequestPeriod`` there is a lost update (#1206): the callback reads
+       *  its interval field, a cold inlet on another thread stores a new one and
+       *  retimes eagerly, and the callback's store of the value it read *before*
+       *  that puts the timer straight back on the old interval for a cycle.
+       *
+       *  So the callback takes ``WantedPeriod`` **before** it reads its own
+       *  interval field and hands both to ``RefreshPeriod``, which publishes
+       *  only over the value it saw. Every writer stores its interval field
+       *  before the slot's wanted period (released), so a callback that sees a
+       *  newer wanted period also reads the newer field — the two agree and
+       *  nothing is published — and one that saw the older one loses the
+       *  compare-and-swap to it. Both wait-free.
+       *  @{
+       */
+      /** The wanted interval, acquired. 0 for a handle that is not a slot. */
+      std::int64_t WantedPeriod(Handle handle) const;
+      /** Retime to @p periodMs, but only if the wanted interval is still
+       *  @p seen — the value ``WantedPeriod`` returned before @p periodMs was
+       *  read. */
+      void RefreshPeriod(Handle handle, std::int64_t seen, timerThread::millisec periodMs);
+      /** @} */
+
       /** @name Synchronous equivalents — every thread but the audio callback.
        *
        *  Same wanted-state writes, reconciled inline before returning, so the

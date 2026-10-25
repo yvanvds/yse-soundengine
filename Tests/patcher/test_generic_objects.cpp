@@ -848,6 +848,45 @@ TEST_SUITE("patcher") {
     metro.GetInlet(0)->SetInt(0, YSE::T_GUI);
   }
 
+  TEST_CASE("gMetro: a tick's period refresh never overwrites a newer cold-inlet retime (#1206)") {
+    // The interleaving behind the load-only failure of the case above, scripted
+    // on the bridge so it is deterministic. Bang() re-asserts `period` on every
+    // tick for the SetParams route; it used to read `period` and then publish
+    // it with RequestPeriod. A cold inlet that stored 5000 and retimed eagerly
+    // between those two steps was then overwritten with the 10 the tick had
+    // read, so the pool put the timer back on 10 ms and the metro banged once
+    // more after the growth — `6 <= 5`. The refresh now publishes only over the
+    // wanted interval it saw before reading `period`.
+    auto noop = [](void*) {};
+    YSE::PATCHER::timerBridge& bridge = YSE::PATCHER::TimerBridge();
+    const YSE::PATCHER::timerBridge::Handle h = bridge.Claim(noop, nullptr);
+    REQUIRE(h != 0);
+    bridge.ApplyStart(h, 1'000'000);
+
+    // The tick: wanted interval first, then the owner's field (still the old).
+    const std::int64_t seen = bridge.WantedPeriod(h);
+    const YSE::PATCHER::timerThread::millisec stale = 1'000'000;
+    REQUIRE(seen == stale);
+
+    // The cold inlet lands in between and retimes eagerly.
+    bridge.ApplyPeriod(h, 5000);
+    REQUIRE(bridge.WantedPeriod(h) == 5000);
+
+    // The tick's publish of what it read must lose to it.
+    bridge.RefreshPeriod(h, seen, stale);
+    bridge.WaitIdle();
+    CHECK(bridge.WantedPeriod(h) == 5000);
+
+    // ... while the route it exists for still works: a tick that saw the
+    // current wanted interval and reads a field moved behind the bridge's back
+    // (a live SetParams store) publishes it.
+    bridge.RefreshPeriod(h, bridge.WantedPeriod(h), 20);
+    bridge.WaitIdle();
+    CHECK(bridge.WantedPeriod(h) == 20);
+
+    bridge.Release(h);
+  }
+
   TEST_CASE("gMetro: a live SetParams re-parse retimes a running metro (#625)") {
     // The user-visible flow behind yvanvds/phi#438: a metro wired up inside a
     // real patcher, started, and then re-argued from the object box while it

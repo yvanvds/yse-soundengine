@@ -694,8 +694,13 @@ void gClocker::Tick() {
   // inside ClearTimer waiting for this very callback, so a Tick() that waited
   // for the slot would deadlock against a stop. timerBridge drops a request
   // that does not move the interval, so the common tick costs one relaxed load
-  // and a compare.
-  if (timerSlot != 0) TimerBridge().RequestPeriod(timerSlot, IntervalMs());
+  // and a compare. The wanted interval is read before `interval`, and the
+  // refresh publishes only over it, so a cold-inlet retime landing between
+  // the two is not overwritten with the stale value read here (#1206).
+  if (timerSlot != 0) {
+    const std::int64_t seen = TimerBridge().WantedPeriod(timerSlot);
+    TimerBridge().RefreshPeriod(timerSlot, seen, IntervalMs());
+  }
 
   Report(T_GUI);
 }
