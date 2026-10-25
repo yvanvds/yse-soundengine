@@ -34,7 +34,7 @@ namespace YSE {
    *    of a 0..1 ramp's cycle), ``D_WHAT`` (an impulse each time a 0..1 ramp
    *    passes one of a list of values), ``D_STEPCOUNTER`` (the jumps of a
    *    signal counted through a sequence of counts).
-   *  - DSP delay: `D_TAPIN`, `D_TAPOUT`.
+   *  - DSP delay: `D_TAPIN`, `D_TAPOUT`, `D_COMB`, `D_TEETH`.
    *  - DSP sampling: ``D_BUFFER``.
    *  - DSP math: ``D_ADD``, ``D_MULTIPLY``, ``D_CLIP``, ``D_REVERSESUBSTRACT``,
    *    ``D_REVERSEDIVIDE``, ``D_MODULO``, ``D_PLUSEQUALS``.
@@ -77,7 +77,11 @@ namespace YSE {
    *    ``D_ONEPOLE`` (single-pole lowpass), ``D_LORES`` (resonant lowpass),
    *    ``D_RESON`` (resonant bandpass), ``D_SVF`` (state-variable filter),
    *    ``D_BIQUAD`` (coefficient-driven biquad), ``D_ALLPASS`` (Schroeder
-   *    allpass).
+   *    allpass), ``D_CASCADE`` (biquads in series),
+   *    ``D_FILTERCOEFF`` (biquad coefficients
+   * at signal rate), ``D_CROSS`` (third-order crossover),
+   *    ``D_FFFB`` (bank of parallel bandpasses), ``D_HILBERT`` (phase
+   *    quadrature filter), ``D_PHASESHIFT`` (second-order allpass).
    *  - I/O: ``D_DAC``, ``D_ADC``, ``D_LINE``.
    *  - Control: ``G_INT``, ``G_FLOAT``, ``G_SLIDER``, ``G_RSLIDER``,
    *    ``G_XYSLIDER``, ``G_MULTISLIDER``, ``G_MATRIXCTRL``, ``G_FUNCTION``,
@@ -232,6 +236,8 @@ namespace YSE {
 
     DEFOBJ(D_TAPIN, "~tapin");
     DEFOBJ(D_TAPOUT, "~tapout");
+    DEFOBJ(D_COMB, "~comb");
+    DEFOBJ(D_TEETH, "~teeth");
 
     DEFOBJ(D_BUFFER, "~buffer");
 
@@ -1045,6 +1051,12 @@ namespace YSE {
     DEFOBJ(D_SVF, "~svf");
     DEFOBJ(D_BIQUAD, "~biquad");
     DEFOBJ(D_ALLPASS, "~allpass");
+    DEFOBJ(D_CASCADE, "~cascade");
+    DEFOBJ(D_FILTERCOEFF, "~filtercoeff");
+    DEFOBJ(D_CROSS, "~cross");
+    DEFOBJ(D_FFFB, "~fffb");
+    DEFOBJ(D_HILBERT, "~hilbert");
+    DEFOBJ(D_PHASESHIFT, "~phaseshift");
 
     DEFOBJ(M_OUT, ".midiout");
     DEFOBJ(M_IN, ".midiin");

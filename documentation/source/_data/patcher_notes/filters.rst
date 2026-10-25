@@ -363,3 +363,202 @@ reads as 0. Unconnected, the left inlet reads 0.
 
    [~click] -> [~allpass 50 4.7 0.7] -> [~allpass 50 3.6 0.7] -> [~dac]
    a short burst of diffuse echoes; add stages with other delays to thicken it
+
+.. patcher-object:: ~cascade
+
+Several biquad filters in series, the output of each the input of the next.
+Each section is the filter of ``~biquad``, with the same coefficients and the
+same signs:
+
+.. code-block:: text
+
+   y(n) = a0 x(n) + a1 x(n-1) + a2 x(n-2) - b1 y(n-1) - b2 y(n-2)
+
+A filter of higher order is split into such second-order sections, so a list
+of coefficients in sets of five is a whole filter design: the first five
+numbers are the first section, the next five the second, and so on. Send the
+list to either inlet. The number of complete sets is the number of sections
+that run; an incomplete last set is ignored, and a list without one complete
+set changes nothing. With no list yet the input passes unchanged.
+
+The first creation argument is the number of sections the object has room
+for, 16 when it is left out and at most 64. The room is made when the object
+is created, so nothing is allocated while it runs; changing it rebuilds the
+object. A list with more sets than that uses only as many as fit. Starting
+coefficients and ``smooth 0`` may follow (``~cascade 2`` and then two sets of
+five).
+
+A section already running moves to its new coefficients in a straight line
+over 64 samples, so a new design does not click; ``smooth 0`` makes changes
+apply at once, ``smooth 1`` turns the smoothing back on. A section that starts
+running starts from silence at its coefficients. ``clear`` sets every
+coefficient and the previous inputs and outputs to 0, which silences the
+output until the next list, which then applies at once. ``bypass 1`` passes the input unfiltered and
+``zero 1`` silences the output, each turned off again with 0; bypass wins over
+zero. The sections keep running under both. As with ``~biquad`` the
+coefficients are not checked for stability, an output too large for a float
+starts a section again from silence, and an input sample that is not a finite
+number is skipped. Nothing depends on the sample rate. Unconnected, the left
+inlet reads 0.
+
+.. code-block:: text
+
+   [~noise] -> [~cascade 2] -> [~dac]
+   send it 0.004479 0.008957 0.004479 -1.750143 0.768058
+           0.004805 0.00961 0.004805 -1.877705 0.896926
+   a fourth-order Butterworth lowpass at 1 kHz (44.1 kHz rate)
+
+.. patcher-object:: ~filtercoeff
+
+Computes the five coefficients of ``~biquad`` from a filter type, a frequency
+in Hz, a linear gain and a Q, once per sample, so a filter can be swept at
+audio rate. Connect its five outlets to the five right inlets of ``~biquad``,
+in order. The formulas are those of the audio EQ cookbook. Any of the three
+settings may be a number or a signal; an unconnected inlet reads the last
+number sent to it.
+
+The type is set by a word, in any inlet, or by the first creation argument:
+
+- ``lowpass`` and ``highpass``, with a gain of Q at the cutoff (0.7071 is
+  the flattest without a bump);
+- ``bandpass``, a gain of 1 at the center, and ``bandstop``, a gain of 0
+  there;
+- ``resonant``, a bandpass whose gain at the center is the Q, so a higher Q
+  rings louder as well as narrower;
+- ``allpass``, which changes the phase around the frequency but not the
+  level;
+- ``peaknotch``, a bell with the gain at the center (above 1 a boost, below
+  1 a cut);
+- ``lowshelf`` and ``highshelf``, the gain below or above the frequency, the
+  Q read as the shelf slope (1 the steepest without an overshoot);
+- ``gainlpass``, ``gainhpass``, ``gainbpass``, ``gainbstop``,
+  ``gainresonant`` and ``gainapass``, the same filters scaled by the gain;
+- ``off``, which makes ``~biquad`` pass its input unchanged.
+
+The types without a gain in their description ignore it. A type word may be
+followed by the frequency and the Q, or for a type with a gain the frequency,
+the gain and the Q. A list of up to three numbers sets the frequency, the gain
+and the Q. The frequency is clamped to just above 0 and just below half the
+sample rate, the Q to 0.01-10000.
+
+``resamp <n>``, or a second creation argument, computes the coefficients on
+one sample in n and holds them between, which saves work when the settings
+move slowly. There is no smoothing: a jump in a setting is a jump in the
+coefficients. The coefficients follow the sample rate as it is now.
+
+.. code-block:: text
+
+   [~phasor 0.2] -> [~* 2000] -> [~+ 300] -> [~filtercoeff resonant]
+   [~filtercoeff resonant] outlets 0-4 -> [~biquad] inlets 1-5
+   [~noise] -> [~biquad] -> [~dac]
+   a resonance sweeping from 300 Hz to 2300 Hz every five seconds; send the
+   Q to the right inlet of ~filtercoeff
+
+.. patcher-object:: ~cross
+
+Splits a signal at one cutoff into two bands: everything below it on the left
+outlet, everything above it on the right. Each band rolls off 18 dB per
+octave past the cutoff and is 3 dB down at it. Added back together, the two
+bands give the input again at its full level at every frequency; only the
+phase shifts a little around the cutoff. That makes ``~cross`` the building
+block for multiband processing: treat the bass and the treble apart, then mix
+them.
+
+Give the cutoff in Hz as a creation argument (``~cross 800``, 1000 when there
+is none), as a number or a signal in the right inlet, or as a number through
+a receive. A signal is read per sample, so the split point can move smoothly.
+The cutoff runs from 0, where the left outlet is silent and the right one
+passes the input unchanged, to 0.49 times the sample rate, and follows the
+sample rate when that changes. ``clear`` sets the filter state to 0. An input
+sample that is not a finite number is skipped. Unconnected, the left inlet
+reads 0.
+
+.. code-block:: text
+
+   [~noise] -> [~cross 300]
+   [~cross 300] left outlet -> [~* 1.5] -> [~dac]
+   [~cross 300] right outlet -> [~* 0.5] -> [~dac]
+   the same noise with the bass lifted and the treble lowered
+
+.. patcher-object:: ~fffb
+
+A bank of bandpass filters side by side: one input feeds them all, and each
+filter has its own outlet, the first filter's on the left. Each filter lets
+through a band around its center frequency, at its gain there whatever the
+frequency and the Q, so a filter can be retuned or narrowed without getting
+louder or softer. The band is the center frequency divided by the Q wide. Use
+it to split a sound into many bands for a vocoder, or to shape its spectrum.
+
+The creation arguments are the number of filters (1 to 128, 4 when there is
+none), which is also the number of outlets, the first filter's frequency, the
+ratio between one filter's frequency and the next, the Q and the gain of every
+filter. ``~fffb 6 100 2`` tunes six filters an octave apart from 100 Hz. Give
+``H`` instead of a ratio for a harmonic series: ``~fffb 8 200 H`` puts the
+filters at 200, 400, 600 Hz and so on. Without arguments the filters sit an
+octave apart from 100 Hz, with a Q of 10 and a gain of 1.
+
+Filters are numbered from 0. ``freq 2 500 800`` sets filters 2 and 3 to 500
+and 800 Hz; ``q`` and ``gain`` work the same way. ``freqall``, ``qall`` and
+``gainall`` set every filter at once. ``freqratio 440 2`` spreads the filters
+from 440 Hz an octave apart, ``freqratio 100 H`` as a harmonic series. A list
+of an index and a frequency, with an optional Q, sets one filter
+(``3 1200 20``). ``clear`` sets the filter state to 0. The words can be
+written in any case, and can also come as text through a receive. The
+frequencies follow the sample rate when that changes. An input sample that is
+not a finite number is skipped. Unconnected, the inlet reads 0.
+
+.. code-block:: text
+
+   [~saw 110] -> [~fffb 4 110 H 30]
+   each outlet of ~fffb -> [~dac]
+   the first four harmonics of the sawtooth, each on its own outlet
+
+.. patcher-object:: ~hilbert
+
+Splits a signal into two copies 90 degrees apart: the real part on the left
+outlet and the imaginary part, a quarter cycle behind it, on the right. Both
+keep the level of the input at every frequency; only their phases differ.
+Together they describe the signal as a point turning in a circle, which is
+what single-sideband modulation, frequency shifting and envelope following
+need. Send the pair to ``~cartopol`` and its left outlet gives the envelope,
+its right outlet the instantaneous phase.
+
+The two parts stay within 1 degree of 90 apart from 0.0018 to 0.308 times
+the sample rate, 85 Hz to 14.8 kHz at 48 kHz. Below and above that band the
+difference falls towards 0. The band is set by the sample rate, so it moves
+with it. ``clear`` sets the filter state to 0, also as text through a
+receive. ``~hilbert`` takes no creation arguments. An input sample that is
+not a finite number is skipped. Unconnected, the inlet reads 0.
+
+.. code-block:: text
+
+   [~adc] -> [~hilbert]
+   [~hilbert] both outlets -> [~cartopol] both inlets
+   [~noise] -> [~* ] left inlet; [~cartopol] left outlet -> [~* ] right inlet
+   [~* ] -> [~dac]
+   noise that follows the loudness of the input
+
+.. patcher-object:: ~phaseshift
+
+Shifts the phase of a signal without changing its level. Frequencies well
+below the center frequency pass almost unchanged, the center frequency comes
+out inverted (180 degrees behind) and frequencies well above it come out a
+whole cycle behind. The Q sets how quickly the phase turns around the center:
+a high Q turns it over a narrow band. ``clear`` sets the filter state to 0.
+A number or a list of up to two numbers in any inlet sets the center
+frequency and the Q; a single number in a right inlet sets that inlet's
+value. The creation arguments are the center frequency and the Q; they
+default to 1000 Hz and 1.
+
+On its own the effect is hard to hear. Mix the output with the input and the
+center frequency cancels: that is one stage of a phaser. Chain several
+``~phaseshift`` objects and sweep their center frequency with an LFO for a
+deeper effect. An input sample that is not a finite number is skipped.
+Unconnected, the left inlet reads 0.
+
+.. code-block:: text
+
+   [~saw 110] -> [~phaseshift 800 2] -> [~+ ] right inlet
+   [~saw 110] -> [~+ ] left inlet
+   [~+ ] -> [~dac]
+   a notch at 800 Hz in the sawtooth

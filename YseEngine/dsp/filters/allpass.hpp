@@ -11,11 +11,11 @@
 #ifndef YSE_DSP_FILTERS_ALLPASS_HPP
 #define YSE_DSP_FILTERS_ALLPASS_HPP
 
-#include <vector>
 #include "../../headers/defines.hpp"
 #include "../../headers/types.hpp"
 #include "../../headers/constants.hpp"
 #include "../buffer.hpp"
+#include "../delay/delayHistory.hpp"
 
 namespace YSE {
   namespace DSP {
@@ -117,7 +117,7 @@ namespace YSE {
 
       /** @brief The maximum delay in ms, as clamped by the constructor. */
       Flt maximumDelay() const {
-        return maximumMs;
+        return history.MaximumMs();
       }
 
       /** @brief The longest delay in ms at the live sample rate: the maximum
@@ -141,24 +141,11 @@ namespace YSE {
       buffer& operator()(buffer& in, buffer& delaySignal, buffer& gainSignal);
 
     private:
-      // The delay in samples for `ms` at `perMs` samples per ms, clamped to
-      // 1 .. `longest`.
-      static Flt Samples(Flt ms, Flt perMs, Flt longest);
-      // The longest delay in samples at `perMs` samples per ms.
-      Flt Longest(Flt perMs) const;
-      // History `back` samples behind the write position, interpolated.
-      Flt Read(const std::vector<Flt>& line, Flt back) const;
       Flt Step(Flt in, Flt samples);
 
       buffer output;
-      std::vector<Flt> xLine;
-      std::vector<Flt> yLine;
-      std::size_t writePos = 0;
-      // Usable samples: the line holds this many plus two, so a read at the
-      // longest delay can interpolate without meeting the write position.
-      UInt lineSamples = 1;
+      detail::delayHistory history;
 
-      Flt maximumMs = DEFAULT_MAXIMUM_DELAY;
       Flt delayMs = 0.f;
       Flt g = 0.f;
     };

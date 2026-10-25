@@ -106,7 +106,11 @@ namespace YSE {
      *  Pick one of the ``BQ_TYPE`` modes (low-pass, high-pass, band-pass,
      *  notch, peak, low-shelf, high-shelf) and tune frequency, Q, and peak
      *  gain. See `earlevel.com/main/2010/12/20/biquad-calculator/` for an
-     *  interactive parameter visualiser.
+     *  interactive parameter visualiser. The low-pass, high-pass, band-pass
+     *  and notch coefficients are ``filterCoefficients::Compute()``'s
+     *  (issue #1092), whose frequency and Q clamping they follow; that class
+     *  also computes coefficients for the coefficient path below at signal
+     *  rate.
      *
      *  **The coefficient path** (issue #1090, behind ``~biquad``, ported from
      *  Max's ``biquad~``) drives the filter directly by five coefficients, in

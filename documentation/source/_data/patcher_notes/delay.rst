@@ -45,3 +45,59 @@ argument is one tap with its own delay inlet and output, so
     |
    [~tapout 300]   an echo 300 ms later; send it through [~* 0.5] back
                    into ~tapin for repeats that fade by half each time
+
+.. patcher-object:: ~comb
+
+A comb filter: the input, the input some time ago and the output the same
+time ago, each with its own gain.
+
+.. code-block:: text
+
+   y(n) = a x(n) + b x(n-D) + c y(n-D)
+
+With only ``b`` the filter is a plain delay; ``a`` and ``b`` together cut
+notches into the spectrum, evenly spaced, the classic flanger sound when the
+delay moves. ``c`` feeds the output back, so the filter rings at the
+frequency ``1000 / D`` (D in ms) and its multiples, each echo ``c`` times the
+one before: a resonator, or a plucked string when a short burst of noise goes
+in.
+
+The creation arguments are the maximum delay in ms, the delay in ms and the
+gains ``a``, ``b`` and ``c`` (``~comb 50 5 1 0 0.9``); they default to 10 and
+zeros, which is silent. The maximum sizes the delay lines when the object is
+made, for rates up to 192 kHz, so nothing is allocated while it runs; changing
+it rebuilds the object. The delay and the gains are numbers or signals in the
+four right inlets, read per sample, or a list of up to four numbers in any
+inlet. A connected signal wins over the number, which is used again once the
+cord is gone.
+
+The delay follows the sample rate and is interpolated between samples, so it
+can be swept. It is held between one sample and the maximum. ``c`` is held
+between -1 and 1; at exactly 1 or -1 the filter rings forever. ``clear`` in
+any inlet silences the delay lines. An input sample that is not a finite
+number reads as 0. Unconnected, the left inlet reads 0.
+
+.. code-block:: text
+
+   [~noise] -> [~comb 50 2.27 0.2 0 0.97] -> [~dac]
+   a buzzing resonance near 440 Hz; sweep the delay with a slow ~cycle
+
+.. patcher-object:: ~teeth
+
+The comb filter of ``~comb`` with a separate delay for each path.
+
+.. code-block:: text
+
+   y(n) = a x(n) + b x(n-F) + c y(n-B)
+
+The second inlet is the feedforward delay ``F``, the third the feedback delay
+``B``, both in ms; then the gains ``a``, ``b`` and ``c``. With ``F`` and
+``B`` equal it is ``~comb``. Apart from the second delay it works the same:
+the creation arguments are the maximum delay, the two delays and the three
+gains (``~teeth 50 3 7 1 0.5 0.8``); a list in any inlet sets up to five
+numbers in that order; ``clear`` silences the lines.
+
+.. code-block:: text
+
+   [~click] -> [~teeth 50 1.3 4.1 1 0.5 0.8] -> [~dac]
+   notches from the short path, ringing from the long one
