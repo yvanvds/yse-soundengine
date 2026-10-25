@@ -562,3 +562,25 @@ Unconnected, the left inlet reads 0.
    [~saw 110] -> [~+ ] left inlet
    [~+ ] -> [~dac]
    a notch at 800 Hz in the sawtooth
+
+.. patcher-object:: ~slide
+
+Smooths a signal. Each sample moves the output part of the way towards the
+input: a slide-up amount of 10 covers a tenth of the distance per sample while
+the input is above the output, and the slide-down amount does the same while
+it is below. A slide of 1 passes the signal through; an amount below 1 counts
+as 1. The amounts count samples, so they do not change with the sample rate.
+The creation arguments are the slide-up and slide-down amounts; they default
+to 1 and 1.
+
+A number or a list of up to two numbers in any inlet sets the slide-up and
+slide-down amounts; a single number in a right inlet sets that inlet's value.
+``slideup <n>`` and ``slidedown <n>`` set one amount, and ``reset`` sets the
+output to 0. The audio-rate twin of ``.slide``, with the same equation. An
+input sample that is not a finite number is skipped. Unconnected, the left
+inlet reads 0.
+
+.. code-block:: text
+
+   [~cycle 220] -> [~abs] -> [~slide 1 2000] -> [~dac]
+   an envelope follower: rises at once, falls slowly

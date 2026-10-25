@@ -33,9 +33,9 @@ namespace YSE {
      *  duration; reach for this when the wanted shape is exponential approach
      *  over a stated number of updates.
      *
-     *  There is no audio-rate ``~slide`` in the patcher yet. When one is added
-     *  it must use this same equation and these same defaults, since Max's
-     *  ``slide~`` documents both identically to ``slide``.
+     *  The audio-rate counterpart is ``~slide`` on ``DSP::slide`` (#1099),
+     *  with this same equation, these same defaults and this same snap, since
+     *  Max's ``slide~`` documents both identically to ``slide``.
      *
      *  ### Inlets
      *

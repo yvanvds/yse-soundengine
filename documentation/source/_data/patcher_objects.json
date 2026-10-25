@@ -18544,6 +18544,63 @@
     "params": [],
     "requires_midi_device": false
   },
+  "~slide": {
+    "category": "FILTER",
+    "description": "Smooths a signal logarithmically: each sample moves the output 1/slideUp of the way towards the input while rising and 1/slideDown while falling. For envelope followers and portamento. A slide of 1 passes the signal through.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER"
+        ],
+        "doc": "The signal to smooth (unconnected reads 0). 'reset' sets the output to 0; 'slideup <n>' and 'slidedown <n>' set the amounts; a number, or a list of up to two numbers (slide up, slide down), sets the numbers the other inlets read.",
+        "index": 0,
+        "label": "in",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Slide-up amount in samples, used while the input is above the output: a number or a signal read per sample (unconnected, the last number sent here or the creation argument). Below 1 counts as 1. Takes the same words as the left inlet.",
+        "index": 1,
+        "label": "slideUp",
+        "range": "1+"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Slide-down amount in samples, used while the input is at or below the output: a number or a signal read per sample (unconnected, the last number sent here or the creation argument). Below 1 counts as 1. Takes the same words as the left inlet.",
+        "index": 2,
+        "label": "slideDown",
+        "range": "1+"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~slide",
+    "outlets": [
+      {
+        "doc": "The smoothed signal.",
+        "index": 0,
+        "label": "out",
+        "range": "",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "1 1",
+        "doc": "The slide-up and slide-down amounts in samples, up to two numbers ('~slide 10 1000'; they default to 1 and 1). Later numbers and messages do not change what is saved.",
+        "name": "slide",
+        "range": "a slide-up amount, then a slide-down amount"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~snapshot": {
     "category": "ANALYSIS",
     "description": "Reports the value of a signal as a number: on a bang, or every interval while reporting is on.",
