@@ -149,7 +149,9 @@ void timerBridge::WantStart(Entry& e, timerThread::millisec periodMs) {
 bool timerBridge::WantPeriod(Entry& e, timerThread::millisec periodMs) {
   const timerThread::millisec ms = periodMs < 1 ? 1 : periodMs;
   if (e.wantPeriod.load(std::memory_order_relaxed) == ms) return false;
-  e.wantPeriod.store(ms, std::memory_order_relaxed);
+  // Released, so a callback that acquires this value in WantedPeriod also sees
+  // the owner's interval field the caller stored before asking (#1206).
+  e.wantPeriod.store(ms, std::memory_order_release);
   // No `startSeq` bump: this is a retime, not a restart, so the reconciler
   // reaches its SetPeriod branch and the phase survives (issue #625).
   e.reqSeq.fetch_add(1, std::memory_order_release);
@@ -263,10 +265,39 @@ void timerBridge::ApplyStop(Handle handle) {
   Reconcile(*e);
 }
 
+void timerBridge::RefreshPeriod(Handle handle, std::int64_t seen, timerThread::millisec periodMs) {
+  Entry* e = Slot(handle);
+  if (e == nullptr) return;
+  const timerThread::millisec ms = periodMs < 1 ? 1 : periodMs;
+  if (ms == seen) return;
+  // Only over the value the caller read *before* its interval field (#1206).
+  // Anything else in the slot is a newer request than the interval this
+  // callback holds, and storing over it would put the timer back on the
+  // interval that request just replaced. One attempt, no retry: wait-free.
+  std::int64_t expected = seen;
+  if (!e->wantPeriod.compare_exchange_strong(expected, ms, std::memory_order_acq_rel,
+                                             std::memory_order_relaxed)) {
+    return;
+  }
+  e->reqSeq.fetch_add(1, std::memory_order_release);
+  ArmJob(*e);
+}
+
+std::int64_t timerBridge::WantedPeriod(Handle handle) const {
+  const Entry* e = Slot(handle);
+  if (e == nullptr) return 0;
+  return e->wantPeriod.load(std::memory_order_acquire);
+}
+
 void timerBridge::ApplyPeriod(Handle handle, timerThread::millisec periodMs) {
   Entry* e = Slot(handle);
   if (e == nullptr) return;
-  if (!WantPeriod(*e, periodMs)) return;
+  // Reconciled even when the wanted interval already matches: a callback's
+  // RefreshPeriod may have published this very value a moment ago, leaving the
+  // retime to a pool job that has not run yet, and this caller is promised the
+  // interval is in force when it returns (#1206). Reconcile is a no-op when the
+  // armed period already agrees.
+  (void)WantPeriod(*e, periodMs);
   std::scoped_lock lock(e->mtx);
   Reconcile(*e);
 }

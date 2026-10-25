@@ -559,8 +559,17 @@ void gMetro::Bang() {
   // *this very callback* to return, so a Bang() that waited for the slot would
   // deadlock against a stop. Requesting is wait-free and takes nothing.
   // timerBridge drops a request that does not move the interval, so the common
-  // tick costs one relaxed load and a compare.
-  if (timerSlot != 0) TimerBridge().RequestPeriod(timerSlot, Interval());
+  // tick costs two loads and a compare.
+  //
+  // The wanted interval is taken *before* `period` is read, and the refresh
+  // publishes only over it (#1206): a cold inlet that stores and retimes
+  // between this read of `period` and the publish has made the value read here
+  // stale, and storing it anyway put the metro back on the old interval for a
+  // cycle — an extra bang after the growth had already been applied.
+  if (timerSlot != 0) {
+    const std::int64_t seen = TimerBridge().WantedPeriod(timerSlot);
+    TimerBridge().RefreshPeriod(timerSlot, seen, Interval());
+  }
   outputs[0].SendBang(T_GUI);
 
   // Whatever the cycle above did to this metro, netted out and issued once,
