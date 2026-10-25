@@ -584,3 +584,28 @@ inlet reads 0.
 
    [~cycle 220] -> [~abs] -> [~slide 1 2000] -> [~dac]
    an envelope follower: rises at once, falls slowly
+
+.. patcher-object:: ~rampsmooth
+
+Smooths a signal in straight lines. Each time the input changes, the output
+ramps from where it is to the new value over a set number of samples: the
+ramp-up length when the new value is higher, the ramp-down length when it is
+lower, landing on the value exactly. A ramp that is still running when the
+input changes again restarts from where the output is, so on an audio signal,
+which changes every sample, it acts as a gentle lowpass. Lengths are whole
+samples, so they do not change with the sample rate; a length below 1 counts
+as 1, which passes the signal through. A new length applies to the next ramp,
+not to the one running. The creation arguments are the ramp-up and ramp-down
+lengths; they default to 1 and 1.
+
+A number or a list of up to two numbers in any inlet sets the ramp-up and
+ramp-down lengths; a single number in a right inlet sets that inlet's value.
+``ramp <n>`` sets both lengths, ``rampup <n>`` and ``rampdown <n>`` one each.
+Where ``~slide`` approaches a new value ever more slowly, ``~rampsmooth``
+arrives in a fixed time. An input sample that is not a finite number is
+skipped. Unconnected, the left inlet reads 0.
+
+.. code-block:: text
+
+   [.receive gate] -> [~sig] -> [~rampsmooth 480 480] -> [~*] right inlet
+   a gate that opens and closes over 10 ms at 48 kHz, without clicks

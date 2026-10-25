@@ -38,6 +38,7 @@ set(YSE_SRCS
   dsp/filters/filterBank.cpp
   dsp/filters/phaseShift.cpp
   dsp/filters/slide.cpp
+  dsp/filters/rampSmooth.cpp
   dsp/fourier/fft.cpp
   dsp/fourier/mayer.cpp
   dsp/interpolate4.cpp
@@ -182,6 +183,7 @@ set(YSE_SRCS
   patcher/filters/dHilbert.cpp
   patcher/filters/dPhaseshift.cpp
   patcher/filters/dSlide.cpp
+  patcher/filters/dRampsmooth.cpp
   patcher/filters/pBandpass.cpp
   patcher/filters/pHighpass.cpp
   patcher/filters/pLowpass.cpp
@@ -625,6 +627,7 @@ set_source_files_properties(
   patcher/filters/dHilbert.cpp
   patcher/filters/dPhaseshift.cpp
   patcher/filters/dSlide.cpp
+  patcher/filters/dRampsmooth.cpp
   patcher/filters/pBandpass.cpp
   patcher/filters/pHighpass.cpp
   patcher/filters/pLowpass.cpp

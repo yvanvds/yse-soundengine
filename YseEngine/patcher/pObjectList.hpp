@@ -82,7 +82,8 @@ namespace YSE {
    * at signal rate), ``D_CROSS`` (third-order crossover),
    *    ``D_FFFB`` (bank of parallel bandpasses), ``D_HILBERT`` (phase
    *    quadrature filter), ``D_PHASESHIFT`` (second-order allpass),
-   *    ``D_SLIDE`` (logarithmic slide).
+   *    ``D_SLIDE`` (logarithmic slide), ``D_RAMPSMOOTH`` (linear
+   *    smoothing).
    *  - I/O: ``D_DAC``, ``D_ADC``, ``D_LINE``.
    *  - Control: ``G_INT``, ``G_FLOAT``, ``G_SLIDER``, ``G_RSLIDER``,
    *    ``G_XYSLIDER``, ``G_MULTISLIDER``, ``G_MATRIXCTRL``, ``G_FUNCTION``,
@@ -1059,6 +1060,7 @@ namespace YSE {
     DEFOBJ(D_HILBERT, "~hilbert");
     DEFOBJ(D_PHASESHIFT, "~phaseshift");
     DEFOBJ(D_SLIDE, "~slide");
+    DEFOBJ(D_RAMPSMOOTH, "~rampsmooth");
 
     DEFOBJ(M_OUT, ".midiout");
     DEFOBJ(M_IN, ".midiin");

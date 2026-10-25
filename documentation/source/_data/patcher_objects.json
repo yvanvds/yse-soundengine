@@ -17885,6 +17885,63 @@
     ],
     "requires_midi_device": false
   },
+  "~rampsmooth": {
+    "category": "FILTER",
+    "description": "Smooths a signal linearly: each time the input changes, the output ramps in a straight line to the new value over rampUp samples when rising and rampDown samples when falling. For declicking and parameter smoothing. A ramp of 1 passes the signal through.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER"
+        ],
+        "doc": "The signal to smooth (unconnected reads 0). 'ramp <n>' sets both lengths, 'rampup <n>' and 'rampdown <n>' one each; a number, or a list of up to two numbers (ramp up, ramp down), sets the numbers the other inlets read.",
+        "index": 0,
+        "label": "in",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Ramp-up length in whole samples, used when the input moves above the output: a number or a signal read per sample (unconnected, the last number sent here or the creation argument). Below 1 counts as 1. A ramp keeps the length it started with. Takes the same words as the left inlet.",
+        "index": 1,
+        "label": "rampUp",
+        "range": "1+"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Ramp-down length in whole samples, used when the input moves to or below the output: a number or a signal read per sample (unconnected, the last number sent here or the creation argument). Below 1 counts as 1. A ramp keeps the length it started with. Takes the same words as the left inlet.",
+        "index": 2,
+        "label": "rampDown",
+        "range": "1+"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~rampsmooth",
+    "outlets": [
+      {
+        "doc": "The smoothed signal.",
+        "index": 0,
+        "label": "out",
+        "range": "",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "1 1",
+        "doc": "The ramp-up and ramp-down lengths in samples, up to two numbers ('~rampsmooth 100 1000'; they default to 1 and 1). Later numbers and messages do not change what is saved.",
+        "name": "ramp",
+        "range": "a ramp-up length, then a ramp-down length"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~rand": {
     "category": "OSC",
     "description": "Band-limited random signal: picks a new random value at a given frequency and glides to it in a straight line. Smooth random modulation for vibrato drift or a wandering filter.",
