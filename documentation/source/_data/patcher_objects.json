@@ -16781,6 +16781,163 @@
     ],
     "requires_midi_device": false
   },
+  "~filtergraph": {
+    "category": "FILTER",
+    "description": "A filter editor: holds one to 24 biquad bands, each a filter type with a frequency, a gain and a Q, or five coefficients, and sends them as the coefficient list ~biquad and ~cascade take. A host draws the bands and the response curve; the bands are saved with the patch.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "Bang: send the coefficients (and, for a filter mode, the edited band's index, bandwidth, Q, gain and frequency first). A number: a0 of the edited band in display mode. A list of numbers: a cascade, five coefficients per band. Mode words (display, lowpass, highpass, bandpass, bandstop, peaknotch, lowshelf, highshelf, resonant, allpass) with an optional frequency, gain and Q; mode, cascade, set, params, setparams, gainmode, displaydot, options, setoptions, constraints, setconstraints, flat, setfilter, whichfilt, selectfilt, nfilters, query, autoout and the edit_* attributes.",
+        "index": 0,
+        "label": "in",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "a1 of the edited band, in display mode; sends the coefficients.",
+        "index": 1,
+        "label": "a1",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "a2 of the edited band, in display mode; sends the coefficients.",
+        "index": 2,
+        "label": "a2",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "b1 of the edited band, in display mode; sends the coefficients.",
+        "index": 3,
+        "label": "b1",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "b2 of the edited band, in display mode; sends the coefficients.",
+        "index": 4,
+        "label": "b2",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "The edited band's frequency in Hz; sends the coefficients. A list of three is the frequency, gain and Q; 'set <f> <g> <q>' sets them without sending.",
+        "index": 5,
+        "label": "frequency",
+        "range": "0 to samplerate/2 Hz"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "The edited band's linear gain; sends the coefficients.",
+        "index": 6,
+        "label": "gain",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "The edited band's Q, or a shelf's slope; sends the coefficients.",
+        "index": 7,
+        "label": "q",
+        "range": "0.01-10000"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~filtergraph",
+    "outlets": [
+      {
+        "doc": "The coefficients of every band, a0 a1 a2 b1 b2 per band, for ~biquad (one band) or ~cascade.",
+        "index": 0,
+        "label": "coefficients",
+        "range": "a list of coefficients in sets of five",
+        "type": "LIST"
+      },
+      {
+        "doc": "On a bang, the edited band's frequency in Hz.",
+        "index": 1,
+        "label": "frequency",
+        "range": "",
+        "type": "FLOAT"
+      },
+      {
+        "doc": "On a bang, the edited band's linear gain.",
+        "index": 2,
+        "label": "gain",
+        "range": "",
+        "type": "FLOAT"
+      },
+      {
+        "doc": "On a bang, the edited band's Q.",
+        "index": 3,
+        "label": "q",
+        "range": "",
+        "type": "FLOAT"
+      },
+      {
+        "doc": "On a bang, the edited band's frequency over its Q, in Hz.",
+        "index": 4,
+        "label": "bandwidth",
+        "range": "",
+        "type": "FLOAT"
+      },
+      {
+        "doc": "For 'query <hz>': the gain (linear) and phase (radians) of all bands together at that frequency.",
+        "index": 5,
+        "label": "query",
+        "range": "amplitude phase",
+        "type": "LIST"
+      },
+      {
+        "doc": "On a bang, the index of the edited band.",
+        "index": 6,
+        "label": "band",
+        "range": "0-23",
+        "type": "INT"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "'nfilters <n>', the number of bands (1-24, default 1), and 'autoout <0|1>', send the coefficients when the patch loads (default 0). The bands are saved with the patch.",
+        "name": "settings",
+        "range": "words and values"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~ftom": {
     "category": "MATH",
     "description": "Converts a frequency in Hz to a MIDI note number at signal rate. The inverse of ~mtof, with the same base and ref tuning. A frequency of 0 or below gives -1500.",

@@ -669,3 +669,59 @@ argument sets it too (``.filterdetail 128``).
 
 A list without one complete set of five numbers, or with a value that is not
 a number, sends nothing.
+
+.. patcher-object:: ~filtergraph
+
+The state behind a filter editor: one to 24 biquad bands that a host draws
+as a frequency response and lets you drag. The engine keeps the bands; the
+host only displays them and sends the messages below when you edit. Each
+change that alters the sound sends the coefficients of every band, five per
+band (``a0 a1 a2 b1 b2``), out the left outlet: connect it to ``~biquad`` for
+one band or to the right inlet of ``~cascade`` for several.
+
+Each band has a mode, set for the band being edited by a word or by
+``mode <n>``:
+
+- ``display`` (0): the band is the five coefficients it was given and
+  changes only when new ones arrive. Switching a band to ``display`` keeps the
+  coefficients it had.
+- ``lowpass`` (1), ``highpass`` (2), ``bandpass`` (3), ``bandstop`` (4),
+  ``peaknotch`` (5), ``lowshelf`` (6), ``highshelf`` (7), ``resonant`` (8)
+  and ``allpass`` (9): the band is computed from a frequency in Hz, a linear
+  gain and a Q (the slope of a shelf), as ``~filtercoeff`` computes it, at the
+  engine's sample rate. A mode word can carry those three values
+  (``peaknotch 2000 2 1.5``). The first five ignore the gain unless
+  ``gainmode 1`` is on; peaknotch, the shelves and the allpass always read it.
+
+Setting the bands:
+
+- ``nfilters <n>`` sets how many bands are in use; ``setfilter <n>`` (or
+  ``whichfilt``) picks the band to edit, counting from 0, and ``selectfilt
+  <n>`` the band a host highlights.
+- The three right inlets set the edited band's frequency, gain and Q, and a
+  list of all three goes in the frequency inlet. ``params [<band>] <f> <g>
+  <q>`` does the same from the left.
+- A list of numbers is a cascade: five coefficients per band, each band in
+  display mode, as many bands as the list holds. In display mode the left
+  five inlets set one coefficient of the edited band each.
+- ``constraints <band> <min f> <max f> <min gain> <max gain> <min q> <max
+  q>`` bounds what a band can be set to; 0 is no bound. ``flat <bands...>``
+  returns bands to a neutral gain (and a lowpass or highpass to Q 0.707).
+- ``options <band> <mode> <gainmode> <analog> <displaydot>`` sets a band's
+  options at once (the analog flag is accepted and ignored).
+- ``set``, ``setparams``, ``setoptions``, ``setconstraints`` and the
+  attribute words ``edit_freq``, ``edit_amp``, ``edit_Q``, ``edit_mode``,
+  ``edit_gainmode``, ``edit_displaydot``, ``edit_minfreq`` ... ``edit_maxQ``
+  change the bands without sending.
+
+A ``bang`` sends the coefficients; for a band that is not in display mode it
+first sends the band's index, bandwidth (frequency over Q), Q, gain and
+frequency out the outlets on the right. ``query <hz>`` sends the gain and the
+phase (in radians) of all bands together at that frequency. The creation
+arguments are ``nfilters <n>`` and ``autoout 1``, which sends the coefficients
+when the patch loads. The bands themselves are saved with the patch.
+
+.. code-block:: text
+
+   [~filtergraph nfilters 3 autoout 1] -> [~cascade] right inlet
+   a three-band equaliser whose bands are restored and applied when the patch loads

@@ -86,7 +86,8 @@ namespace YSE {
    *    smoothing).
    *  - Filter design: ``G_FILTERDESIGN`` (Butterworth and Chebyshev
    *    filters as second-order sections), ``G_FILTERDETAIL`` (the response
-   *    of a filter given as sections).
+   *    of a filter given as sections), `D_FILTERGRAPH` (the bands of a filter
+   *    editor, sent as coefficients).
    *  - I/O: ``D_DAC``, ``D_ADC``, ``D_LINE``.
    *  - Control: ``G_INT``, ``G_FLOAT``, ``G_SLIDER``, ``G_RSLIDER``,
    *    ``G_XYSLIDER``, ``G_MULTISLIDER``, ``G_MATRIXCTRL``, ``G_FUNCTION``,
@@ -1070,6 +1071,11 @@ namespace YSE {
     // sections, wrapping DSP::filterDesign and DSP::filterResponse.
     DEFOBJ(G_FILTERDESIGN, ".filterdesign");
     DEFOBJ(G_FILTERDETAIL, ".filterdetail");
+
+    // The filter editor (issue #1102): the bands a host draws, held by the
+    // engine and sent as coefficients for ~biquad and ~cascade, wrapping
+    // DSP::filterBands. Control only, like ~buffer.
+    DEFOBJ(D_FILTERGRAPH, "~filtergraph");
 
     DEFOBJ(M_OUT, ".midiout");
     DEFOBJ(M_IN, ".midiin");

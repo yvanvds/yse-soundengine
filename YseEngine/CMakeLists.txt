@@ -41,6 +41,7 @@ set(YSE_SRCS
   dsp/filters/rampSmooth.cpp
   dsp/filters/filterDesign.cpp
   dsp/filters/filterResponse.cpp
+  dsp/filters/filterBands.cpp
   dsp/fourier/fft.cpp
   dsp/fourier/mayer.cpp
   dsp/interpolate4.cpp
@@ -188,6 +189,7 @@ set(YSE_SRCS
   patcher/filters/dRampsmooth.cpp
   patcher/filters/gFilterdesign.cpp
   patcher/filters/gFilterdetail.cpp
+  patcher/filters/dFiltergraph.cpp
   patcher/filters/pBandpass.cpp
   patcher/filters/pHighpass.cpp
   patcher/filters/pLowpass.cpp
@@ -634,6 +636,7 @@ set_source_files_properties(
   patcher/filters/dRampsmooth.cpp
   patcher/filters/gFilterdesign.cpp
   patcher/filters/gFilterdetail.cpp
+  patcher/filters/dFiltergraph.cpp
   patcher/filters/pBandpass.cpp
   patcher/filters/pHighpass.cpp
   patcher/filters/pLowpass.cpp

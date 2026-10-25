@@ -228,6 +228,7 @@
 #include "filters/dRampsmooth.h"
 #include "filters/gFilterdesign.h"
 #include "filters/gFilterdetail.h"
+#include "filters/dFiltergraph.h"
 
 #include "math/gAdd.h"
 #include "math/gDivide.h"
@@ -1337,6 +1338,7 @@ pRegistry::pRegistry() {
   Add(OBJ::D_RAMPSMOOTH, dRampsmooth::Create);
   Add(OBJ::G_FILTERDESIGN, gFilterdesign::Create);
   Add(OBJ::G_FILTERDETAIL, gFilterdetail::Create);
+  Add(OBJ::D_FILTERGRAPH, dFiltergraph::Create);
 
   // The MIDI sender family. Unconditional since issue #746: these format
   // bytes onto a list outlet and open nothing, so there is no platform they
