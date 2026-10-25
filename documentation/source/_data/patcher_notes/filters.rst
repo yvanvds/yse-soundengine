@@ -512,3 +512,28 @@ not a finite number is skipped. Unconnected, the inlet reads 0.
    [~saw 110] -> [~fffb 4 110 H 30]
    each outlet of ~fffb -> [~dac]
    the first four harmonics of the sawtooth, each on its own outlet
+
+.. patcher-object:: ~hilbert
+
+Splits a signal into two copies 90 degrees apart: the real part on the left
+outlet and the imaginary part, a quarter cycle behind it, on the right. Both
+keep the level of the input at every frequency; only their phases differ.
+Together they describe the signal as a point turning in a circle, which is
+what single-sideband modulation, frequency shifting and envelope following
+need. Send the pair to ``~cartopol`` and its left outlet gives the envelope,
+its right outlet the instantaneous phase.
+
+The two parts stay within 1 degree of 90 apart from 0.0018 to 0.308 times
+the sample rate, 85 Hz to 14.8 kHz at 48 kHz. Below and above that band the
+difference falls towards 0. The band is set by the sample rate, so it moves
+with it. ``clear`` sets the filter state to 0, also as text through a
+receive. ``~hilbert`` takes no creation arguments. An input sample that is
+not a finite number is skipped. Unconnected, the inlet reads 0.
+
+.. code-block:: text
+
+   [~adc] -> [~hilbert]
+   [~hilbert] both outlets -> [~cartopol] both inlets
+   [~noise] -> [~* ] left inlet; [~cartopol] left outlet -> [~* ] right inlet
+   [~* ] -> [~dac]
+   noise that follows the loudness of the input

@@ -16711,6 +16711,41 @@
     ],
     "requires_midi_device": false
   },
+  "~hilbert": {
+    "category": "FILTER",
+    "description": "Phase quadrature filter: splits a signal into two outputs 90 degrees apart across the band, the real and imaginary parts of its analytic signal. For single-sideband modulation, frequency shifting and envelope following.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER"
+        ],
+        "doc": "The signal to transform (unconnected reads 0). 'clear' sets the filter state to 0.",
+        "index": 0,
+        "label": "in",
+        "range": ""
+      }
+    ],
+    "is_dsp": true,
+    "name": "~hilbert",
+    "outlets": [
+      {
+        "doc": "The real part: the input through an allpass chain, at the same level.",
+        "index": 0,
+        "label": "real",
+        "range": "",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "The imaginary part: 90 degrees behind the real part, within 1 degree from 0.0018 to 0.308 times the sample rate.",
+        "index": 1,
+        "label": "imaginary",
+        "range": "",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [],
+    "requires_midi_device": false
+  },
   "~hp": {
     "category": "FILTER",
     "description": "Single-pole highpass filter. Attenuates content below the cutoff frequency.",

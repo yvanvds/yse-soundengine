@@ -177,6 +177,7 @@ set(YSE_SRCS
   patcher/filters/dFiltercoeff.cpp
   patcher/filters/dCross.cpp
   patcher/filters/dFffb.cpp
+  patcher/filters/dHilbert.cpp
   patcher/filters/pBandpass.cpp
   patcher/filters/pHighpass.cpp
   patcher/filters/pLowpass.cpp
@@ -617,6 +618,7 @@ set_source_files_properties(
   patcher/filters/dFiltercoeff.cpp
   patcher/filters/dCross.cpp
   patcher/filters/dFffb.cpp
+  patcher/filters/dHilbert.cpp
   patcher/filters/pBandpass.cpp
   patcher/filters/pHighpass.cpp
   patcher/filters/pLowpass.cpp

@@ -222,6 +222,7 @@
 #include "filters/dFiltercoeff.h"
 #include "filters/dCross.h"
 #include "filters/dFffb.h"
+#include "filters/dHilbert.h"
 
 #include "math/gAdd.h"
 #include "math/gDivide.h"
@@ -1325,6 +1326,7 @@ pRegistry::pRegistry() {
   Add(OBJ::D_FILTERCOEFF, dFiltercoeff::Create);
   Add(OBJ::D_CROSS, dCross::Create);
   Add(OBJ::D_FFFB, dFffb::Create);
+  Add(OBJ::D_HILBERT, dHilbert::Create);
 
   // The MIDI sender family. Unconditional since issue #746: these format
   // bytes onto a list outlet and open nothing, so there is no platform they
