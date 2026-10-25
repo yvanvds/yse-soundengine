@@ -84,6 +84,9 @@ namespace YSE {
    *    quadrature filter), ``D_PHASESHIFT`` (second-order allpass),
    *    ``D_SLIDE`` (logarithmic slide), ``D_RAMPSMOOTH`` (linear
    *    smoothing).
+   *  - Filter design: ``G_FILTERDESIGN`` (Butterworth and Chebyshev
+   *    filters as second-order sections), ``G_FILTERDETAIL`` (the response
+   *    of a filter given as sections).
    *  - I/O: ``D_DAC``, ``D_ADC``, ``D_LINE``.
    *  - Control: ``G_INT``, ``G_FLOAT``, ``G_SLIDER``, ``G_RSLIDER``,
    *    ``G_XYSLIDER``, ``G_MULTISLIDER``, ``G_MATRIXCTRL``, ``G_FUNCTION``,
@@ -1061,6 +1064,12 @@ namespace YSE {
     DEFOBJ(D_PHASESHIFT, "~phaseshift");
     DEFOBJ(D_SLIDE, "~slide");
     DEFOBJ(D_RAMPSMOOTH, "~rampsmooth");
+
+    // Filter design (issue #1101): control objects that design a filter into
+    // second-order sections for ~cascade, and detail a filter given as
+    // sections, wrapping DSP::filterDesign and DSP::filterResponse.
+    DEFOBJ(G_FILTERDESIGN, ".filterdesign");
+    DEFOBJ(G_FILTERDETAIL, ".filterdetail");
 
     DEFOBJ(M_OUT, ".midiout");
     DEFOBJ(M_IN, ".midiin");

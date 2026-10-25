@@ -4,7 +4,7 @@ Patcher
 A :cpp:class:`YSE::patcher` is a graph of small objects wired together by
 cords. The object set is modelled on Max and Pure Data. Each object has
 **inlets** that take input and **outlets** that send output.
-``Connect(from, outlet, to, inlet)`` draws a cord from one outlet to one inlet. The engine currently registers 403
+``Connect(from, outlet, to, inlet)`` draws a cord from one outlet to one inlet. The engine currently registers 405
 object types: oscillators, filters, math, routing, lists, timing, data stores,
 MIDI, GUI controls and more. :doc:`objects/index` lists every one of them.
 
@@ -27,7 +27,7 @@ The first character of an object's type name tells you which kind it is.
 ``.`` **control objects** (``.r``, ``.mtof``, ``.metro``, ``.coll`` …)
    Control objects only do something when a message arrives, such as a bang,
    a number or a list. The object handles it and may send new messages from
-   its outlets. All other objects are control objects, 287 of them.
+   its outlets. All other objects are control objects, 289 of them.
 
 ``patcher`` (no prefix)
    A subpatcher: a box that groups part of a graph behind its own inlets and

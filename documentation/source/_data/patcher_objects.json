@@ -6764,6 +6764,119 @@
     ],
     "requires_midi_device": false
   },
+  ".filterdesign": {
+    "category": "FILTER",
+    "description": "Designs a Butterworth or Chebyshev lowpass, highpass, bandpass or bandstop filter of a given order and sends it as second-order sections, a coefficient list ~cascade and .filterdetail take as they are.",
+    "inlets": [
+      {
+        "accepts": [
+          "BANG",
+          "LIST"
+        ],
+        "doc": "Bang: design the filter and send it. A list of settings, each a word and its value, sets them without sending: response (lowpass, highpass, bandpass, bandstop), topology (butterworth, chebyshev-1, chebyshev-2), order, frequency (one, or two band edges), units (hertz, normalized, radians), samplerate (0: the engine's), passband_ripple and stopband_attenuation (dB), sos_output, zpk_output and tf_output (0 or 1).",
+        "index": 0,
+        "label": "in",
+        "range": ""
+      }
+    ],
+    "is_dsp": false,
+    "name": ".filterdesign",
+    "outlets": [
+      {
+        "doc": "The second-order sections, five coefficients a0 a1 a2 b1 b2 per section, the overall gain in the first; sent when sos_output is on (the default).",
+        "index": 0,
+        "label": "sections",
+        "range": "a list of coefficients in sets of five",
+        "type": "LIST"
+      },
+      {
+        "doc": "With zpk_output on: 'zeros' and 'poles' followed by real and imaginary parts, and 'gain'. With tf_output on: 'numerator' and 'denominator', the coefficients of z^0, z^-1, ... Sent before the sections.",
+        "index": 1,
+        "label": "details",
+        "range": "",
+        "type": "LIST"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "Starting settings in the words of the inlet ('.filterdesign response bandpass order 4 frequency 500 2000'). The defaults: a Butterworth lowpass of order 2 at 1000 Hz (band edges 1000 and 2000), 1 dB ripple, 40 dB attenuation, sections only. Later messages do not change what is saved.",
+        "name": "settings",
+        "range": "words and values"
+      }
+    ],
+    "requires_midi_device": false
+  },
+  ".filterdetail": {
+    "category": "FILTER",
+    "description": "Details a filter given as second-order sections (the coefficient list .filterdesign sends): magnitude, phase, phase delay and group delay across the spectrum, and the impulse and step responses, each as a list.",
+    "inlets": [
+      {
+        "accepts": [
+          "LIST"
+        ],
+        "doc": "A list of coefficients in sets of five, a0 a1 a2 b1 b2 per section: analyse the filter and send the six lists. 'numpoints <n>': the number of values per list (1-256), without sending.",
+        "index": 0,
+        "label": "sections",
+        "range": "a list of coefficients in sets of five"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".filterdetail",
+    "outlets": [
+      {
+        "doc": "The gain at numpoints frequencies from 0 up to just below half the sample rate, in equal steps (1 is unity gain).",
+        "index": 0,
+        "label": "magnitude",
+        "range": "0+",
+        "type": "LIST"
+      },
+      {
+        "doc": "The phase at the same frequencies, in radians, unwrapped.",
+        "index": 1,
+        "label": "phase",
+        "range": "",
+        "type": "LIST"
+      },
+      {
+        "doc": "The phase delay at the same frequencies, in samples.",
+        "index": 2,
+        "label": "phase delay",
+        "range": "",
+        "type": "LIST"
+      },
+      {
+        "doc": "The group delay at the same frequencies, in samples.",
+        "index": 3,
+        "label": "group delay",
+        "range": "",
+        "type": "LIST"
+      },
+      {
+        "doc": "The impulse response, one value per sample.",
+        "index": 4,
+        "label": "impulse",
+        "range": "",
+        "type": "LIST"
+      },
+      {
+        "doc": "The step response, one value per sample.",
+        "index": 5,
+        "label": "step",
+        "range": "",
+        "type": "LIST"
+      }
+    ],
+    "params": [
+      {
+        "default": "256",
+        "doc": "The number of values per list, 1-256, optionally after the word numpoints ('.filterdetail 128'). A later numpoints message does not change what is saved.",
+        "name": "numpoints",
+        "range": "1-256"
+      }
+    ],
+    "requires_midi_device": false
+  },
   ".flush": {
     "category": "MIDI",
     "description": "Passes pitch/velocity pairs through and remembers which notes are sounding. A bang releases them all with velocity 0.",

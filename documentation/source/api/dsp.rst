@@ -166,6 +166,12 @@ Filters
 .. doxygenfile:: dsp/filters/rampSmooth.hpp
    :project: libYSE
 
+.. doxygenfile:: dsp/filters/filterDesign.hpp
+   :project: libYSE
+
+.. doxygenfile:: dsp/filters/filterResponse.hpp
+   :project: libYSE
+
 The resonant ladder low-pass that ``SYNTH::vaVoice`` uses also works on its
 own in any DSP path:
 

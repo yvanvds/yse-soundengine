@@ -80,6 +80,7 @@ set(YSE_TEST_SOURCES
   dsp/test_phase_shift.cpp
   dsp/test_slide.cpp
   dsp/test_ramp_smooth.cpp
+  dsp/test_filter_design.cpp
   dsp/test_delay.cpp
   dsp/test_envelope.cpp
   dsp/test_lfo_rate_robustness.cpp
@@ -247,6 +248,7 @@ set(YSE_TEST_SOURCES
   patcher/test_patcher_signal_phaseshift.cpp
   patcher/test_patcher_signal_slide.cpp
   patcher/test_patcher_signal_rampsmooth.cpp
+  patcher/test_patcher_filterdesign.cpp
   patcher/test_patcher_reverse_modulo.cpp
   patcher/test_patcher_plusequals.cpp
   patcher/test_patcher_signal_compare.cpp
@@ -1384,6 +1386,7 @@ set_source_files_properties(
   patcher/test_patcher_signal_phaseshift.cpp
   patcher/test_patcher_signal_slide.cpp
   patcher/test_patcher_signal_rampsmooth.cpp
+  patcher/test_patcher_filterdesign.cpp
   patcher/test_patcher_reverse_modulo.cpp
   patcher/test_patcher_plusequals.cpp
   patcher/test_patcher_signal_compare.cpp

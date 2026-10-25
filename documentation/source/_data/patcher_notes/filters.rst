@@ -609,3 +609,63 @@ skipped. Unconnected, the left inlet reads 0.
 
    [.receive gate] -> [~sig] -> [~rampsmooth 480 480] -> [~*] right inlet
    a gate that opens and closes over 10 ms at 48 kHz, without clicks
+
+.. patcher-object:: .filterdesign
+
+Designs a classic filter and sends it as second-order sections: a list of
+coefficients in sets of five, ``a0 a1 a2 b1 b2`` per section, which
+``~cascade`` runs and ``.filterdetail`` analyses as they are. Nothing is sent
+until a bang; the settings only change what the next bang designs.
+
+Settings are a word and a value, several in one list if you like, and the
+creation arguments use the same words:
+
+- ``response``: ``lowpass``, ``highpass``, ``bandpass`` or ``bandstop``.
+- ``topology``: ``butterworth`` (flat passband, gentle transition),
+  ``chebyshev-1`` (ripple in the passband, the steepest transition) or
+  ``chebyshev-2`` (flat passband, ripple in the stopband).
+- ``order``: the number of poles, 1 to 32. A bandpass or bandstop needs an
+  even number; an odd order gets one more.
+- ``frequency``: the cutoff, or the two edges of the band. For a Butterworth
+  filter it is the point 3 dB down, for ``chebyshev-1`` the end of the
+  passband and for ``chebyshev-2`` the start of the stopband.
+- ``units``: ``hertz`` (the default), ``normalized`` (1 is half the sample
+  rate) or ``radians`` (pi is half the sample rate).
+- ``samplerate``: the rate hertz are read against; 0, the default, is the
+  engine's rate at the moment of the bang.
+- ``passband_ripple`` and ``stopband_attenuation``, in dB, for the two
+  Chebyshev types (defaults 1 and 40).
+- ``sos_output``, ``zpk_output`` and ``tf_output``, 0 or 1: which forms the
+  bang sends. The sections (on by default) leave the left outlet. The right
+  outlet sends ``zeros``, ``poles`` (real and imaginary parts in turn) and
+  ``gain``, and ``numerator`` and ``denominator``, the coefficients of the
+  whole filter as one fraction. That last form loses precision quickly as the
+  order grows; the sections are the form to filter with.
+
+Without arguments the object designs a Butterworth lowpass of order 2 at
+1000 Hz. A frequency at or above half the sample rate, or a band whose two
+edges are equal, designs nothing and sends nothing.
+
+.. code-block:: text
+
+   [.loadbang] -> [.filterdesign response bandpass order 6 frequency 400 1200] -> [~cascade] right inlet
+   a sixth-order bandpass for ~cascade, designed when the patch loads
+
+.. patcher-object:: .filterdetail
+
+Shows what a filter does. Send it a list of coefficients in sets of five (what
+``.filterdesign`` sends, or the five coefficients of a single ``~biquad``) and
+it sends six lists of the same length, from the right outlet to the left:
+
+- the step response and the impulse response, one value per sample;
+- the group delay and the phase delay, in samples;
+- the phase, in radians, without jumps of a full turn between neighbours;
+- the magnitude, as a gain (1 is the level of the input).
+
+The four frequency curves run from 0 up to just below half the sample rate,
+in equal steps. ``numpoints <n>`` sets the length of the lists, 1 to 256
+(the default, and the longest list other objects take whole); the creation
+argument sets it too (``.filterdetail 128``).
+
+A list without one complete set of five numbers, or with a value that is not
+a number, sends nothing.
