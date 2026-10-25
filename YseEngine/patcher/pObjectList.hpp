@@ -77,7 +77,7 @@ namespace YSE {
    *    ``D_ONEPOLE`` (single-pole lowpass), ``D_LORES`` (resonant lowpass),
    *    ``D_RESON`` (resonant bandpass), ``D_SVF`` (state-variable filter),
    *    ``D_BIQUAD`` (coefficient-driven biquad), ``D_ALLPASS`` (Schroeder
-   *    allpass).
+   *    allpass), ``D_CASCADE`` (biquads in series).
    *  - I/O: ``D_DAC``, ``D_ADC``, ``D_LINE``.
    *  - Control: ``G_INT``, ``G_FLOAT``, ``G_SLIDER``, ``G_RSLIDER``,
    *    ``G_XYSLIDER``, ``G_MULTISLIDER``, ``G_MATRIXCTRL``, ``G_FUNCTION``,
@@ -1045,6 +1045,7 @@ namespace YSE {
     DEFOBJ(D_SVF, "~svf");
     DEFOBJ(D_BIQUAD, "~biquad");
     DEFOBJ(D_ALLPASS, "~allpass");
+    DEFOBJ(D_CASCADE, "~cascade");
 
     DEFOBJ(M_OUT, ".midiout");
     DEFOBJ(M_IN, ".midiin");

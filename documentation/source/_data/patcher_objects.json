@@ -15970,6 +15970,48 @@
     ],
     "requires_midi_device": false
   },
+  "~cascade": {
+    "category": "FILTER",
+    "description": "Cascade of biquad filters in series, each section y(n) = a0 x(n) + a1 x(n-1) + a2 x(n-2) - b1 y(n-1) - b2 y(n-2), set by a list of coefficients in sets of five: higher-order filters built from second-order sections.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER"
+        ],
+        "doc": "The signal to filter (unconnected reads 0). A list of coefficients in sets of five (a0 a1 a2 b1 b2 per section) sets the sections; 'clear' sets every coefficient and the previous inputs and outputs to 0; 'bypass 1' passes the input unfiltered; 'zero 1' silences the output; 'smooth 0' or 'smooth 1' turns the smoothing of coefficient changes off or on.",
+        "index": 0,
+        "label": "in",
+        "range": ""
+      },
+      {
+        "accepts": [],
+        "doc": "A list of coefficients in sets of five, a0 a1 a2 b1 b2 per section, the first five for the first section; an incomplete last set is ignored. Takes the same words as the left inlet.",
+        "index": 1,
+        "label": "coefficients",
+        "range": "up to the number of sections of the creation argument"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~cascade",
+    "outlets": [
+      {
+        "doc": "The filtered signal.",
+        "index": 0,
+        "label": "out",
+        "range": "",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "16",
+        "doc": "The number of sections the object has room for (1-64; more coefficient sets than this in the arguments raise it), then optionally the starting coefficients in sets of five and 'smooth 0' to turn the smoothing of coefficient changes off ('~cascade 4 0.5 0 0 -0.5 0'). Later lists and messages do not change what is saved.",
+        "name": "sections",
+        "range": "a number of sections, then coefficients a0 a1 a2 b1 b2 per section"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~click": {
     "category": "OSC",
     "description": "Outputs an impulse, or a short stored waveform, each time it is banged: an excitation for filters and resonators such as a Karplus-Strong string.",

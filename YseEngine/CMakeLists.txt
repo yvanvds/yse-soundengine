@@ -32,6 +32,7 @@ set(YSE_SRCS
   dsp/filters/reson.cpp
   dsp/filters/stateVariableFilter.cpp
   dsp/filters/allpass.cpp
+  dsp/filters/biquadCascade.cpp
   dsp/fourier/fft.cpp
   dsp/fourier/mayer.cpp
   dsp/interpolate4.cpp
@@ -166,6 +167,7 @@ set(YSE_SRCS
   patcher/filters/dSvf.cpp
   patcher/filters/dBiquad.cpp
   patcher/filters/dAllpass.cpp
+  patcher/filters/dCascade.cpp
   patcher/filters/pBandpass.cpp
   patcher/filters/pHighpass.cpp
   patcher/filters/pLowpass.cpp
@@ -600,6 +602,7 @@ set_source_files_properties(
   patcher/filters/dSvf.cpp
   patcher/filters/dBiquad.cpp
   patcher/filters/dAllpass.cpp
+  patcher/filters/dCascade.cpp
   patcher/filters/pBandpass.cpp
   patcher/filters/pHighpass.cpp
   patcher/filters/pLowpass.cpp

@@ -363,3 +363,47 @@ reads as 0. Unconnected, the left inlet reads 0.
 
    [~click] -> [~allpass 50 4.7 0.7] -> [~allpass 50 3.6 0.7] -> [~dac]
    a short burst of diffuse echoes; add stages with other delays to thicken it
+
+.. patcher-object:: ~cascade
+
+Several biquad filters in series, the output of each the input of the next.
+Each section is the filter of ``~biquad``, with the same coefficients and the
+same signs:
+
+.. code-block:: text
+
+   y(n) = a0 x(n) + a1 x(n-1) + a2 x(n-2) - b1 y(n-1) - b2 y(n-2)
+
+A filter of higher order is split into such second-order sections, so a list
+of coefficients in sets of five is a whole filter design: the first five
+numbers are the first section, the next five the second, and so on. Send the
+list to either inlet. The number of complete sets is the number of sections
+that run; an incomplete last set is ignored, and a list without one complete
+set changes nothing. With no list yet the input passes unchanged.
+
+The first creation argument is the number of sections the object has room
+for, 16 when it is left out and at most 64. The room is made when the object
+is created, so nothing is allocated while it runs; changing it rebuilds the
+object. A list with more sets than that uses only as many as fit. Starting
+coefficients and ``smooth 0`` may follow (``~cascade 2`` and then two sets of
+five).
+
+A section already running moves to its new coefficients in a straight line
+over 64 samples, so a new design does not click; ``smooth 0`` makes changes
+apply at once, ``smooth 1`` turns the smoothing back on. A section that starts
+running starts from silence at its coefficients. ``clear`` sets every
+coefficient and the previous inputs and outputs to 0, which silences the
+output until the next list, which then applies at once. ``bypass 1`` passes the input unfiltered and
+``zero 1`` silences the output, each turned off again with 0; bypass wins over
+zero. The sections keep running under both. As with ``~biquad`` the
+coefficients are not checked for stability, an output too large for a float
+starts a section again from silence, and an input sample that is not a finite
+number is skipped. Nothing depends on the sample rate. Unconnected, the left
+inlet reads 0.
+
+.. code-block:: text
+
+   [~noise] -> [~cascade 2] -> [~dac]
+   send it 0.004479 0.008957 0.004479 -1.750143 0.768058
+           0.004805 0.00961 0.004805 -1.877705 0.896926
+   a fourth-order Butterworth lowpass at 1 kHz (44.1 kHz rate)

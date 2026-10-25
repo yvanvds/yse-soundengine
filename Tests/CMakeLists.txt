@@ -71,6 +71,7 @@ set(YSE_TEST_SOURCES
   dsp/test_state_variable_filter.cpp
   dsp/test_biquad_coefficients.cpp
   dsp/test_allpass.cpp
+  dsp/test_biquad_cascade.cpp
   dsp/test_delay.cpp
   dsp/test_envelope.cpp
   dsp/test_lfo_rate_robustness.cpp
@@ -229,6 +230,7 @@ set(YSE_TEST_SOURCES
   patcher/test_patcher_signal_svf.cpp
   patcher/test_patcher_signal_biquad.cpp
   patcher/test_patcher_signal_allpass.cpp
+  patcher/test_patcher_signal_cascade.cpp
   patcher/test_patcher_reverse_modulo.cpp
   patcher/test_patcher_plusequals.cpp
   patcher/test_patcher_signal_compare.cpp
@@ -1357,6 +1359,7 @@ set_source_files_properties(
   patcher/test_patcher_signal_svf.cpp
   patcher/test_patcher_signal_biquad.cpp
   patcher/test_patcher_signal_allpass.cpp
+  patcher/test_patcher_signal_cascade.cpp
   patcher/test_patcher_reverse_modulo.cpp
   patcher/test_patcher_plusequals.cpp
   patcher/test_patcher_signal_compare.cpp
