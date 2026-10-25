@@ -15,6 +15,7 @@
 #include "../headers/constants.hpp"
 #include "generators/phaseStep.hpp"
 #include "generators/triggerCondition.hpp"
+#include "filters/filterCoefficients.hpp"
 #include "../utils/misc.hpp"
 
 YSE::DSP::filterBase::filterBase()
@@ -425,41 +426,34 @@ void YSE::DSP::biQuad::calc() {
   Flt v = (float)pow(10, std::abs(gain.load()) / 20.0f);
   Flt k = tan(Pi * freq / static_cast<Flt>(SAMPLERATE));
 
+  // The lowpass, highpass, bandpass and notch are filterCoefficients'
+  // (#1092), whose cookbook formulas are these filters exactly: shared rather
+  // than written twice. The peak and the shelves below are different designs.
+  const auto shared = [this](filterCoefficients::TYPE design) {
+    const filterCoefficients::coefficientSet c =
+        filterCoefficients::Compute(design, freq, 1.f, q, static_cast<Flt>(SAMPLERATE));
+    ff1 = c.a0;
+    ff2 = c.a1;
+    ff3 = c.a2;
+    fb1 = c.b1;
+    fb2 = c.b2;
+  };
+
   switch (type) {
   case BQ_LOWPASS: {
-    norm = 1 / (1 + k / q + k * k);
-    ff1 = k * k * norm;
-    ff2 = 2 * ff1;
-    ff3 = ff1.load();
-    fb1 = 2 * (k * k - 1) * norm;
-    fb2 = (1 - k / q + k * k) * norm;
+    shared(filterCoefficients::LOWPASS);
     break;
   }
   case BQ_HIGHPASS: {
-    norm = 1 / (1 + k / q + k * k);
-    ff1 = 1 * norm;
-    ff2 = -2 * ff1;
-    ff3 = ff1.load();
-    fb1 = 2 * (k * k - 1) * norm;
-    fb2 = (1 - k / q + k * k) * norm;
+    shared(filterCoefficients::HIGHPASS);
     break;
   }
   case BQ_BANDPASS: {
-    norm = 1 / (1 + k / q + k * k);
-    ff1 = k / q * norm;
-    ff2 = 0;
-    ff3 = -ff1;
-    fb1 = 2 * (k * k - 1) * norm;
-    fb2 = (1 - k / q + k * k) * norm;
+    shared(filterCoefficients::BANDPASS);
     break;
   }
   case BQ_NOTCH: {
-    norm = 1 / (1 + k / q + k * k);
-    ff1 = (1 + k * k) * norm;
-    ff2 = 2 * (k * k - 1) * norm;
-    ff3 = ff1.load();
-    fb1 = ff2.load();
-    fb2 = (1 - k / q + k * k) * norm;
+    shared(filterCoefficients::BANDSTOP);
     break;
   }
   case BQ_PEAK: {

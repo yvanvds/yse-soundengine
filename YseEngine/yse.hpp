@@ -74,6 +74,7 @@
 #include "dsp/filters/stateVariableFilter.hpp"
 #include "dsp/filters/allpass.hpp"
 #include "dsp/filters/biquadCascade.hpp"
+#include "dsp/filters/filterCoefficients.hpp"
 #include "dsp/math.hpp"
 #include "dsp/oscillators.hpp"
 #include "dsp/generators/phasor.hpp"

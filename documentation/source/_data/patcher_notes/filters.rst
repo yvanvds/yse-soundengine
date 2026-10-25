@@ -407,3 +407,49 @@ inlet reads 0.
    send it 0.004479 0.008957 0.004479 -1.750143 0.768058
            0.004805 0.00961 0.004805 -1.877705 0.896926
    a fourth-order Butterworth lowpass at 1 kHz (44.1 kHz rate)
+
+.. patcher-object:: ~filtercoeff
+
+Computes the five coefficients of ``~biquad`` from a filter type, a frequency
+in Hz, a linear gain and a Q, once per sample, so a filter can be swept at
+audio rate. Connect its five outlets to the five right inlets of ``~biquad``,
+in order. The formulas are those of the audio EQ cookbook. Any of the three
+settings may be a number or a signal; an unconnected inlet reads the last
+number sent to it.
+
+The type is set by a word, in any inlet, or by the first creation argument:
+
+- ``lowpass`` and ``highpass``, with a gain of Q at the cutoff (0.7071 is
+  the flattest without a bump);
+- ``bandpass``, a gain of 1 at the center, and ``bandstop``, a gain of 0
+  there;
+- ``resonant``, a bandpass whose gain at the center is the Q, so a higher Q
+  rings louder as well as narrower;
+- ``allpass``, which changes the phase around the frequency but not the
+  level;
+- ``peaknotch``, a bell with the gain at the center (above 1 a boost, below
+  1 a cut);
+- ``lowshelf`` and ``highshelf``, the gain below or above the frequency, the
+  Q read as the shelf slope (1 the steepest without an overshoot);
+- ``gainlpass``, ``gainhpass``, ``gainbpass``, ``gainbstop``,
+  ``gainresonant`` and ``gainapass``, the same filters scaled by the gain;
+- ``off``, which makes ``~biquad`` pass its input unchanged.
+
+The types without a gain in their description ignore it. A type word may be
+followed by the frequency and the Q, or for a type with a gain the frequency,
+the gain and the Q. A list of up to three numbers sets the frequency, the gain
+and the Q. The frequency is clamped to just above 0 and just below half the
+sample rate, the Q to 0.01-10000.
+
+``resamp <n>``, or a second creation argument, computes the coefficients on
+one sample in n and holds them between, which saves work when the settings
+move slowly. There is no smoothing: a jump in a setting is a jump in the
+coefficients. The coefficients follow the sample rate as it is now.
+
+.. code-block:: text
+
+   [~phasor 0.2] -> [~* 2000] -> [~+ 300] -> [~filtercoeff resonant]
+   [~filtercoeff resonant] outlets 0-4 -> [~biquad] inlets 1-5
+   [~noise] -> [~biquad] -> [~dac]
+   a resonance sweeping from 300 Hz to 2300 Hz every five seconds; send the
+   Q to the right inlet of ~filtercoeff

@@ -16393,6 +16393,93 @@
     "params": [],
     "requires_midi_device": false
   },
+  "~filtercoeff": {
+    "category": "FILTER",
+    "description": "Biquad filter coefficients from a frequency, a gain and a Q, computed per sample for the usual filter types: connect the five outlets to ~biquad for filter sweeps at audio rate.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The cutoff or center frequency in Hz, a number or a signal read per sample (unconnected, the last number sent here; 1000 at first). A filter type word ('lowpass', 'peaknotch', 'off' ...) sets the type, followed by the frequency and the Q, or the frequency, the gain and the Q for a type with a gain; 'resamp <n>' computes on one sample in n; a list of up to three numbers sets the frequency, the gain and the Q.",
+        "index": 0,
+        "label": "frequency",
+        "range": "0 to samplerate/2 Hz"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The linear gain, a number or a signal read per sample (unconnected, the last number sent here; 1 at first). Read by peaknotch, the shelves and the gain types only. Takes the same words as the left inlet.",
+        "index": 1,
+        "label": "gain",
+        "range": "any number, usually 0-4"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The Q, or the slope of a shelf, a number or a signal read per sample (unconnected, the last number sent here; 0.7071 at first). Clamped to 0.01-10000. Takes the same words as the left inlet.",
+        "index": 2,
+        "label": "q",
+        "range": "0.01-10000"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~filtercoeff",
+    "outlets": [
+      {
+        "doc": "The a0 coefficient, for the a0 inlet of ~biquad.",
+        "index": 0,
+        "label": "a0",
+        "range": "",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "The a1 coefficient, for the a1 inlet of ~biquad.",
+        "index": 1,
+        "label": "a1",
+        "range": "",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "The a2 coefficient, for the a2 inlet of ~biquad.",
+        "index": 2,
+        "label": "a2",
+        "range": "",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "The b1 coefficient, for the b1 inlet of ~biquad.",
+        "index": 3,
+        "label": "b1",
+        "range": "",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "The b2 coefficient, for the b2 inlet of ~biquad.",
+        "index": 4,
+        "label": "b2",
+        "range": "",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "lowpass",
+        "doc": "The filter type word ('~filtercoeff peaknotch 4'; lowpass when left out), then a resampling factor, 1 to 4096 (1 when left out). Later messages do not change what is saved.",
+        "name": "type",
+        "range": "a filter type, then a resampling factor"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~ftom": {
     "category": "MATH",
     "description": "Converts a frequency in Hz to a MIDI note number at signal rate. The inverse of ~mtof, with the same base and ref tuning. A frequency of 0 or below gives -1500.",
