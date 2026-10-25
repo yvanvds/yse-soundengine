@@ -34,7 +34,7 @@ namespace YSE {
    *    of a 0..1 ramp's cycle), ``D_WHAT`` (an impulse each time a 0..1 ramp
    *    passes one of a list of values), ``D_STEPCOUNTER`` (the jumps of a
    *    signal counted through a sequence of counts).
-   *  - DSP delay: `D_TAPIN`, `D_TAPOUT`.
+   *  - DSP delay: `D_TAPIN`, `D_TAPOUT`, `D_COMB`, `D_TEETH`.
    *  - DSP sampling: ``D_BUFFER``.
    *  - DSP math: ``D_ADD``, ``D_MULTIPLY``, ``D_CLIP``, ``D_REVERSESUBSTRACT``,
    *    ``D_REVERSEDIVIDE``, ``D_MODULO``, ``D_PLUSEQUALS``.
@@ -234,6 +234,8 @@ namespace YSE {
 
     DEFOBJ(D_TAPIN, "~tapin");
     DEFOBJ(D_TAPOUT, "~tapout");
+    DEFOBJ(D_COMB, "~comb");
+    DEFOBJ(D_TEETH, "~teeth");
 
     DEFOBJ(D_BUFFER, "~buffer");
 
