@@ -479,3 +479,36 @@ reads 0.
    [~cross 300] left outlet -> [~* 1.5] -> [~dac]
    [~cross 300] right outlet -> [~* 0.5] -> [~dac]
    the same noise with the bass lifted and the treble lowered
+
+.. patcher-object:: ~fffb
+
+A bank of bandpass filters side by side: one input feeds them all, and each
+filter has its own outlet, the first filter's on the left. Each filter lets
+through a band around its center frequency, at its gain there whatever the
+frequency and the Q, so a filter can be retuned or narrowed without getting
+louder or softer. The band is the center frequency divided by the Q wide. Use
+it to split a sound into many bands for a vocoder, or to shape its spectrum.
+
+The creation arguments are the number of filters (1 to 128, 4 when there is
+none), which is also the number of outlets, the first filter's frequency, the
+ratio between one filter's frequency and the next, the Q and the gain of every
+filter. ``~fffb 6 100 2`` tunes six filters an octave apart from 100 Hz. Give
+``H`` instead of a ratio for a harmonic series: ``~fffb 8 200 H`` puts the
+filters at 200, 400, 600 Hz and so on. Without arguments the filters sit an
+octave apart from 100 Hz, with a Q of 10 and a gain of 1.
+
+Filters are numbered from 0. ``freq 2 500 800`` sets filters 2 and 3 to 500
+and 800 Hz; ``q`` and ``gain`` work the same way. ``freqall``, ``qall`` and
+``gainall`` set every filter at once. ``freqratio 440 2`` spreads the filters
+from 440 Hz an octave apart, ``freqratio 100 H`` as a harmonic series. A list
+of an index and a frequency, with an optional Q, sets one filter
+(``3 1200 20``). ``clear`` sets the filter state to 0. The words can be
+written in any case, and can also come as text through a receive. The
+frequencies follow the sample rate when that changes. An input sample that is
+not a finite number is skipped. Unconnected, the inlet reads 0.
+
+.. code-block:: text
+
+   [~saw 110] -> [~fffb 4 110 H 30]
+   each outlet of ~fffb -> [~dac]
+   the first four harmonics of the sawtooth, each on its own outlet

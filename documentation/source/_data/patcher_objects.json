@@ -16525,6 +16525,62 @@
     "params": [],
     "requires_midi_device": false
   },
+  "~fffb": {
+    "category": "FILTER",
+    "description": "Bank of bandpass filters in parallel on one input, each with its own center frequency, Q, gain and outlet: vocoders, spectral shaping, resonator banks.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER"
+        ],
+        "doc": "The signal every filter reads (unconnected reads 0), and the messages, indexes from 0: 'freq <index> <hz>...', 'q <index> <q>...' and 'gain <index> <gain>...' set filters from the index on; 'freqall', 'qall' and 'gainall' set every filter; 'freqratio <first> <ratio>' spreads the frequencies as first * ratio^i, 'freqratio <first> H' as a harmonic series; a list '<index> <hz> [<q>]' sets one filter; 'clear' sets every filter's state to 0.",
+        "index": 0,
+        "label": "in",
+        "range": ""
+      }
+    ],
+    "is_dsp": true,
+    "name": "~fffb",
+    "outlets": [
+      {
+        "doc": "The input through filter 0, a bandpass with its gain at its center frequency.",
+        "index": 0,
+        "label": "filter 0",
+        "range": "",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "The input through filter 1, a bandpass with its gain at its center frequency.",
+        "index": 1,
+        "label": "filter 1",
+        "range": "",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "The input through filter 2, a bandpass with its gain at its center frequency.",
+        "index": 2,
+        "label": "filter 2",
+        "range": "",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "The input through filter 3, a bandpass with its gain at its center frequency.",
+        "index": 3,
+        "label": "filter 3",
+        "range": "",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "4 100 2 10 1",
+        "doc": "The number of filters (1-128, also the number of outlets), the first filter's frequency in Hz, the ratio between successive frequencies or H for a harmonic series, the Q and the gain of every filter ('~fffb 8 200 H 20 0.5'). Later messages do not change what is saved.",
+        "name": "arguments",
+        "range": "a count, then frequency, ratio, Q and gain"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~filtercoeff": {
     "category": "FILTER",
     "description": "Biquad filter coefficients from a frequency, a gain and a Q, computed per sample for the usual filter types: connect the five outlets to ~biquad for filter sweeps at audio rate.",
