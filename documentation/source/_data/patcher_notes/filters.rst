@@ -725,3 +725,43 @@ when the patch loads. The bands themselves are saved with the patch.
 
    [~filtergraph nfilters 3 autoout 1] -> [~cascade] right inlet
    a three-band equaliser whose bands are restored and applied when the patch loads
+
+.. patcher-object:: ~zplane
+
+Shows a filter as its poles and zeroes on the z plane, the way a host draws
+it, and turns moved poles and zeroes back into coefficients. Send it the same
+coefficient list ``~cascade`` takes, five numbers per section (``a0 a1 a2 b1
+b2``): from ``~filtergraph``, ``.filterdesign`` or a message. It answers with
+the zeroes (second outlet) and the poles (third outlet) as ``real imaginary``
+pairs, two of each per section, and the gain of each section (its ``a0``,
+fourth outlet).
+
+Each section has two zeroes and two poles, counted from 0 over all sections:
+section 0 has roots 0 and 1, section 1 roots 2 and 3, and so on. A complex
+pair is listed upper half first, two real roots the larger first.
+
+Editing:
+
+- ``pole <index> <real> <imaginary>`` and ``zero <index> <real>
+  <imaginary>`` move one root, as dragging it would. A root moved off the
+  real axis takes its partner along as its mirror image (the complex
+  conjugate), so the coefficients stay real; a root moved onto the real axis
+  leaves a real partner in place. The new coefficients go out the left
+  outlet: connect it to the right inlet of ``~cascade``.
+- The five left inlets set ``a0`` to ``b2`` of the first section and send
+  the coefficients as well.
+- ``order <n>`` sets the number of poles, two per section (2 to 48), and
+  ``pconstrain 1`` keeps moved poles just inside the unit circle, so edits
+  cannot make the filter unstable. Both are creation arguments too
+  (``~zplane order 4 pconstrain 1``).
+
+A list sends the zeroes, poles and gains; a ``bang``, a moved root or a
+coefficient inlet sends those and then the coefficients. A section whose
+``a0`` is 0 has no finite zeroes; they read as 0, and moving one gives the
+section a gain of 1. The sections are saved with the patch; the display
+settings (``logscale``, ``range``, colours) are the host's.
+
+.. code-block:: text
+
+   [.filterdesign] -> [~zplane pconstrain 1] -> [~cascade] right inlet
+   move the poles of a designed filter; each move sends the new coefficients

@@ -434,6 +434,54 @@ namespace YSE {
       return count;
     }
 
+    namespace {
+      // The roots of z^2 + b z + c: a complex pair upper half first, a real
+      // pair the larger first, the larger computed without cancellation.
+      void QuadraticRoots(double b, double c, cplx& first, cplx& second) {
+        const double disc = b * b - 4.0 * c;
+        if (disc < 0.0) {
+          const double im = 0.5 * std::sqrt(-disc);
+          first = cplx(-0.5 * b, im);
+          second = cplx(-0.5 * b, -im);
+          return;
+        }
+        const double q = -0.5 * (b + std::copysign(std::sqrt(disc), b));
+        double r0 = q;
+        double r1 = q != 0.0 ? c / q : 0.0;
+        if (r1 > r0) std::swap(r0, r1);
+        first = r0;
+        second = r1;
+      }
+    } // namespace
+
+    Bool filterDesign::sectionRoots(const biQuad::coefficientSet& set, cplx& zero0, cplx& zero1,
+                                    cplx& pole0, cplx& pole1) {
+      const double a0 = set.a0;
+      const double a1 = set.a1;
+      const double a2 = set.a2;
+      const double b1 = set.b1;
+      const double b2 = set.b2;
+      zero0 = zero1 = pole0 = pole1 = cplx();
+      if (!std::isfinite(a0) || !std::isfinite(a1) || !std::isfinite(a2) || !std::isfinite(b1) ||
+          !std::isfinite(b2))
+        return false;
+      QuadraticRoots(b1, b2, pole0, pole1);
+      if (a0 == 0.0) return false;
+      QuadraticRoots(a1 / a0, a2 / a0, zero0, zero1);
+      return true;
+    }
+
+    biQuad::coefficientSet filterDesign::sectionFromRoots(Dbl gain, cplx zero0, cplx zero1,
+                                                          cplx pole0, cplx pole1) {
+      biQuad::coefficientSet set;
+      set.a0 = static_cast<Flt>(gain);
+      set.a1 = static_cast<Flt>(-gain * (zero0 + zero1).real());
+      set.a2 = static_cast<Flt>(gain * (zero0 * zero1).real());
+      set.b1 = static_cast<Flt>(-(pole0 + pole1).real());
+      set.b2 = static_cast<Flt>((pole0 * pole1).real());
+      return set;
+    }
+
     UInt filterDesign::coefficients(Dbl* out, UInt capacity) const {
       if (out == nullptr) return 0;
       const UInt count = std::min(sectionCount, capacity / 5) * 5;

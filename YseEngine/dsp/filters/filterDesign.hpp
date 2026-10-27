@@ -268,6 +268,41 @@ namespace YSE {
         return index <= rootCount ? denominatorTF[index] : 0.0;
       }
 
+      /**
+       *  @brief The zeroes and poles of one section (issue #1103).
+       *
+       *  A section ``a0 a1 a2 b1 b2`` (the ``biquadCascade`` form) is
+       *  ``a0 (1 - z0 z^-1)(1 - z1 z^-1) / ((1 - p0 z^-1)(1 - p1 z^-1))``:
+       *  the zeroes are the roots of ``a0 z^2 + a1 z + a2``, the poles those
+       *  of ``z^2 + b1 z + b2``, and ``a0`` is the section's gain. A
+       *  first-order section (``a2 = b2 = 0``) has a zero and a pole at the
+       *  origin. A complex pair comes upper half first (``zero0.imag() >
+       *  0``); a real pair the larger first. Computed in double precision.
+       *
+       *  @return False when ``a0`` is 0 or a coefficient is not finite: the
+       *          numerator then has fewer than two finite zeroes and both
+       *          zeroes read as 0. The poles are always written (0 when a
+       *          coefficient is not finite).
+       */
+      static Bool sectionRoots(const biQuad::coefficientSet& set, std::complex<Dbl>& zero0,
+                               std::complex<Dbl>& zero1, std::complex<Dbl>& pole0,
+                               std::complex<Dbl>& pole1);
+
+      /**
+       *  @brief The section with gain @p gain, zeroes @p zero0, @p zero1
+       *         and poles @p pole0, @p pole1: the inverse of
+       *         ``sectionRoots`` (issue #1103).
+       *
+       *  ``a0 = gain``, ``a1 = -gain (z0 + z1)``, ``a2 = gain z0 z1``,
+       *  ``b1 = -(p0 + p1)``, ``b2 = p0 p1``. Each pair must be two real
+       *  roots or a complex conjugate pair for the coefficients to be real;
+       *  of any other pair the real parts of the sum and product are taken.
+       */
+      static biQuad::coefficientSet sectionFromRoots(Dbl gain, std::complex<Dbl> zero0,
+                                                     std::complex<Dbl> zero1,
+                                                     std::complex<Dbl> pole0,
+                                                     std::complex<Dbl> pole1);
+
     private:
       // Pairs the digital poles and zeroes into sections.
       Bool BuildSections();

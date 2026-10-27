@@ -42,6 +42,7 @@ set(YSE_SRCS
   dsp/filters/filterDesign.cpp
   dsp/filters/filterResponse.cpp
   dsp/filters/filterBands.cpp
+  dsp/filters/zPlane.cpp
   dsp/fourier/fft.cpp
   dsp/fourier/mayer.cpp
   dsp/interpolate4.cpp
@@ -190,6 +191,7 @@ set(YSE_SRCS
   patcher/filters/gFilterdesign.cpp
   patcher/filters/gFilterdetail.cpp
   patcher/filters/dFiltergraph.cpp
+  patcher/filters/dZplane.cpp
   patcher/filters/pBandpass.cpp
   patcher/filters/pHighpass.cpp
   patcher/filters/pLowpass.cpp
@@ -637,6 +639,7 @@ set_source_files_properties(
   patcher/filters/gFilterdesign.cpp
   patcher/filters/gFilterdetail.cpp
   patcher/filters/dFiltergraph.cpp
+  patcher/filters/dZplane.cpp
   patcher/filters/pBandpass.cpp
   patcher/filters/pHighpass.cpp
   patcher/filters/pLowpass.cpp

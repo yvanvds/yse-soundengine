@@ -20233,5 +20233,108 @@
     ],
     "params": [],
     "requires_midi_device": false
+  },
+  "~zplane": {
+    "category": "FILTER",
+    "description": "Shows a filter as poles and zeroes on the z plane: holds one to 24 biquad sections, given as the coefficient list ~biquad and ~cascade take, sends their zeroes, poles and gains, and turns moved poles and zeroes back into coefficients. A host draws the plane; the sections are saved with the patch.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "Bang: send the coefficients, zeroes, poles and gains. A number: a0 of the first section. A list of numbers: a cascade, five coefficients per section. 'zero <index> <real> <imaginary>' and 'pole <index> <real> <imaginary>' move one root and send the new coefficients; order and pconstrain set the attributes.",
+        "index": 0,
+        "label": "in",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "a1 of the first section; sends everything.",
+        "index": 1,
+        "label": "a1",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "a2 of the first section; sends everything.",
+        "index": 2,
+        "label": "a2",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "b1 of the first section; sends everything.",
+        "index": 3,
+        "label": "b1",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "b2 of the first section; sends everything.",
+        "index": 4,
+        "label": "b2",
+        "range": ""
+      }
+    ],
+    "is_dsp": true,
+    "name": "~zplane",
+    "outlets": [
+      {
+        "doc": "The coefficients of every section, a0 a1 a2 b1 b2 per section, for ~biquad (one section) or ~cascade; sent on a bang, a coefficient inlet or a moved root.",
+        "index": 0,
+        "label": "coefficients",
+        "range": "a list of coefficients in sets of five",
+        "type": "LIST"
+      },
+      {
+        "doc": "The zeroes, two per section, as real and imaginary parts.",
+        "index": 1,
+        "label": "zeroes",
+        "range": "real imaginary pairs",
+        "type": "LIST"
+      },
+      {
+        "doc": "The poles, two per section, as real and imaginary parts.",
+        "index": 2,
+        "label": "poles",
+        "range": "real imaginary pairs",
+        "type": "LIST"
+      },
+      {
+        "doc": "The gain (a0) of each section.",
+        "index": 3,
+        "label": "gains",
+        "range": "one number per section",
+        "type": "LIST"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "'order <n>', the number of poles (2-48, two per section, default 2), and 'pconstrain <0|1>', keep moved poles inside the unit circle (default 0). The sections are saved with the patch.",
+        "name": "settings",
+        "range": "words and values"
+      }
+    ],
+    "requires_midi_device": false
   }
 }

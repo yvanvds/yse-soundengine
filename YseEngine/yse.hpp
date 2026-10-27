@@ -83,6 +83,7 @@
 #include "dsp/filters/filterDesign.hpp"
 #include "dsp/filters/filterResponse.hpp"
 #include "dsp/filters/filterBands.hpp"
+#include "dsp/filters/zPlane.hpp"
 #include "dsp/math.hpp"
 #include "dsp/oscillators.hpp"
 #include "dsp/generators/phasor.hpp"
