@@ -101,3 +101,40 @@ numbers in that order; ``clear`` silences the lines.
 
    [~click] -> [~teeth 50 1.3 4.1 1 0.5 0.8] -> [~dac]
    notches from the short path, ringing from the long one
+
+.. patcher-object:: ~delay
+
+Delays a signal by a number of samples. The delay can be anything from 0,
+where the signal passes unchanged, up to the longest delay, even less than
+one block, which ``~tapout`` cannot do. Not to be confused with ``.delay``,
+which delays a bang.
+
+- The creation arguments are the memory in samples, the initial delay in
+  samples and the ramp time in ms (``~delay 44100 200 10``); they default to
+  512, 0 and 0. The memory is allocated when the object is made, so nothing
+  is allocated while it runs; changing it rebuilds the object.
+- A number at the right inlet sets the delay in samples; a fraction is
+  dropped. ``<n> samples`` means the same, and ``<n> ms`` sets it in
+  milliseconds, rounded to whole samples at the current sample rate. A delay
+  in samples lasts longer at a lower sample rate; one in milliseconds does
+  not. ``delay <time>`` takes the same forms.
+- With a ramp time (``ramp <ms>``), a new delay crossfades from the old one
+  instead of jumping, so the change does not click. A change during a
+  crossfade starts a new crossfade from the delay that was fading in.
+- A signal at the right inlet sets the delay sample by sample, in samples,
+  read with interpolation, so it can be swept smoothly. It skips the ramp,
+  and the number is used again once the cord is gone.
+- ``maxsize <n>`` sets the longest delay in samples, up to the memory, and
+  clears the line. ``clear`` silences the line. A delay outside 0 and the
+  longest delay is held at the nearest end.
+- All of these words work in either inlet. An input sample that is not a
+  finite number is written as 0. Unconnected, the left inlet reads 0.
+
+The output cannot be fed back into the input: a loop of signal cords is
+refused. For echoes that repeat, use ``~tapin`` and ``~tapout`` or
+``~comb``.
+
+.. code-block:: text
+
+   [~adc] -> [~delay 4800 96] -> [~dac]
+   the input, two milliseconds late at 48 kHz

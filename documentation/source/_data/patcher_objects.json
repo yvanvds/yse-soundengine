@@ -16638,6 +16638,52 @@
     "params": [],
     "requires_midi_device": false
   },
+  "~delay": {
+    "category": "DELAY",
+    "description": "Delays a signal by a number of samples, from none at all up to the memory set when it is made. A number delay crossfades over the ramp time; a signal delay is read per sample and interpolated. For alignment and short delays.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER"
+        ],
+        "doc": "The signal to delay (unconnected reads 0). 'clear' silences the line, 'maxsize <n>' sets the longest delay in samples (up to the memory) and clears it, 'ramp <ms>' sets the crossfade time, and '<n>', '<n> samples', '<n> ms' or 'delay <time>' set the delay.",
+        "index": 0,
+        "label": "in",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The delay time. A number is samples, the fraction dropped, and crossfades over the ramp time; a signal is read per sample in samples, interpolated, and wins while it is connected. Clamped to 0 and the longest delay. Takes the same words as the left inlet.",
+        "index": 1,
+        "label": "delay",
+        "range": "0 to the longest delay"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~delay",
+    "outlets": [
+      {
+        "doc": "The delayed signal.",
+        "index": 0,
+        "label": "out",
+        "range": "",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "512 0 0",
+        "doc": "The memory in samples, the initial delay in samples and the ramp time in ms, up to three numbers ('~delay 44100 200 10'; they default to 512, 0 and 0). The memory is allocated when the object is made and is clamped to 0-11520000. Later numbers and messages do not change what is saved.",
+        "name": "delay",
+        "range": "a memory, a delay, then a ramp time"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~fffb": {
     "category": "FILTER",
     "description": "Bank of bandpass filters in parallel on one input, each with its own center frequency, Q, gain and outlet: vocoders, spectral shaping, resonator banks.",

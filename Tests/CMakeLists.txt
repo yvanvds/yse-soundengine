@@ -72,6 +72,7 @@ set(YSE_TEST_SOURCES
   dsp/test_biquad_coefficients.cpp
   dsp/test_allpass.cpp
   dsp/test_comb.cpp
+  dsp/test_sample_delay.cpp
   dsp/test_biquad_cascade.cpp
   dsp/test_filter_coefficients.cpp
   dsp/test_crossover.cpp
@@ -242,6 +243,7 @@ set(YSE_TEST_SOURCES
   patcher/test_patcher_signal_biquad.cpp
   patcher/test_patcher_signal_allpass.cpp
   patcher/test_patcher_signal_comb.cpp
+  patcher/test_patcher_signal_delay.cpp
   patcher/test_patcher_signal_cascade.cpp
   patcher/test_patcher_signal_filtercoeff.cpp
   patcher/test_patcher_signal_cross.cpp
@@ -1382,6 +1384,7 @@ set_source_files_properties(
   patcher/test_patcher_signal_biquad.cpp
   patcher/test_patcher_signal_allpass.cpp
   patcher/test_patcher_signal_comb.cpp
+  patcher/test_patcher_signal_delay.cpp
   patcher/test_patcher_signal_cascade.cpp
   patcher/test_patcher_signal_filtercoeff.cpp
   patcher/test_patcher_signal_cross.cpp

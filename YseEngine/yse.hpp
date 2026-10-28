@@ -123,6 +123,7 @@
 #include "dsp/delay/delayLine.hpp"
 #include "dsp/delay/delayTap.hpp"
 #include "dsp/delay/comb.hpp"
+#include "dsp/delay/sampleDelay.hpp"
 #include "dsp/sampling/sampleBuffer.hpp"
 #include "dsp/ramp.hpp"
 #include "dsp/envelope.hpp"

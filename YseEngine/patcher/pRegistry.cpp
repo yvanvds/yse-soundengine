@@ -147,6 +147,7 @@
 #include "delay/dTapout.h"
 #include "delay/dComb.h"
 #include "delay/dTeeth.h"
+#include "delay/dDelay.h"
 #include "sampling/dBuffer.h"
 
 #include "guiObjects/gInt.h"
@@ -413,6 +414,7 @@ pRegistry::pRegistry() {
   Add(OBJ::D_TAPOUT, dTapout::Create);
   Add(OBJ::D_COMB, dComb::Create);
   Add(OBJ::D_TEETH, dTeeth::Create);
+  Add(OBJ::D_DELAY, dDelay::Create);
   Add(OBJ::D_BUFFER, dBuffer::Create);
 
   Add(OBJ::G_SWITCH, gSwitch::Create);

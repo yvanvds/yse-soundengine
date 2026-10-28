@@ -199,6 +199,9 @@ Delay
 .. doxygenfile:: dsp/delay/comb.hpp
    :project: libYSE
 
+.. doxygenfile:: dsp/delay/sampleDelay.hpp
+   :project: libYSE
+
 Sample buffers
 --------------
 

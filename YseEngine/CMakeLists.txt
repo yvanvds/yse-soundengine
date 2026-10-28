@@ -122,6 +122,7 @@ set(YSE_SRCS
   dsp/delay/delayLine.cpp
   dsp/delay/delayTap.cpp
   dsp/delay/comb.cpp
+  dsp/delay/sampleDelay.cpp
   dsp/ramp.cpp
   dsp/rawFilters.cpp
   dsp/sample_functions.cpp
@@ -168,6 +169,7 @@ set(YSE_SRCS
   patcher/delay/dTapin.cpp
   patcher/delay/dTapout.cpp
   patcher/delay/dComb.cpp
+  patcher/delay/dDelay.cpp
   patcher/delay/dTeeth.cpp
   patcher/sampling/dBuffer.cpp
   patcher/filters/dVcf.cpp
@@ -616,6 +618,7 @@ set_source_files_properties(
   patcher/delay/dTapin.cpp
   patcher/delay/dTapout.cpp
   patcher/delay/dComb.cpp
+  patcher/delay/dDelay.cpp
   patcher/delay/dTeeth.cpp
   patcher/sampling/dBuffer.cpp
   patcher/filters/dVcf.cpp
