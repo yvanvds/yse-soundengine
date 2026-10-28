@@ -377,4 +377,57 @@ TEST_SUITE("dsp") {
     }
   }
 
+  TEST_CASE("filterBands: the analog flag puts a bandpass or peak band in the matched design "
+            "and is ignored by the other modes (#1209)") {
+    TestHelpers::ScopedSampleRate rate(48000);
+    filterBands bands;
+    CHECK_FALSE(bands.analog(0));
+    CHECK_FALSE(bands.analog(filterBands::MAX_BANDS));
+    bands.analog(filterBands::MAX_BANDS, true); // ignored
+    bands.analog(0, true);
+    CHECK(bands.analog(0));
+
+    // Bandpass and peaknotch: ComputeMatched; with the gain enabled the
+    // bandpass is its GAINBPASS form.
+    bands.mode(0, filterBands::BANDPASS).parameters(0, 15000.f, 2.f, 3.f);
+    CHECK(Same(bands.coefficients(0),
+               filterCoefficients::ComputeMatched(filterCoefficients::BANDPASS, 15000.f, 2.f, 3.f,
+                                                  48000.f)));
+    CHECK_FALSE(
+        Same(bands.coefficients(0), filterCoefficients::Compute(filterCoefficients::BANDPASS,
+                                                                15000.f, 2.f, 3.f, 48000.f)));
+    // Unlike the cookbook's, it passes something at half the sample rate.
+    CHECK(Amplitude(bands, 23999.f) > 0.1f);
+    bands.gainEnabled(0, true);
+    CHECK(Same(bands.coefficients(0),
+               filterCoefficients::ComputeMatched(filterCoefficients::GAINBPASS, 15000.f, 2.f, 3.f,
+                                                  48000.f)));
+    CHECK(Amplitude(bands, 15000.f) == doctest::Approx(2.0).epsilon(1e-4));
+    bands.mode(0, filterBands::PEAKNOTCH);
+    CHECK(Same(bands.coefficients(0),
+               filterCoefficients::ComputeMatched(filterCoefficients::PEAKNOTCH, 15000.f, 2.f, 3.f,
+                                                  48000.f)));
+    CHECK(Amplitude(bands, 15000.f) == doctest::Approx(2.0).epsilon(1e-4));
+
+    // Every other mode ignores it.
+    bands.gainEnabled(0, false);
+    for (int m = filterBands::LOWPASS; m <= filterBands::ALLPASS; ++m) {
+      if (m == filterBands::BANDPASS || m == filterBands::PEAKNOTCH) continue;
+      CAPTURE(m);
+      bands.mode(0, static_cast<filterBands::MODE>(m));
+      filterBands plain;
+      plain.mode(0, static_cast<filterBands::MODE>(m)).parameters(0, 15000.f, 2.f, 3.f);
+      CHECK(Same(bands.coefficients(0), plain.coefficients(0)));
+    }
+
+    // Into display keeps the analog coefficients; off again is the cookbook.
+    bands.mode(0, filterBands::PEAKNOTCH);
+    const filterBands::coefficientSet analog = bands.coefficients(0);
+    bands.mode(0, filterBands::DISPLAY);
+    CHECK(Same(bands.coefficients(0), analog));
+    bands.mode(0, filterBands::PEAKNOTCH).analog(0, false);
+    CHECK(Same(bands.coefficients(0), filterCoefficients::Compute(filterCoefficients::PEAKNOTCH,
+                                                                  15000.f, 2.f, 3.f, 48000.f)));
+  }
+
 } // TEST_SUITE("dsp")

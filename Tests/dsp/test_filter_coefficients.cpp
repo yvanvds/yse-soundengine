@@ -595,4 +595,144 @@ TEST_SUITE("dsp") {
     CHECK(zero.b2 == 0.0);
   }
 
+  // ─── the matched "imitation analog" bandpass and peak (#1209) ──────────────
+
+  TEST_CASE("filterCoefficients: ComputeMatched matches the analog prototypes at 0 Hz, the "
+            "frequency and half the sample rate, and follows them between (#1209)") {
+    constexpr double sr = 48000.0;
+    const double frequencies[] = {50.0, 440.0, 1000.0, 5000.0, 12000.0, 18000.0, 22000.0};
+    const double qs[] = {0.3, 0.7071, 2.0, 8.0};
+    const double gains[] = {0.125, 0.5, 2.0, 8.0};
+    // The worst deviation from the prototype in dB over the sweep, for a
+    // frequency up to a quarter of the sample rate and above it: near half
+    // the sample rate the mapped poles bend the response between the
+    // matched points more.
+    double worst[2] = {0.0, 0.0};
+    const auto note = [&worst](double f, double db) {
+      double& slot = worst[f <= sr / 4.0 ? 0 : 1];
+      slot = std::max(slot, db);
+    };
+    for (const double f : frequencies) {
+      for (const double q : qs) {
+        const double w0 = 2.0 * PI * f / sr;
+        // The bandpass prototype: (W/Q) / sqrt((1 - W^2)^2 + (W/Q)^2).
+        const auto bandpass = [&](double w) {
+          const double v = w / w0;
+          return (v / q) / std::sqrt((1 - v * v) * (1 - v * v) + (v / q) * (v / q));
+        };
+        {
+          CAPTURE(f);
+          CAPTURE(q);
+          const filterCoefficients::preciseSet p = filterCoefficients::ComputeMatchedPrecise(
+              filterCoefficients::BANDPASS, static_cast<float>(f), 1.f, static_cast<float>(q),
+              static_cast<float>(sr));
+          const Coefs c{p.a0, p.a1, p.a2, p.b1, p.b2};
+          CHECK(Stable(c));
+          CHECK(Gain(c, 0.0) == doctest::Approx(0.0).scale(1.0).epsilon(1e-9));
+          CHECK(Gain(c, w0) == doctest::Approx(1.0).epsilon(1e-6));
+          CHECK(Gain(c, PI) == doctest::Approx(bandpass(PI)).epsilon(1e-6));
+          // The cookbook bandpass has a zero at half the sample rate; this
+          // one does not.
+          CHECK(Gain(c, PI) > 0.0);
+          // Between: compared wherever the prototype is above -40 dB.
+          for (int i = 1; i < 512; ++i) {
+            const double w = PI * i / 512.0;
+            const double want = bandpass(w);
+            if (want < 0.01) continue;
+            note(f, std::abs(20.0 * std::log10(Gain(c, w) / want)));
+          }
+        }
+        for (const double g : gains) {
+          CAPTURE(f);
+          CAPTURE(q);
+          CAPTURE(g);
+          const double A = std::sqrt(g);
+          const auto peak = [&](double w) {
+            const double v = w / w0;
+            const double d = (1 - v * v) * (1 - v * v);
+            const double z = (v * A / q) * (v * A / q);
+            const double p = (v / (A * q)) * (v / (A * q));
+            return std::sqrt((d + z) / (d + p));
+          };
+          const filterCoefficients::preciseSet p = filterCoefficients::ComputeMatchedPrecise(
+              filterCoefficients::PEAKNOTCH, static_cast<float>(f), static_cast<float>(g),
+              static_cast<float>(q), static_cast<float>(sr));
+          const Coefs c{p.a0, p.a1, p.a2, p.b1, p.b2};
+          CHECK(Stable(c));
+          CHECK(Gain(c, 0.0) == doctest::Approx(1.0).epsilon(1e-6));
+          CHECK(Gain(c, w0) == doctest::Approx(g).epsilon(1e-6));
+          CHECK(Gain(c, PI) == doctest::Approx(peak(PI)).epsilon(1e-6));
+          for (int i = 1; i < 512; ++i) {
+            const double w = PI * i / 512.0;
+            note(f, std::abs(20.0 * std::log10(Gain(c, w) / peak(w))));
+          }
+        }
+      }
+    }
+    // Measured 1.08 dB and 5.1 dB (a bandpass skirt at 22 kHz, Q 8).
+    CHECK(worst[0] < 1.5);
+    CHECK(worst[1] < 6.0);
+  }
+
+  TEST_CASE("filterCoefficients: ComputeMatched is Compute for the other types, scales the gain "
+            "bandpass, and checks its settings as Compute does (#1209)") {
+    // Every other type is Compute's, bit for bit.
+    for (const filterCoefficients::TYPE type : ALL_TYPES) {
+      CAPTURE(static_cast<int>(type));
+      if (type == filterCoefficients::BANDPASS || type == filterCoefficients::GAINBPASS ||
+          type == filterCoefficients::PEAKNOTCH)
+        continue;
+      CHECK(Of(filterCoefficients::ComputeMatched(type, 2500.f, 2.f, 3.f, 48000.f)) ==
+            Of(filterCoefficients::Compute(type, 2500.f, 2.f, 3.f, 48000.f)));
+    }
+    CHECK(Of(filterCoefficients::ComputeMatched(filterCoefficients::OFF, 1.f, 1.f, 1.f, 1.f)) ==
+          Coefs{1, 0, 0, 0, 0});
+
+    // The gain bandpass is the bandpass, its feedforward times the gain.
+    const Coefs bp = Of(filterCoefficients::ComputeMatched(filterCoefficients::BANDPASS, 3000.f,
+                                                           2.5f, 4.f, 48000.f));
+    const Coefs gbp = Of(filterCoefficients::ComputeMatched(filterCoefficients::GAINBPASS, 3000.f,
+                                                            2.5f, 4.f, 48000.f));
+    CheckCoefs(gbp, {2.5 * bp[0], 2.5 * bp[1], 2.5 * bp[2], bp[3], bp[4]}, 1e-6);
+    // The plain bandpass ignores the gain.
+    CHECK(Of(filterCoefficients::ComputeMatched(filterCoefficients::BANDPASS, 3000.f, 7.f, 4.f,
+                                                48000.f)) == bp);
+
+    // A peak of gain 1 passes the input unchanged.
+    const Coefs flat = Of(filterCoefficients::ComputeMatched(filterCoefficients::PEAKNOTCH, 3000.f,
+                                                             1.f, 4.f, 48000.f));
+    CHECK(flat[0] == doctest::Approx(1.0).epsilon(1e-6));
+    CHECK(flat[1] == doctest::Approx(flat[3]).epsilon(1e-6));
+    CHECK(flat[2] == doctest::Approx(flat[4]).epsilon(1e-6));
+
+    // Not finite, or no sample rate: all 0. Out of range: clamped, stable.
+    for (const float bad : {std::nanf(""), std::numeric_limits<float>::infinity()}) {
+      CHECK(Of(filterCoefficients::ComputeMatched(filterCoefficients::PEAKNOTCH, bad, 2.f, 1.f,
+                                                  48000.f)) == Coefs{0, 0, 0, 0, 0});
+      CHECK(Of(filterCoefficients::ComputeMatched(filterCoefficients::BANDPASS, 1000.f, 1.f, bad,
+                                                  48000.f)) == Coefs{0, 0, 0, 0, 0});
+    }
+    CHECK(Of(filterCoefficients::ComputeMatched(filterCoefficients::BANDPASS, 1000.f, 1.f, 1.f,
+                                                0.f)) == Coefs{0, 0, 0, 0, 0});
+    for (const float f : {-100.f, 0.f, 20.f, 1000.f, 23999.f, 30000.f}) {
+      for (const float q : {-1.f, 0.f, 0.01f, 1.f, 100.f, 1e6f}) {
+        for (const float g : {-1.f, 0.f, 1e-6f, 1000.f}) {
+          CAPTURE(f);
+          CAPTURE(q);
+          CAPTURE(g);
+          for (const filterCoefficients::TYPE type :
+               {filterCoefficients::BANDPASS, filterCoefficients::PEAKNOTCH}) {
+            const Coefs c = Of(filterCoefficients::ComputeMatched(type, f, g, q, 48000.f));
+            for (const double v : c)
+              CHECK(std::isfinite(v));
+            // As for Compute: near 0 Hz with a high (or, for the slow pole,
+            // a very low) Q a float cannot tell the poles from the unit
+            // circle. Near half the sample rate the mapped poles stay inside.
+            if (f >= 20.f && q > 0.01f && q <= 100.f) CHECK(Stable(c));
+          }
+        }
+      }
+    }
+  }
+
 } // TEST_SUITE("dsp")

@@ -44,7 +44,10 @@ namespace YSE {
      *    ``GAIN`` type of the same name, its feedforward scaled by the gain;
      *    off (the default) they ignore the gain. Peak/notch and the shelves
      *    always read it, and so does the allpass, whose gain is its only
-     *    effect on the amplitude.
+     *    effect on the amplitude. With ``analog`` on (off by default), a
+     *    bandpass or peak/notch band is ``filterCoefficients::ComputeMatched``
+     *    instead, the "imitation analog" form that follows the analog
+     *    prototype up to half the sample rate; other modes ignore the flag.
      *  - ``DISPLAY`` (0): the band's coefficients are the five it was given
      *    (``coefficients(band, set)``, ``coefficient``, ``cascade``) and its
      *    frequency, gain and Q change nothing. Switching a band to
@@ -102,7 +105,7 @@ namespace YSE {
       static constexpr Flt FLAT_Q = 0.70710678f;
 
       /** @brief One band in use. Every band starts as a lowpass at 1000 Hz,
-       *         gain 1, Q ``FLAT_Q``, gain off, no constraints, and as
+       *         gain 1, Q ``FLAT_Q``, gain off, analog off, no constraints, and as
        *         coefficients ``1 0 0 0 0`` (the input unchanged). */
       filterBands();
 
@@ -129,6 +132,10 @@ namespace YSE {
       /** @brief Whether a lowpass, highpass, bandpass, bandstop or resonant
        *         @p band reads its gain. */
       filterBands& gainEnabled(UInt band, Bool on);
+
+      /** @brief Whether a bandpass or peak/notch @p band uses the matched
+       *         "imitation analog" design (Max's ``analog``; issue #1209). */
+      filterBands& analog(UInt band, Bool on);
 
       /** @brief Whether a host shows a draggable handle on a ``DISPLAY``
        *         band (Max's ``displaydot``). Stored only. */
@@ -175,6 +182,8 @@ namespace YSE {
       Flt q(UInt band) const;
       /** @brief Whether @p band reads its gain (see the setter). */
       Bool gainEnabled(UInt band) const;
+      /** @brief Whether @p band uses the analog design (see the setter). */
+      Bool analog(UInt band) const;
       /** @brief Whether @p band shows a handle in ``DISPLAY`` mode. */
       Bool handle(UInt band) const;
       /** @brief Constraint @p which of @p band: 0 .. 5 for the minimum and
@@ -211,6 +220,7 @@ namespace YSE {
         Flt gain = 1.f;
         Flt q = FLAT_Q;
         Bool gainEnabled = false;
+        Bool analog = false;
         Bool handle = false;
         // min/max frequency, gain, Q; 0 is none.
         std::array<Flt, 6> limits{};

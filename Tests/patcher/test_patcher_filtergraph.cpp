@@ -22,6 +22,7 @@
 #include "headers/constants.hpp"
 #include "support/alloc_probe.hpp"
 #include "support/audio_helpers.hpp"
+#include "utils/json.hpp"
 #include "sinks.hpp"
 
 using YSE::DSP::biquadCascade;
@@ -195,7 +196,7 @@ TEST_SUITE("patcher") {
 
     // Unknown words, words without their numbers and dropped messages are
     // ignored.
-    Send(obj, "analog 1");
+    Send(obj, "analog");
     Send(obj, "markers 100 1000");
     Send(obj, "highorder 1 0 0 1 0");
     Send(obj, "params 1 2");
@@ -361,7 +362,7 @@ TEST_SUITE("patcher") {
     dFiltergraph obj;
     Send(obj, "nfilters 2");
     Send(obj, "setparams 0 800 2 3");
-    Send(obj, "options 1 5 0 0 1");
+    Send(obj, "options 1 5 0 1 1");
     Send(obj, "params 1 3000 0.5 2");
     Send(obj, "setfilter 1");
     Send(obj, "selectfilt 0");
@@ -372,15 +373,19 @@ TEST_SUITE("patcher") {
     for (unsigned int b = 0; b < 2; ++b) {
       CAPTURE(b);
       const filterBands::coefficientSet c = bands.coefficients(b);
-      const std::string expect = std::to_string(static_cast<int>(bands.mode(b))) + " " +
-                                 Render({bands.frequency(b), bands.gain(b), bands.q(b)}) + " " +
-                                 (bands.gainEnabled(b) ? "1 " : "0 ") +
-                                 (bands.handle(b) ? "1 " : "0 ") +
-                                 Render({c.a0, c.a1, c.a2, c.b1, c.b2});
+      const std::string expect =
+          std::to_string(static_cast<int>(bands.mode(b))) + " " +
+          Render({bands.frequency(b), bands.gain(b), bands.q(b)}) + " " +
+          (bands.gainEnabled(b) ? "1 " : "0 ") + (bands.handle(b) ? "1 " : "0 ") +
+          Render({c.a0, c.a1, c.a2, c.b1, c.b2}) + (bands.analog(b) ? " 1" : " 0");
       CHECK(obj.GetGuiValueAt(b + 1) == expect);
     }
     CHECK(obj.GetGuiValueAt(1).rfind("1 " + Render({800.f, 2.f, 3.f}) + " 0 0 ", 0) == 0);
     CHECK(obj.GetGuiValueAt(2).rfind("5 " + Render({3000.f, 0.5f, 2.f}) + " 0 1 ", 0) == 0);
+    // The analog flag is the last value of a band's cell (#1209).
+    CHECK(bands.analog(1));
+    CHECK(obj.GetGuiValueAt(1).substr(obj.GetGuiValueAt(1).size() - 2) == " 0");
+    CHECK(obj.GetGuiValueAt(2).substr(obj.GetGuiValueAt(2).size() - 2) == " 1");
     CHECK(obj.GetGuiValueAt(3).empty());
     CHECK(obj.GetGuiValue() ==
           obj.GetGuiValueAt(0) + " " + obj.GetGuiValueAt(1) + " " + obj.GetGuiValueAt(2));
@@ -495,10 +500,12 @@ TEST_SUITE("patcher") {
     const std::string query = "query 1000";
     const std::string flat = "flat 0 1 2 3";
     const std::string triple = "800 2 3";
+    const std::string analog = "analog 1";
     {
       TestHelpers::ProbeScope probe;
       obj.GetInlet(0)->SetBang(YSE::T_DSP);
       obj.GetInlet(0)->SetList(mode, YSE::T_DSP);
+      obj.GetInlet(0)->SetList(analog, YSE::T_DSP);
       obj.GetInlet(0)->SetList(params, YSE::T_DSP);
       obj.GetInlet(0)->SetList(constraints, YSE::T_DSP);
       obj.GetInlet(0)->SetList(query, YSE::T_DSP);
@@ -510,9 +517,152 @@ TEST_SUITE("patcher") {
       obj.GetInlet(0)->SetBang(YSE::T_DSP);
       CHECK(TestHelpers::g_alloc_count.load() == 0);
     }
-    CHECK(outs[0].count == 10);
+    CHECK(outs[0].count == 11);
     CHECK(outs[5].count == 1);
     CHECK(obj.Dropped() == 0);
+  }
+
+  TEST_CASE("~filtergraph: analog, edit_analog and the options flag set the band's analog "
+            "design (#1209)") {
+    TestHelpers::ScopedSampleRate rate(48000);
+    dFiltergraph obj;
+    Rig rig(obj);
+    filterBands ref;
+
+    Send(obj, "bandpass 12000 1 2");
+    ref.mode(0, filterBands::BANDPASS).parameters(0, 12000.f, 1.f, 2.f);
+    CHECK_FALSE(obj.Bands().analog(0));
+    const std::string cookbook = SectionsOf(ref);
+    CHECK(rig.Coefficients() == cookbook);
+
+    // analog sends; the coefficients are the matched design's.
+    Send(obj, "analog 1");
+    ref.analog(0, true);
+    CHECK(obj.Bands().analog(0));
+    CHECK(rig.Coefficients() == SectionsOf(ref));
+    CHECK(rig.Coefficients() != cookbook);
+    Send(obj, "analog 0");
+    CHECK_FALSE(obj.Bands().analog(0));
+    CHECK(rig.Coefficients() == cookbook);
+
+    // edit_analog sets without sending.
+    const int sent = rig.Sent();
+    Send(obj, "edit_analog 1");
+    CHECK(rig.Sent() == sent);
+    CHECK(obj.Bands().analog(0));
+    Send(obj, "bang");
+    CHECK(rig.Coefficients() == SectionsOf(ref));
+
+    // The fourth number of options / setoptions.
+    Send(obj, "nfilters 2");
+    ref.bands(2);
+    Send(obj, "setoptions 1 5 0 1 0");
+    CHECK(rig.Sent() == sent + 1);
+    CHECK(obj.Bands().analog(1));
+    ref.mode(1, filterBands::PEAKNOTCH).analog(1, true);
+    Send(obj, "options 0 3 0 0 0");
+    ref.analog(0, false);
+    CHECK_FALSE(obj.Bands().analog(0));
+    CHECK(rig.Coefficients() == SectionsOf(ref));
+    Send(obj, "options 0 3 0 1 0");
+    ref.analog(0, true);
+    CHECK(rig.Coefficients() == SectionsOf(ref));
+    CHECK(obj.Dropped() == 0);
+  }
+
+  TEST_CASE("~filtergraph -> ~cascade: analog bands survive a JSON round trip and are rendered "
+            "with the matched design; a patch saved without the flag loads with it off "
+            "(#1209)") {
+    TestHelpers::ScopedSampleRate rate(48000);
+    std::string dump;
+    {
+      patcherImplementation src(1, nullptr);
+      YSE::pHandle* ramp = src.CreateObject(YSE::OBJ::D_PHASOR, "375");
+      YSE::pHandle* cmd = src.CreateObject(YSE::OBJ::G_RECEIVE, "graph1209");
+      YSE::pHandle* graph = src.CreateObject(YSE::OBJ::D_FILTERGRAPH, "nfilters 2 autoout 1");
+      YSE::pHandle* filter = src.CreateObject(YSE::OBJ::D_CASCADE, "8");
+      YSE::pHandle* dac = src.CreateObject(YSE::OBJ::D_DAC, "");
+      REQUIRE(ramp != nullptr);
+      REQUIRE(cmd != nullptr);
+      REQUIRE(graph != nullptr);
+      REQUIRE(filter != nullptr);
+      REQUIRE(dac != nullptr);
+      src.Connect(ramp, 0, filter, 0);
+      src.Connect(cmd, 0, graph, 0);
+      src.Connect(graph, 0, filter, 1);
+      src.Connect(filter, 0, dac, 0);
+      REQUIRE(src.PassData("bandpass 15000 2 2", "graph1209", YSE::T_GUI));
+      REQUIRE(src.PassData("analog 1", "graph1209", YSE::T_GUI));
+      // The other two flags are saved as booleans too and must come back.
+      REQUIRE(src.PassData("gainmode 1", "graph1209", YSE::T_GUI));
+      REQUIRE(src.PassData("setfilter 1", "graph1209", YSE::T_GUI));
+      REQUIRE(src.PassData("peaknotch 9000 4 1", "graph1209", YSE::T_GUI));
+      REQUIRE(src.PassData("analog 1", "graph1209", YSE::T_GUI));
+      REQUIRE(src.PassData("displaydot 1", "graph1209", YSE::T_GUI));
+      src.Calculate(YSE::T_DSP);
+      dump = src.DumpJSON();
+    }
+
+    filterBands analog;
+    analog.bands(2)
+        .mode(0, filterBands::BANDPASS)
+        .parameters(0, 15000.f, 2.f, 2.f)
+        .analog(0, true)
+        .gainEnabled(0, true)
+        .mode(1, filterBands::PEAKNOTCH)
+        .parameters(1, 9000.f, 4.f, 1.f)
+        .analog(1, true)
+        .handle(1, true);
+    filterBands cookbook = analog;
+    cookbook.analog(0, false).analog(1, false);
+
+    // A patch from before #1209: the same dump without the flag.
+    nlohmann::json old = nlohmann::json::parse(dump);
+    int removed = 0;
+    const auto strip = [&removed](auto& self, nlohmann::json& node) -> void {
+      if (node.is_object()) removed += static_cast<int>(node.erase("analog"));
+      if (node.is_structured())
+        for (auto& child : node)
+          self(self, child);
+    };
+    strip(strip, old);
+    CHECK(removed == 2);
+
+    struct expectation {
+      std::string json;
+      filterBands bands;
+    };
+    const expectation cases[] = {{dump, analog}, {old.dump(), cookbook}};
+    for (const expectation& e : cases) {
+      patcherImplementation dst(1, nullptr);
+      dst.ParseJSON(e.json);
+      YSE::pHandle* graph = nullptr;
+      for (unsigned int i = 0; i < 5; ++i) {
+        YSE::pHandle* h = dst.GetHandleFromList(i);
+        if (h != nullptr && std::string(h->Type()) == "~filtergraph") graph = h;
+      }
+      REQUIRE(graph != nullptr);
+      const bool on = e.bands.analog(0);
+      CAPTURE(on);
+      const std::string cell = graph->GetGuiValueAt(1);
+      CHECK(cell.substr(cell.size() - 2) == (on ? " 1" : " 0"));
+      // gainmode on band 0, displaydot on band 1.
+      CHECK(cell.rfind("3 " + Render({15000.f, 2.f, 2.f}) + " 1 0 ", 0) == 0);
+      CHECK(graph->GetGuiValueAt(2).rfind("5 " + Render({9000.f, 4.f, 1.f}) + " 0 1 ", 0) == 0);
+
+      phasor rampRef;
+      biquadCascade reference(8);
+      std::vector<float> c = Sections(e.bands);
+      reference.coefficients(c.data(), static_cast<UInt>(c.size()));
+      for (int block = 0; block < 4; ++block) {
+        CAPTURE(block);
+        buffer& ramped = rampRef(375.f, N);
+        dst.Calculate(YSE::T_DSP);
+        CHECK(TestHelpers::buffersNearlyEqual(dst.output[0], reference(ramped), 0.f));
+      }
+    }
+    // The two designs are not the same filter.
+    CHECK(SectionsOf(analog) != SectionsOf(cookbook));
   }
 
 } // TEST_SUITE("patcher")

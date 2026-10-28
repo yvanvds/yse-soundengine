@@ -16838,7 +16838,7 @@
           "BANG",
           "LIST"
         ],
-        "doc": "Bang: send the coefficients (and, for a filter mode, the edited band's index, bandwidth, Q, gain and frequency first). A number: a0 of the edited band in display mode. A list of numbers: a cascade, five coefficients per band. Mode words (display, lowpass, highpass, bandpass, bandstop, peaknotch, lowshelf, highshelf, resonant, allpass) with an optional frequency, gain and Q; mode, cascade, set, params, setparams, gainmode, displaydot, options, setoptions, constraints, setconstraints, flat, setfilter, whichfilt, selectfilt, nfilters, query, autoout and the edit_* attributes.",
+        "doc": "Bang: send the coefficients (and, for a filter mode, the edited band's index, bandwidth, Q, gain and frequency first). A number: a0 of the edited band in display mode. A list of numbers: a cascade, five coefficients per band. Mode words (display, lowpass, highpass, bandpass, bandstop, peaknotch, lowshelf, highshelf, resonant, allpass) with an optional frequency, gain and Q; mode, cascade, set, params, setparams, gainmode, analog, displaydot, options, setoptions, constraints, setconstraints, flat, setfilter, whichfilt, selectfilt, nfilters, query, autoout and the edit_* attributes.",
         "index": 0,
         "label": "in",
         "range": ""

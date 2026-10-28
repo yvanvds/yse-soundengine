@@ -138,16 +138,17 @@ CONSTRUCT_DSP() {
                   "coefficient list ~biquad and ~cascade take. A host draws the bands and the "
                   "response curve; the bands are saved with the patch.");
   ADD_CATEGORY(pCategory::FILTER);
-  INLET_DOC(0, "in",
-            "Bang: send the coefficients (and, for a filter mode, the edited band's index, "
-            "bandwidth, Q, gain and frequency first). A number: a0 of the edited band in display "
-            "mode. A list of numbers: a cascade, five coefficients per band. Mode words (display, "
-            "lowpass, highpass, bandpass, bandstop, peaknotch, lowshelf, highshelf, resonant, "
-            "allpass) with an optional frequency, gain and Q; mode, cascade, set, params, "
-            "setparams, gainmode, displaydot, options, setoptions, constraints, setconstraints, "
-            "flat, setfilter, whichfilt, selectfilt, nfilters, query, autoout and the edit_* "
-            "attributes.",
-            "");
+  INLET_DOC(
+      0, "in",
+      "Bang: send the coefficients (and, for a filter mode, the edited band's index, "
+      "bandwidth, Q, gain and frequency first). A number: a0 of the edited band in display "
+      "mode. A list of numbers: a cascade, five coefficients per band. Mode words (display, "
+      "lowpass, highpass, bandpass, bandstop, peaknotch, lowshelf, highshelf, resonant, "
+      "allpass) with an optional frequency, gain and Q; mode, cascade, set, params, "
+      "setparams, gainmode, analog, displaydot, options, setoptions, constraints, setconstraints, "
+      "flat, setfilter, whichfilt, selectfilt, nfilters, query, autoout and the edit_* "
+      "attributes.",
+      "");
   INLET_DOC(1, "a1", "a1 of the edited band, in display mode; sends the coefficients.", "");
   INLET_DOC(2, "a2", "a2 of the edited band, in display mode; sends the coefficients.", "");
   INLET_DOC(3, "b1", "b1 of the edited band, in display mode; sends the coefficients.", "");
@@ -306,12 +307,15 @@ void dFiltergraph::Handle(const std::string& text, YSE::THREAD thread) {
   } else if (word == "gainmode" || word == "edit_gainmode") {
     if (count < 1) return;
     fn.gainEnabled(edited, numbers[0] != 0.f);
+  } else if (word == "analog" || word == "edit_analog") {
+    if (count < 1) return;
+    fn.analog(edited, numbers[0] != 0.f);
   } else if (word == "displaydot" || word == "edit_displaydot") {
     if (count < 1) return;
     fn.handle(edited, numbers[0] != 0.f);
     return;
   } else if (word == "options" || word == "setoptions") {
-    // band, mode, gain enable, analog (not ported: read and ignored), dot
+    // band, mode, gain enable, analog, dot
     if (count != 5) return;
     const int band = ToIndex(numbers[0], fn.bands());
     const int m = ToIndex(numbers[1], filterBands::MODE_COUNT);
@@ -319,6 +323,7 @@ void dFiltergraph::Handle(const std::string& text, YSE::THREAD thread) {
     const auto b = static_cast<unsigned int>(band);
     fn.mode(b, static_cast<filterBands::MODE>(m));
     fn.gainEnabled(b, numbers[2] != 0.f);
+    fn.analog(b, numbers[3] != 0.f);
     fn.handle(b, numbers[4] != 0.f);
   } else if (word == "constraints" || word == "setconstraints") {
     if (count != 7) return;
@@ -491,6 +496,7 @@ std::string dFiltergraph::Cell(const filterBands& bands, unsigned int index,
   AppendNumber(out, c.a2);
   AppendNumber(out, c.b1);
   AppendNumber(out, c.b2);
+  AppendInt(out, bands.analog(b) ? 1 : 0);
   return out;
 }
 
@@ -544,6 +550,7 @@ bool dFiltergraph::DumpState(nlohmann::json::value_type& json) {
     band["q"] = fn.q(b);
     band["gainmode"] = fn.gainEnabled(b);
     band["displaydot"] = fn.handle(b);
+    band["analog"] = fn.analog(b);
     for (unsigned int i = 0; i < 6; ++i)
       band["constraints"].push_back(fn.constraint(b, i));
     // In display mode the coefficients are the band; otherwise they follow
@@ -567,6 +574,15 @@ namespace {
   float Field(const nlohmann::json& object, const char* key, float fallback) {
     const auto found = object.find(key);
     return found == object.end() ? fallback : Number(*found, fallback);
+  }
+
+  // A stored flag: saved as a boolean, read from a number too; absent or
+  // anything else is off.
+  bool Flag(const nlohmann::json& object, const char* key) {
+    const auto found = object.find(key);
+    if (found == object.end()) return false;
+    if (found->is_boolean()) return found->get<bool>();
+    return Number(*found, 0.f) != 0.f;
   }
 } // namespace
 
@@ -593,8 +609,10 @@ void dFiltergraph::RestoreState(const nlohmann::json::value_type& json) {
                      Number((*limits)[4], 0.f), Number((*limits)[5], 0.f));
     fn.parameters(b, Field(band, "frequency", 1000.f), Field(band, "gain", 1.f),
                   Field(band, "q", filterBands::FLAT_Q));
-    fn.gainEnabled(b, Field(band, "gainmode", 0.f) != 0.f);
-    fn.handle(b, Field(band, "displaydot", 0.f) != 0.f);
+    fn.gainEnabled(b, Flag(band, "gainmode"));
+    fn.handle(b, Flag(band, "displaydot"));
+    // Absent in patches saved before #1209: off.
+    fn.analog(b, Flag(band, "analog"));
     const int m = static_cast<int>(Field(band, "mode", static_cast<float>(filterBands::LOWPASS)));
     if (m >= 0 && m < filterBands::MODE_COUNT) fn.mode(b, static_cast<filterBands::MODE>(m));
     const auto c = band.find("coefficients");

@@ -707,11 +707,18 @@ Setting the bands:
 - ``constraints <band> <min f> <max f> <min gain> <max gain> <min q> <max
   q>`` bounds what a band can be set to; 0 is no bound. ``flat <bands...>``
   returns bands to a neutral gain (and a lowpass or highpass to Q 0.707).
+- ``analog 1`` turns a bandpass or peaknotch band into its "imitation
+  analog" form. The usual design squeezes a band together as it nears half
+  the sample rate (a bandpass falls to nothing there); this one keeps the
+  shape of an analog filter all the way up, matching
+  its gain at 0 Hz, at the band's frequency and at half the sample rate.
+  ``analog 0`` (the default) returns to the usual design; other modes ignore
+  the flag.
 - ``options <band> <mode> <gainmode> <analog> <displaydot>`` sets a band's
-  options at once (the analog flag is accepted and ignored).
+  options at once.
 - ``set``, ``setparams``, ``setoptions``, ``setconstraints`` and the
   attribute words ``edit_freq``, ``edit_amp``, ``edit_Q``, ``edit_mode``,
-  ``edit_gainmode``, ``edit_displaydot``, ``edit_minfreq`` ... ``edit_maxQ``
+  ``edit_gainmode``, ``edit_analog``, ``edit_displaydot``, ``edit_minfreq`` ... ``edit_maxQ``
   change the bands without sending.
 
 A ``bang`` sends the coefficients; for a band that is not in display mode it

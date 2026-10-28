@@ -166,6 +166,111 @@ namespace YSE {
       return out;
     }
 
+    filterCoefficients::coefficientSet
+    filterCoefficients::ComputeMatched(TYPE type, Flt frequency, Flt gain, Flt q, Flt sampleRate) {
+      const preciseSet precise = ComputeMatchedPrecise(type, frequency, gain, q, sampleRate);
+      coefficientSet out;
+      out.a0 = static_cast<Flt>(precise.a0);
+      out.a1 = static_cast<Flt>(precise.a1);
+      out.a2 = static_cast<Flt>(precise.a2);
+      out.b1 = static_cast<Flt>(precise.b1);
+      out.b2 = static_cast<Flt>(precise.b2);
+      return out;
+    }
+
+    filterCoefficients::preciseSet filterCoefficients::ComputeMatchedPrecise(TYPE type,
+                                                                             Flt frequency,
+                                                                             Flt gain, Flt q,
+                                                                             Flt sampleRate) {
+      const int index = static_cast<int>(type);
+      const bool peak = index == PEAKNOTCH;
+      if (!peak && index != BANDPASS && index != GAINBPASS)
+        return ComputePrecise(type, frequency, gain, q, sampleRate);
+      preciseSet out;
+      if (!(sampleRate > 0.f) || !std::isfinite(sampleRate) || !std::isfinite(frequency) ||
+          !std::isfinite(gain) || !std::isfinite(q))
+        return out;
+
+      const Dbl w0 = std::clamp(
+          2.0 * PI * static_cast<Dbl>(frequency) / static_cast<Dbl>(sampleRate), EDGE, PI - EDGE);
+      const Dbl qq =
+          std::clamp(static_cast<Dbl>(q), static_cast<Dbl>(MIN_Q), static_cast<Dbl>(MAX_Q));
+      const Dbl asked = std::sqrt(std::max(static_cast<Dbl>(gain), static_cast<Dbl>(MIN_GAIN)));
+      // A cut is the inverse of the boost by its reciprocal, prototype and
+      // biquad alike: designed as that boost and turned over, since a deep
+      // cut near half the sample rate cannot match its three points
+      // directly. The boost's zeroes are inside the unit circle (both its
+      // sums and b0 >= |b2| are positive), so the cut's poles are too.
+      const bool invert = peak && asked < 1.0;
+      const Dbl A = invert ? 1.0 / asked : asked;
+      // The Q of the poles and, for the peak, of the zeroes.
+      const Dbl qPoles = peak ? qq * A : qq;
+      const Dbl qZeroes = qq / A;
+
+      // The prototype's |H|^2 at w.
+      const auto prototype = [&](Dbl w) {
+        const Dbl v = w / w0;
+        const Dbl d = (1.0 - v * v) * (1.0 - v * v);
+        const Dbl p = (v / qPoles) * (v / qPoles);
+        if (!peak) return p / (d + p);
+        const Dbl z = (v / qZeroes) * (v / qZeroes);
+        return (d + z) / (d + p);
+      };
+
+      // Poles: s = w0 (-zeta +- sqrt(zeta^2 - 1)) through z = exp(s).
+      const Dbl zeta = 1.0 / (2.0 * qPoles);
+      Dbl p1 = 0.0;
+      if (zeta <= 1.0) {
+        p1 = -2.0 * std::exp(-zeta * w0) * std::cos(std::sqrt(1.0 - zeta * zeta) * w0);
+      } else {
+        // Two real poles, each exponentiated on its own: exp times cosh
+        // overflows for a low Q.
+        const Dbl root = std::sqrt(zeta * zeta - 1.0);
+        p1 = -(std::exp(-w0 / (zeta + root)) + std::exp(-w0 * (zeta + root)));
+      }
+      const Dbl p2 = std::exp(-2.0 * zeta * w0);
+
+      // |b0 + b1 z^-1 + b2 z^-2|^2 = (b0 + b1 + b2)^2 phi0 + (b0 - b1 + b2)^2
+      // phi1 - 4 b0 b2 phi2, with phi1 = sin^2(w / 2), phi0 = 1 - phi1 and
+      // phi2 = 4 phi0 phi1; the same for the poles with b0 = 1.
+      const Dbl A0 = (1.0 + p1 + p2) * (1.0 + p1 + p2);
+      const Dbl A1 = (1.0 - p1 + p2) * (1.0 - p1 + p2);
+      const Dbl A2 = -4.0 * p2;
+      const Dbl half = std::sin(w0 / 2.0);
+      const Dbl phi1 = half * half;
+      const Dbl phi0 = 1.0 - phi1;
+      const Dbl phi2 = 4.0 * phi0 * phi1;
+
+      // The numerator's three terms from the prototype at 0, pi and w0.
+      const Dbl B0 = peak ? A0 : 0.0;
+      const Dbl B1 = A1 * prototype(PI);
+      const Dbl atW0 = peak ? A * A * A * A : 1.0;
+      const Dbl B2 = (atW0 * (A0 * phi0 + A1 * phi1 + A2 * phi2) - B0 * phi0 - B1 * phi1) / phi2;
+
+      const Dbl r0 = std::sqrt(B0);
+      const Dbl r1 = std::sqrt(B1);
+      const Dbl W = 0.5 * (r0 + r1);
+      const Dbl b0 = 0.5 * (W + std::sqrt(std::max(W * W + B2, 0.0)));
+      const Dbl b1 = 0.5 * (r0 - r1);
+      const Dbl b2 = b0 > 0.0 ? -B2 / (4.0 * b0) : 0.0;
+      if (invert) {
+        const Dbl norm = 1.0 / b0;
+        out.a0 = norm;
+        out.a1 = p1 * norm;
+        out.a2 = p2 * norm;
+        out.b1 = b1 * norm;
+        out.b2 = b2 * norm;
+        return out;
+      }
+      const Dbl g = index == GAINBPASS ? static_cast<Dbl>(gain) : 1.0;
+      out.a0 = g * b0;
+      out.a1 = g * b1;
+      out.a2 = g * b2;
+      out.b1 = p1;
+      out.b2 = p2;
+      return out;
+    }
+
     // The outputs default to STANDARD_BUFFERSIZE samples.
     filterCoefficients::filterCoefficients() = default;
 

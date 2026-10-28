@@ -34,10 +34,12 @@ namespace YSE {
      *    ``resonant`` and ``allpass`` set the band's mode, with an optional
      *    frequency, gain and Q; ``mode <0-9>`` the same by number;
      *    ``cascade <coefficients>``; ``set <coefficients>`` (no output);
-     *    ``params [<band>] <f> <g> <q>`` and ``setparams``; ``gainmode``,
-     *    ``displaydot`` (no output); ``options <band> <mode> <gain> <analog>
-     *    <dot>`` and ``setoptions``; ``constraints <band> <6 bounds>`` and
-     *    ``setconstraints``; ``flat <bands...>``; ``setfilter`` /
+     *    ``params [<band>] <f> <g> <q>`` and ``setparams``; ``gainmode``;
+     *    ``analog <0|1>`` (a bandpass or peaknotch band in the matched
+     *    design of ``DSP::filterCoefficients::ComputeMatched``, #1209);
+     *    ``displaydot`` (no output); ``options <band> <mode> <gain>
+     *    <analog> <dot>`` and ``setoptions``; ``constraints <band> <6
+     *    bounds>`` and ``setconstraints``; ``flat <bands...>``; ``setfilter`` /
      *    ``whichfilt`` (the band edited), ``selectfilt`` (the band a host
      *    highlights), ``nfilters <1-24>``, ``query <hz>``, ``autoout``, and
      *    the ``edit_*`` attributes as messages (no output).
@@ -52,16 +54,16 @@ namespace YSE {
      *
      *  **GUI value.** Cell 0 is ``<bands> <edited> <highlighted>``; cell
      *  ``1 + i`` is band ``i``: ``<mode> <frequency> <gain> <q> <gainmode>
-     *  <displaydot> <a0> <a1> <a2> <b1> <b2>``, the coefficients at the live
-     *  sample rate. Not settable: Max's ``set`` already means "coefficients,
-     *  no output" on inlet 0, which the protocol's ``set <index>`` form would
-     *  collide with. A host writes through the messages above.
+     *  <displaydot> <a0> <a1> <a2> <b1> <b2> <analog>``, the coefficients at
+     *  the live sample rate. Not settable: Max's ``set`` already means
+     *  "coefficients, no output" on inlet 0, which the protocol's ``set
+     *  <index>`` form would collide with. A host writes through the messages
+     *  above.
      *
-     *  Not mapped: the ``analog`` prototypes (the flag is read and ignored;
-     *  issue #1209),
-     *  ``highorder`` and ``dictionary`` (a display of a non-biquad filter,
-     *  and designs travel as lists), ``markers``, the mouse and every
-     *  display attribute (colours, axes, ranges, markers, ``phasespect``,
+     *  Not mapped: ``highorder`` and ``dictionary`` (a display of a
+     *  non-biquad filter, and designs travel as lists), ``markers``, the
+     *  mouse and every display attribute (colours, axes, ranges, markers,
+     *  ``phasespect``,
      *  ``fullspect``: the host's), the Max for Live parameter attributes, and
      *  the output when audio starts (``autoout`` and ``bang`` cover it).
      *

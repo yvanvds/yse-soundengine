@@ -74,6 +74,11 @@ namespace YSE {
       return *this;
     }
 
+    filterBands& filterBands::analog(UInt index, Bool on) {
+      if (index < MAX_BANDS) slots[index].analog = on;
+      return *this;
+    }
+
     filterBands& filterBands::handle(UInt index, Bool on) {
       if (index < MAX_BANDS) slots[index].handle = on;
       return *this;
@@ -165,6 +170,10 @@ namespace YSE {
       return index < MAX_BANDS && slots[index].gainEnabled;
     }
 
+    Bool filterBands::analog(UInt index) const {
+      return index < MAX_BANDS && slots[index].analog;
+    }
+
     Bool filterBands::handle(UInt index) const {
       return index < MAX_BANDS && slots[index].handle;
     }
@@ -206,6 +215,10 @@ namespace YSE {
         }
       }
       if (b.mode == ALLPASS) type = filterCoefficients::GAINAPASS;
+      // ComputeMatched is Compute for every type but the bandpass and peak.
+      if (b.analog)
+        return filterCoefficients::ComputeMatched(static_cast<filterCoefficients::TYPE>(type),
+                                                  b.frequency, b.gain, b.q, Rate(sampleRate));
       return filterCoefficients::Compute(static_cast<filterCoefficients::TYPE>(type), b.frequency,
                                          b.gain, b.q, Rate(sampleRate));
     }
