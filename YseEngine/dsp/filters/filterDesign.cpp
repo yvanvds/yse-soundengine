@@ -356,9 +356,16 @@ namespace YSE {
         poleUsed[second] = true;
         pairs[nPairs++] = {realPoles[first], realPoles[second], Distance(realPoles[first])};
       }
-      // Farthest from the unit circle first, the sharpest resonance last.
-      std::stable_sort(pairs.begin(), pairs.begin() + nPairs,
-                       [](const Pair& x, const Pair& y) { return x.distance > y.distance; });
+      // Farthest from the unit circle first, the sharpest resonance last. A
+      // stable insertion sort in place: std::stable_sort asks for a
+      // temporary buffer (libstdc++ always does), which allocates.
+      for (unsigned int i = 1; i < nPairs; ++i) {
+        const Pair moving = pairs[i];
+        unsigned int j = i;
+        for (; j > 0 && pairs[j - 1].distance < moving.distance; --j)
+          pairs[j] = pairs[j - 1];
+        pairs[j] = moving;
+      }
 
       // Zeroes, the closest pole pair choosing first.
       std::array<cplx, MAX_SECTIONS> zeroA{};
