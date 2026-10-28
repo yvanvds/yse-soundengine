@@ -6764,6 +6764,119 @@
     ],
     "requires_midi_device": false
   },
+  ".filterdesign": {
+    "category": "FILTER",
+    "description": "Designs a Butterworth or Chebyshev lowpass, highpass, bandpass or bandstop filter of a given order and sends it as second-order sections, a coefficient list ~cascade and .filterdetail take as they are.",
+    "inlets": [
+      {
+        "accepts": [
+          "BANG",
+          "LIST"
+        ],
+        "doc": "Bang: design the filter and send it. A list of settings, each a word and its value, sets them without sending: response (lowpass, highpass, bandpass, bandstop), topology (butterworth, chebyshev-1, chebyshev-2), order, frequency (one, or two band edges), units (hertz, normalized, radians), samplerate (0: the engine's), passband_ripple and stopband_attenuation (dB), sos_output, zpk_output and tf_output (0 or 1).",
+        "index": 0,
+        "label": "in",
+        "range": ""
+      }
+    ],
+    "is_dsp": false,
+    "name": ".filterdesign",
+    "outlets": [
+      {
+        "doc": "The second-order sections, five coefficients a0 a1 a2 b1 b2 per section, the overall gain in the first; sent when sos_output is on (the default).",
+        "index": 0,
+        "label": "sections",
+        "range": "a list of coefficients in sets of five",
+        "type": "LIST"
+      },
+      {
+        "doc": "With zpk_output on: 'zeros' and 'poles' followed by real and imaginary parts, and 'gain'. With tf_output on: 'numerator' and 'denominator', the coefficients of z^0, z^-1, ... Sent before the sections.",
+        "index": 1,
+        "label": "details",
+        "range": "",
+        "type": "LIST"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "Starting settings in the words of the inlet ('.filterdesign response bandpass order 4 frequency 500 2000'). The defaults: a Butterworth lowpass of order 2 at 1000 Hz (band edges 1000 and 2000), 1 dB ripple, 40 dB attenuation, sections only. Later messages do not change what is saved.",
+        "name": "settings",
+        "range": "words and values"
+      }
+    ],
+    "requires_midi_device": false
+  },
+  ".filterdetail": {
+    "category": "FILTER",
+    "description": "Details a filter given as second-order sections (the coefficient list .filterdesign sends): magnitude, phase, phase delay and group delay across the spectrum, and the impulse and step responses, each as a list.",
+    "inlets": [
+      {
+        "accepts": [
+          "LIST"
+        ],
+        "doc": "A list of coefficients in sets of five, a0 a1 a2 b1 b2 per section: analyse the filter and send the six lists. 'numpoints <n>': the number of values per list (1-256), without sending.",
+        "index": 0,
+        "label": "sections",
+        "range": "a list of coefficients in sets of five"
+      }
+    ],
+    "is_dsp": false,
+    "name": ".filterdetail",
+    "outlets": [
+      {
+        "doc": "The gain at numpoints frequencies from 0 up to just below half the sample rate, in equal steps (1 is unity gain).",
+        "index": 0,
+        "label": "magnitude",
+        "range": "0+",
+        "type": "LIST"
+      },
+      {
+        "doc": "The phase at the same frequencies, in radians, unwrapped.",
+        "index": 1,
+        "label": "phase",
+        "range": "",
+        "type": "LIST"
+      },
+      {
+        "doc": "The phase delay at the same frequencies, in samples.",
+        "index": 2,
+        "label": "phase delay",
+        "range": "",
+        "type": "LIST"
+      },
+      {
+        "doc": "The group delay at the same frequencies, in samples.",
+        "index": 3,
+        "label": "group delay",
+        "range": "",
+        "type": "LIST"
+      },
+      {
+        "doc": "The impulse response, one value per sample.",
+        "index": 4,
+        "label": "impulse",
+        "range": "",
+        "type": "LIST"
+      },
+      {
+        "doc": "The step response, one value per sample.",
+        "index": 5,
+        "label": "step",
+        "range": "",
+        "type": "LIST"
+      }
+    ],
+    "params": [
+      {
+        "default": "256",
+        "doc": "The number of values per list, 1-256, optionally after the word numpoints ('.filterdetail 128'). A later numpoints message does not change what is saved.",
+        "name": "numpoints",
+        "range": "1-256"
+      }
+    ],
+    "requires_midi_device": false
+  },
   ".flush": {
     "category": "MIDI",
     "description": "Passes pitch/velocity pairs through and remembers which notes are sounding. A bang releases them all with velocity 0.",
@@ -16525,6 +16638,52 @@
     "params": [],
     "requires_midi_device": false
   },
+  "~delay": {
+    "category": "DELAY",
+    "description": "Delays a signal by a number of samples, from none at all up to the memory set when it is made. A number delay crossfades over the ramp time; a signal delay is read per sample and interpolated. For alignment and short delays.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER"
+        ],
+        "doc": "The signal to delay (unconnected reads 0). 'clear' silences the line, 'maxsize <n>' sets the longest delay in samples (up to the memory) and clears it, 'ramp <ms>' sets the crossfade time, and '<n>', '<n> samples', '<n> ms' or 'delay <time>' set the delay.",
+        "index": 0,
+        "label": "in",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The delay time. A number is samples, the fraction dropped, and crossfades over the ramp time; a signal is read per sample in samples, interpolated, and wins while it is connected. Clamped to 0 and the longest delay. Takes the same words as the left inlet.",
+        "index": 1,
+        "label": "delay",
+        "range": "0 to the longest delay"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~delay",
+    "outlets": [
+      {
+        "doc": "The delayed signal.",
+        "index": 0,
+        "label": "out",
+        "range": "",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "512 0 0",
+        "doc": "The memory in samples, the initial delay in samples and the ramp time in ms, up to three numbers ('~delay 44100 200 10'; they default to 512, 0 and 0). The memory is allocated when the object is made and is clamped to 0-11520000. Later numbers and messages do not change what is saved.",
+        "name": "delay",
+        "range": "a memory, a delay, then a ramp time"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~fffb": {
     "category": "FILTER",
     "description": "Bank of bandpass filters in parallel on one input, each with its own center frequency, Q, gain and outlet: vocoders, spectral shaping, resonator banks.",
@@ -16664,6 +16823,163 @@
         "doc": "The filter type word ('~filtercoeff peaknotch 4'; lowpass when left out), then a resampling factor, 1 to 4096 (1 when left out). Later messages do not change what is saved.",
         "name": "type",
         "range": "a filter type, then a resampling factor"
+      }
+    ],
+    "requires_midi_device": false
+  },
+  "~filtergraph": {
+    "category": "FILTER",
+    "description": "A filter editor: holds one to 24 biquad bands, each a filter type with a frequency, a gain and a Q, or five coefficients, and sends them as the coefficient list ~biquad and ~cascade take. A host draws the bands and the response curve; the bands are saved with the patch.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "Bang: send the coefficients (and, for a filter mode, the edited band's index, bandwidth, Q, gain and frequency first). A number: a0 of the edited band in display mode. A list of numbers: a cascade, five coefficients per band. Mode words (display, lowpass, highpass, bandpass, bandstop, peaknotch, lowshelf, highshelf, resonant, allpass) with an optional frequency, gain and Q; mode, cascade, set, params, setparams, gainmode, analog, displaydot, options, setoptions, constraints, setconstraints, flat, setfilter, whichfilt, selectfilt, nfilters, query, autoout and the edit_* attributes.",
+        "index": 0,
+        "label": "in",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "a1 of the edited band, in display mode; sends the coefficients.",
+        "index": 1,
+        "label": "a1",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "a2 of the edited band, in display mode; sends the coefficients.",
+        "index": 2,
+        "label": "a2",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "b1 of the edited band, in display mode; sends the coefficients.",
+        "index": 3,
+        "label": "b1",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "b2 of the edited band, in display mode; sends the coefficients.",
+        "index": 4,
+        "label": "b2",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "The edited band's frequency in Hz; sends the coefficients. A list of three is the frequency, gain and Q; 'set <f> <g> <q>' sets them without sending.",
+        "index": 5,
+        "label": "frequency",
+        "range": "0 to samplerate/2 Hz"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "The edited band's linear gain; sends the coefficients.",
+        "index": 6,
+        "label": "gain",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "The edited band's Q, or a shelf's slope; sends the coefficients.",
+        "index": 7,
+        "label": "q",
+        "range": "0.01-10000"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~filtergraph",
+    "outlets": [
+      {
+        "doc": "The coefficients of every band, a0 a1 a2 b1 b2 per band, for ~biquad (one band) or ~cascade.",
+        "index": 0,
+        "label": "coefficients",
+        "range": "a list of coefficients in sets of five",
+        "type": "LIST"
+      },
+      {
+        "doc": "On a bang, the edited band's frequency in Hz.",
+        "index": 1,
+        "label": "frequency",
+        "range": "",
+        "type": "FLOAT"
+      },
+      {
+        "doc": "On a bang, the edited band's linear gain.",
+        "index": 2,
+        "label": "gain",
+        "range": "",
+        "type": "FLOAT"
+      },
+      {
+        "doc": "On a bang, the edited band's Q.",
+        "index": 3,
+        "label": "q",
+        "range": "",
+        "type": "FLOAT"
+      },
+      {
+        "doc": "On a bang, the edited band's frequency over its Q, in Hz.",
+        "index": 4,
+        "label": "bandwidth",
+        "range": "",
+        "type": "FLOAT"
+      },
+      {
+        "doc": "For 'query <hz>': the gain (linear) and phase (radians) of all bands together at that frequency.",
+        "index": 5,
+        "label": "query",
+        "range": "amplitude phase",
+        "type": "LIST"
+      },
+      {
+        "doc": "On a bang, the index of the edited band.",
+        "index": 6,
+        "label": "band",
+        "range": "0-23",
+        "type": "INT"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "'nfilters <n>', the number of bands (1-24, default 1), and 'autoout <0|1>', send the coefficients when the patch loads (default 0). The bands are saved with the patch.",
+        "name": "settings",
+        "range": "words and values"
       }
     ],
     "requires_midi_device": false
@@ -17885,6 +18201,63 @@
     ],
     "requires_midi_device": false
   },
+  "~rampsmooth": {
+    "category": "FILTER",
+    "description": "Smooths a signal linearly: each time the input changes, the output ramps in a straight line to the new value over rampUp samples when rising and rampDown samples when falling. For declicking and parameter smoothing. A ramp of 1 passes the signal through.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER"
+        ],
+        "doc": "The signal to smooth (unconnected reads 0). 'ramp <n>' sets both lengths, 'rampup <n>' and 'rampdown <n>' one each; a number, or a list of up to two numbers (ramp up, ramp down), sets the numbers the other inlets read.",
+        "index": 0,
+        "label": "in",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Ramp-up length in whole samples, used when the input moves above the output: a number or a signal read per sample (unconnected, the last number sent here or the creation argument). Below 1 counts as 1. A ramp keeps the length it started with. Takes the same words as the left inlet.",
+        "index": 1,
+        "label": "rampUp",
+        "range": "1+"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Ramp-down length in whole samples, used when the input moves to or below the output: a number or a signal read per sample (unconnected, the last number sent here or the creation argument). Below 1 counts as 1. A ramp keeps the length it started with. Takes the same words as the left inlet.",
+        "index": 2,
+        "label": "rampDown",
+        "range": "1+"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~rampsmooth",
+    "outlets": [
+      {
+        "doc": "The smoothed signal.",
+        "index": 0,
+        "label": "out",
+        "range": "",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "1 1",
+        "doc": "The ramp-up and ramp-down lengths in samples, up to two numbers ('~rampsmooth 100 1000'; they default to 1 and 1). Later numbers and messages do not change what is saved.",
+        "name": "ramp",
+        "range": "a ramp-up length, then a ramp-down length"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~rand": {
     "category": "OSC",
     "description": "Band-limited random signal: picks a new random value at a given frequency and glides to it in a straight line. Smooth random modulation for vibrato drift or a wandering filter.",
@@ -18542,6 +18915,63 @@
       }
     ],
     "params": [],
+    "requires_midi_device": false
+  },
+  "~slide": {
+    "category": "FILTER",
+    "description": "Smooths a signal logarithmically: each sample moves the output 1/slideUp of the way towards the input while rising and 1/slideDown while falling. For envelope followers and portamento. A slide of 1 passes the signal through.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER"
+        ],
+        "doc": "The signal to smooth (unconnected reads 0). 'reset' sets the output to 0; 'slideup <n>' and 'slidedown <n>' set the amounts; a number, or a list of up to two numbers (slide up, slide down), sets the numbers the other inlets read.",
+        "index": 0,
+        "label": "in",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Slide-up amount in samples, used while the input is above the output: a number or a signal read per sample (unconnected, the last number sent here or the creation argument). Below 1 counts as 1. Takes the same words as the left inlet.",
+        "index": 1,
+        "label": "slideUp",
+        "range": "1+"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Slide-down amount in samples, used while the input is at or below the output: a number or a signal read per sample (unconnected, the last number sent here or the creation argument). Below 1 counts as 1. Takes the same words as the left inlet.",
+        "index": 2,
+        "label": "slideDown",
+        "range": "1+"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~slide",
+    "outlets": [
+      {
+        "doc": "The smoothed signal.",
+        "index": 0,
+        "label": "out",
+        "range": "",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "1 1",
+        "doc": "The slide-up and slide-down amounts in samples, up to two numbers ('~slide 10 1000'; they default to 1 and 1). Later numbers and messages do not change what is saved.",
+        "name": "slide",
+        "range": "a slide-up amount, then a slide-down amount"
+      }
+    ],
     "requires_midi_device": false
   },
   "~snapshot": {
@@ -19848,6 +20278,109 @@
       }
     ],
     "params": [],
+    "requires_midi_device": false
+  },
+  "~zplane": {
+    "category": "FILTER",
+    "description": "Shows a filter as poles and zeroes on the z plane: holds one to 24 biquad sections, given as the coefficient list ~biquad and ~cascade take, sends their zeroes, poles and gains, and turns moved poles and zeroes back into coefficients. A host draws the plane; the sections are saved with the patch.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "Bang: send the coefficients, zeroes, poles and gains. A number: a0 of the first section. A list of numbers: a cascade, five coefficients per section. 'zero <index> <real> <imaginary>' and 'pole <index> <real> <imaginary>' move one root and send the new coefficients; order and pconstrain set the attributes.",
+        "index": 0,
+        "label": "in",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "a1 of the first section; sends everything.",
+        "index": 1,
+        "label": "a1",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "a2 of the first section; sends everything.",
+        "index": 2,
+        "label": "a2",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "b1 of the first section; sends everything.",
+        "index": 3,
+        "label": "b1",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "b2 of the first section; sends everything.",
+        "index": 4,
+        "label": "b2",
+        "range": ""
+      }
+    ],
+    "is_dsp": true,
+    "name": "~zplane",
+    "outlets": [
+      {
+        "doc": "The coefficients of every section, a0 a1 a2 b1 b2 per section, for ~biquad (one section) or ~cascade; sent on a bang, a coefficient inlet or a moved root.",
+        "index": 0,
+        "label": "coefficients",
+        "range": "a list of coefficients in sets of five",
+        "type": "LIST"
+      },
+      {
+        "doc": "The zeroes, two per section, as real and imaginary parts.",
+        "index": 1,
+        "label": "zeroes",
+        "range": "real imaginary pairs",
+        "type": "LIST"
+      },
+      {
+        "doc": "The poles, two per section, as real and imaginary parts.",
+        "index": 2,
+        "label": "poles",
+        "range": "real imaginary pairs",
+        "type": "LIST"
+      },
+      {
+        "doc": "The gain (a0) of each section.",
+        "index": 3,
+        "label": "gains",
+        "range": "one number per section",
+        "type": "LIST"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "'order <n>', the number of poles (2-48, two per section, default 2), and 'pconstrain <0|1>', keep moved poles inside the unit circle (default 0). The sections are saved with the patch.",
+        "name": "settings",
+        "range": "words and values"
+      }
+    ],
     "requires_midi_device": false
   }
 }

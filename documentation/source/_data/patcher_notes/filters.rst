@@ -562,3 +562,213 @@ Unconnected, the left inlet reads 0.
    [~saw 110] -> [~+ ] left inlet
    [~+ ] -> [~dac]
    a notch at 800 Hz in the sawtooth
+
+.. patcher-object:: ~slide
+
+Smooths a signal. Each sample moves the output part of the way towards the
+input: a slide-up amount of 10 covers a tenth of the distance per sample while
+the input is above the output, and the slide-down amount does the same while
+it is below. A slide of 1 passes the signal through; an amount below 1 counts
+as 1. The amounts count samples, so they do not change with the sample rate.
+The creation arguments are the slide-up and slide-down amounts; they default
+to 1 and 1.
+
+A number or a list of up to two numbers in any inlet sets the slide-up and
+slide-down amounts; a single number in a right inlet sets that inlet's value.
+``slideup <n>`` and ``slidedown <n>`` set one amount, and ``reset`` sets the
+output to 0. The audio-rate twin of ``.slide``, with the same equation. An
+input sample that is not a finite number is skipped. Unconnected, the left
+inlet reads 0.
+
+.. code-block:: text
+
+   [~cycle 220] -> [~abs] -> [~slide 1 2000] -> [~dac]
+   an envelope follower: rises at once, falls slowly
+
+.. patcher-object:: ~rampsmooth
+
+Smooths a signal in straight lines. Each time the input changes, the output
+ramps from where it is to the new value over a set number of samples: the
+ramp-up length when the new value is higher, the ramp-down length when it is
+lower, landing on the value exactly. A ramp that is still running when the
+input changes again restarts from where the output is, so on an audio signal,
+which changes every sample, it acts as a gentle lowpass. Lengths are whole
+samples, so they do not change with the sample rate; a length below 1 counts
+as 1, which passes the signal through. A new length applies to the next ramp,
+not to the one running. The creation arguments are the ramp-up and ramp-down
+lengths; they default to 1 and 1.
+
+A number or a list of up to two numbers in any inlet sets the ramp-up and
+ramp-down lengths; a single number in a right inlet sets that inlet's value.
+``ramp <n>`` sets both lengths, ``rampup <n>`` and ``rampdown <n>`` one each.
+Where ``~slide`` approaches a new value ever more slowly, ``~rampsmooth``
+arrives in a fixed time. An input sample that is not a finite number is
+skipped. Unconnected, the left inlet reads 0.
+
+.. code-block:: text
+
+   [.receive gate] -> [~sig] -> [~rampsmooth 480 480] -> [~*] right inlet
+   a gate that opens and closes over 10 ms at 48 kHz, without clicks
+
+.. patcher-object:: .filterdesign
+
+Designs a classic filter and sends it as second-order sections: a list of
+coefficients in sets of five, ``a0 a1 a2 b1 b2`` per section, which
+``~cascade`` runs and ``.filterdetail`` analyses as they are. Nothing is sent
+until a bang; the settings only change what the next bang designs.
+
+Settings are a word and a value, several in one list if you like, and the
+creation arguments use the same words:
+
+- ``response``: ``lowpass``, ``highpass``, ``bandpass`` or ``bandstop``.
+- ``topology``: ``butterworth`` (flat passband, gentle transition),
+  ``chebyshev-1`` (ripple in the passband, the steepest transition) or
+  ``chebyshev-2`` (flat passband, ripple in the stopband).
+- ``order``: the number of poles, 1 to 32. A bandpass or bandstop needs an
+  even number; an odd order gets one more.
+- ``frequency``: the cutoff, or the two edges of the band. For a Butterworth
+  filter it is the point 3 dB down, for ``chebyshev-1`` the end of the
+  passband and for ``chebyshev-2`` the start of the stopband.
+- ``units``: ``hertz`` (the default), ``normalized`` (1 is half the sample
+  rate) or ``radians`` (pi is half the sample rate).
+- ``samplerate``: the rate hertz are read against; 0, the default, is the
+  engine's rate at the moment of the bang.
+- ``passband_ripple`` and ``stopband_attenuation``, in dB, for the two
+  Chebyshev types (defaults 1 and 40).
+- ``sos_output``, ``zpk_output`` and ``tf_output``, 0 or 1: which forms the
+  bang sends. The sections (on by default) leave the left outlet. The right
+  outlet sends ``zeros``, ``poles`` (real and imaginary parts in turn) and
+  ``gain``, and ``numerator`` and ``denominator``, the coefficients of the
+  whole filter as one fraction. That last form loses precision quickly as the
+  order grows; the sections are the form to filter with.
+
+Without arguments the object designs a Butterworth lowpass of order 2 at
+1000 Hz. A frequency at or above half the sample rate, or a band whose two
+edges are equal, designs nothing and sends nothing.
+
+.. code-block:: text
+
+   [.loadbang] -> [.filterdesign response bandpass order 6 frequency 400 1200] -> [~cascade] right inlet
+   a sixth-order bandpass for ~cascade, designed when the patch loads
+
+.. patcher-object:: .filterdetail
+
+Shows what a filter does. Send it a list of coefficients in sets of five (what
+``.filterdesign`` sends, or the five coefficients of a single ``~biquad``) and
+it sends six lists of the same length, from the right outlet to the left:
+
+- the step response and the impulse response, one value per sample;
+- the group delay and the phase delay, in samples;
+- the phase, in radians, without jumps of a full turn between neighbours;
+- the magnitude, as a gain (1 is the level of the input).
+
+The four frequency curves run from 0 up to just below half the sample rate,
+in equal steps. ``numpoints <n>`` sets the length of the lists, 1 to 256
+(the default, and the longest list other objects take whole); the creation
+argument sets it too (``.filterdetail 128``).
+
+A list without one complete set of five numbers, or with a value that is not
+a number, sends nothing.
+
+.. patcher-object:: ~filtergraph
+
+The state behind a filter editor: one to 24 biquad bands that a host draws
+as a frequency response and lets you drag. The engine keeps the bands; the
+host only displays them and sends the messages below when you edit. Each
+change that alters the sound sends the coefficients of every band, five per
+band (``a0 a1 a2 b1 b2``), out the left outlet: connect it to ``~biquad`` for
+one band or to the right inlet of ``~cascade`` for several.
+
+Each band has a mode, set for the band being edited by a word or by
+``mode <n>``:
+
+- ``display`` (0): the band is the five coefficients it was given and
+  changes only when new ones arrive. Switching a band to ``display`` keeps the
+  coefficients it had.
+- ``lowpass`` (1), ``highpass`` (2), ``bandpass`` (3), ``bandstop`` (4),
+  ``peaknotch`` (5), ``lowshelf`` (6), ``highshelf`` (7), ``resonant`` (8)
+  and ``allpass`` (9): the band is computed from a frequency in Hz, a linear
+  gain and a Q (the slope of a shelf), as ``~filtercoeff`` computes it, at the
+  engine's sample rate. A mode word can carry those three values
+  (``peaknotch 2000 2 1.5``). The first five ignore the gain unless
+  ``gainmode 1`` is on; peaknotch, the shelves and the allpass always read it.
+
+Setting the bands:
+
+- ``nfilters <n>`` sets how many bands are in use; ``setfilter <n>`` (or
+  ``whichfilt``) picks the band to edit, counting from 0, and ``selectfilt
+  <n>`` the band a host highlights.
+- The three right inlets set the edited band's frequency, gain and Q, and a
+  list of all three goes in the frequency inlet. ``params [<band>] <f> <g>
+  <q>`` does the same from the left.
+- A list of numbers is a cascade: five coefficients per band, each band in
+  display mode, as many bands as the list holds. In display mode the left
+  five inlets set one coefficient of the edited band each.
+- ``constraints <band> <min f> <max f> <min gain> <max gain> <min q> <max
+  q>`` bounds what a band can be set to; 0 is no bound. ``flat <bands...>``
+  returns bands to a neutral gain (and a lowpass or highpass to Q 0.707).
+- ``analog 1`` turns a bandpass or peaknotch band into its "imitation
+  analog" form. The usual design squeezes a band together as it nears half
+  the sample rate (a bandpass falls to nothing there); this one keeps the
+  shape of an analog filter all the way up, matching
+  its gain at 0 Hz, at the band's frequency and at half the sample rate.
+  ``analog 0`` (the default) returns to the usual design; other modes ignore
+  the flag.
+- ``options <band> <mode> <gainmode> <analog> <displaydot>`` sets a band's
+  options at once.
+- ``set``, ``setparams``, ``setoptions``, ``setconstraints`` and the
+  attribute words ``edit_freq``, ``edit_amp``, ``edit_Q``, ``edit_mode``,
+  ``edit_gainmode``, ``edit_analog``, ``edit_displaydot``, ``edit_minfreq`` ... ``edit_maxQ``
+  change the bands without sending.
+
+A ``bang`` sends the coefficients; for a band that is not in display mode it
+first sends the band's index, bandwidth (frequency over Q), Q, gain and
+frequency out the outlets on the right. ``query <hz>`` sends the gain and the
+phase (in radians) of all bands together at that frequency. The creation
+arguments are ``nfilters <n>`` and ``autoout 1``, which sends the coefficients
+when the patch loads. The bands themselves are saved with the patch.
+
+.. code-block:: text
+
+   [~filtergraph nfilters 3 autoout 1] -> [~cascade] right inlet
+   a three-band equaliser whose bands are restored and applied when the patch loads
+
+.. patcher-object:: ~zplane
+
+Shows a filter as its poles and zeroes on the z plane, the way a host draws
+it, and turns moved poles and zeroes back into coefficients. Send it the same
+coefficient list ``~cascade`` takes, five numbers per section (``a0 a1 a2 b1
+b2``): from ``~filtergraph``, ``.filterdesign`` or a message. It answers with
+the zeroes (second outlet) and the poles (third outlet) as ``real imaginary``
+pairs, two of each per section, and the gain of each section (its ``a0``,
+fourth outlet).
+
+Each section has two zeroes and two poles, counted from 0 over all sections:
+section 0 has roots 0 and 1, section 1 roots 2 and 3, and so on. A complex
+pair is listed upper half first, two real roots the larger first.
+
+Editing:
+
+- ``pole <index> <real> <imaginary>`` and ``zero <index> <real>
+  <imaginary>`` move one root, as dragging it would. A root moved off the
+  real axis takes its partner along as its mirror image (the complex
+  conjugate), so the coefficients stay real; a root moved onto the real axis
+  leaves a real partner in place. The new coefficients go out the left
+  outlet: connect it to the right inlet of ``~cascade``.
+- The five left inlets set ``a0`` to ``b2`` of the first section and send
+  the coefficients as well.
+- ``order <n>`` sets the number of poles, two per section (2 to 48), and
+  ``pconstrain 1`` keeps moved poles just inside the unit circle, so edits
+  cannot make the filter unstable. Both are creation arguments too
+  (``~zplane order 4 pconstrain 1``).
+
+A list sends the zeroes, poles and gains; a ``bang``, a moved root or a
+coefficient inlet sends those and then the coefficients. A section whose
+``a0`` is 0 has no finite zeroes; they read as 0, and moving one gives the
+section a gain of 1. The sections are saved with the patch; the display
+settings (``logscale``, ``range``, colours) are the host's.
+
+.. code-block:: text
+
+   [.filterdesign] -> [~zplane pconstrain 1] -> [~cascade] right inlet
+   move the poles of a designed filter; each move sends the new coefficients

@@ -147,6 +147,7 @@
 #include "delay/dTapout.h"
 #include "delay/dComb.h"
 #include "delay/dTeeth.h"
+#include "delay/dDelay.h"
 #include "sampling/dBuffer.h"
 
 #include "guiObjects/gInt.h"
@@ -224,6 +225,12 @@
 #include "filters/dFffb.h"
 #include "filters/dHilbert.h"
 #include "filters/dPhaseshift.h"
+#include "filters/dSlide.h"
+#include "filters/dRampsmooth.h"
+#include "filters/gFilterdesign.h"
+#include "filters/gFilterdetail.h"
+#include "filters/dFiltergraph.h"
+#include "filters/dZplane.h"
 
 #include "math/gAdd.h"
 #include "math/gDivide.h"
@@ -407,6 +414,7 @@ pRegistry::pRegistry() {
   Add(OBJ::D_TAPOUT, dTapout::Create);
   Add(OBJ::D_COMB, dComb::Create);
   Add(OBJ::D_TEETH, dTeeth::Create);
+  Add(OBJ::D_DELAY, dDelay::Create);
   Add(OBJ::D_BUFFER, dBuffer::Create);
 
   Add(OBJ::G_SWITCH, gSwitch::Create);
@@ -1329,6 +1337,12 @@ pRegistry::pRegistry() {
   Add(OBJ::D_FFFB, dFffb::Create);
   Add(OBJ::D_HILBERT, dHilbert::Create);
   Add(OBJ::D_PHASESHIFT, dPhaseshift::Create);
+  Add(OBJ::D_SLIDE, dSlide::Create);
+  Add(OBJ::D_RAMPSMOOTH, dRampsmooth::Create);
+  Add(OBJ::G_FILTERDESIGN, gFilterdesign::Create);
+  Add(OBJ::G_FILTERDETAIL, gFilterdetail::Create);
+  Add(OBJ::D_FILTERGRAPH, dFiltergraph::Create);
+  Add(OBJ::D_ZPLANE, dZplane::Create);
 
   // The MIDI sender family. Unconditional since issue #746: these format
   // bytes onto a list outlet and open nothing, so there is no platform they

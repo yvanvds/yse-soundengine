@@ -160,6 +160,24 @@ Filters
 .. doxygenfile:: dsp/filters/phaseShift.hpp
    :project: libYSE
 
+.. doxygenfile:: dsp/filters/slide.hpp
+   :project: libYSE
+
+.. doxygenfile:: dsp/filters/rampSmooth.hpp
+   :project: libYSE
+
+.. doxygenfile:: dsp/filters/filterDesign.hpp
+   :project: libYSE
+
+.. doxygenfile:: dsp/filters/filterResponse.hpp
+   :project: libYSE
+
+.. doxygenfile:: dsp/filters/filterBands.hpp
+   :project: libYSE
+
+.. doxygenfile:: dsp/filters/zPlane.hpp
+   :project: libYSE
+
 The resonant ladder low-pass that ``SYNTH::vaVoice`` uses also works on its
 own in any DSP path:
 
@@ -179,6 +197,9 @@ Delay
    :project: libYSE
 
 .. doxygenfile:: dsp/delay/comb.hpp
+   :project: libYSE
+
+.. doxygenfile:: dsp/delay/sampleDelay.hpp
    :project: libYSE
 
 Sample buffers

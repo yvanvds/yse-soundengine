@@ -37,6 +37,12 @@ set(YSE_SRCS
   dsp/filters/crossover.cpp
   dsp/filters/filterBank.cpp
   dsp/filters/phaseShift.cpp
+  dsp/filters/slide.cpp
+  dsp/filters/rampSmooth.cpp
+  dsp/filters/filterDesign.cpp
+  dsp/filters/filterResponse.cpp
+  dsp/filters/filterBands.cpp
+  dsp/filters/zPlane.cpp
   dsp/fourier/fft.cpp
   dsp/fourier/mayer.cpp
   dsp/interpolate4.cpp
@@ -116,6 +122,7 @@ set(YSE_SRCS
   dsp/delay/delayLine.cpp
   dsp/delay/delayTap.cpp
   dsp/delay/comb.cpp
+  dsp/delay/sampleDelay.cpp
   dsp/ramp.cpp
   dsp/rawFilters.cpp
   dsp/sample_functions.cpp
@@ -162,6 +169,7 @@ set(YSE_SRCS
   patcher/delay/dTapin.cpp
   patcher/delay/dTapout.cpp
   patcher/delay/dComb.cpp
+  patcher/delay/dDelay.cpp
   patcher/delay/dTeeth.cpp
   patcher/sampling/dBuffer.cpp
   patcher/filters/dVcf.cpp
@@ -180,6 +188,12 @@ set(YSE_SRCS
   patcher/filters/dFffb.cpp
   patcher/filters/dHilbert.cpp
   patcher/filters/dPhaseshift.cpp
+  patcher/filters/dSlide.cpp
+  patcher/filters/dRampsmooth.cpp
+  patcher/filters/gFilterdesign.cpp
+  patcher/filters/gFilterdetail.cpp
+  patcher/filters/dFiltergraph.cpp
+  patcher/filters/dZplane.cpp
   patcher/filters/pBandpass.cpp
   patcher/filters/pHighpass.cpp
   patcher/filters/pLowpass.cpp
@@ -604,6 +618,7 @@ set_source_files_properties(
   patcher/delay/dTapin.cpp
   patcher/delay/dTapout.cpp
   patcher/delay/dComb.cpp
+  patcher/delay/dDelay.cpp
   patcher/delay/dTeeth.cpp
   patcher/sampling/dBuffer.cpp
   patcher/filters/dVcf.cpp
@@ -622,6 +637,12 @@ set_source_files_properties(
   patcher/filters/dFffb.cpp
   patcher/filters/dHilbert.cpp
   patcher/filters/dPhaseshift.cpp
+  patcher/filters/dSlide.cpp
+  patcher/filters/dRampsmooth.cpp
+  patcher/filters/gFilterdesign.cpp
+  patcher/filters/gFilterdetail.cpp
+  patcher/filters/dFiltergraph.cpp
+  patcher/filters/dZplane.cpp
   patcher/filters/pBandpass.cpp
   patcher/filters/pHighpass.cpp
   patcher/filters/pLowpass.cpp

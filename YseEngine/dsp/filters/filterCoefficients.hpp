@@ -148,6 +148,34 @@ namespace YSE {
        *         0 Hz a float puts the poles on the unit circle. */
       static preciseSet ComputePrecise(TYPE type, Flt frequency, Flt gain, Flt q, Flt sampleRate);
 
+      /** @brief The "imitation analog" form of ``BANDPASS``, ``GAINBPASS``
+       *         and ``PEAKNOTCH`` (issue #1209): a biquad whose magnitude
+       *         matches the analog prototype's at 0 Hz, at @p frequency and
+       *         at half the sample rate, so it keeps its shape near half the
+       *         sample rate (the cookbook bandpass has a zero there). Any
+       *         other type is ``Compute``'s.
+       *
+       *  The prototypes are the cookbook's, on the digital frequency axis
+       *  without prewarping (``W = w / w0``): the bandpass
+       *  ``(W/Q) / sqrt((1 - W^2)^2 + (W/Q)^2)``, gain 1 at ``w0``; the
+       *  peak ``sqrt(((1 - W^2)^2 + (W/Qz)^2) / ((1 - W^2)^2 + (W/Qp)^2))``
+       *  with ``Qz = Q / A``, ``Qp = Q A`` and ``A = sqrt(gain)``, gain
+       *  ``gain`` at ``w0``. The poles are the prototype's mapped by
+       *  ``z = exp(s)``; the zeroes are solved so that ``|H|^2`` takes the
+       *  three values above, after Martin Vicanek, "Matched Second Order
+       *  Digital Filters" (2016). A cut (gain below 1) is the boost by
+       *  ``1 / gain`` turned over, which matches the same three points.
+       *  Between those points the response follows the prototype closely
+       *  but not exactly: within about 1.5 dB for a frequency up to a
+       *  quarter of the sample rate, more above it. The settings are
+       *  clamped and checked as ``Compute`` clamps and checks them. */
+      static coefficientSet ComputeMatched(TYPE type, Flt frequency, Flt gain, Flt q,
+                                           Flt sampleRate);
+
+      /** @brief ``ComputeMatched`` without the rounding to floats. */
+      static preciseSet ComputeMatchedPrecise(TYPE type, Flt frequency, Flt gain, Flt q,
+                                              Flt sampleRate);
+
       /** @brief Starts as a Butterworth lowpass at 1000 Hz, gain 1. */
       filterCoefficients();
 
