@@ -37,7 +37,8 @@ namespace YSE {
    *  - DSP delay: `D_TAPIN`, `D_TAPOUT`, `D_COMB`, `D_TEETH`, `D_DELAY`.
    *  - DSP sampling: ``D_BUFFER``.
    *  - DSP math: ``D_ADD``, ``D_MULTIPLY``, ``D_CLIP``, ``D_REVERSESUBSTRACT``,
-   *    ``D_REVERSEDIVIDE``, ``D_MODULO``, ``D_PLUSEQUALS``.
+   *    ``D_REVERSEDIVIDE``, ``D_MODULO``, ``D_PLUSEQUALS``,
+   *    ``D_DELTA`` (difference between successive samples).
    *  - DSP comparison: ``D_EQUAL``,
    * ``D_NOTEQUAL``, ``D_GREATER``, ``D_GREATEREQUAL``,
    *    ``D_LESS``, ``D_LESSEQUAL``,
@@ -992,6 +993,7 @@ namespace YSE {
     DEFOBJ(D_REVERSEDIVIDE, "~!/");
     DEFOBJ(D_MODULO, "~%");
     DEFOBJ(D_PLUSEQUALS, "~+=");
+    DEFOBJ(D_DELTA, "~delta");
     DEFOBJ(D_EQUAL, "~==");
     DEFOBJ(D_NOTEQUAL, "~!=");
     DEFOBJ(D_GREATER, "~>");

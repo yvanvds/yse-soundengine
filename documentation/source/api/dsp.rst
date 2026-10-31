@@ -25,6 +25,9 @@ Math
 .. doxygenfile:: dsp/math.hpp
    :project: libYSE
 
+.. doxygenfile:: dsp/operators/delta.hpp
+   :project: libYSE
+
 Generators
 ----------
 

@@ -38,6 +38,7 @@ set(YSE_TEST_SOURCES
   dsp/test_step_function.cpp
   dsp/test_arithmetic_operators.cpp
   dsp/test_accumulator.cpp
+  dsp/test_delta.cpp
   dsp/test_compare.cpp
   dsp/test_trig.cpp
   dsp/test_rounding.cpp
@@ -257,6 +258,7 @@ set(YSE_TEST_SOURCES
   patcher/test_patcher_zplane.cpp
   patcher/test_patcher_reverse_modulo.cpp
   patcher/test_patcher_plusequals.cpp
+  patcher/test_patcher_signal_delta.cpp
   patcher/test_patcher_signal_compare.cpp
   patcher/test_patcher_signal_trig.cpp
   patcher/test_patcher_signal_math.cpp
@@ -1398,6 +1400,7 @@ set_source_files_properties(
   patcher/test_patcher_zplane.cpp
   patcher/test_patcher_reverse_modulo.cpp
   patcher/test_patcher_plusequals.cpp
+  patcher/test_patcher_signal_delta.cpp
   patcher/test_patcher_signal_compare.cpp
   patcher/test_patcher_signal_trig.cpp
   patcher/test_patcher_signal_math.cpp

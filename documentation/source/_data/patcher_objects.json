@@ -16684,6 +16684,36 @@
     ],
     "requires_midi_device": false
   },
+  "~delta": {
+    "category": "MATH",
+    "description": "Outputs the difference between each input sample and the one before it. Turns a ramp into its slope and a step into an impulse, and marks each wrap of a ~phasor with a large negative sample.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The input: a signal, or a number used while no signal is connected.",
+        "index": 0,
+        "label": "in",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~delta",
+    "outlets": [
+      {
+        "doc": "The input sample minus the input sample before it; the sample before the first is 0.",
+        "index": 0,
+        "label": "out",
+        "range": "any float",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [],
+    "requires_midi_device": false
+  },
   "~fffb": {
     "category": "FILTER",
     "description": "Bank of bandpass filters in parallel on one input, each with its own center frequency, Q, gain and outlet: vocoders, spectral shaping, resonator banks.",

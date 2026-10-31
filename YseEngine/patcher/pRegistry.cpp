@@ -196,6 +196,7 @@
 #include "math/dReverseDivide.h"
 #include "math/dModulo.h"
 #include "math/dPlusEquals.h"
+#include "math/dDelta.h"
 #include "math/dCompare.h"
 #include "math/dTrig.h"
 #include "math/dSignalMath.h"
@@ -1004,6 +1005,7 @@ pRegistry::pRegistry() {
   Add(OBJ::D_REVERSEDIVIDE, dReverseDivide::Create);
   Add(OBJ::D_MODULO, dModulo::Create);
   Add(OBJ::D_PLUSEQUALS, dPlusEquals::Create);
+  Add(OBJ::D_DELTA, dDelta::Create);
   Add(OBJ::D_EQUAL, dEqual::Create);
   Add(OBJ::D_NOTEQUAL, dNotEqual::Create);
   Add(OBJ::D_GREATER, dGreater::Create);
