@@ -221,6 +221,16 @@ namespace YSE {
     }
 
     void implementationObject::removeInterface() {
+      // Drop the prototype pointers a not-yet-run setup() would clone (issue
+      // #1175). They are caller-owned and may be freed as soon as the interface
+      // is gone, so a synth destroyed before the setup pool reached it must not
+      // leave them behind. Taking buildMutex also waits out a setup() already
+      // cloning. Control thread only; the audio thread never takes this lock.
+      {
+        std::scoped_lock lk(buildMutex);
+        pendingGroups.clear();
+        handlerPrototype = nullptr;
+      }
       head.store(nullptr, std::memory_order_release);
     }
 

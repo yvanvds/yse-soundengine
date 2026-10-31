@@ -713,4 +713,55 @@ TEST_SUITE("synthcapi") {
     yse_system_close(sys);
   }
 
+  // ─── destroying a never-attached synth (issue #1175) ──────────────────────
+  //
+  // yse_synth_destroy() used to free the handle's voice prototypes while the
+  // synth's implementation still held raw pointers to them in its pending
+  // voice-group requests. The setup pool then cloned freed memory on the next
+  // update(): a VA / FM prototype copies a shared_ptr patch out of that memory
+  // and crashes; a sine one was a silent use-after-free (ASan reports both).
+
+  TEST_CASE("c-api synth: destroying a never-attached synth is a clean no-op (#1175)") {
+    YseSystem* sys = yse_system_get();
+    REQUIRE(sys != nullptr);
+    yse_system_close(sys);
+    if (yse_system_init_offline(sys) != YSE_OK) return;
+
+    // The issue's matrix: VA and FM groups, destroyed before any setup ran.
+    YseSynth* va = yse_synth_create();
+    REQUIRE(va != nullptr);
+    REQUIRE(yse_synth_add_voices_va(va, 2, 0, 0, 127) == YSE_OK);
+    yse_synth_destroy(va);
+
+    YseSynth* fm = yse_synth_create();
+    REQUIRE(fm != nullptr);
+    REQUIRE(yse_synth_add_voices_fm(fm, 2, 0, 0, 127) == YSE_OK);
+    yse_synth_destroy(fm);
+
+    // The follow-up comment's loop: a sine synth destroyed unattached, with an
+    // update + render after each destroy.
+    for (int i = 0; i < 20; ++i) {
+      YseSynth* s = yse_synth_create();
+      REQUIRE(s != nullptr);
+      REQUIRE(yse_synth_add_voices_sine(s, 1, 0, 0, 127, 0.01f, 0.1f, 0.8f, 0.2f) == YSE_OK);
+      yse_synth_destroy(s);
+      render(sys, 1);
+    }
+
+    // A later synth attached to a sound still builds and plays.
+    YseSynth* syn = yse_synth_create();
+    REQUIRE(syn != nullptr);
+    REQUIRE(yse_synth_add_voices_sine(syn, 4, 0, 0, 127, 0.001f, 0.01f, 0.8f, 0.05f) == YSE_OK);
+    YseSound* snd = yse_sound_create();
+    REQUIRE(snd != nullptr);
+    REQUIRE(yse_synth_attach_to_sound(syn, snd, nullptr, 1.0f) == YSE_OK);
+    REQUIRE(drainUntilVoices(sys, syn, 4));
+    CHECK(yse_synth_get_num_voices(syn) == 4);
+
+    yse_sound_destroy(snd);
+    yse_synth_destroy(syn);
+    drainFor(sys, 300);
+    yse_system_close(sys);
+  }
+
 } // TEST_SUITE("synthcapi")

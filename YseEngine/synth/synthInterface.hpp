@@ -107,9 +107,10 @@ namespace YSE {
        *  (when it reaches ``OBJECT_READY``) — exactly like a file-backed sound
        *  is not playable until its buffer finishes loading.
        *
-       *  @warning ``prototype`` must outlive the resulting setup — the engine
-       *           reads it to clone but neither copies nor owns it. Call
-       *           ``addVoices`` before the synth is attached and played.
+       *  @warning ``prototype`` must outlive the resulting setup, or this
+       *           synth if it is destroyed first — the engine reads it to clone
+       *           but neither copies nor owns it. Call ``addVoices`` before the
+       *           synth is attached and played.
        */
       interfaceObject& addVoices(dspVoice& prototype, int numVoices, int channel = 0,
                                  int lowestNote = 0, int highestNote = 127);
@@ -172,8 +173,9 @@ namespace YSE {
        *  ``SYNTH::orbitHandler``, or derive your own from
        *  ``SYNTH::positionHandler``.
        *
-       *  @warning ``prototype`` must outlive setup — the engine reads it to
-       *           clone but neither copies nor owns it. Call before the synth is
+       *  @warning ``prototype`` must outlive setup, or this synth if it is
+       *           destroyed first — the engine reads it to clone but neither
+       *           copies nor owns it. Call before the synth is
        *           attached and played (rejected after setup, like ``addVoices``). */
       interfaceObject& positionHandler(YSE::SYNTH::positionHandler& prototype);
 
