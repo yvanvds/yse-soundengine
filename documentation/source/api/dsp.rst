@@ -25,6 +25,9 @@ Math
 .. doxygenfile:: dsp/math.hpp
    :project: libYSE
 
+.. doxygenfile:: dsp/operators/delta.hpp
+   :project: libYSE
+
 Generators
 ----------
 
@@ -164,6 +167,9 @@ Filters
    :project: libYSE
 
 .. doxygenfile:: dsp/filters/rampSmooth.hpp
+   :project: libYSE
+
+.. doxygenfile:: dsp/filters/slewLimiter.hpp
    :project: libYSE
 
 .. doxygenfile:: dsp/filters/filterDesign.hpp

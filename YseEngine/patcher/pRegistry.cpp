@@ -196,6 +196,7 @@
 #include "math/dReverseDivide.h"
 #include "math/dModulo.h"
 #include "math/dPlusEquals.h"
+#include "math/dDelta.h"
 #include "math/dCompare.h"
 #include "math/dTrig.h"
 #include "math/dSignalMath.h"
@@ -227,6 +228,7 @@
 #include "filters/dPhaseshift.h"
 #include "filters/dSlide.h"
 #include "filters/dRampsmooth.h"
+#include "filters/dDeltaclip.h"
 #include "filters/gFilterdesign.h"
 #include "filters/gFilterdetail.h"
 #include "filters/dFiltergraph.h"
@@ -1004,6 +1006,7 @@ pRegistry::pRegistry() {
   Add(OBJ::D_REVERSEDIVIDE, dReverseDivide::Create);
   Add(OBJ::D_MODULO, dModulo::Create);
   Add(OBJ::D_PLUSEQUALS, dPlusEquals::Create);
+  Add(OBJ::D_DELTA, dDelta::Create);
   Add(OBJ::D_EQUAL, dEqual::Create);
   Add(OBJ::D_NOTEQUAL, dNotEqual::Create);
   Add(OBJ::D_GREATER, dGreater::Create);
@@ -1339,6 +1342,7 @@ pRegistry::pRegistry() {
   Add(OBJ::D_PHASESHIFT, dPhaseshift::Create);
   Add(OBJ::D_SLIDE, dSlide::Create);
   Add(OBJ::D_RAMPSMOOTH, dRampsmooth::Create);
+  Add(OBJ::D_DELTACLIP, dDeltaclip::Create);
   Add(OBJ::G_FILTERDESIGN, gFilterdesign::Create);
   Add(OBJ::G_FILTERDETAIL, gFilterdetail::Create);
   Add(OBJ::D_FILTERGRAPH, dFiltergraph::Create);

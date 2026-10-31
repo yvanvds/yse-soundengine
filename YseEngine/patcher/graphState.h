@@ -35,6 +35,28 @@ namespace YSE {
       // starts from. Precomputed so ``Calculate`` never scans for them.
       std::vector<pObject*> startPoints;
 
+      // One step of the compiled signal render (issue #1185): the object, and
+      // whether it is a start point (computed unconditionally) or a node fed
+      // by signal cords (computed only once every buffer it waits for has
+      // arrived, by pObject::CalculateIfReady).
+      struct renderStep {
+        pObject* object;
+        bool startPoint;
+      };
+
+      // The signal traversal, compiled at publish time (issue #1185). It is
+      // the exact order the recursive push used to visit objects in — start
+      // points in ``startPoints`` order, each followed depth-first by every
+      // object it completes, outlet by outlet and cord by cord — but walked as
+      // a flat loop. The push recursed one SendBuffer -> SetBuffer ->
+      // CalculateIfReady frame per object, through the send-depth cap that
+      // breaks *message* feedback loops (#236), so a serial chain deeper than
+      // that cap went silent past it; a flat walk costs no stack whatever the
+      // chain's length. While it runs, a buffer arriving on an inlet is stored
+      // but computes nothing (see renderOrderScope in inlet.h): the walk
+      // reaches that object itself, after everything that feeds it.
+      std::vector<renderStep> renderOrder;
+
       // Objects that must run once per block whatever the patch does with them
       // (issue #529) — ``pObject::WantsBlockPoll()``. The MIDI-input family
       // lives here: its events arrive on RtMidi's thread and would otherwise

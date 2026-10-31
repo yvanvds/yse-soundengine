@@ -585,6 +585,9 @@ namespace YSE {
       // Compile the current object wiring into a fresh immutable GraphState.
       // Control-thread only (allocates). See graphState.h.
       GraphState* BuildGraph();
+      // Fill g.renderOrder from g.startPoints and the live signal wiring
+      // (issue #1185). Part of BuildGraph; control-thread only (allocates).
+      static void BuildRenderOrder(GraphState& g);
       // Stamp lifetime-stable graph ids on a newly added object's inlets/outlets.
       // Pulls a recycled id from the free-list before bumping the counter so a
       // continuously edited patcher reuses the ids of its deleted objects (issue

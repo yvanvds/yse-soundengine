@@ -695,3 +695,22 @@ other rules are described under ``~*``.
 The low and high inlets take ints and floats. When low
 is above high, every sample becomes high. New limits take effect at the next
 audio block.
+
+.. patcher-object:: ~delta
+
+Each output sample is the input sample minus the input sample before it. The
+sample before the first is 0, so the first output is the first input; after
+that the last sample of each block is carried into the next. A constant
+gives 0, a ramp gives its slope, a step gives a single sample the size of the
+step, and a single impulse gives that impulse followed by its negative.
+
+On a ``~phasor`` the output is the small rise per sample, except at each
+wrap, where one sample is close to -1. Compare it with a threshold to find
+the start of every cycle. A number in the inlet, used while no signal is
+connected, shows as one sample of difference when it changes and as 0 while
+it stays the same. An input sample that is not a finite number makes that
+output sample and the next one not finite as well.
+
+.. code-block:: text
+
+   [~phasor 2] -> [~delta] -> [~< -0.5]   1 at the first sample of each cycle

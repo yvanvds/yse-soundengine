@@ -503,17 +503,43 @@ TEST_SUITE("patcher") {
     CHECK(probe.number == doctest::Approx(0.25f));
     CHECK(probe.commands == 1);
 
-    // An inlet with a list handler keeps every list, word-first or not.
-    CommandProbe listed;
-    listed.GetInlet(0)->SetList("note 60 100", YSE::T_GUI);
-    CHECK(listed.list == "note 60 100");
-    CHECK(listed.command.empty());
-
     // No list handler and no command channel: still dropped, no calculate.
     TypedProbe floatOnly(true);
     floatOnly.GetInlet(0)->SetList("set 1 2", YSE::T_GUI);
     CHECK_FALSE(floatOnly.seen.gotFloat);
     CHECK(floatOnly.calculated == 0);
+  }
+
+  TEST_CASE("list: word-first text takes the command channel even with a list handler (#1199)") {
+    // The same text a `.m` sends reaches the object the same way when it
+    // arrives as a list, as host text through a receive does.
+    CommandProbe probe;
+    probe.GetInlet(0)->SetList("note 60 100", YSE::T_GUI);
+    CHECK(probe.command == "note 60 100");
+    CHECK(probe.list.empty());
+
+    // A number first is still the list.
+    probe.command.clear();
+    probe.GetInlet(0)->SetList("144 60 100", YSE::T_GUI);
+    CHECK(probe.list == "144 60 100");
+    CHECK(probe.command.empty());
+
+    // A first byte with its top bit set is a raw MIDI status byte, the binary
+    // spelling the older MIDI senders build, not a word: still the list.
+    probe.list.clear();
+    std::string binary(3, '\0');
+    binary[0] = static_cast<char>(0x90);
+    binary[1] = 60;
+    binary[2] = 100;
+    probe.GetInlet(0)->SetList(binary, YSE::T_GUI);
+    CHECK(probe.list == binary);
+    CHECK(probe.command.empty());
+
+    // An object without a command channel keeps every list, word-first or not.
+    TypedProbe plain;
+    plain.GetInlet(0)->SetList("note 60 100", YSE::T_GUI);
+    CHECK(plain.seen.gotList);
+    CHECK(plain.seen.listValue == "note 60 100");
   }
 
   TEST_CASE("message box: its text reaches ordinary objects in a real patch (#933)") {

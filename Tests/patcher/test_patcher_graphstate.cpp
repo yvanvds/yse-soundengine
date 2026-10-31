@@ -603,4 +603,81 @@ TEST_SUITE("patcher") {
     CHECK(newSink.received == doctest::Approx(0.25f));
   }
 
+  // A serial signal chain renders whatever its length (issue #1185). The push
+  // traversal used to recurse one SendBuffer -> SetBuffer -> CalculateIfReady
+  // frame per object, through the same depth cap (64) that breaks message
+  // feedback loops, so everything past the 64th object was dropped without a
+  // word and the ~dac went silent. The render now walks an order compiled into
+  // the GraphState, so the depth of the chain costs no stack at all.
+  namespace {
+    YSE::pHandle* BuildSerialChain(patcherImplementation& p, YSE::pHandle* from, int length) {
+      YSE::pHandle* prev = from;
+      for (int i = 0; i < length; i++) {
+        YSE::pHandle* m = p.CreateObject(YSE::OBJ::D_MULTIPLY, "1");
+        REQUIRE(m != nullptr);
+        p.Connect(prev, 0, m, 0);
+        prev = m;
+      }
+      return prev;
+    }
+
+    float FirstSample(patcherImplementation& p) {
+      return p.output[0].getPtr()[0];
+    }
+  } // namespace
+
+  TEST_CASE("graphstate: a serial ~ chain past the send-depth cap still renders (#1185)") {
+    for (int length : {60, 70, 1000}) {
+      CAPTURE(length);
+      patcherImplementation p(1, nullptr);
+      YSE::pHandle* src = p.CreateObject(YSE::OBJ::D_ADD, "0.5");
+      YSE::pHandle* dac = p.CreateObject(YSE::OBJ::D_DAC, "");
+      REQUIRE(src != nullptr);
+      REQUIRE(dac != nullptr);
+      p.Connect(BuildSerialChain(p, src, length), 0, dac, 0);
+      p.Calculate(YSE::T_DSP);
+      CHECK(FirstSample(p) == doctest::Approx(0.5f));
+      // And again: the order is compiled once and walked every block.
+      p.Calculate(YSE::T_DSP);
+      CHECK(FirstSample(p) == doctest::Approx(0.5f));
+    }
+  }
+
+  TEST_CASE("graphstate: two deep chains summed on one inlet both arrive (#1185)") {
+    // The fan-in sum waits for its last source; with both sources past the old
+    // cap, neither used to arrive, and the sum must still see both.
+    patcherImplementation p(1, nullptr);
+    YSE::pHandle* a = p.CreateObject(YSE::OBJ::D_ADD, "0.25");
+    YSE::pHandle* b = p.CreateObject(YSE::OBJ::D_ADD, "0.5");
+    YSE::pHandle* dac = p.CreateObject(YSE::OBJ::D_DAC, "");
+    REQUIRE(a != nullptr);
+    REQUIRE(b != nullptr);
+    REQUIRE(dac != nullptr);
+    p.Connect(BuildSerialChain(p, a, 100), 0, dac, 0);
+    p.Connect(BuildSerialChain(p, b, 80), 0, dac, 0);
+    p.Calculate(YSE::T_DSP);
+    CHECK(FirstSample(p) == doctest::Approx(0.75f));
+  }
+
+  TEST_CASE("graphstate: a chain edited live keeps rendering through the new order (#1185)") {
+    patcherImplementation p(1, nullptr);
+    YSE::pHandle* src = p.CreateObject(YSE::OBJ::D_ADD, "0.5");
+    YSE::pHandle* dac = p.CreateObject(YSE::OBJ::D_DAC, "");
+    REQUIRE(src != nullptr);
+    REQUIRE(dac != nullptr);
+    YSE::pHandle* tail = BuildSerialChain(p, src, 70);
+    p.Connect(tail, 0, dac, 0);
+    p.Calculate(YSE::T_DSP);
+    REQUIRE(FirstSample(p) == doctest::Approx(0.5f));
+
+    // Lengthen it past the end: the new objects join the compiled order.
+    p.Disconnect(tail, 0, dac, 0);
+    YSE::pHandle* half = p.CreateObject(YSE::OBJ::D_MULTIPLY, "0.5");
+    REQUIRE(half != nullptr);
+    p.Connect(tail, 0, half, 0);
+    p.Connect(BuildSerialChain(p, half, 10), 0, dac, 0);
+    p.Calculate(YSE::T_DSP);
+    CHECK(FirstSample(p) == doctest::Approx(0.25f));
+  }
+
 } // TEST_SUITE("patcher")

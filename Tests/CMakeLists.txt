@@ -38,6 +38,7 @@ set(YSE_TEST_SOURCES
   dsp/test_step_function.cpp
   dsp/test_arithmetic_operators.cpp
   dsp/test_accumulator.cpp
+  dsp/test_delta.cpp
   dsp/test_compare.cpp
   dsp/test_trig.cpp
   dsp/test_rounding.cpp
@@ -80,6 +81,7 @@ set(YSE_TEST_SOURCES
   dsp/test_hilbert.cpp
   dsp/test_phase_shift.cpp
   dsp/test_slide.cpp
+  dsp/test_slew_limiter.cpp
   dsp/test_ramp_smooth.cpp
   dsp/test_filter_design.cpp
   dsp/test_filter_bands.cpp
@@ -252,11 +254,13 @@ set(YSE_TEST_SOURCES
   patcher/test_patcher_signal_phaseshift.cpp
   patcher/test_patcher_signal_slide.cpp
   patcher/test_patcher_signal_rampsmooth.cpp
+  patcher/test_patcher_signal_deltaclip.cpp
   patcher/test_patcher_filterdesign.cpp
   patcher/test_patcher_filtergraph.cpp
   patcher/test_patcher_zplane.cpp
   patcher/test_patcher_reverse_modulo.cpp
   patcher/test_patcher_plusequals.cpp
+  patcher/test_patcher_signal_delta.cpp
   patcher/test_patcher_signal_compare.cpp
   patcher/test_patcher_signal_trig.cpp
   patcher/test_patcher_signal_math.cpp
@@ -1393,11 +1397,13 @@ set_source_files_properties(
   patcher/test_patcher_signal_phaseshift.cpp
   patcher/test_patcher_signal_slide.cpp
   patcher/test_patcher_signal_rampsmooth.cpp
+  patcher/test_patcher_signal_deltaclip.cpp
   patcher/test_patcher_filterdesign.cpp
   patcher/test_patcher_filtergraph.cpp
   patcher/test_patcher_zplane.cpp
   patcher/test_patcher_reverse_modulo.cpp
   patcher/test_patcher_plusequals.cpp
+  patcher/test_patcher_signal_delta.cpp
   patcher/test_patcher_signal_compare.cpp
   patcher/test_patcher_signal_trig.cpp
   patcher/test_patcher_signal_math.cpp

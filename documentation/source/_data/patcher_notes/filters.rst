@@ -610,6 +610,33 @@ skipped. Unconnected, the left inlet reads 0.
    [.receive gate] -> [~sig] -> [~rampsmooth 480 480] -> [~*] right inlet
    a gate that opens and closes over 10 ms at 48 kHz, without clicks
 
+.. patcher-object:: ~deltaclip
+
+Limits how far the output may move from one sample to the next. Each sample,
+the change from the previous output to the input is clipped between a
+minimum and a maximum and added to the output: the minimum is the steepest
+fall and is normally negative, the maximum the steepest rise. A change within
+the limits is taken whole, so the output is then the input exactly. A step
+becomes a straight ramp, a square wave a trapezoid, a click a short slope.
+The limits are amounts per sample, so they do not change with the sample
+rate; a slope of 1 per second at 48 kHz is a limit of 1/48000.
+
+Both limits default to 0, which holds the output still: give the object its
+limits as creation arguments, ``~deltaclip -0.001 0.001``, or through the
+right inlets. A number or a list of up to two numbers in any inlet sets the
+minimum and the maximum; a single number in a right inlet sets that inlet's
+value. ``reset`` sets both limits back to 0. A minimum above the maximum
+always moves the output by the maximum; a positive minimum forces it up
+every sample. Where ``~rampsmooth`` reaches a new value in a fixed time,
+``~deltaclip`` reaches it at a fixed speed, so a larger jump takes longer. An
+input sample that is not a finite number is skipped. Unconnected, the left
+inlet reads 0.
+
+.. code-block:: text
+
+   [~sig] -> [~deltaclip -0.0005 0.0005] -> [~*] right inlet
+   a gain that never moves faster than 1 in 2000 samples, whatever is sent
+
 .. patcher-object:: .filterdesign
 
 Designs a classic filter and sends it as second-order sections: a list of

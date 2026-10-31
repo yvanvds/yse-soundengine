@@ -34,8 +34,8 @@ namespace YSE {
      *  Concretely:
      *
      *  - **The audio thread's traversal cost does not grow with nesting
-     *    depth.** It cannot: the render walks `GraphState::startPoints` and the
-     *    outlet fan-out exactly as it did before subpatchers existed, and a
+     *    depth.** It cannot: the render walks the one compiled signal order
+     *    (`GraphState::renderOrder`, issue #1185) whatever the nesting, and a
      *    subpatcher object appears in no edge, no start-point list and no
      *    poller list. Depth is invisible to it.
      *  - **A live edit inside a subpatcher is an ordinary edit.** Creating,

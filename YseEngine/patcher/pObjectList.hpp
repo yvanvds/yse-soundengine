@@ -37,7 +37,8 @@ namespace YSE {
    *  - DSP delay: `D_TAPIN`, `D_TAPOUT`, `D_COMB`, `D_TEETH`, `D_DELAY`.
    *  - DSP sampling: ``D_BUFFER``.
    *  - DSP math: ``D_ADD``, ``D_MULTIPLY``, ``D_CLIP``, ``D_REVERSESUBSTRACT``,
-   *    ``D_REVERSEDIVIDE``, ``D_MODULO``, ``D_PLUSEQUALS``.
+   *    ``D_REVERSEDIVIDE``, ``D_MODULO``, ``D_PLUSEQUALS``,
+   *    ``D_DELTA`` (difference between successive samples).
    *  - DSP comparison: ``D_EQUAL``,
    * ``D_NOTEQUAL``, ``D_GREATER``, ``D_GREATEREQUAL``,
    *    ``D_LESS``, ``D_LESSEQUAL``,
@@ -83,7 +84,7 @@ namespace YSE {
    *    ``D_FFFB`` (bank of parallel bandpasses), ``D_HILBERT`` (phase
    *    quadrature filter), ``D_PHASESHIFT`` (second-order allpass),
    *    ``D_SLIDE`` (logarithmic slide), ``D_RAMPSMOOTH`` (linear
-   *    smoothing).
+   *    smoothing), ``D_DELTACLIP`` (slew limiter).
    *  - Filter design: ``G_FILTERDESIGN`` (Butterworth and Chebyshev
    *    filters as second-order sections), ``G_FILTERDETAIL`` (the response
    *    of a filter given as sections), `D_FILTERGRAPH` (the bands of a filter
@@ -992,6 +993,7 @@ namespace YSE {
     DEFOBJ(D_REVERSEDIVIDE, "~!/");
     DEFOBJ(D_MODULO, "~%");
     DEFOBJ(D_PLUSEQUALS, "~+=");
+    DEFOBJ(D_DELTA, "~delta");
     DEFOBJ(D_EQUAL, "~==");
     DEFOBJ(D_NOTEQUAL, "~!=");
     DEFOBJ(D_GREATER, "~>");
@@ -1067,6 +1069,7 @@ namespace YSE {
     DEFOBJ(D_PHASESHIFT, "~phaseshift");
     DEFOBJ(D_SLIDE, "~slide");
     DEFOBJ(D_RAMPSMOOTH, "~rampsmooth");
+    DEFOBJ(D_DELTACLIP, "~deltaclip");
 
     // Filter design (issue #1101): control objects that design a filter into
     // second-order sections for ~cascade, and detail a filter given as
