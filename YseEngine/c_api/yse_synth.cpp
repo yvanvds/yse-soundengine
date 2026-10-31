@@ -37,8 +37,12 @@ namespace {
   // simplest correct owner is the handle itself, freeing them on destroy.
   // All allocation here happens on the control thread (never the audio
   // thread), matching the C++ contract.
+  //
+  // Member order matters (issue #1175): `synth` is declared LAST so it is
+  // destroyed FIRST. Its destructor detaches from the implementation and drops
+  // the pending raw prototype pointers before the prototypes below are freed,
+  // so a synth destroyed before its setup ran never has freed voices cloned.
   struct YseSynthImpl {
-    YSE::synth synth;
     std::vector<std::unique_ptr<YSE::SYNTH::dspVoice>> prototypes;
     // The position-handler prototype (issue #171). Like a voice prototype, the
     // engine records a raw pointer at set-position-handler time and clones from
@@ -55,6 +59,8 @@ namespace {
     // matching add-voices is called.
     std::shared_ptr<YSE::SYNTH::vaParams> vaPatch;
     std::shared_ptr<YSE::SYNTH::fmPatch> fmPatch;
+
+    YSE::synth synth; // keep last: see the member-order note above
   };
 
   inline YseSynthImpl* to_impl(YseSynth* h) {

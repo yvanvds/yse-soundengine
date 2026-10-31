@@ -62,6 +62,29 @@ void YSE::SYNTH::managerObject::drainInbox() {
     toLoad.push_front(p);
 }
 
+bool YSE::SYNTH::managerObject::scrubToLoad() {
+  // One audio-thread walk of the loading list: drop impls that no longer
+  // belong in it, retire never-attached impls whose interface is gone (they
+  // are never set up, so nothing else would ever release them — issue #1177),
+  // and report whether any impl is waiting for a setup pass.
+  bool wantSetup = false;
+  for (auto c = toLoad.front(); c.valid();) {
+    implementationObject* ptr = c.get();
+    if (implementationObject::canBeRemovedFromLoading(ptr)) {
+      c.erase();
+      continue;
+    }
+    if (ptr->tryRetireUnattached()) {
+      c.erase();
+      runDelete = true;
+      continue;
+    }
+    if (ptr->awaitsSetup()) wantSetup = true;
+    c.next();
+  }
+  return wantSetup;
+}
+
 void YSE::SYNTH::managerObject::promoteReadyImpls() {
   // Move OBJECT_SETUP impls into inUse, erasing from toLoad in the same step so
   // no freed pointer lingers in the audio-thread-iterated list (same
@@ -99,8 +122,12 @@ void YSE::SYNTH::managerObject::syncAndReleaseInUse() {
 void YSE::SYNTH::managerObject::update() {
   drainInbox();
 
-  if (!toLoad.empty() && !mgrSetup.isQueued()) {
-    toLoad.remove_if(implementationObject::canBeRemovedFromLoading);
+  // Queue a setup pass only for an impl that can actually be claimed: created
+  // and attached to a sound (issue #1177). An impl already OBJECT_SETUP but
+  // not yet promoted, or one still waiting for its sound, used to queue a
+  // spare pass that ran on the slow pool later and could claim a synth whose
+  // voices were still being added.
+  if (scrubToLoad() && !mgrSetup.isQueued()) {
     INTERNAL::Global().addSlowJob(&mgrSetup);
   }
 

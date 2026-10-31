@@ -48,7 +48,9 @@ YSE_C_API YseSystem* yse_system_get(void);
    device is running. With no default device, or one that refuses to open or
    start the stream, it returns YSE_ERR_AUDIO_DEVICE and leaves the engine
    closed; yse_system_init_offline() runs the engine without a device
-   (issue #973). */
+   (issue #973), at the rate set with yse_system_request_sample_rate() or at
+   48000 Hz when none is requested, whatever rate an earlier session in the
+   process ran at (issue #1033). */
 YSE_C_API YseStatus yse_system_init(YseSystem* sys);
 YSE_C_API YseStatus yse_system_init_offline(YseSystem* sys);
 YSE_C_API void yse_system_render_offline(YseSystem* sys, int blocks);
@@ -80,9 +82,10 @@ YSE_C_API float yse_system_cpu_load(YseSystem* sys);
    negotiate a different rate — the negotiated result stays authoritative and
    is reported by yse_system_get_sample_rate(); a refused request is a log
    line plus the negotiated fallback, never an error. Offline / headless
-   sessions run exactly at the requested rate. Pass 0 to clear the request
-   (the backend then opens at the device default; the pre-negotiation initial
-   value is 48000). Changing a running session's rate means yse_system_close()
+   sessions run exactly at the requested rate. Pass 0 to clear the request:
+   the backend then opens at the device default, and an offline session runs
+   at 48000 Hz, whatever rate an earlier session in the process ran at
+   (issue #1033). Changing a running session's rate means yse_system_close()
    followed by a new init; calling this mid-session only stores the request
    for the next session. The request survives close. */
 YSE_C_API void yse_system_request_sample_rate(YseSystem* sys, unsigned int rate_hz);
@@ -238,8 +241,10 @@ YSE_C_API void yse_system_close_current_device(YseSystem* sys);
    CI, yse_system_render_offline() benchmarks — otherwise stays on the stereo
    layout init installs. Call this after init/init_offline (initialisation
    installs the stereo default itself, so an earlier call is overwritten); the
-   next audio callback or render_offline block picks the new layout up and
-   resizes the mixer to match.
+   next audio callback or render_offline block that mixes a sound picks the
+   new layout up and resizes the mixer to match. A block with no sound alive
+   skips the mix, so until a sound exists yse_channel_get_num_outputs() on the
+   master keeps reporting the previous layout (issue #1033).
 
    `outputs` is the number of output channels and must be at least 1; a
    zero-output layout would silence the engine, so it is refused with a log

@@ -146,9 +146,37 @@ namespace YSE {
 
     // ---- lifecycle --------------------------------------------------------
 
+    void implementationObject::markAttached() {
+      // Release pairs with the acquire in tryClaimForSetup(): a setup pass
+      // that sees the attach also sees every addVoiceGroup() made before it
+      // (those are additionally serialised on buildMutex).
+      attached.store(true, std::memory_order_release);
+    }
+
+    bool implementationObject::awaitsSetup() const {
+      return objectStatus.load(std::memory_order_acquire) == OBJECT_CREATED &&
+             attached.load(std::memory_order_acquire);
+    }
+
     bool implementationObject::tryClaimForSetup() {
+      // An unattached synth is still being built: its caller may be between
+      // create() and the first addVoices(), or between two addVoices() calls.
+      // Claiming it would seal the groups early and reject the rest (issue
+      // #1177), so the setup pass leaves it OBJECT_CREATED until a sound
+      // attaches it — the documented point by which its voices are complete.
+      if (!attached.load(std::memory_order_acquire)) return false;
       OBJECT_IMPLEMENTATION_STATE expected = OBJECT_CREATED;
       return objectStatus.compare_exchange_strong(expected, OBJECT_SETTING_UP);
+    }
+
+    bool implementationObject::tryRetireUnattached() {
+      if (attached.load(std::memory_order_acquire)) return false;
+      if (head.load(std::memory_order_acquire) != nullptr) return false;
+      // CAS so a concurrent claim and this retire cannot both win. (A claim
+      // needs `attached`, which can no longer be set once the interface is
+      // gone, so in practice the setup pool never competes here.)
+      OBJECT_IMPLEMENTATION_STATE expected = OBJECT_CREATED;
+      return objectStatus.compare_exchange_strong(expected, OBJECT_DELETE);
     }
 
     void implementationObject::setup() {
@@ -221,6 +249,16 @@ namespace YSE {
     }
 
     void implementationObject::removeInterface() {
+      // Drop the prototype pointers a not-yet-run setup() would clone (issue
+      // #1175). They are caller-owned and may be freed as soon as the interface
+      // is gone, so a synth destroyed before the setup pool reached it must not
+      // leave them behind. Taking buildMutex also waits out a setup() already
+      // cloning. Control thread only; the audio thread never takes this lock.
+      {
+        std::scoped_lock lk(buildMutex);
+        pendingGroups.clear();
+        handlerPrototype = nullptr;
+      }
       head.store(nullptr, std::memory_order_release);
     }
 

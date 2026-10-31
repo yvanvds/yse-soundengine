@@ -118,7 +118,10 @@ YSE_C_API unsigned int yse_motif_size(YseMotif* m);
 
 /** Create a generative player bound to `synth` and register it with the engine.
    `synth` must be a live handle from yse_synth_create and must outlive the
-   player — every note the player generates is delivered to it. Returns NULL
+   player — every note the player generates is delivered to it. Destroying the
+   synth right after the player (yse_player_destroy then yse_synth_destroy, or
+   either one before yse_system_close) is safe: the note-offs flushed for a
+   destroyed player never touch the synth handle (issue #1181). Returns NULL
    (with yse_last_error() set) when `synth` is NULL or on allocation failure.
    This is the only create path: a player has no useful state until it is bound
    to a synth, so unlike most create functions it takes its target up front

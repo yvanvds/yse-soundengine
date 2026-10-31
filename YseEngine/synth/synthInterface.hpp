@@ -103,13 +103,17 @@ namespace YSE {
        *  MIDI ``channel`` (0 = omni). May be called several times to build
        *  layered or split keyboards; a note may sound in more than one matching
        *  group. Cloning happens off the audio thread, on the engine's setup
-       *  pool, so the synth becomes playable a short moment after this returns
-       *  (when it reaches ``OBJECT_READY``) — exactly like a file-backed sound
-       *  is not playable until its buffer finishes loading.
+       *  pool, once a sound attaches the synth (``sound::create(synth&)``), so
+       *  the synth becomes playable a short moment after that (when it reaches
+       *  ``OBJECT_READY``) — exactly like a file-backed sound is not playable
+       *  until its buffer finishes loading. Attaching seals the groups: every
+       *  ``addVoices`` made before it is cloned, one made after it is rejected,
+       *  and a synth that is never attached is never set up (issue #1177).
        *
-       *  @warning ``prototype`` must outlive the resulting setup — the engine
-       *           reads it to clone but neither copies nor owns it. Call
-       *           ``addVoices`` before the synth is attached and played.
+       *  @warning ``prototype`` must outlive the resulting setup, or this
+       *           synth if it is destroyed first — the engine reads it to clone
+       *           but neither copies nor owns it. Call ``addVoices`` before the
+       *           synth is attached and played.
        */
       interfaceObject& addVoices(dspVoice& prototype, int numVoices, int channel = 0,
                                  int lowestNote = 0, int highestNote = 127);
@@ -172,8 +176,9 @@ namespace YSE {
        *  ``SYNTH::orbitHandler``, or derive your own from
        *  ``SYNTH::positionHandler``.
        *
-       *  @warning ``prototype`` must outlive setup — the engine reads it to
-       *           clone but neither copies nor owns it. Call before the synth is
+       *  @warning ``prototype`` must outlive setup, or this synth if it is
+       *           destroyed first — the engine reads it to clone but neither
+       *           copies nor owns it. Call before the synth is
        *           attached and played (rejected after setup, like ``addVoices``). */
       interfaceObject& positionHandler(YSE::SYNTH::positionHandler& prototype);
 
@@ -205,7 +210,8 @@ namespace YSE {
        *  no locks, no blocking. See docs/design/synth_core.md §7. */
       interfaceObject& onNoteEvent(void (*func)(bool noteOn, float* noteNumber, float* velocity));
 
-      /** @brief Total number of allocated voices across all groups. */
+      /** @brief Total number of allocated voices across all groups. Zero until
+       *  the synth is attached to a sound and its setup has run. */
       int getNumVoices() const;
 
       /** @brief Whether this interface has a live implementation. */
@@ -232,6 +238,9 @@ namespace YSE {
       // A clip snapshots pimpl when it is destroyed, to release its notes after
       // this interface may be gone (issue #975).
       friend class CLIP::transport;
+      // A player binds to pimpl at create() and holds a reference on it, so its
+      // retirement note-offs never need this interface (issue #1181).
+      friend class YSE::player;
     };
 
   } // namespace SYNTH

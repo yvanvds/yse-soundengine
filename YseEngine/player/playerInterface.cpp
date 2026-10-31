@@ -24,7 +24,13 @@ YSE::player::~player() {
 
 YSE::player& YSE::player::create(YSE::synth& instrument) {
   if (pimpl != nullptr) return *this; // already created — idempotent
-  pimpl = PLAYER::Manager().addImplementation(this, &instrument);
+  // Bind to the synth's engine-owned implementation, not to the caller-owned
+  // interface: the player impl outlives this interface by at least one audio
+  // block and flushes its note-offs then, possibly after the synth interface
+  // is gone (#1181). create() is idempotent and gives the synth one if it has
+  // none yet.
+  instrument.create();
+  pimpl = PLAYER::Manager().addImplementation(this, instrument.pimpl);
   return *this;
 }
 

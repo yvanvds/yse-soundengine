@@ -43,8 +43,12 @@ namespace YSE {
      *  public note API (the synth's lock-free inbox), so the same synth must not
      *  be driven concurrently from another source. Must be called before
      *  ``play()`` or any setter; calling those first is a no-op that logs a
-     *  warning rather than crashing. ``instrument`` must outlive this player.
-     *  Calling ``create`` twice is a no-op.
+     *  warning rather than crashing. ``instrument`` must outlive this player,
+     *  but destroying it right after the player is safe: the note-offs the
+     *  engine sends once the player is gone go to the synth's engine-side
+     *  implementation, which the player keeps alive until then. Calls
+     *  ``instrument.create()`` if the synth has not been created yet. Calling
+     *  ``create`` twice is a no-op.
      */
     player& create(synth& instrument);
 

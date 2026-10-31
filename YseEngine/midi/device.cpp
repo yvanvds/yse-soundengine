@@ -274,21 +274,70 @@ bool YSE::midiIn::isOpen() const {
 // exchange, so a dispatch sees either the whole old pair or the whole new one
 // — the shape the log bridge got in #902 and the C API raw bridge in #916.
 //
-// ### Reclaiming the old pair
+// ### Reclaiming the old pair, and waiting out the old callback (#1176)
 //
-// RtMidi's input thread holds no lock a setter could wait on, so this uses
-// the same quiescence handshake as the #916 C bridge: dispatch() raises
-// `readers`, loads both pairs, copies their fields onto its stack and drops
-// `readers` again — before it calls out. A setter exchanges the pointer, then
-// waits for `readers` to read zero before deleting what it swapped out. Every
-// access is seq_cst, so either the setter's read of the counter sees a
-// dispatcher's raise (and waits for its drop), or the dispatcher's load of
-// the pair comes after the exchange in the single total order and sees the
-// new pair. The waited-on window never contains user code, so a callback that
-// re-installs from inside itself cannot deadlock on its own dispatch.
+// RtMidi's input thread holds no lock a setter could wait on, so this uses a
+// seq_cst reader-count handshake: dispatch() raises `readers`, loads both
+// pairs, copies their fields onto its stack, calls the callbacks and only
+// then drops `readers`. A setter exchanges the pointer, then waits for
+// `readers` to read zero before deleting what it swapped out. Every access is
+// seq_cst, so either the setter's read of the counter sees a dispatcher's
+// raise (and waits for its drop), or the dispatcher's load of the pair comes
+// after the exchange in the single total order and sees the new pair.
+//
+// Keeping `readers` raised across the callback calls (not just across the
+// load, as #916 / #917 had it) is what lets a setter promise that once it
+// returns no thread is inside the replaced callback or about to call it, so
+// the host may free what that callback points into — the guarantee the log
+// bridge gives by holding its sink mutex across the call.
+//
+// A callback that re-installs from inside itself would then wait on its own
+// raise. dispatch() records each port it is dispatching for on a
+// thread_local chain of stack frames, and a setter waits only for the
+// readers that are not its own thread's frames for this port. The chain
+// lives on the dispatcher's stack, so the dispatch path still never
+// allocates or locks.
+
+namespace {
+  struct dispatchFrame {
+    const YSE::midiIn* port;
+    dispatchFrame* outer;
+  };
+  thread_local dispatchFrame* tlsDispatchFrames = nullptr;
+
+  // Raises `readers` and pushes a frame for `port` for the lifetime of the
+  // scope; drops both on exit (exception-safe, in case a C++ host callback
+  // throws).
+  struct dispatchScope {
+    std::atomic<unsigned int>& readers;
+    dispatchFrame frame;
+    dispatchScope(const YSE::midiIn* port, std::atomic<unsigned int>& count)
+      : readers(count), frame{port, tlsDispatchFrames} {
+      readers.fetch_add(1, std::memory_order_seq_cst);
+      tlsDispatchFrames = &frame;
+    }
+    ~dispatchScope() {
+      tlsDispatchFrames = frame.outer;
+      readers.fetch_sub(1, std::memory_order_release);
+    }
+    dispatchScope(const dispatchScope&) = delete;
+    dispatchScope& operator=(const dispatchScope&) = delete;
+    dispatchScope(dispatchScope&&) = delete;
+    dispatchScope& operator=(dispatchScope&&) = delete;
+  };
+
+  // How many of `port`'s raised readers belong to the calling thread.
+  unsigned int ownReaders(const YSE::midiIn* port) {
+    unsigned int n = 0;
+    for (const dispatchFrame* f = tlsDispatchFrames; f != nullptr; f = f->outer)
+      if (f->port == port) ++n;
+    return n;
+  }
+} // namespace
 
 void YSE::midiIn::awaitNoReaders() const {
-  while (readers.load(std::memory_order_seq_cst) != 0)
+  const unsigned int own = ownReaders(this);
+  while (readers.load(std::memory_order_seq_cst) > own)
     std::this_thread::yield();
 }
 
@@ -355,30 +404,31 @@ void YSE::midiIn::dispatch(double timestampSec, const unsigned char* bytes, std:
   // RtMidi vector that survives the call. Consumers that need to forward
   // across threads must copy (the C API bridge already does).
   //
-  // Both host pairs are copied out under the `readers` handshake before
-  // either callback runs (issue #917 — see the notes above setRawCallback).
-  readers.fetch_add(1, std::memory_order_seq_cst);
-  const rawPair* rp = raw.load(std::memory_order_seq_cst);
-  const parsedPair* pp = parsed.load(std::memory_order_seq_cst);
-  const RawCallback rcb = rp != nullptr ? rp->cb : nullptr;
-  void* const rawUser = rp != nullptr ? rp->user_data : nullptr;
-  const ParsedCallback pcb = pp != nullptr ? pp->cb : nullptr;
-  void* const parsedUser = pp != nullptr ? pp->user_data : nullptr;
-  readers.fetch_sub(1, std::memory_order_release);
+  // Both host pairs are copied out, and both callbacks run, with `readers`
+  // raised (issues #917, #1176 — see the notes above awaitNoReaders()).
+  {
+    const dispatchScope scope(this, readers);
+    const rawPair* rp = raw.load(std::memory_order_seq_cst);
+    const parsedPair* pp = parsed.load(std::memory_order_seq_cst);
+    const RawCallback rcb = rp != nullptr ? rp->cb : nullptr;
+    void* const rawUser = rp != nullptr ? rp->user_data : nullptr;
+    const ParsedCallback pcb = pp != nullptr ? pp->cb : nullptr;
+    void* const parsedUser = pp != nullptr ? pp->user_data : nullptr;
 
-  if (rcb != nullptr) {
-    rcb(timestampSec, bytes, len, rawUser);
-  }
+    if (rcb != nullptr) {
+      rcb(timestampSec, bytes, len, rawUser);
+    }
 
-  // Parsed subscriber wants the typed nibbles. For 1- and 2-byte messages
-  // (real-time clock, channel pressure, program change) the missing data
-  // bytes are reported as zero.
-  if (pcb != nullptr) {
-    const unsigned char status = static_cast<unsigned char>(bytes[0] & 0xF0);
-    const unsigned char channel = static_cast<unsigned char>(bytes[0] & 0x0F);
-    const unsigned char data1 = len > 1 ? bytes[1] : 0;
-    const unsigned char data2 = len > 2 ? bytes[2] : 0;
-    pcb(timestampSec, status, channel, data1, data2, parsedUser);
+    // Parsed subscriber wants the typed nibbles. For 1- and 2-byte messages
+    // (real-time clock, channel pressure, program change) the missing data
+    // bytes are reported as zero.
+    if (pcb != nullptr) {
+      const unsigned char status = static_cast<unsigned char>(bytes[0] & 0xF0);
+      const unsigned char channel = static_cast<unsigned char>(bytes[0] & 0x0F);
+      const unsigned char data1 = len > 1 ? bytes[1] : 0;
+      const unsigned char data2 = len > 2 ? bytes[2] : 0;
+      pcb(timestampSec, status, channel, data1, data2, parsedUser);
+    }
   }
 
   // Internal synth subscribers (issue #155). This is the additive fan-out the

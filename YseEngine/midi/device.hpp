@@ -182,10 +182,20 @@ namespace YSE {
     /** @brief Whether a port is currently open. */
     bool isOpen() const;
 
-    /** @brief Install a raw-bytes callback. Pass ``nullptr`` to detach. */
+    /** @brief Install a raw-bytes callback. Pass ``nullptr`` to detach.
+     *
+     *  When a callback is replaced or detached, this waits for any call into
+     *  it that is in flight on the input thread to return. Once the setter
+     *  returns, no thread is inside the old callback or about to call it, so
+     *  its ``user_data`` may be freed (issue #1176). Calling a setter from
+     *  inside a callback on the same port does not wait for that call. Do not
+     *  call it while holding a lock the callback may take. */
     void setRawCallback(RawCallback cb, void* user_data);
 
-    /** @brief Install a parsed callback. Pass ``nullptr`` to detach. */
+    /** @brief Install a parsed callback. Pass ``nullptr`` to detach.
+     *
+     *  Waits out an in-flight call to the replaced callback the same way
+     *  ``setRawCallback`` does. */
     void setParsedCallback(ParsedCallback cb, void* user_data);
 
     /** @brief Route incoming device MIDI into a synth (issue #155).
@@ -220,9 +230,10 @@ namespace YSE {
     // Each host callback and its user_data are published together, as one
     // immutable pair behind one atomic pointer, so a dispatch can never call
     // one install's callback with another install's user_data (issue #917).
-    // dispatch() copies both pairs out while it holds `readers` raised; a
-    // setter frees the pair it replaced only once `readers` reads zero. See
-    // the notes above setRawCallback() in device.cpp.
+    // dispatch() copies both pairs out and calls both callbacks while it
+    // holds `readers` raised; a setter frees the pair it replaced, and
+    // returns, only once no other thread's dispatch holds `readers` (#1176).
+    // See the notes above awaitNoReaders() in device.cpp.
     struct rawPair {
       RawCallback cb;
       void* user_data;
@@ -235,7 +246,9 @@ namespace YSE {
     std::atomic<parsedPair*> parsed{nullptr};
     std::atomic<unsigned int> readers{0};
 
-    // Blocks until no dispatch() is between its raise and drop of `readers`.
+    // Blocks until no dispatch() on another thread (or further out on this
+    // thread's stack for another port) is between its raise and drop of
+    // `readers`. The calling thread's own dispatches of this port are skipped.
     void awaitNoReaders() const;
 
     // Internal synth subscribers (issue #155). A fixed-size atomic table so

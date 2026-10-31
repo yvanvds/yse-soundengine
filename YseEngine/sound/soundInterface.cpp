@@ -280,6 +280,9 @@ void YSE::sound::create(YSE::synth& synth, channel* ch, float volume) {
   // process(), which the sound already knows how to call — no new audio-thread
   // path is opened (docs/design/synth_core.md §9).
   if (!synth.isValid()) synth.create();
+  // Seal the synth's voice groups: the setup pool only claims an attached
+  // synth, so every addVoices() made before this call is cloned (#1177).
+  synth.pimpl->markAttached();
 
   pimpl = SOUND::Manager().addImplementation(this);
   if (ch == nullptr) ch = &CHANNEL::Manager().master();

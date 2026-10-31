@@ -32,11 +32,12 @@ namespace YSE {
 
   /** @brief The active engine sample rate, in Hz.
    *
-   *  48000 until a session starts. The audio backend writes it once per
-   *  session, while the session starts: the rate the application requested
+   *  48000 until a session starts. It is written once per session, while the
+   *  session starts: the rate the application requested
    *  (``System().requestSampleRate``) or the device default on desktop, the
-   *  rate Oboe negotiated on Android. Read it, never write it, and treat it as
-   *  fixed for the rest of the session. */
+   *  rate Oboe negotiated on Android, and for an offline session the
+   *  requested rate or 48000 when none is requested (issue #1033). Read it,
+   *  never write it, and treat it as fixed for the rest of the session. */
   extern API UInt SAMPLERATE;
 } // namespace YSE
 

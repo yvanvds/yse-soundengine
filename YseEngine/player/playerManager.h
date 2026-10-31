@@ -43,7 +43,8 @@ namespace YSE {
       /** Register a new player bound to `instrument` (the synth it feeds). Main
           thread only: emplaces into the canonical list under the mutex and hands
           the impl to the audio thread through the lock-free inbox. */
-      implementationObject* addImplementation(player* head, SYNTH::interfaceObject* instrument);
+      implementationObject* addImplementation(player* head,
+                                              SYNTH::implementationObject* instrument);
 
       /** Audio-thread tick, driven every callback. Drains newly-created impls
           into the working list, advances each live player's note generation, and

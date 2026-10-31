@@ -34,6 +34,7 @@
 #include "support/alloc_probe.hpp"
 #include "support/inflight_delete.hpp"
 #include "support/null_device.hpp"
+#include "patcher/pool_blocker.hpp"
 #include "support/timer_pacing.hpp"
 
 using namespace std::chrono_literals;
@@ -481,6 +482,93 @@ TEST_SUITE("synth") {
     CHECK(true);
   }
 
+  // ─── setup is sealed by attach (issue #1177) ──────────────────────────────
+
+  namespace {
+    // One manager tick, then a FIFO barrier on the slow pool: whatever setup
+    // job that tick queued has finished by the time this returns. Stages the
+    // window #1177 is about — a setup pass running while a freshly created
+    // synth's voices are still being added — without betting on timing.
+    void tickAndFlushSetup() {
+      YSE::SYNTH::Manager().update();
+      TestHelpers::PoolBlocker barrier;
+      REQUIRE(barrier.Park());
+      barrier.Unpark();
+    }
+
+    bool waitForVoices(YSE::synth& syn, int n) {
+      return TestHelpers::pacedPump(
+          2000, [&syn, n] { return syn.getNumVoices() == n; },
+          [] {
+            YSE::INTERNAL::Time().update();
+            YSE::SOUND::Manager().update();
+            YSE::SYNTH::Manager().update();
+          },
+          5);
+    }
+  } // namespace
+
+  TEST_CASE("synth setup: a setup pass before addVoices does not seal the synth (issue #1177)") {
+    if (!TestHelpers::engineInit()) return;
+    sineVoice proto;
+    proto.attack(0.005f).release(0.05f);
+    {
+      YSE::synth syn;
+      syn.create();
+      // A setup pass runs while the synth has no voice groups yet. It used to
+      // claim the synth and publish OBJECT_SETUP with 0 voices, so the
+      // addVoices() below was rejected and the synth stayed silent for good.
+      for (int i = 0; i < 3; ++i)
+        tickAndFlushSetup();
+      syn.addVoices(proto, 4);
+      YSE::sound snd;
+      snd.create(syn);
+      CHECK_MESSAGE(waitForVoices(syn, 4), "voices added before attach were not cloned");
+      CHECK(syn.getNumVoices() == 4);
+    }
+    drainSynth();
+  }
+
+  TEST_CASE("synth setup: a setup pass between two addVoices keeps both groups (issue #1177)") {
+    if (!TestHelpers::engineInit()) return;
+    sineVoice low;
+    sineVoice high;
+    {
+      YSE::synth syn;
+      syn.create().addVoices(low, 2, 1, 0, 59);
+      for (int i = 0; i < 3; ++i)
+        tickAndFlushSetup();
+      syn.addVoices(high, 3, 1, 60, 127);
+      YSE::sound snd;
+      snd.create(syn);
+      CHECK_MESSAGE(waitForVoices(syn, 5), "a group added before attach was dropped");
+      CHECK(syn.getNumVoices() == 5);
+    }
+    drainSynth();
+  }
+
+  TEST_CASE("synth setup: a never-attached synth is reclaimed when destroyed (issue #1177)") {
+    if (!TestHelpers::engineInit()) return;
+    auto& mgr = YSE::SYNTH::Manager();
+    drainSynth();
+    const std::size_t before = mgr.implementationCount();
+    {
+      sineVoice proto;
+      YSE::synth bare;
+      bare.create();
+      YSE::synth voiced;
+      voiced.create().addVoices(proto, 4);
+      for (int i = 0; i < 3; ++i)
+        tickAndFlushSetup();
+      // An unattached synth is never set up, so it clones nothing.
+      CHECK(voiced.getNumVoices() == 0);
+    }
+    const bool reclaimed = TestHelpers::pacedPump(
+        2000, [&mgr, before] { return mgr.implementationCount() <= before; },
+        [&mgr] { mgr.update(); }, 5);
+    CHECK_MESSAGE(reclaimed, "a destroyed, never-attached synth impl was stranded");
+  }
+
   TEST_CASE("synth lifecycle: a release marked during an in-flight delete job is still "
             "reclaimed (issue #992)") {
     if (!TestHelpers::engineInit()) return;
@@ -506,11 +594,11 @@ TEST_SUITE("synth") {
       }
       auto x = std::make_unique<YSE::synth>(); // last: heads the canonical list
       x->create();
-      // Bring every impl to OBJECT_READY in the working list. Setup runs on the
-      // slow pool, and parking + unparking the pool's one worker is a FIFO
-      // barrier behind whatever a tick queued: tick one drains the inbox and
-      // queues setup, tick two re-queues it if an earlier, already-running
-      // setup job missed these impls, and tick three promotes them.
+      // Bring every impl into the audio-thread working list. None is attached
+      // to a sound, so none is ever set up (issue #1177): they wait in the
+      // loading list, and a release retires them from there, raising the same
+      // delete request an in-use release does. Parking + unparking the pool's
+      // one worker is a FIFO barrier behind whatever a tick queued.
       for (int i = 0; i < 3; ++i) {
         tick();
         TestHelpers::PoolBlocker barrier;

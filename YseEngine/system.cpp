@@ -39,6 +39,11 @@ namespace {
   // promptly. It is a floor under the user's `delay`, not an addition to it.
   constexpr unsigned long long kFirstCallbackGraceMs = 500;
 
+  // The rate a session starts from when the application requests none (issue
+  // #1033): the documented pre-negotiation value of SAMPLERATE, and therefore
+  // the rate of an offline session with no request.
+  constexpr UInt DEFAULT_SAMPLERATE = 48000;
+
   using reopenOutcome = YSE::DEVICE::deviceManager::reopenOutcome;
 
   // The body of resume(), shared with the autoReconnect watchdog so both reach
@@ -84,14 +89,16 @@ Bool YSE::system::initShared(bool openDevice) {
   // device negotiation (the #637 init window) then already see the requested
   // rate. The backend stays authoritative — if a device opens below, it
   // rewrites SAMPLERATE with the negotiated rate; when no device opens
-  // (initOffline), the requested rate IS the session rate. The previous value
-  // is kept so a failed init() can put it back (issue #973).
+  // (initOffline), the requested rate IS the session rate. With no request
+  // the seed is the 48000 default rather than whatever the previous session
+  // ran at (issue #1033), so an offline session's rate never depends on the
+  // process's history; a device session rewrites it with the negotiated rate
+  // either way. The previous value is kept so a failed init() can put it back
+  // (issue #973).
   const UInt rateBeforeInit = SAMPLERATE;
-  {
+  if (!INTERNAL::Global().isSampleRateLocked()) {
     const UInt requested = DEVICE::Manager().getRequestedSampleRate();
-    if (requested != 0 && !INTERNAL::Global().isSampleRateLocked()) {
-      SAMPLERATE = requested;
-    }
+    SAMPLERATE = requested != 0 ? requested : DEFAULT_SAMPLERATE;
   }
 
   // global objects should always be loaded before anything else!

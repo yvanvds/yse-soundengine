@@ -39,7 +39,7 @@ YSE::PLAYER::managerObject::~managerObject() noexcept {
 
 YSE::PLAYER::implementationObject*
 YSE::PLAYER::managerObject::addImplementation(YSE::player* head,
-                                              YSE::SYNTH::interfaceObject* instrument) {
+                                              YSE::SYNTH::implementationObject* instrument) {
   implementationObject* impl = nullptr;
   {
     std::scoped_lock lk(implementationsMutex);

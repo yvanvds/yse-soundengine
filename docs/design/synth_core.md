@@ -638,16 +638,25 @@ prototypes:
   OBJECT_CREATED`) and pushes it to `toLoadInbox`.
 - `addVoices(prototype, n, channel, low, high)` records a *pending group
   request* (a small, allocation-free descriptor: a pointer to the
-  prototype, `n`, and the filter) and re-arms setup. `impl->setup()`
-  (run by `mgrSetup` on the slow pool) walks the pending group requests
-  and, for each, calls `prototype.clone()` `n` times, allocating the
+  prototype, `n`, and the filter).
+- `sound.create(synth)` marks the impl *attached*, and only an attached
+  impl can be claimed for setup (issue #1177). Attaching is what seals the
+  voice groups: a setup pass running between `create()` and the first
+  `addVoices()`, or between two `addVoices()` calls, leaves the impl
+  `OBJECT_CREATED`, so every group added before the attach is cloned. A
+  synth that is never attached is never set up; if its interface is
+  destroyed, the audio thread retires it from the loading list straight to
+  `OBJECT_DELETE` (no sound ever held its output). The manager queues a
+  setup pass only while some impl is attached and still `OBJECT_CREATED`.
+- `impl->setup()` (run by `mgrSetup` on the slow pool) walks the pending
+  group requests and, for each, calls `prototype.clone()` `n` times, allocating the
   group's voice array. Only after all pending groups are built does the
   impl reach `OBJECT_SETUP` and get promoted to `OBJECT_READY`.
 - Notes that arrive before the group they target is `READY` are dropped
   (logged at debug level). The expected call order is `create()` →
-  `addVoices()` (possibly several) → play. Because setup is async on the
-  slow pool, a synth is not instantly playable after `addVoices()`; it
-  becomes playable when it reaches `OBJECT_READY`, consistent with how a
+  `addVoices()` (possibly several) → attach to a sound → play. Because
+  setup is async on the slow pool, a synth is not instantly playable after
+  the attach; it becomes playable when it reaches `OBJECT_READY`, consistent with how a
   file-backed `sound` is not playable until its buffer finishes loading.
 
 ### Delete — where voices are freed
