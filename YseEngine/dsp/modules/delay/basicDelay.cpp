@@ -63,7 +63,12 @@ Flt YSE::DSP::MODULES::basicDelay::gain(basicDelay::DELAY_NR nr) {
   return gain0; // stop complaining about control paths
 }
 
-YSE::DSP::MODULES::basicDelay::delayChannel::delayChannel() : line(static_cast<Int>(SAMPLERATE)) {}
+// The line's size is numerically SAMPLERATE ms, so its memory is sized for the
+// current rate rather than DSP::delay's HIGHEST_SAMPLERATE default (which
+// would be several times larger); process() grows it with reserve() when the
+// rate changes.
+YSE::DSP::MODULES::basicDelay::delayChannel::delayChannel()
+  : line(static_cast<Int>(SAMPLERATE), SAMPLERATE) {}
 
 void YSE::DSP::MODULES::basicDelay::create() {
   // Per-channel delay lines are sized lazily in process() once the channel
@@ -87,11 +92,12 @@ void YSE::DSP::MODULES::basicDelay::process(MULTICHANNELBUFFER& buffer) {
   // constructor) was derived from the rate at first construction, so the
   // maximum addressable delay would stay stale across a close()/init() cycle
   // at another rate (issue #637). Re-derive it on that path; steady state pays
-  // one integer compare, and the lazy resize inside delay::process() is the
-  // accepted device-restart allocation path.
+  // one integer compare. reserve() grows the line's memory here — the accepted
+  // device-restart allocation path — since delay::process() itself no longer
+  // allocates (issue #1210).
   if (builtRate != SAMPLERATE) {
     for (std::size_t ch = 0; ch < channels.size(); ++ch) {
-      channels[ch].line.setSize(SAMPLERATE);
+      channels[ch].line.reserve(SAMPLERATE, SAMPLERATE);
     }
     builtRate = SAMPLERATE;
   }

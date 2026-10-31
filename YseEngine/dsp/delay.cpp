@@ -9,13 +9,42 @@
 */
 
 #include "delay.hpp"
+#include <algorithm>
+#include <cstddef>
 
 #define XTRASAMPS 4
 #define DEFDELVS 64
 #define SAMPBLK 4
 
-YSE::DSP::delay::delay(Int size)
-  : bufferlength(size), buffer(size + XTRASAMPS), phase(XTRASAMPS), currentLength(0), size(size) {}
+namespace {
+  // The line length (excluding the XTRASAMPS guard) process() uses for a size
+  // in ms at a rate. The expression is the one process() always used, kept
+  // verbatim (including its UInt product) so line lengths stay bit-identical.
+  Int lineLength(UInt sizeMs, UInt rate) {
+    Int nsamps = (Int)(sizeMs * rate * 0.001f);
+    if (nsamps < 1) nsamps = 1;
+    nsamps += ((-nsamps) & (SAMPBLK - 1));
+    nsamps += DEFDELVS;
+    return nsamps;
+  }
+} // namespace
+
+// All memory the line will use is allocated here, for the size at the highest
+// rate it supports, so process() and read() never allocate (issue #1210).
+// bufferlength starts at `size` as it always did; the first process() derives
+// the real length.
+YSE::DSP::delay::delay(Int size, UInt highestSampleRate)
+  : bufferlength(size), phase(XTRASAMPS), currentLength(0), size(size) {
+  const Int sizeMs = size < 0 ? 0 : size;
+  std::size_t storage =
+      static_cast<std::size_t>(lineLength(static_cast<UInt>(sizeMs), highestSampleRate)) +
+      XTRASAMPS;
+  // The initial bufferlength must address memory too (read() before the first
+  // process() clamps against it).
+  if (storage < static_cast<std::size_t>(sizeMs) + XTRASAMPS)
+    storage = static_cast<std::size_t>(sizeMs) + XTRASAMPS;
+  buffer.assign(storage, 0.f);
+}
 
 // Copy every member outright (issue #639). The previous body was
 // `delay(source.size);` — an unnamed temporary, not a delegating call — which
@@ -38,14 +67,35 @@ YSE::DSP::delay& YSE::DSP::delay::setSize(UInt size) {
   return (*this);
 }
 
+YSE::DSP::delay& YSE::DSP::delay::reserve(UInt size, UInt highestSampleRate) {
+  const std::size_t needed =
+      static_cast<std::size_t>(lineLength(size, highestSampleRate)) + XTRASAMPS;
+  // Grow only: vector::resize keeps the prefix and zero-fills the rest, which
+  // is what the line expects of memory it has not used yet.
+  if (needed > buffer.size()) buffer.resize(needed, 0.f);
+  this->size = size;
+  return (*this);
+}
+
 YSE::DSP::delay& YSE::DSP::delay::process(YSE::DSP::buffer& s) {
   {
-    Int nsamps = (Int)(this->size * SAMPLERATE * 0.001f);
-    if (nsamps < 1) nsamps = 1;
-    nsamps += ((-nsamps) & (SAMPBLK - 1));
-    nsamps += DEFDELVS;
+    Int nsamps = lineLength(this->size, SAMPLERATE);
+    // Clamp to the memory reserved up front instead of reallocating on the
+    // audio thread (issue #1210): a longer size or a higher rate than the
+    // line was sized for gets the longest line that fits, rounded down to a
+    // whole SAMPBLK so the length stays on the same grid.
+    const Int maxLength = static_cast<Int>(buffer.size()) - XTRASAMPS;
+    if (nsamps > maxLength) nsamps = maxLength & ~(SAMPBLK - 1);
     if ((Int)bufferlength != nsamps) {
-      buffer.resize(nsamps + XTRASAMPS, 0.f);
+      // What the old buffer.resize(nsamps + XTRASAMPS, 0.f) did, in place:
+      // keep the samples below both lengths, and zero the ones a longer line
+      // newly takes in (the memory may hold a previous, longer line's tail).
+      const Int oldUsed = static_cast<Int>(bufferlength) + XTRASAMPS;
+      const Int newUsed = nsamps + XTRASAMPS;
+      if (newUsed > oldUsed) {
+        const Int from = oldUsed < 0 ? 0 : oldUsed;
+        std::fill(buffer.begin() + from, buffer.begin() + newUsed, 0.f);
+      }
       bufferlength = nsamps;
       phase = XTRASAMPS;
     }
@@ -79,7 +129,10 @@ YSE::DSP::delay& YSE::DSP::delay::process(YSE::DSP::buffer& s) {
 }
 
 YSE::DSP::delay& YSE::DSP::delay::read(YSE::DSP::buffer& result, UInt delayTime) {
-  if (result.getLength() < currentLength) result.resize(currentLength);
+  // No resize of a short result on the audio thread (issue #1210): every
+  // engine caller pre-sizes it to the block; a shorter one gets its first
+  // getLength() samples of the delayed block.
+  const UInt readLength = result.getLength() < currentLength ? result.getLength() : currentLength;
   UInt delaySamples = (UInt)(SAMPLERATE * delayTime * 0.001f) + currentLength;
   if (delaySamples < result.getLength())
     delaySamples = result.getLength();
@@ -95,7 +148,7 @@ YSE::DSP::delay& YSE::DSP::delay::read(YSE::DSP::buffer& result, UInt delayTime)
 
   Flt* out = result.getPtr();
 
-  Int length = currentLength;
+  Int length = static_cast<Int>(readLength);
   while (length--) {
     *out++ = *bp++;
     if (bp == ep) bp -= bufferlength;
@@ -105,8 +158,8 @@ YSE::DSP::delay& YSE::DSP::delay::read(YSE::DSP::buffer& result, UInt delayTime)
 }
 
 YSE::DSP::delay& YSE::DSP::delay::read(YSE::DSP::buffer& result, YSE::DSP::buffer& delayTime) {
-  if (result.getLength() < currentLength) result.resize(currentLength);
-
+  // No resize of a short result on the audio thread (issue #1210); this
+  // variant writes result.getLength() samples, as it always did.
   Flt* ctrl = delayTime.getPtr();
   Flt* out = result.getPtr();
 
