@@ -51,6 +51,10 @@ namespace {
   // as an event other messages can belong to.
   std::atomic<std::uint64_t> sNextEventId{1};
 
+  // Inside a patcher's compiled signal render (issue #1185): see
+  // renderOrderScope in inlet.h. Same RT-safety terms as the two above.
+  thread_local bool tRenderOrder = false;
+
 } // namespace
 
 std::uint64_t YSE::PATCHER::CurrentMessageEvent() {
@@ -76,6 +80,14 @@ messageEventScope::~messageEventScope() {
   if (--tDispatchDepth == 0) {
     tEventId = 0;
   }
+}
+
+renderOrderScope::renderOrderScope() : previous_(tRenderOrder) {
+  tRenderOrder = true;
+}
+
+renderOrderScope::~renderOrderScope() {
+  tRenderOrder = previous_;
 }
 
 inlet::inlet(pObject* obj, bool active, int position)
@@ -268,6 +280,9 @@ void inlet::SetBuffer(YSE::DSP::buffer* buffer, YSE::THREAD thread) {
 
   if (onBuffer) onBuffer(current, position, thread);
   if (obj->IsDSPObject() && thread == T_GUI) return;
+  // In a compiled render the walk computes this object once its turn comes
+  // (issue #1185); recursing from here is what capped a chain's length.
+  if (tRenderOrder) return;
   obj->CalculateIfReady(thread);
 }
 

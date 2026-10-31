@@ -73,6 +73,33 @@ namespace YSE {
       messageEventScope& operator=(const messageEventScope&) = delete;
     };
 
+    /**
+     *  @brief RAII frame for a patcher's compiled signal render (issue #1185).
+     *
+     *  While one is open on a thread, ``inlet::SetBuffer`` stores the buffer
+     *  that arrives (and sums a fan-in) but does not go on to compute the
+     *  object: patcherImplementation::Calculate walks GraphState::renderOrder
+     *  and reaches each object itself, after everything that feeds it. That is
+     *  what keeps a long signal chain off the stack, and out of the send-depth
+     *  cap meant for message loops.
+     *
+     *  Saved and restored rather than set and cleared, so a patcher rendered
+     *  from inside another's frame hands its caller's state back. RT-safe: a
+     *  constant-initialised thread_local, so a plain TLS load/store.
+     */
+    class renderOrderScope {
+    public:
+      renderOrderScope();
+      ~renderOrderScope();
+      renderOrderScope(const renderOrderScope&) = delete;
+      renderOrderScope& operator=(const renderOrderScope&) = delete;
+      renderOrderScope(renderOrderScope&&) = delete;
+      renderOrderScope& operator=(renderOrderScope&&) = delete;
+
+    private:
+      bool previous_;
+    };
+
     typedef std::function<void(float, int, THREAD)> floatFunc;
     typedef std::function<void(int, int, THREAD)> intFunc;
     typedef std::function<void(int, THREAD)> voidFunc;

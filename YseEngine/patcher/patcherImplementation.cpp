@@ -406,9 +406,23 @@ void patcherImplementation::Calculate(YSE::THREAD thread) {
       g->objects[i]->ResetDSP();
     }
 
-    // calculate all dsp start points; the push traversal fans out from here
-    for (unsigned int i = 0; i < g->startPoints.size(); i++) {
-      g->startPoints[i]->Calculate(thread);
+    // Render the signal graph in the order compiled at publish time (issue
+    // #1185): each start point, then everything it completes, depth-first, as
+    // the recursive push used to visit them. A buffer arriving during the walk
+    // is stored without computing its object; the walk reaches that object
+    // itself. CalculateIfReady still checks every input, so an object whose
+    // source sent nothing this block is skipped, as it was. A DSP object is
+    // never computed from a T_GUI delivery (inlet::SetBuffer), and the walk
+    // keeps that.
+    {
+      renderOrderScope order;
+      for (const GraphState::renderStep& step : g->renderOrder) {
+        if (step.startPoint) {
+          step.object->Calculate(thread);
+        } else if (thread != YSE::T_GUI || !step.object->IsDSPObject()) {
+          step.object->CalculateIfReady(thread);
+        }
+      }
     }
 
     // Then the control messages the signal objects armed while rendering
@@ -2177,6 +2191,7 @@ YSE::PATCHER::GraphState* patcherImplementation::BuildGraph() {
       }
     }
   }
+  BuildRenderOrder(*g);
   // Flush order (issue #1037): storage IDs are fixed for a given patch, the
   // handle addresses `objects` is keyed by are not. The check below fires on
   // any sort of pointers; this one compares IDs, never addresses.
@@ -2184,6 +2199,74 @@ YSE::PATCHER::GraphState* patcherImplementation::BuildGraph() {
   std::sort(g->emitters.begin(), g->emitters.end(),
             [](pObject* a, pObject* b) { return a->GetID() < b->GetID(); });
   return g;
+}
+
+void patcherImplementation::BuildRenderOrder(GraphState& g) {
+  // Compile the signal traversal (issue #1185). Control thread, under mtx, like
+  // the rest of BuildGraph: the allocations here never reach the audio thread.
+  //
+  // This replays the recursive push the render used to make, without the
+  // recursion: a start point runs, sends each buffer outlet in order to each of
+  // its cords in order, and an object runs the moment the last cord it waits
+  // for has delivered — before the sender's next cord. So an object is emitted
+  // when its last incoming signal cord is visited, and its own cords are
+  // visited next, depth-first, through an explicit stack. Only the cords
+  // SetBuffer counts are counted: a buffer outlet's, not a link's (#1038), to
+  // an inlet that takes a signal. An object a start point never completes is
+  // never emitted, as the push never reached it either.
+  std::unordered_map<const pObject*, unsigned int> waiting;
+  waiting.reserve(g.objects.size());
+  for (pObject* object : g.objects) {
+    waiting.emplace(object, 0U);
+  }
+  const auto signalCord = [](const PATCHER::outlet* out) {
+    return out != nullptr && out->Type() == YSE::OUT_TYPE::BUFFER && !out->IsLink();
+  };
+  for (pObject* object : g.objects) {
+    for (int i = 0; i < object->NumOutputs(); i++) {
+      const PATCHER::outlet* out = object->GetOutlet(i);
+      if (!signalCord(out)) continue;
+      for (const PATCHER::inlet* in : out->Targets()) {
+        if (!in->AcceptsDSP()) continue;
+        auto it = waiting.find(in->Owner());
+        if (it != waiting.end()) it->second++;
+      }
+    }
+  }
+
+  struct frame {
+    pObject* object;
+    int outlet;
+    std::size_t cord;
+  };
+  std::vector<frame> stack;
+  g.renderOrder.reserve(g.objects.size());
+  for (pObject* start : g.startPoints) {
+    g.renderOrder.push_back({start, true});
+    stack.push_back({start, 0, 0});
+    while (!stack.empty()) {
+      frame& top = stack.back();
+      if (top.outlet >= top.object->NumOutputs()) {
+        stack.pop_back();
+        continue;
+      }
+      const PATCHER::outlet* out = top.object->GetOutlet(top.outlet);
+      if (!signalCord(out) || top.cord >= out->Targets().size()) {
+        top.outlet++;
+        top.cord = 0;
+        continue;
+      }
+      const PATCHER::inlet* in = out->Targets()[top.cord++];
+      if (!in->AcceptsDSP()) continue;
+      auto it = waiting.find(in->Owner());
+      if (it == waiting.end() || it->second == 0) continue;
+      if (--it->second == 0) {
+        pObject* next = in->Owner();
+        g.renderOrder.push_back({next, false});
+        stack.push_back({next, 0, 0}); // invalidates `top`; not read again
+      }
+    }
+  }
 }
 
 void patcherImplementation::RebuildAndPublish() {
