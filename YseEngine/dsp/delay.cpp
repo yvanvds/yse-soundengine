@@ -11,6 +11,7 @@
 #include "delay.hpp"
 #include <algorithm>
 #include <cstddef>
+#include <cstdint>
 
 #define XTRASAMPS 4
 #define DEFDELVS 64
@@ -18,10 +19,11 @@
 
 namespace {
   // The line length (excluding the XTRASAMPS guard) process() uses for a size
-  // in ms at a rate. The expression is the one process() always used, kept
-  // verbatim (including its UInt product) so line lengths stay bit-identical.
+  // in ms at a rate. The product is 64-bit: as a UInt it wrapped once
+  // sizeMs * rate passed 2^32 (a 45 s line at 96 kHz came out ~0.26 s, issue
+  // #1212). Below that the result is bit-identical to the old expression.
   Int lineLength(UInt sizeMs, UInt rate) {
-    Int nsamps = (Int)(sizeMs * rate * 0.001f);
+    Int nsamps = (Int)(static_cast<std::uint64_t>(sizeMs) * rate * 0.001f);
     if (nsamps < 1) nsamps = 1;
     nsamps += ((-nsamps) & (SAMPBLK - 1));
     nsamps += DEFDELVS;
@@ -133,7 +135,9 @@ YSE::DSP::delay& YSE::DSP::delay::read(YSE::DSP::buffer& result, UInt delayTime)
   // engine caller pre-sizes it to the block; a shorter one gets its first
   // getLength() samples of the delayed block.
   const UInt readLength = result.getLength() < currentLength ? result.getLength() : currentLength;
-  UInt delaySamples = (UInt)(SAMPLERATE * delayTime * 0.001f) + currentLength;
+  // 64-bit product for the same reason as lineLength() (issue #1212).
+  UInt delaySamples =
+      (UInt)(static_cast<std::uint64_t>(SAMPLERATE) * delayTime * 0.001f) + currentLength;
   if (delaySamples < result.getLength())
     delaySamples = result.getLength();
   else if (delaySamples > bufferlength - DEFDELVS)

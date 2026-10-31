@@ -186,4 +186,28 @@ TEST_SUITE("dsp") {
     CHECK(echoBlock == 2400 / 128); // read offset 2400 + 128 lands in block 18
   }
 
+  TEST_CASE("delay: a line longer than 2^32 / rate ms keeps its length (#1212)") {
+    // The line length and the read offset were both a UInt product of the
+    // rate and the time in ms, which wrapped past 2^32: a 46 s line at 96 kHz
+    // came out ~1.3 s long and a 45 s read offset ~0.26 s.
+    TestHelpers::ScopedSampleRate at96k(96000);
+    YSE::DSP::delay d(46000, 96000);
+    YSE::DSP::buffer in(1024);
+    in = 0.f;
+    in.getPtr()[0] = 1.f;
+    d.process(in);
+    in = 0.f;
+    YSE::DSP::buffer result(1024);
+    // 45 s = 4320000 samples; the read covers samples [b*1024 - 4320000, +1024)
+    // relative to the impulse, which holds sample 0 for b = 4218.
+    const int expectedBlock = 4218;
+    int echoBlock = -1;
+    for (int b = 1; b <= expectedBlock + 4 && echoBlock < 0; ++b) {
+      d.process(in);
+      d.read(result, 45000u);
+      if (TestHelpers::measureRms(result) > 1e-3f) echoBlock = b;
+    }
+    CHECK(echoBlock == expectedBlock);
+  }
+
 } // TEST_SUITE("dsp")

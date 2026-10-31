@@ -31,9 +31,16 @@ namespace YSE {
        *  Processes every channel of the multichannel buffer independently, each
        *  with its own delay line (see the N-channel contract on
        *  ``dspObject::process``).
+       *
+       *  Tap times are limited to ``MAX_DELAY_MS``. The lines are allocated
+       *  once, for that time at ``DSP::delay::HIGHEST_SAMPLERATE``, so
+       *  ``process`` allocates nothing when the sample rate changes.
        */
       class API basicDelay : public dspObject {
       public:
+        /** @brief Longest tap time in milliseconds; ``set`` clamps to it. */
+        static constexpr Flt MAX_DELAY_MS = 2000.f;
+
         /** @brief Which of the three delay taps to address. */
         enum DELAY_NR {
           FIRST,
@@ -47,7 +54,8 @@ namespace YSE {
 
         /** @brief Configure one of the three taps.
          *  @param nr   Tap to configure.
-         *  @param time Delay time in milliseconds.
+         *  @param time Delay time in milliseconds, clamped to
+         *              [0, ``MAX_DELAY_MS``].
          *  @param gain Gain for this tap.
          */
         basicDelay& set(DELAY_NR nr, Flt time, Flt gain);
@@ -84,10 +92,12 @@ namespace YSE {
           delayChannel();
         };
 
-        DSP::buffer result; // per-block scratch, shared across channels
-        DSP::buffer reader; // per-block scratch, shared across channels
+        // Per-block scratch, shared across channels. Constructed at
+        // STANDARD_BUFFERSIZE, the block length the engine renders; following
+        // a shorter block, or growing back, stays within that capacity.
+        DSP::buffer result;
+        DSP::buffer reader;
         perChannel<delayChannel> channels;
-        UInt builtRate = 0; // SAMPLERATE the line capacities were sized for (#637)
       };
 
     } // namespace MODULES

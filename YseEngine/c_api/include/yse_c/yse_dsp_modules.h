@@ -134,6 +134,7 @@ YSE_C_API int yse_dsp_sweep_get_frequency(YseDspObject* obj);
 
 /* ─── delay modules ──────────────────────────────────────────────────── */
 
+/* time_ms is clamped to [0, 2000] (basicDelay::MAX_DELAY_MS). */
 YSE_C_API void yse_dsp_basic_delay_set_tap(YseDspObject* obj, YseDspDelayTap tap, float time_ms,
                                            float gain);
 YSE_C_API float yse_dsp_basic_delay_get_time(YseDspObject* obj, YseDspDelayTap tap);
