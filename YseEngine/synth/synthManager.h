@@ -68,6 +68,7 @@ namespace YSE {
 
     private:
       void drainInbox();
+      bool scrubToLoad();
       void promoteReadyImpls();
       void syncAndReleaseInUse();
 

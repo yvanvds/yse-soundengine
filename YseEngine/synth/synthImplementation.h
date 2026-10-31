@@ -123,9 +123,27 @@ namespace YSE {
 
       // ---- lifecycle (manager + job templates) ----------------------------
 
+      /** Mark this synth as attached to a sound (control thread, from
+          sound::create(synth&)). Attaching is what seals the voice groups: the
+          setup pool never claims an unattached synth, so every addVoices()
+          made before the attach is cloned (issue #1177). */
+      void markAttached();
+
+      /** Whether the setup pool may claim this impl now: OBJECT_CREATED and
+          attached to a sound (issue #1177). Audio thread, to decide whether a
+          setup job is worth queueing. */
+      bool awaitsSetup() const;
+
       /** Atomically claim OBJECT_CREATED -> OBJECT_SETTING_UP for the setup
-          pool (used by INTERNAL::managerSetupJob). */
+          pool (used by INTERNAL::managerSetupJob). Fails for an impl that is
+          not attached to a sound yet (issue #1177). */
       bool tryClaimForSetup();
+
+      /** Audio thread: move a never-attached impl whose interface is gone
+          straight from OBJECT_CREATED to OBJECT_DELETE. It was never set up
+          and no sound ever held its output, so nothing references it. False
+          if it is attached, still owned, or was claimed meanwhile (#1177). */
+      bool tryRetireUnattached();
 
       /** Setup-pool entry point: clone the pending voice groups. Publishes
           OBJECT_SETUP on completion. */
@@ -321,6 +339,9 @@ namespace YSE {
 
       std::atomic<interfaceObject*> head; // owning interface (null once gone)
       std::atomic<OBJECT_IMPLEMENTATION_STATE> objectStatus;
+      // Set once, on the control thread, when a sound attaches this synth; the
+      // setup pool only claims attached impls (issue #1177). Never cleared.
+      std::atomic<bool> attached{false};
       lfQueue<messageObject> messages; // SPSC note inbox
 
       // Aggregate source. Its `samples` bed is sized in the constructor and

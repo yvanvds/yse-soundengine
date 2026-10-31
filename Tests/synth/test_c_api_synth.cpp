@@ -12,8 +12,10 @@
 #include <doctest/doctest.h>
 
 #include <atomic>
+#include <chrono>
 #include <cmath>
 #include <string>
+#include <thread>
 
 #include "support/timer_pacing.hpp"
 #include "yse_c/yse_music.h"
@@ -760,6 +762,54 @@ TEST_SUITE("synthcapi") {
 
     yse_sound_destroy(snd);
     yse_synth_destroy(syn);
+    drainFor(sys, 300);
+    yse_system_close(sys);
+  }
+
+  // Issue #1177, the reporter's C ABI order. Bringing synth `a` to its voice
+  // count leaves a spare setup pass queued; it used to run during the gap
+  // before `b`'s first add_voices, claim `b` with no voice groups and seal it
+  // at 0 voices for good. A synth is now only set up once it is attached.
+  TEST_CASE("c-api synth: voices added after a gap before attach are cloned (#1177)") {
+    YseSystem* sys = yse_system_get();
+    REQUIRE(sys != nullptr);
+    yse_system_close(sys);
+    if (yse_system_init_offline(sys) != YSE_OK) return;
+
+    YseSynth* a = yse_synth_create();
+    REQUIRE(a != nullptr);
+    REQUIRE(yse_synth_add_voices_sine(a, 4, 0, 0, 127, 0.001f, 0.01f, 0.8f, 0.05f) == YSE_OK);
+    YseSound* sa = yse_sound_create();
+    REQUIRE(sa != nullptr);
+    REQUIRE(yse_synth_attach_to_sound(a, sa, nullptr, 1.0f) == YSE_OK);
+    // The reporter's pump: update + render, then an idle gap, so the slow pool
+    // backs off to its sleeping poll.
+    for (int i = 0; i < 300 && yse_synth_get_num_voices(a) < 4; ++i) {
+      yse_system_update(sys);
+      yse_system_render_offline(sys, 1);
+      std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+    REQUIRE(yse_synth_get_num_voices(a) == 4);
+    // This tick still sees `a` loading (set up, not yet promoted) and used to
+    // queue the spare pass, which the backed-off pool picks up a moment later.
+    yse_system_update(sys);
+    yse_system_render_offline(sys, 1);
+
+    YseSynth* b = yse_synth_create();
+    REQUIRE(b != nullptr);
+    std::this_thread::sleep_for(std::chrono::milliseconds(30)); // the spare pass's window
+    REQUIRE(yse_synth_add_voices_sine(b, 4, 0, 0, 127, 0.001f, 0.01f, 0.8f, 0.05f) == YSE_OK);
+    YseSound* sb = yse_sound_create();
+    REQUIRE(sb != nullptr);
+    REQUIRE(yse_synth_attach_to_sound(b, sb, nullptr, 1.0f) == YSE_OK);
+    CHECK(drainUntilVoices(sys, b, 4));
+    CHECK(yse_synth_get_num_voices(b) == 4);
+
+    yse_sound_destroy(sb);
+    yse_sound_destroy(sa);
+    drainFor(sys, 300);
+    yse_synth_destroy(b);
+    yse_synth_destroy(a);
     drainFor(sys, 300);
     yse_system_close(sys);
   }

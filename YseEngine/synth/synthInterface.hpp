@@ -103,9 +103,12 @@ namespace YSE {
        *  MIDI ``channel`` (0 = omni). May be called several times to build
        *  layered or split keyboards; a note may sound in more than one matching
        *  group. Cloning happens off the audio thread, on the engine's setup
-       *  pool, so the synth becomes playable a short moment after this returns
-       *  (when it reaches ``OBJECT_READY``) — exactly like a file-backed sound
-       *  is not playable until its buffer finishes loading.
+       *  pool, once a sound attaches the synth (``sound::create(synth&)``), so
+       *  the synth becomes playable a short moment after that (when it reaches
+       *  ``OBJECT_READY``) — exactly like a file-backed sound is not playable
+       *  until its buffer finishes loading. Attaching seals the groups: every
+       *  ``addVoices`` made before it is cloned, one made after it is rejected,
+       *  and a synth that is never attached is never set up (issue #1177).
        *
        *  @warning ``prototype`` must outlive the resulting setup, or this
        *           synth if it is destroyed first — the engine reads it to clone
@@ -207,7 +210,8 @@ namespace YSE {
        *  no locks, no blocking. See docs/design/synth_core.md §7. */
       interfaceObject& onNoteEvent(void (*func)(bool noteOn, float* noteNumber, float* velocity));
 
-      /** @brief Total number of allocated voices across all groups. */
+      /** @brief Total number of allocated voices across all groups. Zero until
+       *  the synth is attached to a sound and its setup has run. */
       int getNumVoices() const;
 
       /** @brief Whether this interface has a live implementation. */

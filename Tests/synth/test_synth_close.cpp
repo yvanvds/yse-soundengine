@@ -32,7 +32,9 @@ TEST_SUITE("synthlifecycle") {
   // A standalone synth (no sound) survives engine close with notes still held:
   // close() joins the pools, the interface destructs against a closed engine,
   // and the static SYNTH::Manager frees the impl (with its cloned voices) at
-  // process exit — no crash.
+  // process exit — no crash. Attaching is what seals a synth's voices for
+  // setup (issue #1177), so a sound attaches it long enough to clone them and
+  // is then destroyed, leaving the synth standalone with its voices built.
   TEST_CASE("synthlifecycle: engine close with a standalone synth and held notes") {
     YSE::System().close(); // normalize to a closed engine
     if (!YSE::System().initOffline()) return;
@@ -41,15 +43,26 @@ TEST_SUITE("synthlifecycle") {
       proto.attack(0.005f).release(0.1f);
       YSE::synth syn;
       syn.create().addVoices(proto, 8);
-      // Voice cloning runs async on the slow pool; wait for it. The budget is
-      // counted in deliveries of the suite's reference timer rather than in
-      // milliseconds (issue #753), so it stretches with machine load exactly as
-      // the slow pool does while a wedged pool still fails the check below.
+      {
+        YSE::sound snd;
+        snd.create(syn);
+        // Voice cloning runs async on the slow pool; wait for it. The budget is
+        // counted in deliveries of the suite's reference timer rather than in
+        // milliseconds (issue #753), so it stretches with machine load exactly
+        // as the slow pool does while a wedged pool still fails the check below.
+        TestHelpers::pacedPump(
+            2000, [&syn] { return syn.getNumVoices() == 8; },
+            [] {
+              YSE::System().update();
+              YSE::System().renderOffline(1);
+            },
+            5);
+      } // sound destroyed first (§9 order); drain it so only the synth is left
       TestHelpers::pacedPump(
-          2000, [&syn] { return syn.getNumVoices() == 8; },
+          1000, [] { return false; },
           [] {
-            YSE::INTERNAL::Time().update();
-            YSE::SYNTH::Manager().update();
+            YSE::System().update();
+            YSE::System().renderOffline(1);
           },
           5);
       CHECK(syn.getNumVoices() == 8);

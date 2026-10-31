@@ -9,9 +9,12 @@
   voice pool from a built-in voice type with yse_synth_add_voices_*, attach
   it behind a positioned sound with yse_synth_attach_to_sound(), then play
   notes. Cloning happens off the audio thread on the engine's setup pool, so
-  a synth becomes playable a short moment after add-voices returns (poll
+  a synth becomes playable a short moment after it is attached (poll
   yse_synth_get_num_voices() for the cloned count) — exactly like a
   file-backed sound is not playable until its buffer finishes loading.
+  Attaching seals the voice pool: every add-voices call made before
+  yse_synth_attach_to_sound() is cloned, and one made after it is rejected.
+  A synth that is never attached is never set up (issue #1177).
 
   Scope: the BUILT-IN voice types are exposed via yse_synth_add_voices_*: the
   reference sine + ADSR voice (issue #152), and the three instruments (issue
@@ -257,7 +260,8 @@ YSE_C_API void yse_synth_fm_set_op_osc_mode(YseSynth* h, int op, int mode); /**<
 YSE_C_API void yse_synth_fm_set_op_enabled(YseSynth* h, int op, int enabled); /**< 0/1 */
 
 /** Total number of allocated (cloned) voices across every group. Zero until
-   the setup pool finishes cloning; poll it to know the synth is playable. */
+   the synth is attached and the setup pool finishes cloning; poll it to know
+   the synth is playable. */
 YSE_C_API int yse_synth_get_num_voices(YseSynth* h);
 
 /* ─── notes and control ───────────────────────────────────────────────── */
