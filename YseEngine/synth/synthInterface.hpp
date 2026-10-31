@@ -238,6 +238,9 @@ namespace YSE {
       // A clip snapshots pimpl when it is destroyed, to release its notes after
       // this interface may be gone (issue #975).
       friend class CLIP::transport;
+      // A player binds to pimpl at create() and holds a reference on it, so its
+      // retirement note-offs never need this interface (issue #1181).
+      friend class YSE::player;
     };
 
   } // namespace SYNTH

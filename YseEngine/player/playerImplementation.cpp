@@ -8,13 +8,15 @@
   ==============================================================================
 */
 
+#include <cmath>
 #include "player.hpp"
 #include "../internalHeaders.h"
 #include "../music/note.hpp"
-#include "../synth/synthInterface.hpp" // instrument->noteOn/noteOff (#156)
+#include "../synth/synthImplementation.h" // instrument->sendMessage (#156, #1181)
+#include "../synth/synthManager.h" // SYNTH::Manager().requestDeletePass (#1181)
 
 YSE::PLAYER::implementationObject::implementationObject(player* head,
-                                                        SYNTH::interfaceObject* instrument)
+                                                        SYNTH::implementationObject* instrument)
   : head(head),
     instrument(instrument),
     objectStatus(OBJECT_READY),
@@ -44,6 +46,7 @@ YSE::PLAYER::implementationObject::implementationObject(player* head,
   }
   voices[0].isActive = true;
 
+  if (instrument != nullptr) instrument->retainPlayer(); // dropped on retirement (#1181)
   if (head != nullptr) head->pimpl = this;
 }
 
@@ -61,9 +64,18 @@ bool YSE::PLAYER::implementationObject::update(Flt delta) {
     // generates and expires notes), so touching `notes` here is race-free — it
     // is the old removeInterface() note-off loop moved onto the correct thread
     // and guarded against the no-synth case (#156).
+    //
+    // `instrument` is the synth's implementation, kept alive by this player's
+    // reference, so the flush is safe even if the synth interface was destroyed
+    // before this tick (#1181). The reference is dropped only after the last
+    // push; a delete pass may already have skipped the synth impl on our
+    // account, so ask for another one.
     if (instrument != nullptr) {
       for (auto& n : notes)
-        instrument->noteOff(n);
+        sendNote(false, n);
+      instrument->releasePlayer();
+      instrument = nullptr;
+      SYNTH::Manager().requestDeletePass();
     }
     notes.clear();
     return false;
@@ -83,7 +95,7 @@ bool YSE::PLAYER::implementationObject::update(Flt delta) {
       if (!notes[i].update(delta)) {
         // A finished note releases its voice on the synth (#156). Guarded so a
         // player with no attached synth (tests) still expires notes normally.
-        if (instrument != nullptr) instrument->noteOff(notes[i]);
+        if (instrument != nullptr) sendNote(false, notes[i]);
         notes[i] = notes.back();
         notes.pop_back();
       } else
@@ -155,9 +167,9 @@ bool YSE::PLAYER::implementationObject::update(Flt delta) {
           if (notes.size() < notes.capacity()) {
             notes.emplace_back(pitch, RandomF(minimumVelocity(), maximumVelocity()),
                                voices[i].duration);
-            // Start the note on the synth (#156). noteOn(MUSIC::note) is a
+            // Start the note on the synth (#156). sendNote() is a
             // non-allocating try_push onto the synth's SPSC inbox.
-            if (instrument != nullptr) instrument->noteOn(notes.back());
+            if (instrument != nullptr) sendNote(true, notes.back());
           }
         }
       }
@@ -250,7 +262,7 @@ void YSE::PLAYER::implementationObject::setVoiceFromMotif(voice& v, Flt delta) {
     if (notes.size() < notes.capacity()) {
       notes.push_back(note);
       // Start the motif note on the synth (#156).
-      if (instrument != nullptr) instrument->noteOn(note);
+      if (instrument != nullptr) sendNote(true, note);
     }
     v.motifPos++;
   }
@@ -261,6 +273,26 @@ void YSE::PLAYER::implementationObject::setVoiceFromMotif(voice& v, Flt delta) {
     v.motifPlaying = false;
     v.duration = 0;
   }
+}
+
+void YSE::PLAYER::implementationObject::sendNote(bool on, const MUSIC::note& note) {
+  // Same message and rounding as SYNTH::interfaceObject::noteOn/noteOff(note),
+  // pushed straight onto the impl so the interface is never needed (#1181).
+  SYNTH::messageObject m;
+  const int channel = note.getChannel();
+  const int pitch = static_cast<int>(std::lround(note.getPitch()));
+  if (on) {
+    m.ID = SYNTH::NOTE_ON;
+    m.noteOn.channel = channel;
+    m.noteOn.note = pitch;
+    m.noteOn.velocity = note.getVolume();
+  } else {
+    m.ID = SYNTH::NOTE_OFF;
+    m.noteOff.channel = channel;
+    m.noteOff.note = pitch;
+    m.noteOff.velocity = note.getVolume();
+  }
+  instrument->sendMessage(m);
 }
 
 void YSE::PLAYER::implementationObject::removeInterface() {

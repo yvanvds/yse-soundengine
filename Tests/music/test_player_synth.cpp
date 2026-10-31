@@ -28,6 +28,8 @@
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
+#include <cstring>
+#include <new>
 #include <memory>
 #include <vector>
 
@@ -44,6 +46,7 @@
 #include "player/playerInterface.hpp"
 #include "player/playerMessage.h"
 #include "player/playerManager.h"
+#include "synth/synthManager.h"
 #include "internal/time.h"
 
 namespace {
@@ -356,6 +359,110 @@ TEST_SUITE("playersynth") {
       drain();
     }
     drain();
+    YSE::System().close();
+  }
+
+  // Issue #1181. A destroyed player's impl lingers in PLAYER::Manager() until
+  // its retirement tick, which flushes note-offs for every note still sounding.
+  // That flush used to go through the raw YSE::synth* captured at create(), so
+  // a synth destroyed right after the player — before the audio thread ran the
+  // tick — was dereferenced after it was freed. ASan reports this one as a
+  // heap-use-after-free.
+  TEST_CASE("playersynth: destroying the synth right after a sounding player is safe (#1181)") {
+    YSE::System().close();
+    if (!YSE::System().initOffline()) return;
+    g_noteLog.clear();
+
+    YSE::SYNTH::sineVoice proto;
+    proto.attack(0.004f).decay(0.01f).sustain(0.8f).release(0.05f);
+    auto syn = std::make_unique<YSE::synth>();
+    syn->create().addVoices(proto, 8);
+    syn->onNoteEvent(logNote);
+    auto pl = std::make_unique<YSE::player>();
+    {
+      YSE::sound snd;
+      snd.create(*syn);
+      REQUIRE(bringReady(*syn, 8));
+      snd.play();
+
+      pl->create(*syn);
+      pl->setMinimumGap(0.f);
+      pl->setMaximumGap(0.f);
+      // Notes far longer than the test, so they are all still sounding (and
+      // owed a note-off) when the player goes.
+      pl->setMinimumLength(1000.f);
+      pl->setMaximumLength(1000.f);
+      pl->setVoices(4);
+      run(20);
+      pl->play();
+      run(50);
+      REQUIRE(anyNoteOn()); // the synth received the player's notes
+
+      snd.stop();
+      YSE::System().renderOffline(8);
+    } // the sound goes first, per the synth's own lifetime contract
+    drain();
+
+    // Back to back on the control thread, no block rendered in between.
+    pl.reset();
+    syn.reset();
+
+    run(20); // the player's retirement tick runs here
+    drain();
+    YSE::System().close();
+    CHECK(true); // reached here without touching the freed synth
+  }
+
+  // Issue #1181, second path: the player and synth are destroyed and the
+  // session is closed before any block renders. The retired player impl
+  // survives close() in the process-wide manager and runs its retirement tick
+  // in the first render of the next session. The synth lives in storage that
+  // is scribbled after its destructor, so a read through the stale pointer
+  // faults in every build, not only under ASan.
+  TEST_CASE("playersynth: a player retired across close() never touches its freed synth (#1181)") {
+    YSE::System().close();
+    if (!YSE::System().initOffline()) return;
+
+    const std::size_t playersBefore = YSE::PLAYER::Manager().implementationCount();
+    const std::size_t synthsBefore = YSE::SYNTH::Manager().implementationCount();
+
+    YSE::SYNTH::sineVoice proto;
+    alignas(YSE::synth) static unsigned char storage[sizeof(YSE::synth)];
+    auto* syn = new (storage) YSE::synth();
+    syn->create().addVoices(proto, 4);
+    {
+      YSE::player pl;
+      pl.create(*syn);
+      pl.setMinimumGap(0.f);
+      pl.setMaximumGap(0.f);
+      pl.setMinimumLength(1000.f);
+      pl.setMaximumLength(1000.f);
+      pl.setVoices(4);
+      run(5);
+      pl.play();
+      run(5); // the player now holds sounding notes
+    } // player destroyed
+    syn->~interfaceObject(); // YSE::synth is an alias of SYNTH::interfaceObject
+    std::memset(storage, 0xA5, sizeof(storage));
+    YSE::System().close(); // no block rendered since the player went
+
+    if (!YSE::System().initOffline()) return;
+    run(20); // the retired player's tick runs in this session
+
+    // Nothing is leaked: both the player impl and the synth impl it fed are
+    // reclaimed once the player has retired.
+    const bool reclaimed = TestHelpers::pacedPump(
+        2000,
+        [playersBefore, synthsBefore] {
+          return YSE::PLAYER::Manager().implementationCount() <= playersBefore &&
+                 YSE::SYNTH::Manager().implementationCount() <= synthsBefore;
+        },
+        [] {
+          YSE::System().update();
+          YSE::System().renderOffline(1);
+        },
+        2);
+    CHECK(reclaimed);
     YSE::System().close();
   }
 

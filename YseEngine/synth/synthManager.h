@@ -56,6 +56,14 @@ namespace YSE {
           releases teardown impls. */
       void update();
 
+      /** Audio thread: ask for another delete pass. A player that drops the
+          last reference to a retired synth impl calls this, since the pass
+          that first saw the impl may have skipped it (issue #1181). Only
+          sets a flag; update() queues the job. */
+      void requestDeletePass() {
+        runDelete = true;
+      }
+
       /** Audio-thread-only "nothing alive" signal. */
       Bool empty();
 

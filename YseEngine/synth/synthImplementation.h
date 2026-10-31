@@ -160,9 +160,26 @@ namespace YSE {
       OBJECT_IMPLEMENTATION_STATE getStatus();
       void setStatus(OBJECT_IMPLEMENTATION_STATE value);
 
-      /** Predicate for the delete job's remove_if. */
+      /** Control thread: a player bound to this synth takes a reference
+          (issue #1181). The impl is not freed while any player holds one, so
+          a player can still flush its note-offs here after the synth
+          interface is gone. */
+      void retainPlayer() {
+        playerRefs.fetch_add(1, std::memory_order_relaxed);
+      }
+
+      /** Audio thread: a retiring player drops its reference, after its last
+          push into the inbox. The release order publishes that push to the
+          delete job's acquire load in canBeDeleted() (issue #1181). */
+      void releasePlayer() {
+        playerRefs.fetch_sub(1, std::memory_order_release);
+      }
+
+      /** Predicate for the delete job's remove_if. An impl a player still
+          references stays until that player has retired (issue #1181). */
       static bool canBeDeleted(const implementationObject& impl) {
-        return impl.objectStatus.load(std::memory_order_acquire) == OBJECT_DELETE;
+        return impl.objectStatus.load(std::memory_order_acquire) == OBJECT_DELETE &&
+               impl.playerRefs.load(std::memory_order_acquire) == 0;
       }
 
       /** Predicate for the audio-thread toLoad scrub: an impl that is already
@@ -342,6 +359,10 @@ namespace YSE {
       // Set once, on the control thread, when a sound attaches this synth; the
       // setup pool only claims attached impls (issue #1177). Never cleared.
       std::atomic<bool> attached{false};
+      // Players that feed this impl and have not retired yet (issue #1181).
+      // Taken on the control thread, dropped on the audio thread; read by the
+      // delete job.
+      std::atomic<int> playerRefs{0};
       lfQueue<messageObject> messages; // SPSC note inbox
 
       // Aggregate source. Its `samples` bed is sized in the constructor and
