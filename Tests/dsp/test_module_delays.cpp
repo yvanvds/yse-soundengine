@@ -19,6 +19,7 @@
 #include "dsp/modules/delay/highpassDelay.hpp"
 #include "dsp/modules/delay/lowpassDelay.hpp"
 #include "headers/defines.hpp"
+#include "support/alloc_probe.hpp"
 #include "support/audio_helpers.hpp"
 
 static constexpr float kPi = 3.14159265358979323846f;
@@ -161,11 +162,11 @@ TEST_SUITE("dsp") {
   }
 
   TEST_CASE("basicDelay: max addressable delay follows the rate after a change (issue #637)") {
-    // The per-channel line capacity is derived from SAMPLERATE at the channel's
-    // construction (delayChannel() passes SAMPLERATE as the line size in ms) and
-    // used to stay frozen there, so after a close()/init() cycle at a higher
-    // rate long taps were silently clamped to the old session's maximum.
-    // Deliberately tiny rates keep the line buffers and the block counts small.
+    // The line's length in samples must follow the live SAMPLERATE after a
+    // close()/init() cycle at another rate: a line frozen at the first rate's
+    // length would clamp (or misplace) a tap at the new one. Since #1212 the
+    // line is a fixed length in ms and DSP::delay re-derives its sample
+    // length per block. Low rates keep the block counts small.
     using D = YSE::DSP::MODULES::basicDelay;
 
     TestHelpers::ScopedSampleRate at8k(8000);
@@ -173,20 +174,19 @@ TEST_SUITE("dsp") {
     MULTICHANNELBUFFER buf(1);
     buf[0].resize(128);
     zeroFill(buf[0]);
-    d.process(buf); // constructs the channel: capacity baked for 8000 (= 8 s)
+    d.process(buf); // constructs the channel at 8 kHz
 
     TestHelpers::ScopedSampleRate at16k(16000);
-    // A 12 s tap: beyond the stale 8 s capacity, within the re-derived 16 s.
-    d.set(D::FIRST, 12000.0f, 1.0f);
+    d.set(D::FIRST, 1900.0f, 1.0f);
 
     zeroFill(buf[0]);
     buf[0].getPtr()[0] = 1.0f; // the impulse to find again
     d.process(buf);
 
-    // The echo must surface 12 s (= 1500 blocks at 16 kHz) after the impulse.
-    // With the stale capacity the read clamps to ~8 s and the echo lands around
-    // block 1000 instead.
-    const int expectedBlock = (12000 * 16 - 128) / 128; // 1499
+    // The echo must surface 1.9 s (= 30400 samples at 16 kHz) after the
+    // impulse; a line still sized in samples for 8 kHz would clamp it to
+    // about half that.
+    const int expectedBlock = (1900 * 16 - 128) / 128; // 236
     int echoBlock = -1;
     for (int b = 0; b <= expectedBlock + 8; ++b) {
       zeroFill(buf[0]);
@@ -198,6 +198,86 @@ TEST_SUITE("dsp") {
     }
     CHECK(echoBlock >= expectedBlock - 2);
     CHECK(echoBlock <= expectedBlock + 2);
+  }
+
+  TEST_CASE("basicDelay: tap times clamp to MAX_DELAY_MS (issue #1212)") {
+    using D = YSE::DSP::MODULES::basicDelay;
+    YSE::DSP::MODULES::basicDelay d;
+    d.set(D::FIRST, 5000.0f, 1.0f);
+    d.set(D::SECOND, -10.0f, 1.0f);
+    CHECK(d.time(D::FIRST) == doctest::Approx(D::MAX_DELAY_MS));
+    CHECK(d.time(D::SECOND) == doctest::Approx(0.0f));
+  }
+
+  TEST_CASE("basicDelay: a tap past the maximum echoes at MAX_DELAY_MS (issue #1212)") {
+    // The line used to hold SAMPLERATE ms (8 s at 8 kHz), so a 5 s tap echoed
+    // at 5 s. It now holds MAX_DELAY_MS plus a block's headroom, and a tap at
+    // the maximum must land exactly there rather than a block short.
+    using D = YSE::DSP::MODULES::basicDelay;
+    TestHelpers::ScopedSampleRate at8k(8000);
+    YSE::DSP::MODULES::basicDelay d;
+    d.set(D::FIRST, 5000.0f, 1.0f);
+
+    MULTICHANNELBUFFER buf(1);
+    buf[0].resize(128);
+    zeroFill(buf[0]);
+    buf[0].getPtr()[0] = 1.0f;
+    d.process(buf);
+
+    const int expectedBlock = (2000 * 8 - 128) / 128; // 2 s = 16000 samples: 124
+    int echoBlock = -1;
+    for (int b = 0; b <= 5000 * 8 / 128 + 8 && echoBlock < 0; ++b) {
+      zeroFill(buf[0]);
+      d.process(buf);
+      if (TestHelpers::measureRms(buf[0]) > 1e-3f) echoBlock = b;
+    }
+    CHECK(echoBlock >= expectedBlock - 1);
+    CHECK(echoBlock <= expectedBlock + 1);
+  }
+
+  TEST_CASE("basicDelay family: process allocates nothing across a rate change (issue #1212)") {
+    // basicDelay's line was SAMPLERATE ms long, so a device restart at another
+    // rate grew it with delay::reserve() inside process(). The lines are now
+    // allocated once for MAX_DELAY_MS at DSP::delay::HIGHEST_SAMPLERATE. A
+    // shorter block and back stays within the scratch capacity too.
+    using D = YSE::DSP::MODULES::basicDelay;
+    YSE::DSP::MODULES::basicDelay basic;
+    YSE::DSP::MODULES::highPassDelay high;
+    YSE::DSP::MODULES::lowPassDelay low;
+    D* delays[] = {&basic, &high, &low};
+
+    MULTICHANNELBUFFER buf(2);
+    for (auto& b : buf)
+      b.resize(128);
+    for (D* d : delays) {
+      d->set(D::FIRST, 250.0f, 0.5f);
+      d->set(D::SECOND, 1500.0f, 0.3f);
+      d->set(D::THIRD, 2000.0f, 0.2f);
+      fillSine(buf[0], 440.0f);
+      fillSine(buf[1], 660.0f);
+      d->process(buf); // first block: channel states and scratch are built
+    }
+
+    // 64 kHz rather than 96 kHz: the old SAMPLERATE-ms line size wrapped its
+    // UInt product above ~65.5 kHz and came out shorter, hiding the growth.
+    TestHelpers::ScopedSampleRate at64k(64000);
+    {
+      TestHelpers::ProbeScope probe;
+      for (D* d : delays) {
+        for (auto& b : buf)
+          b.resize(128);
+        fillSine(buf[0], 440.0f);
+        fillSine(buf[1], 660.0f);
+        d->process(buf); // new rate: the lines take a longer length in place
+        for (auto& b : buf)
+          b.resize(64);
+        d->process(buf);
+        for (auto& b : buf)
+          b.resize(128);
+        d->process(buf);
+      }
+      CHECK(TestHelpers::g_alloc_count.load() == 0);
+    }
   }
 
   TEST_CASE(

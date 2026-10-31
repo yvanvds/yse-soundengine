@@ -9,12 +9,21 @@
 */
 
 #include "basicDelay.hpp"
+#include <algorithm>
+
+namespace {
+  // Line length past MAX_DELAY_MS, in ms: see delayChannel's constructor.
+  constexpr Int LINE_HEADROOM_MS = 100;
+} // namespace
 
 YSE::DSP::MODULES::basicDelay::basicDelay()
   : time0(0.f), time1(0.f), time2(0.f), gain0(0.f), gain1(0.f), gain2(0.f) {}
 
 YSE::DSP::MODULES::basicDelay& YSE::DSP::MODULES::basicDelay::set(basicDelay::DELAY_NR nr, Flt time,
                                                                   Flt gain) {
+  // The line only holds MAX_DELAY_MS (plus read headroom); a negative time
+  // would wrap in process()'s cast to UInt.
+  time = std::clamp(time, 0.f, MAX_DELAY_MS);
   switch (nr) {
   case FIRST:
     time0.store(time);
@@ -63,7 +72,18 @@ Flt YSE::DSP::MODULES::basicDelay::gain(basicDelay::DELAY_NR nr) {
   return gain0; // stop complaining about control paths
 }
 
-YSE::DSP::MODULES::basicDelay::delayChannel::delayChannel() : line(static_cast<Int>(SAMPLERATE)) {}
+// The line is a fixed length in ms, allocated for DSP::delay's
+// HIGHEST_SAMPLERATE, so DSP::delay::process() re-derives its length in
+// samples from the live rate without allocating (issues #637, #1212). It used
+// to be SAMPLERATE ms long — 48 s at 48 kHz, its memory growing with the rate
+// squared — which basicDelay had to grow on the audio thread at a rate change.
+//
+// DSP::delay::read() can reach back the line length minus one block (the
+// offset counts from the start of the last block written), so the line gets
+// headroom past MAX_DELAY_MS for the block: 100 ms covers the engine's
+// STANDARD_BUFFERSIZE down to 1.28 kHz.
+YSE::DSP::MODULES::basicDelay::delayChannel::delayChannel()
+  : line(static_cast<Int>(MAX_DELAY_MS) + LINE_HEADROOM_MS) {}
 
 void YSE::DSP::MODULES::basicDelay::create() {
   // Per-channel delay lines are sized lazily in process() once the channel
@@ -83,20 +103,9 @@ void YSE::DSP::MODULES::basicDelay::process(MULTICHANNELBUFFER& buffer) {
   channels.ensure(buffer.size());
   ensurePreFilter(buffer.size());
 
-  // The line capacity (in ms, numerically SAMPLERATE — see delayChannel's
-  // constructor) was derived from the rate at first construction, so the
-  // maximum addressable delay would stay stale across a close()/init() cycle
-  // at another rate (issue #637). Re-derive it on that path; steady state pays
-  // one integer compare, and the lazy resize inside delay::process() is the
-  // accepted device-restart allocation path.
-  if (builtRate != SAMPLERATE) {
-    for (std::size_t ch = 0; ch < channels.size(); ++ch) {
-      channels[ch].line.setSize(SAMPLERATE);
-    }
-    builtRate = SAMPLERATE;
-  }
-
   for (std::size_t ch = 0; ch < buffer.size(); ++ch) {
+    // Within the scratch capacity (STANDARD_BUFFERSIZE from construction, or
+    // the longest block seen) this resize allocates nothing.
     if (buffer[ch].getLength() != result.getLength()) {
       result.resize(buffer[ch].getLength());
       reader.resize(buffer[ch].getLength());
