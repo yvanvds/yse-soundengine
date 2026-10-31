@@ -81,6 +81,18 @@ namespace {
     }
   };
 
+  // Block the test thread until every worker counter has moved off zero, so the
+  // fixed loop that follows overlaps work the workers are actually doing. A
+  // spawned thread is not guaranteed to run before a short loop on the test
+  // thread ends, and on a loaded box it often doesn't (#1182): the progress
+  // check then fails although the behaviour under test is fine. Yields rather
+  // than sleeps, and has no deadline: a worker that never starts is a hang,
+  // which the ctest timeout reports.
+  template <typename... Counters> void waitForProgress(const Counters&... counters) {
+    while (!((counters.load(std::memory_order_relaxed) > 0) && ...))
+      std::this_thread::yield();
+  }
+
   // A small, self-contained graph (noise -> dac, plus a receiver named "a")
   // dumped once at setup. The editor re-parses this via ParseJSON to exercise
   // the file-handler swap path with a known, bounded object set.
@@ -407,6 +419,8 @@ TEST_SUITE("patcher") {
       }
     });
 
+    waitForProgress(writes);
+
     int missing = 0;
     for (int i = 0; i < 400; i++) {
       const std::string dump = p.DumpJSON();
@@ -728,6 +742,8 @@ TEST_SUITE("patcher") {
         reads.fetch_add(1, std::memory_order_relaxed);
       }
     });
+
+    waitForProgress(reads, blocks);
 
     for (int round = 0; round < 400; round++)
       gate->SetParams(round % 2 == 0 ? "5" : "2");
