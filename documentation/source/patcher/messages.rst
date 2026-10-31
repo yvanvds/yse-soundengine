@@ -385,6 +385,18 @@ inlet has no handler for reaches it as a command instead. That is how a
 number still reaches ``.m`` and ``.l``, which have no number handler:
 ``.m 60`` into a ``.m`` stores ``60``.
 
+Text that arrives as a list follows the same rule for commands. Host text
+passed to a ``.r`` and a list from any other object reach the next object as
+lists, so ``set 440`` through a ``.r`` is a command to an object that takes
+commands, just as it is from a ``.m``. Text that starts with a number stays a
+list.
+
+.. versionchanged:: 3.0
+   Before this change, a word-first list reached an object's list handler
+   whenever it had one, so ``allnotesoff`` through a ``.r`` into ``.midiout``
+   went out as the bytes of its letters (issue
+   `#1199 <https://github.com/yvanvds/yse-soundengine/issues/1199>`_).
+
 .. versionchanged:: 3.0
    ``.m`` used to hand its text only to the seven objects above, and a
    cord from it to any other object's hot inlet made that object compute with

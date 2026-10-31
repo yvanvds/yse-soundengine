@@ -192,6 +192,31 @@ void inlet::SetFloat(float value, YSE::THREAD thread) {
 }
 
 void inlet::SetList(const std::string& value, YSE::THREAD thread) {
+  // Word-first text is a command to an object that takes one (issue #1199),
+  // as it is from a `.m` (#933): host text through a receive arrives here as a
+  // list, so `set 440` reached the list handler from `[.r]` but the command
+  // channel from `[.m]`. A number first is still the list. So is a first byte
+  // with its top bit set: the binary spelling the older MIDI senders build
+  // starts with a status byte (pMidiByteList.h), and `.midiout` reads it off
+  // its list handler. SetMessage sends a word-first text on to SetList only
+  // when the object has no command channel, so this cannot recurse. RT-safe:
+  // one walk to the first token and one ReadNumericToken (a stack copy).
+  if (onList && obj->HandlesMessages()) {
+    const char* text = value.c_str();
+    const std::size_t length = value.size();
+    std::size_t begin = 0;
+    while (begin < length && IsSelectorSeparator(text[begin]))
+      begin++;
+    std::size_t end = begin;
+    while (end < length && !IsSelectorSeparator(text[end]))
+      end++;
+    float number = 0.f;
+    if (end > begin && static_cast<unsigned char>(text[begin]) < 0x80 &&
+        !ReadNumericToken(text + begin, end - begin, number)) {
+      SetMessage(value, thread);
+      return;
+    }
+  }
   if (onList) {
     messageEventScope event;
     onList(value, position, thread);
@@ -205,10 +230,9 @@ void inlet::SetList(const std::string& value, YSE::THREAD thread) {
   // through a receive arrives here as a list, so `set 440 0.5` into
   // `[.receive] -> [~oscbank]` used to be dropped while the same text from a
   // `.m` reached the object. Read it as the message it spells instead, by the
-  // rules SetMessage below applies to a message box's text. An inlet with a
-  // list handler keeps every list, word-first or not. SetMessage only comes
-  // back here when onList is set, so this cannot recurse. RT-safe: the text is
-  // passed on by reference.
+  // rules SetMessage below applies to a message box's text. SetMessage only
+  // comes back here when onList is set, so this cannot recurse. RT-safe: the
+  // text is passed on by reference.
   if (obj->HandlesMessages()) SetMessage(value, thread);
 }
 

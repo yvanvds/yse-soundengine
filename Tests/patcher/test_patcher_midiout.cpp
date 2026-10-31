@@ -751,6 +751,47 @@ TEST_SUITE("patcher") {
     CHECK(local.bytes[2] == 0);
   }
 
+  TEST_CASE("midiout: a command through a receive is the command, as from a .m (#1199)") {
+    // Host text through a receive arrives as a list. `allnotesoff` from a `.m`
+    // was the command; through `[.r] -> [.midiout]` it went to the list handler
+    // and out as the ASCII codes of its letters.
+    using YSE::PATCHER::mMidiOut;
+    using YSE::PATCHER::patcherImplementation;
+
+    SenderUnderTest sender;
+
+    patcherImplementation patch{1, nullptr};
+    YSE::pHandle* receive = patch.CreateObject(YSE::OBJ::G_RECEIVE, "r1");
+    REQUIRE(receive != nullptr);
+
+    mMidiOut object;
+    object.UsePortForTest(kFakePort);
+    auto handle = std::make_unique<YSE::pHandle>(&object);
+    patch.Connect(receive, 0, handle.get(), 0);
+
+    receive->SetListData(0, "allnotesoff");
+    // The binary spelling through the same receive is still the raw bytes.
+    receive->SetListData(0, Binary(0x90, 60, 100));
+
+    REQUIRE(sender.recorder.await(17));
+    for (int channel = 0; channel < 16; channel++) {
+      CAPTURE(channel);
+      const RawRecorder::Sent cc = sender.recorder.at(static_cast<std::size_t>(channel));
+      REQUIRE(cc.bytes.size() == 3u);
+      CHECK(cc.bytes[0] == 0xB0 + channel);
+      CHECK(cc.bytes[1] == 123); // all notes off
+      CHECK(cc.bytes[2] == 0);
+    }
+    const RawRecorder::Sent note = sender.recorder.at(16);
+    REQUIRE(note.bytes.size() == 3u);
+    CHECK(note.bytes[0] == 0x90);
+    CHECK(note.bytes[1] == 60);
+    CHECK(note.bytes[2] == 100);
+    CHECK(sender.recorder.count() == 17u);
+
+    patch.DeleteObject(receive);
+  }
+
   TEST_CASE("midiout: a full sender queue drops and counts, and never sends late or in part "
             "(#949)") {
     using YSE::PATCHER::mMidiOut;
