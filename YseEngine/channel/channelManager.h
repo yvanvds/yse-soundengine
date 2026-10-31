@@ -13,6 +13,7 @@
 
 #include <cstddef>
 #include <forward_list>
+#include <memory>
 #include <mutex>
 #include <unordered_map>
 #include <unordered_set>
@@ -232,29 +233,52 @@ namespace YSE {
       channel _voice;
       channel _gui;
 
-      // channel output configuration. `outputAngles` holds the azimuth (radians)
-      // of each physical output; `outputIsLFE` marks the low-frequency-effects
-      // (.1) output so it is kept out of azimuth panning. Both arrays are sized
-      // to `outputChannels` and value-initialised in changeChannelConf().
-      aFlt* outputAngles;
-      aBool* outputIsLFE;
+      // channel output configuration. `angles` holds the azimuth (radians) of
+      // each physical output; `isLFE` marks the low-frequency-effects (.1)
+      // output so it is kept out of azimuth panning. Both arrays hold
+      // `capacity` entries, value-initialised.
+      //
+      // The arrays are allocated on the control thread, in setChannelConf(),
+      // never on the audio thread, and grow only (issue #1222). A wider count
+      // installs a new outputLayout *before* `outputChannels` publishes that
+      // count, and the layout it replaces stays owned by `layouts`, not freed,
+      // so a slow-pool reader still holding it stays in bounds. Readers clamp
+      // to the capacity of the layout they loaded as well, so no published
+      // count can index past an array. changeChannelConf() on the audio thread
+      // only rewrites values in the current layout. Replaced layouts are freed
+      // in destroy() and the destructor, once every reader is gone; growth is
+      // rare (a device change), so the parked memory stays small.
+      struct outputLayout {
+        explicit outputLayout(UInt n) : capacity(n), angles(new aFlt[n]()), isLFE(new aBool[n]()) {}
+        const UInt capacity;
+        std::unique_ptr<aFlt[]> angles;
+        std::unique_ptr<aBool[]> isLFE;
+      };
+      std::atomic<outputLayout*> layout{nullptr};
+      // Owns every layout installed since the last destroy(); the current one,
+      // which `layout` points at, is the last entry. Under layoutMutex.
+      std::vector<std::unique_ptr<outputLayout>> layouts;
+      std::mutex layoutMutex; // control thread only: serialises setChannelConf()
       aUInt outputChannels;
       std::atomic<CHANNEL_TYPE> channelType;
 
-      // Bounds-checked writers used by the layout presets below, so a preset can
-      // never write past the allocated `outputChannels` even if it is applied to
-      // a device with fewer channels than the layout expects.
-      void setAngle(UInt idx, Flt degrees);
-      void setLFE(UInt idx);
+      // Apply the `channelType` preset to the first @p count outputs of @p l.
+      void applyPreset(outputLayout& l, UInt count);
 
-      void setMono();
-      void setStereo();
-      void setQuad();
-      void set51();
-      void set51Side();
-      void set61();
-      void set71();
-      void setAuto(Int count);
+      // Bounds-checked writers used by the layout presets below, so a preset can
+      // never write past the layout being configured even if it is applied to
+      // a device with fewer channels than the layout expects.
+      void setAngle(outputLayout& l, UInt count, UInt idx, Flt degrees);
+      void setLFE(outputLayout& l, UInt count, UInt idx);
+
+      void setMono(outputLayout& l, UInt count);
+      void setStereo(outputLayout& l, UInt count);
+      void setQuad(outputLayout& l, UInt count);
+      void set51(outputLayout& l, UInt count);
+      void set51Side(outputLayout& l, UInt count);
+      void set61(outputLayout& l, UInt count);
+      void set71(outputLayout& l, UInt count);
+      void setAuto(outputLayout& l, UInt count);
 
       friend class INTERNAL::managerSetupJob<managerObject>;
       friend class INTERNAL::managerDeleteJob<managerObject>;
