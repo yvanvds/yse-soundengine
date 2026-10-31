@@ -39,6 +39,7 @@ set(YSE_SRCS
   dsp/filters/phaseShift.cpp
   dsp/filters/slide.cpp
   dsp/filters/rampSmooth.cpp
+  dsp/filters/slewLimiter.cpp
   dsp/filters/filterDesign.cpp
   dsp/filters/filterResponse.cpp
   dsp/filters/filterBands.cpp
@@ -191,6 +192,7 @@ set(YSE_SRCS
   patcher/filters/dPhaseshift.cpp
   patcher/filters/dSlide.cpp
   patcher/filters/dRampsmooth.cpp
+  patcher/filters/dDeltaclip.cpp
   patcher/filters/gFilterdesign.cpp
   patcher/filters/gFilterdetail.cpp
   patcher/filters/dFiltergraph.cpp
@@ -641,6 +643,7 @@ set_source_files_properties(
   patcher/filters/dPhaseshift.cpp
   patcher/filters/dSlide.cpp
   patcher/filters/dRampsmooth.cpp
+  patcher/filters/dDeltaclip.cpp
   patcher/filters/gFilterdesign.cpp
   patcher/filters/gFilterdetail.cpp
   patcher/filters/dFiltergraph.cpp

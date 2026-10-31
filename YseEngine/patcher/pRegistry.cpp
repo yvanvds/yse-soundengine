@@ -228,6 +228,7 @@
 #include "filters/dPhaseshift.h"
 #include "filters/dSlide.h"
 #include "filters/dRampsmooth.h"
+#include "filters/dDeltaclip.h"
 #include "filters/gFilterdesign.h"
 #include "filters/gFilterdetail.h"
 #include "filters/dFiltergraph.h"
@@ -1341,6 +1342,7 @@ pRegistry::pRegistry() {
   Add(OBJ::D_PHASESHIFT, dPhaseshift::Create);
   Add(OBJ::D_SLIDE, dSlide::Create);
   Add(OBJ::D_RAMPSMOOTH, dRampsmooth::Create);
+  Add(OBJ::D_DELTACLIP, dDeltaclip::Create);
   Add(OBJ::G_FILTERDESIGN, gFilterdesign::Create);
   Add(OBJ::G_FILTERDETAIL, gFilterdetail::Create);
   Add(OBJ::D_FILTERGRAPH, dFiltergraph::Create);

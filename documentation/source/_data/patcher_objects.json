@@ -16714,6 +16714,63 @@
     "params": [],
     "requires_midi_device": false
   },
+  "~deltaclip": {
+    "category": "FILTER",
+    "description": "Limits how far a signal may move from one sample to the next: each change is clipped between a minimum (the steepest fall) and a maximum (the steepest rise) per sample. A slew limiter, for declicking and turning steps into ramps. Both limits default to 0, which holds the output still.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER"
+        ],
+        "doc": "The signal to limit (unconnected reads 0). 'reset' sets both limit numbers to 0; a number, or a list of up to two numbers (minimum, maximum), sets the numbers the other inlets read.",
+        "index": 0,
+        "label": "in",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The smallest change per sample, normally negative: the steepest fall. A number or a signal read per sample (unconnected, the last number sent here or the creation argument). Takes the same words as the left inlet.",
+        "index": 1,
+        "label": "minimum",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The largest change per sample, normally positive: the steepest rise. A number or a signal read per sample (unconnected, the last number sent here or the creation argument). Above the minimum, as a rule; below it the output always moves by the maximum. Takes the same words as the left inlet.",
+        "index": 2,
+        "label": "maximum",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~deltaclip",
+    "outlets": [
+      {
+        "doc": "The limited signal.",
+        "index": 0,
+        "label": "out",
+        "range": "",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "0 0",
+        "doc": "The minimum and maximum change per sample, up to two numbers ('~deltaclip -0.01 0.01'; they default to 0 and 0). Later numbers and messages do not change what is saved.",
+        "name": "limits",
+        "range": "a minimum, then a maximum"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~fffb": {
     "category": "FILTER",
     "description": "Bank of bandpass filters in parallel on one input, each with its own center frequency, Q, gain and outlet: vocoders, spectral shaping, resonator banks.",

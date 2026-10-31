@@ -169,6 +169,9 @@ Filters
 .. doxygenfile:: dsp/filters/rampSmooth.hpp
    :project: libYSE
 
+.. doxygenfile:: dsp/filters/slewLimiter.hpp
+   :project: libYSE
+
 .. doxygenfile:: dsp/filters/filterDesign.hpp
    :project: libYSE
 

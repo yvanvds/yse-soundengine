@@ -80,6 +80,7 @@
 #include "dsp/filters/phaseShift.hpp"
 #include "dsp/filters/slide.hpp"
 #include "dsp/filters/rampSmooth.hpp"
+#include "dsp/filters/slewLimiter.hpp"
 #include "dsp/filters/filterDesign.hpp"
 #include "dsp/filters/filterResponse.hpp"
 #include "dsp/filters/filterBands.hpp"

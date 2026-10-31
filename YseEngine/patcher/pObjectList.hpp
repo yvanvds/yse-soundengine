@@ -84,7 +84,7 @@ namespace YSE {
    *    ``D_FFFB`` (bank of parallel bandpasses), ``D_HILBERT`` (phase
    *    quadrature filter), ``D_PHASESHIFT`` (second-order allpass),
    *    ``D_SLIDE`` (logarithmic slide), ``D_RAMPSMOOTH`` (linear
-   *    smoothing).
+   *    smoothing), ``D_DELTACLIP`` (slew limiter).
    *  - Filter design: ``G_FILTERDESIGN`` (Butterworth and Chebyshev
    *    filters as second-order sections), ``G_FILTERDETAIL`` (the response
    *    of a filter given as sections), `D_FILTERGRAPH` (the bands of a filter
@@ -1069,6 +1069,7 @@ namespace YSE {
     DEFOBJ(D_PHASESHIFT, "~phaseshift");
     DEFOBJ(D_SLIDE, "~slide");
     DEFOBJ(D_RAMPSMOOTH, "~rampsmooth");
+    DEFOBJ(D_DELTACLIP, "~deltaclip");
 
     // Filter design (issue #1101): control objects that design a filter into
     // second-order sections for ~cascade, and detail a filter given as
