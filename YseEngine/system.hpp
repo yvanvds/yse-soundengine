@@ -79,6 +79,10 @@ namespace YSE {
      *  drive the engine via ``System().renderOffline(blocks)`` rather
      *  than the audio callback.
      *
+     *  The session runs at the rate set with ``requestSampleRate()``, or at
+     *  48000 Hz when no rate is requested — whatever rate an earlier session
+     *  in the process ran at (issue #1033).
+     *
      *  @return ``true`` on success.
      */
     bool initOffline();
@@ -286,8 +290,10 @@ namespace YSE {
      *
      *  Call it after ``init()`` / ``initOffline()`` — initialisation installs
      *  the default stereo layout itself, so an earlier call is overwritten. The
-     *  new layout is picked up by the next audio callback (or the next
-     *  ``renderOffline()`` block), which resizes the master to match.
+     *  new layout is picked up by the next audio callback (or
+     *  ``renderOffline()`` block) that mixes a sound, which resizes the master
+     *  to match. A block with no sound alive skips the mix, so until a sound
+     *  exists the master keeps its previous layout (issue #1033).
      *
      *  On a session that *does* have a device open, this configures the mixer
      *  for a channel count the running stream may not have — that is the
@@ -553,7 +559,8 @@ namespace YSE {
      *  and run exactly at the requested rate.
      *
      *  Pass 0 to clear the request; the backend then opens at the device
-     *  default (the engine's pre-negotiation initial value is 48000).
+     *  default, and an offline session runs at 48000 Hz, whatever rate an
+     *  earlier session in the process ran at (issue #1033).
      *
      *  Changing the rate of a running session means ``close()`` followed by
      *  ``init()`` — calling this mid-session only stores the request for the

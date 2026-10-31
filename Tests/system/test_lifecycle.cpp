@@ -339,6 +339,47 @@ TEST_SUITE("lifecycle") {
     YSE::SAMPLERATE = startRate;
   }
 
+  // Issue #1033: a cleared request used to leave SAMPLERATE at whatever the
+  // previous session ran at, because initShared() only wrote it when a
+  // request was set. An offline session with no request then depended on the
+  // process's history (96000 here) instead of running at the documented
+  // 48000 default.
+  TEST_CASE("lifecycle: an offline session with no requested rate runs at 48000, whatever the "
+            "previous session ran at (issue #1033)") {
+    YSE::System().close(); // normalize to a closed engine
+    const UInt startRate = YSE::SAMPLERATE;
+    const unsigned int startRequest = YSE::System().requestSampleRate();
+
+    YseSystem* sys = yse_system_get();
+    yse_system_request_sample_rate(sys, 96000);
+    if (yse_system_init_offline(sys) != YSE_OK) { // no offline device on this host
+      YSE::System().requestSampleRate(startRequest);
+      return;
+    }
+    CHECK(yse_system_get_sample_rate(sys) == doctest::Approx(96000.0));
+    yse_system_close(sys);
+
+    // Cleared request: the next offline session falls back to 48000.
+    yse_system_request_sample_rate(sys, 0);
+    REQUIRE(yse_system_init_offline(sys) == YSE_OK);
+    CHECK(YSE::SAMPLERATE == 48000u);
+    CHECK(yse_system_get_sample_rate(sys) == doctest::Approx(48000.0));
+    yse_system_close(sys);
+
+    // Same through the C++ API, after a 44100 session.
+    YSE::System().requestSampleRate(44100);
+    REQUIRE(YSE::System().initOffline());
+    CHECK(YSE::System().getSampleRate() == doctest::Approx(44100.0));
+    YSE::System().close();
+    YSE::System().requestSampleRate(0);
+    REQUIRE(YSE::System().initOffline());
+    CHECK(YSE::System().getSampleRate() == doctest::Approx(48000.0));
+    YSE::System().close();
+
+    YSE::System().requestSampleRate(startRequest);
+    YSE::SAMPLERATE = startRate;
+  }
+
   // The #637 acceptance scenario proper: host-owned DSP state created in one
   // session must re-derive its SAMPLERATE-dependent internals after a real
   // close() -> init() cycle at a different rate. The observable is the same

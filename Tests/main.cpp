@@ -44,6 +44,10 @@ namespace TestHelpers {
     // session is open yet, so the lock in INTERNAL::Global() is still false
     // and this write is permitted.
     YSE::SAMPLERATE = (UInt)parsed;
+    // Request it too: a session started with no request now begins at the
+    // 48000 default rather than at whatever SAMPLERATE held (issue #1033), so
+    // without this every initOffline() would undo the forced rate.
+    YSE::System().requestSampleRate((unsigned int)parsed);
   }
 } // namespace TestHelpers
 
