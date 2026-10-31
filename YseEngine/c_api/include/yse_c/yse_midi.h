@@ -145,10 +145,20 @@ YSE_C_API void yse_midi_in_open(YseMidiIn* m, unsigned int port);
 YSE_C_API void yse_midi_in_close(YseMidiIn* m);
 YSE_C_API int yse_midi_in_is_open(YseMidiIn* m);
 
-/** Register a raw callback. Pass NULL to detach. */
+/** Register a raw callback. Pass NULL to detach.
+
+   When this replaces or detaches a callback, it first waits for any call into
+   the old callback that is in flight on the input thread to return. Once it
+   returns, no thread is inside the old callback or about to call it, so the
+   host may free the old user_data or close the old callback (e.g. a Dart
+   NativeCallable) right away. Calling a setter from inside a callback on the
+   same handle does not wait for that call. Do not call a setter while holding
+   a lock the callback may take: the wait would deadlock. */
 YSE_C_API void yse_midi_in_set_raw_callback(YseMidiIn* m, YseMidiInRawCallback cb, void* user_data);
 
-/** Register a parsed callback. Pass NULL to detach. */
+/** Register a parsed callback. Pass NULL to detach. Gives the same guarantee
+   as yse_midi_in_set_raw_callback: once it returns, the old parsed callback is
+   neither running nor about to run. */
 YSE_C_API void yse_midi_in_set_parsed_callback(YseMidiIn* m, YseMidiInParsedCallback cb,
                                                void* user_data);
 

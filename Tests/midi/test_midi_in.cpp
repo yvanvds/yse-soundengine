@@ -15,6 +15,9 @@
 //     free_message handles nullptr
 //   - Re-installing a callback (engine raw / parsed, C raw / parsed) never
 //     pairs one install's callback with another's user_data (#916, #917)
+//   - Detaching or replacing a callback (engine raw / parsed, C raw / parsed)
+//     waits for an in-flight call into the old callback to return, and a
+//     callback may still detach itself from inside a dispatch (#1176)
 //
 // Windows / Linux only — the entire TU is gated on the same condition that
 // gates device.cpp. No engine initialisation is required (the MIDI subsystem
@@ -181,6 +184,120 @@ namespace {
     CHECK(b.mismatched.load() == 0);
     CHECK(aCalls > 0);
     CHECK(bCalls > 0);
+  }
+
+  // Issue #1176: a callback that parks on the input thread until the test
+  // releases it, so a detach can be issued while the call is in flight.
+  struct Gate {
+    std::atomic<bool> entered{false};
+    std::atomic<bool> release{false};
+    std::atomic<bool> exited{false};
+  };
+
+  void parkInGate(void* user_data) {
+    auto* gate = static_cast<Gate*>(user_data);
+    gate->entered.store(true, std::memory_order_seq_cst);
+    while (!gate->release.load(std::memory_order_seq_cst))
+      std::this_thread::yield();
+    gate->exited.store(true, std::memory_order_seq_cst);
+  }
+
+  void YSE_C_CALLBACK gatedCRaw(double, unsigned char* bytes, std::size_t, void* user_data) {
+    yse_midi_in_free_message(bytes);
+    parkInGate(user_data);
+  }
+
+  void YSE_C_CALLBACK gatedCParsed(double, unsigned char, unsigned char, unsigned char,
+                                   unsigned char, void* user_data) {
+    parkInGate(user_data);
+  }
+
+  void gatedEngineRaw(double, const unsigned char*, std::size_t, void* user_data) {
+    parkInGate(user_data);
+  }
+
+  void gatedEngineParsed(double, unsigned char, unsigned char, unsigned char, unsigned char,
+                         void* user_data) {
+    parkInGate(user_data);
+  }
+
+  // Parks a dispatch of `port` (on a thread standing in for RtMidi's input
+  // thread) inside the gated callback, detaches from a second thread, and
+  // checks the detach did not return before the parked call did. Without the
+  // #1176 fix the detach returns at once while the call is still parked, so
+  // the 100 ms grace below is a margin for a slow machine, not a race window:
+  // a correct build can never return early.
+  template <typename Detach>
+  void runDetachWaitsForInFlightCall(YSE::midiIn& port, Gate& gate, Detach detach) {
+    const unsigned char msg[3] = {0x90, 0x3C, 0x64};
+    std::thread input([&] { MidiInDispatchTester::dispatch(port, 0.0, msg, 3); });
+
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(10);
+    while (!gate.entered.load(std::memory_order_seq_cst) &&
+           std::chrono::steady_clock::now() < deadline)
+      std::this_thread::yield();
+    const bool entered = gate.entered.load(std::memory_order_seq_cst);
+
+    std::atomic<bool> returned{false};
+    std::atomic<bool> exitedAtReturn{false};
+    std::thread setter([&] {
+      detach();
+      exitedAtReturn.store(gate.exited.load(std::memory_order_seq_cst), std::memory_order_seq_cst);
+      returned.store(true, std::memory_order_seq_cst);
+    });
+    if (entered) std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    const bool returnedWhileParked = returned.load(std::memory_order_seq_cst);
+    gate.release.store(true, std::memory_order_seq_cst);
+    setter.join();
+    input.join();
+
+    REQUIRE(entered);
+    CHECK_FALSE(returnedWhileParked);
+    CHECK(exitedAtReturn.load());
+  }
+
+  // Issue #1176: a callback that detaches its own port from inside the call
+  // must not wait on its own dispatch.
+  struct SelfDetachCtx {
+    YseMidiIn* handle = nullptr;
+    YSE::midiIn* port = nullptr;
+    std::atomic<int> calls{0};
+  };
+
+  void YSE_C_CALLBACK selfDetachCRaw(double, unsigned char* bytes, std::size_t, void* user_data) {
+    yse_midi_in_free_message(bytes);
+    auto* ctx = static_cast<SelfDetachCtx*>(user_data);
+    ctx->calls.fetch_add(1, std::memory_order_relaxed);
+    yse_midi_in_set_raw_callback(ctx->handle, nullptr, nullptr);
+  }
+
+  void selfDetachEngineParsed(double, unsigned char, unsigned char, unsigned char, unsigned char,
+                              void* user_data) {
+    auto* ctx = static_cast<SelfDetachCtx*>(user_data);
+    ctx->calls.fetch_add(1, std::memory_order_relaxed);
+    ctx->port->setParsedCallback(nullptr, nullptr);
+  }
+
+  // Dispatches `port` twice on a worker thread and fails (rather than hanging
+  // the suite) if the self-detaching callback deadlocks on its own dispatch.
+  void runSelfDetach(YSE::midiIn& port, SelfDetachCtx& ctx) {
+    const unsigned char msg[3] = {0x90, 0x3C, 0x64};
+    std::atomic<bool> done{false};
+    std::thread input([&] {
+      MidiInDispatchTester::dispatch(port, 0.0, msg, 3);
+      MidiInDispatchTester::dispatch(port, 0.0, msg, 3);
+      done.store(true, std::memory_order_release);
+    });
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(10);
+    while (!done.load(std::memory_order_acquire) && std::chrono::steady_clock::now() < deadline)
+      std::this_thread::yield();
+    const bool finished = done.load(std::memory_order_acquire);
+    if (finished)
+      input.join();
+    else
+      input.detach(); // deadlocked: leak the thread so the failure is reported
+    REQUIRE(finished);
+    CHECK(ctx.calls.load() == 1);
   }
 
   void resetSinks() {
@@ -418,6 +535,71 @@ TEST_SUITE("midi") {
           in.setParsedCallback(useA ? &engineParsedA : &engineParsedB, ctx);
         },
         [&in] { in.setParsedCallback(nullptr, nullptr); });
+  }
+
+  // Issue #1176: once a setter that removes a callback returns, no thread may
+  // still be inside that callback or about to call it, so the host can free
+  // what it points into (dart-yse closes its NativeCallable right after).
+  TEST_CASE("yse_midi_in C API: detaching the raw callback waits for an in-flight call") {
+    YseMidiIn* m = yse_midi_in_create();
+    REQUIRE(m != nullptr);
+    YSE::midiIn* port = yse_c::midi_in_from_handle(m);
+    REQUIRE(port != nullptr);
+    Gate gate;
+    yse_midi_in_set_raw_callback(m, &gatedCRaw, &gate);
+    runDetachWaitsForInFlightCall(*port, gate,
+                                  [m] { yse_midi_in_set_raw_callback(m, nullptr, nullptr); });
+    yse_midi_in_destroy(m);
+  }
+
+  TEST_CASE("yse_midi_in C API: replacing the parsed callback waits for an in-flight call") {
+    YseMidiIn* m = yse_midi_in_create();
+    REQUIRE(m != nullptr);
+    YSE::midiIn* port = yse_c::midi_in_from_handle(m);
+    REQUIRE(port != nullptr);
+    Gate gate;
+    Gate unused;
+    yse_midi_in_set_parsed_callback(m, &gatedCParsed, &gate);
+    runDetachWaitsForInFlightCall(
+        *port, gate, [m, &unused] { yse_midi_in_set_parsed_callback(m, &gatedCParsed, &unused); });
+    yse_midi_in_set_parsed_callback(m, nullptr, nullptr);
+    yse_midi_in_destroy(m);
+  }
+
+  TEST_CASE("midiIn: detaching the raw callback waits for an in-flight call") {
+    YSE::midiIn in;
+    Gate gate;
+    in.setRawCallback(&gatedEngineRaw, &gate);
+    runDetachWaitsForInFlightCall(in, gate, [&in] { in.setRawCallback(nullptr, nullptr); });
+  }
+
+  TEST_CASE("midiIn: detaching the parsed callback waits for an in-flight call") {
+    YSE::midiIn in;
+    Gate gate;
+    in.setParsedCallback(&gatedEngineParsed, &gate);
+    runDetachWaitsForInFlightCall(in, gate, [&in] { in.setParsedCallback(nullptr, nullptr); });
+  }
+
+  // Issue #1176: the wait must skip the caller's own dispatch, or a callback
+  // that detaches itself would deadlock on the input thread.
+  TEST_CASE("yse_midi_in C API: a raw callback can detach itself from inside the call") {
+    YseMidiIn* m = yse_midi_in_create();
+    REQUIRE(m != nullptr);
+    SelfDetachCtx ctx;
+    ctx.handle = m;
+    ctx.port = yse_c::midi_in_from_handle(m);
+    REQUIRE(ctx.port != nullptr);
+    yse_midi_in_set_raw_callback(m, &selfDetachCRaw, &ctx);
+    runSelfDetach(*ctx.port, ctx);
+    yse_midi_in_destroy(m);
+  }
+
+  TEST_CASE("midiIn: a parsed callback can detach itself from inside the call") {
+    YSE::midiIn in;
+    SelfDetachCtx ctx;
+    ctx.port = &in;
+    in.setParsedCallback(&selfDetachEngineParsed, &ctx);
+    runSelfDetach(in, ctx);
   }
 
   TEST_CASE("yse_midi_in C API: free_message safely handles nullptr") {

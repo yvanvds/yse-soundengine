@@ -210,8 +210,10 @@ control-thread occlusion driver, future `dspSourceObject` /
    and user_data from that same node. The replaced node is freed only after
    a named grace period proves no dispatch still reads it: the log bridge
    waits for the sink mutex every dispatch runs under; the MIDI raw bridge
-   uses a seq_cst reader-count handshake around the pointer load, with no
-   user code inside the window the installer waits on. A straight
+   uses a seq_cst reader-count handshake held across the pointer load and
+   the callback call, so a setter that returns has also waited out any
+   in-flight call to the old callback (#1176); it skips the calling
+   thread's own readers so a callback can re-install from inside itself. A straight
    passthrough to an engine setter is fine only when that setter keeps the
    pair as one node itself (`YSE::midiIn`'s raw / parsed setters do since
    #917); still wrap the install in the exception barrier.

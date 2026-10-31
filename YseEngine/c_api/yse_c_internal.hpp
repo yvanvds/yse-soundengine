@@ -52,8 +52,11 @@
        the log bridge frees after setHandler() has taken the sink mutex that
        every dispatch runs under (yse_log.cpp); the MIDI raw bridge, whose
        input thread holds no such lock, uses a seq_cst reader-count
-       handshake around the pointer load (yse_midi.cpp). Keep user code out
-       of the window the installer waits on.
+       handshake held across the pointer load and the call (yse_midi.cpp).
+       Both grace periods cover the host callback too, so once the setter
+       returns no thread is inside the old callback (#1176). A reader count
+       held across user code must let a callback re-install from inside
+       itself: yse_midi.cpp skips the calling thread's own readers.
 
        Passing cb + user_data straight through to an engine setter is only
        safe when that setter keeps them as one pair itself — YSE::midiIn's

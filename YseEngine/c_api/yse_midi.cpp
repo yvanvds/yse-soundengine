@@ -50,21 +50,28 @@ namespace {
   // atomic exchange, so a dispatch sees either the whole old pair or the whole
   // new one — the shape the log bridge got in #902.
   //
-  // ### Reclaiming the old pair
+  // ### Reclaiming the old pair, and waiting out the old callback (#1176)
   //
-  // The log bridge frees its old pair behind the log sink's mutex. The RtMidi
-  // input thread holds no lock the installer could wait on, so this bridge
-  // uses its own quiescence handshake instead: the dispatcher bumps
-  // rawReaders, loads the pair, copies cb and user_data onto its stack and
-  // drops rawReaders again — all before it allocates or calls out. The
-  // installer exchanges the pointer, then waits for rawReaders to read zero
-  // before deleting what it swapped out. Every access here is seq_cst, so
-  // either the installer's read of the counter sees a dispatcher's increment
-  // (and waits for its release decrement), or the dispatcher's load of the
-  // pair comes after the exchange in the single total order and sees the new
-  // pair. The window the installer waits on is a handful of instructions and
-  // never contains user code, so the wait is short and a callback that
-  // re-installs from inside itself cannot deadlock on its own dispatch.
+  // The log bridge frees its old pair behind the log sink's mutex, which every
+  // dispatch holds across the call into the host callback. The RtMidi input
+  // thread holds no lock the installer could wait on, so this bridge uses its
+  // own quiescence handshake instead: the dispatcher bumps rawReaders, loads
+  // the pair, copies cb and user_data onto its stack, calls cb, and only then
+  // drops rawReaders. The installer exchanges the pointer, then waits for
+  // rawReaders to read zero before deleting what it swapped out. Every access
+  // here is seq_cst, so either the installer's read of the counter sees a
+  // dispatcher's increment (and waits for its release decrement), or the
+  // dispatcher's load of the pair comes after the exchange in the single total
+  // order and sees the new pair.
+  //
+  // Because the count stays raised across the call (#916 dropped it before),
+  // the wait also covers the callback itself: once the setter returns, no
+  // thread is inside the old callback or about to call it, so the host may
+  // free what it points into — the guarantee the log bridge gives. A callback
+  // that re-installs from inside itself would wait on its own increment, so
+  // each dispatch records its impl on a thread_local chain of stack frames and
+  // the installer waits only for the readers that are not its own thread's.
+  // YSE::midiIn::dispatch() does the same for the engine-side pair.
   struct RawPair {
     YseMidiInRawCallback cb;
     void* user_data;
@@ -92,6 +99,41 @@ namespace {
     return reinterpret_cast<YseMidiInImpl*>(m);
   }
 
+  // The thread_local chain of impls this thread is dispatching for (#1176).
+  struct BridgeFrame {
+    const YseMidiInImpl* impl;
+    BridgeFrame* outer;
+  };
+  thread_local BridgeFrame* tls_bridge_frames = nullptr;
+
+  // Raises impl->rawReaders and pushes a frame for the scope's lifetime;
+  // drops both on exit.
+  struct BridgeReadScope {
+    YseMidiInImpl* impl;
+    BridgeFrame frame;
+    explicit BridgeReadScope(YseMidiInImpl* i) : impl(i), frame{i, tls_bridge_frames} {
+      impl->rawReaders.fetch_add(1, std::memory_order_seq_cst);
+      tls_bridge_frames = &frame;
+    }
+    ~BridgeReadScope() {
+      tls_bridge_frames = frame.outer;
+      impl->rawReaders.fetch_sub(1, std::memory_order_release);
+    }
+    BridgeReadScope(const BridgeReadScope&) = delete;
+    BridgeReadScope& operator=(const BridgeReadScope&) = delete;
+    BridgeReadScope(BridgeReadScope&&) = delete;
+    BridgeReadScope& operator=(BridgeReadScope&&) = delete;
+  };
+
+  // Waits until every rawReaders increment left is the calling thread's own.
+  void await_raw_readers(const YseMidiInImpl* impl) {
+    unsigned int own = 0;
+    for (const BridgeFrame* f = tls_bridge_frames; f != nullptr; f = f->outer)
+      if (f->impl == impl) ++own;
+    while (impl->rawReaders.load(std::memory_order_seq_cst) > own)
+      std::this_thread::yield();
+  }
+
   // Bridge registered with YSE::midiIn::setRawCallback. user_data is the
   // YseMidiInImpl pointer; the user-facing (cb, user_data) pair lives on the
   // impl behind one atomic pointer so it can be swapped from the host thread
@@ -99,11 +141,10 @@ namespace {
   void c_raw_bridge(double ts, const unsigned char* bytes, std::size_t len, void* userData) {
     auto* impl = static_cast<YseMidiInImpl*>(userData);
     if (!impl || len == 0) return;
-    impl->rawReaders.fetch_add(1, std::memory_order_seq_cst);
+    const BridgeReadScope scope(impl);
     const RawPair* pair = impl->raw.load(std::memory_order_seq_cst);
     YseMidiInRawCallback cb = pair != nullptr ? pair->cb : nullptr;
     void* user = pair != nullptr ? pair->user_data : nullptr;
-    impl->rawReaders.fetch_sub(1, std::memory_order_release);
     if (!cb) return;
     // Strings/buffers passed across NativeCallable.listener bridges to Dart
     // are marshalled by pointer value, not deep copy — by the time the Dart
@@ -316,10 +357,10 @@ YSE_C_API void yse_midi_in_set_raw_callback(YseMidiIn* m, YseMidiInRawCallback c
     // user_data slot so multiple YseMidiIn instances stay independent.
     impl->cpp.setRawCallback(cb ? &c_raw_bridge : nullptr, impl);
     if (old == nullptr) return;
-    // Quiescence: once no dispatcher is between its increment and decrement
-    // of rawReaders, none can still be reading `old` (see the notes above).
-    while (impl->rawReaders.load(std::memory_order_seq_cst) != 0)
-      std::this_thread::yield();
+    // Quiescence: once no other dispatcher is between its increment and
+    // decrement of rawReaders, none can still be reading `old` or be inside
+    // (or about to call) its callback (see the notes above).
+    await_raw_readers(impl);
     delete old;
   });
 }
