@@ -274,6 +274,8 @@ TEST_SUITE("patcher") {
     std::thread value0(valueBody, 0);
     std::thread value1(valueBody, 1);
 
+    waitForProgress(blocks);
+
     // Editor thread: the structural / file-handler churn. When it finishes the
     // stress window is over.
     std::thread editor([&] { runEditor(p, savedGraph, 4000); });
@@ -345,6 +347,8 @@ TEST_SUITE("patcher") {
       }
       (void)found;
     });
+
+    waitForProgress(reads);
 
     // Churn the object set through every path that inserts into or erases from
     // it: single create/delete, Clear, and a ParseJSON build.
@@ -477,6 +481,8 @@ TEST_SUITE("patcher") {
       }
     });
 
+    waitForProgress(blocks, sends);
+
     for (int i = 0; i < 2000; i++) {
       p.Connect(keep, 0, other, 0);
       p.Disconnect(keep, 0, other, 0);
@@ -535,6 +541,8 @@ TEST_SUITE("patcher") {
         sends.fetch_add(1, std::memory_order_relaxed);
       }
     });
+
+    waitForProgress(sends);
 
     for (int round = 0; round < 300; round++) {
       for (int i = 0; i < kChurned; i++) {
@@ -595,6 +603,8 @@ TEST_SUITE("patcher") {
         recalls.fetch_add(1, std::memory_order_relaxed);
       }
     });
+
+    waitForProgress(recalls);
 
     for (int round = 0; round < 300; round++) {
       for (int i = 0; i < kChurned; i++) {
@@ -662,6 +672,8 @@ TEST_SUITE("patcher") {
         reads.fetch_add(1, std::memory_order_relaxed);
       }
     });
+
+    waitForProgress(reads);
 
     for (int round = 0; round < 300; round++) {
       for (int i = 0; i < kChurned; i++) {
