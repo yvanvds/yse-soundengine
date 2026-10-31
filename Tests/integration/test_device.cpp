@@ -190,10 +190,19 @@ TEST_SUITE("integration") {
       // Set from the PortAudio device index, so it identifies this slot rather
       // than carrying the constructor's default through.
       CHECK(d.getID() == (int)i);
-      // Latencies come from PaDeviceInfo's defaultLow*Latency, which is never
-      // negative; an indeterminate read was free to be.
-      CHECK(d.getInputLatency() >= 0);
-      CHECK(d.getOutputLatency() >= 0);
+      // Latencies come from PaDeviceInfo's defaultLow*Latency. That is never
+      // negative for a direction the device has channels in, but a host API
+      // may report -1 for one it has none in: PortAudio's ALSA backend does,
+      // for every output-only or input-only device (#1215). So -1 is allowed
+      // only there; an indeterminate read was free to be anything.
+      if (d.getNumInputChannelNames() > 0)
+        CHECK(d.getInputLatency() >= 0);
+      else
+        CHECK(d.getInputLatency() >= -1);
+      if (d.getNumOutputChannelNames() > 0)
+        CHECK(d.getOutputLatency() >= 0);
+      else
+        CHECK(d.getOutputLatency() >= -1);
     }
   }
 

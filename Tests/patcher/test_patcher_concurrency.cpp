@@ -81,6 +81,18 @@ namespace {
     }
   };
 
+  // Block the test thread until every worker counter has moved off zero, so the
+  // fixed loop that follows overlaps work the workers are actually doing. A
+  // spawned thread is not guaranteed to run before a short loop on the test
+  // thread ends, and on a loaded box it often doesn't (#1182): the progress
+  // check then fails although the behaviour under test is fine. Yields rather
+  // than sleeps, and has no deadline: a worker that never starts is a hang,
+  // which the ctest timeout reports.
+  template <typename... Counters> void waitForProgress(const Counters&... counters) {
+    while (!((counters.load(std::memory_order_relaxed) > 0) && ...))
+      std::this_thread::yield();
+  }
+
   // A small, self-contained graph (noise -> dac, plus a receiver named "a")
   // dumped once at setup. The editor re-parses this via ParseJSON to exercise
   // the file-handler swap path with a known, bounded object set.
@@ -262,6 +274,8 @@ TEST_SUITE("patcher") {
     std::thread value0(valueBody, 0);
     std::thread value1(valueBody, 1);
 
+    waitForProgress(blocks);
+
     // Editor thread: the structural / file-handler churn. When it finishes the
     // stress window is over.
     std::thread editor([&] { runEditor(p, savedGraph, 4000); });
@@ -333,6 +347,8 @@ TEST_SUITE("patcher") {
       }
       (void)found;
     });
+
+    waitForProgress(reads);
 
     // Churn the object set through every path that inserts into or erases from
     // it: single create/delete, Clear, and a ParseJSON build.
@@ -407,6 +423,8 @@ TEST_SUITE("patcher") {
       }
     });
 
+    waitForProgress(writes);
+
     int missing = 0;
     for (int i = 0; i < 400; i++) {
       const std::string dump = p.DumpJSON();
@@ -462,6 +480,8 @@ TEST_SUITE("patcher") {
         sends.fetch_add(1, std::memory_order_relaxed);
       }
     });
+
+    waitForProgress(blocks, sends);
 
     for (int i = 0; i < 2000; i++) {
       p.Connect(keep, 0, other, 0);
@@ -522,6 +542,8 @@ TEST_SUITE("patcher") {
       }
     });
 
+    waitForProgress(sends);
+
     for (int round = 0; round < 300; round++) {
       for (int i = 0; i < kChurned; i++) {
         p.DeleteObject(churned[i]);
@@ -581,6 +603,8 @@ TEST_SUITE("patcher") {
         recalls.fetch_add(1, std::memory_order_relaxed);
       }
     });
+
+    waitForProgress(recalls);
 
     for (int round = 0; round < 300; round++) {
       for (int i = 0; i < kChurned; i++) {
@@ -648,6 +672,8 @@ TEST_SUITE("patcher") {
         reads.fetch_add(1, std::memory_order_relaxed);
       }
     });
+
+    waitForProgress(reads);
 
     for (int round = 0; round < 300; round++) {
       for (int i = 0; i < kChurned; i++) {
@@ -728,6 +754,8 @@ TEST_SUITE("patcher") {
         reads.fetch_add(1, std::memory_order_relaxed);
       }
     });
+
+    waitForProgress(reads, blocks);
 
     for (int round = 0; round < 400; round++)
       gate->SetParams(round % 2 == 0 ? "5" : "2");
