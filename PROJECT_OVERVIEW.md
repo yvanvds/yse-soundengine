@@ -45,6 +45,7 @@ cmake/                           # YseContentPack.cmake, YsePython.cmake, demo_m
 tools/ci-linux/                  # Docker images for local Linux CI reproduction (Dockerfile, .audio, .sanitizers)
 tools/dump_patcher_metadata/     # dump_patcher_meta — emits the patcher_objects.json snapshot used by the docs hook
 tools/lsan/                      # LeakSanitizer suppressions for the embedded CPython interpreter
+tools/tsan/                      # ThreadSanitizer suppressions for the uninstrumented host audio libs (local tests-tsan-local/-host, #1219)
 TestResources/                   # Audio files used by demos (drone.ogg, kick.ogg, demo.mid, …)
 dependencies/                    # Vendored, read-only: doctest/, portaudio/, rtmidi/, libsndfile{,64}/ (legacy VS build)
 logo/                            # SVG artwork (yse-logo.svg, yse-icon.svg)
@@ -83,7 +84,7 @@ The old .NET/Xamarin wrappers, the WPF demo, the UWP build, and the JUCE backend
 | `coverage` | `build-coverage/` | Linux only — gcc/clang `--coverage` instrumentation |
 | `coverage-windows` | `build-coverage/` | Windows/Clang only — LLVM source-based coverage |
 
-Every configure preset has a matching build preset; test presets exist for the `tests-*` and `coverage*` configurations, plus `tests-tsan-full`.
+Every configure preset has a matching build preset; test presets exist for the `tests-*` and `coverage*` configurations, plus `tests-tsan-full` and two local-only variants of the `tests-tsan` gate that CI never runs (#1219). Both load `tools/tsan/host-audio.supp` for the uninstrumented libasound, libpipewire and libspa. `tests-tsan-local` (the `yse.py test --sanitizer tsan` default) also hides the host audio server, so a desktop matches CI's device-less runners. `tests-tsan-host` (`--host-audio`) keeps the server and drives a real stream.
 
 ```sh
 python yse.py build                # cmake --preset debug + build
@@ -94,7 +95,7 @@ python yse.py build --content-pack  # also fetch the optional SFZ/DX7/FM content
 python yse.py test                 # tests-debug preset + ctest (includes the integration suite)
 python yse.py test --python        # tests-debug-python preset — also runs the embedded-interpreter suite
 python yse.py test --sanitizer asan  # tests-asan (Linux) / tests-asan-windows preset + ctest
-python yse.py test --sanitizer tsan  # tests-tsan preset + ctest (Linux/clang only)
+python yse.py test --sanitizer tsan  # tests-tsan build, tests-tsan-local ctest: host audio hidden like CI (Linux/clang only)
 python yse.py bench                # bench preset + run yse_benchmarks; --filter <regex>, --json
 python yse.py coverage             # coverage preset + report (gcovr → coverage.xml on Linux,
                                    # llvm-profdata+llvm-cov → coverage-llvm.json on Windows)

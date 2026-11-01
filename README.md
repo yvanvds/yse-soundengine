@@ -231,7 +231,7 @@ python yse.py build --content-pack  # debug build + fetch the optional SFZ/DX7/F
 python yse.py test               # build tests-debug preset, run ctest (includes the integration suite)
 python yse.py test --python      # tests-debug-python preset — also runs the embedded-interpreter suite
 python yse.py test --sanitizer asan  # tests-asan (Linux) / tests-asan-windows preset
-python yse.py test --sanitizer tsan  # tests-tsan preset (Linux/clang only)
+python yse.py test --sanitizer tsan  # tests-tsan build, tests-tsan-local ctest (Linux/clang only; --host-audio keeps the live audio server)
 python yse.py bench              # bench preset (Release) + run yse_benchmarks; --filter <regex>, --json
 python yse.py coverage           # coverage build + report (Linux: gcovr; Windows: llvm-cov)
 python yse.py run                # run Demo00 from build-debug/bin/ (Windows demos)

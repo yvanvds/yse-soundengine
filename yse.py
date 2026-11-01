@@ -500,6 +500,9 @@ def cmd_build(args):
 
 def cmd_test(args):
     sanitizer = getattr(args, "sanitizer", None)
+    if getattr(args, "host_audio", False) and sanitizer != "tsan":
+        print("error: --host-audio only applies to --sanitizer tsan.")
+        sys.exit(1)
     if sanitizer:
         # Sanitizer gates. The two presets scope differently (CMakePresets.json):
         #   - tests-asan (Linux) is the #229 patcher concurrency gate: its test
@@ -521,11 +524,22 @@ def cmd_test(args):
             sys.exit(1)
         if sanitizer == "asan":
             preset = "tests-asan-windows" if IS_WINDOWS else "tests-asan"
+            test_preset = preset
         else:
             preset = "tests-tsan"
+            # Same build and filter as CI's tests-tsan gate (issue #1219). A
+            # desktop's PortAudio can reach a live PipeWire server, and the
+            # uninstrumented libasound / libpipewire / libspa then report
+            # races TSan can't order. tests-tsan-local hides the server, so the
+            # run matches CI's device-less runners. tests-tsan-host
+            # (--host-audio) keeps the server and drives a real stream. Both
+            # load tools/tsan/host-audio.supp. CI runs
+            # `ctest --preset tests-tsan` directly and uses neither.
+            test_preset = ("tests-tsan-host" if getattr(args, "host_audio", False)
+                           else "tests-tsan-local")
         run(["cmake", "--preset", preset])
         run(["cmake", "--build", "--preset", preset])
-        run_ctest(preset)
+        run_ctest(test_preset)
         return
 
     # The ctest run includes yse_tests_integration (label `integration`): it
@@ -1782,6 +1796,14 @@ def build_parser():
              "runs; desktop only)",
     )
     p.add_argument(
+        "--host-audio", action="store_true",
+        help="With --sanitizer tsan: run the tests-tsan-host ctest preset, which "
+             "keeps the host audio server reachable so the device cases drive a "
+             "real stream. tools/tsan/host-audio.supp filters out the "
+             "uninstrumented libasound/libpipewire/libspa (#1219). Device-timing "
+             "assertions are unreliable under TSan on a real stream.",
+    )
+    p.add_argument(
         "--sanitizer", choices=["asan", "tsan"],
         help="Build the test binary under Address- or ThreadSanitizer. asan: on "
              "Linux the tests-asan preset, filtered to the patcher + send/return "
@@ -1789,7 +1811,9 @@ def build_parser():
              "tests-asan-windows preset, which runs the whole suite. tsan: the "
              "tests-tsan preset, which runs the whole ctest set minus "
              "yse_unit_tests and yse_tests_contentpack (the engine-wide race "
-             "gate, #824); Linux/clang only.",
+             "gate, #824). Locally it runs through the tests-tsan-local ctest "
+             "preset, which hides the host audio server so the run matches CI's "
+             "device-less runners (#1219). Linux/clang only.",
     )
     p.set_defaults(func=cmd_test)
 

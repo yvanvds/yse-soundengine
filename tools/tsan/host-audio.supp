@@ -1,0 +1,36 @@
+# ThreadSanitizer suppressions for the uninstrumented host audio stack (#1219).
+#
+# Loaded by the tests-tsan-local and tests-tsan-host ctest presets, which
+# `python yse.py test --sanitizer tsan [--host-audio]` runs. CI's tests-tsan
+# and tests-tsan-full presets don't load it. Their runners have no sound card,
+# so these libraries never open a stream there.
+#
+# libasound, libpipewire and libspa are not built with -fsanitize=thread, so
+# TSan cannot see the synchronisation inside them. On a desktop whose PortAudio
+# reaches a live PipeWire server, it then reports races and lock problems
+# between threads that those libraries order themselves.
+#
+# Rules:
+#   - Every pattern names a library function or module, never a YSE frame.
+#   - No called_from_lib: for libpipewire or libspa. That would make TSan
+#     ignore their malloc/free too, which also hides YSE heap bugs that land
+#     in blocks those libraries allocate or free. #1222 showed up exactly that
+#     way: an over-read in channelManager.cpp:279 reported against a free
+#     in pw_properties_clear. Such reports must stay visible.
+#   - Don't add a suppression for a report whose two stacks both start in YSE
+#     code. #1223 is one such report, from the live-audio run, and it is a
+#     YSE bug.
+
+# paCallback (PortAudio's ALSA callback thread) writes the mmap'd period
+# buffer; PipeWire's data-loop thread copies it out under a libspa mutex.
+race:snd_pcm_area_copy
+
+# Lock-order inversions between libasound's and libspa's own mutexes, taken on
+# PortAudio's and PipeWire's threads under Pa_OpenStream / Pa_Initialize.
+deadlock:libspa-support.so
+deadlock:libasound.so
+
+# Double lock and destroy-of-a-locked-mutex inside libspa-support, under
+# Pa_Initialize / Pa_OpenStream / refreshDevices(). The device-refresh suite
+# reaches these even with the audio server hidden.
+mutex:libspa-support.so

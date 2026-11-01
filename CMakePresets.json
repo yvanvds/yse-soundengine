@@ -365,6 +365,31 @@
       }
     },
     {
+      "name": "tests-tsan-local",
+      "displayName": "TSan gate, local run with the host audio server hidden",
+      "inherits": "tests-tsan",
+      "configurePreset": "tests-tsan",
+      "description": "What `python yse.py test --sanitizer tsan` runs (issue #1219): the tests-tsan gate (same build, same filter) with two changes so a desktop matches CI's device-less runners. (1) The host audio server is hidden: an empty ALSA config, with PipeWire, PulseAudio and JACK pointed at servers that don't exist, so PortAudio finds no device and the device-dependent cases return early as they do on CI. (2) tools/tsan/host-audio.supp is loaded for the uninstrumented libasound / libpipewire / libspa (the device-refresh suite still drives Pa_Initialize, which reaches libspa). CI runs tests-tsan / tests-tsan-full directly and does not use this preset. Use tests-tsan-host (`--host-audio`) to keep the live server. configurePreset is restated beside inherits because yse.py's test_preset_build_dir() does not follow inherits.",
+      "environment": {
+        "TSAN_OPTIONS": "$penv{TSAN_OPTIONS} suppressions=${sourceDir}/tools/tsan/host-audio.supp",
+        "ALSA_CONFIG_PATH": "/dev/null",
+        "PIPEWIRE_REMOTE": "/nonexistent/yse-tsan",
+        "PULSE_SERVER": "unix:/nonexistent/yse-tsan",
+        "JACK_DEFAULT_SERVER": "yse-tsan-nonexistent",
+        "JACK_NO_START_SERVER": "1"
+      }
+    },
+    {
+      "name": "tests-tsan-host",
+      "displayName": "TSan gate against the live host audio server (local)",
+      "inherits": "tests-tsan",
+      "configurePreset": "tests-tsan",
+      "description": "The tests-tsan gate with tools/tsan/host-audio.supp loaded and the host audio server left reachable (issue #1219, `python yse.py test --sanitizer tsan --host-audio`). This is the only TSan run that drives a real stream, so it is how engine bugs on the device path get found: #1222 (channel-manager arrays over-read when a device widens the layout) and #1223 (a custom-IO buffer freed under a streaming refill) both surfaced here. Without the file, a PipeWire desktop failed 13 of the gated entries on reports inside the uninstrumented libasound / libpipewire / libspa. The suppressions name only library functions and modules, never a YSE frame. They do not use called_from_lib for libpipewire or libspa, because that would also stop TSan tracking those libraries' frees, which is exactly how #1222 showed up. Expect the device-timing assertions in yse_tests_integration and yse_tests_devicerefresh (missedCallbacks, cpuLoad bounds) to be unreliable here: TSan's slowdown on a real stream can make PortAudio's callback-thread start time out (paTimedOut).",
+      "environment": {
+        "TSAN_OPTIONS": "$penv{TSAN_OPTIONS} suppressions=${sourceDir}/tools/tsan/host-audio.supp"
+      }
+    },
+    {
       "name": "tests-tsan-full",
       "displayName": "TSan full sweep (adds the two slow entries)",
       "configurePreset": "tests-tsan",
