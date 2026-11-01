@@ -18419,6 +18419,52 @@
     ],
     "requires_midi_device": false
   },
+  "~overdrive": {
+    "category": "MATH",
+    "description": "A soft clipper: amplifies the signal by a drive factor and rounds its peaks off into -1 to 1, for warm saturation and overdrive.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER"
+        ],
+        "doc": "The signal to distort (unconnected reads 0).",
+        "index": 0,
+        "label": "in",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The drive factor: 1 is linear, higher values amplify and round off more, values below 1 distort heavily. A number or a signal read per sample (unconnected, the last number sent here or the creation argument).",
+        "index": 1,
+        "label": "drive",
+        "range": "any float, usually 1 to 10"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~overdrive",
+    "outlets": [
+      {
+        "doc": "The distorted signal: for an input of magnitude a below 1, a magnitude of 1 - (1 - a) to the power of the drive with the sign of the input; -1 or 1 at or beyond full scale.",
+        "index": 0,
+        "label": "out",
+        "range": "-1 to 1",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "1",
+        "doc": "The drive factor ('~overdrive 4'). A number in the right inlet changes it, but what is saved stays the argument.",
+        "name": "drive",
+        "range": "any float, usually 1 to 10"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~peakamp": {
     "category": "ANALYSIS",
     "description": "Reports the peak amplitude of a signal, the largest absolute sample value since the last report: on a bang, or every interval.",

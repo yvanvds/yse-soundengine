@@ -34,6 +34,9 @@ Math
 .. doxygenfile:: dsp/operators/downsample.hpp
    :project: libYSE
 
+.. doxygenfile:: dsp/operators/overdrive.hpp
+   :project: libYSE
+
 Generators
 ----------
 

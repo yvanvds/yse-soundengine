@@ -763,3 +763,29 @@ finite number is not taken; the held sample stays.
 .. code-block:: text
 
    [~saw 110] -> [~downsamp 6] -> [~dac]   a new sample every 6, 8 kHz at 48 kHz
+
+.. patcher-object:: ~overdrive
+
+A soft clipper: the signal is amplified by the drive and its peaks are
+rounded off so that the output never leaves -1 to 1, the warm saturation of
+an overdriven amplifier. For a sample between -1 and 1 with magnitude a,
+the output has magnitude 1 - (1 - a) to the power of the drive and keeps
+the sign of the sample; a sample at or beyond full scale gives -1 or 1.
+
+At drive 1 the object is linear: a signal within -1 to 1 passes unchanged,
+anything louder is clipped. Above 1, quiet samples are amplified by about
+the drive and loud ones are bent towards -1 and 1, which they meet without
+a corner; the usual range is 1 to 10. Between 0 and 1 the curve bends the
+other way and pushes quiet samples towards 0 with a sharp corner at full
+scale, a harsh and heavy distortion; at 0 everything inside -1 to 1 is
+silenced. A negative drive turns the curve over and gives samples of the
+opposite sign, still limited to -1 to 1, an extreme effect to use with
+care.
+
+The drive takes a number or a signal read per sample. A drive that is not a
+finite number is ignored. The object keeps no state between samples, so the
+result is the same at any sample rate.
+
+.. code-block:: text
+
+   [~cycle 110] -> [~* 2] -> [~overdrive 4] -> [~dac]   rounded peaks, louder body

@@ -123,6 +123,7 @@
 #include "dsp/operators/delta.hpp"
 #include "dsp/operators/degrade.hpp"
 #include "dsp/operators/downsample.hpp"
+#include "dsp/operators/overdrive.hpp"
 #include "dsp/analysis/direction.hpp"
 #include "dsp/analysis/edgeDetector.hpp"
 #include "dsp/analysis/schmittTrigger.hpp"
