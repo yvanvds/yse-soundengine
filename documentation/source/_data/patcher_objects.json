@@ -15306,6 +15306,144 @@
     "params": [],
     "requires_midi_device": false
   },
+  "~adsr": {
+    "category": "OSC",
+    "description": "ADSR envelope with its times in milliseconds, triggered by a gate signal or by numbers: the standard synth envelope, with legato, a ramp down before a retrigger, a sustain limit and a play-to-end mode.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "Trigger. A signal is a gate: a rise from 0 starts the envelope at the signal's value, a return to 0 releases it. A number starts it at that amplitude at the next block, 0 releases it. A list of up to four numbers sets attack, decay, sustain and release. Also takes 'attack', 'decay', 'sustain', 'release', 'legato', 'retrigger', 'maxsustain' and 'triggermode' with one number.",
+        "index": 0,
+        "label": "trigger",
+        "range": "amplitude, 0 releases"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Attack time in milliseconds: a signal, or a number used while no signal is connected.",
+        "index": 1,
+        "label": "attack",
+        "range": "0 or more ms"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Decay time in milliseconds: a signal, or a number used while no signal is connected.",
+        "index": 2,
+        "label": "decay",
+        "range": "0 or more ms"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Sustain level as a factor of the amplitude: a signal, or a number used while no signal is connected.",
+        "index": 3,
+        "label": "sustain",
+        "range": "factor, usually 0-1"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Release time in milliseconds: a signal, or a number used while no signal is connected.",
+        "index": 4,
+        "label": "release",
+        "range": "0 or more ms"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~adsr",
+    "outlets": [
+      {
+        "doc": "The envelope.",
+        "index": 0,
+        "label": "out",
+        "range": "0 to the amplitude",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "1 during attack, decay and sustain; 0 during release, a retrigger ramp and at rest.",
+        "index": 1,
+        "label": "gate",
+        "range": "0 or 1",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "0 after a block in which the envelope started from rest, 1 after one in which it came to rest.",
+        "index": 2,
+        "label": "mute",
+        "range": "0 or 1",
+        "type": "INT"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Attack time used while no signal is connected.",
+        "name": "attack",
+        "range": "0 or more ms"
+      },
+      {
+        "default": "0",
+        "doc": "Decay time used while no signal is connected.",
+        "name": "decay",
+        "range": "0 or more ms"
+      },
+      {
+        "default": "1",
+        "doc": "Sustain factor used while no signal is connected.",
+        "name": "sustain",
+        "range": "factor, usually 0-1"
+      },
+      {
+        "default": "0",
+        "doc": "Release time used while no signal is connected.",
+        "name": "release",
+        "range": "0 or more ms"
+      },
+      {
+        "default": "0",
+        "doc": "1 restarts from the current level; 0 ramps down to 0 over the retrigger time first.",
+        "name": "legato",
+        "range": "0 or 1"
+      },
+      {
+        "default": "5",
+        "doc": "Ramp-down time before a restart that is not legato.",
+        "name": "retrigger",
+        "range": "0 or more ms"
+      },
+      {
+        "default": "-1",
+        "doc": "Longest sustain in milliseconds; negative holds until released, 0 skips the sustain.",
+        "name": "maxsustain",
+        "range": "ms, negative for none"
+      },
+      {
+        "default": "0",
+        "doc": "1 runs every start to the end, ignoring triggers until at rest; 0 releases on a trigger of 0.",
+        "name": "triggermode",
+        "range": "0 or 1"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~allpass": {
     "category": "FILTER",
     "description": "Schroeder allpass filter, y(n) = -g x(n) + x(n-D) + g y(n-D), on an interpolated delay line with the delay in ms and the gain each a number or a signal read per sample: every frequency passes, only the phase changes. For reverb diffusers and phase smearing.",
@@ -16539,6 +16677,89 @@
         "doc": "The cutoff in Hz ('~cross 800'). Later numbers and messages do not change what is saved.",
         "name": "cutoff",
         "range": "0 to 0.49 * samplerate Hz"
+      }
+    ],
+    "requires_midi_device": false
+  },
+  "~curve": {
+    "category": "OSC",
+    "description": "Curved ramp generator: plays a list of segments back to back, each a target, a time in milliseconds and a curvature, for envelopes, fades and glides that bend. Bangs when the list is done.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "A number is a target, reached over the middle inlet's time with the right inlet's curve, or jumped to with no time. A list is 'target time curve' triplets (a last pair uses the right inlet's curve). Also 'stop', 'pause', 'resume', 'factor <curve>' and 'shapemode <0|1>'.",
+        "index": 0,
+        "label": "target",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Time in milliseconds for the next number at the left inlet; used once, then 0.",
+        "index": 1,
+        "label": "time",
+        "range": "0+ ms"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Curvature for numbers and pairs: 0 straight, positive starts slowly, negative starts quickly.",
+        "index": 2,
+        "label": "curve",
+        "range": "-1 to 1"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~curve",
+    "outlets": [
+      {
+        "doc": "The ramp.",
+        "index": 0,
+        "label": "out",
+        "range": "any float",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "A bang after the block in which a list finished.",
+        "index": 1,
+        "label": "done",
+        "range": "bang",
+        "type": "BANG"
+      },
+      {
+        "doc": "1 when a list starts or resumes, 0 when it finishes, stops or pauses.",
+        "index": 2,
+        "label": "active",
+        "range": "0 or 1",
+        "type": "INT"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "The value before the first target.",
+        "name": "initial",
+        "range": "any float"
+      },
+      {
+        "default": "0",
+        "doc": "Initial curvature for numbers and pairs.",
+        "name": "curve",
+        "range": "-1 to 1"
+      },
+      {
+        "default": "0",
+        "doc": "0: the power curve .function draws; 1: an exponential curve, gentler at the ends.",
+        "name": "shapemode",
+        "range": "0 or 1"
       }
     ],
     "requires_midi_device": false
@@ -18931,6 +19152,52 @@
     ],
     "requires_midi_device": false
   },
+  "~seq": {
+    "category": "SEQUENCE",
+    "description": "Event sequencer driven by a 0..1 ramp: messages stored at phase positions, added or recorded live, sent when the ramp crosses them.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "The driving phase, a signal running 0 to 1 such as a ~phasor (unconnected reads 0). A number, a list or a message that is not a command is an event, recorded at the current phase while 'record' or 'overdub' is on. Commands: 'add', 'clear', 'erase', 'delete', 'dump', 'offset', 'overdub', 'play', 'record', 'read', 'write', 'seq' and 'seqnum'. A bang reports the state.",
+        "index": 0,
+        "label": "phase",
+        "range": "0 to 1"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~seq",
+    "outlets": [
+      {
+        "doc": "Each event as it is crossed, the message it was stored as.",
+        "index": 0,
+        "label": "events",
+        "range": "any",
+        "type": "ANY"
+      },
+      {
+        "doc": "On 'dump', one 'sequence phase message' list per event.",
+        "index": 1,
+        "label": "dump",
+        "range": "list",
+        "type": "LIST"
+      },
+      {
+        "doc": "On a bang: 'sequence play record overdub events-in-sequence events-in-all'.",
+        "index": 2,
+        "label": "state",
+        "range": "list",
+        "type": "LIST"
+      }
+    ],
+    "params": [],
+    "requires_midi_device": false
+  },
   "~shape": {
     "category": "OSC",
     "description": "A breakpoint envelope played over the length of a ramp such as a ~phasor: one cycle of the ramp is one pass through the envelope, so its length follows the ramp's frequency. For envelopes whose shape is fixed and whose length follows tempo or note length.",
@@ -20104,6 +20371,91 @@
     ],
     "requires_midi_device": false
   },
+  "~train": {
+    "category": "OSC",
+    "description": "Pulse train switching between 0 and 1, with its period in milliseconds, a pulse width and a phase: a clock, gate or rhythmic modulator. Bangs when each pulse begins, as a metronome with a fractional interval.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT",
+          "BANG"
+        ],
+        "doc": "Period in milliseconds: a signal, or a number used while no signal is connected. 0 stops the train. A bang restarts the cycle so a pulse begins at the next block. Also takes 'interval <ms>', 'width <0-1>', 'phase <0-1>' and 'resetmode <0|1>'.",
+        "index": 0,
+        "label": "interval",
+        "range": "0 or more ms"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Pulse width: the part of each period at 1. A signal, or a number used while no signal is connected. 0 is a single sample, 1 the whole period but one sample.",
+        "index": 1,
+        "label": "width",
+        "range": "0-1"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Phase: delays the pulse by this fraction of the period; 1 is the same as 0. A signal, or a number used while no signal is connected.",
+        "index": 2,
+        "label": "phase",
+        "range": "0-1"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~train",
+    "outlets": [
+      {
+        "doc": "The pulse train: 1 during each pulse, 0 between them.",
+        "index": 0,
+        "label": "out",
+        "range": "0 or 1",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "A bang after a block in which a pulse began.",
+        "index": 1,
+        "label": "onset",
+        "range": "bang",
+        "type": "BANG"
+      }
+    ],
+    "params": [
+      {
+        "default": "1000",
+        "doc": "Period in milliseconds used while no signal is connected.",
+        "name": "interval",
+        "range": "0 or more ms"
+      },
+      {
+        "default": "0.5",
+        "doc": "Pulse width used while no signal is connected.",
+        "name": "width",
+        "range": "0-1"
+      },
+      {
+        "default": "0",
+        "doc": "Phase used while no signal is connected.",
+        "name": "phase",
+        "range": "0-1"
+      },
+      {
+        "default": "0",
+        "doc": "1 holds a new interval until the running period ends; 0 applies it at once.",
+        "name": "resetmode",
+        "range": "0 or 1"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~trapezoid": {
     "category": "OSC",
     "description": "A trapezoid read by a 0-1 phase such as a ~phasor: it rises from lo to hi by the ramp-up point, holds hi until the ramp-down point, then falls back to lo. For LFO shapes and envelopes.",
@@ -20625,6 +20977,89 @@
         "doc": "The click volume, the height of each click ('~zerox 0.5'). 'set' changes it, but what is saved stays the argument.",
         "name": "volume",
         "range": "any float"
+      }
+    ],
+    "requires_midi_device": false
+  },
+  "~zigzag": {
+    "category": "OSC",
+    "description": "Breakpoint function: a list of points, each a value and a time in milliseconds, played as straight ramps forward or backward at any speed, looped or swung back and forth, and edited while it plays.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "A list of 'value time' pairs replaces the points and plays them; a number is one point reached over the ramptime. A bang restarts or steps, as the mode says. A signal is an index into the points (mode 0) or a trigger where it starts to fall (modes 1 and 2). Also 'append', 'insert', 'delete', 'set', 'setindex', 'line', 'setline', 'jump', 'jumpstart', 'jumpend', 'next', 'prev', 'skip', 'start', 'end', 'bound', 'bangdelta', 'ramptime', 'speed', 'stop', 'dump', 'loopmode' and 'mode'.",
+        "index": 0,
+        "label": "points",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Play rate: 1 as written, 0.5 half as fast, negative backward, 0 holds. A signal (read once per block) or a number used while no signal is connected.",
+        "index": 1,
+        "label": "speed",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~zigzag",
+    "outlets": [
+      {
+        "doc": "The function.",
+        "index": 0,
+        "label": "out",
+        "range": "any float",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "The index of the point being played towards, or the input index in mode 0.",
+        "index": 1,
+        "label": "index",
+        "range": "0+",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "On 'dump', one 'index value time' list per point.",
+        "index": 2,
+        "label": "dump",
+        "range": "list",
+        "type": "LIST"
+      },
+      {
+        "doc": "A bang after the block in which play reached the end of its range and stopped, looped or turned.",
+        "index": 3,
+        "label": "end",
+        "range": "bang",
+        "type": "BANG"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "The output before the first point.",
+        "name": "initial",
+        "range": "any float"
+      },
+      {
+        "default": "0",
+        "doc": "0 stops at the end, 1 starts again from the other end, 2 turns round.",
+        "name": "loopmode",
+        "range": "0, 1 or 2"
+      },
+      {
+        "default": "0",
+        "doc": "0: a bang restarts, a signal is an index. 1: a bang restarts, a falling signal restarts. 2: a bang or a falling signal steps to the next point.",
+        "name": "mode",
+        "range": "0, 1 or 2"
       }
     ],
     "requires_midi_device": false

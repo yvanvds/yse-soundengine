@@ -130,6 +130,7 @@ void pObject::FlushArmedOutlets(YSE::THREAD thread) {
   for (std::size_t i = outputs.size(); i-- > 0;) {
     outputs[i].FlushArmed(thread);
   }
+  FlushArmedMessages(thread);
 }
 
 void pObject::SetParent(pObject* parent) {

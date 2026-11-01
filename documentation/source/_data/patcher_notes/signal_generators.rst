@@ -569,3 +569,165 @@ of the messages as keywords, and they are saved with the patch:
 
    [~phasor 0.5] -> [~snowfall 2 direction 0.3 -0.1 directiondev 0.2 0.2]
                      two values drifting on every two-second cycle
+
+.. patcher-object:: ~train
+
+A pulse train: 1 for the first ``width`` of each period, 0 for the rest,
+with the period in milliseconds rather than as a frequency. Use it as a
+clock, a gate for ``~sah`` or an envelope trigger, or at short periods as an
+audible pulse. The right outlet bangs after each block in which a pulse
+began, so the object doubles as a metronome with a fractional interval;
+several pulses in one block are one bang.
+
+- The three inlets take the period, the width and the phase, each as a
+  signal or a number used while no signal is connected. The arguments set
+  the same three and ``resetmode`` (``~train 250 0.25 0 1``); they default
+  to 1000, 0.5, 0 and 0 and are saved with the patch.
+- The width runs from 0, a pulse of a single sample, to 1, the whole period
+  but one sample.
+- The phase delays the pulse by that fraction of the period; 1 is the same
+  as 0.
+- A period of 0 stops the train where it is. The tempo follows the sample
+  rate the engine runs at.
+- A bang at the left inlet restarts the cycle: a pulse begins at the next
+  block, and the period counts from there.
+- By default a new period applies at once. With ``resetmode 1`` it waits
+  until the running period ends, so a tempo change never cuts a period short.
+- ``interval <ms>``, ``width <0-1>``, ``phase <0-1>`` and
+  ``resetmode <0|1>`` set the same values as messages. Numbers and messages
+  are not saved; the arguments are.
+
+.. code-block:: text
+
+   [~train 125] -> right outlet -> [.counter]   counts eighth notes at 240 bpm
+
+.. patcher-object:: ~adsr
+
+The standard synth envelope: a straight rise to the trigger's amplitude over
+the attack time, a fall to the sustain level over the decay time, a hold,
+and a fall to 0 over the release time once released. The middle outlet is a
+gate signal, 1 during attack, decay and sustain and 0 otherwise; its rise
+marks the exact sample each attack starts, for ``~sah`` and the like.
+
+- A signal at the left inlet is a gate: a rise from 0 starts the envelope at
+  the signal's value, a return to 0 releases it. A change between two
+  non-zero values does nothing, so the gate has to return to 0 before it can
+  start the envelope again.
+- A number at the left inlet starts (or restarts) the envelope at that
+  amplitude at the next block; 0 releases it. A list of up to four numbers
+  sets attack, decay, sustain and release.
+- Inlets 2 to 5 take attack, decay and release in milliseconds and the
+  sustain level, each as a signal or a number used while no signal is
+  connected. The sustain is a factor of the amplitude: 0.5 holds at half the
+  peak, 2 at twice it.
+- The arguments set attack, decay, sustain, release, ``legato``,
+  ``retrigger``, ``maxsustain`` and ``triggermode``, in that order
+  (``~adsr 10 50 0.6 300``). They default to 0, 0, 1, 0, 0, 5, -1 and 0, so
+  a bare ``~adsr`` is a plain gate, and they are saved with the patch.
+- A restart while the envelope is still sounding first ramps it down to 0
+  over the ``retrigger`` time (5 ms) so it does not click, then attacks from
+  0. With ``legato 1`` it attacks from where it is instead.
+- ``maxsustain`` limits the sustain to that many milliseconds, after which
+  the release starts on its own; 0 makes an attack-decay-release envelope,
+  and a negative value holds until released.
+- With ``triggermode 1`` each start runs the whole envelope, with a sustain
+  of ``maxsustain`` milliseconds, and ignores triggers and releases until it
+  has finished.
+- The right outlet sends 0 after a block in which the envelope started from
+  rest and 1 after one in which it came to rest: the mute state for a voice
+  in a polyphonic patch.
+- ``attack``, ``decay``, ``sustain``, ``release``, ``legato``,
+  ``retrigger``, ``maxsustain`` and ``triggermode`` with one number set the
+  same values as messages. Numbers, lists and messages are not saved; the
+  arguments are.
+
+.. code-block:: text
+
+   [.m 0.8] / [.m 0] -> [~adsr 10 100 0.5 400] -> [~*] <- [~saw 220]
+                        a note at 0.8 on the first click, released on the second
+
+.. patcher-object:: ~curve
+
+Plays ramp segments back to back, each with a target, a time in milliseconds
+and a curvature, so envelopes, fades and glides can bend rather than run
+straight. Each segment starts from wherever the output is, and the output
+holds the last target when the list is done.
+
+- A list at the left inlet is ``target time curve`` triplets. If one or two
+  numbers are left over, a pair takes the curve set at the right inlet and a
+  single number is a jump. A new list replaces one that is still playing,
+  starting from the current value.
+- A number at the left inlet is a single target, reached over the time set
+  at the middle inlet with the right inlet's curve. The middle inlet's time
+  is used once: the next number jumps unless a new time arrives first.
+- Curvature runs from -1 to 1. 0 is a straight line. A positive curve starts
+  slowly and arrives quickly, which makes a fade-in sound even. A negative
+  curve does the opposite. At +1 the output holds until the end of the
+  segment, and at -1 it jumps at the start.
+- ``shapemode 0`` (the default) bends segments the way ``.function`` draws
+  them, so a shape copied from a ``.function`` plays as drawn.
+  ``shapemode 1`` uses a true exponential, gentler at both ends.
+- ``stop`` holds the current value and drops the list. ``pause`` holds it
+  but keeps the place, and ``resume`` carries on from there. ``factor`` sets
+  the right inlet's curve.
+- The middle outlet bangs after the block in which a list finished. A stop
+  does not count as finishing. The right outlet sends 1 when a list starts
+  or resumes and 0 when it finishes, stops or pauses.
+- The arguments set the starting value, the curve and the ``shapemode``
+  (``~curve 0 0.5``). They are saved with the patch; numbers, lists and
+  messages are not.
+- A list holds up to 128 segments; a longer one is cut to that.
+
+.. code-block:: text
+
+   [.m 1 50 0.6 0 800 -0.6] -> [~curve] -> [~*] <- [~saw 220]
+                               a quick curved attack and a long fading tail
+
+.. patcher-object:: ~zigzag
+
+Plays a list of points as straight ramps, each point a value and the time in
+milliseconds it takes to get there from the point before. Unlike a one-shot
+ramp, the list stays: it can be played again, played backward or at another
+speed, looped, and edited while it plays.
+
+- A list at the left inlet is ``value time`` pairs. It replaces the points
+  and plays them from the first. A value left over at the end takes time 0.
+  The first point's time is how long the output takes to get there from
+  wherever it is, so ``0 0 1 500`` jumps to 0 and rises to 1 over half a
+  second.
+- A number at the left inlet is a list of one point, reached over the time
+  set with ``ramptime`` (0 by default, a jump).
+- ``setline`` stores a list without playing it. ``append <value> <time>``
+  adds a point at the end and ramps to it. ``insert <index> <value> <time>``
+  puts points in before an index, ``delete <index> ...`` removes points, and
+  ``set`` or ``setindex <index> <value> <time>`` changes one. Points count
+  from 0. An edit made while the list plays takes effect at once: the ramp
+  in progress keeps heading for the same point, wherever the edit moved it.
+- ``bang`` restarts from the first point, reached over the ``bangdelta``
+  time. ``jump <index> [time]``, ``jumpstart``, ``jumpend``, ``next``,
+  ``prev`` and ``skip <points>`` move to a point and play on from there;
+  the optional time is how long the move takes. ``stop`` holds the output.
+- The right inlet sets the speed: 1 plays as written, 0.5 half as fast, 0
+  holds, and a negative speed plays backward. Reversing mid-ramp turns back
+  towards the point it came from. A signal there is read once per block.
+- ``start <index>``, ``end <index>`` and ``bound <start> <end>`` limit
+  playing to part of the list. At the end of that range, ``loopmode 0``
+  stops, ``loopmode 1`` starts again from the other end, and ``loopmode 2``
+  turns round. Each time it gets there the right outlet bangs.
+- ``mode`` sets what a bang and a signal at the left inlet do. In mode 0 a
+  signal is an index into the points (1.5 is halfway between points 1 and
+  2), so a ``~phasor`` scaled to the number of points scans the list. In
+  mode 1 a falling signal, such as a ``~phasor`` wrapping, restarts like a
+  bang. In mode 2 a bang or a falling signal steps to the next point.
+- The second outlet is the index of the point being played towards. The
+  third answers ``dump`` with one ``index value time`` list per point.
+- The arguments set the starting value, the ``loopmode`` and the ``mode``
+  (``~zigzag 0 1``). They are saved with the patch; the points and other
+  messages are not.
+- The list holds up to 2048 points; a longer one is cut to that.
+
+.. code-block:: text
+
+   [.m 0 0 1 20 0.2 300] -> [~zigzag 0 1] -> [~*] <- [~saw 110]
+                            a looping attack and decay; [.m append 0 400]
+                            stretches it while it plays

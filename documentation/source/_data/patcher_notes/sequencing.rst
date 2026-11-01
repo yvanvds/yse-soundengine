@@ -262,3 +262,63 @@ Messages are not saved with the patch; the argument is.
 .. code-block:: text
 
    [~phasor 2] -> [~techno 8] -> pitch -> [~saw] -> [~*] <- envelope
+.. patcher-object:: ~seq
+
+Stores messages at positions in a cycle and sends each one when a driving
+0 to 1 ramp, normally a ``~phasor``, crosses its position. The timing comes
+from the ramp, so speeding the ``~phasor`` up plays the sequence faster, and
+an event is crossed on the exact sample where the ramp passes it. Not to be
+confused with ``.seq``, which plays MIDI files.
+
+**Sequences**
+
+Events are kept in numbered sequences, up to 1024 events in all. One
+sequence at a time is current: ``seq <n>`` (or ``seqnum``) picks it, and it
+is the one played and recorded into. Sequence 0 is current to start with.
+
+- ``add <seq> <phase> <message>`` stores a message at a phase (0 to 1) in
+  any sequence: ``add 2 0.5 honk``. Events at the same phase go out in the
+  order they were added.
+- ``delete <seq> <phase>`` removes the events at that phase;
+  ``delete <seq> <from> <to>`` those in a range; and a message after the
+  range only the events that are that message: ``delete 2 0 1 honk``
+  removes every ``honk`` in sequence 2.
+- ``clear <seq>`` (or ``erase``) empties a sequence, ``clear`` alone the
+  current one, and ``clear all`` every one.
+- ``offset <n>`` is added to every sequence number a message names from
+  then on.
+
+**Playing and recording**
+
+- ``play 1`` plays the current sequence from where the ramp is; ``play 0``
+  stops. Each event goes out of the left outlet as the message it was
+  stored as: a number, a list or a word message. When the ramp jumps back
+  by more than half a cycle, as a ``~phasor`` does when it wraps, the events
+  up to the end of the cycle go out and play continues from the start. A
+  smaller step back sends nothing.
+- While ``overdub 1`` is on, any number, list or message sent to the inlet
+  that is not one of the commands here is stored in the current sequence at
+  the ramp's position. ``record 1`` does the same after emptying the
+  sequence first. A recorded event plays the next time the ramp comes
+  round. Both stop with 0.
+- All of these take effect at the start of the next audio block, and the
+  messages go out at the end of the block they were crossed in. Within a
+  block they keep their order.
+
+**Reports and files**
+
+- ``dump`` sends one ``sequence phase message`` list per event out of the
+  middle outlet, ``dump <seq>`` only that sequence's.
+- A bang sends ``sequence play record overdub events-in-sequence
+  events-in-all`` out of the right outlet.
+- ``write <file>`` saves every sequence as text, one ``sequence phase
+  message`` line per event, and ``read <file>`` replaces every sequence with
+  a saved file's. A malformed file changes nothing. Sequences are not saved
+  with the patch.
+
+.. code-block:: text
+
+   [.m add 0 0 60] [.m add 0 0.5 67] [.m play 1]
+              \          |          /
+   [~phasor 1] -> [~seq] -> [.mtof] -> [~cycle]
+                  two notes a second, one at each half of the cycle
