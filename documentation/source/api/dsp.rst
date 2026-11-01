@@ -112,6 +112,9 @@ Generators
 .. doxygenfile:: dsp/generators/snowfall.hpp
    :project: libYSE
 
+.. doxygenfile:: dsp/generators/pulseTrain.hpp
+   :project: libYSE
+
 .. doxygenfile:: dsp/lfo.hpp
    :project: libYSE
 

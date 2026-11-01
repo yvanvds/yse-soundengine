@@ -112,6 +112,7 @@ set(YSE_SRCS
   dsp/generators/sampleHoldMemory.cpp
   dsp/generators/signalStash.cpp
   dsp/generators/snowfall.cpp
+  dsp/generators/pulseTrain.cpp
   dsp/operators/arithmetic.cpp
   dsp/operators/accumulator.cpp
   dsp/operators/delta.cpp
@@ -235,6 +236,7 @@ set(YSE_SRCS
   patcher/generatorObjects/dSwing.cpp
   patcher/generatorObjects/dTwist.cpp
   patcher/generatorObjects/dSnowfall.cpp
+  patcher/generatorObjects/dTrain.cpp
   patcher/generatorObjects/dPhasor.cpp
   patcher/generatorObjects/dCycle.cpp
   patcher/generatorObjects/pSine.cpp
@@ -692,6 +694,7 @@ set_source_files_properties(
   patcher/generatorObjects/dSwing.cpp
   patcher/generatorObjects/dTwist.cpp
   patcher/generatorObjects/dSnowfall.cpp
+  patcher/generatorObjects/dTrain.cpp
   patcher/generatorObjects/dPhasor.cpp
   patcher/generatorObjects/dCycle.cpp
   patcher/generatorObjects/pSine.cpp

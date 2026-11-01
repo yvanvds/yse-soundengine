@@ -29,7 +29,7 @@ namespace YSE {
    * cycle of a 0..1 ramp), ``D_SWING`` (each cycle of a 0..1 ramp split into two unequal
    * ramps), ``D_TWIST`` (a 0..1 ramp bent into an exponential curve),
    * ``D_SNOWFALL`` (a particle of one to four values moving while a 0..1 ramp
-   * runs).
+   * runs), ``D_TRAIN`` (a 0/1 pulse train with its period in ms).
    *  - DSP analysis: ``D_SNAPSHOT``, ``D_WHERE`` (elapsed and remaining time
    *    of a 0..1 ramp's cycle), ``D_WHAT`` (an impulse each time a 0..1 ramp
    *    passes one of a list of values), ``D_STEPCOUNTER`` (the jumps of a
@@ -241,6 +241,7 @@ namespace YSE {
     DEFOBJ(D_SWING, "~swing");
     DEFOBJ(D_TWIST, "~twist");
     DEFOBJ(D_SNOWFALL, "~snowfall");
+    DEFOBJ(D_TRAIN, "~train");
 
     DEFOBJ(D_SNAPSHOT, "~snapshot");
     DEFOBJ(D_WHERE, "~where");

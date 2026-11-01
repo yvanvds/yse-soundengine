@@ -132,6 +132,7 @@
 #include "generatorObjects/dSwing.h"
 #include "generatorObjects/dTwist.h"
 #include "generatorObjects/dSnowfall.h"
+#include "generatorObjects/dTrain.h"
 #include "generatorObjects/dPhasor.h"
 #include "generatorObjects/dCycle.h"
 #include "generatorObjects/dNoise.h"
@@ -412,6 +413,7 @@ pRegistry::pRegistry() {
   Add(OBJ::D_SWING, dSwing::Create);
   Add(OBJ::D_TWIST, dTwist::Create);
   Add(OBJ::D_SNOWFALL, dSnowfall::Create);
+  Add(OBJ::D_TRAIN, dTrain::Create);
   Add(OBJ::D_SIG, dSig::Create);
 
   Add(OBJ::D_SNAPSHOT, dSnapshot::Create);

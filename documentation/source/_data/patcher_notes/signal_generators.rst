@@ -569,3 +569,34 @@ of the messages as keywords, and they are saved with the patch:
 
    [~phasor 0.5] -> [~snowfall 2 direction 0.3 -0.1 directiondev 0.2 0.2]
                      two values drifting on every two-second cycle
+
+.. patcher-object:: ~train
+
+A pulse train: 1 for the first ``width`` of each period, 0 for the rest,
+with the period in milliseconds rather than as a frequency. Use it as a
+clock, a gate for ``~sah`` or an envelope trigger, or at short periods as an
+audible pulse. The right outlet bangs after each block in which a pulse
+began, so the object doubles as a metronome with a fractional interval;
+several pulses in one block are one bang.
+
+- The three inlets take the period, the width and the phase, each as a
+  signal or a number used while no signal is connected. The arguments set
+  the same three and ``resetmode`` (``~train 250 0.25 0 1``); they default
+  to 1000, 0.5, 0 and 0 and are saved with the patch.
+- The width runs from 0, a pulse of a single sample, to 1, the whole period
+  but one sample.
+- The phase delays the pulse by that fraction of the period; 1 is the same
+  as 0.
+- A period of 0 stops the train where it is. The tempo follows the sample
+  rate the engine runs at.
+- A bang at the left inlet restarts the cycle: a pulse begins at the next
+  block, and the period counts from there.
+- By default a new period applies at once. With ``resetmode 1`` it waits
+  until the running period ends, so a tempo change never cuts a period short.
+- ``interval <ms>``, ``width <0-1>``, ``phase <0-1>`` and
+  ``resetmode <0|1>`` set the same values as messages. Numbers and messages
+  are not saved; the arguments are.
+
+.. code-block:: text
+
+   [~train 125] -> right outlet -> [.counter]   counts eighth notes at 240 bpm

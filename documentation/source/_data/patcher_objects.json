@@ -20104,6 +20104,91 @@
     ],
     "requires_midi_device": false
   },
+  "~train": {
+    "category": "OSC",
+    "description": "Pulse train switching between 0 and 1, with its period in milliseconds, a pulse width and a phase: a clock, gate or rhythmic modulator. Bangs when each pulse begins, as a metronome with a fractional interval.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT",
+          "BANG"
+        ],
+        "doc": "Period in milliseconds: a signal, or a number used while no signal is connected. 0 stops the train. A bang restarts the cycle so a pulse begins at the next block. Also takes 'interval <ms>', 'width <0-1>', 'phase <0-1>' and 'resetmode <0|1>'.",
+        "index": 0,
+        "label": "interval",
+        "range": "0 or more ms"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Pulse width: the part of each period at 1. A signal, or a number used while no signal is connected. 0 is a single sample, 1 the whole period but one sample.",
+        "index": 1,
+        "label": "width",
+        "range": "0-1"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Phase: delays the pulse by this fraction of the period; 1 is the same as 0. A signal, or a number used while no signal is connected.",
+        "index": 2,
+        "label": "phase",
+        "range": "0-1"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~train",
+    "outlets": [
+      {
+        "doc": "The pulse train: 1 during each pulse, 0 between them.",
+        "index": 0,
+        "label": "out",
+        "range": "0 or 1",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "A bang after a block in which a pulse began.",
+        "index": 1,
+        "label": "onset",
+        "range": "bang",
+        "type": "BANG"
+      }
+    ],
+    "params": [
+      {
+        "default": "1000",
+        "doc": "Period in milliseconds used while no signal is connected.",
+        "name": "interval",
+        "range": "0 or more ms"
+      },
+      {
+        "default": "0.5",
+        "doc": "Pulse width used while no signal is connected.",
+        "name": "width",
+        "range": "0-1"
+      },
+      {
+        "default": "0",
+        "doc": "Phase used while no signal is connected.",
+        "name": "phase",
+        "range": "0-1"
+      },
+      {
+        "default": "0",
+        "doc": "1 holds a new interval until the running period ends; 0 applies it at once.",
+        "name": "resetmode",
+        "range": "0 or 1"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~trapezoid": {
     "category": "OSC",
     "description": "A trapezoid read by a 0-1 phase such as a ~phasor: it rises from lo to hi by the ramp-up point, holds hi until the ramp-down point, then falls back to lo. For LFO shapes and envelopes.",
