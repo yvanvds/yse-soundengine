@@ -16125,6 +16125,36 @@
     ],
     "requires_midi_device": false
   },
+  "~change": {
+    "category": "ANALYSIS",
+    "description": "Outputs the direction of a signal: 1 while it rises, -1 while it falls and 0 while it stays the same, comparing each sample with the one before it.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The input: a signal, or a number used while no signal is connected.",
+        "index": 0,
+        "label": "in",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~change",
+    "outlets": [
+      {
+        "doc": "1 if the input sample is above the one before it, -1 if it is below, 0 if it is the same; the sample before the first is 0.",
+        "index": 0,
+        "label": "out",
+        "range": "-1, 0 or 1",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [],
+    "requires_midi_device": false
+  },
   "~click": {
     "category": "OSC",
     "description": "Outputs an impulse, or a short stored waveform, each time it is banged: an excitation for filters and resonators such as a Karplus-Strong string.",
@@ -16769,6 +16799,43 @@
         "range": "a minimum, then a maximum"
       }
     ],
+    "requires_midi_device": false
+  },
+  "~edge": {
+    "category": "ANALYSIS",
+    "description": "Bangs when a signal goes from zero to non-zero (left outlet) and when it goes from non-zero to zero (right outlet).",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The input: a signal, or a number used while no signal is connected.",
+        "index": 0,
+        "label": "in",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~edge",
+    "outlets": [
+      {
+        "doc": "A bang after a block in which the input went from zero to non-zero.",
+        "index": 0,
+        "label": "rise",
+        "range": "bang",
+        "type": "BANG"
+      },
+      {
+        "doc": "A bang after a block in which the input went from non-zero to zero.",
+        "index": 1,
+        "label": "fall",
+        "range": "bang",
+        "type": "BANG"
+      }
+    ],
+    "params": [],
     "requires_midi_device": false
   },
   "~fffb": {
@@ -17917,6 +17984,50 @@
         "doc": "Which outlet of the enclosing subpatcher this object is, shared with .outlet. Give every boundary object its own number.",
         "name": "index",
         "range": "0+"
+      }
+    ],
+    "requires_midi_device": false
+  },
+  "~peakamp": {
+    "category": "ANALYSIS",
+    "description": "Reports the peak amplitude of a signal, the largest absolute sample value since the last report: on a bang, or every interval.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT",
+          "BANG"
+        ],
+        "doc": "The signal to measure. A bang reports the peak so far and starts again; a number sets the reporting interval in milliseconds, 0 stops it. Also takes 'interval <ms>' and 'signed <0|1>'.",
+        "index": 0,
+        "label": "signal",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~peakamp",
+    "outlets": [
+      {
+        "doc": "The peak since the last report: the largest absolute sample value, or in signed mode that sample with its sign. 0 when nothing was measured.",
+        "index": 0,
+        "label": "peak",
+        "range": "any float",
+        "type": "FLOAT"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Reporting interval in milliseconds ('~peakamp 100'). 0 reports only on a bang. A number or 'interval' changes it, but what is saved stays the argument.",
+        "name": "interval",
+        "range": "0 or more ms"
+      },
+      {
+        "default": "0",
+        "doc": "1 reports the peak sample with its sign, 0 its absolute value ('~peakamp 100 1').",
+        "name": "signed",
+        "range": "0 or 1"
       }
     ],
     "requires_midi_device": false
@@ -19153,6 +19264,54 @@
     ],
     "requires_midi_device": false
   },
+  "~spike": {
+    "category": "ANALYSIS",
+    "description": "Reports the time in milliseconds between the moments a signal goes from zero to non-zero, ignoring transitions that come sooner than a refractory period after the last one reported.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT",
+          "BANG"
+        ],
+        "doc": "The input: a signal, or a number used while no signal is connected. A bang starts the refractory period again from the next block.",
+        "index": 0,
+        "label": "in",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The refractory period in milliseconds: transitions sooner than this after the last one reported are ignored.",
+        "index": 1,
+        "label": "refractory",
+        "range": "0 or more ms"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~spike",
+    "outlets": [
+      {
+        "doc": "The time in milliseconds since the last reported zero to non-zero transition (the first one: since the object started). After a block with several, the last one.",
+        "index": 0,
+        "label": "interval",
+        "range": "0 or more ms",
+        "type": "FLOAT"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "The refractory period in milliseconds ('~spike 50'). 0 reports every transition.",
+        "name": "refractory",
+        "range": "0 or more ms"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~sqrt": {
     "category": "MATH",
     "description": "Outputs the square root of the input. Negative input gives 0, so no NaN reaches the graph.",
@@ -19886,6 +20045,65 @@
     ],
     "requires_midi_device": false
   },
+  "~thresh": {
+    "category": "ANALYSIS",
+    "description": "A threshold with hysteresis: outputs 1 from the moment the signal reaches the high threshold until it falls to the low one, and 0 otherwise. A gate that does not chatter on a noisy signal.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The input: a signal, or a number used while no signal is connected. A list of two numbers (low, high) sets the thresholds the other inlets read.",
+        "index": 0,
+        "label": "in",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The low (reset) threshold: at or below it the output turns 0. A number or a signal read per sample (unconnected, the last number sent here or the creation argument). Takes the same list as the left inlet.",
+        "index": 1,
+        "label": "low",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The high (set) threshold: at or above it the output turns 1. A number or a signal read per sample (unconnected, the last number sent here or the creation argument). Takes the same list as the left inlet.",
+        "index": 2,
+        "label": "high",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~thresh",
+    "outlets": [
+      {
+        "doc": "1 from the first sample at or above the high threshold until the first at or below the low one; with equal thresholds, 1 while at or above it.",
+        "index": 0,
+        "label": "out",
+        "range": "0 or 1",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "0 0",
+        "doc": "The low and high thresholds, up to two numbers ('~thresh 0.1 0.5'; both default to 0). A low threshold above the high one is used as the high one. Later numbers and lists do not change what is saved.",
+        "name": "thresh",
+        "range": "a low threshold, then a high threshold"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~trapezoid": {
     "category": "OSC",
     "description": "A trapezoid read by a 0-1 phase such as a ~phasor: it rises from lo to hi by the ramp-up point, holds hi until the ramp-down point, then falls back to lo. For LFO shapes and envelopes.",
@@ -20365,6 +20583,50 @@
       }
     ],
     "params": [],
+    "requires_midi_device": false
+  },
+  "~zerox": {
+    "category": "ANALYSIS",
+    "description": "Detects zero crossings: outputs the number of times the signal changed sign in each block, a rough measure of noisiness or pitch, and a click on every crossing.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The input: a signal, or a number used while no signal is connected. 'set <volume>' sets the height of the clicks.",
+        "index": 0,
+        "label": "in",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~zerox",
+    "outlets": [
+      {
+        "doc": "The number of zero crossings in the block, the same on every sample of it. Samples that are exactly 0 are on neither side, so touching 0 is not a crossing.",
+        "index": 0,
+        "label": "count",
+        "range": "0 or more",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "The click volume on each sample where the signal has crossed zero, 0 elsewhere.",
+        "index": 1,
+        "label": "click",
+        "range": "0 or the click volume",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "1",
+        "doc": "The click volume, the height of each click ('~zerox 0.5'). 'set' changes it, but what is saved stays the argument.",
+        "name": "volume",
+        "range": "any float"
+      }
+    ],
     "requires_midi_device": false
   },
   "~zplane": {

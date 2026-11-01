@@ -101,3 +101,116 @@ patch, later messages are not.
 .. code-block:: text
 
    [~phasor 4] -> [~stepcounter 2 1 3]   impulses 0.5, 0.25 and 0.75 s apart
+
+.. patcher-object:: ~change
+
+Compares each input sample with the one before it: the output is 1 when the
+sample is higher, -1 when it is lower and 0 when it is the same. Only the
+direction counts, not the size of the step, so the smallest rise gives 1.
+The sample before the first is 0; after that the last sample of each block
+is carried into the next.
+
+A rising ramp gives a steady 1 and a falling one a steady -1. On a sine the
+output flips at every peak and trough. On a ``~phasor`` it is 1 except at
+each wrap, where one sample is -1. A number in the inlet, used while no
+signal is connected, shows as one sample of 1 or -1 when it goes up or down
+and as 0 while it stays the same. An input sample that is not a number gives
+0, both for itself and for the sample after it.
+
+.. code-block:: text
+
+   [~cycle 2] -> [~change] -> [~== 1]   1 while the sine rises, 0 while it falls
+
+.. patcher-object:: ~edge
+
+Turns a signal that switches on and off into events. The left outlet bangs
+when the input goes from zero to non-zero, the right outlet when it goes from
+non-zero back to zero. Only zero counts as off: any other value, however
+small, is on, and so is a sample that is not a number. The sample before the
+first is zero, so a signal that starts on gives a left bang after the first
+block.
+
+The bangs go out after the audio block in which the transition happened, the
+right outlet first. A block with several transitions of one kind gives one
+bang on that outlet. A number in the inlet, used while no signal is
+connected, is a transition at the start of the next block when it turns zero
+or non-zero.
+
+.. code-block:: text
+
+   [~cycle 1] -> [~> 0] -> [~edge]   left bang as the sine turns positive, right bang as it turns back
+
+.. patcher-object:: ~thresh
+
+A gate with hysteresis, also called a Schmitt trigger. The output turns 1 on
+the first sample at or above the high threshold and stays 1 until a sample at
+or below the low threshold turns it back to 0. Between the two it holds, so
+a noisy signal hovering around one level does not make the gate chatter. The
+output starts at 0.
+
+The creation arguments are the low threshold, then the high one, both 0 by
+default. The middle and right inlets take a number or a signal for each, and
+a list of two numbers in any inlet sets both. With equal thresholds there is
+no hysteresis: the output is 1 while the input is at or above the threshold.
+A low threshold above the high one is used as the high one. An input sample
+that is not a number leaves the output as it was.
+
+.. code-block:: text
+
+   [~cycle 1] -> [~thresh -0.5 0.5]   1 from the moment the sine reaches 0.5 until it falls to -0.5
+
+.. patcher-object:: ~spike
+
+Measures the time between onsets. Each time the input goes from zero to
+non-zero, the outlet sends the time in milliseconds since the previous
+reported transition, measured to the sample. The first one reports the time
+since the object started. Zero means exactly 0, so any other value, however
+small, is non-zero.
+
+The refractory period, the creation argument or a number in the right inlet,
+is a time after each reported transition during which further transitions
+are ignored, so a bouncing trigger counts once and every interval is at least
+that long. A bang in the left inlet starts the refractory period again from
+the next block. With several transitions in one block the outlet sends the
+interval of the last one.
+
+.. code-block:: text
+
+   [~phasor 2] -> [~> 0.5] -> [~spike]   500, twice a second
+
+.. patcher-object:: ~zerox
+
+Counts zero crossings. The left outlet is the number of times the signal
+changed sign in the current block, the same value on every sample of the
+block: a noisy signal crosses often, a low tone rarely, so the count is a
+rough measure of noisiness or pitch. The right outlet is a click on every
+crossing, a single sample at the click volume with 0 between.
+
+A crossing is a sample above 0 after the last one below it, or the other way
+round. Samples that are exactly 0 are on neither side, so a signal that only
+touches 0 does not cross, and the first non-zero sample after the object
+starts is never a crossing. The click volume is the creation argument, 1 by
+default, and ``set`` followed by a number changes it.
+
+.. code-block:: text
+
+   [~cycle 1000] -> [~zerox]   about 5.3 per block of 128 samples at 48 kHz, two clicks per cycle
+
+.. patcher-object:: ~peakamp
+
+Reports the peak amplitude of a signal: the largest absolute sample value
+since the last report. A bang reports the peak so far and starts measuring
+again. With a reporting interval, the creation argument or a number sent to
+the inlet, it also reports every interval, each time the peak of just that
+interval, so a level meter needs no ``.metro``. An interval of 0 reports only
+on a bang.
+
+The second argument, or ``signed 1``, turns on signed mode: the report is
+the sample with the largest magnitude, with its sign, so a window holding
+0.5 and -0.8 reports -0.8 instead of 0.8. A window with no samples in it
+reports 0. A bang is answered at the start of the next block with the peak
+up to there, and several reports in one block send only the last.
+
+.. code-block:: text
+
+   [~cycle 440] -> [~* 0.5] -> [~peakamp 100]   0.5, ten times a second

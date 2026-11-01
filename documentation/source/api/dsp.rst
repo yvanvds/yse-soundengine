@@ -127,6 +127,27 @@ Envelopes and ramps
 .. doxygenfile:: dsp/ramp.hpp
    :project: libYSE
 
+Analysis
+--------
+
+.. doxygenfile:: dsp/analysis/direction.hpp
+   :project: libYSE
+
+.. doxygenfile:: dsp/analysis/edgeDetector.hpp
+   :project: libYSE
+
+.. doxygenfile:: dsp/analysis/schmittTrigger.hpp
+   :project: libYSE
+
+.. doxygenfile:: dsp/analysis/spikeDetector.hpp
+   :project: libYSE
+
+.. doxygenfile:: dsp/analysis/zeroCrossing.hpp
+   :project: libYSE
+
+.. doxygenfile:: dsp/analysis/peakTracker.hpp
+   :project: libYSE
+
 Filters
 -------
 
