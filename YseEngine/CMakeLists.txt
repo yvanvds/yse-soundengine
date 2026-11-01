@@ -64,6 +64,7 @@ set(YSE_SRCS
   dsp/modules/fm/difference.cpp
   dsp/modules/granulator.cpp
   dsp/modules/hilbert.cpp
+  dsp/modules/frequencyShifter.cpp
   dsp/modules/chorus.cpp
   dsp/modules/compressor.cpp
   dsp/modules/morphingReverb.cpp
@@ -208,6 +209,7 @@ set(YSE_SRCS
   patcher/filters/dCross.cpp
   patcher/filters/dFffb.cpp
   patcher/filters/dHilbert.cpp
+  patcher/filters/dFreqshift.cpp
   patcher/filters/dPhaseshift.cpp
   patcher/filters/dSlide.cpp
   patcher/filters/dRampsmooth.cpp
@@ -672,6 +674,7 @@ set_source_files_properties(
   patcher/filters/dCross.cpp
   patcher/filters/dFffb.cpp
   patcher/filters/dHilbert.cpp
+  patcher/filters/dFreqshift.cpp
   patcher/filters/dPhaseshift.cpp
   patcher/filters/dSlide.cpp
   patcher/filters/dRampsmooth.cpp

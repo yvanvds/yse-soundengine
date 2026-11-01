@@ -146,6 +146,7 @@
 #include "dsp/lfo.hpp"
 
 #include "dsp/modules/hilbert.hpp"
+#include "dsp/modules/frequencyShifter.hpp"
 #include "dsp/modules/ringModulator.hpp"
 #include "dsp/modules/sineWave.hpp"
 #include "dsp/modules/granulator.hpp"

@@ -238,6 +238,7 @@
 #include "filters/dCross.h"
 #include "filters/dFffb.h"
 #include "filters/dHilbert.h"
+#include "filters/dFreqshift.h"
 #include "filters/dPhaseshift.h"
 #include "filters/dSlide.h"
 #include "filters/dRampsmooth.h"
@@ -1365,6 +1366,7 @@ pRegistry::pRegistry() {
   Add(OBJ::D_CROSS, dCross::Create);
   Add(OBJ::D_FFFB, dFffb::Create);
   Add(OBJ::D_HILBERT, dHilbert::Create);
+  Add(OBJ::D_FREQSHIFT, dFreqshift::Create);
   Add(OBJ::D_PHASESHIFT, dPhaseshift::Create);
   Add(OBJ::D_SLIDE, dSlide::Create);
   Add(OBJ::D_RAMPSMOOTH, dRampsmooth::Create);

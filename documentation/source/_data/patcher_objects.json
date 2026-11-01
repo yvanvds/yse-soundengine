@@ -17468,6 +17468,59 @@
     ],
     "requires_midi_device": false
   },
+  "~freqshift": {
+    "category": "FILTER",
+    "description": "Frequency shifter: moves every frequency of a signal up and down by the same number of Hz (not a pitch shift), for inharmonic, metallic sounds and barber-pole phasing.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER"
+        ],
+        "doc": "The signal to shift (unconnected reads 0). 'clear' sets the filter state to 0; 'resetphase' sets the oscillator phase to 0.",
+        "index": 0,
+        "label": "in",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The shift in Hz, a number or a signal read per sample (unconnected, the last number sent here or the creation argument). Negative swaps the outlets. Takes the same words as the left inlet.",
+        "index": 1,
+        "label": "shift",
+        "range": "any Hz"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~freqshift",
+    "outlets": [
+      {
+        "doc": "The signal with every frequency moved up by the shift.",
+        "index": 0,
+        "label": "up",
+        "range": "",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "The signal with every frequency moved down by the shift.",
+        "index": 1,
+        "label": "down",
+        "range": "",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "The shift in Hz ('~freqshift 100'). A number in the right inlet changes it, but what is saved stays the argument.",
+        "name": "shift",
+        "range": "any Hz"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~ftom": {
     "category": "MATH",
     "description": "Converts a frequency in Hz to a MIDI note number at signal rate. The inverse of ~mtof, with the same base and ref tuning. A frequency of 0 or below gives -1500.",

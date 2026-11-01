@@ -93,7 +93,8 @@ namespace YSE {
    *    ``D_FILTERCOEFF`` (biquad coefficients
    * at signal rate), ``D_CROSS`` (third-order crossover),
    *    ``D_FFFB`` (bank of parallel bandpasses), ``D_HILBERT`` (phase
-   *    quadrature filter), ``D_PHASESHIFT`` (second-order allpass),
+   *    quadrature filter), ``D_FREQSHIFT`` (single-sideband frequency
+   *    shifter), ``D_PHASESHIFT`` (second-order allpass),
    *    ``D_SLIDE`` (logarithmic slide), ``D_RAMPSMOOTH`` (linear
    *    smoothing), ``D_DELTACLIP`` (slew limiter).
    *  - Filter design: ``G_FILTERDESIGN`` (Butterworth and Chebyshev
@@ -1090,6 +1091,7 @@ namespace YSE {
     DEFOBJ(D_CROSS, "~cross");
     DEFOBJ(D_FFFB, "~fffb");
     DEFOBJ(D_HILBERT, "~hilbert");
+    DEFOBJ(D_FREQSHIFT, "~freqshift");
     DEFOBJ(D_PHASESHIFT, "~phaseshift");
     DEFOBJ(D_SLIDE, "~slide");
     DEFOBJ(D_RAMPSMOOTH, "~rampsmooth");

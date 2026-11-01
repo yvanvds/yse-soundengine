@@ -92,6 +92,7 @@ set(YSE_TEST_SOURCES
   dsp/test_crossover.cpp
   dsp/test_filter_bank.cpp
   dsp/test_hilbert.cpp
+  dsp/test_frequency_shifter.cpp
   dsp/test_phase_shift.cpp
   dsp/test_slide.cpp
   dsp/test_slew_limiter.cpp
@@ -269,6 +270,7 @@ set(YSE_TEST_SOURCES
   patcher/test_patcher_signal_cross.cpp
   patcher/test_patcher_signal_fffb.cpp
   patcher/test_patcher_signal_hilbert.cpp
+  patcher/test_patcher_signal_freqshift.cpp
   patcher/test_patcher_signal_phaseshift.cpp
   patcher/test_patcher_signal_slide.cpp
   patcher/test_patcher_signal_rampsmooth.cpp
@@ -1430,6 +1432,7 @@ set_source_files_properties(
   patcher/test_patcher_signal_cross.cpp
   patcher/test_patcher_signal_fffb.cpp
   patcher/test_patcher_signal_hilbert.cpp
+  patcher/test_patcher_signal_freqshift.cpp
   patcher/test_patcher_signal_phaseshift.cpp
   patcher/test_patcher_signal_slide.cpp
   patcher/test_patcher_signal_rampsmooth.cpp
