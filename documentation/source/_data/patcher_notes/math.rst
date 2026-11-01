@@ -789,3 +789,35 @@ result is the same at any sample rate.
 .. code-block:: text
 
    [~cycle 110] -> [~* 2] -> [~overdrive 4] -> [~dac]   rounded peaks, louder body
+
+.. patcher-object:: ~pong
+
+The signal counterpart of ``.pong``: every sample inside the range passes
+unchanged, and every sample outside it is brought back in. The first
+argument sets the mode, the next two the range, 0 to 1 when they are left
+out:
+
+- 0, fold (the default): a sample past a limit is reflected back, as many
+  times as needed. With the range 0 to 1, 1.25 gives 0.75 and -0.25 gives
+  0.25. Driving a sine past the limits with ``~*`` folds its peaks over and
+  adds bright harmonics, the wavefolder of west-coast synthesis.
+- 1, wrap: a sample past a limit comes back in from the other side. The
+  range includes the low limit but not the high one, so 1 gives 0 and 1.25
+  gives 0.25. A rising ramp becomes a sawtooth, and a phase that keeps
+  growing stays in its cycle.
+- 2, clip: a sample past a limit is held at it, as with ``~clip``.
+
+The modes are numbered differently from ``.pong``, which also has a
+pass-through mode. ``mode fold``, ``mode wrap`` or ``mode clip`` (or
+``mode`` with 0 to 2) changes the mode, and ``range`` with two numbers sets
+both limits. The limit inlets take numbers or signals read per sample, so a
+moving range is followed sample by sample. Limits given high to low are
+swapped, and when they are equal every sample becomes that value. A limit
+that is not a finite number is ignored. An infinite sample goes to the
+limit it ran past, and an undefined sample (NaN) counts as 0. The object
+keeps no state between samples, so the result is the same at any sample
+rate.
+
+.. code-block:: text
+
+   [~cycle 110] -> [~* 3] -> [~pong 0 -1 1] -> [~dac]   a loud sine folded back into -1 to 1

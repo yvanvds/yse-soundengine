@@ -18722,6 +18722,77 @@
     ],
     "requires_midi_device": false
   },
+  "~pong": {
+    "category": "MATH",
+    "description": "Keeps a signal inside the range low to high by folding it back from the limits, the default, by wrapping it around to the other side, or by clipping it: wavefolding, phase wrapping and limiting.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The signal to keep in range, or a number used while no signal is connected (unconnected reads 0). 'mode fold', 'mode wrap' or 'mode clip' (or 'mode 0' to 'mode 2') sets the mode; 'range' with two numbers sets both limits.",
+        "index": 0,
+        "label": "in",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The lower limit. A number or a signal read per sample (unconnected, the last number sent here or the creation argument).",
+        "index": 1,
+        "label": "low",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The upper limit. A number or a signal read per sample (unconnected, the last number sent here or the creation argument). Limits given high to low are swapped.",
+        "index": 2,
+        "label": "high",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~pong",
+    "outlets": [
+      {
+        "doc": "The signal: unchanged inside the range; outside it, reflected back from the limits (fold), carried around to the other side with the upper limit itself giving the lower one (wrap), or pinned to the nearest limit (clip).",
+        "index": 0,
+        "label": "out",
+        "range": "low to high",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "0 folds, 1 wraps, 2 clips ('~pong 1 -1 1'). A 'mode' message changes it, but what is saved stays the argument.",
+        "name": "mode",
+        "range": "0 to 2"
+      },
+      {
+        "default": "0",
+        "doc": "The lower limit ('~pong 0 -0.5 0.5'). A number in the middle inlet or a 'range' message changes it, but what is saved stays the argument.",
+        "name": "low",
+        "range": "any float"
+      },
+      {
+        "default": "1",
+        "doc": "The upper limit. A number in the right inlet or a 'range' message changes it, but what is saved stays the argument.",
+        "name": "high",
+        "range": "any float"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~pow": {
     "category": "MATH",
     "description": "Raises the base (right inlet) to the power of the exponent (left inlet): the order is the reverse of .pow. A base of 0 or below, or a result too large for a float, gives 0.",

@@ -37,6 +37,9 @@ Math
 .. doxygenfile:: dsp/operators/overdrive.hpp
    :project: libYSE
 
+.. doxygenfile:: dsp/operators/fold.hpp
+   :project: libYSE
+
 Generators
 ----------
 
