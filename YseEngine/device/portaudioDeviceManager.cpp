@@ -16,6 +16,7 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <limits>
 #ifdef __WINDOWS__
 #include "pa_asio.h"
 #endif
@@ -424,6 +425,14 @@ unsigned int YSE::DEVICE::managerObject::GetCallbacksSinceLastUpdate() {
   return callbacksSinceLastUpdate.exchange(0);
 }
 
+int YSE::DEVICE::managerObject::latencyToSamples(double seconds, double sampleRate) {
+  // The negated comparisons also reject NaN.
+  if (!(seconds > 0.0) || !(sampleRate > 0.0)) return 0;
+  const double samples = std::round(seconds * sampleRate);
+  if (!(samples < (double)std::numeric_limits<int>::max())) return 0;
+  return (int)samples;
+}
+
 void YSE::DEVICE::managerObject::updateDeviceList() {
   devices.clear();
   // The defaults belong to the enumeration they came from. A re-scan that
@@ -455,8 +464,11 @@ void YSE::DEVICE::managerObject::updateDeviceList() {
       d.addOutputChannelName(std::string("out ") + std::to_string(j + 1));
     }
 
-    d.setInputLatency((Int)info->defaultLowInputLatency);
-    d.setOutputLatency((Int)info->defaultLowOutputLatency);
+    // Seconds from PortAudio, samples on the descriptor (issue #1215). A bare
+    // (Int) cast truncated every real latency to 0 and let ALSA's -1 "no
+    // channels in this direction" sentinel through as a latency.
+    d.setInputLatency(latencyToSamples(info->defaultLowInputLatency, info->defaultSampleRate));
+    d.setOutputLatency(latencyToSamples(info->defaultLowOutputLatency, info->defaultSampleRate));
     d.addAvailableSampleRate((Int)info->defaultSampleRate);
 
     devices.push_back(d);

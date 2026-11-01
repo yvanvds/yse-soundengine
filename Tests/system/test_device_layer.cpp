@@ -495,6 +495,29 @@ TEST_SUITE("devicelayer") {
   // state, and also a bare CI runner's. That drives updateDeviceList()'s
   // count < 0 error branch: the list must come back empty rather than being
   // walked with a negative bound.
+  // Issue #1215. updateDeviceList() stored PaDeviceInfo's defaultLow*Latency
+  // (seconds) with a bare (Int) cast, so every real latency read 0 and ALSA's
+  // -1 "no channels in this direction" sentinel came through as a latency,
+  // although the descriptor's documented unit is samples with 0 meaning
+  // "unspecified". The conversion is a static helper so it can be driven here
+  // without the hardware the enumeration needs.
+  TEST_CASE(
+      "device manager: enumerated latency is converted from seconds to samples (issue #1215)") {
+    using YSE::DEVICE::managerObject;
+    // A typical ALSA low latency: 0.0087 s at 48 kHz is 417.6 samples, not 0.
+    CHECK(managerObject::latencyToSamples(0.0087, 48000.0) == 418);
+    CHECK(managerObject::latencyToSamples(0.01, 44100.0) == 441);
+    // The -1 sentinel for a direction without channels is "unspecified".
+    CHECK(managerObject::latencyToSamples(-1.0, 48000.0) == 0);
+    CHECK(managerObject::latencyToSamples(0.0, 48000.0) == 0);
+    // No usable rate to convert with.
+    CHECK(managerObject::latencyToSamples(0.01, 0.0) == 0);
+    CHECK(managerObject::latencyToSamples(0.01, -1.0) == 0);
+    CHECK(managerObject::latencyToSamples(std::nan(""), 48000.0) == 0);
+    CHECK(managerObject::latencyToSamples(0.01, std::nan("")) == 0);
+    CHECK(managerObject::latencyToSamples(1e300, 48000.0) == 0);
+  }
+
   TEST_CASE("device manager: enumeration fails closed when PortAudio is not initialised") {
     if (!ensureOffline()) return;
     if (!ownProcess()) return;

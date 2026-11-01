@@ -59,6 +59,13 @@ namespace YSE {
         streamChannels.store(channels, std::memory_order_release);
       }
 
+      // A PaDeviceInfo defaultLow*Latency (seconds) as the samples a
+      // YSE::device descriptor reports (issue #1215). PortAudio reports a
+      // negative latency (ALSA: -1) for a direction the device has no
+      // channels in; that, a non-positive rate, or a non-finite input reads
+      // 0, the descriptor's "unspecified" value.
+      static int latencyToSamples(double seconds, double sampleRate);
+
       // Live device-state getters (see deviceManager.h for contract).
       double getActiveSampleRate() const override;
       int getActiveBufferSize() const override;
