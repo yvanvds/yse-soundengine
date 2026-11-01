@@ -43,6 +43,7 @@ set(YSE_TEST_SOURCES
   dsp/test_edge_detector.cpp
   dsp/test_schmitt_trigger.cpp
   dsp/test_spike_detector.cpp
+  dsp/test_zero_crossing.cpp
   dsp/test_compare.cpp
   dsp/test_trig.cpp
   dsp/test_rounding.cpp
@@ -269,6 +270,7 @@ set(YSE_TEST_SOURCES
   patcher/test_patcher_signal_edge.cpp
   patcher/test_patcher_signal_thresh.cpp
   patcher/test_patcher_signal_spike.cpp
+  patcher/test_patcher_signal_zerox.cpp
   patcher/test_patcher_signal_compare.cpp
   patcher/test_patcher_signal_trig.cpp
   patcher/test_patcher_signal_math.cpp
@@ -1421,6 +1423,7 @@ set_source_files_properties(
   patcher/test_patcher_signal_edge.cpp
   patcher/test_patcher_signal_thresh.cpp
   patcher/test_patcher_signal_spike.cpp
+  patcher/test_patcher_signal_zerox.cpp
   patcher/test_patcher_signal_compare.cpp
   patcher/test_patcher_signal_trig.cpp
   patcher/test_patcher_signal_math.cpp

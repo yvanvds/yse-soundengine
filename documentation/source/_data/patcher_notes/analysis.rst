@@ -177,3 +177,21 @@ interval of the last one.
 .. code-block:: text
 
    [~phasor 2] -> [~> 0.5] -> [~spike]   500, twice a second
+
+.. patcher-object:: ~zerox
+
+Counts zero crossings. The left outlet is the number of times the signal
+changed sign in the current block, the same value on every sample of the
+block: a noisy signal crosses often, a low tone rarely, so the count is a
+rough measure of noisiness or pitch. The right outlet is a click on every
+crossing, a single sample at the click volume with 0 between.
+
+A crossing is a sample above 0 after the last one below it, or the other way
+round. Samples that are exactly 0 are on neither side, so a signal that only
+touches 0 does not cross, and the first non-zero sample after the object
+starts is never a crossing. The click volume is the creation argument, 1 by
+default, and ``set`` followed by a number changes it.
+
+.. code-block:: text
+
+   [~cycle 1000] -> [~zerox]   about 5.3 per block of 128 samples at 48 kHz, two clicks per cycle

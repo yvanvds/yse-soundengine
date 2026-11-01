@@ -142,6 +142,9 @@ Analysis
 .. doxygenfile:: dsp/analysis/spikeDetector.hpp
    :project: libYSE
 
+.. doxygenfile:: dsp/analysis/zeroCrossing.hpp
+   :project: libYSE
+
 Filters
 -------
 

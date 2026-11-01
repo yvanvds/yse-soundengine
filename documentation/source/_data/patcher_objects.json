@@ -20541,6 +20541,50 @@
     "params": [],
     "requires_midi_device": false
   },
+  "~zerox": {
+    "category": "ANALYSIS",
+    "description": "Detects zero crossings: outputs the number of times the signal changed sign in each block, a rough measure of noisiness or pitch, and a click on every crossing.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The input: a signal, or a number used while no signal is connected. 'set <volume>' sets the height of the clicks.",
+        "index": 0,
+        "label": "in",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~zerox",
+    "outlets": [
+      {
+        "doc": "The number of zero crossings in the block, the same on every sample of it. Samples that are exactly 0 are on neither side, so touching 0 is not a crossing.",
+        "index": 0,
+        "label": "count",
+        "range": "0 or more",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "The click volume on each sample where the signal has crossed zero, 0 elsewhere.",
+        "index": 1,
+        "label": "click",
+        "range": "0 or the click volume",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "1",
+        "doc": "The click volume, the height of each click ('~zerox 0.5'). 'set' changes it, but what is saved stays the argument.",
+        "name": "volume",
+        "range": "any float"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~zplane": {
     "category": "FILTER",
     "description": "Shows a filter as poles and zeroes on the z plane: holds one to 24 biquad sections, given as the coefficient list ~biquad and ~cascade take, sends their zeroes, poles and gains, and turns moved poles and zeroes back into coefficients. A host draws the plane; the sections are saved with the patch.",
