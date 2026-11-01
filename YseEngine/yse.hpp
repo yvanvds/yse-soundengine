@@ -119,6 +119,7 @@
 #include "dsp/analysis/direction.hpp"
 #include "dsp/analysis/edgeDetector.hpp"
 #include "dsp/analysis/schmittTrigger.hpp"
+#include "dsp/analysis/spikeDetector.hpp"
 #include "dsp/operators/compare.hpp"
 #include "dsp/operators/trig.hpp"
 #include "dsp/operators/rounding.hpp"

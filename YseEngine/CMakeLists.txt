@@ -118,6 +118,7 @@ set(YSE_SRCS
   dsp/analysis/direction.cpp
   dsp/analysis/edgeDetector.cpp
   dsp/analysis/schmittTrigger.cpp
+  dsp/analysis/spikeDetector.cpp
   dsp/operators/compare.cpp
   dsp/operators/trig.cpp
   dsp/operators/rounding.cpp
@@ -172,6 +173,7 @@ set(YSE_SRCS
   patcher/analysis/dSnapshot.cpp
   patcher/analysis/dStepCounter.cpp
   patcher/analysis/dThresh.cpp
+  patcher/analysis/dSpike.cpp
   patcher/analysis/dWhat.cpp
   patcher/analysis/dWhere.cpp
   patcher/delay/dTapin.cpp
@@ -626,6 +628,7 @@ set_source_files_properties(
   patcher/analysis/dSnapshot.cpp
   patcher/analysis/dStepCounter.cpp
   patcher/analysis/dThresh.cpp
+  patcher/analysis/dSpike.cpp
   patcher/analysis/dWhat.cpp
   patcher/analysis/dWhere.cpp
   patcher/delay/dTapin.cpp

@@ -36,7 +36,8 @@ namespace YSE {
    *    signal counted through a sequence of counts), ``D_CHANGE`` (1, -1 or 0
    *    as a signal rises, falls or stays the same), ``D_EDGE`` (bangs on
    *    zero / non-zero transitions), ``D_THRESH`` (1 from a high threshold
-   *    down to a low one).
+   *    down to a low one), ``D_SPIKE`` (the time between zero to non-zero
+   *    transitions).
    *  - DSP delay: `D_TAPIN`, `D_TAPOUT`, `D_COMB`, `D_TEETH`, `D_DELAY`.
    *  - DSP sampling: ``D_BUFFER``.
    *  - DSP math: ``D_ADD``, ``D_MULTIPLY``, ``D_CLIP``, ``D_REVERSESUBSTRACT``,
@@ -247,6 +248,7 @@ namespace YSE {
     DEFOBJ(D_CHANGE, "~change");
     DEFOBJ(D_EDGE, "~edge");
     DEFOBJ(D_THRESH, "~thresh");
+    DEFOBJ(D_SPIKE, "~spike");
 
     DEFOBJ(D_TAPIN, "~tapin");
     DEFOBJ(D_TAPOUT, "~tapout");

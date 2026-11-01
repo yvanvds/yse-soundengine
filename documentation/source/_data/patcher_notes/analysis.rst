@@ -158,3 +158,22 @@ that is not a number leaves the output as it was.
 .. code-block:: text
 
    [~cycle 1] -> [~thresh -0.5 0.5]   1 from the moment the sine reaches 0.5 until it falls to -0.5
+
+.. patcher-object:: ~spike
+
+Measures the time between onsets. Each time the input goes from zero to
+non-zero, the outlet sends the time in milliseconds since the previous
+reported transition, measured to the sample. The first one reports the time
+since the object started. Zero means exactly 0, so any other value, however
+small, is non-zero.
+
+The refractory period, the creation argument or a number in the right inlet,
+is a time after each reported transition during which further transitions
+are ignored, so a bouncing trigger counts once and every interval is at least
+that long. A bang in the left inlet starts the refractory period again from
+the next block. With several transitions in one block the outlet sends the
+interval of the last one.
+
+.. code-block:: text
+
+   [~phasor 2] -> [~> 0.5] -> [~spike]   500, twice a second

@@ -19220,6 +19220,54 @@
     ],
     "requires_midi_device": false
   },
+  "~spike": {
+    "category": "ANALYSIS",
+    "description": "Reports the time in milliseconds between the moments a signal goes from zero to non-zero, ignoring transitions that come sooner than a refractory period after the last one reported.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT",
+          "BANG"
+        ],
+        "doc": "The input: a signal, or a number used while no signal is connected. A bang starts the refractory period again from the next block.",
+        "index": 0,
+        "label": "in",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The refractory period in milliseconds: transitions sooner than this after the last one reported are ignored.",
+        "index": 1,
+        "label": "refractory",
+        "range": "0 or more ms"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~spike",
+    "outlets": [
+      {
+        "doc": "The time in milliseconds since the last reported zero to non-zero transition (the first one: since the object started). After a block with several, the last one.",
+        "index": 0,
+        "label": "interval",
+        "range": "0 or more ms",
+        "type": "FLOAT"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "The refractory period in milliseconds ('~spike 50'). 0 reports every transition.",
+        "name": "refractory",
+        "range": "0 or more ms"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~sqrt": {
     "category": "MATH",
     "description": "Outputs the square root of the input. Negative input gives 0, so no NaN reaches the graph.",

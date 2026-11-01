@@ -139,6 +139,9 @@ Analysis
 .. doxygenfile:: dsp/analysis/schmittTrigger.hpp
    :project: libYSE
 
+.. doxygenfile:: dsp/analysis/spikeDetector.hpp
+   :project: libYSE
+
 Filters
 -------
 
