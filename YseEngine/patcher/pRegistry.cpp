@@ -143,6 +143,7 @@
 #include "analysis/dWhere.h"
 #include "analysis/dWhat.h"
 #include "analysis/dStepCounter.h"
+#include "analysis/dChange.h"
 #include "delay/dTapin.h"
 #include "delay/dTapout.h"
 #include "delay/dComb.h"
@@ -412,6 +413,7 @@ pRegistry::pRegistry() {
   Add(OBJ::D_WHERE, dWhere::Create);
   Add(OBJ::D_WHAT, dWhat::Create);
   Add(OBJ::D_STEPCOUNTER, dStepCounter::Create);
+  Add(OBJ::D_CHANGE, dChange::Create);
   Add(OBJ::D_TAPIN, dTapin::Create);
   Add(OBJ::D_TAPOUT, dTapout::Create);
   Add(OBJ::D_COMB, dComb::Create);

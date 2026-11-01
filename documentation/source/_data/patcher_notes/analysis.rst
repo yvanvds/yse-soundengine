@@ -101,3 +101,22 @@ patch, later messages are not.
 .. code-block:: text
 
    [~phasor 4] -> [~stepcounter 2 1 3]   impulses 0.5, 0.25 and 0.75 s apart
+
+.. patcher-object:: ~change
+
+Compares each input sample with the one before it: the output is 1 when the
+sample is higher, -1 when it is lower and 0 when it is the same. Only the
+direction counts, not the size of the step, so the smallest rise gives 1.
+The sample before the first is 0; after that the last sample of each block
+is carried into the next.
+
+A rising ramp gives a steady 1 and a falling one a steady -1. On a sine the
+output flips at every peak and trough. On a ``~phasor`` it is 1 except at
+each wrap, where one sample is -1. A number in the inlet, used while no
+signal is connected, shows as one sample of 1 or -1 when it goes up or down
+and as 0 while it stays the same. An input sample that is not a number gives
+0, both for itself and for the sample after it.
+
+.. code-block:: text
+
+   [~cycle 2] -> [~change] -> [~== 1]   1 while the sine rises, 0 while it falls

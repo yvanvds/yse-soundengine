@@ -16125,6 +16125,36 @@
     ],
     "requires_midi_device": false
   },
+  "~change": {
+    "category": "ANALYSIS",
+    "description": "Outputs the direction of a signal: 1 while it rises, -1 while it falls and 0 while it stays the same, comparing each sample with the one before it.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The input: a signal, or a number used while no signal is connected.",
+        "index": 0,
+        "label": "in",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~change",
+    "outlets": [
+      {
+        "doc": "1 if the input sample is above the one before it, -1 if it is below, 0 if it is the same; the sample before the first is 0.",
+        "index": 0,
+        "label": "out",
+        "range": "-1, 0 or 1",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [],
+    "requires_midi_device": false
+  },
   "~click": {
     "category": "OSC",
     "description": "Outputs an impulse, or a short stored waveform, each time it is banged: an excitation for filters and resonators such as a Karplus-Strong string.",

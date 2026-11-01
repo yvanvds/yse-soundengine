@@ -127,6 +127,12 @@ Envelopes and ramps
 .. doxygenfile:: dsp/ramp.hpp
    :project: libYSE
 
+Analysis
+--------
+
+.. doxygenfile:: dsp/analysis/direction.hpp
+   :project: libYSE
+
 Filters
 -------
 

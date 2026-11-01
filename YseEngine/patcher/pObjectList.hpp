@@ -33,7 +33,8 @@ namespace YSE {
    *  - DSP analysis: ``D_SNAPSHOT``, ``D_WHERE`` (elapsed and remaining time
    *    of a 0..1 ramp's cycle), ``D_WHAT`` (an impulse each time a 0..1 ramp
    *    passes one of a list of values), ``D_STEPCOUNTER`` (the jumps of a
-   *    signal counted through a sequence of counts).
+   *    signal counted through a sequence of counts), ``D_CHANGE`` (1, -1 or 0
+   *    as a signal rises, falls or stays the same).
    *  - DSP delay: `D_TAPIN`, `D_TAPOUT`, `D_COMB`, `D_TEETH`, `D_DELAY`.
    *  - DSP sampling: ``D_BUFFER``.
    *  - DSP math: ``D_ADD``, ``D_MULTIPLY``, ``D_CLIP``, ``D_REVERSESUBSTRACT``,
@@ -241,6 +242,7 @@ namespace YSE {
     DEFOBJ(D_WHERE, "~where");
     DEFOBJ(D_WHAT, "~what");
     DEFOBJ(D_STEPCOUNTER, "~stepcounter");
+    DEFOBJ(D_CHANGE, "~change");
 
     DEFOBJ(D_TAPIN, "~tapin");
     DEFOBJ(D_TAPOUT, "~tapout");

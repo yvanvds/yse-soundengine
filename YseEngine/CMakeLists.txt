@@ -115,6 +115,7 @@ set(YSE_SRCS
   dsp/operators/arithmetic.cpp
   dsp/operators/accumulator.cpp
   dsp/operators/delta.cpp
+  dsp/analysis/direction.cpp
   dsp/operators/compare.cpp
   dsp/operators/trig.cpp
   dsp/operators/rounding.cpp
@@ -164,6 +165,7 @@ set(YSE_SRCS
   music/scale/scaleImplementation.cpp
   music/scale/scaleInterface.cpp
   music/scale/scaleManager.cpp
+  patcher/analysis/dChange.cpp
   patcher/analysis/dSnapshot.cpp
   patcher/analysis/dStepCounter.cpp
   patcher/analysis/dWhat.cpp
@@ -615,6 +617,7 @@ set_source_files_properties(
   patcher/inlet.cpp
   patcher/outlet.cpp
   patcher/parameters.cpp
+  patcher/analysis/dChange.cpp
   patcher/analysis/dSnapshot.cpp
   patcher/analysis/dStepCounter.cpp
   patcher/analysis/dWhat.cpp
