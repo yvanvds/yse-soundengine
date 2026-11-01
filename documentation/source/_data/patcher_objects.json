@@ -16889,6 +16889,69 @@
     "params": [],
     "requires_midi_device": false
   },
+  "~degrade": {
+    "category": "MATH",
+    "description": "A bitcrusher: holds the signal at a fraction of the sample rate and quantizes it to a number of bits, for lo-fi, aliased and gritty sounds.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER"
+        ],
+        "doc": "The signal to degrade (unconnected reads 0).",
+        "index": 0,
+        "label": "in",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The fraction of the sample rate at which a new input sample is taken; between two takes the last one is held. 1 takes every sample, 0.5 every second one, 0 holds for good. A number or a signal read per sample (unconnected, the last number sent here or the creation argument).",
+        "index": 1,
+        "label": "ratio",
+        "range": "0 to 1"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The number of bits the output is quantized to; a fraction is truncated. A number or a signal read per sample (unconnected, the last number sent here or the creation argument).",
+        "index": 2,
+        "label": "bits",
+        "range": "1 to 24"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~degrade",
+    "outlets": [
+      {
+        "doc": "The degraded signal: the held sample, rounded down to a step of 2 to the power of (1 - bits).",
+        "index": 0,
+        "label": "out",
+        "range": "any float",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "1",
+        "doc": "The sample rate ratio ('~degrade 0.25'). A number in the middle inlet changes it, but what is saved stays the argument.",
+        "name": "ratio",
+        "range": "0 to 1"
+      },
+      {
+        "default": "24",
+        "doc": "The number of bits ('~degrade 0.25 8'). A number in the right inlet changes it, but what is saved stays the argument.",
+        "name": "bits",
+        "range": "1 to 24"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~delay": {
     "category": "DELAY",
     "description": "Delays a signal by a number of samples, from none at all up to the memory set when it is made. A number delay crossfades over the ramp time; a signal delay is read per sample and interpolated. For alignment and short delays.",

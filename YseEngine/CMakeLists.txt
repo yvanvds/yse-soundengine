@@ -120,6 +120,7 @@ set(YSE_SRCS
   dsp/operators/arithmetic.cpp
   dsp/operators/accumulator.cpp
   dsp/operators/delta.cpp
+  dsp/operators/degrade.cpp
   dsp/analysis/direction.cpp
   dsp/analysis/edgeDetector.cpp
   dsp/analysis/schmittTrigger.cpp
@@ -397,6 +398,7 @@ set(YSE_SRCS
   patcher/math/dModulo.cpp
   patcher/math/dPlusEquals.cpp
   patcher/math/dDelta.cpp
+  patcher/math/dDegrade.cpp
   patcher/math/dCompare.cpp
   patcher/math/dTrig.cpp
   patcher/math/dSignalMath.cpp
@@ -846,6 +848,7 @@ set_source_files_properties(
   patcher/math/dModulo.cpp
   patcher/math/dPlusEquals.cpp
   patcher/math/dDelta.cpp
+  patcher/math/dDegrade.cpp
   patcher/math/dCompare.cpp
   patcher/math/dTrig.cpp
   patcher/math/dSignalMath.cpp

@@ -714,3 +714,29 @@ output sample and the next one not finite as well.
 .. code-block:: text
 
    [~phasor 2] -> [~delta] -> [~< -0.5]   1 at the first sample of each cycle
+
+.. patcher-object:: ~degrade
+
+A bitcrusher with two settings. The ratio, 0 to 1, is the fraction of the
+sample rate at which a new input sample is taken; between two takes the last
+one is held. At 1 every sample is taken, at 0.5 every second one, at 0.25
+every fourth one, and at 0 the last sample taken is held until the ratio
+rises again. A ratio such as 0.3 that does not divide the rate evenly takes
+samples at slightly uneven distances, but the average stays exact over any
+length of time. The ratio counts samples, so the result is the same at any
+sample rate.
+
+The bits, 1 to 24, set the quantization: the held sample is rounded down to
+a multiple of 2 to the power of (1 - bits). One bit leaves -1 and 0 for a
+signal between -1 and 1, two bits -1, -0.5, 0 and 0.5, and 24 bits are
+practically transparent. A fractional number of bits is truncated. Nothing
+is clipped, so a sample outside -1 to 1 is quantized with the same step.
+
+Both settings take a number or a signal read per sample. A ratio outside 0
+to 1 and bits outside 1 to 24 are brought to the nearest end of the range.
+An input sample that is not a finite number is not taken; the held sample
+stays.
+
+.. code-block:: text
+
+   [~cycle 220] -> [~degrade 0.125 4] -> [~dac]   held 8 samples, 16 levels

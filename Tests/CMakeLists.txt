@@ -39,6 +39,7 @@ set(YSE_TEST_SOURCES
   dsp/test_arithmetic_operators.cpp
   dsp/test_accumulator.cpp
   dsp/test_delta.cpp
+  dsp/test_degrade.cpp
   dsp/test_direction.cpp
   dsp/test_edge_detector.cpp
   dsp/test_schmitt_trigger.cpp
@@ -277,6 +278,7 @@ set(YSE_TEST_SOURCES
   patcher/test_patcher_reverse_modulo.cpp
   patcher/test_patcher_plusequals.cpp
   patcher/test_patcher_signal_delta.cpp
+  patcher/test_patcher_signal_degrade.cpp
   patcher/test_patcher_signal_change.cpp
   patcher/test_patcher_signal_edge.cpp
   patcher/test_patcher_signal_thresh.cpp
@@ -1436,6 +1438,7 @@ set_source_files_properties(
   patcher/test_patcher_reverse_modulo.cpp
   patcher/test_patcher_plusequals.cpp
   patcher/test_patcher_signal_delta.cpp
+  patcher/test_patcher_signal_degrade.cpp
   patcher/test_patcher_signal_change.cpp
   patcher/test_patcher_signal_edge.cpp
   patcher/test_patcher_signal_thresh.cpp

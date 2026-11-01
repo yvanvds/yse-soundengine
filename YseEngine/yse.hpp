@@ -121,6 +121,7 @@
 #include "dsp/operators/arithmetic.hpp"
 #include "dsp/operators/accumulator.hpp"
 #include "dsp/operators/delta.hpp"
+#include "dsp/operators/degrade.hpp"
 #include "dsp/analysis/direction.hpp"
 #include "dsp/analysis/edgeDetector.hpp"
 #include "dsp/analysis/schmittTrigger.hpp"
