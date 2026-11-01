@@ -17808,6 +17808,43 @@
     ],
     "requires_midi_device": false
   },
+  "~limi": {
+    "category": "DYNAMICS",
+    "description": "A brickwall lookahead peak limiter: delays the signal by the lookahead and brings the gain down before a peak arrives, so no output sample exceeds the threshold. One inlet and outlet per channel; the channels share one gain.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The signal of channel 1 (unconnected, the last number sent here, else 0). Takes the settings as messages: threshold <dB>, release <ms>, lookahead <samples>, preamp <dB>, postamp <dB>, mode <0|1>, dcblock <0|1>, bypass <0|1>, and clear.",
+        "index": 0,
+        "label": "channel 1",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~limi",
+    "outlets": [
+      {
+        "doc": "Channel 1 limited to the threshold (then the postamp), lookahead samples late.",
+        "index": 0,
+        "label": "channel 1",
+        "range": "any float",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "1 512",
+        "doc": "The channel count (1-64, default 1) and the delay-line size in samples (default 512, the longest lookahead), then any of 'threshold <dB>' (0), 'release <ms>' (100), 'lookahead <samples>' (100), 'preamp <dB>' (0), 'postamp <dB>' (0), 'mode <0|1>' (1), 'dcblock <0|1>' (0) and 'bypass <0|1>' (0).",
+        "name": "settings",
+        "range": "numbers, then words and values"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~line": {
     "category": "OSC",
     "description": "Linear-ramp generator. Ramps an audio-rate value toward a target over a given time in ms.",
@@ -18505,6 +18542,68 @@
         "doc": "1 reports the peak sample with its sign, 0 its absolute value ('~peakamp 100 1').",
         "name": "signed",
         "range": "0 or 1"
+      }
+    ],
+    "requires_midi_device": false
+  },
+  "~peaklim": {
+    "category": "DYNAMICS",
+    "description": "A stereo brickwall peak limiter for a master bus: both channels share one gain, brought down 64 samples before a peak arrives, so no output sample exceeds the threshold. Reports the gain reduction.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The left signal (unconnected, the last number sent here, else 0). Takes threshold <dB>, ingain <dB>, outgain <dB>, mode <0|1>, bypass <0|1>, meters <0|1>, meterrate <ms> and meterdata.",
+        "index": 0,
+        "label": "left",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The right signal (unconnected, the last number sent here, else 0).",
+        "index": 1,
+        "label": "right",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~peaklim",
+    "outlets": [
+      {
+        "doc": "The left signal limited, 64 samples late.",
+        "index": 0,
+        "label": "left",
+        "range": "any float",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "The right signal limited, 64 samples late.",
+        "index": 1,
+        "label": "right",
+        "range": "any float",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "The deepest gain reduction since the last report, in dB: every meterrate ms while meters is on, and after the next block on meterdata.",
+        "index": 2,
+        "label": "reduction",
+        "range": "0 or less",
+        "type": "FLOAT"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "Any of 'threshold <dB>' (0), 'ingain <dB>' (0), 'outgain <dB>' (0), 'mode <0|1>' (1, the release curve: 0 linear, 1 exponential), 'bypass <0|1>' (0), 'meters <0|1>' (1) and 'meterrate <ms>' (100).",
+        "name": "settings",
+        "range": "words and values"
       }
     ],
     "requires_midi_device": false

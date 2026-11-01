@@ -68,6 +68,7 @@ set(YSE_SRCS
   dsp/modules/chorus.cpp
   dsp/modules/compressor.cpp
   dsp/modules/normalize.cpp
+  dsp/dynamics/lookaheadLimiter.cpp
   dsp/modules/morphingReverb.cpp
   dsp/modules/parametricEQ.cpp
   dsp/modules/phaser.cpp
@@ -198,6 +199,8 @@ set(YSE_SRCS
   patcher/delay/dDelay.cpp
   patcher/delay/dTeeth.cpp
   patcher/dynamics/dNormalize.cpp
+  patcher/dynamics/dLimi.cpp
+  patcher/dynamics/dPeaklim.cpp
   patcher/sampling/dBuffer.cpp
   patcher/filters/dVcf.cpp
   patcher/filters/dSah.cpp
@@ -667,6 +670,8 @@ set_source_files_properties(
   patcher/delay/dDelay.cpp
   patcher/delay/dTeeth.cpp
   patcher/dynamics/dNormalize.cpp
+  patcher/dynamics/dLimi.cpp
+  patcher/dynamics/dPeaklim.cpp
   patcher/sampling/dBuffer.cpp
   patcher/filters/dVcf.cpp
   patcher/filters/dSah.cpp

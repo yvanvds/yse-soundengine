@@ -259,6 +259,12 @@ Delay
 .. doxygenfile:: dsp/delay/sampleDelay.hpp
    :project: libYSE
 
+Dynamics
+--------
+
+.. doxygenfile:: dsp/dynamics/lookaheadLimiter.hpp
+   :project: libYSE
+
 Sample buffers
 --------------
 

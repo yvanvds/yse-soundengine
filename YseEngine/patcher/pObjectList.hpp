@@ -275,6 +275,8 @@ namespace YSE {
     DEFOBJ(D_DELAY, "~delay");
 
     DEFOBJ(D_NORMALIZE, "~normalize");
+    DEFOBJ(D_LIMI, "~limi");
+    DEFOBJ(D_PEAKLIM, "~peaklim");
 
     DEFOBJ(D_BUFFER, "~buffer");
 
