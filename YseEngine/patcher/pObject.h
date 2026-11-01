@@ -383,7 +383,16 @@ namespace YSE {
       // message: keep it in atomics and report it through GetGuiValue(), per
       // the GUI value protocol below. Arm an outlet only for what the patch
       // itself receives.
+      //
+      // An object with more to send than one message per outlet per block
+      // (``~seq``'s events, issue #1069) overrides FlushArmedMessages and
+      // calls MarkOutletArmed() from CALC() itself. The hook runs after the
+      // armed outlets, inside the same message event, under the same rules:
+      // audio thread, no allocation, sends right to left.
       void FlushArmedOutlets(THREAD thread);
+      virtual void FlushArmedMessages(THREAD thread) {
+        (void)thread;
+      }
       inline void MarkOutletArmed() {
         outletArmed = true;
       }

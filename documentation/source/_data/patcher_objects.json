@@ -19152,6 +19152,52 @@
     ],
     "requires_midi_device": false
   },
+  "~seq": {
+    "category": "SEQUENCE",
+    "description": "Event sequencer driven by a 0..1 ramp: messages stored at phase positions, added or recorded live, sent when the ramp crosses them.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "The driving phase, a signal running 0 to 1 such as a ~phasor (unconnected reads 0). A number, a list or a message that is not a command is an event, recorded at the current phase while 'record' or 'overdub' is on. Commands: 'add', 'clear', 'erase', 'delete', 'dump', 'offset', 'overdub', 'play', 'record', 'read', 'write', 'seq' and 'seqnum'. A bang reports the state.",
+        "index": 0,
+        "label": "phase",
+        "range": "0 to 1"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~seq",
+    "outlets": [
+      {
+        "doc": "Each event as it is crossed, the message it was stored as.",
+        "index": 0,
+        "label": "events",
+        "range": "any",
+        "type": "ANY"
+      },
+      {
+        "doc": "On 'dump', one 'sequence phase message' list per event.",
+        "index": 1,
+        "label": "dump",
+        "range": "list",
+        "type": "LIST"
+      },
+      {
+        "doc": "On a bang: 'sequence play record overdub events-in-sequence events-in-all'.",
+        "index": 2,
+        "label": "state",
+        "range": "list",
+        "type": "LIST"
+      }
+    ],
+    "params": [],
+    "requires_midi_device": false
+  },
   "~shape": {
     "category": "OSC",
     "description": "A breakpoint envelope played over the length of a ramp such as a ~phasor: one cycle of the ramp is one pass through the envelope, so its length follows the ramp's frequency. For envelopes whose shape is fixed and whose length follows tempo or note length.",

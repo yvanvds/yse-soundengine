@@ -124,6 +124,9 @@ Generators
 .. doxygenfile:: dsp/generators/zigzag.hpp
    :project: libYSE
 
+.. doxygenfile:: dsp/generators/eventSequencer.hpp
+   :project: libYSE
+
 .. doxygenfile:: dsp/lfo.hpp
    :project: libYSE
 
