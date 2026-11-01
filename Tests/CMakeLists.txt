@@ -545,6 +545,11 @@ if(NOT ANDROID)
   set_source_files_properties(system/test_device_refresh.cpp PROPERTIES
     COMPILE_DEFINITIONS PORTAUDIO_BACKEND
   )
+  # integration/test_device.cpp (issue #1214) reads the width of the stream a
+  # real open started, which DEVICE::Manager() reports.
+  set_source_files_properties(integration/test_device.cpp PROPERTIES
+    COMPILE_DEFINITIONS PORTAUDIO_BACKEND
+  )
   target_include_directories(yse_tests PRIVATE ${PortAudio_INCLUDE_DIRS})
 endif()
 

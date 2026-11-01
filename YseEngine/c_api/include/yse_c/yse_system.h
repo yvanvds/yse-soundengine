@@ -229,7 +229,14 @@ YSE_C_API YseStatus yse_system_refresh_devices(YseSystem* sys);
    open_device does not start it on demand: call yse_system_refresh_devices()
    first to start it and pick the device from a current list. The
    stream opens at the locked session rate; a device that refuses that rate is
-   a logged YSE_ERR_AUDIO_DEVICE (issue #972). */
+   a logged YSE_ERR_AUDIO_DEVICE (issue #972).
+
+   The stream opens with the outputs `layout` uses, never more than the device
+   has (issue #1214): YSE_CT_MONO to YSE_CT_71 take their own speaker count,
+   YSE_CT_AUTO takes every output when the count has a layout of its own (1,
+   2, 4, 6, 7 or 8) and two otherwise, and YSE_CT_CUSTOM takes every output.
+   A device's count can be a plugin ceiling rather than speakers — ALSA's
+   `default` and `pipewire` PCMs report 128 on a PipeWire desktop. */
 YSE_C_API YseStatus yse_system_open_device(YseSystem* sys, const YseDeviceSetup* setup,
                                            YseChannelType layout);
 YSE_C_API void yse_system_close_current_device(YseSystem* sys);

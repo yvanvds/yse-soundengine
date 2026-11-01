@@ -237,15 +237,21 @@ namespace YSE {
       int BuildParamPlan(const pObject& staged, ParamOp* ops, int cap) {
         return parms.BuildPlanFrom(staged.parms, ops, cap);
       }
-      // True when no parameter of this object is ever read on the audio
-      // thread, so a live scalar re-parse is applied at once on the control
+      // True when no reader of this object's parameters needs the block
+      // boundary, so a live scalar re-parse is applied at once on the control
       // thread instead of being queued for the next rendered block (issue
       // #941). The subpatcher boundary objects answer true: their index is
       // read only by the control thread's boundary resolution, under the
       // patcher's mtx, and deferring it left Connect and SubpatcherInlets on
       // the old number until a block ran — or forever, on a patcher that is
-      // not rendering. An object that answers true must register only atomic
-      // scalars, because the write happens while the object is published.
+      // not rendering. The timer-driven `.metro` and `.clocker` answer true as
+      // well (issue #1218): every reader of their intervals loads the atomic per
+      // use on whichever thread it runs, so a store landing mid-block is as good
+      // as one at the block boundary, and a patcher that never renders would
+      // otherwise keep them on the old interval for good. An object that
+      // answers true must register only atomic scalars, because the write
+      // happens while the object is published, and must not need a plan's
+      // stores to land together at a block boundary.
       virtual bool ParamsAreControlSide() const {
         return false;
       }

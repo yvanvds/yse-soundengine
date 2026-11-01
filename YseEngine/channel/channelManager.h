@@ -72,6 +72,15 @@ namespace YSE {
       // channel output configuration from interface
       void setChannelConf(CHANNEL_TYPE type, Int outputs = 2);
 
+      // How many of a device's `deviceOutputs` a stream opened for layout
+      // `type` uses (issue #1214). A named layout (CT_MONO to CT_71) takes its
+      // own speaker count, clamped to the device. CT_AUTO takes every output
+      // when the count has a layout of its own (1, 2, 4, 6, 7, 8) and stereo
+      // otherwise, which is what setAuto() places on it. CT_CUSTOM takes every
+      // output: it is how a host asks for all of them. 0 for a device with no
+      // outputs.
+      static Int outputsForLayout(CHANNEL_TYPE type, Int deviceOutputs);
+
       // switch to the new configureation during audio callback
       void changeChannelConf();
 

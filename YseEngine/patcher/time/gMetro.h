@@ -218,8 +218,8 @@ namespace YSE {
      *    the millisecond path ("rescheduling keeps the phase, so a tempo tweak
      *    does not re-trigger whatever the bang drives"). Both routes that write
      *    the interval are covered: the list inlet re-arms eagerly, and a live
-     *    ``SetParams`` re-parse — which stores straight into the field from the
-     *    audio thread and notifies nobody — is caught at the next wakeup, which
+     *    ``SetParams`` re-parse — which stores straight into the field on the
+     *    caller's thread and notifies nobody — is caught at the next wakeup, which
      *    compares the live interval against the grid's.
      *
      *  ### Real-time behaviour
@@ -282,6 +282,16 @@ namespace YSE {
     // reaches it — and reached at all, which the old check was not: it compared
     // `const char*` pointers, so what read as a guarantee never fired.
     void Teardown(YSE::THREAD thread) override;
+
+    // A live SetParams stores `period` / `periodbeats` at once, on the caller's
+    // thread, instead of queueing them for the next rendered block (issue
+    // #1218). Both are atomics, and every reader (the timer worker's Bang(),
+    // the inlets, a beat wakeup) loads them per use and tolerates a store at
+    // any moment, so there is no block boundary to wait for. Waiting for one
+    // left a metro in a patcher nobody renders on its old interval for good.
+    bool ParamsAreControlSide() const override {
+      return true;
+    }
 
     ~gMetro() override;
 
@@ -405,7 +415,7 @@ namespace YSE {
 
     // The tempo-relative interval in beats, or 0 for milliseconds — the second
     // creation argument (issue #705). Atomic for `period`'s reason: a live
-    // SetParams re-parse writes it from the audio thread.
+    // SetParams re-parse writes it while the object is published (#1218).
     aFlt periodbeats;
 
     // The domain clock `clock <name>` bound, or 0 for Max's millisecond clock

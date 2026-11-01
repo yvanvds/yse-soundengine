@@ -1070,9 +1070,10 @@ void patcherImplementation::SetObjectParams(YSE::pHandle* handle, const std::str
     const int count = object->BuildParamPlan(*staged, msg.ops, (int)kParamOpsCap);
     if (count == 0) return; // no parameters: only the stored string changes
     if (count > 0 && object->ParamsAreControlSide()) {
-      // Nothing on the audio thread reads these parameters, so there is no
-      // block boundary to wait for: apply now, under mtx, which is where
-      // every reader of them runs (issue #941). The stores are atomic.
+      // No reader of these parameters needs the block boundary, so there is
+      // nothing to wait for: apply now, under mtx (issue #941). The stores
+      // are atomic. This is also what lets the edit land on a patcher that
+      // is not rendering, where a queued plan would never drain (#1218).
       ApplyParamOps(msg.ops, count);
       return;
     }

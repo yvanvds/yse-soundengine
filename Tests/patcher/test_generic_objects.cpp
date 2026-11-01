@@ -946,6 +946,42 @@ TEST_SUITE("patcher") {
     metro->SetIntData(0, 0);
   }
 
+  TEST_CASE("gMetro: a live SetParams retimes a metro in a patcher nobody renders (#1218)") {
+    // The same edit as the case above, on a patcher that is never rendered —
+    // an editor's patch not mounted on any sound or insert. The metro's timer
+    // runs regardless, but the period store used to be queued for the next
+    // block, and with no block it never landed: GetParams answered "10" while
+    // the metro stayed on 150 ms for good. There is no Calculate anywhere here.
+    AtomicBangSink sink;
+    YSE::PATCHER::patcherImplementation p(1, nullptr);
+    YSE::pHandle* metro = p.CreateObject(YSE::OBJ::G_METRO, "150");
+    REQUIRE(metro != nullptr);
+
+    YSE::pHandle hSink(&sink);
+    p.Connect(metro, 0, &hSink, 0);
+
+    metro->SetIntData(0, 1); // start; immediate bang
+    REQUIRE(sink.count() == 1);
+
+    metro->SetParams("10");
+    CHECK(metro->GetParams() == "10");
+
+    // The cycle in flight runs out at 150 ms and the tick that ends it asks for
+    // the new interval; budgets and the join exactly as in the case above.
+    refTimer ref(10);
+    REQUIRE(waitPaced(ref, 20, [&] { return sink.count() >= 2; }));
+    YSE::PATCHER::TimerBridge().WaitIdle();
+
+    // On the old 150 ms the count could move at most twice in this window.
+    const int base = sink.count();
+    refTimer younger(10);
+    REQUIRE(younger.WaitTicks(20));
+    const int paced = younger.n();
+    CHECK(sink.count() - base >= paced);
+
+    metro->SetIntData(0, 0);
+  }
+
   // ─── gMetro: destroying a running metro (issue #663) ─────────────────────────
   //
   // ~gMetro used to call ClearTimer on `timerThread()` — the lowercase *class*,

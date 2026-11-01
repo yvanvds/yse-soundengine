@@ -267,6 +267,15 @@ namespace YSE {
      *  that rate is reported with a log line and nothing opens; choose the rate
      *  with ``requestSampleRate()`` before ``init()`` / ``initOffline()``.
      *
+     *  The stream opens with the outputs the layout uses, never more than the
+     *  device has (issue #1214): ``CT_MONO`` to ``CT_71`` take their own
+     *  speaker count, ``CT_AUTO`` takes every output when the count has a
+     *  layout of its own (1, 2, 4, 6, 7 or 8) and two otherwise, and
+     *  ``CT_CUSTOM`` takes every output the device has. A device's output
+     *  count can be a plugin ceiling rather than a set of speakers — ALSA's
+     *  ``default`` and ``pipewire`` PCMs report 128 on a PipeWire desktop — so
+     *  pass ``CT_CUSTOM`` only to address all of them.
+     *
      *  @param object Device + host + sample-rate configuration.
      *  @param conf   Speaker layout. ``CT_AUTO`` picks stereo when possible.
      *  @return ``true`` when the backend opened a stream for ``object``.

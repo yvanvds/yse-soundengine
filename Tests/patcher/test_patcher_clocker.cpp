@@ -915,6 +915,43 @@ TEST_SUITE("patcher") {
     back->SetIntData(0, 0);
   }
 
+  TEST_CASE("clocker: a live SetParams retimes a clocker in a patcher nobody renders (#1218)") {
+    // The editor's flow through the public patcher: a patch never mounted on a
+    // sound or insert, so no block ever renders. The interval store used to be
+    // queued for the next block and so never landed — GetParams answered the
+    // new interval while the running clocker kept reporting on the old one.
+    SharedRecorder out; // outlives the patcher and the clocker in it
+    YSE::patcher patch;
+    patch.create(1);
+    YSE::pHandle* obj = patch.CreateObject(YSE::OBJ::G_CLOCKER, "150");
+    REQUIRE(obj != nullptr);
+    YSE::pHandle outHandle(&out);
+    patch.Connect(obj, 0, &outHandle, 0);
+
+    obj->SetIntData(0, 1); // start
+    obj->SetParams("10");
+    CHECK(obj->GetParams() == "10");
+
+    // The cycle in flight runs out at 150 ms and its tick asks for the new
+    // interval: twenty ticks of a 10 ms reference armed after the start is past
+    // that deadline on any box (see the matching `.metro` case), and the
+    // bridge's WaitIdle joins the reconcile the request started.
+    refTimer ref(10);
+    REQUIRE(waitPaced(ref, 20, [&] { return out.n() >= 1; }));
+    YSE::PATCHER::TimerBridge().WaitIdle();
+
+    // From here it is a 10 ms clocker, so a 10 ms reference armed after the
+    // count is read bounds the count from below. On 150 ms it could move at
+    // most twice.
+    const int base = out.n();
+    refTimer younger(10);
+    REQUIRE(younger.WaitTicks(20));
+    const int paced = younger.n();
+    CHECK(out.n() - base >= paced);
+
+    obj->SetIntData(0, 0);
+  }
+
   // ─── the audio-callback route ───────────────────────────────────────────────
 
   TEST_CASE("clocker: a start delivered from inside Calculate still runs (#505)") {

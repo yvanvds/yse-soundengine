@@ -189,8 +189,6 @@ TEST_SUITE("patcher") {
 
   TEST_CASE("gList: SetParams initialises the stored message; bang emits it") {
     YSE::PATCHER::gList list;
-    // Parameters::Set splits on spaces and only the first token reaches a
-    // STRING param.  Use a single-token message for the SetParams path.
     list.SetParams("hello");
     ListSink sink;
     list.ConnectOutlet(sink.GetInlet(0), 0);
@@ -200,6 +198,70 @@ TEST_SUITE("patcher") {
     CHECK(sink.gotList);
     CHECK(sink.received == "hello");
     CHECK(list.GetGuiValue() == "hello");
+  }
+
+  TEST_CASE("gList: the whole creation text is the stored list (#1225)") {
+    YSE::PATCHER::gList list;
+    ListSink sink;
+    list.ConnectOutlet(sink.GetInlet(0), 0);
+    sink.ConnectInlet(list.GetOutlet(0), 0);
+
+    // Every word, joined with single spaces as a list message is tokenized.
+    list.SetParams("  a b\tc  ");
+    CHECK(list.GetGuiValue() == "a b c");
+    list.GetInlet(0)->SetBang(YSE::T_GUI);
+    CHECK(sink.received == "a b c");
+
+    // A re-parse replaces the list rather than appending to it, and an empty
+    // argument leaves an empty box.
+    list.SetParams("stop");
+    CHECK(list.GetGuiValue() == "stop");
+    list.SetParams("");
+    CHECK(list.GetGuiValue().empty());
+  }
+
+  TEST_CASE("list box: a multi-word .l survives a JSON round trip and sends every word "
+            "(#1225)") {
+    std::string dump;
+    {
+      YSE::PATCHER::patcherImplementation src(2, nullptr);
+      YSE::pHandle* recv = src.CreateObject(YSE::OBJ::G_RECEIVE, "go1225");
+      YSE::pHandle* box = src.CreateObject(YSE::OBJ::G_LIST, "a b c");
+      YSE::pHandle* out = src.CreateObject(YSE::OBJ::G_LIST, "");
+      REQUIRE(recv != nullptr);
+      REQUIRE(box != nullptr);
+      REQUIRE(out != nullptr);
+      // Created the way a host creates it: the box starts out holding the whole
+      // list, the same as sending it the list `a b c`.
+      CHECK(box->GetGuiValue() == "a b c");
+      src.Connect(recv, 0, box, 0);
+      src.Connect(box, 0, out, 0);
+      dump = src.DumpJSON();
+    }
+    YSE::PATCHER::patcherImplementation dst(2, nullptr);
+    dst.ParseJSON(dump);
+
+    YSE::pHandle* box = nullptr;
+    YSE::pHandle* out = nullptr;
+    for (unsigned int i = 0; i < dst.Objects(); i++) {
+      YSE::pHandle* h = dst.GetHandleFromList(i);
+      if (std::string(h->Type()) != ".l") continue;
+      if (h->GetGuiValue().empty())
+        out = h;
+      else
+        box = h;
+    }
+    REQUIRE(box != nullptr);
+    REQUIRE(out != nullptr);
+    // REQUIRE is not noreturn to the static analyzer, which otherwise takes the
+    // path where the loop found nothing.
+    if (box == nullptr || out == nullptr) return;
+    CHECK(box->GetGuiValue() == "a b c");
+
+    REQUIRE(dst.PassBang("go1225", YSE::T_GUI));
+    // The bang is queued for the receive and delivered at the top of a block.
+    dst.Calculate(YSE::T_DSP);
+    CHECK(out->GetGuiValue() == "a b c");
   }
 
   TEST_CASE("gList: list-in updates the stored message without auto-emitting") {

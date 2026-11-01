@@ -40,7 +40,7 @@ namespace YSE {
 
       void updateDeviceList() override;
       Bool refreshDevices() override;
-      Bool openDevice(const YSE::deviceSetup& object) override;
+      Bool openDevice(const YSE::deviceSetup& object, Int outputs) override;
       Bool addCallback() override;
       reopenOutcome reopenDevice(bool fallbackToDefault) override;
       void forgetOpenedDevice() override;
@@ -58,6 +58,18 @@ namespace YSE {
       void setStreamChannels(int channels) {
         streamChannels.store(channels, std::memory_order_release);
       }
+      // The width of the last stream started (issue #1214). Public so the
+      // integration tests can check how many outputs a real open asked for.
+      int getStreamChannels() const {
+        return streamChannels.load(std::memory_order_acquire);
+      }
+
+      // A PaDeviceInfo defaultLow*Latency (seconds) as the samples a
+      // YSE::device descriptor reports (issue #1215). PortAudio reports a
+      // negative latency (ALSA: -1) for a direction the device has no
+      // channels in; that, a non-positive rate, or a non-finite input reads
+      // 0, the descriptor's "unspecified" value.
+      static int latencyToSamples(double seconds, double sampleRate);
 
       // Live device-state getters (see deviceManager.h for contract).
       double getActiveSampleRate() const override;

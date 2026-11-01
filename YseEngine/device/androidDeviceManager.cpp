@@ -110,7 +110,7 @@ void YSE::DEVICE::managerObject::serviceReconnect() {
   if (implementation.serviceReconnect()) notifyStreamStarted();
 }
 
-Bool YSE::DEVICE::managerObject::openDevice(const YSE::deviceSetup& object) {
+Bool YSE::DEVICE::managerObject::openDevice(const YSE::deviceSetup& object, Int /*outputs*/) {
   // android only has one device for now, so there is nothing to switch to and
   // the request cannot fail. Reported as success so system::openDevice() keeps
   // applying the requested speaker layout here, which is what this backend has
