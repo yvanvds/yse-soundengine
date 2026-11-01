@@ -44,6 +44,7 @@ namespace YSE {
    *    transitions), ``D_ZEROX`` (zero crossings per block and a click on
    *    each), ``D_PEAKAMP`` (the peak amplitude since the last report).
    *  - DSP delay: `D_TAPIN`, `D_TAPOUT`, `D_COMB`, `D_TEETH`, `D_DELAY`.
+   *  - DSP dynamics: ``D_NORMALIZE`` (scaling by the running peak).
    *  - DSP sampling: ``D_BUFFER``.
    *  - DSP math: ``D_ADD``, ``D_MULTIPLY``, ``D_CLIP``, ``D_REVERSESUBSTRACT``,
    *    ``D_REVERSEDIVIDE``, ``D_MODULO``, ``D_PLUSEQUALS``,
@@ -270,6 +271,8 @@ namespace YSE {
     DEFOBJ(D_COMB, "~comb");
     DEFOBJ(D_TEETH, "~teeth");
     DEFOBJ(D_DELAY, "~delay");
+
+    DEFOBJ(D_NORMALIZE, "~normalize");
 
     DEFOBJ(D_BUFFER, "~buffer");
 

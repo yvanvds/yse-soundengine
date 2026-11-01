@@ -18202,6 +18202,54 @@
     "params": [],
     "requires_midi_device": false
   },
+  "~normalize": {
+    "category": "DYNAMICS",
+    "description": "Normalizes a signal: scales it by a target amplitude divided by the largest input amplitude so far, for level matching.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The signal to normalize (unconnected reads 0). A number sets the peak, the largest input amplitude so far. 'reset' sets the peak to 0.000001, 'reset <peak>' to that value.",
+        "index": 0,
+        "label": "in",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The amplitude the peak is scaled to, a number or a signal read per sample (unconnected, the last number sent here or the creation argument). Negative inverts the signal. Takes 'reset' as the left inlet does.",
+        "index": 1,
+        "label": "amplitude",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~normalize",
+    "outlets": [
+      {
+        "doc": "The normalized signal: the input times the amplitude divided by the peak, never larger than the amplitude.",
+        "index": 0,
+        "label": "out",
+        "range": "any float",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "1",
+        "doc": "The target amplitude ('~normalize 0.5'). A number in the right inlet changes it, but what is saved stays the argument.",
+        "name": "amplitude",
+        "range": "any float"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~onepole": {
     "category": "FILTER",
     "description": "Single-pole lowpass filter, 6 dB per octave, with its cutoff in Hz or on a 0-1 scale: cheap smoothing of a control signal or a gentle roll-off of harsh highs.",

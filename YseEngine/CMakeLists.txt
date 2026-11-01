@@ -67,6 +67,7 @@ set(YSE_SRCS
   dsp/modules/frequencyShifter.cpp
   dsp/modules/chorus.cpp
   dsp/modules/compressor.cpp
+  dsp/modules/normalize.cpp
   dsp/modules/morphingReverb.cpp
   dsp/modules/parametricEQ.cpp
   dsp/modules/phaser.cpp
@@ -193,6 +194,7 @@ set(YSE_SRCS
   patcher/delay/dComb.cpp
   patcher/delay/dDelay.cpp
   patcher/delay/dTeeth.cpp
+  patcher/dynamics/dNormalize.cpp
   patcher/sampling/dBuffer.cpp
   patcher/filters/dVcf.cpp
   patcher/filters/dSah.cpp
@@ -658,6 +660,7 @@ set_source_files_properties(
   patcher/delay/dComb.cpp
   patcher/delay/dDelay.cpp
   patcher/delay/dTeeth.cpp
+  patcher/dynamics/dNormalize.cpp
   patcher/sampling/dBuffer.cpp
   patcher/filters/dVcf.cpp
   patcher/filters/dSah.cpp

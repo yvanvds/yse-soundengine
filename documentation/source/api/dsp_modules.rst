@@ -37,6 +37,9 @@ Effect modules
 .. doxygenfile:: dsp/modules/frequencyShifter.hpp
    :project: libYSE
 
+.. doxygenfile:: dsp/modules/normalize.hpp
+   :project: libYSE
+
 .. doxygenfile:: dsp/modules/ringModulator.hpp
    :project: libYSE
 

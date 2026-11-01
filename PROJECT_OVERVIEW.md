@@ -359,7 +359,7 @@ libsndfile is the only file backend (`LIBSOUNDFILE_BACKEND` is defined on every 
 
 ### 8. Patcher (Modular DSP Graph)
 
-**Files:** [patcher/patcher.hpp](YseEngine/patcher/patcher.hpp) (public `YSE::patcher`), [patcher/patcherImplementation.cpp](YseEngine/patcher/patcherImplementation.cpp), [patcher/pObject.h](YseEngine/patcher/pObject.h) (object base + the host/audio-thread contract), [patcher/graphState.h](YseEngine/patcher/graphState.h), [patcher/pRegistry.cpp](YseEngine/patcher/pRegistry.cpp); objects live in `patcher/{filters,generatorObjects,genericObjects,guiObjects,io,math,midi,time}/`.
+**Files:** [patcher/patcher.hpp](YseEngine/patcher/patcher.hpp) (public `YSE::patcher`), [patcher/patcherImplementation.cpp](YseEngine/patcher/patcherImplementation.cpp), [patcher/pObject.h](YseEngine/patcher/pObject.h) (object base + the host/audio-thread contract), [patcher/graphState.h](YseEngine/patcher/graphState.h), [patcher/pRegistry.cpp](YseEngine/patcher/pRegistry.cpp); objects live in `patcher/{dynamics,filters,generatorObjects,genericObjects,guiObjects,io,math,midi,time}/`.
 
 A Max/MSP-style node graph for building synthesis and effect networks in code or from JSON. The registry holds **305 objects** (the maintained count is at the top of [documentation/source/patcher/index.rst](documentation/source/patcher/index.rst)): control objects carry a `.` prefix (`.metro`, `.coll`, `.dict`), signal objects a `~` prefix (`~sine`, `~lp`, `~dac`), and `patcher` is a subpatcher.
 
