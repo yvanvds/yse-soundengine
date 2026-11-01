@@ -794,8 +794,12 @@ TEST_SUITE("integration") {
       s.stop();
     }
 
-    // Give the slow pool its teardown round, so the streaming file closes the
-    // custom reader handle while the VFS is still registered.
+    // Give the slow pool its teardown round, so the streaming file usually
+    // closes the custom reader handle while the VFS is still registered. Usually
+    // is enough: nothing here waits for it, because the removal below is safe
+    // with the reader still open and a refill job still reading (issue #1223).
+    // It waits out a read in progress and leaves the reader answering 0, so
+    // `bytes` may go out of scope right after it.
     for (int i = 0; i < 10; i++) {
       YSE::System().sleep(20);
       YSE::System().update();

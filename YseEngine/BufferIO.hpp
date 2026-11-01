@@ -54,10 +54,24 @@ namespace YSE {
      */
     bool AddBuffer(const char* ID, char* buffer, int length);
 
-    /** @brief Unregister a buffer by its ID. */
+    /**
+     *  @brief Unregister a buffer by its ID.
+     *
+     *  Safe while a sound still reads from the buffer, streaming ones
+     *  included: the call waits for a read already in progress to finish,
+     *  and every later read from a reader opened on this buffer returns no
+     *  bytes. Once it returns, the engine no longer touches the bytes, so a
+     *  caller-owned buffer may be freed.
+     *
+     *  @return ``true`` if a buffer was registered under ``ID``.
+     */
     bool RemoveBufferByName(const char* ID);
 
-    /** @brief Unregister a buffer by its address. */
+    /**
+     *  @brief Unregister a buffer by its address.
+     *
+     *  Same guarantees as RemoveBufferByName().
+     */
     bool RemoveBuffer(char* buffer);
 
     ~BufferIO();

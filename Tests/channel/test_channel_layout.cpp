@@ -206,6 +206,62 @@ TEST_SUITE("channel") {
     restoreStereo();
   }
 
+  // ─── A wider count is never published over narrower arrays (#1222) ────────
+  //
+  // openDevice() calls setChannelConf() with the device's output count (128 on
+  // a PipeWire ALSA PCM, #1214) on the control thread, and changeChannelConf()
+  // only runs later, from the audio callback. Every reader in between — a
+  // slow-pool CHANNEL::implementationObject::setup(), a panner — loops to
+  // getNumberOfOutputs() and indexes getOutputAngle()/getOutputIsLFE(). Those
+  // read the arrays the previous changeChannelConf() sized, two entries wide
+  // after initShared(), so ASan reported a heap-buffer-overflow at index 2.
+  // Here no callback runs (engineInit() pauses the stream), so the window is
+  // held open deterministically: every index below the published count must
+  // read in bounds, as 0° / not-LFE until the audio thread applies the preset.
+
+  TEST_CASE("channel layout: outputs published by setChannelConf read in bounds before "
+            "changeChannelConf (#1222)") {
+    if (!TestHelpers::engineInit()) return;
+    auto& m = YSE::CHANNEL::Manager();
+    applyLayout(YSE::CT_STEREO, 2);
+
+    // The 2 -> 128 widening from the issue, then a further widening while the
+    // first is still unapplied, so a count beyond any earlier layout is covered
+    // too.
+    for (const int outputs : {128, 200}) {
+      m.setChannelConf(YSE::CT_AUTO, outputs);
+      REQUIRE(m.getNumberOfOutputs() == static_cast<UInt>(outputs));
+      bool angleInRange = true;
+      bool lfeClear = true;
+      for (UInt i = 2; i < m.getNumberOfOutputs(); ++i) {
+        if (m.getOutputAngle(i) != 0.f) angleInRange = false;
+        if (m.getOutputIsLFE(i)) lfeClear = false;
+      }
+      CHECK(angleInRange);
+      CHECK(lfeClear);
+    }
+
+    // The audio thread's half: no allocation, just the preset on the layout
+    // setChannelConf() sized. 200 outputs have no defined order, so stereo.
+    YSE::CHANNEL::Manager().changeChannelConf();
+    CHECK(m.getNumberOfOutputs() == 200u);
+    CHECK(m.getOutputAngle(0) == doctest::Approx(rad(-90.f)));
+    CHECK(m.getOutputAngle(1) == doctest::Approx(rad(90.f)));
+    CHECK(m.getOutputAngle(199) == doctest::Approx(0.f));
+    CHECK(m.getOutputAngle(200) == doctest::Approx(0.f));
+
+    // Narrowing reuses the wide layout; a value an earlier, wider preset left
+    // behind must not leak into the narrower one.
+    applyLayout(YSE::CT_51, 6);
+    applyLayout(YSE::CT_QUAD, 4);
+    CHECK(m.getNumberOfOutputs() == 4u);
+    for (UInt i = 0; i < 4; ++i)
+      CHECK(m.getOutputIsLFE(i) == false);
+    CHECK(m.getOutputAngle(4) == doctest::Approx(0.f));
+
+    restoreStereo();
+  }
+
   // ─── Precomputed speaker-density weights (#211) ──────────────────────────────
   //
   // effective[i] = Σ_j overlap(angle_i, angle_j) over the non-LFE speakers is

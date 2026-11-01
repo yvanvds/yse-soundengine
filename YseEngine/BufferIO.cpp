@@ -2,103 +2,151 @@
 #include "io.hpp"
 #include <string>
 #include <sstream>
+#include <algorithm>
 #include <forward_list>
+#include <memory>
+#include <mutex>
+#include <utility>
 #include <vector>
 #include "log.hpp"
 
 #include <sndfile.hh>
 
+// One registered buffer. Shared between the registry and every reader opened on
+// it (issue #1223): RemoveBufferByName() drops the registry's reference, but a
+// streaming soundFile keeps its reader open until the slow pool destroys it,
+// and its refill job reads through that reader on a pool thread. The node
+// therefore lives until the last reader closes, and the bytes are detached
+// (buffer set to null) under dataMutex, so a removal waits out a read already
+// copying and every later read answers 0. None of this runs on the audio
+// thread: reads come from the load and refill jobs on the slow pool.
 class IOBuffer {
 public:
-  IOBuffer(const char* ID, char* buffer, int length) : name(ID), buffer(buffer), length(length) {}
+  IOBuffer(const char* ID, char* buffer, int length, bool owned)
+    : name(ID), buffer(buffer), length(length), owned(owned) {}
 
-  bool operator==(const IOBuffer& b) const {
-    return buffer == b.buffer;
+  // Stop handing out the bytes, freeing them if this buffer owns a copy. After
+  // this returns no reader is inside a copy from them, so the caller may free
+  // caller-owned memory.
+  void Detach() {
+    const std::lock_guard<std::mutex> lock(dataMutex);
+    if (owned) delete[] buffer;
+    buffer = nullptr;
   }
 
-  std::string name;
+  const std::string name;
+  // Written only by Detach(), under dataMutex. Readers copy under the same
+  // lock; the registry's lookups read it under IOBuffers::listMutex, which is
+  // also held whenever Detach() runs on a buffer still in the list.
   char* buffer;
-  int length;
+  const int length;
+  const bool owned;
+  std::mutex dataMutex;
 };
 
 struct IOBufferReader {
-  IOBufferReader(IOBuffer* buffer) : buffer(buffer), currentPos(0) {}
-  IOBuffer* buffer;
+  explicit IOBufferReader(std::shared_ptr<IOBuffer> buffer)
+    : buffer(std::move(buffer)), currentPos(0) {}
+  std::shared_ptr<IOBuffer> buffer;
   I64 currentPos;
 };
 
 struct IOBuffers {
 
   bool NameExists(const char* ID) {
-    for (IOBuffer& b : list) {
-      if (b.name.compare(ID) == 0) {
-        return true;
-      }
-    }
-    return false;
+    const std::lock_guard<std::mutex> lock(listMutex);
+    return FindByNameLocked(ID) != list.end();
   }
 
   bool Exists(char* buffer) {
-    for (IOBuffer& b : list) {
-      if (b.buffer == buffer) {
-        return true;
-      }
-    }
-    return false;
+    const std::lock_guard<std::mutex> lock(listMutex);
+    return FindLocked(buffer) != list.end();
   }
 
-  IOBuffer* FindByName(const char* ID) {
-    for (IOBuffer& b : list) {
-      if (b.name.compare(ID) == 0) {
-        return &b;
-      }
-    }
-    return nullptr;
+  std::shared_ptr<IOBuffer> FindByName(const char* ID) {
+    const std::lock_guard<std::mutex> lock(listMutex);
+    auto it = FindByNameLocked(ID);
+    return it == list.end() ? nullptr : *it;
   }
 
-  IOBuffer* Find(char* buffer) {
-    for (IOBuffer& b : list) {
-      if (b.buffer == buffer) {
-        return &b;
-      }
-    }
-    return nullptr;
-  }
-
-  void Clear(bool deep) {
-    if (deep) {
-      for (IOBuffer& b : list) {
-        delete[] b.buffer;
-      }
+  void Clear() {
+    const std::lock_guard<std::mutex> lock(listMutex);
+    for (const std::shared_ptr<IOBuffer>& b : list) {
+      b->Detach();
     }
     list.clear();
   }
 
-  void Add(const char* ID, char* buffer, int length, bool copy) {
-    list.emplace_front(ID, buffer, length);
+  bool Add(const char* ID, char* buffer, int length, bool copy) {
+    char* data = buffer;
     if (copy) {
-      IOBuffer& b = list.front();
-      b.buffer = new char[length];
-      std::copy(buffer, buffer + length, b.buffer);
+      data = new char[length];
+      std::copy(buffer, buffer + length, data);
     }
+    const std::lock_guard<std::mutex> lock(listMutex);
+    if (FindByNameLocked(ID) != list.end()) {
+      if (copy) delete[] data;
+      return false;
+    }
+    list.push_front(std::make_shared<IOBuffer>(ID, data, length, copy));
+    return true;
   }
 
-  void Delete(IOBuffer* buffer) {
-    list.remove(*buffer);
+  bool RemoveByName(const char* ID) {
+    std::shared_ptr<IOBuffer> b;
+    {
+      const std::lock_guard<std::mutex> lock(listMutex);
+      auto it = FindByNameLocked(ID);
+      if (it == list.end()) return false;
+      b = *it;
+      list.remove(b);
+    }
+    b->Detach();
+    return true;
   }
 
-  std::forward_list<IOBuffer> list;
+  bool Remove(char* buffer) {
+    std::shared_ptr<IOBuffer> b;
+    {
+      const std::lock_guard<std::mutex> lock(listMutex);
+      auto it = FindLocked(buffer);
+      if (it == list.end()) return false;
+      b = *it;
+      list.remove(b);
+    }
+    b->Detach();
+    return true;
+  }
+
+private:
+  using List = std::forward_list<std::shared_ptr<IOBuffer>>;
+
+  List::iterator FindByNameLocked(const char* ID) {
+    return std::find_if(list.begin(), list.end(),
+                        [ID](const std::shared_ptr<IOBuffer>& b) { return b->name == ID; });
+  }
+
+  List::iterator FindLocked(char* buffer) {
+    return std::find_if(list.begin(), list.end(), [buffer](const std::shared_ptr<IOBuffer>& b) {
+      return b->buffer == buffer;
+    });
+  }
+
+  // Guards the list against registrations on the main thread racing lookups
+  // from BufferIO_Open on the slow pool. Never taken on the audio thread.
+  std::mutex listMutex;
+  List list;
 };
 
 IOBuffers* buffers = nullptr;
 
 bool BufferIO_Open(const char* filename, long long* filesize, void** fileHandle) {
-  IOBuffer* b = buffers->FindByName(filename);
+  std::shared_ptr<IOBuffer> b = buffers->FindByName(filename);
 
   if (b == nullptr) return false;
 
   (*filesize) = b->length;
-  (*fileHandle) = new IOBufferReader(b);
+  (*fileHandle) = new IOBufferReader(std::move(b));
 
   return true;
 }
@@ -109,7 +157,12 @@ void BufferIO_Close(void* fileHandle) {
 
 long long BufferIO_Read(void* destBuffer, long long maxBytesToRead, void* fileHandle) {
   IOBufferReader* reader = (IOBufferReader*)fileHandle;
+  // Held across the copy, so RemoveBufferByName() cannot free the bytes while
+  // this read is inside them (issue #1223). Slow pool only, never audio.
+  const std::lock_guard<std::mutex> lock(reader->buffer->dataMutex);
   char* buffer = reader->buffer->buffer;
+  // The buffer was removed while this reader stayed open: nothing to hand out.
+  if (buffer == nullptr) return 0;
   const sf_count_t length = reader->buffer->length;
   sf_count_t startpos = reader->currentPos;
 
@@ -204,7 +257,7 @@ YSE::BufferIO::BufferIO(bool storeCopy) : active(false), storeCopy(storeCopy) {
 
 YSE::BufferIO::~BufferIO() {
   if (buffers != nullptr) {
-    buffers->Clear(storeCopy);
+    buffers->Clear();
     delete buffers;
     buffers = nullptr;
   }
@@ -238,28 +291,13 @@ bool YSE::BufferIO::BufferExists(char* buffer) {
 }
 
 bool YSE::BufferIO::AddBuffer(const char* ID, char* buffer, int length) {
-  if (buffers->NameExists(ID)) return false;
-
-  buffers->Add(ID, buffer, length, storeCopy);
-  return true;
+  return buffers->Add(ID, buffer, length, storeCopy);
 }
 
 bool YSE::BufferIO::RemoveBufferByName(const char* ID) {
-  IOBuffer* b = buffers->FindByName(ID);
-  if (b != nullptr) {
-    if (storeCopy) delete[] b->buffer;
-    buffers->Delete(b);
-    return true;
-  }
-  return false;
+  return buffers->RemoveByName(ID);
 }
 
 bool YSE::BufferIO::RemoveBuffer(char* buffer) {
-  IOBuffer* b = buffers->Find(buffer);
-  if (b != nullptr) {
-    if (storeCopy) delete[] b->buffer;
-    buffers->Delete(b);
-    return true;
-  }
-  return false;
+  return buffers->Remove(buffer);
 }

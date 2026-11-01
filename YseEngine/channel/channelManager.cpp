@@ -8,7 +8,9 @@
   ==============================================================================
 */
 
+#include <algorithm>
 #include <iterator>
+#include <memory>
 #include "../internalHeaders.h"
 
 YSE::CHANNEL::managerObject& YSE::CHANNEL::Manager() {
@@ -17,12 +19,7 @@ YSE::CHANNEL::managerObject& YSE::CHANNEL::Manager() {
 }
 
 YSE::CHANNEL::managerObject::managerObject()
-  : mgrSetup(this),
-    mgrDelete(this),
-    outputAngles(nullptr),
-    outputIsLFE(nullptr),
-    outputChannels(0),
-    channelType(CT_AUTO) {}
+  : mgrSetup(this), mgrDelete(this), outputChannels(0), channelType(CT_AUTO) {}
 
 YSE::CHANNEL::managerObject::~managerObject() noexcept {
   try {
@@ -48,8 +45,11 @@ YSE::CHANNEL::managerObject::~managerObject() noexcept {
       returnGenPosted.clear();
     }
     implementations.clear();
-    delete[] outputAngles;
-    delete[] outputIsLFE;
+    layout.store(nullptr);
+    {
+      std::scoped_lock lk(layoutMutex);
+      layouts.clear();
+    }
   } catch (...) {
     INTERNAL::EmitNoThrow(E_ERROR, "CHANNEL::Manager destructor swallowed exception");
   }
@@ -238,6 +238,14 @@ void YSE::CHANNEL::managerObject::destroy() {
     implementations.clear();
   }
   runDelete = false;
+  // Every reader of the output layout is a pool job or the audio callback, and
+  // both are down, so the layouts parked by setChannelConf() can go (issue
+  // #1222). initShared() installs a fresh one on the next init.
+  layout.store(nullptr);
+  {
+    std::scoped_lock lk(layoutMutex);
+    layouts.clear();
+  }
   // The render graph points into the impls just freed; forget it so the next
   // session rebuilds from its own master (issue #859).
   graphMaster = nullptr;
@@ -272,20 +280,24 @@ UInt YSE::CHANNEL::managerObject::getNumberOfOutputs() {
   return outputChannels;
 }
 
+// The layout is loaded once and the index is checked against its own capacity
+// as well as the published count: setChannelConf() may publish a wider count
+// between the two loads, and the layout loaded first can then be the narrower
+// one it replaced (issue #1222).
 Flt YSE::CHANNEL::managerObject::getOutputAngle(UInt nr) {
-  if (nr >= outputChannels) {
+  const outputLayout* l = layout.load();
+  if (l == nullptr || nr >= outputChannels || nr >= l->capacity) {
     return 0.f;
-  } else {
-    return outputAngles[nr];
   }
+  return l->angles[nr];
 }
 
 Bool YSE::CHANNEL::managerObject::getOutputIsLFE(UInt nr) {
-  if (nr >= outputChannels || outputIsLFE == nullptr) {
+  const outputLayout* l = layout.load();
+  if (l == nullptr || nr >= outputChannels || nr >= l->capacity) {
     return false;
-  } else {
-    return outputIsLFE[nr];
   }
+  return l->isLFE[nr];
 }
 
 void YSE::CHANNEL::managerObject::setMaster(CHANNEL::implementationObject* impl) {
@@ -296,51 +308,44 @@ void YSE::CHANNEL::managerObject::setMaster(CHANNEL::implementationObject* impl)
 }
 
 void YSE::CHANNEL::managerObject::setChannelConf(CHANNEL_TYPE type, Int outputs) {
-  outputChannels = outputs;
+  // Control thread. Size the arrays for the new count *before* publishing it,
+  // so no reader that sees the count can index past them (issue #1222). The
+  // count used to be published here and the arrays reallocated only later, in
+  // changeChannelConf() on the audio callback, so a slow-pool setup() reading
+  // the new count indexed the old, narrower arrays. Growing here also keeps
+  // the allocation off the audio thread; the layout replaced stays alive in
+  // `layouts` for any reader that already loaded it.
+  const UInt count = outputs > 0 ? static_cast<UInt>(outputs) : 0u;
+  {
+    std::scoped_lock lk(layoutMutex);
+    const outputLayout* current = layout.load();
+    if (current == nullptr || current->capacity < count) {
+      layouts.push_back(std::make_unique<outputLayout>(count));
+      layout.store(layouts.back().get());
+    }
+  }
   channelType = type;
+  outputChannels = count;
 }
 
 void YSE::CHANNEL::managerObject::changeChannelConf() {
-  const UInt count = outputChannels.load();
-  delete[] outputAngles;
-  delete[] outputIsLFE;
-  // Value-initialise (the trailing ()): std::atomic has no default member
-  // initialiser, so `new aFlt[n]` alone would leave every angle indeterminate.
+  // Runs on the audio callback (deviceManager::doOnCallback()) and in
+  // initShared(). Allocation-free: setChannelConf() already sized the layout.
+  // The count is loaded before the layout, and setChannelConf() installs the
+  // layout before the count, so a count read here always fits the layout read
+  // after it; the min() only guards that invariant.
+  const UInt published = outputChannels.load();
+  outputLayout* l = layout.load();
+  const UInt count = l == nullptr ? 0u : std::min(published, l->capacity);
   // Presets below only touch the outputs their layout defines, so any output a
-  // preset skips (e.g. an LFE, or a channel beyond the layout) must already
-  // read as 0° / not-LFE rather than garbage (issue #203).
-  outputAngles = new aFlt[count]();
-  outputIsLFE = new aBool[count]();
-  switch (channelType.load()) {
-  case CT_AUTO:
-    setAuto(outputChannels);
-    break;
-  case CT_MONO:
-    setMono();
-    break;
-  case CT_STEREO:
-    setStereo();
-    break;
-  case CT_QUAD:
-    setQuad();
-    break;
-  case CT_51:
-    set51();
-    break;
-  case CT_51SIDE:
-    set51Side();
-    break;
-  case CT_61:
-    set61();
-    break;
-  case CT_71:
-    set71();
-    break;
-  case CT_CUSTOM:
-    break; // we've set number of outputs. CT_CUSTOM expects the positions will be
-           // set later
-  case CT_COUNT_:
-    break; // sentinel, not a layout
+  // preset skips (e.g. an LFE, or a channel beyond the layout) must read as
+  // 0° / not-LFE rather than a value left by an earlier layout (issue #203).
+  for (UInt i = 0; i < count; ++i) {
+    l->angles[i] = 0.f;
+    l->isLFE[i] = false;
+  }
+  if (l != nullptr) {
+    applyPreset(*l, count);
   }
 
   REVERB::Manager().setOutputChannels(outputChannels);
@@ -350,7 +355,41 @@ void YSE::CHANNEL::managerObject::changeChannelConf() {
   }
 }
 
-void YSE::CHANNEL::managerObject::setAuto(Int count) {
+void YSE::CHANNEL::managerObject::applyPreset(outputLayout& l, UInt count) {
+  switch (channelType.load()) {
+  case CT_AUTO:
+    setAuto(l, count);
+    break;
+  case CT_MONO:
+    setMono(l, count);
+    break;
+  case CT_STEREO:
+    setStereo(l, count);
+    break;
+  case CT_QUAD:
+    setQuad(l, count);
+    break;
+  case CT_51:
+    set51(l, count);
+    break;
+  case CT_51SIDE:
+    set51Side(l, count);
+    break;
+  case CT_61:
+    set61(l, count);
+    break;
+  case CT_71:
+    set71(l, count);
+    break;
+  case CT_CUSTOM:
+    break; // we've set number of outputs. CT_CUSTOM expects the positions will be
+           // set later
+  case CT_COUNT_:
+    break; // sentinel, not a layout
+  }
+}
+
+void YSE::CHANNEL::managerObject::setAuto(outputLayout& l, UInt count) {
   // `count` is the device's physical channel count. Map it onto the standard
   // layout with that many channels. The .1 layouts (6 = 5.1, 7 = 6.1, 8 = 7.1)
   // carry an LFE at the platform-standard index 3. Counts without a defined
@@ -358,98 +397,98 @@ void YSE::CHANNEL::managerObject::setAuto(Int count) {
   // speaker order (issue #203).
   switch (count) {
   case 1:
-    setMono();
+    setMono(l, count);
     break;
   case 2:
-    setStereo();
+    setStereo(l, count);
     break;
   case 4:
-    setQuad();
+    setQuad(l, count);
     break;
   case 6:
-    set51();
+    set51(l, count);
     break;
   case 7:
-    set61();
+    set61(l, count);
     break;
   case 8:
-    set71();
+    set71(l, count);
     break;
   default:
-    setStereo();
+    setStereo(l, count);
     break;
   }
 }
 
-void YSE::CHANNEL::managerObject::setAngle(UInt idx, Flt degrees) {
-  if (idx < outputChannels.load()) {
-    outputAngles[idx] = Pi / 180.0f * degrees;
+void YSE::CHANNEL::managerObject::setAngle(outputLayout& l, UInt count, UInt idx, Flt degrees) {
+  if (idx < count) {
+    l.angles[idx] = Pi / 180.0f * degrees;
   }
 }
 
-void YSE::CHANNEL::managerObject::setLFE(UInt idx) {
-  if (idx < outputChannels.load()) {
-    outputIsLFE[idx] = true;
+void YSE::CHANNEL::managerObject::setLFE(outputLayout& l, UInt count, UInt idx) {
+  if (idx < count) {
+    l.isLFE[idx] = true;
   }
 }
 
-void YSE::CHANNEL::managerObject::setMono() {
-  setAngle(0, 0.0f);
+void YSE::CHANNEL::managerObject::setMono(outputLayout& l, UInt count) {
+  setAngle(l, count, 0, 0.0f);
 }
 
-void YSE::CHANNEL::managerObject::setStereo() {
-  setAngle(0, -90.0f);
-  setAngle(1, 90.0f);
+void YSE::CHANNEL::managerObject::setStereo(outputLayout& l, UInt count) {
+  setAngle(l, count, 0, -90.0f);
+  setAngle(l, count, 1, 90.0f);
 }
 
-void YSE::CHANNEL::managerObject::setQuad() {
-  setAngle(0, -45.0f);
-  setAngle(1, 45.0f);
-  setAngle(2, -135.0f);
-  setAngle(3, 135.0f);
+void YSE::CHANNEL::managerObject::setQuad(outputLayout& l, UInt count) {
+  setAngle(l, count, 0, -45.0f);
+  setAngle(l, count, 1, 45.0f);
+  setAngle(l, count, 2, -135.0f);
+  setAngle(l, count, 3, 135.0f);
 }
 
 // 5.1 — platform channel order: FL FR FC LFE BL BR.
-void YSE::CHANNEL::managerObject::set51() {
-  setAngle(0, -45.0f); // front left
-  setAngle(1, 45.0f); // front right
-  setAngle(2, 0.0f); // front center
-  setLFE(3); // low-frequency effects
-  setAngle(4, -135.0f); // back left
-  setAngle(5, 135.0f); // back right
+void YSE::CHANNEL::managerObject::set51(outputLayout& l, UInt count) {
+  setAngle(l, count, 0, -45.0f); // front left
+  setAngle(l, count, 1, 45.0f); // front right
+  setAngle(l, count, 2, 0.0f); // front center
+  setLFE(l, count, 3); // low-frequency effects
+  setAngle(l, count, 4, -135.0f); // back left
+  setAngle(l, count, 5, 135.0f); // back right
 }
 
 // 5.1 with side surrounds — FL FR FC LFE SL SR.
-void YSE::CHANNEL::managerObject::set51Side() {
-  setAngle(0, -45.0f); // front left
-  setAngle(1, 45.0f); // front right
-  setAngle(2, 0.0f); // front center
-  setLFE(3); // low-frequency effects
-  setAngle(4, -90.0f); // side left
-  setAngle(5, 90.0f); // side right
+void YSE::CHANNEL::managerObject::set51Side(outputLayout& l, UInt count) {
+  setAngle(l, count, 0, -45.0f); // front left
+  setAngle(l, count, 1, 45.0f); // front right
+  setAngle(l, count, 2, 0.0f); // front center
+  setLFE(l, count, 3); // low-frequency effects
+  setAngle(l, count, 4, -90.0f); // side left
+  setAngle(l, count, 5, 90.0f); // side right
 }
 
 // 6.1 — platform channel order: FL FR FC LFE SL SR BC.
-void YSE::CHANNEL::managerObject::set61() {
-  setAngle(0, -45.0f); // front left
-  setAngle(1, 45.0f); // front right
-  setAngle(2, 0.0f); // front center
-  setLFE(3); // low-frequency effects
-  setAngle(4, -90.0f); // side left
-  setAngle(5, 90.0f); // side right
-  setAngle(6, 180.0f); // back center
+void YSE::CHANNEL::managerObject::set61(outputLayout& l, UInt count) {
+  setAngle(l, count, 0, -45.0f); // front left
+  setAngle(l, count, 1, 45.0f); // front right
+  setAngle(l, count, 2, 0.0f); // front center
+  setLFE(l, count, 3); // low-frequency effects
+  setAngle(l, count, 4, -90.0f); // side left
+  setAngle(l, count, 5, 90.0f); // side right
+  setAngle(l, count, 6, 180.0f); // back center
 }
 
 // 7.1 — platform channel order: FL FR FC LFE BL BR SL SR.
-void YSE::CHANNEL::managerObject::set71() {
-  setAngle(0, -45.0f); // front left
-  setAngle(1, 45.0f); // front right
-  setAngle(2, 0.0f); // front center
-  setLFE(3); // low-frequency effects
-  setAngle(4, -135.0f); // back left
-  setAngle(5, 135.0f); // back right
-  setAngle(6, -90.0f); // side left
-  setAngle(7, 90.0f); // side right
+void YSE::CHANNEL::managerObject::set71(outputLayout& l, UInt count) {
+  setAngle(l, count, 0, -45.0f); // front left
+  setAngle(l, count, 1, 45.0f); // front right
+  setAngle(l, count, 2, 0.0f); // front center
+  setLFE(l, count, 3); // low-frequency effects
+  setAngle(l, count, 4, -135.0f); // back left
+  setAngle(l, count, 5, 135.0f); // back right
+  setAngle(l, count, 6, -90.0f); // side left
+  setAngle(l, count, 7, 90.0f); // side right
 }
 
 /////////////////////////////////////////////////////
