@@ -136,6 +136,9 @@ Analysis
 .. doxygenfile:: dsp/analysis/edgeDetector.hpp
    :project: libYSE
 
+.. doxygenfile:: dsp/analysis/schmittTrigger.hpp
+   :project: libYSE
+
 Filters
 -------
 

@@ -118,6 +118,7 @@
 #include "dsp/operators/delta.hpp"
 #include "dsp/analysis/direction.hpp"
 #include "dsp/analysis/edgeDetector.hpp"
+#include "dsp/analysis/schmittTrigger.hpp"
 #include "dsp/operators/compare.hpp"
 #include "dsp/operators/trig.hpp"
 #include "dsp/operators/rounding.hpp"

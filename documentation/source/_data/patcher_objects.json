@@ -19953,6 +19953,65 @@
     ],
     "requires_midi_device": false
   },
+  "~thresh": {
+    "category": "ANALYSIS",
+    "description": "A threshold with hysteresis: outputs 1 from the moment the signal reaches the high threshold until it falls to the low one, and 0 otherwise. A gate that does not chatter on a noisy signal.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The input: a signal, or a number used while no signal is connected. A list of two numbers (low, high) sets the thresholds the other inlets read.",
+        "index": 0,
+        "label": "in",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The low (reset) threshold: at or below it the output turns 0. A number or a signal read per sample (unconnected, the last number sent here or the creation argument). Takes the same list as the left inlet.",
+        "index": 1,
+        "label": "low",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The high (set) threshold: at or above it the output turns 1. A number or a signal read per sample (unconnected, the last number sent here or the creation argument). Takes the same list as the left inlet.",
+        "index": 2,
+        "label": "high",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~thresh",
+    "outlets": [
+      {
+        "doc": "1 from the first sample at or above the high threshold until the first at or below the low one; with equal thresholds, 1 while at or above it.",
+        "index": 0,
+        "label": "out",
+        "range": "0 or 1",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "0 0",
+        "doc": "The low and high thresholds, up to two numbers ('~thresh 0.1 0.5'; both default to 0). A low threshold above the high one is used as the high one. Later numbers and lists do not change what is saved.",
+        "name": "thresh",
+        "range": "a low threshold, then a high threshold"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~trapezoid": {
     "category": "OSC",
     "description": "A trapezoid read by a 0-1 phase such as a ~phasor: it rises from lo to hi by the ramp-up point, holds hi until the ramp-down point, then falls back to lo. For LFO shapes and envelopes.",

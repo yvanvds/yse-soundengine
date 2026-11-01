@@ -139,3 +139,22 @@ or non-zero.
 .. code-block:: text
 
    [~cycle 1] -> [~> 0] -> [~edge]   left bang as the sine turns positive, right bang as it turns back
+
+.. patcher-object:: ~thresh
+
+A gate with hysteresis, also called a Schmitt trigger. The output turns 1 on
+the first sample at or above the high threshold and stays 1 until a sample at
+or below the low threshold turns it back to 0. Between the two it holds, so
+a noisy signal hovering around one level does not make the gate chatter. The
+output starts at 0.
+
+The creation arguments are the low threshold, then the high one, both 0 by
+default. The middle and right inlets take a number or a signal for each, and
+a list of two numbers in any inlet sets both. With equal thresholds there is
+no hysteresis: the output is 1 while the input is at or above the threshold.
+A low threshold above the high one is used as the high one. An input sample
+that is not a number leaves the output as it was.
+
+.. code-block:: text
+
+   [~cycle 1] -> [~thresh -0.5 0.5]   1 from the moment the sine reaches 0.5 until it falls to -0.5
