@@ -133,6 +133,9 @@ Analysis
 .. doxygenfile:: dsp/analysis/direction.hpp
    :project: libYSE
 
+.. doxygenfile:: dsp/analysis/edgeDetector.hpp
+   :project: libYSE
+
 Filters
 -------
 

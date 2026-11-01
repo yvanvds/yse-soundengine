@@ -120,3 +120,22 @@ and as 0 while it stays the same. An input sample that is not a number gives
 .. code-block:: text
 
    [~cycle 2] -> [~change] -> [~== 1]   1 while the sine rises, 0 while it falls
+
+.. patcher-object:: ~edge
+
+Turns a signal that switches on and off into events. The left outlet bangs
+when the input goes from zero to non-zero, the right outlet when it goes from
+non-zero back to zero. Only zero counts as off: any other value, however
+small, is on, and so is a sample that is not a number. The sample before the
+first is zero, so a signal that starts on gives a left bang after the first
+block.
+
+The bangs go out after the audio block in which the transition happened, the
+right outlet first. A block with several transitions of one kind gives one
+bang on that outlet. A number in the inlet, used while no signal is
+connected, is a transition at the start of the next block when it turns zero
+or non-zero.
+
+.. code-block:: text
+
+   [~cycle 1] -> [~> 0] -> [~edge]   left bang as the sine turns positive, right bang as it turns back
