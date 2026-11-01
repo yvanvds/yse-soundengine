@@ -98,6 +98,7 @@
 #include "dsp/generators/sampleCounter.hpp"
 #include "dsp/generators/techno.hpp"
 #include "dsp/generators/pulseTrain.hpp"
+#include "dsp/generators/adsr.hpp"
 #include "dsp/generators/updown.hpp"
 #include "dsp/generators/shapeEnvelope.hpp"
 #include "dsp/generators/triggeredRamp.hpp"

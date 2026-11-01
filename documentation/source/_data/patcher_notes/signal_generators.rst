@@ -600,3 +600,48 @@ several pulses in one block are one bang.
 .. code-block:: text
 
    [~train 125] -> right outlet -> [.counter]   counts eighth notes at 240 bpm
+
+.. patcher-object:: ~adsr
+
+The standard synth envelope: a straight rise to the trigger's amplitude over
+the attack time, a fall to the sustain level over the decay time, a hold,
+and a fall to 0 over the release time once released. The middle outlet is a
+gate signal, 1 during attack, decay and sustain and 0 otherwise; its rise
+marks the exact sample each attack starts, for ``~sah`` and the like.
+
+- A signal at the left inlet is a gate: a rise from 0 starts the envelope at
+  the signal's value, a return to 0 releases it. A change between two
+  non-zero values does nothing, so the gate has to return to 0 before it can
+  start the envelope again.
+- A number at the left inlet starts (or restarts) the envelope at that
+  amplitude at the next block; 0 releases it. A list of up to four numbers
+  sets attack, decay, sustain and release.
+- Inlets 2 to 5 take attack, decay and release in milliseconds and the
+  sustain level, each as a signal or a number used while no signal is
+  connected. The sustain is a factor of the amplitude: 0.5 holds at half the
+  peak, 2 at twice it.
+- The arguments set attack, decay, sustain, release, ``legato``,
+  ``retrigger``, ``maxsustain`` and ``triggermode``, in that order
+  (``~adsr 10 50 0.6 300``). They default to 0, 0, 1, 0, 0, 5, -1 and 0, so
+  a bare ``~adsr`` is a plain gate, and they are saved with the patch.
+- A restart while the envelope is still sounding first ramps it down to 0
+  over the ``retrigger`` time (5 ms) so it does not click, then attacks from
+  0. With ``legato 1`` it attacks from where it is instead.
+- ``maxsustain`` limits the sustain to that many milliseconds, after which
+  the release starts on its own; 0 makes an attack-decay-release envelope,
+  and a negative value holds until released.
+- With ``triggermode 1`` each start runs the whole envelope, with a sustain
+  of ``maxsustain`` milliseconds, and ignores triggers and releases until it
+  has finished.
+- The right outlet sends 0 after a block in which the envelope started from
+  rest and 1 after one in which it came to rest: the mute state for a voice
+  in a polyphonic patch.
+- ``attack``, ``decay``, ``sustain``, ``release``, ``legato``,
+  ``retrigger``, ``maxsustain`` and ``triggermode`` with one number set the
+  same values as messages. Numbers, lists and messages are not saved; the
+  arguments are.
+
+.. code-block:: text
+
+   [.m 0.8] / [.m 0] -> [~adsr 10 100 0.5 400] -> [~*] <- [~saw 220]
+                        a note at 0.8 on the first click, released on the second

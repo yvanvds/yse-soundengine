@@ -15306,6 +15306,144 @@
     "params": [],
     "requires_midi_device": false
   },
+  "~adsr": {
+    "category": "OSC",
+    "description": "ADSR envelope with its times in milliseconds, triggered by a gate signal or by numbers: the standard synth envelope, with legato, a ramp down before a retrigger, a sustain limit and a play-to-end mode.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "Trigger. A signal is a gate: a rise from 0 starts the envelope at the signal's value, a return to 0 releases it. A number starts it at that amplitude at the next block, 0 releases it. A list of up to four numbers sets attack, decay, sustain and release. Also takes 'attack', 'decay', 'sustain', 'release', 'legato', 'retrigger', 'maxsustain' and 'triggermode' with one number.",
+        "index": 0,
+        "label": "trigger",
+        "range": "amplitude, 0 releases"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Attack time in milliseconds: a signal, or a number used while no signal is connected.",
+        "index": 1,
+        "label": "attack",
+        "range": "0 or more ms"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Decay time in milliseconds: a signal, or a number used while no signal is connected.",
+        "index": 2,
+        "label": "decay",
+        "range": "0 or more ms"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Sustain level as a factor of the amplitude: a signal, or a number used while no signal is connected.",
+        "index": 3,
+        "label": "sustain",
+        "range": "factor, usually 0-1"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Release time in milliseconds: a signal, or a number used while no signal is connected.",
+        "index": 4,
+        "label": "release",
+        "range": "0 or more ms"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~adsr",
+    "outlets": [
+      {
+        "doc": "The envelope.",
+        "index": 0,
+        "label": "out",
+        "range": "0 to the amplitude",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "1 during attack, decay and sustain; 0 during release, a retrigger ramp and at rest.",
+        "index": 1,
+        "label": "gate",
+        "range": "0 or 1",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "0 after a block in which the envelope started from rest, 1 after one in which it came to rest.",
+        "index": 2,
+        "label": "mute",
+        "range": "0 or 1",
+        "type": "INT"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Attack time used while no signal is connected.",
+        "name": "attack",
+        "range": "0 or more ms"
+      },
+      {
+        "default": "0",
+        "doc": "Decay time used while no signal is connected.",
+        "name": "decay",
+        "range": "0 or more ms"
+      },
+      {
+        "default": "1",
+        "doc": "Sustain factor used while no signal is connected.",
+        "name": "sustain",
+        "range": "factor, usually 0-1"
+      },
+      {
+        "default": "0",
+        "doc": "Release time used while no signal is connected.",
+        "name": "release",
+        "range": "0 or more ms"
+      },
+      {
+        "default": "0",
+        "doc": "1 restarts from the current level; 0 ramps down to 0 over the retrigger time first.",
+        "name": "legato",
+        "range": "0 or 1"
+      },
+      {
+        "default": "5",
+        "doc": "Ramp-down time before a restart that is not legato.",
+        "name": "retrigger",
+        "range": "0 or more ms"
+      },
+      {
+        "default": "-1",
+        "doc": "Longest sustain in milliseconds; negative holds until released, 0 skips the sustain.",
+        "name": "maxsustain",
+        "range": "ms, negative for none"
+      },
+      {
+        "default": "0",
+        "doc": "1 runs every start to the end, ignoring triggers until at rest; 0 releases on a trigger of 0.",
+        "name": "triggermode",
+        "range": "0 or 1"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~allpass": {
     "category": "FILTER",
     "description": "Schroeder allpass filter, y(n) = -g x(n) + x(n-D) + g y(n-D), on an interpolated delay line with the delay in ms and the gain each a number or a signal read per sample: every frequency passes, only the phase changes. For reverb diffusers and phase smearing.",
