@@ -19479,6 +19479,128 @@
     ],
     "requires_midi_device": false
   },
+  "~scale": {
+    "category": "MATH",
+    "description": "Maps a signal from the input range onto the output range, as a straight line or bent into a curve by an exponent: control-voltage style range mapping at audio rate. Samples outside the input range map past the output range.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The signal to map, or a number used while no signal is connected (unconnected reads 0). 'classic 0', 'classic 1' or 'classic 2' sets the formula.",
+        "index": 0,
+        "label": "in",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The input value that maps to outLow. A number or a signal read per sample (unconnected, the last number sent here or the creation argument).",
+        "index": 1,
+        "label": "inLow",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The input value that maps to outHigh. A number or a signal read per sample (unconnected, the last number sent here or the creation argument).",
+        "index": 2,
+        "label": "inHigh",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The output for inLow. A number or a signal read per sample (unconnected, the last number sent here or the creation argument).",
+        "index": 3,
+        "label": "outLow",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The output for inHigh. A number or a signal read per sample (unconnected, the last number sent here or the creation argument).",
+        "index": 4,
+        "label": "outHigh",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The curve: 1 is a straight line, above 1 starts slowly and ends fast, below 1 the opposite. A number or a signal read per sample (unconnected, the last number sent here or the creation argument).",
+        "index": 5,
+        "label": "exponent",
+        "range": "above 0"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~scale",
+    "outlets": [
+      {
+        "doc": "The mapped signal. A result that is not a finite number gives 0; a collapsed input range gives outLow.",
+        "index": 0,
+        "label": "out",
+        "range": "any float",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "The input value that maps to outLow ('~scale -1 1 200 800'). A number in its inlet changes it, but what is saved stays the argument.",
+        "name": "inLow",
+        "range": "any float"
+      },
+      {
+        "default": "1",
+        "doc": "The input value that maps to outHigh. A number in its inlet changes it, but what is saved stays the argument.",
+        "name": "inHigh",
+        "range": "any float"
+      },
+      {
+        "default": "0",
+        "doc": "The output for inLow. A number in its inlet changes it, but what is saved stays the argument.",
+        "name": "outLow",
+        "range": "any float"
+      },
+      {
+        "default": "1",
+        "doc": "The output for inHigh. A number in its inlet changes it, but what is saved stays the argument.",
+        "name": "outHigh",
+        "range": "any float"
+      },
+      {
+        "default": "1",
+        "doc": "The curve ('~scale 0 1 0 1 2'): a power of the normalized input, or a base in classic 1. A number in its inlet changes it, but what is saved stays the argument.",
+        "name": "exponent",
+        "range": "above 0"
+      },
+      {
+        "default": "0",
+        "doc": "The formula: 0 the power curve; 1 the legacy linedrive formula; 2 the power curve with the exponent inverted when outLow is above outHigh. A 'classic' message changes it, but what is saved stays the argument.",
+        "name": "classic",
+        "range": "0 to 2"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~seq": {
     "category": "SEQUENCE",
     "description": "Event sequencer driven by a 0..1 ramp: messages stored at phase positions, added or recorded live, sent when the ramp crosses them.",

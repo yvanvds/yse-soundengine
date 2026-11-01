@@ -40,6 +40,9 @@ Math
 .. doxygenfile:: dsp/operators/fold.hpp
    :project: libYSE
 
+.. doxygenfile:: dsp/operators/scale.hpp
+   :project: libYSE
+
 Generators
 ----------
 

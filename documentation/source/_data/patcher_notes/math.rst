@@ -821,3 +821,40 @@ rate.
 .. code-block:: text
 
    [~cycle 110] -> [~* 3] -> [~pong 0 -1 1] -> [~dac]   a loud sine folded back into -1 to 1
+
+.. patcher-object:: ~scale
+
+The signal counterpart of ``.scale``, with the same formula in its default
+form: every sample is mapped from the input range onto the output range, and
+the exponent bends the mapping into a curve. The arguments are ``inLow``,
+``inHigh``, ``outLow``, ``outHigh`` and the exponent, 0 to 1 onto 0 to 1 as a
+straight line when they are left out, so the signal passes unchanged:
+
+.. code-block:: text
+
+   n   = (in - inLow) / (inHigh - inLow)
+   out = outLow + (outHigh - outLow) * n ^ exponent
+
+Below ``inLow``, where n is negative, the curve is mirrored. Nothing is
+limited: a sample outside the input range maps past the output range. Follow
+with ``~clip`` to keep it inside.
+
+The sixth argument, or the message ``classic`` with a number, picks the
+formula:
+
+- 0 (the default): the curve above. The exponent should be above 0.
+- 1: the legacy linedrive formula, kept for old patches, where the exponent
+  is a base (1.06 is typical) and the input is not normalized. Not
+  recommended for new work.
+- 2: as 0, except that when ``outLow`` is above ``outHigh`` the exponent is
+  inverted, so a downward mapping keeps the curve of the upward one.
+
+Every inlet past the first takes a number or a signal read per sample.
+Either range may run from high to low. When ``inLow`` equals ``inHigh``, the
+result is ``outLow``. A result that is not a finite number gives 0, and a
+setting that is not a finite number is ignored. The object keeps no state
+between samples, so the result is the same at any sample rate.
+
+.. code-block:: text
+
+   [~cycle 2] -> [~scale -1 1 200 800] -> [~sine] -> [~dac]   a tone swept from 200 to 800 Hz and back

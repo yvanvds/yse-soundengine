@@ -126,6 +126,7 @@ set(YSE_SRCS
   dsp/operators/downsample.cpp
   dsp/operators/overdrive.cpp
   dsp/operators/fold.cpp
+  dsp/operators/scale.cpp
   dsp/analysis/direction.cpp
   dsp/analysis/edgeDetector.cpp
   dsp/analysis/schmittTrigger.cpp
@@ -409,6 +410,7 @@ set(YSE_SRCS
   patcher/math/dDownsample.cpp
   patcher/math/dOverdrive.cpp
   patcher/math/dPong.cpp
+  patcher/math/dScale.cpp
   patcher/math/dCompare.cpp
   patcher/math/dTrig.cpp
   patcher/math/dSignalMath.cpp
@@ -864,6 +866,7 @@ set_source_files_properties(
   patcher/math/dDownsample.cpp
   patcher/math/dOverdrive.cpp
   patcher/math/dPong.cpp
+  patcher/math/dScale.cpp
   patcher/math/dCompare.cpp
   patcher/math/dTrig.cpp
   patcher/math/dSignalMath.cpp

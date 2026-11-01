@@ -213,6 +213,7 @@
 #include "math/dDownsample.h"
 #include "math/dOverdrive.h"
 #include "math/dPong.h"
+#include "math/dScale.h"
 #include "math/dCompare.h"
 #include "math/dTrig.h"
 #include "math/dSignalMath.h"
@@ -1040,6 +1041,7 @@ pRegistry::pRegistry() {
   Add(OBJ::D_DOWNSAMPLE, dDownsample::Create);
   Add(OBJ::D_OVERDRIVE, dOverdrive::Create);
   Add(OBJ::D_PONG, dPong::Create);
+  Add(OBJ::D_SCALE, dScale::Create);
   Add(OBJ::D_EQUAL, dEqual::Create);
   Add(OBJ::D_NOTEQUAL, dNotEqual::Create);
   Add(OBJ::D_GREATER, dGreater::Create);
