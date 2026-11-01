@@ -547,7 +547,13 @@ bool YSE::system::openDevice(const deviceSetup& object, CHANNEL_TYPE conf) {
   // into the two-channel stream that is still live. Leave the layout the
   // running device negotiated. The refusal is reported to the caller so the C
   // API can turn it into a status instead of YSE_OK (issue #900).
-  if (!DEVICE::Manager().openDevice(object)) return false;
+  //
+  // The stream opens with the outputs the layout uses, not every output the
+  // device advertises (issue #1214): ALSA's `default` and `pipewire` PCMs on a
+  // PipeWire desktop report 128, and a stereo layout on them rendered and
+  // metered 128 outputs. The layout is set for the same count below.
+  const int outputs = CHANNEL::managerObject::outputsForLayout(conf, object.getOutputChannels());
+  if (!DEVICE::Manager().openDevice(object, outputs)) return false;
 
   // The session now has a device, whatever it was started with (issue #719).
   //
@@ -572,7 +578,6 @@ bool YSE::system::openDevice(const deviceSetup& object, CHANNEL_TYPE conf) {
   // reading the setup at all, so the zero-output guard from #661 still has to
   // stand on its own: a zero-output layout silences the engine on the next
   // callback, by the same doOnCallback() resize.
-  const int outputs = object.getOutputChannels();
   if (outputs > 0) CHANNEL::Manager().setChannelConf(conf, outputs);
   return true;
 }

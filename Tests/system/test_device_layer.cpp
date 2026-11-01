@@ -572,7 +572,7 @@ TEST_SUITE("devicelayer") {
     bool opened = true;
     {
       ScopedSink sink(&log);
-      opened = YSE::DEVICE::Manager().openDevice(setup);
+      opened = YSE::DEVICE::Manager().openDevice(setup, setup.getOutputChannels());
     }
     CHECK(opened == false);
 

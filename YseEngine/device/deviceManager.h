@@ -115,8 +115,12 @@ namespace YSE {
          device that is not playing is silently wrong, because
          doOnCallback() resizes the master to getNumberOfOutputs() and the
          still-running stream then gets the wrong channel count (issue #665).
-         The base implementation opens nothing, so it reports false. */
-      virtual Bool openDevice(const YSE::deviceSetup&) {
+         The base implementation opens nothing, so it reports false.
+
+         `outputs` is the stream's output channel count: the share of the
+         device's outputs the requested layout uses, from
+         CHANNEL::managerObject::outputsForLayout() (issue #1214). */
+      virtual Bool openDevice(const YSE::deviceSetup&, Int /*outputs*/) {
         return false;
       };
       /* Open and start a stream on the platform default output device, and

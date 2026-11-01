@@ -46,6 +46,11 @@
 #include "channel/channelImplementation.h"
 #include "channel/channelMessage.h"
 #include "channel/channelManager.h"
+// The stream width a real open asked for (issue #1214) is read through
+// DEVICE::Manager(), whose class is declared per backend.
+#ifdef PORTAUDIO_BACKEND
+#include "device/portaudioDeviceManager.h"
+#endif
 
 #ifndef YSE_TEST_FIXTURES_DIR
 #define YSE_TEST_FIXTURES_DIR "../../Tests/support/fixtures"
@@ -687,6 +692,90 @@ TEST_SUITE("integration") {
     REQUIRE(openIndex(defaultIndex, YSE::CT_STEREO));
     CHECK(delivering());
   }
+
+#ifdef PORTAUDIO_BACKEND
+  // Issue #1214. openDevice() opened every output a device advertises,
+  // whatever the layout, and sized the mixer to the same count. ALSA's
+  // `default` and `pipewire` PCMs on a PipeWire desktop advertise 128, so a
+  // stereo or auto open ran a 128-channel stream and a 128-output master.
+  // addCallback() (the default device at init() and resume()) did the same.
+  //
+  // Driven on real hardware because the bug is the width of the stream the
+  // backend is asked for. Every enumerated device wider than 7.1 is opened
+  // with CT_STEREO and CT_AUTO; both must run a two-channel stream and a
+  // two-output mixer. CT_CUSTOM is the way to ask for all of them. Then the
+  // default device is reopened through addCallback(). A machine with no
+  // device wider than eight outputs cannot show the bug, and says so.
+  TEST_CASE("device: a stereo layout on a wide PCM opens two outputs, not all of them "
+            "[issue #1214]") {
+    if (!TestHelpers::engineInitWithAudio()) return;
+    const unsigned int n = YSE::System().getNumDevices();
+    if (n == 0) return;
+    REQUIRE(audioStreamRunning());
+
+    const std::string defaultName = YSE::System().getActiveDevice();
+    const std::string defaultHost = YSE::System().getActiveHost();
+    const auto delivering = [] {
+      return TestHelpers::pacedPump(
+          3000,
+          [] {
+            YSE::System().update();
+            return YSE::System().missedCallbacks() == 0;
+          },
+          [] {}, 1);
+    };
+    const auto openIndex = [](unsigned int i, YSE::CHANNEL_TYPE conf) {
+      YSE::deviceSetup setup;
+      setup.setOutput(YSE::System().getDevice(i));
+      return YSE::System().openDevice(setup, conf);
+    };
+
+    unsigned int defaultIndex = n;
+    unsigned int wide = 0;
+    for (unsigned int i = 0; i < n; ++i) {
+      const YSE::device& d = YSE::System().getDevice(i);
+      if (d.getName() == defaultName && d.getTypeName() == defaultHost) defaultIndex = i;
+      const unsigned int outs = d.getNumOutputChannelNames();
+      if (outs <= 8) continue;
+      CAPTURE(d.getName());
+      CAPTURE(outs);
+      for (const YSE::CHANNEL_TYPE conf : {YSE::CT_STEREO, YSE::CT_AUTO}) {
+        CAPTURE((int)conf);
+        if (!openIndex(i, conf)) continue; // a PCM another client holds
+        ++wide;
+        CHECK(YSE::DEVICE::Manager().getStreamChannels() == 2);
+        CHECK(YSE::CHANNEL::Manager().getNumberOfOutputs() == 2u);
+        CHECK(delivering());
+      }
+      // The opt-in: every output the device has.
+      if (openIndex(i, YSE::CT_CUSTOM)) {
+        CHECK(YSE::DEVICE::Manager().getStreamChannels() == (int)outs);
+        CHECK(YSE::CHANNEL::Manager().getNumberOfOutputs() == outs);
+      }
+    }
+    if (wide == 0)
+      MESSAGE("no output device wider than 8 channels opened; issue #1214 not exercised");
+    REQUIRE(defaultIndex < n);
+
+    // addCallback(): a session that never chose a device reopens the default
+    // one on resume(), under the stereo layout init() installs.
+    REQUIRE(openIndex(defaultIndex, YSE::CT_STEREO));
+    YSE::DEVICE::Manager().forgetOpenedDevice();
+    YSE::System().pause();
+    YSE::System().update();
+    YSE::System().resume();
+    CHECK(delivering());
+    const unsigned int defaultOuts =
+        YSE::System().getDevice(defaultIndex).getNumOutputChannelNames();
+    CHECK(YSE::DEVICE::Manager().getStreamChannels() ==
+          YSE::CHANNEL::managerObject::outputsForLayout(YSE::CT_AUTO, (int)defaultOuts));
+    CHECK(YSE::CHANNEL::Manager().getNumberOfOutputs() == 2u);
+
+    // Leave the suite on the device init() opened, in the stereo layout.
+    REQUIRE(openIndex(defaultIndex, YSE::CT_STEREO));
+    CHECK(delivering());
+  }
+#endif
 
   // ─── Sound loading and playback ───────────────────────────────────────────────
 

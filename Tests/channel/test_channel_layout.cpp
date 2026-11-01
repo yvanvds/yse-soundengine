@@ -262,6 +262,44 @@ TEST_SUITE("channel") {
     restoreStereo();
   }
 
+  // ─── Stream width for a layout (#1214) ───────────────────────────────────────
+  //
+  // openDevice() used to open every output a device advertises, whatever the
+  // layout. ALSA's `default` and `pipewire` PCMs report 128 on a PipeWire
+  // desktop, so a stereo or auto open sized the master to 128 outputs.
+  // outputsForLayout() is the stream width openDevice() and addCallback() now
+  // use; it is pure, so it is driven without an engine.
+
+  TEST_CASE("channel layout: a named layout opens its own speaker count, clamped to the device "
+            "(#1214)") {
+    using M = YSE::CHANNEL::managerObject;
+    CHECK(M::outputsForLayout(YSE::CT_MONO, 128) == 1);
+    CHECK(M::outputsForLayout(YSE::CT_STEREO, 128) == 2);
+    CHECK(M::outputsForLayout(YSE::CT_QUAD, 128) == 4);
+    CHECK(M::outputsForLayout(YSE::CT_51, 128) == 6);
+    CHECK(M::outputsForLayout(YSE::CT_51SIDE, 128) == 6);
+    CHECK(M::outputsForLayout(YSE::CT_61, 128) == 7);
+    CHECK(M::outputsForLayout(YSE::CT_71, 128) == 8);
+    // Never wider than the device: a 5.1 request on a stereo device is two.
+    CHECK(M::outputsForLayout(YSE::CT_51, 2) == 2);
+    CHECK(M::outputsForLayout(YSE::CT_STEREO, 1) == 1);
+    CHECK(M::outputsForLayout(YSE::CT_STEREO, 0) == 0);
+    CHECK(M::outputsForLayout(YSE::CT_STEREO, -1) == 0);
+  }
+
+  TEST_CASE("channel layout: CT_AUTO opens the outputs setAuto places, CT_CUSTOM all of them "
+            "(#1214)") {
+    using M = YSE::CHANNEL::managerObject;
+    for (const int n : {1, 2, 4, 6, 7, 8})
+      CHECK(M::outputsForLayout(YSE::CT_AUTO, n) == n);
+    // Counts setAuto() places as stereo: only two outputs carry sound.
+    for (const int n : {3, 5, 9, 16, 128})
+      CHECK(M::outputsForLayout(YSE::CT_AUTO, n) == 2);
+    CHECK(M::outputsForLayout(YSE::CT_AUTO, 0) == 0);
+    CHECK(M::outputsForLayout(YSE::CT_CUSTOM, 128) == 128);
+    CHECK(M::outputsForLayout(YSE::CT_CUSTOM, 3) == 3);
+  }
+
   // ─── Precomputed speaker-density weights (#211) ──────────────────────────────
   //
   // effective[i] = Σ_j overlap(angle_i, angle_j) over the non-LFE speakers is

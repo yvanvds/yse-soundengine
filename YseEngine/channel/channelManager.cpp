@@ -328,6 +328,56 @@ void YSE::CHANNEL::managerObject::setChannelConf(CHANNEL_TYPE type, Int outputs)
   outputChannels = count;
 }
 
+Int YSE::CHANNEL::managerObject::outputsForLayout(CHANNEL_TYPE type, Int deviceOutputs) {
+  // A device's output count is not always a set of speakers: ALSA's `default`
+  // and `pipewire` PCMs on a PipeWire desktop advertise 128, a plugin ceiling.
+  // Opening all of them rendered, metered and sent the mix into 126 outputs no
+  // speaker uses (issue #1214).
+  if (deviceOutputs <= 0) return 0;
+  Int wanted = deviceOutputs;
+  switch (type) {
+  case CT_MONO:
+    wanted = 1;
+    break;
+  case CT_STEREO:
+    wanted = 2;
+    break;
+  case CT_QUAD:
+    wanted = 4;
+    break;
+  case CT_51:
+  case CT_51SIDE:
+    wanted = 6;
+    break;
+  case CT_61:
+    wanted = 7;
+    break;
+  case CT_71:
+    wanted = 8;
+    break;
+  case CT_AUTO:
+    // The counts setAuto() has a layout for keep every output; any other
+    // count is placed as stereo, so only two outputs carry sound.
+    switch (deviceOutputs) {
+    case 1:
+    case 2:
+    case 4:
+    case 6:
+    case 7:
+    case 8:
+      break;
+    default:
+      wanted = 2;
+      break;
+    }
+    break;
+  case CT_CUSTOM:
+  case CT_COUNT_:
+    break;
+  }
+  return wanted < deviceOutputs ? wanted : deviceOutputs;
+}
+
 void YSE::CHANNEL::managerObject::changeChannelConf() {
   // Runs on the audio callback (deviceManager::doOnCallback()) and in
   // initShared(). Allocation-free: setChannelConf() already sized the layout.

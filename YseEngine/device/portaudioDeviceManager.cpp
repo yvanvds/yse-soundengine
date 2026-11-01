@@ -191,7 +191,18 @@ Bool YSE::DEVICE::managerObject::addCallback() {
     return false;
   }
   const PaDeviceInfo* info = Pa_GetDeviceInfo(params.device);
-  params.channelCount = info->maxOutputChannels;
+  // Not every output the device advertises (issue #1214): on a PipeWire
+  // desktop the default device is ALSA's `default` PCM, which reports 128.
+  // The stream takes what CT_AUTO would use of the device — all of a 5.1 or
+  // 7.1 default, so a host that sets that layout later still reaches every
+  // speaker — or the current layout's outputs when that is wider (a
+  // CT_CUSTOM layout on resume(), the layout a reconnect falls back from),
+  // never more than the device has. A layout wider than the device is
+  // narrowed to it below (issue #1028).
+  const Int deviceOutputs = info->maxOutputChannels;
+  const Int layoutOutputs = (Int)CHANNEL::Manager().getNumberOfOutputs();
+  params.channelCount = std::max(CHANNEL::managerObject::outputsForLayout(CT_AUTO, deviceOutputs),
+                                 std::min(layoutOutputs, deviceOutputs));
   params.sampleFormat = paFloat32 | paNonInterleaved;
   params.suggestedLatency = info->defaultHighOutputLatency;
 #if defined(PA_USE_ASIO)
@@ -243,10 +254,10 @@ Bool YSE::DEVICE::managerObject::addCallback() {
                                      std::memory_order_release);
   }
 
-  // Every output of the default device is opened, whatever the layout. Bring
-  // a wider layout down to it — a mono default under init()'s stereo layout, or
-  // the default device a reconnect falls back to (issue #1027) — so the mix is
-  // rendered for the outputs that exist (issue #1028).
+  // The stream is no wider than the layout (issue #1214). Bring a wider layout
+  // down to it — a mono default under init()'s stereo layout, or the default
+  // device a reconnect falls back to (issue #1027) — so the mix is rendered
+  // for the outputs that exist (issue #1028).
   fitLayoutToOutputs(params.channelCount);
   setStreamChannels(params.channelCount);
 
@@ -520,18 +531,17 @@ Bool YSE::DEVICE::managerObject::refreshDevices() {
   return true;
 }
 
-Bool YSE::DEVICE::managerObject::openDevice(const YSE::deviceSetup& object) {
+Bool YSE::DEVICE::managerObject::openDevice(const YSE::deviceSetup& object, Int outputs) {
   // Every early return below reports false: nothing was opened, so the caller
   // must not reconfigure the mixer for this setup (issue #665).
   //
   // Fail closed on a setup that names no output device (issue #661).
   // deviceSetup's constructor leaves `out` null and nothing forces setOutput(),
   // so a host that only sets a sample rate and a buffer size reaches here with
-  // nothing to open — getOutputChannels() one line below already guards the
-  // same pointer. Checked ahead of the initDone gate because a malformed
-  // request is a caller error whatever state the backend is in, and ahead of
-  // close() because refusing a request must not tear down a stream that is
-  // currently running fine.
+  // nothing to open — getOutputChannels(), which system::openDevice() sized
+  // `outputs` from, already guards the same pointer. Checked ahead of the initDone gate because a
+  // malformed request is a caller error whatever state the backend is in, and ahead of close()
+  // because refusing a request must not tear down a stream that is currently running fine.
   if (object.out == nullptr) {
     INTERNAL::LogImpl().emit(E_WARNING,
                              "Cannot open a device: the device setup has no output device.");
@@ -568,14 +578,17 @@ Bool YSE::DEVICE::managerObject::openDevice(const YSE::deviceSetup& object) {
   }
 
   const UInt requested = object.sampleRate > 0.0 ? (UInt)std::lround(object.sampleRate) : 0u;
-  if (!openStream(deviceID, object.getOutputChannels(), object.bufferSize, requested)) return false;
+  // `outputs`, not every output the device has: a PCM such as ALSA's
+  // `default` on PipeWire advertises 128, and a stereo layout opened all of
+  // them (issue #1214).
+  if (!openStream(deviceID, outputs, object.bufferSize, requested)) return false;
 
   // Remembered by what the backend calls the device rather than by what the
   // descriptor says, which a host may have built by hand: reopenDevice() looks
   // it up again by these names (issue #1027).
   const PaHostApiInfo* hostInfo = Pa_GetHostApiInfo(info->hostApi);
-  rememberOpenedDevice(info->name, hostInfo != nullptr ? hostInfo->name : "", deviceID,
-                       object.getOutputChannels(), object.bufferSize);
+  rememberOpenedDevice(info->name, hostInfo != nullptr ? hostInfo->name : "", deviceID, outputs,
+                       object.bufferSize);
   return true;
 }
 
