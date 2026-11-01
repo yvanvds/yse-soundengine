@@ -682,3 +682,52 @@ holds the last target when the list is done.
 
    [.m 1 50 0.6 0 800 -0.6] -> [~curve] -> [~*] <- [~saw 220]
                                a quick curved attack and a long fading tail
+
+.. patcher-object:: ~zigzag
+
+Plays a list of points as straight ramps, each point a value and the time in
+milliseconds it takes to get there from the point before. Unlike a one-shot
+ramp, the list stays: it can be played again, played backward or at another
+speed, looped, and edited while it plays.
+
+- A list at the left inlet is ``value time`` pairs. It replaces the points
+  and plays them from the first. A value left over at the end takes time 0.
+  The first point's time is how long the output takes to get there from
+  wherever it is, so ``0 0 1 500`` jumps to 0 and rises to 1 over half a
+  second.
+- A number at the left inlet is a list of one point, reached over the time
+  set with ``ramptime`` (0 by default, a jump).
+- ``setline`` stores a list without playing it. ``append <value> <time>``
+  adds a point at the end and ramps to it. ``insert <index> <value> <time>``
+  puts points in before an index, ``delete <index> ...`` removes points, and
+  ``set`` or ``setindex <index> <value> <time>`` changes one. Points count
+  from 0. An edit made while the list plays takes effect at once: the ramp
+  in progress keeps heading for the same point, wherever the edit moved it.
+- ``bang`` restarts from the first point, reached over the ``bangdelta``
+  time. ``jump <index> [time]``, ``jumpstart``, ``jumpend``, ``next``,
+  ``prev`` and ``skip <points>`` move to a point and play on from there;
+  the optional time is how long the move takes. ``stop`` holds the output.
+- The right inlet sets the speed: 1 plays as written, 0.5 half as fast, 0
+  holds, and a negative speed plays backward. Reversing mid-ramp turns back
+  towards the point it came from. A signal there is read once per block.
+- ``start <index>``, ``end <index>`` and ``bound <start> <end>`` limit
+  playing to part of the list. At the end of that range, ``loopmode 0``
+  stops, ``loopmode 1`` starts again from the other end, and ``loopmode 2``
+  turns round. Each time it gets there the right outlet bangs.
+- ``mode`` sets what a bang and a signal at the left inlet do. In mode 0 a
+  signal is an index into the points (1.5 is halfway between points 1 and
+  2), so a ``~phasor`` scaled to the number of points scans the list. In
+  mode 1 a falling signal, such as a ``~phasor`` wrapping, restarts like a
+  bang. In mode 2 a bang or a falling signal steps to the next point.
+- The second outlet is the index of the point being played towards. The
+  third answers ``dump`` with one ``index value time`` list per point.
+- The arguments set the starting value, the ``loopmode`` and the ``mode``
+  (``~zigzag 0 1``). They are saved with the patch; the points and other
+  messages are not.
+- The list holds up to 2048 points; a longer one is cut to that.
+
+.. code-block:: text
+
+   [.m 0 0 1 20 0.2 300] -> [~zigzag 0 1] -> [~*] <- [~saw 110]
+                            a looping attack and decay; [.m append 0 400]
+                            stretches it while it plays

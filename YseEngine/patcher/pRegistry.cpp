@@ -135,6 +135,7 @@
 #include "generatorObjects/dTrain.h"
 #include "generatorObjects/dAdsr.h"
 #include "generatorObjects/dCurve.h"
+#include "generatorObjects/dZigzag.h"
 #include "generatorObjects/dPhasor.h"
 #include "generatorObjects/dCycle.h"
 #include "generatorObjects/dNoise.h"
@@ -418,6 +419,7 @@ pRegistry::pRegistry() {
   Add(OBJ::D_TRAIN, dTrain::Create);
   Add(OBJ::D_ADSR, dAdsr::Create);
   Add(OBJ::D_CURVE, dCurve::Create);
+  Add(OBJ::D_ZIGZAG, dZigzag::Create);
   Add(OBJ::D_SIG, dSig::Create);
 
   Add(OBJ::D_SNAPSHOT, dSnapshot::Create);

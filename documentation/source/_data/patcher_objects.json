@@ -20935,6 +20935,89 @@
     ],
     "requires_midi_device": false
   },
+  "~zigzag": {
+    "category": "OSC",
+    "description": "Breakpoint function: a list of points, each a value and a time in milliseconds, played as straight ramps forward or backward at any speed, looped or swung back and forth, and edited while it plays.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "A list of 'value time' pairs replaces the points and plays them; a number is one point reached over the ramptime. A bang restarts or steps, as the mode says. A signal is an index into the points (mode 0) or a trigger where it starts to fall (modes 1 and 2). Also 'append', 'insert', 'delete', 'set', 'setindex', 'line', 'setline', 'jump', 'jumpstart', 'jumpend', 'next', 'prev', 'skip', 'start', 'end', 'bound', 'bangdelta', 'ramptime', 'speed', 'stop', 'dump', 'loopmode' and 'mode'.",
+        "index": 0,
+        "label": "points",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Play rate: 1 as written, 0.5 half as fast, negative backward, 0 holds. A signal (read once per block) or a number used while no signal is connected.",
+        "index": 1,
+        "label": "speed",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~zigzag",
+    "outlets": [
+      {
+        "doc": "The function.",
+        "index": 0,
+        "label": "out",
+        "range": "any float",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "The index of the point being played towards, or the input index in mode 0.",
+        "index": 1,
+        "label": "index",
+        "range": "0+",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "On 'dump', one 'index value time' list per point.",
+        "index": 2,
+        "label": "dump",
+        "range": "list",
+        "type": "LIST"
+      },
+      {
+        "doc": "A bang after the block in which play reached the end of its range and stopped, looped or turned.",
+        "index": 3,
+        "label": "end",
+        "range": "bang",
+        "type": "BANG"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "The output before the first point.",
+        "name": "initial",
+        "range": "any float"
+      },
+      {
+        "default": "0",
+        "doc": "0 stops at the end, 1 starts again from the other end, 2 turns round.",
+        "name": "loopmode",
+        "range": "0, 1 or 2"
+      },
+      {
+        "default": "0",
+        "doc": "0: a bang restarts, a signal is an index. 1: a bang restarts, a falling signal restarts. 2: a bang or a falling signal steps to the next point.",
+        "name": "mode",
+        "range": "0, 1 or 2"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~zplane": {
     "category": "FILTER",
     "description": "Shows a filter as poles and zeroes on the z plane: holds one to 24 biquad sections, given as the coefficient list ~biquad and ~cascade take, sends their zeroes, poles and gains, and turns moved poles and zeroes back into coefficients. A host draws the plane; the sections are saved with the patch.",
