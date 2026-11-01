@@ -44,10 +44,13 @@ namespace YSE {
    *    transitions), ``D_ZEROX`` (zero crossings per block and a click on
    *    each), ``D_PEAKAMP`` (the peak amplitude since the last report).
    *  - DSP delay: `D_TAPIN`, `D_TAPOUT`, `D_COMB`, `D_TEETH`, `D_DELAY`.
+   *  - DSP dynamics: ``D_NORMALIZE`` (scaling by the running peak).
    *  - DSP sampling: ``D_BUFFER``.
    *  - DSP math: ``D_ADD``, ``D_MULTIPLY``, ``D_CLIP``, ``D_REVERSESUBSTRACT``,
    *    ``D_REVERSEDIVIDE``, ``D_MODULO``, ``D_PLUSEQUALS``,
-   *    ``D_DELTA`` (difference between successive samples).
+   *    ``D_DELTA`` (difference between successive samples), ``D_DEGRADE``
+   *    (sample-rate and bit-depth reduction), ``D_DOWNSAMPLE`` (sample and
+   *    hold every N samples), ``D_OVERDRIVE`` (soft-clipping distortion).
    *  - DSP comparison: ``D_EQUAL``,
    * ``D_NOTEQUAL``, ``D_GREATER``, ``D_GREATEREQUAL``,
    *    ``D_LESS``, ``D_LESSEQUAL``,
@@ -91,7 +94,8 @@ namespace YSE {
    *    ``D_FILTERCOEFF`` (biquad coefficients
    * at signal rate), ``D_CROSS`` (third-order crossover),
    *    ``D_FFFB`` (bank of parallel bandpasses), ``D_HILBERT`` (phase
-   *    quadrature filter), ``D_PHASESHIFT`` (second-order allpass),
+   *    quadrature filter), ``D_FREQSHIFT`` (single-sideband frequency
+   *    shifter), ``D_PHASESHIFT`` (second-order allpass),
    *    ``D_SLIDE`` (logarithmic slide), ``D_RAMPSMOOTH`` (linear
    *    smoothing), ``D_DELTACLIP`` (slew limiter).
    *  - Filter design: ``G_FILTERDESIGN`` (Butterworth and Chebyshev
@@ -267,6 +271,8 @@ namespace YSE {
     DEFOBJ(D_COMB, "~comb");
     DEFOBJ(D_TEETH, "~teeth");
     DEFOBJ(D_DELAY, "~delay");
+
+    DEFOBJ(D_NORMALIZE, "~normalize");
 
     DEFOBJ(D_BUFFER, "~buffer");
 
@@ -1014,6 +1020,9 @@ namespace YSE {
     DEFOBJ(D_MODULO, "~%");
     DEFOBJ(D_PLUSEQUALS, "~+=");
     DEFOBJ(D_DELTA, "~delta");
+    DEFOBJ(D_DEGRADE, "~degrade");
+    DEFOBJ(D_DOWNSAMPLE, "~downsamp");
+    DEFOBJ(D_OVERDRIVE, "~overdrive");
     DEFOBJ(D_EQUAL, "~==");
     DEFOBJ(D_NOTEQUAL, "~!=");
     DEFOBJ(D_GREATER, "~>");
@@ -1086,6 +1095,7 @@ namespace YSE {
     DEFOBJ(D_CROSS, "~cross");
     DEFOBJ(D_FFFB, "~fffb");
     DEFOBJ(D_HILBERT, "~hilbert");
+    DEFOBJ(D_FREQSHIFT, "~freqshift");
     DEFOBJ(D_PHASESHIFT, "~phaseshift");
     DEFOBJ(D_SLIDE, "~slide");
     DEFOBJ(D_RAMPSMOOTH, "~rampsmooth");

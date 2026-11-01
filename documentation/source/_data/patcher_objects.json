@@ -16889,6 +16889,69 @@
     "params": [],
     "requires_midi_device": false
   },
+  "~degrade": {
+    "category": "MATH",
+    "description": "A bitcrusher: holds the signal at a fraction of the sample rate and quantizes it to a number of bits, for lo-fi, aliased and gritty sounds.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER"
+        ],
+        "doc": "The signal to degrade (unconnected reads 0).",
+        "index": 0,
+        "label": "in",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The fraction of the sample rate at which a new input sample is taken; between two takes the last one is held. 1 takes every sample, 0.5 every second one, 0 holds for good. A number or a signal read per sample (unconnected, the last number sent here or the creation argument).",
+        "index": 1,
+        "label": "ratio",
+        "range": "0 to 1"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The number of bits the output is quantized to; a fraction is truncated. A number or a signal read per sample (unconnected, the last number sent here or the creation argument).",
+        "index": 2,
+        "label": "bits",
+        "range": "1 to 24"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~degrade",
+    "outlets": [
+      {
+        "doc": "The degraded signal: the held sample, rounded down to a step of 2 to the power of (1 - bits).",
+        "index": 0,
+        "label": "out",
+        "range": "any float",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "1",
+        "doc": "The sample rate ratio ('~degrade 0.25'). A number in the middle inlet changes it, but what is saved stays the argument.",
+        "name": "ratio",
+        "range": "0 to 1"
+      },
+      {
+        "default": "24",
+        "doc": "The number of bits ('~degrade 0.25 8'). A number in the right inlet changes it, but what is saved stays the argument.",
+        "name": "bits",
+        "range": "1 to 24"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~delay": {
     "category": "DELAY",
     "description": "Delays a signal by a number of samples, from none at all up to the memory set when it is made. A number delay crossfades over the ramp time; a signal delay is read per sample and interpolated. For alignment and short delays.",
@@ -17018,6 +17081,52 @@
         "doc": "The minimum and maximum change per sample, up to two numbers ('~deltaclip -0.01 0.01'; they default to 0 and 0). Later numbers and messages do not change what is saved.",
         "name": "limits",
         "range": "a minimum, then a maximum"
+      }
+    ],
+    "requires_midi_device": false
+  },
+  "~downsamp": {
+    "category": "MATH",
+    "description": "Downsamples a signal: takes an input sample every N samples and holds it in between, for aliased, lo-fi sounds.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER"
+        ],
+        "doc": "The signal to downsample (unconnected reads 0).",
+        "index": 0,
+        "label": "in",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The number of samples each take is held: 1 takes every sample, 4 every fourth one; a fraction such as 2.5 takes at uneven distances with an exact average. A number or a signal read per sample (unconnected, the last number sent here or the creation argument).",
+        "index": 1,
+        "label": "period",
+        "range": "1 or more"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~downsamp",
+    "outlets": [
+      {
+        "doc": "The downsampled signal: the sample last taken.",
+        "index": 0,
+        "label": "out",
+        "range": "any float",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "1",
+        "doc": "The period in samples ('~downsamp 8'). A number in the right inlet changes it, but what is saved stays the argument.",
+        "name": "period",
+        "range": "1 or more"
       }
     ],
     "requires_midi_device": false
@@ -17355,6 +17464,59 @@
         "doc": "'nfilters <n>', the number of bands (1-24, default 1), and 'autoout <0|1>', send the coefficients when the patch loads (default 0). The bands are saved with the patch.",
         "name": "settings",
         "range": "words and values"
+      }
+    ],
+    "requires_midi_device": false
+  },
+  "~freqshift": {
+    "category": "FILTER",
+    "description": "Frequency shifter: moves every frequency of a signal up and down by the same number of Hz (not a pitch shift), for inharmonic, metallic sounds and barber-pole phasing.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER"
+        ],
+        "doc": "The signal to shift (unconnected reads 0). 'clear' sets the filter state to 0; 'resetphase' sets the oscillator phase to 0.",
+        "index": 0,
+        "label": "in",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The shift in Hz, a number or a signal read per sample (unconnected, the last number sent here or the creation argument). Negative swaps the outlets. Takes the same words as the left inlet.",
+        "index": 1,
+        "label": "shift",
+        "range": "any Hz"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~freqshift",
+    "outlets": [
+      {
+        "doc": "The signal with every frequency moved up by the shift.",
+        "index": 0,
+        "label": "up",
+        "range": "",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "The signal with every frequency moved down by the shift.",
+        "index": 1,
+        "label": "down",
+        "range": "",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "The shift in Hz ('~freqshift 100'). A number in the right inlet changes it, but what is saved stays the argument.",
+        "name": "shift",
+        "range": "any Hz"
       }
     ],
     "requires_midi_device": false
@@ -18040,6 +18202,54 @@
     "params": [],
     "requires_midi_device": false
   },
+  "~normalize": {
+    "category": "DYNAMICS",
+    "description": "Normalizes a signal: scales it by a target amplitude divided by the largest input amplitude so far, for level matching.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The signal to normalize (unconnected reads 0). A number sets the peak, the largest input amplitude so far. 'reset' sets the peak to 0.000001, 'reset <peak>' to that value.",
+        "index": 0,
+        "label": "in",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The amplitude the peak is scaled to, a number or a signal read per sample (unconnected, the last number sent here or the creation argument). Negative inverts the signal. Takes 'reset' as the left inlet does.",
+        "index": 1,
+        "label": "amplitude",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~normalize",
+    "outlets": [
+      {
+        "doc": "The normalized signal: the input times the amplitude divided by the peak, never larger than the amplitude.",
+        "index": 0,
+        "label": "out",
+        "range": "any float",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "1",
+        "doc": "The target amplitude ('~normalize 0.5'). A number in the right inlet changes it, but what is saved stays the argument.",
+        "name": "amplitude",
+        "range": "any float"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~onepole": {
     "category": "FILTER",
     "description": "Single-pole lowpass filter, 6 dB per octave, with its cutoff in Hz or on a 0-1 scale: cheap smoothing of a control signal or a gentle roll-off of harsh highs.",
@@ -18205,6 +18415,52 @@
         "doc": "Which outlet of the enclosing subpatcher this object is, shared with .outlet. Give every boundary object its own number.",
         "name": "index",
         "range": "0+"
+      }
+    ],
+    "requires_midi_device": false
+  },
+  "~overdrive": {
+    "category": "MATH",
+    "description": "A soft clipper: amplifies the signal by a drive factor and rounds its peaks off into -1 to 1, for warm saturation and overdrive.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER"
+        ],
+        "doc": "The signal to distort (unconnected reads 0).",
+        "index": 0,
+        "label": "in",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The drive factor: 1 is linear, higher values amplify and round off more, values below 1 distort heavily. A number or a signal read per sample (unconnected, the last number sent here or the creation argument).",
+        "index": 1,
+        "label": "drive",
+        "range": "any float, usually 1 to 10"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~overdrive",
+    "outlets": [
+      {
+        "doc": "The distorted signal: for an input of magnitude a below 1, a magnitude of 1 - (1 - a) to the power of the drive with the sign of the input; -1 or 1 at or beyond full scale.",
+        "index": 0,
+        "label": "out",
+        "range": "-1 to 1",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "1",
+        "doc": "The drive factor ('~overdrive 4'). A number in the right inlet changes it, but what is saved stays the argument.",
+        "name": "drive",
+        "range": "any float, usually 1 to 10"
       }
     ],
     "requires_midi_device": false

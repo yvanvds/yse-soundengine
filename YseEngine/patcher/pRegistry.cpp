@@ -158,6 +158,7 @@
 #include "delay/dTapout.h"
 #include "delay/dComb.h"
 #include "delay/dTeeth.h"
+#include "dynamics/dNormalize.h"
 #include "delay/dDelay.h"
 #include "sampling/dBuffer.h"
 
@@ -208,6 +209,9 @@
 #include "math/dModulo.h"
 #include "math/dPlusEquals.h"
 #include "math/dDelta.h"
+#include "math/dDegrade.h"
+#include "math/dDownsample.h"
+#include "math/dOverdrive.h"
 #include "math/dCompare.h"
 #include "math/dTrig.h"
 #include "math/dSignalMath.h"
@@ -236,6 +240,7 @@
 #include "filters/dCross.h"
 #include "filters/dFffb.h"
 #include "filters/dHilbert.h"
+#include "filters/dFreqshift.h"
 #include "filters/dPhaseshift.h"
 #include "filters/dSlide.h"
 #include "filters/dRampsmooth.h"
@@ -439,6 +444,7 @@ pRegistry::pRegistry() {
   Add(OBJ::D_COMB, dComb::Create);
   Add(OBJ::D_TEETH, dTeeth::Create);
   Add(OBJ::D_DELAY, dDelay::Create);
+  Add(OBJ::D_NORMALIZE, dNormalize::Create);
   Add(OBJ::D_BUFFER, dBuffer::Create);
 
   Add(OBJ::G_SWITCH, gSwitch::Create);
@@ -1029,6 +1035,9 @@ pRegistry::pRegistry() {
   Add(OBJ::D_MODULO, dModulo::Create);
   Add(OBJ::D_PLUSEQUALS, dPlusEquals::Create);
   Add(OBJ::D_DELTA, dDelta::Create);
+  Add(OBJ::D_DEGRADE, dDegrade::Create);
+  Add(OBJ::D_DOWNSAMPLE, dDownsample::Create);
+  Add(OBJ::D_OVERDRIVE, dOverdrive::Create);
   Add(OBJ::D_EQUAL, dEqual::Create);
   Add(OBJ::D_NOTEQUAL, dNotEqual::Create);
   Add(OBJ::D_GREATER, dGreater::Create);
@@ -1361,6 +1370,7 @@ pRegistry::pRegistry() {
   Add(OBJ::D_CROSS, dCross::Create);
   Add(OBJ::D_FFFB, dFffb::Create);
   Add(OBJ::D_HILBERT, dHilbert::Create);
+  Add(OBJ::D_FREQSHIFT, dFreqshift::Create);
   Add(OBJ::D_PHASESHIFT, dPhaseshift::Create);
   Add(OBJ::D_SLIDE, dSlide::Create);
   Add(OBJ::D_RAMPSMOOTH, dRampsmooth::Create);

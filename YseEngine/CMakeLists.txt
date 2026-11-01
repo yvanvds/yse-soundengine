@@ -64,8 +64,10 @@ set(YSE_SRCS
   dsp/modules/fm/difference.cpp
   dsp/modules/granulator.cpp
   dsp/modules/hilbert.cpp
+  dsp/modules/frequencyShifter.cpp
   dsp/modules/chorus.cpp
   dsp/modules/compressor.cpp
+  dsp/modules/normalize.cpp
   dsp/modules/morphingReverb.cpp
   dsp/modules/parametricEQ.cpp
   dsp/modules/phaser.cpp
@@ -120,6 +122,9 @@ set(YSE_SRCS
   dsp/operators/arithmetic.cpp
   dsp/operators/accumulator.cpp
   dsp/operators/delta.cpp
+  dsp/operators/degrade.cpp
+  dsp/operators/downsample.cpp
+  dsp/operators/overdrive.cpp
   dsp/analysis/direction.cpp
   dsp/analysis/edgeDetector.cpp
   dsp/analysis/schmittTrigger.cpp
@@ -190,6 +195,7 @@ set(YSE_SRCS
   patcher/delay/dComb.cpp
   patcher/delay/dDelay.cpp
   patcher/delay/dTeeth.cpp
+  patcher/dynamics/dNormalize.cpp
   patcher/sampling/dBuffer.cpp
   patcher/filters/dVcf.cpp
   patcher/filters/dSah.cpp
@@ -206,6 +212,7 @@ set(YSE_SRCS
   patcher/filters/dCross.cpp
   patcher/filters/dFffb.cpp
   patcher/filters/dHilbert.cpp
+  patcher/filters/dFreqshift.cpp
   patcher/filters/dPhaseshift.cpp
   patcher/filters/dSlide.cpp
   patcher/filters/dRampsmooth.cpp
@@ -397,6 +404,9 @@ set(YSE_SRCS
   patcher/math/dModulo.cpp
   patcher/math/dPlusEquals.cpp
   patcher/math/dDelta.cpp
+  patcher/math/dDegrade.cpp
+  patcher/math/dDownsample.cpp
+  patcher/math/dOverdrive.cpp
   patcher/math/dCompare.cpp
   patcher/math/dTrig.cpp
   patcher/math/dSignalMath.cpp
@@ -652,6 +662,7 @@ set_source_files_properties(
   patcher/delay/dComb.cpp
   patcher/delay/dDelay.cpp
   patcher/delay/dTeeth.cpp
+  patcher/dynamics/dNormalize.cpp
   patcher/sampling/dBuffer.cpp
   patcher/filters/dVcf.cpp
   patcher/filters/dSah.cpp
@@ -668,6 +679,7 @@ set_source_files_properties(
   patcher/filters/dCross.cpp
   patcher/filters/dFffb.cpp
   patcher/filters/dHilbert.cpp
+  patcher/filters/dFreqshift.cpp
   patcher/filters/dPhaseshift.cpp
   patcher/filters/dSlide.cpp
   patcher/filters/dRampsmooth.cpp
@@ -846,6 +858,9 @@ set_source_files_properties(
   patcher/math/dModulo.cpp
   patcher/math/dPlusEquals.cpp
   patcher/math/dDelta.cpp
+  patcher/math/dDegrade.cpp
+  patcher/math/dDownsample.cpp
+  patcher/math/dOverdrive.cpp
   patcher/math/dCompare.cpp
   patcher/math/dTrig.cpp
   patcher/math/dSignalMath.cpp

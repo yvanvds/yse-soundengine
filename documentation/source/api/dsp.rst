@@ -28,6 +28,15 @@ Math
 .. doxygenfile:: dsp/operators/delta.hpp
    :project: libYSE
 
+.. doxygenfile:: dsp/operators/degrade.hpp
+   :project: libYSE
+
+.. doxygenfile:: dsp/operators/downsample.hpp
+   :project: libYSE
+
+.. doxygenfile:: dsp/operators/overdrive.hpp
+   :project: libYSE
+
 Generators
 ----------
 

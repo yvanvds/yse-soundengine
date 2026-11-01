@@ -121,6 +121,9 @@
 #include "dsp/operators/arithmetic.hpp"
 #include "dsp/operators/accumulator.hpp"
 #include "dsp/operators/delta.hpp"
+#include "dsp/operators/degrade.hpp"
+#include "dsp/operators/downsample.hpp"
+#include "dsp/operators/overdrive.hpp"
 #include "dsp/analysis/direction.hpp"
 #include "dsp/analysis/edgeDetector.hpp"
 #include "dsp/analysis/schmittTrigger.hpp"
@@ -144,6 +147,8 @@
 #include "dsp/lfo.hpp"
 
 #include "dsp/modules/hilbert.hpp"
+#include "dsp/modules/frequencyShifter.hpp"
+#include "dsp/modules/normalize.hpp"
 #include "dsp/modules/ringModulator.hpp"
 #include "dsp/modules/sineWave.hpp"
 #include "dsp/modules/granulator.hpp"

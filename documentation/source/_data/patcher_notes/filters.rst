@@ -538,6 +538,36 @@ not a finite number is skipped. Unconnected, the inlet reads 0.
    [~* ] -> [~dac]
    noise that follows the loudness of the input
 
+.. patcher-object:: ~freqshift
+
+Moves every frequency of a signal by the same number of Hz: up on the left
+outlet, down on the right. This is not a pitch shift. A sound at 200, 400 and
+600 Hz shifted up by 50 Hz comes out at 250, 450 and 650 Hz, no longer a
+harmonic series, so tones turn bell-like and metallic. A shift of a few Hz or
+less gives a slow, rolling phasing, endless when the shifted copy is mixed
+back with the input. Unlike a ring modulator, which gives both the sum and the
+difference, each outlet keeps only one of them.
+
+The shift goes into the right inlet in Hz, as a number or a signal read per
+sample; the creation argument sets it and is what is saved with the patch. A
+negative shift moves the left outlet down and the right outlet up. A
+frequency moved below 0 Hz comes back mirrored above it. At 0 Hz both outlets
+pass the input with its phase turned but its level unchanged. The shift stays
+in Hz when the sample rate changes.
+
+The other side is suppressed by at least 40 dB from 0.0018 to 0.308 times the
+sample rate (85 Hz to 14.8 kHz at 48 kHz), less outside that band. ``clear``
+sets the filter state to 0 and ``resetphase`` starts the internal oscillator
+again from phase 0; both work in either inlet, also as text through a
+receive. An input sample that is not a finite number is skipped, and so is a
+shift that is not a finite number. Unconnected, the left inlet reads 0.
+
+.. code-block:: text
+
+   [~saw 110] -> [~freqshift 37]
+   [~freqshift] left outlet -> [~dac]
+   a sawtooth turned into an inharmonic, clangorous tone
+
 .. patcher-object:: ~phaseshift
 
 Shifts the phase of a signal without changing its level. Frequencies well
