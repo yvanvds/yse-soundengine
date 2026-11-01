@@ -74,6 +74,7 @@ set(YSE_TEST_SOURCES
   dsp/test_snowfall.cpp
   dsp/test_pulse_train.cpp
   dsp/test_adsr.cpp
+  dsp/test_curve_segments.cpp
   dsp/test_one_pole.cpp
   dsp/test_lores.cpp
   dsp/test_reson.cpp
@@ -248,6 +249,7 @@ set(YSE_TEST_SOURCES
   patcher/test_patcher_signal_snowfall.cpp
   patcher/test_patcher_signal_train.cpp
   patcher/test_patcher_signal_adsr.cpp
+  patcher/test_patcher_signal_curve.cpp
   patcher/test_patcher_signal_onepole.cpp
   patcher/test_patcher_signal_lores.cpp
   patcher/test_patcher_signal_reson.cpp
@@ -1404,6 +1406,7 @@ set_source_files_properties(
   patcher/test_patcher_signal_snowfall.cpp
   patcher/test_patcher_signal_train.cpp
   patcher/test_patcher_signal_adsr.cpp
+  patcher/test_patcher_signal_curve.cpp
   patcher/test_patcher_signal_onepole.cpp
   patcher/test_patcher_signal_lores.cpp
   patcher/test_patcher_signal_reson.cpp

@@ -16681,6 +16681,89 @@
     ],
     "requires_midi_device": false
   },
+  "~curve": {
+    "category": "OSC",
+    "description": "Curved ramp generator: plays a list of segments back to back, each a target, a time in milliseconds and a curvature, for envelopes, fades and glides that bend. Bangs when the list is done.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "A number is a target, reached over the middle inlet's time with the right inlet's curve, or jumped to with no time. A list is 'target time curve' triplets (a last pair uses the right inlet's curve). Also 'stop', 'pause', 'resume', 'factor <curve>' and 'shapemode <0|1>'.",
+        "index": 0,
+        "label": "target",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Time in milliseconds for the next number at the left inlet; used once, then 0.",
+        "index": 1,
+        "label": "time",
+        "range": "0+ ms"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Curvature for numbers and pairs: 0 straight, positive starts slowly, negative starts quickly.",
+        "index": 2,
+        "label": "curve",
+        "range": "-1 to 1"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~curve",
+    "outlets": [
+      {
+        "doc": "The ramp.",
+        "index": 0,
+        "label": "out",
+        "range": "any float",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "A bang after the block in which a list finished.",
+        "index": 1,
+        "label": "done",
+        "range": "bang",
+        "type": "BANG"
+      },
+      {
+        "doc": "1 when a list starts or resumes, 0 when it finishes, stops or pauses.",
+        "index": 2,
+        "label": "active",
+        "range": "0 or 1",
+        "type": "INT"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "The value before the first target.",
+        "name": "initial",
+        "range": "any float"
+      },
+      {
+        "default": "0",
+        "doc": "Initial curvature for numbers and pairs.",
+        "name": "curve",
+        "range": "-1 to 1"
+      },
+      {
+        "default": "0",
+        "doc": "0: the power curve .function draws; 1: an exponential curve, gentler at the ends.",
+        "name": "shapemode",
+        "range": "0 or 1"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~cycle": {
     "category": "OSC",
     "description": "A wavetable oscillator: a cosine by default, or one cycle read from a named sample buffer. The phase inlet is added to the running phase, for phase modulation.",

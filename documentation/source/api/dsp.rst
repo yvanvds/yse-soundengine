@@ -118,6 +118,9 @@ Generators
 .. doxygenfile:: dsp/generators/adsr.hpp
    :project: libYSE
 
+.. doxygenfile:: dsp/generators/curveSegments.hpp
+   :project: libYSE
+
 .. doxygenfile:: dsp/lfo.hpp
    :project: libYSE
 

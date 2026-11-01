@@ -645,3 +645,40 @@ marks the exact sample each attack starts, for ``~sah`` and the like.
 
    [.m 0.8] / [.m 0] -> [~adsr 10 100 0.5 400] -> [~*] <- [~saw 220]
                         a note at 0.8 on the first click, released on the second
+
+.. patcher-object:: ~curve
+
+Plays ramp segments back to back, each with a target, a time in milliseconds
+and a curvature, so envelopes, fades and glides can bend rather than run
+straight. Each segment starts from wherever the output is, and the output
+holds the last target when the list is done.
+
+- A list at the left inlet is ``target time curve`` triplets. If one or two
+  numbers are left over, a pair takes the curve set at the right inlet and a
+  single number is a jump. A new list replaces one that is still playing,
+  starting from the current value.
+- A number at the left inlet is a single target, reached over the time set
+  at the middle inlet with the right inlet's curve. The middle inlet's time
+  is used once: the next number jumps unless a new time arrives first.
+- Curvature runs from -1 to 1. 0 is a straight line. A positive curve starts
+  slowly and arrives quickly, which makes a fade-in sound even. A negative
+  curve does the opposite. At +1 the output holds until the end of the
+  segment, and at -1 it jumps at the start.
+- ``shapemode 0`` (the default) bends segments the way ``.function`` draws
+  them, so a shape copied from a ``.function`` plays as drawn.
+  ``shapemode 1`` uses a true exponential, gentler at both ends.
+- ``stop`` holds the current value and drops the list. ``pause`` holds it
+  but keeps the place, and ``resume`` carries on from there. ``factor`` sets
+  the right inlet's curve.
+- The middle outlet bangs after the block in which a list finished. A stop
+  does not count as finishing. The right outlet sends 1 when a list starts
+  or resumes and 0 when it finishes, stops or pauses.
+- The arguments set the starting value, the curve and the ``shapemode``
+  (``~curve 0 0.5``). They are saved with the patch; numbers, lists and
+  messages are not.
+- A list holds up to 128 segments; a longer one is cut to that.
+
+.. code-block:: text
+
+   [.m 1 50 0.6 0 800 -0.6] -> [~curve] -> [~*] <- [~saw 220]
+                               a quick curved attack and a long fading tail
