@@ -740,3 +740,26 @@ stays.
 .. code-block:: text
 
    [~cycle 220] -> [~degrade 0.125 4] -> [~dac]   held 8 samples, 16 levels
+
+.. patcher-object:: ~downsamp
+
+Takes an input sample every so many samples and holds it until the next
+take, the classic sample-rate reduction that folds high frequencies back
+down as aliasing. The period is the number of samples each take is held:
+at 1 every sample passes unchanged, at 4 every fourth one is taken and
+held for four samples. The first sample is always a take. Nothing is
+quantized, so the samples taken pass exactly.
+
+A fractional period such as 2.5 takes samples at slightly uneven distances
+(samples 0, 3, 5, 8, 10 ...) whose average stays exact over any length of
+time. The period counts samples, so the result is the same at any sample
+rate; to hold for a fixed time, multiply the time by the sample rate.
+
+The period takes a number or a signal read per sample. Lowered below the
+samples already held, it takes the next sample at once and counts on from
+there. A period below 1 is raised to 1. An input sample that is not a
+finite number is not taken; the held sample stays.
+
+.. code-block:: text
+
+   [~saw 110] -> [~downsamp 6] -> [~dac]   a new sample every 6, 8 kHz at 48 kHz

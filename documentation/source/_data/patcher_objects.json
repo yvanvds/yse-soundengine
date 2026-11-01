@@ -17085,6 +17085,52 @@
     ],
     "requires_midi_device": false
   },
+  "~downsamp": {
+    "category": "MATH",
+    "description": "Downsamples a signal: takes an input sample every N samples and holds it in between, for aliased, lo-fi sounds.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER"
+        ],
+        "doc": "The signal to downsample (unconnected reads 0).",
+        "index": 0,
+        "label": "in",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The number of samples each take is held: 1 takes every sample, 4 every fourth one; a fraction such as 2.5 takes at uneven distances with an exact average. A number or a signal read per sample (unconnected, the last number sent here or the creation argument).",
+        "index": 1,
+        "label": "period",
+        "range": "1 or more"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~downsamp",
+    "outlets": [
+      {
+        "doc": "The downsampled signal: the sample last taken.",
+        "index": 0,
+        "label": "out",
+        "range": "any float",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "1",
+        "doc": "The period in samples ('~downsamp 8'). A number in the right inlet changes it, but what is saved stays the argument.",
+        "name": "period",
+        "range": "1 or more"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~edge": {
     "category": "ANALYSIS",
     "description": "Bangs when a signal goes from zero to non-zero (left outlet) and when it goes from non-zero to zero (right outlet).",

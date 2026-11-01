@@ -31,6 +31,9 @@ Math
 .. doxygenfile:: dsp/operators/degrade.hpp
    :project: libYSE
 
+.. doxygenfile:: dsp/operators/downsample.hpp
+   :project: libYSE
+
 Generators
 ----------
 
