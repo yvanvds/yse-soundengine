@@ -201,6 +201,7 @@ set(YSE_SRCS
   patcher/dynamics/dNormalize.cpp
   patcher/dynamics/dLimi.cpp
   patcher/dynamics/dPeaklim.cpp
+  patcher/dynamics/dComp.cpp
   patcher/sampling/dBuffer.cpp
   patcher/filters/dVcf.cpp
   patcher/filters/dSah.cpp
@@ -672,6 +673,7 @@ set_source_files_properties(
   patcher/dynamics/dNormalize.cpp
   patcher/dynamics/dLimi.cpp
   patcher/dynamics/dPeaklim.cpp
+  patcher/dynamics/dComp.cpp
   patcher/sampling/dBuffer.cpp
   patcher/filters/dVcf.cpp
   patcher/filters/dSah.cpp

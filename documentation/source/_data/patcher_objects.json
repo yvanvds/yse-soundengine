@@ -16471,6 +16471,77 @@
     ],
     "requires_midi_device": false
   },
+  "~comp": {
+    "category": "DYNAMICS",
+    "description": "A stereo compressor: when the level goes over the threshold, both channels are turned down by the same amount, set by the ratio, attack and release. Takes a sidechain signal and reports the gain reduction.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The left signal (unconnected, the last number sent here, else 0). Takes threshold <dB>, ratio <n>, attack <ms>, release <ms>, makeup <dB>, detector <0|1>, mix <0-1>, bypass <0|1>, meters <0|1>, meterrate <ms> and meterdata.",
+        "index": 0,
+        "label": "left",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The right signal (unconnected, the last number sent here, else 0).",
+        "index": 1,
+        "label": "right",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER"
+        ],
+        "doc": "While connected, the level is taken from this signal instead of the left and right signal. Unconnected, the compressor listens to its own input.",
+        "index": 2,
+        "label": "sidechain",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~comp",
+    "outlets": [
+      {
+        "doc": "The left signal compressed.",
+        "index": 0,
+        "label": "left",
+        "range": "any float",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "The right signal compressed.",
+        "index": 1,
+        "label": "right",
+        "range": "any float",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "The deepest gain reduction since the last report, in dB, read at the end of each block: every meterrate ms while meters is on, and after the next block on meterdata.",
+        "index": 2,
+        "label": "reduction",
+        "range": "0 or less",
+        "type": "FLOAT"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "Any of 'threshold <dB>' (-18, -60 to 0), 'ratio <n>' (4, 1 to 20), 'attack <ms>' (10), 'release <ms>' (100), 'makeup <dB>' (0, -24 to 24), 'detector <0|1>' (0: peak, 1: RMS), 'mix <0-1>' (1, fully compressed), 'bypass <0|1>' (0), 'meters <0|1>' (1) and 'meterrate <ms>' (100).",
+        "name": "settings",
+        "range": "words and values"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~cos": {
     "category": "MATH",
     "description": "Outputs the cosine of a phase: 0 to 1 is one full cycle. Turns a ~phasor ramp into a cosine wave. Use ~cosx for an angle in radians.",

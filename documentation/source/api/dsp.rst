@@ -265,6 +265,9 @@ Dynamics
 .. doxygenfile:: dsp/dynamics/lookaheadLimiter.hpp
    :project: libYSE
 
+The compressor that ``~comp`` wraps, :cpp:class:`YSE::DSP::MODULES::compressor`,
+is documented with the effects on :doc:`effects`.
+
 Sample buffers
 --------------
 

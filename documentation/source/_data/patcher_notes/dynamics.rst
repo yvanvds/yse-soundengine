@@ -94,3 +94,49 @@ unconnected inlet reads the last number sent to it, else 0.
 
    [~peaklim threshold -0.3 ingain 3] -> right outlet -> [.f]
    a louder master held under -0.3 dB, with the gain reduction shown in a number box
+
+.. patcher-object:: ~comp
+
+A stereo compressor. When the level goes over the threshold, the signal is
+turned down: with a ratio of 4, a level 8 dB over the threshold comes out 2 dB
+over it. Both channels share one gain, taken from the louder of them, so the
+balance between them stays put. The attack sets how quickly the gain comes
+down when the level rises, the release how quickly it comes back up. There is
+no lookahead, so the output is not delayed, and a sudden peak can get through
+before the gain has come down.
+
+Connect a signal to the right inlet and the level is taken from it instead of
+from the left and right signal: a kick drum there makes a bass line duck on
+every hit. Unconnected, the compressor listens to its own input.
+
+The settings are words and values, as arguments (saved with the patch) or as
+messages to the left inlet (not saved):
+
+- ``threshold <dB>``: the level above which the signal is compressed, default
+  -18, from -60 to 0.
+- ``ratio <n>``: how hard it is compressed, default 4, from 1 (not at all) to
+  20.
+- ``attack <ms>`` and ``release <ms>``: default 10 and 100, from 0.1 to 2000.
+- ``makeup <dB>``: gain after compression, to bring the level back up,
+  default 0, from -24 to 24.
+- ``detector <0|1>``: how the level is measured: 0 (the default) the peak of
+  every sample, 1 the average power over 10 ms, which is smoother and closer
+  to how loud it sounds.
+- ``mix <0-1>``: how much of the compressed signal comes out, default 1; lower
+  values blend in the signal as it came in.
+- ``bypass <0|1>``: send the signal through unchanged. The level is still
+  followed, so switching back does not jump.
+- ``meters <0|1>``: whether the rightmost outlet reports, default 1.
+- ``meterrate <ms>``: how often it reports, default 100; 0 reports every audio
+  block.
+
+The rightmost outlet sends the deepest gain reduction since the last report,
+in dB, read at the end of each audio block: 0 when nothing was compressed, -6
+when the signal was halved. ``meterdata`` asks for one report after the next
+block, even with the meters off. An unconnected left or middle inlet reads the
+last number sent to it, else 0.
+
+.. code-block:: text
+
+   [~comp threshold -24 ratio 6 attack 2 release 80 makeup 4]
+   a bass line held in place, brought back up by 4 dB after compression

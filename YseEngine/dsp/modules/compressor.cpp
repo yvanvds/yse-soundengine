@@ -114,12 +114,32 @@ void YSE::DSP::MODULES::compressor::create() {
 }
 
 void YSE::DSP::MODULES::compressor::process(MULTICHANNELBUFFER& buffer) {
+  run(buffer, buffer);
+}
+
+void YSE::DSP::MODULES::compressor::process(MULTICHANNELBUFFER& buffer, MULTICHANNELBUFFER& key) {
+  if (buffer.empty() || key.empty()) {
+    run(buffer, buffer);
+    return;
+  }
+  const UInt length = buffer[0].getLength();
+  for (DSP::buffer& k : key)
+    if (k.getLength() < length) {
+      run(buffer, buffer);
+      return;
+    }
+  run(buffer, key);
+}
+
+void YSE::DSP::MODULES::compressor::run(MULTICHANNELBUFFER& buffer, MULTICHANNELBUFFER& key) {
   createIfNeeded();
 
   if (buffer.empty()) return;
 
   const std::size_t n = buffer.size();
   const std::size_t length = buffer[0].getLength();
+  // The detector's channels: the buffer's own, or the sidechain's.
+  const std::size_t keys = key.size();
 
   if (length != blockLength) {
     gainBuf.resize(static_cast<UInt>(length));
@@ -149,17 +169,17 @@ void YSE::DSP::MODULES::compressor::process(MULTICHANNELBUFFER& buffer) {
     Flt level;
     if (rms) {
       Flt sumSq = 0.0f;
-      for (std::size_t ch = 0; ch < n; ++ch) {
-        const Flt s = buffer[ch].getPtr()[i];
+      for (std::size_t ch = 0; ch < keys; ++ch) {
+        const Flt s = key[ch].getPtr()[i];
         sumSq += s * s;
       }
-      const Flt meanSq = sumSq / static_cast<Flt>(n);
+      const Flt meanSq = sumSq / static_cast<Flt>(keys);
       ms = YSE::DSP::onePoleSmooth(ms, meanSq, rmsCoef);
       level = std::sqrt(ms);
     } else {
       Flt peak = 0.0f;
-      for (std::size_t ch = 0; ch < n; ++ch) {
-        const Flt a = std::abs(buffer[ch].getPtr()[i]);
+      for (std::size_t ch = 0; ch < keys; ++ch) {
+        const Flt a = std::abs(key[ch].getPtr()[i]);
         if (a > peak) peak = a;
       }
       level = peak;
