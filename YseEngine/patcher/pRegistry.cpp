@@ -148,6 +148,7 @@
 #include "analysis/dThresh.h"
 #include "analysis/dSpike.h"
 #include "analysis/dZerox.h"
+#include "analysis/dPeakamp.h"
 #include "delay/dTapin.h"
 #include "delay/dTapout.h"
 #include "delay/dComb.h"
@@ -422,6 +423,7 @@ pRegistry::pRegistry() {
   Add(OBJ::D_THRESH, dThresh::Create);
   Add(OBJ::D_SPIKE, dSpike::Create);
   Add(OBJ::D_ZEROX, dZerox::Create);
+  Add(OBJ::D_PEAKAMP, dPeakamp::Create);
   Add(OBJ::D_TAPIN, dTapin::Create);
   Add(OBJ::D_TAPOUT, dTapout::Create);
   Add(OBJ::D_COMB, dComb::Create);

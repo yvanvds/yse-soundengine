@@ -17988,6 +17988,50 @@
     ],
     "requires_midi_device": false
   },
+  "~peakamp": {
+    "category": "ANALYSIS",
+    "description": "Reports the peak amplitude of a signal, the largest absolute sample value since the last report: on a bang, or every interval.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT",
+          "BANG"
+        ],
+        "doc": "The signal to measure. A bang reports the peak so far and starts again; a number sets the reporting interval in milliseconds, 0 stops it. Also takes 'interval <ms>' and 'signed <0|1>'.",
+        "index": 0,
+        "label": "signal",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~peakamp",
+    "outlets": [
+      {
+        "doc": "The peak since the last report: the largest absolute sample value, or in signed mode that sample with its sign. 0 when nothing was measured.",
+        "index": 0,
+        "label": "peak",
+        "range": "any float",
+        "type": "FLOAT"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Reporting interval in milliseconds ('~peakamp 100'). 0 reports only on a bang. A number or 'interval' changes it, but what is saved stays the argument.",
+        "name": "interval",
+        "range": "0 or more ms"
+      },
+      {
+        "default": "0",
+        "doc": "1 reports the peak sample with its sign, 0 its absolute value ('~peakamp 100 1').",
+        "name": "signed",
+        "range": "0 or 1"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~phaseshift": {
     "category": "FILTER",
     "description": "Second-order allpass with a center frequency in Hz and a Q, both settable per sample: the level is unchanged, the phase turns from 0 to -360 degrees and is -180 at the center frequency. For phaser stages and phase distortion.",

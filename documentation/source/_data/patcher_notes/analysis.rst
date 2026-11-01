@@ -195,3 +195,22 @@ default, and ``set`` followed by a number changes it.
 .. code-block:: text
 
    [~cycle 1000] -> [~zerox]   about 5.3 per block of 128 samples at 48 kHz, two clicks per cycle
+
+.. patcher-object:: ~peakamp
+
+Reports the peak amplitude of a signal: the largest absolute sample value
+since the last report. A bang reports the peak so far and starts measuring
+again. With a reporting interval, the creation argument or a number sent to
+the inlet, it also reports every interval, each time the peak of just that
+interval, so a level meter needs no ``.metro``. An interval of 0 reports only
+on a bang.
+
+The second argument, or ``signed 1``, turns on signed mode: the report is
+the sample with the largest magnitude, with its sign, so a window holding
+0.5 and -0.8 reports -0.8 instead of 0.8. A window with no samples in it
+reports 0. A bang is answered at the start of the next block with the peak
+up to there, and several reports in one block send only the last.
+
+.. code-block:: text
+
+   [~cycle 440] -> [~* 0.5] -> [~peakamp 100]   0.5, ten times a second

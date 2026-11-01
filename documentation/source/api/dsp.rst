@@ -145,6 +145,9 @@ Analysis
 .. doxygenfile:: dsp/analysis/zeroCrossing.hpp
    :project: libYSE
 
+.. doxygenfile:: dsp/analysis/peakTracker.hpp
+   :project: libYSE
+
 Filters
 -------
 
