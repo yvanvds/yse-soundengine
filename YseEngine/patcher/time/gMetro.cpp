@@ -149,8 +149,8 @@ CONSTRUCT() {
 //
 //  - the cold inlet runs on the caller's thread, so it reschedules eagerly and
 //    the new interval is in force before the call returns;
-//  - a live SetParams re-parse stores straight into `period` from the audio
-//    thread (patcherImplementation::ApplyPendingParams) and notifies nobody,
+//  - a live SetParams re-parse stores straight into `period` on the caller's
+//    thread (ParamsAreControlSide, issue #1218) and notifies nobody,
 //    so Bang() re-asserts the interval on every tick as well. That route
 //    therefore lands one tick later — the running cycle plays out at the old
 //    interval and every cycle after it uses the new one.

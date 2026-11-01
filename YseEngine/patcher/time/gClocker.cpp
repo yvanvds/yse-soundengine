@@ -740,7 +740,7 @@ void gClocker::DeliverDeferred(const deferredMessage& msg, YSE::THREAD thread) {
     }
 
     // The SetParams route into the interval (#625's second route), which stores
-    // from the audio thread and notifies nobody. Rebasing rather than rescaling
+    // on the caller's thread (#1218) and notifies nobody. Rebasing rather than rescaling
     // keeps the phase, as it does in RetimeBeats.
     const double unit = IntervalBeats();
     if (unit > 0.0 && unit != gridBeats) {

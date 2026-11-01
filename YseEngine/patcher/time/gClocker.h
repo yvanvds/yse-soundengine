@@ -104,7 +104,7 @@ namespace YSE {
      *  elapsed time is measured, so a re-phase would show up as a jump in the
      *  reported number rather than only in the tick's timing. Both routes into
      *  the field are covered — the inlet retimes eagerly, and a live
-     *  ``SetParams`` re-parse, which stores straight into it from the audio
+     *  ``SetParams`` re-parse, which stores straight into it on the caller's
      *  thread and notifies nobody, is re-asserted by the next tick.
      *
      *  Since #725 the interval may be **tempo-relative** instead: a note value
@@ -246,6 +246,15 @@ namespace YSE {
 
     /** @brief The scheduler coming back with a beat wakeup that has come due. */
     void DeliverDeferred(const deferredMessage& msg, YSE::THREAD thread) override;
+
+    /** @brief A live ``SetParams`` stores the interval at once, on the
+     *         caller's thread, rather than at the next rendered block (issue
+     *         #1218): both fields are atomics every reader loads per use, and a
+     *         clocker in a patcher nobody renders would otherwise keep its old
+     *         interval for good. */
+    bool ParamsAreControlSide() const override {
+      return true;
+    }
 
     /** @brief Whether the clocker is running. Created stopped, as Max's is. */
     bool Running() const {
@@ -406,7 +415,8 @@ namespace YSE {
     void Report(YSE::THREAD thread);
 
     // Max's `interval` attribute and the creation argument, in milliseconds.
-    // Atomic because a live SetParams re-parse writes it from the audio thread.
+    // Atomic because a live SetParams re-parse writes it while the object is
+    // published (ParamsAreControlSide, issue #1218).
     aInt interval;
 
     // The tempo-relative interval in beats, or 0 for milliseconds — the second
