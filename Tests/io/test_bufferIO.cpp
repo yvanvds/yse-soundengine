@@ -14,11 +14,13 @@
 #include "dsp/fileBuffer.hpp"
 #include "internal/customFileReader.h"
 #include <atomic>
+#include <chrono>
 #include <cstdint>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <limits>
+#include <memory>
 #include <system_error>
 #include <thread>
 #include <vector>
@@ -500,6 +502,123 @@ TEST_SUITE("io") {
     }
 
     std::filesystem::remove(path, ec); // best effort
+  }
+
+} // TEST_SUITE("io")
+
+// Issue #1223 — removing a buffer an open reader still uses.
+//
+// A streaming sound keeps its custom-IO reader open for as long as its
+// soundFile lives, and the slow pool's refill job reads through it whenever
+// the back buffer needs filling. RemoveBufferByName() used to delete the
+// registry node that reader points at (and, in copy mode, the bytes), so the
+// next refill read freed memory: TSan caught it on a live device in the
+// integration #823 case. A removal now detaches the bytes from every open
+// reader, waiting out a read already inside them, and later reads answer 0.
+// ASan is the oracle for the use-after-free: unfixed, the read after the
+// removal below touches the freed node and the freed caller bytes.
+TEST_SUITE("io") {
+
+  TEST_CASE("BufferIO: a reader left open past its buffer's removal reads nothing (#1223)") {
+    YSE::BufferIO io;
+    io.SetActive(true);
+
+    constexpr int kLen = 64;
+    auto bytes = std::make_unique<char[]>(kLen);
+    for (int i = 0; i < kLen; ++i) {
+      bytes[i] = static_cast<char>(i + 1);
+    }
+    REQUIRE(io.AddBuffer("removed-under-reader", bytes.get(), kLen));
+
+    long long size = 0;
+    void* handle = nullptr;
+    REQUIRE(YSE::INTERNAL::customFileReader::Open("removed-under-reader", &size, &handle));
+    char dest[kLen] = {0};
+    CHECK(YSE::INTERNAL::CALLBACK::readPtr(dest, 16, handle) == 16);
+
+    // The caller's side of the contract: once the removal returns, its bytes
+    // are its own again, so it frees them.
+    CHECK(io.RemoveBufferByName("removed-under-reader"));
+    bytes.reset();
+    CHECK_FALSE(io.BufferNameExists("removed-under-reader"));
+
+    // The reader's side: still open, still answering, but out of bytes.
+    CHECK(YSE::INTERNAL::CALLBACK::readPtr(dest, 16, handle) == 0);
+    CHECK(YSE::INTERNAL::CALLBACK::lengthPtr(handle) == kLen);
+    CHECK(YSE::INTERNAL::CALLBACK::seekPtr(0, 0 /* SEEK_SET */, handle) == 0);
+    CHECK(YSE::INTERNAL::CALLBACK::readPtr(dest, 16, handle) == 0);
+
+    // The name is free for a fresh registration, which the old reader never
+    // sees.
+    char other[4] = {9, 9, 9, 9};
+    REQUIRE(io.AddBuffer("removed-under-reader", other, 4));
+    CHECK(YSE::INTERNAL::CALLBACK::readPtr(dest, 4, handle) == 0);
+
+    YSE::INTERNAL::customFileReader::Close(handle);
+    CHECK(io.RemoveBufferByName("removed-under-reader"));
+    io.SetActive(false);
+  }
+
+} // TEST_SUITE("io")
+
+// The copy-mode half of #1223: the engine owns the bytes, so the removal is
+// what frees them. Removed from the main thread while a pool-style reader
+// thread keeps reading, as the refill job does. The reader runs until a read
+// comes back empty, so it is guaranteed to read after the removal — the read
+// that, unfixed, copies from the freed copy through the freed node (ASan), and
+// that races the removal (TSan).
+TEST_SUITE("io") {
+
+  TEST_CASE("BufferIO: copy-mode removal while a reader thread reads (#1223)") {
+    YSE::BufferIO io(/*storeCopy*/ true);
+    io.SetActive(true);
+
+    std::vector<char> src(4096, 7);
+    REQUIRE(io.AddBuffer("removed-while-reading", src.data(), static_cast<int>(src.size())));
+
+    long long size = 0;
+    void* handle = nullptr;
+    REQUIRE(YSE::INTERNAL::customFileReader::Open("removed-while-reading", &size, &handle));
+
+    std::atomic<bool> started{false};
+    std::atomic<bool> giveUp{false};
+    std::atomic<bool> sawEmpty{false};
+    std::atomic<bool> sawWrongByte{false};
+    std::thread reader([&] {
+      std::vector<char> dest(src.size());
+      while (!giveUp.load(std::memory_order_acquire)) {
+        YSE::INTERNAL::CALLBACK::seekPtr(0, 0 /* SEEK_SET */, handle);
+        const long long got = YSE::INTERNAL::CALLBACK::readPtr(
+            dest.data(), static_cast<long long>(dest.size()), handle);
+        started.store(true, std::memory_order_release);
+        if (got == 0) {
+          sawEmpty.store(true, std::memory_order_release);
+          return;
+        }
+        for (long long i = 0; i < got; ++i) {
+          if (dest[static_cast<std::size_t>(i)] != 7) sawWrongByte.store(true);
+        }
+      }
+    });
+
+    while (!started.load(std::memory_order_acquire)) {
+      std::this_thread::yield();
+    }
+    CHECK(io.RemoveBufferByName("removed-while-reading"));
+
+    // Fixed, the reader stops on its own at the first read after the removal.
+    // The deadline only keeps an unfixed, unsanitized build from hanging.
+    for (int i = 0; i < 500 && !sawEmpty.load(std::memory_order_acquire); ++i) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(2));
+    }
+    giveUp.store(true, std::memory_order_release);
+    reader.join();
+
+    CHECK(sawEmpty.load());
+    CHECK_FALSE(sawWrongByte.load());
+
+    YSE::INTERNAL::customFileReader::Close(handle);
+    io.SetActive(false);
   }
 
 } // TEST_SUITE("io")
