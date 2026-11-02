@@ -1,7 +1,6 @@
 #include "gPong.h"
 #include "../pObjectList.hpp"
-#include <algorithm>
-#include <cmath>
+#include "../../dsp/operators/fold.hpp"
 
 using namespace YSE::PATCHER;
 
@@ -15,30 +14,6 @@ namespace {
   constexpr int MODE_CLIP = 1;
   constexpr int MODE_WRAP = 2;
   constexpr int MODE_FOLD = 3;
-
-  // Carries a value around to the other side of [lo, hi). The range is
-  // half-open at the top: hi itself wraps back to lo, which is what makes a
-  // counter driven through this behave like a phase.
-  float Wrap(float value, float lo, float span) {
-    float offset = std::fmod(value - lo, span);
-    // std::fmod keeps the sign of its left operand, so a value below the range
-    // comes back negative and has to be lifted by one span.
-    if (offset < 0.f) offset += span;
-    return lo + offset;
-  }
-
-  // Reflects a value back into [lo, hi]. The reflection is periodic over twice
-  // the span — a triangle wave — so a value far outside the range folds as
-  // many times as it takes, exactly like Max's fold mode. Both limits are
-  // fixed points, which is the difference from Wrap().
-  float Fold(float value, float lo, float span) {
-    const float period = span * 2.f;
-    float offset = std::fmod(value - lo, period);
-    if (offset < 0.f) offset += period;
-    // Past the top of the range the second half of the period runs back down.
-    if (offset > span) offset = period - offset;
-    return lo + offset;
-  }
 
 } // namespace
 
@@ -113,49 +88,11 @@ CALC() {
     return;
   }
 
-  // The limits may arrive the wrong way round, so work against the ordered
-  // pair rather than trusting low < high.
-  const float lo = std::min(low, high);
-  const float hi = std::max(low, high);
-  const float span = hi - lo;
-
-  // A collapsed range has exactly one legal answer, and it also keeps the
-  // fmod() below from dividing by zero.
-  if (span == 0.f) {
-    outputs[0].SendFloat(lo, thread);
-    return;
-  }
-
-  float value = input;
-  if (std::isnan(value)) {
-    // The convention ./ , .sqrt, .zmap and .clip use: substitute 0 rather than
-    // propagate. The fold or wrap below then pulls that 0 into the range.
-    value = 0.f;
-  } else if (std::isinf(value)) {
-    // An infinity has no meaningful fold or wrap — fmod would hand back a NaN
-    // — so pin it to the limit it ran past, which is what .clip does with it.
-    outputs[0].SendFloat(value > 0.f ? hi : lo, thread);
-    return;
-  }
-
-  float result;
-  switch (mode) {
-  case MODE_CLIP:
-    result = std::min(std::max(value, lo), hi);
-    break;
-  case MODE_WRAP:
-    result = Wrap(value, lo, span);
-    break;
-  case MODE_FOLD:
-  default:
-    // An unrecognised mode folds: the default behaviour is the safer guess
-    // than silently passing an out-of-range value through.
-    result = Fold(value, lo, span);
-    break;
-  }
-
-  // Rounding in fmod() can leave the result a hair outside the range for a
-  // value many spans away, and the ordered clamp is two compares. Cheap
-  // insurance for the promise the object makes.
-  outputs[0].SendFloat(std::min(std::max(result, lo), hi), thread);
+  // The range rules (ordered limits, NaN as 0, an infinity pinned to its
+  // limit, a result always in range) are DSP::fold's, shared with ~pong.
+  using MODE = YSE::DSP::fold::MODE;
+  const MODE how = mode == MODE_CLIP ? MODE::CLIP : (mode == MODE_WRAP ? MODE::WRAP : MODE::FOLD);
+  // An unrecognised mode folds: the default behaviour is the safer guess than
+  // silently passing an out-of-range value through.
+  outputs[0].SendFloat(YSE::DSP::fold::Limit(input, low, high, how), thread);
 }

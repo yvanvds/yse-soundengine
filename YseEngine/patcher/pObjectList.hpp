@@ -50,7 +50,9 @@ namespace YSE {
    *    ``D_REVERSEDIVIDE``, ``D_MODULO``, ``D_PLUSEQUALS``,
    *    ``D_DELTA`` (difference between successive samples), ``D_DEGRADE``
    *    (sample-rate and bit-depth reduction), ``D_DOWNSAMPLE`` (sample and
-   *    hold every N samples), ``D_OVERDRIVE`` (soft-clipping distortion).
+   *    hold every N samples), ``D_OVERDRIVE`` (soft-clipping distortion),
+   *    ``D_PONG`` (folding, wrapping or clipping into a range), ``D_SCALE``
+   *    (mapping one range onto another).
    *  - DSP comparison: ``D_EQUAL``,
    * ``D_NOTEQUAL``, ``D_GREATER``, ``D_GREATEREQUAL``,
    *    ``D_LESS``, ``D_LESSEQUAL``,
@@ -273,6 +275,10 @@ namespace YSE {
     DEFOBJ(D_DELAY, "~delay");
 
     DEFOBJ(D_NORMALIZE, "~normalize");
+    DEFOBJ(D_LIMI, "~limi");
+    DEFOBJ(D_PEAKLIM, "~peaklim");
+    DEFOBJ(D_COMP, "~comp");
+    DEFOBJ(D_MULTIBAND, "~multiband");
 
     DEFOBJ(D_BUFFER, "~buffer");
 
@@ -1023,6 +1029,8 @@ namespace YSE {
     DEFOBJ(D_DEGRADE, "~degrade");
     DEFOBJ(D_DOWNSAMPLE, "~downsamp");
     DEFOBJ(D_OVERDRIVE, "~overdrive");
+    DEFOBJ(D_PONG, "~pong");
+    DEFOBJ(D_SCALE, "~scale");
     DEFOBJ(D_EQUAL, "~==");
     DEFOBJ(D_NOTEQUAL, "~!=");
     DEFOBJ(D_GREATER, "~>");

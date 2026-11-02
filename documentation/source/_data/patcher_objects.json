@@ -16471,6 +16471,77 @@
     ],
     "requires_midi_device": false
   },
+  "~comp": {
+    "category": "DYNAMICS",
+    "description": "A stereo compressor: when the level goes over the threshold, both channels are turned down by the same amount, set by the ratio, attack and release. Takes a sidechain signal and reports the gain reduction.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The left signal (unconnected, the last number sent here, else 0). Takes threshold <dB>, ratio <n>, attack <ms>, release <ms>, makeup <dB>, detector <0|1>, mix <0-1>, bypass <0|1>, meters <0|1>, meterrate <ms> and meterdata.",
+        "index": 0,
+        "label": "left",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The right signal (unconnected, the last number sent here, else 0).",
+        "index": 1,
+        "label": "right",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER"
+        ],
+        "doc": "While connected, the level is taken from this signal instead of the left and right signal. Unconnected, the compressor listens to its own input.",
+        "index": 2,
+        "label": "sidechain",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~comp",
+    "outlets": [
+      {
+        "doc": "The left signal compressed.",
+        "index": 0,
+        "label": "left",
+        "range": "any float",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "The right signal compressed.",
+        "index": 1,
+        "label": "right",
+        "range": "any float",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "The deepest gain reduction since the last report, in dB, read at the end of each block: every meterrate ms while meters is on, and after the next block on meterdata.",
+        "index": 2,
+        "label": "reduction",
+        "range": "0 or less",
+        "type": "FLOAT"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "Any of 'threshold <dB>' (-18, -60 to 0), 'ratio <n>' (4, 1 to 20), 'attack <ms>' (10), 'release <ms>' (100), 'makeup <dB>' (0, -24 to 24), 'detector <0|1>' (0: peak, 1: RMS), 'mix <0-1>' (1, fully compressed), 'bypass <0|1>' (0), 'meters <0|1>' (1) and 'meterrate <ms>' (100).",
+        "name": "settings",
+        "range": "words and values"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~cos": {
     "category": "MATH",
     "description": "Outputs the cosine of a phase: 0 to 1 is one full cycle. Turns a ~phasor ramp into a cosine wave. Use ~cosx for an angle in radians.",
@@ -17808,6 +17879,43 @@
     ],
     "requires_midi_device": false
   },
+  "~limi": {
+    "category": "DYNAMICS",
+    "description": "A brickwall lookahead peak limiter: delays the signal by the lookahead and brings the gain down before a peak arrives, so no output sample exceeds the threshold. One inlet and outlet per channel; the channels share one gain.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The signal of channel 1 (unconnected, the last number sent here, else 0). Takes the settings as messages: threshold <dB>, release <ms>, lookahead <samples>, preamp <dB>, postamp <dB>, mode <0|1>, dcblock <0|1>, bypass <0|1>, and clear.",
+        "index": 0,
+        "label": "channel 1",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~limi",
+    "outlets": [
+      {
+        "doc": "Channel 1 limited to the threshold (then the postamp), lookahead samples late.",
+        "index": 0,
+        "label": "channel 1",
+        "range": "any float",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "1 512",
+        "doc": "The channel count (1-64, default 1) and the delay-line size in samples (default 512, the longest lookahead), then any of 'threshold <dB>' (0), 'release <ms>' (100), 'lookahead <samples>' (100), 'preamp <dB>' (0), 'postamp <dB>' (0), 'mode <0|1>' (1), 'dcblock <0|1>' (0) and 'bypass <0|1>' (0).",
+        "name": "settings",
+        "range": "numbers, then words and values"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~line": {
     "category": "OSC",
     "description": "Linear-ramp generator. Ramps an audio-rate value toward a target over a given time in ms.",
@@ -18184,6 +18292,89 @@
     ],
     "requires_midi_device": false
   },
+  "~multiband": {
+    "category": "DYNAMICS",
+    "description": "A multiband compressor: splits a stereo signal into 2 to 5 frequency bands, compresses each band on its own and adds them back together. Reports the gain reduction of every band.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The left signal (unconnected, the last number sent here, else 0). Takes the settings as messages: threshold, ratio, attack, release, makeup, drive and level <value> (every band, or one with its number after the word: threshold2 <dB>), freq1-freq4 <Hz>, output <dB>, detector <0|1>, bypass <0|1>, meters <0|1>, meterrate <ms>, and meterdata.",
+        "index": 0,
+        "label": "left",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The right signal (unconnected, the last number sent here, else 0).",
+        "index": 1,
+        "label": "right",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~multiband",
+    "outlets": [
+      {
+        "doc": "The left signal compressed, its bands added back together.",
+        "index": 0,
+        "label": "left",
+        "range": "any float",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "The right signal compressed, its bands added back together.",
+        "index": 1,
+        "label": "right",
+        "range": "any float",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "The deepest gain reduction of band 1 since the last report, in dB, read at the end of each block: every meterrate ms while meters is on, and after the next block on meterdata.",
+        "index": 2,
+        "label": "band 1",
+        "range": "0 or less",
+        "type": "FLOAT"
+      },
+      {
+        "doc": "The deepest gain reduction of band 2 since the last report, in dB, read at the end of each block: every meterrate ms while meters is on, and after the next block on meterdata.",
+        "index": 3,
+        "label": "band 2",
+        "range": "0 or less",
+        "type": "FLOAT"
+      },
+      {
+        "doc": "The deepest gain reduction of band 3 since the last report, in dB, read at the end of each block: every meterrate ms while meters is on, and after the next block on meterdata.",
+        "index": 4,
+        "label": "band 3",
+        "range": "0 or less",
+        "type": "FLOAT"
+      },
+      {
+        "doc": "The deepest gain reduction of band 4 since the last report, in dB, read at the end of each block: every meterrate ms while meters is on, and after the next block on meterdata.",
+        "index": 5,
+        "label": "band 4",
+        "range": "0 or less",
+        "type": "FLOAT"
+      }
+    ],
+    "params": [
+      {
+        "default": "4",
+        "doc": "The band count (2-5, default 4), then any of 'threshold <dB>' (-18, -60 to 0), 'ratio <n>' (4, 1 to 20), 'attack <ms>' (10), 'release <ms>' (100), 'makeup <dB>' (0, -24 to 24), 'drive <dB>' (0) and 'level <dB>' (0, both -96 to 24) for every band, or for one band with its number after the word ('threshold2 -24'); 'freq1' to 'freq4 <Hz>' (the crossovers, default 200 1000 5000 for 4 bands, 120 500 2000 8000 for 5); 'output <dB>' (0); 'detector <0|1>' (0: peak, 1: RMS); 'bypass <0|1>' (0); 'meters <0|1>' (1) and 'meterrate <ms>' (100).",
+        "name": "settings",
+        "range": "a number, then words and values"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~noise": {
     "category": "OSC",
     "description": "White-noise generator. Sends a new block of random samples on every audio block.",
@@ -18509,6 +18700,68 @@
     ],
     "requires_midi_device": false
   },
+  "~peaklim": {
+    "category": "DYNAMICS",
+    "description": "A stereo brickwall peak limiter for a master bus: both channels share one gain, brought down 64 samples before a peak arrives, so no output sample exceeds the threshold. Reports the gain reduction.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The left signal (unconnected, the last number sent here, else 0). Takes threshold <dB>, ingain <dB>, outgain <dB>, mode <0|1>, bypass <0|1>, meters <0|1>, meterrate <ms> and meterdata.",
+        "index": 0,
+        "label": "left",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The right signal (unconnected, the last number sent here, else 0).",
+        "index": 1,
+        "label": "right",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~peaklim",
+    "outlets": [
+      {
+        "doc": "The left signal limited, 64 samples late.",
+        "index": 0,
+        "label": "left",
+        "range": "any float",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "The right signal limited, 64 samples late.",
+        "index": 1,
+        "label": "right",
+        "range": "any float",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "The deepest gain reduction since the last report, in dB: every meterrate ms while meters is on, and after the next block on meterdata.",
+        "index": 2,
+        "label": "reduction",
+        "range": "0 or less",
+        "type": "FLOAT"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "Any of 'threshold <dB>' (0), 'ingain <dB>' (0), 'outgain <dB>' (0), 'mode <0|1>' (1, the release curve: 0 linear, 1 exponential), 'bypass <0|1>' (0), 'meters <0|1>' (1) and 'meterrate <ms>' (100).",
+        "name": "settings",
+        "range": "words and values"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~phaseshift": {
     "category": "FILTER",
     "description": "Second-order allpass with a center frequency in Hz and a Q, both settable per sample: the level is unchanged, the phase turns from 0 to -360 degrees and is -180 at the center frequency. For phaser stages and phase distortion.",
@@ -18717,6 +18970,77 @@
         "default": "0",
         "doc": "Phase in radians used while no signal is connected to the right inlet.",
         "name": "phase",
+        "range": "any float"
+      }
+    ],
+    "requires_midi_device": false
+  },
+  "~pong": {
+    "category": "MATH",
+    "description": "Keeps a signal inside the range low to high by folding it back from the limits, the default, by wrapping it around to the other side, or by clipping it: wavefolding, phase wrapping and limiting.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The signal to keep in range, or a number used while no signal is connected (unconnected reads 0). 'mode fold', 'mode wrap' or 'mode clip' (or 'mode 0' to 'mode 2') sets the mode; 'range' with two numbers sets both limits.",
+        "index": 0,
+        "label": "in",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The lower limit. A number or a signal read per sample (unconnected, the last number sent here or the creation argument).",
+        "index": 1,
+        "label": "low",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The upper limit. A number or a signal read per sample (unconnected, the last number sent here or the creation argument). Limits given high to low are swapped.",
+        "index": 2,
+        "label": "high",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~pong",
+    "outlets": [
+      {
+        "doc": "The signal: unchanged inside the range; outside it, reflected back from the limits (fold), carried around to the other side with the upper limit itself giving the lower one (wrap), or pinned to the nearest limit (clip).",
+        "index": 0,
+        "label": "out",
+        "range": "low to high",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "0 folds, 1 wraps, 2 clips ('~pong 1 -1 1'). A 'mode' message changes it, but what is saved stays the argument.",
+        "name": "mode",
+        "range": "0 to 2"
+      },
+      {
+        "default": "0",
+        "doc": "The lower limit ('~pong 0 -0.5 0.5'). A number in the middle inlet or a 'range' message changes it, but what is saved stays the argument.",
+        "name": "low",
+        "range": "any float"
+      },
+      {
+        "default": "1",
+        "doc": "The upper limit. A number in the right inlet or a 'range' message changes it, but what is saved stays the argument.",
+        "name": "high",
         "range": "any float"
       }
     ],
@@ -19404,6 +19728,128 @@
         "doc": "Frequency in Hz used while no signal is connected.",
         "name": "frequency",
         "range": "0-20000 Hz"
+      }
+    ],
+    "requires_midi_device": false
+  },
+  "~scale": {
+    "category": "MATH",
+    "description": "Maps a signal from the input range onto the output range, as a straight line or bent into a curve by an exponent: control-voltage style range mapping at audio rate. Samples outside the input range map past the output range.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The signal to map, or a number used while no signal is connected (unconnected reads 0). 'classic 0', 'classic 1' or 'classic 2' sets the formula.",
+        "index": 0,
+        "label": "in",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The input value that maps to outLow. A number or a signal read per sample (unconnected, the last number sent here or the creation argument).",
+        "index": 1,
+        "label": "inLow",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The input value that maps to outHigh. A number or a signal read per sample (unconnected, the last number sent here or the creation argument).",
+        "index": 2,
+        "label": "inHigh",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The output for inLow. A number or a signal read per sample (unconnected, the last number sent here or the creation argument).",
+        "index": 3,
+        "label": "outLow",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The output for inHigh. A number or a signal read per sample (unconnected, the last number sent here or the creation argument).",
+        "index": 4,
+        "label": "outHigh",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The curve: 1 is a straight line, above 1 starts slowly and ends fast, below 1 the opposite. A number or a signal read per sample (unconnected, the last number sent here or the creation argument).",
+        "index": 5,
+        "label": "exponent",
+        "range": "above 0"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~scale",
+    "outlets": [
+      {
+        "doc": "The mapped signal. A result that is not a finite number gives 0; a collapsed input range gives outLow.",
+        "index": 0,
+        "label": "out",
+        "range": "any float",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "The input value that maps to outLow ('~scale -1 1 200 800'). A number in its inlet changes it, but what is saved stays the argument.",
+        "name": "inLow",
+        "range": "any float"
+      },
+      {
+        "default": "1",
+        "doc": "The input value that maps to outHigh. A number in its inlet changes it, but what is saved stays the argument.",
+        "name": "inHigh",
+        "range": "any float"
+      },
+      {
+        "default": "0",
+        "doc": "The output for inLow. A number in its inlet changes it, but what is saved stays the argument.",
+        "name": "outLow",
+        "range": "any float"
+      },
+      {
+        "default": "1",
+        "doc": "The output for inHigh. A number in its inlet changes it, but what is saved stays the argument.",
+        "name": "outHigh",
+        "range": "any float"
+      },
+      {
+        "default": "1",
+        "doc": "The curve ('~scale 0 1 0 1 2'): a power of the normalized input, or a base in classic 1. A number in its inlet changes it, but what is saved stays the argument.",
+        "name": "exponent",
+        "range": "above 0"
+      },
+      {
+        "default": "0",
+        "doc": "The formula: 0 the power curve; 1 the legacy linedrive formula; 2 the power curve with the exponent inverted when outLow is above outHigh. A 'classic' message changes it, but what is saved stays the argument.",
+        "name": "classic",
+        "range": "0 to 2"
       }
     ],
     "requires_midi_device": false

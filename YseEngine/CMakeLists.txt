@@ -68,6 +68,8 @@ set(YSE_SRCS
   dsp/modules/chorus.cpp
   dsp/modules/compressor.cpp
   dsp/modules/normalize.cpp
+  dsp/dynamics/lookaheadLimiter.cpp
+  dsp/dynamics/multibandCompressor.cpp
   dsp/modules/morphingReverb.cpp
   dsp/modules/parametricEQ.cpp
   dsp/modules/phaser.cpp
@@ -125,6 +127,8 @@ set(YSE_SRCS
   dsp/operators/degrade.cpp
   dsp/operators/downsample.cpp
   dsp/operators/overdrive.cpp
+  dsp/operators/fold.cpp
+  dsp/operators/scale.cpp
   dsp/analysis/direction.cpp
   dsp/analysis/edgeDetector.cpp
   dsp/analysis/schmittTrigger.cpp
@@ -196,6 +200,10 @@ set(YSE_SRCS
   patcher/delay/dDelay.cpp
   patcher/delay/dTeeth.cpp
   patcher/dynamics/dNormalize.cpp
+  patcher/dynamics/dLimi.cpp
+  patcher/dynamics/dPeaklim.cpp
+  patcher/dynamics/dComp.cpp
+  patcher/dynamics/dMultiband.cpp
   patcher/sampling/dBuffer.cpp
   patcher/filters/dVcf.cpp
   patcher/filters/dSah.cpp
@@ -407,6 +415,8 @@ set(YSE_SRCS
   patcher/math/dDegrade.cpp
   patcher/math/dDownsample.cpp
   patcher/math/dOverdrive.cpp
+  patcher/math/dPong.cpp
+  patcher/math/dScale.cpp
   patcher/math/dCompare.cpp
   patcher/math/dTrig.cpp
   patcher/math/dSignalMath.cpp
@@ -663,6 +673,10 @@ set_source_files_properties(
   patcher/delay/dDelay.cpp
   patcher/delay/dTeeth.cpp
   patcher/dynamics/dNormalize.cpp
+  patcher/dynamics/dLimi.cpp
+  patcher/dynamics/dPeaklim.cpp
+  patcher/dynamics/dComp.cpp
+  patcher/dynamics/dMultiband.cpp
   patcher/sampling/dBuffer.cpp
   patcher/filters/dVcf.cpp
   patcher/filters/dSah.cpp
@@ -861,6 +875,8 @@ set_source_files_properties(
   patcher/math/dDegrade.cpp
   patcher/math/dDownsample.cpp
   patcher/math/dOverdrive.cpp
+  patcher/math/dPong.cpp
+  patcher/math/dScale.cpp
   patcher/math/dCompare.cpp
   patcher/math/dTrig.cpp
   patcher/math/dSignalMath.cpp

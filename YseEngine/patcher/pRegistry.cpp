@@ -159,6 +159,10 @@
 #include "delay/dComb.h"
 #include "delay/dTeeth.h"
 #include "dynamics/dNormalize.h"
+#include "dynamics/dLimi.h"
+#include "dynamics/dPeaklim.h"
+#include "dynamics/dComp.h"
+#include "dynamics/dMultiband.h"
 #include "delay/dDelay.h"
 #include "sampling/dBuffer.h"
 
@@ -212,6 +216,8 @@
 #include "math/dDegrade.h"
 #include "math/dDownsample.h"
 #include "math/dOverdrive.h"
+#include "math/dPong.h"
+#include "math/dScale.h"
 #include "math/dCompare.h"
 #include "math/dTrig.h"
 #include "math/dSignalMath.h"
@@ -445,6 +451,10 @@ pRegistry::pRegistry() {
   Add(OBJ::D_TEETH, dTeeth::Create);
   Add(OBJ::D_DELAY, dDelay::Create);
   Add(OBJ::D_NORMALIZE, dNormalize::Create);
+  Add(OBJ::D_LIMI, dLimi::Create);
+  Add(OBJ::D_PEAKLIM, dPeaklim::Create);
+  Add(OBJ::D_COMP, dComp::Create);
+  Add(OBJ::D_MULTIBAND, dMultiband::Create);
   Add(OBJ::D_BUFFER, dBuffer::Create);
 
   Add(OBJ::G_SWITCH, gSwitch::Create);
@@ -1038,6 +1048,8 @@ pRegistry::pRegistry() {
   Add(OBJ::D_DEGRADE, dDegrade::Create);
   Add(OBJ::D_DOWNSAMPLE, dDownsample::Create);
   Add(OBJ::D_OVERDRIVE, dOverdrive::Create);
+  Add(OBJ::D_PONG, dPong::Create);
+  Add(OBJ::D_SCALE, dScale::Create);
   Add(OBJ::D_EQUAL, dEqual::Create);
   Add(OBJ::D_NOTEQUAL, dNotEqual::Create);
   Add(OBJ::D_GREATER, dGreater::Create);

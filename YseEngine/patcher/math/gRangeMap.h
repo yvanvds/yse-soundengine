@@ -1,12 +1,13 @@
 #pragma once
 #include <algorithm>
-#include <cmath>
+#include "../../dsp/operators/scale.hpp"
 
 namespace YSE {
   namespace PATCHER {
 
     /**
-     *  @brief The mapping core shared by ``.scale`` (#443) and ``.zmap`` (#444).
+     *  @brief The mapping core shared by ``.scale`` (#443) and ``.zmap`` (#444),
+     *         on ``DSP::scale::Map()`` (#1114).
      *
      *  Maps @p input from the input range onto the output range, optionally
      *  bending the mapping with an exponential curve and optionally clamping
@@ -45,35 +46,11 @@ namespace YSE {
      */
     inline float MapRange(float input, float inLow, float inHigh, float outLow, float outHigh,
                           float exponent, bool clip) {
-      const float span = inHigh - inLow;
-      float result;
-
-      if (span == 0.f) {
-        // A collapsed input range has no mapping to give: every input would
-        // divide by zero and come out as an infinity or a NaN.
-        result = outLow;
-      } else {
-        const float normalized = (input - inLow) / span;
-        float curved;
-        if (exponent == 1.f) {
-          // The overwhelmingly common case, and std::pow(x, 1) is not
-          // guaranteed to be exact. Skip it.
-          curved = normalized;
-        } else if (normalized >= 0.f) {
-          curved = std::pow(normalized, exponent);
-        } else {
-          // Max mirrors the curve below the input range rather than handing a
-          // negative base to pow (which has no real result for a fractional
-          // exponent).
-          curved = -std::pow(-normalized, exponent);
-        }
-        result = outLow + (outHigh - outLow) * curved;
-      }
-
-      // Reachable with a zero base and a negative exponent, with an operand
-      // that overflows, or simply when a neighbouring object hands us an
-      // infinity.
-      if (!std::isfinite(result)) result = 0.f;
+      // The mapping itself, with the collapsed-range guard and the non-finite
+      // substitution, is DSP::scale's (#1114), which ~scale computes per
+      // sample.
+      float result = DSP::scale::Map(input, inLow, inHigh, outLow, outHigh, exponent,
+                                     DSP::scale::MODE::MODERN);
 
       if (clip) {
         const float lo = std::min(outLow, outHigh);
