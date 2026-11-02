@@ -237,3 +237,18 @@ also counts as 0.
 .. code-block:: text
 
    [~cycle 480] -> [~average 100 rms]   about 0.707: one full cycle at 48 kHz
+
+.. patcher-object:: ~avg
+
+Reports the average absolute value of a signal since the last report: a
+cheap way to poll the level of a signal from control logic. Every bang
+outputs the mean of the absolute sample values that arrived since the
+previous bang, then starts measuring again, so a ``.metro`` driving the bang
+sets how often the level is read. A bang is answered at the start of the
+next block with the average up to there. With no samples since the last
+bang, the report is 0. A sample that is not a number or is infinite counts
+as 0. Use ``~average`` for a running average as a signal.
+
+.. code-block:: text
+
+   [~cycle 440] -> [~avg]   about 0.637 (2/pi) on every bang

@@ -2,6 +2,8 @@
 // issue #1118. The reference is closed form: output n is the mean of f(x[k])
 // for k in n-N+1 .. n, with x[k] = 0 before the start and for NaN / infinite
 // samples, f the identity, |x| or x * x, and the square root taken in RMS mode.
+// The accumulation since the last report (issue #1119) is the same mean over
+// every sample since the last take().
 
 #include <doctest/doctest.h>
 #include <algorithm>
@@ -265,6 +267,106 @@ TEST_SUITE("dsp") {
     CHECK(o.getPtr()[N - 1] == 1.f);
   }
 
+  TEST_CASE("movingAverage: take() reports the average since the last report, in each mode "
+            "(#1119)") {
+    const std::vector<float> x = Signal(1000);
+    const movingAverage::MODE modes[] = {movingAverage::BIPOLAR, movingAverage::ABSOLUTE,
+                                         movingAverage::RMS};
+    for (const movingAverage::MODE mode : modes) {
+      CAPTURE(mode);
+      movingAverage d(10);
+      d.mode(mode);
+      CHECK(d.accumulated() == 0.f); // empty: 0
+      CHECK(d.take() == 0.f);
+      // Reports after 0, 1, 2 .. samples: windows of growing length.
+      std::size_t at = 0;
+      for (std::size_t span = 1; at + span <= x.size(); at += span, ++span) {
+        double total = 0.0;
+        for (std::size_t k = at; k < at + span; ++k) {
+          d.process(x[k]);
+          total += F(x[k], mode);
+        }
+        const double mean = total / static_cast<double>(span);
+        const auto want = static_cast<float>(mode == movingAverage::RMS ? std::sqrt(mean) : mean);
+        CHECK(d.accumulatedSamples() == static_cast<double>(span));
+        CHECK(d.accumulated() == doctest::Approx(want).epsilon(1e-6));
+        CHECK(d.take() == doctest::Approx(want).epsilon(1e-6));
+        CHECK(d.accumulatedSamples() == 0.0);
+      }
+    }
+  }
+
+  TEST_CASE("movingAverage: accumulate() feeds only the accumulation, the same as process() "
+            "(#1119)") {
+    const std::vector<float> x = Signal(5 * N);
+    movingAverage full(64);
+    movingAverage only(64);
+    full.mode(movingAverage::ABSOLUTE);
+    only.mode(movingAverage::ABSOLUTE);
+    const UInt splits[] = {N, 64, 13, 1};
+    for (const UInt block : splits) {
+      CAPTURE(block);
+      Blocks(full, x, block);
+      for (std::size_t start = 0; start < x.size(); start += block) {
+        const auto len = static_cast<UInt>(std::min<std::size_t>(block, x.size() - start));
+        buffer b(len);
+        for (UInt i = 0; i < len; ++i)
+          b.getPtr()[i] = x[start + i];
+        only.accumulate(b);
+      }
+      CHECK(only.accumulatedSamples() == full.accumulatedSamples());
+      CHECK(only.take() == doctest::Approx(full.take()).epsilon(1e-6));
+    }
+    // The window never saw a sample.
+    CHECK(only.value() == 0.f);
+    CHECK(full.value() > 0.f);
+  }
+
+  TEST_CASE("movingAverage: the accumulation skips NaN and infinities, and survives a long run "
+            "(#1119)") {
+    movingAverage d(1);
+    d.mode(movingAverage::ABSOLUTE);
+    buffer b(4);
+    b.getPtr()[0] = std::numeric_limits<float>::quiet_NaN();
+    b.getPtr()[1] = std::numeric_limits<float>::infinity();
+    b.getPtr()[2] = -std::numeric_limits<float>::infinity();
+    b.getPtr()[3] = -2.f;
+    d.accumulate(b);
+    CHECK(d.take() == 0.5f); // 2 over four samples
+
+    // Ten million samples of 0.1 and one of 1000: the mean stays exact to
+    // float precision.
+    buffer tenth(N);
+    tenth = 0.1f;
+    const UInt blocks = 10000000 / N;
+    for (UInt i = 0; i < blocks; ++i)
+      d.accumulate(tenth);
+    d.process(1000.f);
+    const double n = static_cast<double>(blocks) * N + 1.0;
+    const double want = (static_cast<double>(blocks) * N * static_cast<double>(0.1f) + 1000.0) / n;
+    CHECK(d.take() == doctest::Approx(want).epsilon(1e-6));
+  }
+
+  TEST_CASE("movingAverage: a new mode and reset() start the accumulation over; a new length "
+            "does not (#1119)") {
+    movingAverage d(8);
+    d.process(-1.f);
+    d.process(3.f);
+    d.length(2);
+    CHECK(d.accumulated() == 1.f); // bipolar: (-1 + 3) / 2
+    d.mode(movingAverage::ABSOLUTE);
+    CHECK(d.accumulatedSamples() == 0.0);
+    CHECK(d.accumulated() == 0.f);
+    d.process(-1.f);
+    d.process(3.f);
+    CHECK(d.accumulated() == 2.f);
+    d.mode(movingAverage::ABSOLUTE); // the same mode: nothing changes
+    CHECK(d.accumulated() == 2.f);
+    d.reset();
+    CHECK(d.accumulatedSamples() == 0.0);
+    CHECK(d.take() == 0.f);
+  }
+
   TEST_CASE("movingAverage: processing and the setters allocate nothing (#1118)") {
     movingAverage d(1000);
     buffer b(N);
@@ -286,6 +388,10 @@ TEST_SUITE("dsp") {
       d(b);
       d.reset();
       d(b);
+      d.accumulate(b);
+      d.accumulate(shortBlock);
+      d.accumulated();
+      d.take();
       CHECK(TestHelpers::g_alloc_count.load() == 0);
     }
     CHECK(d.value() > 0.f);

@@ -28,6 +28,8 @@ namespace YSE {
         fresh(0.0),
         filled(0),
         latest(0.f),
+        accSum(0.0),
+        accCount(0.0),
         out(STANDARD_BUFFERSIZE) {}
 
     Dbl movingAverage::contribution(Flt x) const {
@@ -43,10 +45,14 @@ namespace YSE {
       }
     }
 
+    Flt movingAverage::mean(Dbl total, Dbl samples) const {
+      const Dbl m = total / samples;
+      if (how == RMS) return static_cast<Flt>(std::sqrt(m > 0.0 ? m : 0.0));
+      return static_cast<Flt>(m);
+    }
+
     Flt movingAverage::average() const {
-      const Dbl mean = sum / static_cast<Dbl>(len);
-      if (how == RMS) return static_cast<Flt>(std::sqrt(mean > 0.0 ? mean : 0.0));
-      return static_cast<Flt>(mean);
+      return mean(sum, static_cast<Dbl>(len));
     }
 
     // The sum over the window that ends on the last sample taken, from
@@ -77,6 +83,8 @@ namespace YSE {
       // Every len samples, fresh holds exactly the window: start the
       // running sum over from it so rounding cannot drift.
       fresh += added;
+      accSum += added;
+      accCount += 1.0;
       if (++filled == len) {
         sum = fresh;
         fresh = 0.0;
@@ -95,6 +103,35 @@ namespace YSE {
       for (UInt i = 0; i < length; ++i)
         o[i] = process(a[i]);
       return out;
+    }
+
+    movingAverage& movingAverage::accumulate(buffer& in) {
+      const UInt length = Clamp(in.getLength());
+      const Flt* a = in.getPtr();
+      Dbl total = 0.0;
+      for (UInt i = 0; i < length; ++i) {
+        // NaN and infinities count as 0.
+        const Flt x = std::isfinite(a[i]) ? a[i] : 0.f;
+        total += contribution(x);
+      }
+      accSum += total;
+      accCount += static_cast<Dbl>(length);
+      return *this;
+    }
+
+    Flt movingAverage::accumulated() const {
+      return accCount > 0.0 ? mean(accSum, accCount) : 0.f;
+    }
+
+    Dbl movingAverage::accumulatedSamples() const {
+      return accCount;
+    }
+
+    Flt movingAverage::take() {
+      const Flt result = accumulated();
+      accSum = 0.0;
+      accCount = 0.0;
+      return result;
     }
 
     buffer& movingAverage::output() {
@@ -127,6 +164,9 @@ namespace YSE {
       if (clean != how) {
         how = clean;
         recompute();
+        // The accumulation never mixes two modes.
+        accSum = 0.0;
+        accCount = 0.0;
       }
       return *this;
     }
@@ -143,6 +183,8 @@ namespace YSE {
       fresh = 0.0;
       filled = 0;
       latest = 0.f;
+      accSum = 0.0;
+      accCount = 0.0;
       return *this;
     }
 

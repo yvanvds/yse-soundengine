@@ -43,7 +43,8 @@ namespace YSE {
    *    down to a low one), ``D_SPIKE`` (the time between zero to non-zero
    *    transitions), ``D_ZEROX`` (zero crossings per block and a click on
    *    each), ``D_PEAKAMP`` (the peak amplitude since the last report), ``D_AVERAGE``
-   *    (the running average over the last N samples).
+   *    (the running average over the last N samples), ``D_AVG`` (the
+   *    average absolute value since the last report).
    *  - DSP delay: `D_TAPIN`, `D_TAPOUT`, `D_COMB`, `D_TEETH`, `D_DELAY`.
    *  - DSP dynamics: ``D_NORMALIZE`` (scaling by the running peak).
    *  - DSP sampling: ``D_BUFFER``.
@@ -269,6 +270,7 @@ namespace YSE {
     DEFOBJ(D_ZEROX, "~zerox");
     DEFOBJ(D_PEAKAMP, "~peakamp");
     DEFOBJ(D_AVERAGE, "~average");
+    DEFOBJ(D_AVG, "~avg");
 
     DEFOBJ(D_TAPIN, "~tapin");
     DEFOBJ(D_TAPOUT, "~tapout");

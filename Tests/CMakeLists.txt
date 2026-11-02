@@ -304,6 +304,7 @@ set(YSE_TEST_SOURCES
   patcher/test_patcher_signal_zerox.cpp
   patcher/test_patcher_signal_peakamp.cpp
   patcher/test_patcher_signal_average.cpp
+  patcher/test_patcher_signal_avg.cpp
   patcher/test_patcher_signal_compare.cpp
   patcher/test_patcher_signal_trig.cpp
   patcher/test_patcher_signal_math.cpp
@@ -1474,6 +1475,7 @@ set_source_files_properties(
   patcher/test_patcher_signal_zerox.cpp
   patcher/test_patcher_signal_peakamp.cpp
   patcher/test_patcher_signal_average.cpp
+  patcher/test_patcher_signal_avg.cpp
   patcher/test_patcher_signal_compare.cpp
   patcher/test_patcher_signal_trig.cpp
   patcher/test_patcher_signal_math.cpp

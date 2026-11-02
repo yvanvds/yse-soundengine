@@ -15736,6 +15736,35 @@
     ],
     "requires_midi_device": false
   },
+  "~avg": {
+    "category": "ANALYSIS",
+    "description": "Reports the average absolute value of a signal since the last bang: cheap level polling.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "BANG"
+        ],
+        "doc": "The signal to measure; unconnected it reads as silence. A bang reports the average so far and starts again.",
+        "index": 0,
+        "label": "signal",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~avg",
+    "outlets": [
+      {
+        "doc": "The mean absolute sample value since the last bang. 0 when nothing was measured.",
+        "index": 0,
+        "label": "average",
+        "range": "0 or more",
+        "type": "FLOAT"
+      }
+    ],
+    "params": [],
+    "requires_midi_device": false
+  },
   "~biquad": {
     "category": "FILTER",
     "description": "Two-pole, two-zero filter driven directly by five coefficients, y(n) = a0 x(n) + a1 x(n-1) + a2 x(n-2) - b1 y(n-1) - b2 y(n-2), each a number or a signal read per sample: any biquad design, or a ringing oscillator.",

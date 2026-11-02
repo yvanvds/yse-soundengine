@@ -194,6 +194,7 @@ set(YSE_SRCS
   patcher/analysis/dZerox.cpp
   patcher/analysis/dPeakamp.cpp
   patcher/analysis/dAverage.cpp
+  patcher/analysis/dAvg.cpp
   patcher/analysis/dWhat.cpp
   patcher/analysis/dWhere.cpp
   patcher/delay/dTapin.cpp
@@ -668,6 +669,7 @@ set_source_files_properties(
   patcher/analysis/dZerox.cpp
   patcher/analysis/dPeakamp.cpp
   patcher/analysis/dAverage.cpp
+  patcher/analysis/dAvg.cpp
   patcher/analysis/dWhat.cpp
   patcher/analysis/dWhere.cpp
   patcher/delay/dTapin.cpp

@@ -3,7 +3,8 @@
 
     movingAverage.hpp
     The running average of a signal over its last N samples, bipolar,
-    absolute or RMS (issue #1118).
+    absolute or RMS (issue #1118), and the average since the last report
+    (issue #1119).
 
   ==============================================================================
 */
@@ -52,6 +53,17 @@ namespace YSE {
      *  A block call fills ``output()``, a buffer the object owns. A block
      *  holds at most ``STANDARD_BUFFERSIZE`` samples; a longer input is
      *  processed up to that length. Call it from one thread at a time.
+     *
+     *  Accumulating: besides the window, every sample taken also counts
+     *  toward the average since the last report, in the same mode, with
+     *  NaN and infinities as 0. ``take()`` reports it and starts over;
+     *  ``accumulated()`` reads it without starting over. An empty
+     *  accumulation averages to 0. ``accumulate()`` feeds a block to the
+     *  accumulation alone, for a caller that only polls: the window does
+     *  not see those samples, and it costs one sum per sample. A new mode
+     *  starts the accumulation over, so it never mixes two modes;
+     *  ``reset()`` clears it, a new length does not. The sums are doubles,
+     *  so hours of samples between reports lose no precision that matters.
      */
     class API movingAverage {
     public:
@@ -105,13 +117,31 @@ namespace YSE {
       /** @brief What is averaged. */
       MODE mode() const;
 
-      /** @brief Back to silence: forgets every sample. Keeps the length,
-       *         the mode and the capacity. */
+      /** @brief One block into the accumulation only: @p in counts toward
+       *         the next ``take()``, but the window, ``value()`` and
+       *         ``output()`` do not see it. */
+      movingAverage& accumulate(buffer& in);
+
+      /** @brief The average, in the current mode, of every sample since
+       *         the last ``take()``, without starting over; 0 when there
+       *         is none. */
+      Flt accumulated() const;
+
+      /** @brief The number of samples since the last ``take()``. */
+      Dbl accumulatedSamples() const;
+
+      /** @brief Reports: returns ``accumulated()`` and starts a new
+       *         accumulation. */
+      Flt take();
+
+      /** @brief Back to silence: forgets every sample, the accumulation
+       *         too. Keeps the length, the mode and the capacity. */
       movingAverage& reset();
 
     private:
       Dbl contribution(Flt x) const;
       Flt average() const;
+      Flt mean(Dbl total, Dbl samples) const;
       void recompute();
 
       std::vector<Flt> history; // the last capacity samples, a ring
@@ -123,6 +153,8 @@ namespace YSE {
       Dbl fresh; // the sum of the samples since the last rebuild
       UInt filled; // how many samples are in fresh
       Flt latest;
+      Dbl accSum; // the sum since the last take()
+      Dbl accCount; // the samples since the last take()
       buffer out;
     };
 
