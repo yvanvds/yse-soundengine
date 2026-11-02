@@ -187,6 +187,9 @@ Analysis
 .. doxygenfile:: dsp/analysis/sampleCapture.hpp
    :project: libYSE
 
+.. doxygenfile:: dsp/analysis/loudnessMeter.hpp
+   :project: libYSE
+
 Filters
 -------
 

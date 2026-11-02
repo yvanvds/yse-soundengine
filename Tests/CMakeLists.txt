@@ -55,6 +55,7 @@ set(YSE_TEST_SOURCES
   dsp/test_peak_tracker.cpp
   dsp/test_moving_average.cpp
   dsp/test_min_max.cpp
+  dsp/test_loudness_meter.cpp
   dsp/test_sample_capture.cpp
   dsp/test_compare.cpp
   dsp/test_trig.cpp
@@ -308,6 +309,7 @@ set(YSE_TEST_SOURCES
   patcher/test_patcher_signal_average.cpp
   patcher/test_patcher_signal_avg.cpp
   patcher/test_patcher_signal_minmax.cpp
+  patcher/test_patcher_signal_loudness.cpp
   patcher/test_patcher_signal_capture.cpp
   patcher/test_patcher_signal_compare.cpp
   patcher/test_patcher_signal_trig.cpp
@@ -1481,6 +1483,7 @@ set_source_files_properties(
   patcher/test_patcher_signal_average.cpp
   patcher/test_patcher_signal_avg.cpp
   patcher/test_patcher_signal_minmax.cpp
+  patcher/test_patcher_signal_loudness.cpp
   patcher/test_patcher_signal_capture.cpp
   patcher/test_patcher_signal_compare.cpp
   patcher/test_patcher_signal_trig.cpp

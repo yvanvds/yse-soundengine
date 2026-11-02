@@ -287,3 +287,23 @@ saved with the patch.
 .. code-block:: text
 
    [~cycle 440] -> [~capture f 64]   a bang: 64, then the first 64 samples as one list
+
+.. patcher-object:: ~loudness
+
+Measures loudness after EBU R 128 and ITU-R BS.1770 in LUFS (loudness units
+relative to full scale): the momentary loudness over the last 400 ms, the
+short-term loudness over the last 3 s, and the integrated loudness of
+everything since the start or the last ``reset``, leaving out the parts at
+-70 LUFS or below and those 10 LU or more below the rest. The fourth outlet
+gives the sample peak in dBFS. The signals pass through the K-weighting
+filters of the standard, which follow the sample rate. The first argument
+sets the number of signal inlets; all of them are measured together, each
+with a weight of 1. A bang reports all four values, answered at the start
+of the next block with the values up to there; the second argument, or
+``interval``, sets a time in milliseconds to report automatically. A number
+picks the inlet whose peak is reported, 0 the highest of all, and reports.
+Silence reads -200. The loudness range and the true peak are not measured.
+
+.. code-block:: text
+
+   [~cycle 1000] -> [~* 0.1] -> [~loudness 1 100]   about -23 LUFS

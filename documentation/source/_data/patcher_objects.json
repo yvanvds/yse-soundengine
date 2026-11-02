@@ -18182,6 +18182,65 @@
     ],
     "requires_midi_device": false
   },
+  "~loudness": {
+    "category": "ANALYSIS",
+    "description": "Measures loudness after EBU R 128 and ITU-R BS.1770: the momentary (400 ms), short-term (3 s) and gated integrated loudness of one or more signals in LUFS, and their sample peak in dBFS, on a bang or every interval.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT",
+          "BANG"
+        ],
+        "doc": "A signal to measure; unconnected it reads as silence. A bang reports; a number picks the channel whose sample peak is reported (0 the highest of all) and reports. Also takes 'channel <n>', 'interval <ms>' (0 stops automatic reports) and 'reset', which starts the integrated loudness and the peak over.",
+        "index": 0,
+        "label": "signal",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~loudness",
+    "outlets": [
+      {
+        "doc": "The momentary loudness in LUFS: the K-weighted level of the last 400 ms. -200 for silence.",
+        "index": 0,
+        "label": "momentary",
+        "range": "-200 or more LUFS",
+        "type": "FLOAT"
+      },
+      {
+        "doc": "The short-term loudness in LUFS: the K-weighted level of the last 3 s. -200 for silence.",
+        "index": 1,
+        "label": "short-term",
+        "range": "-200 or more LUFS",
+        "type": "FLOAT"
+      },
+      {
+        "doc": "The integrated loudness in LUFS since the start or the last reset, gated at -70 LUFS and 10 LU below the mean. -200 while nothing passes the gates.",
+        "index": 2,
+        "label": "integrated",
+        "range": "-200 or more LUFS",
+        "type": "FLOAT"
+      },
+      {
+        "doc": "The largest sample magnitude since the start or the last reset in dBFS, of the chosen channel or of all channels. -200 for none.",
+        "index": 3,
+        "label": "sample peak",
+        "range": "-200 or more dBFS",
+        "type": "FLOAT"
+      }
+    ],
+    "params": [
+      {
+        "default": "1 0",
+        "doc": "The number of signal inlets, measured together (1-64), then the reporting interval in milliseconds, 0 to report only on a bang ('~loudness 2 100'). Later numbers and messages do not change what is saved.",
+        "name": "loudness",
+        "range": "a channel count, then an interval in ms"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~lp": {
     "category": "FILTER",
     "description": "Single-pole lowpass filter. Attenuates content above the cutoff frequency.",
