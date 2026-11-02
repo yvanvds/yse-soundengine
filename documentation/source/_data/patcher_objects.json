@@ -16592,7 +16592,7 @@
           "FLOAT",
           "INT"
         ],
-        "doc": "The left signal (unconnected, the last number sent here, else 0). Takes threshold <dB>, ratio <n>, attack <ms>, release <ms>, makeup <dB>, detector <0|1>, mix <0-1>, bypass <0|1>, meters <0|1>, meterrate <ms> and meterdata.",
+        "doc": "The left signal (unconnected, the last number sent here, else 0). Takes threshold <dB>, ratio <n>, attack <ms>, release <ms>, makeup <dB>, detector <0|1>, mix <0-1>, bypass <0|1>, range <dB>, smoothgain <ms>, freezelevel <0|1>, progressiverelease <0|1>, ngenabled <0|1>, ngthreshold <dB>, delay <ms>, sidechainfilterenabled <0|1>, sidechainfilterfreq <Hz>, channelcoupling <0|1>, meters <0|1>, meterrate <ms> and meterdata.",
         "index": 0,
         "label": "left",
         "range": "any float"
@@ -16646,7 +16646,7 @@
     "params": [
       {
         "default": "",
-        "doc": "Any of 'threshold <dB>' (-18, -60 to 0), 'ratio <n>' (4, 1 to 20), 'attack <ms>' (10), 'release <ms>' (100), 'makeup <dB>' (0, -24 to 24), 'detector <0|1>' (0: peak, 1: RMS), 'mix <0-1>' (1, fully compressed), 'bypass <0|1>' (0), 'meters <0|1>' (1) and 'meterrate <ms>' (100).",
+        "doc": "Any of 'threshold <dB>' (-18, -60 to 0), 'ratio <n>' (4, 1 to 20), 'attack <ms>' (10), 'release <ms>' (100), 'makeup <dB>' (0, -24 to 24), 'detector <0|1>' (0: peak, 1: RMS), 'mix <0-1>' (1, fully compressed), 'bypass <0|1>' (0), 'meters <0|1>' (1), 'meterrate <ms>' (100), 'range <dB>' (120, no limit, 0 to 120), 'smoothgain <ms>' (0, off, to 1000), 'freezelevel <0|1>' (0), 'progressiverelease <0|1>' (0), 'ngenabled <0|1>' (0), 'ngthreshold <dB>' (-60, -96 to 0), 'delay <ms>' (0, lookahead, at most 4096 samples), 'sidechainfilterenabled <0|1>' (0), 'sidechainfilterfreq <Hz>' (100, 10 to 20000) and 'channelcoupling <0|1>' (1: linked, 0: each channel on its own).",
         "name": "settings",
         "range": "words and values"
       }

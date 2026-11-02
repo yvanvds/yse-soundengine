@@ -24,7 +24,11 @@ namespace YSE {
      *    number sent there, else 0, #1036). Inlet 0 also takes ``threshold
      *    <dB>``, ``ratio <n>``, ``attack <ms>``, ``release <ms>``, ``makeup
      *    <dB>``, ``detector <0|1>``, ``mix <0-1>``, ``bypass <0|1>``,
-     *    ``meters <0|1>``, ``meterrate <ms>`` and ``meterdata``.
+     *    ``range <dB>``, ``smoothgain <ms>``, ``freezelevel <0|1>``,
+     *    ``progressiverelease <0|1>``, ``ngenabled <0|1>``, ``ngthreshold
+     *    <dB>``, ``delay <ms>``, ``sidechainfilterenabled <0|1>``,
+     *    ``sidechainfilterfreq <Hz>``, ``channelcoupling <0|1>``, ``meters
+     *    <0|1>``, ``meterrate <ms>`` and ``meterdata``.
      *  - Inlet 2: the sidechain. While a signal is connected the detector
      *    listens to it instead of the left and right signal; unconnected,
      *    the compressor listens to its own input.
@@ -36,12 +40,17 @@ namespace YSE {
      *  - Parameter: ``settings``, any of the words above with a value. It is
      *    saved with the patch; a later message is not.
      *
-     *  Not ported from ``omx.comp~``: the AGC, noise gate, limiter, dual
-     *  band, gating, freeze, progressive release, gain smoothing, lookahead
-     *  delay, range, channel coupling (always linked here), sidechain filter
-     *  and presets (``choosepreset``, ``savesettings``; the settings
-     *  parameter is saved with the patch). ``DSP::MODULES::compressor`` has
-     *  none of them.
+     *  The range, gain smoothing, freeze, progressive release, noise gate,
+     *  lookahead ``delay``, sidechain filter and channel coupling map onto
+     *  ``DSP::MODULES::compressor``'s controls of #1241. The lookahead delays
+     *  the output by ``delay`` ms, rounded to samples and held at most
+     *  ``MAX_DELAY_SAMPLES``.
+     *
+     *  Not ported from ``omx.comp~``: the AGC, the limiter (``~limi``,
+     *  ``~peaklim``), dual band (``~multiband``), ``gatinglevel`` and the
+     *  presets (``choosepreset``, ``savesettings``; the settings parameter is
+     *  saved with the patch). Other objects cover the first three, and the
+     *  others belong to OctiMax's own preset and level system.
      */
     PATCHER_CLASS(dComp, YSE::OBJ::D_COMP)
     _DO_MESSAGES
@@ -55,6 +64,9 @@ namespace YSE {
 
     /** @brief The meter interval until it is set, in ms. */
     static constexpr float DEFAULT_METER_RATE = 100.f;
+
+    /** @brief The longest lookahead ``delay``, in samples. */
+    static constexpr unsigned int MAX_DELAY_SAMPLES = 4096;
 
     /** @brief The DSP class, for tests. Not while the object renders. */
     DSP::MODULES::compressor& Compressor() {
@@ -81,6 +93,16 @@ namespace YSE {
     aFlt mix;
     aFlt meterRate;
     aInt detector;
+    aFlt range;
+    aFlt smoothGain;
+    aFlt gateThreshold;
+    aFlt delayMs;
+    aFlt sidechainFrequency;
+    std::atomic<bool> freeze{false};
+    std::atomic<bool> progressive{false};
+    std::atomic<bool> gate{false};
+    std::atomic<bool> sidechainFilter{false};
+    std::atomic<bool> coupled{true};
     std::atomic<bool> bypass{false};
     std::atomic<bool> meters{true};
     std::atomic<bool> meterRequested{false};

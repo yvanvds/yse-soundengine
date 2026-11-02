@@ -99,6 +99,8 @@ namespace YSE {
         stepLength(1),
         stepFill(0),
         stepEnergy(0.0),
+        subIndex(0),
+        subEnergy(0.0),
         weights{},
         shelfState{},
         highPassState{},
@@ -109,8 +111,12 @@ namespace YSE {
         steps{},
         stepPos(0),
         stepsSeen(0),
+        subs{},
+        subPos(0),
         momentaryLoudness(SILENCE),
         shortTermLoudness(SILENCE),
+        maxMomentaryLoudness(SILENCE),
+        maxShortTermLoudness(SILENCE),
         integratedDirty(false),
         integratedLoudness(SILENCE),
         rangeDirty(false),
@@ -253,14 +259,38 @@ namespace YSE {
       return sum;
     }
 
-    // One 100 ms step is complete: update the windows and, once 400 ms
-    // have been measured, gate the block that ends here.
+    // The running sub-step ends this many samples into its step: the
+    // sub-steps tile the step, so every MOMENTARY_SUBS of them in a row
+    // hold exactly MOMENTARY_STEPS steps.
+    UInt loudnessMeter::subEnd() const {
+      const std::uint64_t at = static_cast<std::uint64_t>(stepLength) * (subIndex + 1);
+      return static_cast<UInt>((at + SUB_STEPS / 2) / SUB_STEPS);
+    }
+
+    // One 5 ms sub-step is complete: slide the momentary window and, after
+    // the last sub-step of a step, end the step.
+    void loudnessMeter::endSub() {
+      subs[subPos] = subEnergy;
+      subPos = (subPos + 1) % MOMENTARY_SUBS;
+      stepEnergy += subEnergy;
+      subEnergy = 0.0;
+      Dbl recent = 0.0;
+      for (const Dbl e : subs)
+        recent += e;
+      momentaryLoudness = Loudness(recent / (MOMENTARY_STEPS * static_cast<Dbl>(stepLength)));
+      if (momentaryLoudness > maxMomentaryLoudness) maxMomentaryLoudness = momentaryLoudness;
+      if (++subIndex >= SUB_STEPS) endStep();
+    }
+
+    // One 100 ms step is complete: update the short-term window and, once
+    // 400 ms have been measured, gate the block that ends here.
     void loudnessMeter::endStep() {
       steps[stepPos] = stepEnergy;
       stepPos = (stepPos + 1) % WINDOW_STEPS;
       if (stepsSeen < WINDOW_STEPS) stepsSeen++;
       stepEnergy = 0.0;
       stepFill = 0;
+      subIndex = 0;
 
       Dbl recent = 0.0;
       Dbl all = 0.0;
@@ -271,9 +301,9 @@ namespace YSE {
       }
       const Dbl length = static_cast<Dbl>(stepLength);
       const Dbl block = recent / (MOMENTARY_STEPS * length);
-      momentaryLoudness = Loudness(block);
       const Dbl window = all / (WINDOW_STEPS * length);
       shortTermLoudness = Loudness(window);
+      if (shortTermLoudness > maxShortTermLoudness) maxShortTermLoudness = shortTermLoudness;
 
       // Loudness range: every short-term value once 3 s have been
       // measured, at or above the absolute gate (Tech 3342).
@@ -306,7 +336,10 @@ namespace YSE {
 
       UInt at = 0;
       while (at < length) {
-        UInt end = at + (stepLength - stepFill);
+        // Sub-steps of no samples, at very low rates, end at once.
+        while (stepFill >= subEnd())
+          endSub();
+        UInt end = at + (subEnd() - stepFill);
         if (end > length) end = length;
         Dbl energy = 0.0;
         for (UInt c = 0; c < channelCount; ++c) {
@@ -323,10 +356,10 @@ namespace YSE {
             energy += weights[c] * sum;
           }
         }
-        stepEnergy += energy;
+        subEnergy += energy;
         stepFill += end - at;
         at = end;
-        if (stepFill >= stepLength) endStep();
+        if (stepFill >= subEnd()) endSub();
       }
 
       if (!(intervalMs > 0.f) || rate == 0) return 0;
@@ -345,6 +378,14 @@ namespace YSE {
 
     Flt loudnessMeter::shortTerm() const {
       return shortTermLoudness;
+    }
+
+    Flt loudnessMeter::maxMomentary() const {
+      return maxMomentaryLoudness;
+    }
+
+    Flt loudnessMeter::maxShortTerm() const {
+      return maxShortTermLoudness;
     }
 
     Flt loudnessMeter::integrated() {
@@ -444,6 +485,10 @@ namespace YSE {
     loudnessMeter& loudnessMeter::reset() {
       stepFill = 0;
       stepEnergy = 0.0;
+      subIndex = 0;
+      subEnergy = 0.0;
+      subs.fill(0.0);
+      subPos = 0;
       // The filters and the interpolator keep their memory: the signal goes
       // on, and clearing it would read a step that is not there.
       peaks.fill(0.f);
@@ -453,6 +498,8 @@ namespace YSE {
       stepsSeen = 0;
       momentaryLoudness = SILENCE;
       shortTermLoudness = SILENCE;
+      maxMomentaryLoudness = SILENCE;
+      maxShortTermLoudness = SILENCE;
       blocks.clear();
       shortTerms.clear();
       integratedDirty = false;

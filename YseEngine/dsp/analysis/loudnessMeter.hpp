@@ -41,10 +41,16 @@ namespace YSE {
      *  by the channel's weight (1 by default; BS.1770 gives 1.41 to the
      *  surround channels, see ``weight()``) and summed over the channels:
      *  ``L = -0.691 + 10 log10(sum)``. The signal is measured in steps of
-     *  100 ms (rounded to whole samples). The momentary loudness is the mean
-     *  over the last 4 steps (400 ms), the short-term over the last 30
-     *  (3 s); both change once per step and, until that much has been
-     *  measured, count the missing steps as silence.
+     *  100 ms (rounded to whole samples), each split in 20 sub-steps of
+     *  5 ms. The momentary loudness is the mean over the last 80 sub-steps
+     *  (400 ms) and changes every sub-step, so that the window slides
+     *  closely enough over a short tone to find its loudness, as EBU Tech
+     *  3341 cases 13 and 14 ask. The short-term loudness is the mean over
+     *  the last 30 steps (3 s) and changes once per step, past the 10 Hz
+     *  that Tech 3341 asks of it. Until that much has been measured, both
+     *  count what is missing as silence. ``maxMomentary()`` and
+     *  ``maxShortTerm()`` keep the highest of each since the last
+     *  ``reset()``, as Tech 3341 asks a meter to show.
      *
      *  **Integrated loudness** gates the 400 ms blocks that overlap by 75 %
      *  (one every step) as BS.1770 does: blocks at or below -70 LUFS are
@@ -159,6 +165,14 @@ namespace YSE {
       /** @brief The short-term loudness (3 s) in LUFS. */
       Flt shortTerm() const;
 
+      /** @brief The highest momentary loudness since the last reset in
+       *         LUFS. */
+      Flt maxMomentary() const;
+
+      /** @brief The highest short-term loudness since the last reset in
+       *         LUFS. */
+      Flt maxShortTerm() const;
+
       /** @brief The gated integrated loudness since the last reset in LUFS.
        *         Walks the histogram after a new block arrived, else returns
        *         the last value. */
@@ -192,7 +206,7 @@ namespace YSE {
       Flt interval() const;
 
       /** @brief Starts over: clears the windows, the integrated loudness,
-       *         the loudness range and the peaks. Keeps the channel weights,
+       *         the loudness range, the maxima and the peaks. Keeps the channel weights,
        *         the interval and the memory of the K-weighting filters and
        *         the true-peak interpolator, since the signal goes on. */
       loudnessMeter& reset();
@@ -200,6 +214,8 @@ namespace YSE {
     private:
       static constexpr UInt WINDOW_STEPS = 30; // 3 s in 100 ms steps
       static constexpr UInt MOMENTARY_STEPS = 4; // 400 ms
+      static constexpr UInt SUB_STEPS = 20; // 5 ms sub-steps per step
+      static constexpr UInt MOMENTARY_SUBS = MOMENTARY_STEPS * SUB_STEPS;
       static constexpr int BINS = 10000; // 0.01 LU from -70 to +30 LUFS
       static constexpr UInt TAPS = 12; // per phase of the true-peak filter
 
@@ -231,7 +247,9 @@ namespace YSE {
       };
 
       void configure();
+      void endSub();
       void endStep();
+      UInt subEnd() const; // where the running sub-step ends in its step
       Dbl filter(UInt channel, const Flt* in, UInt from, UInt to);
 
       UInt channelCount;
@@ -239,6 +257,8 @@ namespace YSE {
       UInt stepLength; // samples in one 100 ms step
       UInt stepFill; // samples in the running step
       Dbl stepEnergy; // weighted sum of squares in the running step
+      UInt subIndex; // the running sub-step of the step
+      Dbl subEnergy; // weighted sum of squares in the running sub-step
       section shelf;
       section highPass;
       std::array<Dbl, MAX_CHANNELS> weights;
@@ -253,8 +273,12 @@ namespace YSE {
       std::array<Dbl, WINDOW_STEPS> steps; // energy sums of the last steps
       UInt stepPos;
       UInt stepsSeen; // up to WINDOW_STEPS
+      std::array<Dbl, MOMENTARY_SUBS> subs; // energy sums of the last sub-steps
+      UInt subPos;
       Flt momentaryLoudness;
       Flt shortTermLoudness;
+      Flt maxMomentaryLoudness;
+      Flt maxShortTermLoudness;
 
       histogram blocks; // 400 ms block loudness, for the integrated loudness
       histogram shortTerms; // short-term loudness, for the loudness range
