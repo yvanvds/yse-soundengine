@@ -301,3 +301,9 @@ YSElog.txt
 /content/fm/dx7-factory/*.syx
 /content/fm/dx7-factory/*.SYX
 /content/fm/dx7-factory/.fetched
+
+# EBU loudness test set (issue #1240): kept outside the repository and found
+# through YSE_EBU_LOUDNESS_DIR; its audio is never committed.
+/ebu-loudness/
+seq-3341-*.wav
+seq-3342-*.wav

@@ -4,15 +4,27 @@
 // to 6: 1 kHz sines whose loudness is known in closed form), and a
 // brute-force gating reference that keeps every block. Issue #1237 adds the
 // loudness range (EBU Tech 3342 cases 1 to 4 and its reference code) and
-// the true peak (Tech 3341 cases 15 to 23).
+// the true peak (Tech 3341 cases 15 to 23). Issue #1240 adds Tech 3341
+// cases 9 to 12, builds cases 20 to 23 as Table 1 defines them, and
+// measures the test set's files (Tech 3341 cases 7 and 8, Tech 3342 cases 5
+// and 6) when YSE_EBU_LOUDNESS_DIR points at them. Tech 3341 cases 13 and
+// 14 (the maximum momentary loudness of tones 20 ms apart) are not met: the
+// momentary window moves in 100 ms steps, #1242.
 
 #include <doctest/doctest.h>
 #include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <cstdint>
+#include <cstdlib>
+#include <filesystem>
+#include <functional>
 #include <limits>
+#include <memory>
+#include <string>
 #include <vector>
 #include "dsp/analysis/loudnessMeter.hpp"
+#include "dsp/fileBuffer.hpp"
 #include "headers/constants.hpp"
 #include "support/alloc_probe.hpp"
 #include "support/audio_helpers.hpp"
@@ -34,9 +46,12 @@ namespace {
   };
 
   // Runs the segments through `m` in blocks of `block` samples at the live
-  // rate, the sine phase running on across segments.
+  // rate, the sine phase running on across segments. `after`, when given,
+  // is called after every block with the seconds measured so far; with
+  // blocks no longer than a 100 ms step it sees every momentary and
+  // short-term value.
   void Run(loudnessMeter& m, const std::vector<Segment>& segments, UInt block = N,
-           double frequency = 1000.0) {
+           double frequency = 1000.0, const std::function<void(double)>& after = {}) {
     const double rate = static_cast<double>(YSE::SAMPLERATE);
     const std::size_t channels = segments.front().dbfs.size();
     std::vector<buffer> bufs;
@@ -67,6 +82,7 @@ namespace {
         m(ptrs.data(), static_cast<UInt>(channels));
         n += len;
         done += len;
+        if (after) after(static_cast<double>(n) / rate);
       }
     }
   }
@@ -190,6 +206,98 @@ TEST_SUITE("dsp") {
     CHECK(m.peak(1) == doctest::Approx(-28.0).epsilon(1e-3));
     CHECK(m.peak(5) == doctest::Approx(-30.0).epsilon(1e-3));
     CHECK(m.peak(6) == m.peak()); // out of range: all
+  }
+
+  // ---- EBU Tech 3341 cases 9 to 12 (issue #1240): the short-term and
+  // momentary windows, generated exactly as Table 1 gives them. Each is a
+  // stereo 1 kHz sine like case 1, read after every 128-sample block so the
+  // checks see every value the meter shows.
+
+  TEST_CASE("loudnessMeter: EBU Tech 3341 case 9, short-term constant after 3 s (#1240)") {
+    ScopedSampleRate rate(48000);
+    // (1.34 s at -20 dBFS; 1.66 s at -30 dBFS) repeated 5 times: every 3 s
+    // window holds one period.
+    std::vector<Segment> segments;
+    for (int k = 0; k < 5; ++k) {
+      segments.push_back({1.34, Stereo(-20.0)});
+      segments.push_back({1.66, Stereo(-30.0)});
+    }
+    loudnessMeter m(2);
+    double low = 0.0;
+    double high = -1000.0;
+    int seen = 0;
+    Run(m, segments, N, 1000.0, [&](double t) {
+      if (t < 3.0) return;
+      low = std::min(low, static_cast<double>(m.shortTerm()));
+      high = std::max(high, static_cast<double>(m.shortTerm()));
+      seen++;
+    });
+    REQUIRE(seen > 0);
+    CHECK(low >= -23.1);
+    CHECK(high <= -22.9);
+  }
+
+  TEST_CASE("loudnessMeter: EBU Tech 3341 case 10, the file-based maximum short-term "
+            "loudness (#1240)") {
+    ScopedSampleRate rate(48000);
+    // 20 files: i * 0.15 s of silence, 3 s at -23 dBFS, 1 s of silence; the
+    // meter starts over for each.
+    for (int i = 0; i < 20; ++i) {
+      CAPTURE(i);
+      loudnessMeter m(2);
+      double top = -1000.0;
+      Run(m, {{i * 0.15, Stereo(-1000.0)}, {3.0, Stereo(-23.0)}, {1.0, Stereo(-1000.0)}}, N, 1000.0,
+          [&](double) { top = std::max(top, static_cast<double>(m.shortTerm())); });
+      CHECK(std::fabs(top - -23.0) <= 0.1);
+    }
+  }
+
+  TEST_CASE("loudnessMeter: EBU Tech 3341 case 11, the live maximum short-term loudness "
+            "(#1240)") {
+    ScopedSampleRate rate(48000);
+    // One signal of 20 tones: i * 0.15 s of silence, 3 s at -38 + i dBFS,
+    // 3 - i * 0.15 s of silence; 6 s each. The maximum within each 6 s is
+    // the tone's own: the one before is 1 dB quieter.
+    std::vector<Segment> segments;
+    for (int i = 0; i < 20; ++i) {
+      segments.push_back({i * 0.15, Stereo(-1000.0)});
+      segments.push_back({3.0, Stereo(-38.0 + i)});
+      segments.push_back({3.0 - i * 0.15, Stereo(-1000.0)});
+    }
+    std::vector<double> top(20, -1000.0);
+    loudnessMeter m(2);
+    Run(m, segments, N, 1000.0, [&](double t) {
+      const auto i = static_cast<std::size_t>(std::min(19.0, std::floor((t - 1e-9) / 6.0)));
+      top[i] = std::max(top[i], static_cast<double>(m.shortTerm()));
+    });
+    for (int i = 0; i < 20; ++i) {
+      CAPTURE(i);
+      CHECK(std::fabs(top[static_cast<std::size_t>(i)] - (-38.0 + i)) <= 0.1);
+    }
+  }
+
+  TEST_CASE("loudnessMeter: EBU Tech 3341 case 12, momentary constant after 1 s (#1240)") {
+    ScopedSampleRate rate(48000);
+    // (0.18 s at -20 dBFS; 0.22 s at -30 dBFS) repeated 25 times: every
+    // 400 ms window holds one period.
+    std::vector<Segment> segments;
+    for (int k = 0; k < 25; ++k) {
+      segments.push_back({0.18, Stereo(-20.0)});
+      segments.push_back({0.22, Stereo(-30.0)});
+    }
+    loudnessMeter m(2);
+    double low = 0.0;
+    double high = -1000.0;
+    int seen = 0;
+    Run(m, segments, N, 1000.0, [&](double t) {
+      if (t < 1.0) return;
+      low = std::min(low, static_cast<double>(m.momentary()));
+      high = std::max(high, static_cast<double>(m.momentary()));
+      seen++;
+    });
+    REQUIRE(seen > 0);
+    CHECK(low >= -23.1);
+    CHECK(high <= -22.9);
   }
 
   TEST_CASE("loudnessMeter: momentary and short-term windows fill with silence first "
@@ -550,10 +658,17 @@ TEST_SUITE("dsp") {
       return x;
     }
 
-    // Tech 3341 cases 20 to 23: at 4 fs, a sine of fs/6 at 0.5 holding one
-    // period of fs/4 at 1.0, continuous in phase on both sides, lowpassed
-    // and taken down to fs from sample `offset`. EBU's own files are not
-    // used: this synthesises the signal as the case describes it.
+    // Tech 3341 cases 20 to 23, as Table 1 defines them: synthesised at
+    // 4 fs, a sine of fs/6 at 0.50 FFS holding a single period of fs/4 at
+    // 1.00, continuous in phase on both sides (each starts and ends at phase
+    // 0), tapered with a short fade-in and fade-out, lowpass (anti-aliasing)
+    // filtered and downsampled to fs from sample `offset` of the 4 fs rate.
+    // Nothing is rescaled: the burst's amplitude of 1.00 is the expected
+    // 0.0 dBTP. The spec leaves the lowpass open; this one is the textbook
+    // anti-aliasing filter for the decimation, a Blackman-windowed sinc cut
+    // off at the new Nyquist frequency, fs/2. Band-limiting alone takes the
+    // burst's crest to about -0.13 dBFS at 4 fs; a lower cutoff takes more
+    // (-0.25 dBFS at 20 kHz, where offset 2 reads -0.41 dBTP).
     std::vector<float> TruePeakBurst(std::size_t offset) {
       std::vector<double> hi;
       const std::size_t sixth = 24; // samples per period of fs/6 at 4 fs
@@ -565,10 +680,9 @@ TEST_SUITE("dsp") {
       for (std::size_t i = 0; i < 1000 * sixth; ++i)
         hi.push_back(0.5 * std::sin(2.0 * Pi * static_cast<double>(i % sixth) / sixth));
       for (std::size_t i = 0; i < hi.size(); ++i)
-        hi[i] *= Taper(i, hi.size(), 1920);
-      // A Blackman-windowed sinc lowpass at 20 kHz of 4 * 48 kHz.
+        hi[i] *= Taper(i, hi.size(), 1920); // 10 ms at 4 fs
       constexpr int half = 127;
-      const double cut = 20000.0 / 192000.0;
+      const double cut = 0.125; // fs/2 at 4 fs
       std::vector<double> h;
       for (int k = -half; k <= half; ++k) {
         const double sinc =
@@ -577,9 +691,8 @@ TEST_SUITE("dsp") {
             0.42 + 0.5 * std::cos(Pi * k / (half + 1)) + 0.08 * std::cos(2.0 * Pi * k / (half + 1));
         h.push_back(sinc * w);
       }
-      std::vector<double> filtered(hi.size(), 0.0);
-      double crest = 0.0;
-      for (std::size_t n = 0; n < hi.size(); ++n) {
+      std::vector<float> x;
+      for (std::size_t n = offset; n < hi.size(); n += 4) {
         double y = 0.0;
         for (std::size_t j = 0; j < h.size(); ++j) {
           // Tap j weighs the sample j - half after n.
@@ -587,15 +700,8 @@ TEST_SUITE("dsp") {
           if (at >= 0 && at < static_cast<std::ptrdiff_t>(hi.size()))
             y += h[j] * hi[static_cast<std::size_t>(at)];
         }
-        filtered[n] = y;
-        crest = std::max(crest, std::fabs(y));
+        x.push_back(static_cast<float>(y));
       }
-      // The lowpass rounds the burst's crest a little; scaled so the
-      // band-limited waveform peaks at exactly 0 dBTP, the expected result.
-      CHECK(crest > 0.9);
-      std::vector<float> x;
-      for (std::size_t n = offset; n < hi.size(); n += 4)
-        x.push_back(static_cast<float>(filtered[n] / crest));
       return x;
     }
 
@@ -627,7 +733,7 @@ TEST_SUITE("dsp") {
   }
 
   TEST_CASE("loudnessMeter: EBU Tech 3341 cases 20 to 23, a burst downsampled at four "
-            "offsets (#1237)") {
+            "offsets (#1237, #1240)") {
     ScopedSampleRate rate(48000);
     for (std::size_t offset = 0; offset < 4; ++offset) {
       CAPTURE(offset);
@@ -690,6 +796,150 @@ TEST_SUITE("dsp") {
     CHECK(kept.momentary() == doctest::Approx(fresh.momentary()).epsilon(1e-6));
     CHECK(kept.truePeak() <= fresh.truePeak());
     CHECK(kept.truePeak() == doctest::Approx(-6.0).epsilon(0.1 / 6.0));
+  }
+
+  // ---- The cases of EBU's loudness test set that are files, not
+  // generators (issue #1240). The audio is never in the repository: set
+  // YSE_EBU_LOUDNESS_DIR to a directory holding the test set (searched
+  // recursively) and the cases whose files are there run; the others, and
+  // all of them when the variable is unset, are skipped.
+
+  namespace {
+    std::string Lower(std::string s) {
+      std::transform(s.begin(), s.end(), s.begin(),
+                     [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+      return s;
+    }
+
+    // The first file under `dir` whose name holds one of `names` (in order
+    // of preference) not followed by another digit, so "seq-3341-2" never
+    // takes "seq-3341-20"; prefixes such as "08_TC7_" and suffixes such as
+    // "-24bit-v02" are allowed. Of several matches of one name the last in
+    // order wins, the later version. Empty when there is none.
+    std::filesystem::path FindEbuFile(const std::filesystem::path& dir,
+                                      const std::vector<std::string>& names) {
+      std::vector<std::filesystem::path> files;
+      std::error_code ec;
+      for (std::filesystem::recursive_directory_iterator it(dir, ec), end; !ec && it != end;
+           it.increment(ec)) {
+        if (!it->is_regular_file(ec)) continue;
+        const std::string ext = Lower(it->path().extension().string());
+        if (ext == ".wav" || ext == ".wave" || ext == ".flac") files.push_back(it->path());
+      }
+      std::sort(files.begin(), files.end());
+      for (const std::string& name : names) {
+        std::filesystem::path found;
+        for (const std::filesystem::path& f : files) {
+          const std::string file = Lower(f.filename().string());
+          for (std::size_t at = file.find(name); at != std::string::npos;
+               at = file.find(name, at + 1)) {
+            const std::size_t after = at + name.size();
+            if (after < file.size() && std::isdigit(static_cast<unsigned char>(file[after])))
+              continue;
+            found = f;
+            break;
+          }
+        }
+        if (!found.empty()) return found;
+      }
+      return {};
+    }
+
+    // Decodes every channel of `file` and runs it, then `silence` seconds
+    // of silence, through a meter with one channel per file channel, at the
+    // file's rate. False when the file does not decode.
+    bool MeasureFile(const std::filesystem::path& file, double silence, Flt& integrated, Flt& range,
+                     Flt& truePeak) {
+      std::vector<std::unique_ptr<YSE::DSP::fileBuffer>> channels;
+      const std::string path = file.string();
+      while (channels.size() < loudnessMeter::MAX_CHANNELS) {
+        auto b = std::make_unique<YSE::DSP::fileBuffer>(1);
+        if (!b->load(path.c_str(), static_cast<UInt>(channels.size()))) break;
+        channels.push_back(std::move(b));
+      }
+      if (channels.empty()) return false;
+      const auto fileRate = static_cast<UInt>(std::lround(channels.front()->getFileSampleRate()));
+      if (fileRate == 0) return false;
+      ScopedSampleRate rate(fileRate);
+      const auto count = static_cast<UInt>(channels.size());
+      loudnessMeter m(count);
+      const UInt frames = channels.front()->getLength();
+      const UInt total = frames + static_cast<UInt>(std::llround(silence * fileRate));
+      std::vector<buffer> bufs(count, buffer(N));
+      std::vector<buffer*> ptrs;
+      ptrs.reserve(count);
+      for (buffer& b : bufs)
+        ptrs.push_back(&b);
+      for (UInt at = 0; at < total; at += N) {
+        const UInt len = std::min(N, total - at);
+        for (UInt c = 0; c < count; ++c) {
+          if (bufs[c].getLength() != len) bufs[c].resize(len);
+          const float* in = channels[c]->getPtr();
+          const UInt have = channels[c]->getLength();
+          for (UInt i = 0; i < len; ++i)
+            bufs[c].getPtr()[i] = at + i < have ? in[at + i] : 0.f;
+        }
+        m(ptrs.data(), count);
+      }
+      integrated = m.integrated();
+      range = m.loudnessRange();
+      truePeak = m.truePeak();
+      return true;
+    }
+  } // namespace
+
+  TEST_CASE("loudnessMeter: EBU test set files from YSE_EBU_LOUDNESS_DIR, Tech 3341 cases "
+            "7, 8 and 20 to 23 and Tech 3342 cases 5 and 6 (#1240)") {
+    const char* dir = std::getenv("YSE_EBU_LOUDNESS_DIR");
+    if (dir == nullptr || *dir == '\0' || !std::filesystem::is_directory(dir)) {
+      MESSAGE("SKIPPED: YSE_EBU_LOUDNESS_DIR is not set to a directory, so the EBU test set "
+              "files (Tech 3341 cases 7, 8, 20-23, Tech 3342 cases 5, 6) are not measured");
+      return;
+    }
+    enum class What { Integrated, Range, TruePeak };
+    struct FileCase {
+      const char* name;
+      std::vector<std::string> files;
+      What what;
+      double want;
+      double below; // accepted below `want`
+      double above; // accepted above `want`
+    };
+    // The EBU file names (seq-3341-7_seq-3342-5-24bit.wav holds both cases
+    // 3341-7 and 3342-5, seq-3341-2011-8_seq-3342-6-24bit-v02.wav both
+    // 3341-8 and 3342-6) and Table 1's expected values.
+    const std::vector<FileCase> cases = {
+        {"Tech 3341 case 7", {"seq-3341-7"}, What::Integrated, -23.0, 0.1, 0.1},
+        {"Tech 3341 case 8", {"seq-3341-2011-8", "seq-3341-8"}, What::Integrated, -23.0, 0.1, 0.1},
+        {"Tech 3342 case 5", {"seq-3342-5"}, What::Range, 5.0, 1.0, 1.0},
+        {"Tech 3342 case 6", {"seq-3342-6"}, What::Range, 15.0, 1.0, 1.0},
+        {"Tech 3341 case 20", {"seq-3341-20"}, What::TruePeak, 0.0, 0.4, 0.2},
+        {"Tech 3341 case 21", {"seq-3341-21"}, What::TruePeak, 0.0, 0.4, 0.2},
+        {"Tech 3341 case 22", {"seq-3341-22"}, What::TruePeak, 0.0, 0.4, 0.2},
+        {"Tech 3341 case 23", {"seq-3341-23"}, What::TruePeak, 0.0, 0.4, 0.2},
+    };
+    for (const FileCase& c : cases) {
+      const std::string name = c.name;
+      CAPTURE(name);
+      const std::filesystem::path file = FindEbuFile(dir, c.files);
+      if (file.empty()) {
+        const std::string why =
+            "SKIPPED: " + name + ", no file named like *" + c.files.front() + "*.wav under " + dir;
+        MESSAGE(why);
+        continue;
+      }
+      CAPTURE(file.string());
+      Flt integrated = 0.f;
+      Flt range = 0.f;
+      Flt truePeak = 0.f;
+      // Tech 3342's reference code takes the loudness range after 1.5 s of
+      // silence past a file's end.
+      REQUIRE(MeasureFile(file, c.what == What::Range ? 1.5 : 0.0, integrated, range, truePeak));
+      const double got =
+          c.what == What::Integrated ? integrated : (c.what == What::Range ? range : truePeak);
+      CHECK(got >= c.want - c.below);
+      CHECK(got <= c.want + c.above);
+    }
   }
 
   TEST_CASE("loudnessMeter: processing allocates nothing (#1129, #1237)") {
