@@ -1934,11 +1934,17 @@ bool patcherImplementation::DispatchToReceiver(const GraphState* g, ValueKind ki
                                                int intVal, float floatVal,
                                                const std::string& listVal, YSE::THREAD thread) {
   if (g == nullptr) return false;
+  // Every matching .r gets the value, not only the first one in the snapshot
+  // (issue #1239): `.s p` with four `.r p` beside it fires all four, as in Max
+  // and Pd. The walk is over the pinned snapshot, so it neither allocates nor
+  // locks, and a receiver whose cascade sends again only nests another walk.
+  bool matched = false;
   for (pObject* obj : g->objects) {
     if (strcmp(obj->Type(), OBJ::G_RECEIVE) != 0) continue;
     if (obj->DataName() != to) continue;
+    matched = true;
     PATCHER::inlet* in = obj->GetInlet(0);
-    if (in == nullptr) return true; // matched, but nothing to deliver into
+    if (in == nullptr) continue; // matched, but nothing to deliver into
     switch (kind) {
     case ValueKind::Bang:
       in->SetBang(thread);
@@ -1953,9 +1959,8 @@ bool patcherImplementation::DispatchToReceiver(const GraphState* g, ValueKind ki
       in->SetList(listVal, thread);
       break;
     }
-    return true;
   }
-  return false;
+  return matched;
 }
 
 bool patcherImplementation::EnqueueValue(ValueMsg& msg, const std::string& to) {

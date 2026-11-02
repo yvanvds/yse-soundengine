@@ -430,11 +430,11 @@ namespace YSE {
       // semantics (set the parameter; the block's own traversal renders it).
       void DeliverPendingValues(const GraphState* g);
 
-      // Find the gReceive named `to` in snapshot g and deliver the value to its
-      // inlet 0. Audio thread only (no allocation: `to` is a C-string and the
-      // list value is a caller-owned reference). Returns true iff a matching
-      // receiver exists. Shared by the deferred drain and the synchronous
-      // audio-thread path (gSend fan-out during traversal).
+      // Find every gReceive named `to` in snapshot g and deliver the value to
+      // each one's inlet 0 (issue #1239). Audio thread only (no allocation: `to` is a C-string and
+      // the list value is a caller-owned reference). Returns true iff a matching receiver exists.
+      // Shared by the deferred drain and the synchronous audio-thread path (gSend fan-out during
+      // traversal).
       bool DispatchToReceiver(const GraphState* g, ValueKind kind, const char* to, int intVal,
                               float floatVal, const std::string& listVal, THREAD thread);
 

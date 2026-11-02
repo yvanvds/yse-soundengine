@@ -507,6 +507,45 @@ TEST_SUITE("patcher") {
     CHECK(sink.lastInt == 6);
   }
 
+  TEST_CASE("bus routing: every .r of a name beside a .s gets each value, from either thread "
+            "(#1239)") {
+    REQUIRE(TestHelpers::engineInit());
+
+    TestHelpers::OrderSink sinks[3];
+    YSE::PATCHER::patcherImplementation p(1, nullptr);
+    p.SetName("multi1239");
+    YSE::pHandle* trig = p.CreateObject(YSE::OBJ::G_RECEIVE, "trig");
+    YSE::pHandle* first = p.CreateObject(YSE::OBJ::G_RECEIVE, "x");
+    YSE::pHandle* send = p.CreateObject(YSE::OBJ::G_SEND, "x");
+    YSE::pHandle* second = p.CreateObject(YSE::OBJ::G_RECEIVE, "x");
+    YSE::pHandle* third = p.CreateObject(YSE::OBJ::G_RECEIVE, "x");
+    REQUIRE(trig != nullptr);
+    REQUIRE(first != nullptr);
+    REQUIRE(send != nullptr);
+    REQUIRE(second != nullptr);
+    REQUIRE(third != nullptr);
+    p.Connect(trig, 0, send, 0);
+    YSE::pHandle h0(&sinks[0]);
+    YSE::pHandle h1(&sinks[1]);
+    YSE::pHandle h2(&sinks[2]);
+    p.Connect(first, 0, &h0, 0);
+    p.Connect(second, 0, &h1, 0);
+    p.Connect(third, 0, &h2, 0);
+    p.Calculate(YSE::T_DSP);
+
+    // Control thread: the queued value is drained into every receiver.
+    send->SetIntData(0, 5);
+    RunCycle(p);
+    // Render thread: the synchronous dispatch reaches every receiver too.
+    CHECK(p.PassData(7, "trig", YSE::T_GUI));
+    RunCycle(p);
+
+    for (const auto& sink : sinks) {
+      CHECK(sink.count == 2);
+      CHECK(sink.lastInt == 7);
+    }
+  }
+
   // ─── .forward (issue #485) ──────────────────────────────────────────────────
   //
   // The object-level suite (test_patcher_forward.cpp) runs without an engine, so
