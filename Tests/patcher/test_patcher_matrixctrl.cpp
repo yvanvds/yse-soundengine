@@ -602,6 +602,53 @@ TEST_SUITE("patcher") {
     CHECK(Readout(right) == doctest::Approx(9.f));
   }
 
+  TEST_CASE("matrixctrl: it drives a real .router crossbar (#1231)") {
+    // `.router` takes the same `<inlet> <outlet> <state>` triple on its control
+    // inlet, but reads the state as an on/off int — and this object spells
+    // every cell as a float (`0 1 1.`). Wired straight in, a switched-on cell
+    // has to connect the router, not be ignored as a malformed list.
+    YSE::patcher p;
+    p.create(2);
+
+    YSE::pHandle* grid = p.CreateObject(YSE::OBJ::G_MATRIXCTRL, "2 2 0 1");
+    YSE::pHandle* router = p.CreateObject(YSE::OBJ::G_ROUTER, "2 2");
+    YSE::pHandle* left = p.CreateObject(YSE::OBJ::G_FLOAT);
+    YSE::pHandle* right = p.CreateObject(YSE::OBJ::G_FLOAT);
+    REQUIRE(grid != nullptr);
+    REQUIRE(router != nullptr);
+    REQUIRE(left != nullptr);
+    REQUIRE(right != nullptr);
+
+    p.Connect(grid, 0, router, 0);
+    p.Connect(router, 0, left, 0);
+    p.Connect(router, 1, right, 0);
+
+    auto Readout = [](YSE::pHandle* h) { return std::stof(h->GetGuiValue()); };
+
+    // Nothing is connected yet, so nothing routes.
+    router->SetFloatData(1, 3.f); // routable inlet 0
+    CHECK(Readout(left) == doctest::Approx(0.f));
+    CHECK(Readout(right) == doctest::Approx(0.f));
+
+    // Cell (column 0, row 1) on: routable inlet 0 now reaches outlet 1.
+    grid->SetListData(0, "0 1 1");
+    router->SetFloatData(1, 5.f);
+    CHECK(Readout(left) == doctest::Approx(0.f));
+    CHECK(Readout(right) == doctest::Approx(5.f));
+
+    // A whole-state restore replays every cell, connecting outlet 0 as well.
+    grid->SetListData(0, "1 1 0 0");
+    router->SetFloatData(1, 7.f);
+    CHECK(Readout(left) == doctest::Approx(7.f));
+    CHECK(Readout(right) == doctest::Approx(7.f));
+
+    // And a cell turned off disconnects it again.
+    grid->SetListData(0, "0 0 0");
+    router->SetFloatData(1, 9.f);
+    CHECK(Readout(left) == doctest::Approx(7.f));
+    CHECK(Readout(right) == doctest::Approx(9.f));
+  }
+
   TEST_CASE("matrixctrl: a stored GUI value restores the grid on a fresh patch (#559)") {
     // What `.preset` will do: read the string out of one patcher and push it
     // into the equivalent object in another, through nothing but the public API.

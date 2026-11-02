@@ -53,6 +53,7 @@
 #include "patcher/patcherImplementation.h"
 #include "patcher/sinks.hpp"
 #include "support/alloc_probe.hpp"
+#include "utils/json.hpp"
 
 using TestHelpers::MultiSink;
 using TestHelpers::OrderSink;
@@ -90,6 +91,32 @@ namespace {
       out += List({x, y, radius});
     }
     return out;
+  }
+
+  // The first object of @p type in a loaded patcher, or null.
+  YSE::pHandle* FindByType(YSE::patcher& p, const char* type) {
+    for (unsigned int i = 0; i < p.Objects(); i++) {
+      YSE::pHandle* h = p.GetHandleFromList(i);
+      if (h != nullptr && std::string(h->Type()) == type) return h;
+    }
+    return nullptr;
+  }
+
+  // A saved patch whose `.nodes` carries @p state in place of whatever it saved
+  // — null removes the key, which is a patch written before issue #1228.
+  std::string WithNodesState(const std::string& dumped, const nlohmann::json& state) {
+    nlohmann::json doc = nlohmann::json::parse(dumped);
+    for (auto entry = doc.begin(); entry != doc.end(); ++entry) {
+      if (!entry->is_object()) continue;
+      const auto type = entry->find("type");
+      if (type == entry->end() || *type != ".nodes") continue;
+      if (state.is_null()) {
+        entry->erase("state");
+      } else {
+        (*entry)["state"] = state;
+      }
+    }
+    return doc.dump();
   }
 
 } // namespace
@@ -650,6 +677,155 @@ TEST_SUITE("patcher") {
     p.Calculate(YSE::T_DSP);
     CHECK(field->GetID() == idBefore);
     CHECK(field->GetGuiValueAt(2) == List({8.f, 0.f, 1.f}));
+  }
+
+  // ─── persistence (issue #1228) ──────────────────────────────────────────────
+
+  TEST_CASE("nodes: a saved patch reopens with its node layout and output (#1228)") {
+    // The issue's repro as a host runs it: a field created with three nodes,
+    // relaid by a whole-field list as two, wired to two readouts, saved and
+    // loaded into a fresh patcher through the public API only.
+    YSE::patcher src;
+    src.create(2);
+    YSE::pHandle* field = src.CreateObject(YSE::OBJ::G_NODES, "3");
+    YSE::pHandle* weightOut = src.CreateObject(YSE::OBJ::G_LIST);
+    YSE::pHandle* distanceOut = src.CreateObject(YSE::OBJ::G_LIST);
+    REQUIRE(field != nullptr);
+    REQUIRE(weightOut != nullptr);
+    REQUIRE(distanceOut != nullptr);
+    src.Connect(field, 0, weightOut, 0);
+    src.Connect(field, 1, distanceOut, 0);
+
+    field->SetListData(0, "0.25 0.25 0.5 0.75 0.75 0.25");
+    REQUIRE(field->GetGuiValueCount() == 2u);
+    field->SetListData(0, "0.25 0.5");
+    const std::string weightsBefore = weightOut->GetGuiValue();
+    const std::string distancesBefore = distanceOut->GetGuiValue();
+    REQUIRE_FALSE(weightsBefore.empty());
+
+    const std::string json = src.DumpJSON();
+
+    YSE::patcher loaded;
+    loaded.create(2);
+    loaded.ParseJSON(json);
+    REQUIRE(loaded.Objects() == 3);
+    YSE::pHandle* h = FindByType(loaded, ".nodes");
+    REQUIRE(h != nullptr);
+
+    // The layout, count included — while the creation argument stays what the
+    // author typed.
+    CHECK(h->GetParams() == std::string("3"));
+    CHECK(h->GetGuiValueCount() == 2u);
+    CHECK(h->GetGuiValueAt(0) == List({0.25f, 0.25f, 0.5f}));
+    CHECK(h->GetGuiValueAt(1) == List({0.75f, 0.75f, 0.25f}));
+    CHECK(h->GetGuiValue() == field->GetGuiValue());
+
+    // And the output: the same cursor reaches the reloaded readouts as the
+    // same weights and distances the original sent.
+    h->SetListData(0, "0.25 0.5");
+    YSE::pHandle* readout0 = nullptr;
+    YSE::pHandle* readout1 = nullptr;
+    for (unsigned int i = 0; i < loaded.Objects(); i++) {
+      YSE::pHandle* any = loaded.GetHandleFromList(i);
+      if (any == nullptr || std::string(any->Type()) == ".nodes") continue;
+      if (any->GetGuiValue() == weightsBefore) readout0 = any;
+      if (any->GetGuiValue() == distancesBefore) readout1 = any;
+    }
+    CHECK(readout0 != nullptr);
+    CHECK(readout1 != nullptr);
+    CHECK(readout0 != readout1);
+  }
+
+  TEST_CASE("nodes: the field is written under state, one entry per live node (#1228)") {
+    YSE::patcher src;
+    src.create(2);
+    YSE::pHandle* field = src.CreateObject(YSE::OBJ::G_NODES, "3");
+    REQUIRE(field != nullptr);
+    field->SetListData(0, "1 2 3 4 5 6");
+
+    const nlohmann::json doc = nlohmann::json::parse(src.DumpJSON());
+    const nlohmann::json* saved = nullptr;
+    for (auto entry = doc.begin(); entry != doc.end(); ++entry) {
+      if (entry->is_object() && entry->value("type", std::string()) == ".nodes") saved = &*entry;
+    }
+    REQUIRE(saved != nullptr);
+    REQUIRE(saved->find("state") != saved->end());
+    const nlohmann::json& nodes = (*saved)["state"]["nodes"];
+    REQUIRE(nodes.is_array());
+    REQUIRE(nodes.size() == 2u);
+    CHECK(nodes[0]["x"].get<float>() == 1.f);
+    CHECK(nodes[0]["y"].get<float>() == 2.f);
+    CHECK(nodes[0]["radius"].get<float>() == 3.f);
+    CHECK(nodes[1]["x"].get<float>() == 4.f);
+    CHECK(nodes[1]["y"].get<float>() == 5.f);
+    CHECK(nodes[1]["radius"].get<float>() == 6.f);
+  }
+
+  TEST_CASE("nodes: a patch saved without node state loads the old defaults (#1228)") {
+    YSE::patcher src;
+    src.create(2);
+    YSE::pHandle* field = src.CreateObject(YSE::OBJ::G_NODES, "3");
+    REQUIRE(field != nullptr);
+    field->SetListData(0, "0.25 0.25 0.5 0.75 0.75 0.25");
+
+    // No `state` at all — a file written before #1228 — and the hand-edited
+    // shapes that must not reshape the field or throw: an empty list, a
+    // non-array, entries that are not objects.
+    const nlohmann::json shapes[] = {
+        nlohmann::json(),
+        nlohmann::json::object(),
+        nlohmann::json{{"nodes", nlohmann::json::array()}},
+        nlohmann::json{{"nodes", "0 0 1"}},
+        nlohmann::json{{"nodes", nlohmann::json::array({1, "two", nullptr})}},
+    };
+    for (const auto& state : shapes) {
+      CAPTURE(state.dump());
+      YSE::patcher loaded;
+      loaded.create(2);
+      loaded.ParseJSON(WithNodesState(src.DumpJSON(), state));
+      YSE::pHandle* h = FindByType(loaded, ".nodes");
+      REQUIRE(h != nullptr);
+      CHECK(h->GetGuiValueCount() == 3u);
+      CHECK(h->GetGuiValue() == Triples(0.f, 0.f, 1.f, 3));
+    }
+  }
+
+  TEST_CASE("nodes: a hand-edited state is bounded and filled in (#1228)") {
+    YSE::patcher src;
+    src.create(2);
+    REQUIRE(src.CreateObject(YSE::OBJ::G_NODES, "2") != nullptr);
+    const std::string dumped = src.DumpJSON();
+
+    SUBCASE("a missing or non-numeric field takes the bare node's value") {
+      nlohmann::json nodes = nlohmann::json::array();
+      nodes.push_back({{"x", 2}});
+      nodes.push_back({{"y", 3}, {"radius", "wide"}});
+      nodes.push_back(7); // skipped, not counted
+      nodes.push_back({{"x", 1}, {"y", 1}, {"radius", 0.5}});
+      YSE::patcher loaded;
+      loaded.create(2);
+      loaded.ParseJSON(WithNodesState(dumped, {{"nodes", nodes}}));
+      YSE::pHandle* h = FindByType(loaded, ".nodes");
+      REQUIRE(h != nullptr);
+      CHECK(h->GetGuiValueCount() == 3u);
+      CHECK(h->GetGuiValueAt(0) == List({2.f, 0.f, 1.f}));
+      CHECK(h->GetGuiValueAt(1) == List({0.f, 3.f, 1.f}));
+      CHECK(h->GetGuiValueAt(2) == List({1.f, 1.f, 0.5f}));
+    }
+
+    SUBCASE("more nodes than the field holds stop at the ceiling") {
+      nlohmann::json nodes = nlohmann::json::array();
+      for (std::size_t i = 0; i < gNodes::MAX_NODES + 5; i++)
+        nodes.push_back({{"x", (float)i}, {"y", 0}, {"radius", 1}});
+      YSE::patcher loaded;
+      loaded.create(2);
+      loaded.ParseJSON(WithNodesState(dumped, {{"nodes", nodes}}));
+      YSE::pHandle* h = FindByType(loaded, ".nodes");
+      REQUIRE(h != nullptr);
+      CHECK(h->GetGuiValueCount() == (unsigned int)gNodes::MAX_NODES);
+      CHECK(h->GetGuiValueAt((unsigned int)gNodes::MAX_NODES - 1) ==
+            List({(float)(gNodes::MAX_NODES - 1), 0.f, 1.f}));
+    }
   }
 
   // ─── documentation ──────────────────────────────────────────────────────────

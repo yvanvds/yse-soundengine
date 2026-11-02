@@ -6,6 +6,7 @@
 #include "../pSelector.h"
 #include "../patcherImplementation.h"
 #include <cmath>
+#include <memory>
 
 using namespace YSE::PATCHER;
 
@@ -159,6 +160,11 @@ void gPreset::ShapeStore() {
 
   capacity = requested;
   slots.assign((std::size_t)capacity, std::vector<Entry>());
+  // Replaced rather than reset, by the same argument: nothing polls an object
+  // that has not been published yet.
+  occupied = std::make_unique<std::atomic<bool>[]>((std::size_t)capacity);
+  for (int i = 0; i < capacity; i++)
+    occupied[(std::size_t)i].store(false, std::memory_order_relaxed);
   scratch.clear();
   active.store(-1, std::memory_order_relaxed);
 }
@@ -383,6 +389,9 @@ void gPreset::Store(int slot, YSE::THREAD thread) {
     // are released by the next operation — on a control-side thread, which
     // the audio-callback hand-off (Submit) guarantees this is.
     slots[(std::size_t)slot].swap(scratch);
+    // A store that found nothing to capture leaves the slot empty, and a
+    // recall of it does nothing — so it reads as empty too.
+    occupied[(std::size_t)slot].store(!slots[(std::size_t)slot].empty(), std::memory_order_relaxed);
   }
 
   active.store(slot, std::memory_order_relaxed);
@@ -446,6 +455,7 @@ void gPreset::ClearSlot(int slot) {
   storeGuard guard(busy);
   if (!guard.Held()) return;
   slots[(std::size_t)slot].clear();
+  occupied[(std::size_t)slot].store(false, std::memory_order_relaxed);
   // The number no longer names stored contents.
   if (active.load(std::memory_order_relaxed) == slot) {
     active.store(-1, std::memory_order_relaxed);
@@ -457,6 +467,8 @@ void gPreset::ClearAll() {
   if (!guard.Held()) return;
   for (std::vector<Entry>& slot : slots)
     slot.clear();
+  for (int i = 0; i < capacity; i++)
+    occupied[(std::size_t)i].store(false, std::memory_order_relaxed);
   active.store(-1, std::memory_order_relaxed);
 }
 
@@ -571,6 +583,24 @@ GUI_VALUE() {
   return std::string(digits, written);
 }
 
+GUI_VALUE_COUNT() {
+  // The active slot, then one occupancy cell per slot (issue #1229).
+  // `capacity` is fixed once the object is published — a live SetParams
+  // replaces the object — so this is a plain read.
+  return (unsigned int)capacity + 1u;
+}
+
+GUI_VALUE_AT() {
+  // Cell 0 is the bulk read itself: the active slot, unchanged for hosts that
+  // read it whole. Cells 1..capacity are the occupancy flags — one atomic
+  // load each, never the slot guard, so a poll cannot lose to a store and
+  // read a stale "" (issue #1229). A short literal, so the string stays in
+  // its small buffer.
+  if (index == 0) return GetGuiValue();
+  if (index > (unsigned int)capacity) return std::string();
+  return SlotStored((int)index - 1) ? std::string("1") : std::string("0");
+}
+
 // ─── persistence ──────────────────────────────────────────────────────────────
 
 bool gPreset::DumpState(nlohmann::json::value_type& json) {
@@ -651,6 +681,8 @@ void gPreset::RestoreState(const nlohmann::json::value_type& json) {
 
   for (std::vector<Entry>& slot : slots)
     slot.clear();
+  for (int i = 0; i < capacity; i++)
+    occupied[(std::size_t)i].store(false, std::memory_order_relaxed);
 
   int act = json.value("active", -1);
   // A hand-edited marker outside the bank names nothing.
@@ -684,10 +716,16 @@ void gPreset::RestoreState(const nlohmann::json::value_type& json) {
       if (entry.type.empty() || entry.value.empty()) continue;
       target.push_back(std::move(entry));
     }
+    occupied[(std::size_t)slot].store(!target.empty(), std::memory_order_relaxed);
   }
 }
 
 // ─── diagnostics ──────────────────────────────────────────────────────────────
+
+bool gPreset::SlotStored(int slot) const {
+  if (slot < 0 || slot >= capacity) return false;
+  return occupied[(std::size_t)slot].load(std::memory_order_relaxed);
+}
 
 std::size_t gPreset::SlotEntryCount(int slot) const {
   if (slot < 0 || slot >= capacity) return 0;

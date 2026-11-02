@@ -10790,9 +10790,10 @@
     "inlets": [
       {
         "accepts": [
-          "BANG"
+          "BANG",
+          "LIST"
         ],
-        "doc": "A bang sends a new random number.",
+        "doc": "A bang sends a new random number. 'seed <n>' restarts the random sequence.",
         "index": 0,
         "label": "bang",
         "range": "bang"
@@ -10825,6 +10826,12 @@
         "doc": "How many different values can come out.",
         "name": "range",
         "range": "1+"
+      },
+      {
+        "default": "0",
+        "doc": "Random seed. Any other value than 0 gives the same numbers on every run; 0 uses the engine's generator.",
+        "name": "seed",
+        "range": "any int"
       }
     ],
     "requires_midi_device": false

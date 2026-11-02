@@ -278,6 +278,51 @@ GUI_VALUE_AT() {
   return out;
 }
 
+// ─── persistence (issue #1228) ────────────────────────────────────────────────
+
+bool gNodes::DumpState(nlohmann::json::value_type& json) {
+  // Control thread. No guard: every bank cell and the count are atomics, read
+  // the way GUI_VALUE reads them. The count is loaded first (acquire), so the
+  // nodes a whole-field list wrote before publishing it are the ones read here.
+  const unsigned int live = Nodes();
+  nlohmann::json nodes = nlohmann::json::array();
+  for (unsigned int i = 0; i < live; i++) {
+    nlohmann::json node;
+    node["x"] = nodeX[i].load(std::memory_order_relaxed);
+    node["y"] = nodeY[i].load(std::memory_order_relaxed);
+    node["radius"] = nodeR[i].load(std::memory_order_relaxed);
+    nodes.push_back(node);
+  }
+  json["nodes"] = nodes;
+  return true;
+}
+
+namespace {
+  // One field of a saved node, or `fallback` when it is absent or not a number
+  // — a hand-edited file must not throw out of ParseJSON.
+  float SavedNumber(const nlohmann::json& node, const char* key, float fallback) {
+    const auto found = node.find(key);
+    if (found == node.end() || !found->is_number()) return fallback;
+    return found->get<float>();
+  }
+} // namespace
+
+void gNodes::RestoreState(const nlohmann::json::value_type& json) {
+  const auto stored = json.find("nodes");
+  if (stored == json.end() || !stored->is_array() || stored->empty()) return;
+
+  unsigned int written = 0;
+  for (const auto& node : *stored) {
+    if (written >= (unsigned int)MAX_NODES) break;
+    if (!node.is_object()) continue;
+    StoreNode(written, SavedNumber(node, "x", 0.f), SavedNumber(node, "y", 0.f),
+              SavedNumber(node, "radius", DEFAULT_RADIUS));
+    written++;
+  }
+  if (written == 0) return;
+  count.store((int)written, std::memory_order_release);
+}
+
 // ─── diagnostics ──────────────────────────────────────────────────────────────
 
 float gNodes::NodeX(unsigned int index) const {

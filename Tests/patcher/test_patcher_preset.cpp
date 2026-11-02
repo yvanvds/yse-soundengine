@@ -35,6 +35,7 @@
 // No audio device required.
 
 #include <doctest/doctest.h>
+#include <atomic>
 #include <chrono>
 #include <memory>
 #include <string>
@@ -76,6 +77,16 @@ namespace {
       std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
     return true;
+  }
+
+  // Every occupancy cell of a preset, cells 1..capacity, as a host windowing
+  // the read would see them.
+  std::string OccupancyCells(YSE::pHandle* preset) {
+    std::string out;
+    const unsigned int count = preset->GetGuiValueCount();
+    for (unsigned int i = 1; i < count; i++)
+      out += preset->GetGuiValueAt(i);
+    return out;
   }
 
 } // namespace
@@ -606,12 +617,125 @@ TEST_SUITE("patcher") {
   TEST_CASE("preset: the GUI value is the active slot, read-only (#564)") {
     gPreset preset;
     CHECK(preset.GetGuiValue() == "-1");
-    CHECK(preset.GetGuiValueCount() == 1u);
+    // Cell 0 is the active slot; one occupancy cell per slot follows (#1229).
+    CHECK(preset.GetGuiValueCount() == (unsigned int)gPreset::DEFAULT_SLOTS + 1u);
     CHECK(preset.GetGuiValueAt(0) == "-1");
-    CHECK(preset.GetGuiValueAt(1).empty());
+    CHECK(preset.GetGuiValueAt(1) == "0");
+    CHECK(preset.GetGuiValueAt((unsigned int)gPreset::DEFAULT_SLOTS) == "0");
+    CHECK(preset.GetGuiValueAt((unsigned int)gPreset::DEFAULT_SLOTS + 1u).empty());
     // Read-only on purpose: recalling is inlet 0's job, and staying
     // unsettable is also what keeps `.preset` out of its own snapshots.
     CHECK_FALSE(preset.GuiValueIsSettable());
+  }
+
+  TEST_CASE("preset: the GUI cells report which slots are stored (#1229)") {
+    YSE::patcher p;
+    p.create(2);
+    YSE::pHandle* preset = p.CreateObject(YSE::OBJ::G_PRESET, "4");
+    YSE::pHandle* pad = p.CreateObject(YSE::OBJ::G_XYSLIDER, "0 127 0 127");
+    REQUIRE(preset != nullptr);
+    REQUIRE(pad != nullptr);
+
+    CHECK(preset->GetGuiValueCount() == 5u);
+    CHECK(OccupancyCells(preset) == "0000");
+
+    pad->SetListData(0, "10 20");
+    preset->SetListData(0, "store 1");
+    preset->SetListData(0, "store 3");
+    CHECK(OccupancyCells(preset) == "0101");
+    // The bulk read is still the active slot alone, and cell 0 matches it.
+    CHECK(preset->GetGuiValue() == "3");
+    CHECK(preset->GetGuiValueAt(0) == "3");
+
+    // The case the issue names: clearing a slot that is *not* the active one
+    // moves no active marker, and only the occupancy cell shows it.
+    preset->SetListData(0, "clear 1");
+    CHECK(preset->GetGuiValue() == "3");
+    CHECK(OccupancyCells(preset) == "0001");
+
+    // Bare `clear` empties the active slot.
+    preset->SetListData(0, "clear");
+    CHECK(OccupancyCells(preset) == "0000");
+
+    preset->SetListData(0, "store 0");
+    preset->SetListData(0, "store 2");
+    CHECK(OccupancyCells(preset) == "1010");
+    preset->SetListData(0, "clearall");
+    CHECK(OccupancyCells(preset) == "0000");
+
+    // Recall changes the active marker, never occupancy.
+    preset->SetListData(0, "store 2");
+    preset->SetIntData(0, 2);
+    CHECK(OccupancyCells(preset) == "0010");
+  }
+
+  TEST_CASE("preset: a store with nothing to capture reads as empty (#1229)") {
+    // No settable object in the patch: the slot holds nothing, a recall of it
+    // does nothing, so its dot must not draw as stored.
+    YSE::patcher p;
+    p.create(2);
+    YSE::pHandle* preset = p.CreateObject(YSE::OBJ::G_PRESET, "2");
+    REQUIRE(preset != nullptr);
+    preset->SetListData(0, "store 0");
+    CHECK(OccupancyCells(preset) == "00");
+  }
+
+  TEST_CASE("preset: occupancy cells survive a DumpJSON / ParseJSON round trip (#1229)") {
+    YSE::patcher src;
+    src.create(2);
+    YSE::pHandle* preset = src.CreateObject(YSE::OBJ::G_PRESET, "6");
+    YSE::pHandle* pad = src.CreateObject(YSE::OBJ::G_XYSLIDER, "0 127 0 127");
+    REQUIRE(preset != nullptr);
+    REQUIRE(pad != nullptr);
+    pad->SetListData(0, "12 34");
+    preset->SetListData(0, "store 4");
+    preset->SetListData(0, "store 1");
+    REQUIRE(OccupancyCells(preset) == "010010");
+
+    YSE::patcher loaded;
+    loaded.create(2);
+    loaded.ParseJSON(src.DumpJSON());
+    YSE::pHandle* loadedPreset = nullptr;
+    for (unsigned int i = 0; i < loaded.Objects(); i++) {
+      YSE::pHandle* h = loaded.GetHandleFromList(i);
+      if (h != nullptr && std::string(h->Type()) == ".preset") loadedPreset = h;
+    }
+    if (loadedPreset == nullptr) {
+      FAIL("loaded patch is missing the preset");
+      return;
+    }
+    CHECK(loadedPreset->GetGuiValue() == "1");
+    CHECK(OccupancyCells(loadedPreset) == "010010");
+  }
+
+  TEST_CASE("preset: occupancy polls race stores and clears cleanly (#1229)") {
+    // The GUI read is polled from the host thread while the control thread
+    // stores and clears; every cell read must answer "0" or "1", never "" —
+    // the flags are atomics, not reads under the slot guard.
+    YSE::patcher p;
+    p.create(2);
+    YSE::pHandle* preset = p.CreateObject(YSE::OBJ::G_PRESET, "8");
+    YSE::pHandle* pad = p.CreateObject(YSE::OBJ::G_XYSLIDER, "0 127 0 127");
+    REQUIRE(preset != nullptr);
+    REQUIRE(pad != nullptr);
+
+    std::atomic<bool> stop{false};
+    std::atomic<int> bad{0};
+    std::thread host([&] {
+      while (!stop.load()) {
+        for (unsigned int i = 1; i <= 8; i++) {
+          const std::string cell = preset->GetGuiValueAt(i);
+          if (cell != "0" && cell != "1") bad.fetch_add(1);
+        }
+      }
+    });
+    for (int round = 0; round < 300; round++) {
+      preset->SetListData(0, "store " + std::to_string(round % 8));
+      if (round % 3 == 0) preset->SetListData(0, "clear " + std::to_string((round + 4) % 8));
+    }
+    stop.store(true);
+    host.join();
+    CHECK(bad.load() == 0);
   }
 
   // ─── persistence ────────────────────────────────────────────────────────────

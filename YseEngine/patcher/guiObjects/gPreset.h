@@ -5,6 +5,7 @@
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -189,6 +190,22 @@ namespace YSE {
      *  display string is not a message, so ``GuiValueIsSettable()`` stays
      *  false, which is also what keeps ``.preset`` out of its own snapshots.
      *
+     *  A host drawing the grid also needs to know which slots hold a
+     *  snapshot, so empty and stored dots look different — and a cable's
+     *  ``clear <n>`` of a slot that is not the active one changes neither the
+     *  active marker nor anything else a host polls (issue #1229). So the
+     *  cells carry it: cell 0 is the active slot, and cell ``1 + n`` is ``1``
+     *  when slot n holds a snapshot and ``0`` when it is empty, making
+     *  ``GetGuiValueCount()`` ``1 + Capacity()``. A host windows the cell
+     *  reads to the dots it draws.
+     *
+     *  ``GetGuiValue()`` stays the active slot alone rather than every cell
+     *  joined — the one read-only exception to the protocol's bulk-read
+     *  shape, taken so the read hosts already parse as a single number is
+     *  unchanged (see the protocol block in pObject.h). Each occupancy flag is
+     *  an atomic written beside the slot under the slot guard, so a poll
+     *  never takes the guard, never waits and never misses.
+     *
      *  ### Deliberately not here
      *
      *  Interpolated recall — issue #564 leaves instant-vs-interpolated to be
@@ -216,7 +233,12 @@ namespace YSE {
     _PARM_CLEAR
     _PARM_PARSE
 
-    _HAS_GUI
+    // Read-only multi-cell GUI state (issue #1229): cell 0 the active slot,
+    // then one occupancy cell per slot. Not _HAS_GUI_CELLS, which asserts the
+    // settable round trip this object deliberately does not offer.
+    std::string GetGuiValue() override;
+    unsigned int GetGuiValueCount() const override;
+    std::string GetGuiValueAt(unsigned int index) override;
 
     /** @brief Most slots the bank can be built to hold — the family's 1024. */
     static constexpr int MAX_SLOTS = 1024;
@@ -240,6 +262,11 @@ namespace YSE {
     int ActiveSlot() const {
       return active.load(std::memory_order_relaxed);
     }
+
+    /** @brief Whether slot @p slot holds a snapshot — the occupancy cell a
+     *         host reads as GUI cell ``1 + slot``. False out of range. Any
+     *         thread; one atomic load. */
+    bool SlotStored(int slot) const;
 
     /** @brief How many captured objects slot @p slot holds. 0 for an empty
      *         or out-of-range slot, and 0 when the guard was held elsewhere —
@@ -393,6 +420,12 @@ namespace YSE {
     std::vector<pObject*> walk;
 
     int capacity = 0;
+
+    // Per-slot occupancy, `capacity` flags: true while the slot holds a
+    // snapshot. Mirrors `!slots[n].empty()`, written beside it with `busy`
+    // held, and read lock-free by the GUI value poll on the host thread
+    // (issue #1229). Sized by ShapeStore() before the object is published.
+    std::unique_ptr<std::atomic<bool>[]> occupied;
 
     // The active slot, or -1. Atomic because the GUI value is polled from the
     // host thread while a store lands on another.

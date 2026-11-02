@@ -7,14 +7,15 @@ is ignored.
 
 **Seeds**
 
-``.decide``, ``.drunk``, ``.prob`` and ``.urn`` each keep their own random
-sequence, set by the ``seed`` argument:
+``.decide``, ``.drunk``, ``.prob``, ``.random`` and ``.urn`` each keep their
+own random sequence, set by the ``seed`` argument:
 
 - Any seed other than 0 gives the same sequence on every run, so a generative
   patch can replay exactly.
 - Seed 0, the default, takes a sequence from the engine's generator. That too
   repeats from run to run, until the host calls ``YSE::Randomize()``
-  (``yse_randomize()`` in C).
+  (``yse_randomize()`` in C). ``.random`` is the exception: with seed 0 it
+  draws straight from the engine's generator; see ``.random``.
 - ``seed <n>`` (or an int at the seed inlet, where there is one) restarts
   the sequence while the patch runs. A saved patch keeps the seed it was
   created with, not the last one sent.
@@ -80,10 +81,26 @@ changing the weight of a stored pair still works.
 
 .. patcher-object:: .random
 
-``.random`` draws from the engine's generator, so its numbers repeat from run
-to run until the host calls ``YSE::Randomize()``, and ``YSE::RandomSeed()``
-(``yse_random_seed()`` in C) makes them replay. It has no seed of its own. A
-range of 0 or less always gives 0.
+A range of 0 or less always gives 0.
+
+**Seed**
+
+With a seed other than 0, ``.random`` keeps its own sequence, like the other
+objects here (see ``.decide``): two ``.random`` objects with the same seed send
+the same numbers, whatever else draws random numbers meanwhile.
+
+With seed 0, the default, it draws from the engine's generator, which every
+unseeded ``.random`` shares. Its numbers repeat from run to run until the host
+calls ``YSE::Randomize()``, and ``YSE::RandomSeed()`` (``yse_random_seed()`` in
+C) makes them replay, but each object's numbers then depend on every other
+draw.
+
+**Messages**
+
+- bang: send a random number.
+- ``seed <n>``: restart the random sequence; ``seed 0`` returns to the
+  engine's generator. A saved patch keeps the seed it was created with.
+- an int or float at the right inlet: set the range. Floats are truncated.
 
 .. patcher-object:: .urn
 

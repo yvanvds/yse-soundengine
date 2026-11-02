@@ -273,8 +273,10 @@ YSE_C_API size_t yse_phandle_get_params(YsePHandle* h, char* buf, size_t cap);
    whole-state read when a coherent snapshot matters. */
 
 /** The whole state as one string: the value for a scalar control, or every
-   cell space separated in index order for a structured one. Empty for an
-   object with no GUI state. snprintf style — returns the full length and
+   cell space separated in index order for a structured one — except
+   ".preset", whose whole state stays its active slot alone (cell 0, -1 for
+   none) while cells 1..slots read 1 for a stored slot and 0 for an empty
+   one. Empty for an object with no GUI state. snprintf style — returns the full length and
    accepts a NULL buffer as a size query. */
 YSE_C_API size_t yse_phandle_get_gui_value(YsePHandle* h, char* buf, size_t cap);
 

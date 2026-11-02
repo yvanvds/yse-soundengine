@@ -448,6 +448,42 @@ TEST_SUITE("patcher") {
     CHECK(rig.sinks[0]->lastInt == 42);
   }
 
+  TEST_CASE("router: a whole-valued float reads as the int it spells (#1231)") {
+    // `.matrixctrl` spells every cell value as a float, so a cell switched on
+    // arrives as `0 1 1.`. A whole float is the same number as the int and has
+    // to connect; a fractional one names no port and no state, and is refused.
+    Rig rig("2 2");
+    rig.Control("0 1 1.");
+    CHECK(rig.op.Connected(0, 1));
+    rig.Control("0 1 0.");
+    CHECK_FALSE(rig.op.Connected(0, 1));
+
+    // Every position, and every spelling of a whole float.
+    rig.Control("1. 0.0 1.000");
+    CHECK(rig.op.Connected(1, 0));
+    rig.Control("connect 0. 0.");
+    CHECK(rig.op.Connected(0, 0));
+    rig.Control("disconnect 1e0 0");
+    CHECK_FALSE(rig.op.Connected(1, 0));
+    rig.Control("patch 1. 1.");
+    CHECK(rig.op.Connected(1, 1));
+    REQUIRE(rig.op.ConnectionCount() == 2);
+
+    // A fraction anywhere refuses the whole message, as a typo would be.
+    rig.Control("0 1 0.5");
+    rig.Control("0.5 1 1");
+    rig.Control("connect 0 1.5");
+    rig.Control("connect 0 1.x");
+    rig.Control("connect 0 1 1.");
+    CHECK(rig.op.ConnectionCount() == 2);
+    CHECK_FALSE(rig.op.Connected(0, 1));
+
+    // And it routes.
+    rig.Control("0 1 1.");
+    rig.Int(0, 42);
+    CHECK(rig.sinks[1]->lastInt == 42);
+  }
+
   TEST_CASE("router: a malformed or out-of-range connection message is ignored (#482)") {
     Rig rig("2 2");
     rig.Control("connect 0 0");
