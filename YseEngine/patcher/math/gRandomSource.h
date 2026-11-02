@@ -12,7 +12,8 @@ namespace YSE {
      *         ``.prob`` family that follows).
      *
      *  The engine already ships a real-time-safe generator in
-     *  ``YSE::RANDOM`` (``utils/misc.hpp``), and ``.random`` uses it directly.
+     *  ``YSE::RANDOM`` (``utils/misc.hpp``), and an unseeded ``.random`` uses it directly
+     *  (a seeded one has its own RandomSource, #1236).
      *  That one keeps its state in a ``thread_local``, which is exactly right
      *  for "give me a number" but wrong for a patcher object that has to be
      *  *reproducible*: two objects on the same thread interleave draws from one

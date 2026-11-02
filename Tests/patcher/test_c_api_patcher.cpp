@@ -1014,6 +1014,68 @@ TEST_SUITE("capilowcov") {
     yse_patcher_destroy(p);
   }
 
+  TEST_CASE("c-api patcher: two .random with the same seed argument send the same numbers, "
+            "and `seed <n>` replays them (#1236)") {
+    // The issue's user-visible contract, through the C ABI a host drives: a
+    // seed argument makes a .random replayable on its own, whatever else draws
+    // on the thread — here the two objects are banged interleaved, which on
+    // one shared stream would hand them different numbers.
+    if (!capilowcov::ensureOffline()) return; // engine unavailable → skip
+
+    YsePatcher* p = yse_patcher_create();
+    REQUIRE(p != nullptr);
+    yse_patcher_init(p, 2);
+    YsePHandle* a = yse_patcher_create_object(p, ".random", "1000000 4242");
+    YsePHandle* b = yse_patcher_create_object(p, ".random", "1000000 4242");
+    YsePHandle* other = yse_patcher_create_object(p, ".random", "1000000 4243");
+    YsePHandle* sa = yse_patcher_create_object(p, ".s", "a");
+    YsePHandle* sb = yse_patcher_create_object(p, ".s", "b");
+    YsePHandle* so = yse_patcher_create_object(p, ".s", "o");
+    REQUIRE(a != nullptr);
+    REQUIRE(b != nullptr);
+    REQUIRE(other != nullptr);
+    REQUIRE(sa != nullptr);
+    REQUIRE(sb != nullptr);
+    REQUIRE(so != nullptr);
+    yse_patcher_connect(p, a, 0, sa, 0);
+    yse_patcher_connect(p, b, 0, sb, 0);
+    yse_patcher_connect(p, other, 0, so, 0);
+
+    SendLog log;
+    REQUIRE(yse_patcher_set_send_callback(p, &SendLog::record, &log) == YSE_OK);
+
+    const int kN = 32;
+    for (int i = 0; i < kN; ++i) {
+      yse_phandle_set_bang(a, 0);
+      yse_random_seed(static_cast<unsigned int>(i + 1)); // the engine stream must not matter
+      yse_phandle_set_bang(b, 0);
+      yse_phandle_set_bang(other, 0);
+    }
+    std::vector<int> fromA, fromB, fromOther;
+    for (const SendMsg& m : log.take()) {
+      REQUIRE(m.kind == YSE_OUT_INT);
+      if (m.address == "a") fromA.push_back(m.i);
+      if (m.address == "b") fromB.push_back(m.i);
+      if (m.address == "o") fromOther.push_back(m.i);
+    }
+    REQUIRE(fromA.size() == static_cast<size_t>(kN));
+    CHECK(fromA == fromB);
+    CHECK(fromOther.size() == static_cast<size_t>(kN));
+    CHECK(fromOther != fromA);
+
+    // `seed <n>` on the left inlet restarts the sequence and sends nothing.
+    yse_phandle_set_list(a, 0, "seed 4242");
+    CHECK(log.take().empty());
+    for (int i = 0; i < kN; ++i)
+      yse_phandle_set_bang(a, 0);
+    std::vector<int> replay;
+    for (const SendMsg& m : log.take())
+      replay.push_back(m.i);
+    CHECK(replay == fromA);
+
+    yse_patcher_destroy(p);
+  }
+
   // ─── pHandle accessors ─────────────────────────────────────────────────────
 
   TEST_CASE("c-api phandle: type / name / params / gui strings round-trip") {

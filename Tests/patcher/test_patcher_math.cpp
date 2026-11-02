@@ -4,6 +4,8 @@
 
 #include <doctest/doctest.h>
 #include <algorithm>
+#include <functional>
+#include <vector>
 #include <string>
 #include "patcher/patcher.hpp"
 #include "patcher/pHandle.hpp"
@@ -21,6 +23,7 @@
 #include "patcher/math/dSubstract.h"
 #include "dsp/buffer.hpp"
 #include "patcher/sinks.hpp"
+#include "utils/misc.hpp"
 
 using TestHelpers::BufferSink;
 using TestHelpers::FloatSink;
@@ -346,6 +349,140 @@ TEST_SUITE("patcher") {
       CHECK(sink.received >= 0);
       CHECK(sink.received < 5);
     }
+  }
+
+  // ─── gRandom seed (#1236) ─────────────────────────────────────────────────────
+
+  namespace {
+    std::vector<int> DrawRandom(YSE::PATCHER::gRandom& rng, IntSink& sink, int n) {
+      std::vector<int> out;
+      for (int i = 0; i < n; ++i) {
+        sink.received = -1;
+        rng.GetInlet(0)->SetBang(YSE::T_GUI);
+        out.push_back(sink.received);
+      }
+      return out;
+    }
+  } // namespace
+
+  TEST_CASE("gRandom: names range then seed, so saved one-argument patches load unchanged "
+            "(#1236)") {
+    YSE::PATCHER::gRandom rng;
+    const auto& docs = rng.GetParamDocs();
+    REQUIRE(docs.size() == 2);
+    CHECK(docs[0].name == "range");
+    CHECK(docs[1].name == "seed");
+  }
+
+  TEST_CASE("gRandom: the same seed argument replays the same numbers (#1236)") {
+    IntSink sinkA;
+    IntSink sinkB;
+    YSE::PATCHER::gRandom a;
+    YSE::PATCHER::gRandom b;
+    TestHelpers::Wire(a, 0, sinkA);
+    TestHelpers::Wire(b, 0, sinkB);
+    a.SetParams("1000 4242");
+    b.SetParams("1000 4242");
+
+    // Interleaved with engine-generator draws that would shift a shared stream.
+    std::vector<int> fromA;
+    std::vector<int> fromB;
+    for (int i = 0; i < 64; ++i) {
+      fromA.push_back(DrawRandom(a, sinkA, 1)[0]);
+      (void)YSE::Random(1000);
+      fromB.push_back(DrawRandom(b, sinkB, 1)[0]);
+    }
+    CHECK(fromA == fromB);
+    for (int v : fromA) {
+      CHECK(v >= 0);
+      CHECK(v < 1000);
+    }
+    CHECK(std::adjacent_find(fromA.begin(), fromA.end(), std::not_equal_to<>()) != fromA.end());
+  }
+
+  TEST_CASE("gRandom: a different seed gives different numbers (#1236)") {
+    IntSink sinkA;
+    IntSink sinkB;
+    YSE::PATCHER::gRandom a;
+    YSE::PATCHER::gRandom b;
+    TestHelpers::Wire(a, 0, sinkA);
+    TestHelpers::Wire(b, 0, sinkB);
+    a.SetParams("1000 4242");
+    b.SetParams("1000 4243");
+    CHECK(DrawRandom(a, sinkA, 64) != DrawRandom(b, sinkB, 64));
+  }
+
+  TEST_CASE("gRandom: `seed <n>` restarts the sequence and sends nothing (#1236)") {
+    IntSink sink;
+    YSE::PATCHER::gRandom rng;
+    TestHelpers::Wire(rng, 0, sink);
+    rng.SetParams("1000 4242");
+    const std::vector<int> first = DrawRandom(rng, sink, 32);
+
+    sink.received = -1;
+    rng.GetInlet(0)->SetList("seed 4242", YSE::T_GUI);
+    CHECK(sink.received == -1);
+    CHECK(DrawRandom(rng, sink, 32) == first);
+
+    // An unseeded object switched onto a seed at runtime joins the same stream.
+    IntSink sink2;
+    YSE::PATCHER::gRandom late;
+    TestHelpers::Wire(late, 0, sink2);
+    late.SetParams("1000");
+    (void)DrawRandom(late, sink2, 5);
+    late.GetInlet(0)->SetList("seed 4242", YSE::T_GUI);
+    CHECK(DrawRandom(late, sink2, 32) == first);
+
+    // Malformed seed messages are ignored and do not send.
+    for (const char* junk : {"seed", "seed x", "banana"}) {
+      CAPTURE(junk);
+      sink.received = -1;
+      rng.GetInlet(0)->SetList(junk, YSE::T_GUI);
+      CHECK(sink.received == -1);
+    }
+  }
+
+  TEST_CASE("gRandom: seed 0 stays on the engine generator (#908, #1236)") {
+    IntSink sink;
+    YSE::PATCHER::gRandom rng;
+    TestHelpers::Wire(rng, 0, sink);
+    rng.SetParams("1000 4242");
+    rng.GetInlet(0)->SetList("seed 0", YSE::T_GUI);
+
+    YSE::RandomSeed(99);
+    const std::vector<int> first = DrawRandom(rng, sink, 32);
+    YSE::RandomSeed(99);
+    CHECK(DrawRandom(rng, sink, 32) == first);
+  }
+
+  TEST_CASE("gRandom: a range of 0 or less sends 0 with a seed too (#1236)") {
+    IntSink sink;
+    YSE::PATCHER::gRandom rng;
+    TestHelpers::Wire(rng, 0, sink);
+    rng.SetParams("0 4242");
+    for (int v : DrawRandom(rng, sink, 8))
+      CHECK(v == 0);
+    rng.GetInlet(1)->SetInt(-5, YSE::T_GUI);
+    for (int v : DrawRandom(rng, sink, 8))
+      CHECK(v == 0);
+  }
+
+  TEST_CASE("gRandom: the seed argument survives a DumpJSON / ParseJSON round trip (#1236)") {
+    YSE::patcher src;
+    src.create(2);
+    YSE::pHandle* h = src.CreateObject(YSE::OBJ::G_RANDOM, "64 12345");
+    REQUIRE(h != nullptr);
+    h->SetListData(0, "seed 7"); // a live override is not saved
+    const std::string json = src.DumpJSON();
+
+    YSE::patcher loaded;
+    loaded.create(2);
+    loaded.ParseJSON(json);
+    REQUIRE(loaded.Objects() == 1);
+    YSE::pHandle* back = loaded.GetHandleFromList(0);
+    REQUIRE(back != nullptr);
+    CHECK(std::string(back->Type()) == ".random");
+    CHECK(back->GetParams() == std::string("64 12345"));
   }
 
   // ─── dClip ───────────────────────────────────────────────────────────────────
