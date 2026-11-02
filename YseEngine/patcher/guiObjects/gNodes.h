@@ -124,13 +124,17 @@ namespace YSE {
      *
      *  ### What persists
      *
-     *  The ``count`` parameter, and nothing else — no ``DumpState`` override.
-     *  ``.multislider``'s answer, and pObject.h's rule behind it: "a parameter
-     *  is what the object was *created* with, not what it has since been told".
-     *  The positions and radii are live control state, and the form a host
-     *  stores live state in is ``GetGuiValue()`` — one string that carries the
-     *  node count as well as the field, so pushing it back into a fresh object
-     *  restores both. That is what ``.preset`` is for.
+     *  The ``count`` parameter, and the field itself through ``DumpState`` /
+     *  ``RestoreState`` (issue #1228), unconditionally — ``.function``'s rule:
+     *  a UI object whose layout the user placed by hand reopens with it. The
+     *  state is ``{"nodes": [{"x":..,"y":..,"radius":..}, ...]}``, one entry
+     *  per live node, so a reload gets back the count a whole-field list set
+     *  as well as the geometry; ``parms`` keeps the creation count. The cursor
+     *  is not saved. A patch written before this has no ``state`` and loads
+     *  exactly as it did — ``count`` unit nodes at the origin — and a state
+     *  whose ``nodes`` is missing, empty or not an array leaves the field the
+     *  parameters built. ``.preset`` still snapshots the field through
+     *  ``GetGuiValue()`` as an opt-in on top of that.
      *
      *  ### Real time
      *
@@ -219,6 +223,17 @@ namespace YSE {
      *         — outlet 0's value for that node, without the send. O(N), since
      *         a weight is only a weight relative to the whole field. */
     float WeightOf(unsigned int index) const;
+
+    // The live field, unconditionally (issue #1228). Control thread, under
+    // DumpJSON's mtx; reads the same atomics the GUI value does, so it takes no
+    // lock and the audio thread is never made to wait.
+    bool DumpState(nlohmann::json::value_type& json) override;
+
+    // The other half: ParseJSON, on a freshly built object the audio thread
+    // cannot see yet. Refills the banks through StoreNode and publishes the
+    // count last, the way a whole-field list does. No ``nodes`` array, or an
+    // empty one, leaves the field the parameters built.
+    void RestoreState(const nlohmann::json::value_type& json) override;
 
   private:
     // Characters the longest of the two lists can need without reallocating:
