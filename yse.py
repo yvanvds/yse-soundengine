@@ -1311,6 +1311,7 @@ def _make_release_readme(version, platform_name, dlls):
     if platform_name == "windows":
         layout = (
             "    include/        Public C++ headers (use `#include \"yse.hpp\"`)\n"
+            "    include/yse_c/  Public C API headers (use `#include \"yse_c/yse_all.h\"`)\n"
             "    bin/            libyse.dll + bundled runtime dependencies\n"
             "    lib/            libyse.dll.a (MinGW import library)\n"
             "    licenses/       License texts of the bundled DLLs (see BUNDLED-DLLS.txt)\n"
@@ -1336,6 +1337,7 @@ def _make_release_readme(version, platform_name, dlls):
     elif platform_name == "android":
         layout = (
             "    include/                Public C++ headers (use `#include \"yse.hpp\"`)\n"
+            "    include/yse_c/          Public C API headers (use `#include \"yse_c/yse_all.h\"`)\n"
             "    lib/<abi>/libyse.so     One libyse.so per Android ABI shipped"
         )
         layout += (
@@ -1360,6 +1362,7 @@ def _make_release_readme(version, platform_name, dlls):
     else:  # linux
         layout = (
             "    include/        Public C++ headers (use `#include \"yse.hpp\"`)\n"
+            "    include/yse_c/  Public C API headers (use `#include \"yse_c/yse_all.h\"`)\n"
             "    lib/            libyse.so"
         )
         deps_section = (
@@ -1595,16 +1598,32 @@ def cmd_package(args):
     stage.mkdir(parents=True)
 
     # Copy headers — every .hpp under YseEngine/, preserving subdirectory layout.
+    # The C API's *_internal.hpp files are implementation details of the
+    # c_api/ translation units, not part of any public contract (#1184).
     src_engine = ROOT / "YseEngine"
     include_root = stage / "include"
     header_count = 0
     for hpp in sorted(src_engine.rglob("*.hpp")):
+        if hpp.name.endswith("_internal.hpp"):
+            continue
         rel = hpp.relative_to(src_engine)
         target = include_root / rel
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(hpp, target)
         header_count += 1
     print(f"Copied {header_count} header(s) into include/.")
+
+    # Public C API headers -> include/yse_c/, so a binding can generate its
+    # FFI from the archive alone (#1184). Consumers include "yse_c/yse_all.h".
+    c_api_src = src_engine / "c_api" / "include" / "yse_c"
+    c_headers = sorted(c_api_src.glob("*.h"))
+    if not c_headers:
+        print(f"error: no C API headers found in {c_api_src}.")
+        sys.exit(1)
+    (include_root / "yse_c").mkdir(parents=True, exist_ok=True)
+    for h in c_headers:
+        shutil.copy2(h, include_root / "yse_c" / h.name)
+    print(f"Copied {len(c_headers)} C API header(s) into include/yse_c/.")
 
     # Copy the library + (Windows only) bundled runtime DLLs.
     bundled = []
