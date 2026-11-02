@@ -389,6 +389,85 @@ TEST_SUITE("capilowcov") {
     capilowcov::pump(5);
     yse_patcher_destroy(patch);
   }
+
+  TEST_CASE("c-api midi in inject: more than eight MIDI input objects on one port all hear it, "
+            "across patches and across a patch swap (#1246)") {
+    // The repro from #1246 at the host's level: the hub used to hold eight
+    // listeners per port, counted across every patcher, so the ninth `.ctlin`
+    // loaded and then never sent anything. Here two live patches hold six
+    // each (twelve on port 7), and then one is disposed and a third, also of
+    // six, is built straight away — before the engine has destroyed the
+    // disposed one — which is what a host swapping patches does.
+    REQUIRE(capilowcov::ensureOffline());
+
+    struct Patch {
+      YsePatcher* patch = nullptr;
+      YseSound* snd = nullptr;
+      std::vector<YsePHandle*> boxes;
+    };
+    const auto build = [](int listeners) {
+      Patch p;
+      p.patch = yse_patcher_create();
+      REQUIRE(p.patch != nullptr);
+      REQUIRE(yse_patcher_init(p.patch, 1) == YSE_OK);
+      for (int i = 0; i < listeners; i++) {
+        YsePHandle* in = yse_patcher_create_object(p.patch, ".ctlin", "7");
+        YsePHandle* box = yse_patcher_create_object(p.patch, ".i", nullptr);
+        REQUIRE(in != nullptr);
+        REQUIRE(box != nullptr);
+        yse_patcher_connect(p.patch, in, 0, box, 0);
+        p.boxes.push_back(box);
+      }
+      p.snd = yse_sound_create();
+      REQUIRE(p.snd != nullptr);
+      REQUIRE(yse_sound_load_patcher(p.snd, p.patch, yse_channel_master(), 0.f) == YSE_OK);
+      yse_sound_play(p.snd);
+      return p;
+    };
+    const auto dispose = [](Patch& p) {
+      yse_sound_stop(p.snd);
+      yse_sound_destroy(p.snd);
+      yse_patcher_destroy(p.patch);
+      p = Patch{};
+    };
+    const auto heard = [](const Patch& p, const std::string& value) {
+      int count = 0;
+      for (YsePHandle* box : p.boxes) {
+        if (guiValue(box) == value) count++;
+      }
+      return count;
+    };
+
+    Patch a = build(6);
+    Patch b = build(6);
+    capilowcov::pump(10);
+
+    const unsigned char first[] = {0xB0, 1, 11};
+    REQUIRE(yse_midi_in_inject(7, first, sizeof(first)) == YSE_OK);
+    capilowcov::pump(10);
+    CHECK(heard(a, "11") == 6);
+    CHECK(heard(b, "11") == 6);
+
+    // Dispose one and build its replacement at once, with no blocks between.
+    dispose(a);
+    Patch c = build(6);
+    capilowcov::pump(10);
+
+    const unsigned char second[] = {0xB0, 1, 12};
+    REQUIRE(yse_midi_in_inject(7, second, sizeof(second)) == YSE_OK);
+    capilowcov::pump(10);
+    CHECK(heard(b, "12") == 6);
+    CHECK(heard(c, "12") == 6);
+
+    yse_sound_stop(b.snd);
+    yse_sound_stop(c.snd);
+    capilowcov::pump(5);
+    yse_sound_destroy(b.snd);
+    yse_sound_destroy(c.snd);
+    capilowcov::pump(5);
+    yse_patcher_destroy(b.patch);
+    yse_patcher_destroy(c.patch);
+  }
 #endif
 
   // ─── midiNote ──────────────────────────────────────────────────────────────

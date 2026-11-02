@@ -49,7 +49,9 @@ namespace {
 
   constexpr char kPortDoc[] =
       "MIDI input port to listen to, counted from 0; .midiinfo lists them. A port that cannot be "
-      "opened leaves the object silent, and the patch still loads.";
+      "opened leaves the object silent, and the patch still loads. At most 64 MIDI input objects, "
+      "across all open patches, can listen to one port; past that an object stays silent and the "
+      "log names it.";
 
   constexpr char kChannelDoc[] =
       "MIDI channel to listen to, 1-16, or 0 for all channels. Any other value means all "
@@ -113,7 +115,7 @@ void mMidiInBase::SetParent(pObject* newParent) {
   // deliberately holds no subscription: it would open a device nothing is going
   // to drain, since nothing calls Calculate() on it.
   if (newParent == nullptr) return;
-  subscription.store(YSE::MIDI::InHub().Subscribe(Port()), std::memory_order_release);
+  subscription.store(YSE::MIDI::InHub().Subscribe(Port(), Type()), std::memory_order_release);
 }
 
 void mMidiInBase::Calculate(YSE::THREAD thread) {

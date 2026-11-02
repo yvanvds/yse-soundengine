@@ -206,6 +206,10 @@ The objects that receive from a MIDI device (``.midiin``, ``.xmidiin``,
 - The first argument is the input port, counted from 0. ``.midiinfo`` lists
   the ports by name. Several objects can listen to one port; each receives
   every message.
+- At most 64 MIDI input objects can listen to one port, counted across every
+  open patch. A patch that is being closed keeps its places for a moment
+  after it closes. Past the limit an object loads but stays silent, and the
+  log gets an error that names the object and the port.
 - A port that cannot be opened, because the device is missing or another
   program holds it, leaves the object silent. The patch still loads.
 - Changing the port argument while the patch runs recreates the object.

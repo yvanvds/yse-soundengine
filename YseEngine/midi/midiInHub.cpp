@@ -88,11 +88,19 @@ void YSE::MIDI::inHub::ClosePortIfUnused(unsigned int port) {
   slot.device.reset();
 }
 
-YSE::MIDI::inHub::Handle YSE::MIDI::inHub::Subscribe(unsigned int port) {
+YSE::MIDI::inHub::Handle YSE::MIDI::inHub::Subscribe(unsigned int port, const char* listener) {
+  // Who is being refused, so a log reader can find the deaf object (#1246).
+  // Both refusals are logged as errors rather than warnings: a release build's
+  // default level drops warnings, and an object that loads and then never
+  // hears anything is exactly what a host must be told about.
+  const std::string who = (listener != nullptr && listener[0] != '\0')
+                              ? std::string(listener) + " on input port "
+                              : std::string("input port ");
   if (port >= kMaxPorts) {
-    INTERNAL::LogImpl().emit(E_MIDI_WARNING, "MIDI: input port " + std::to_string(port) +
-                                                 " is past the patcher's port limit (" +
-                                                 std::to_string(kMaxPorts) + ")");
+    INTERNAL::LogImpl().emit(E_ERROR, "MIDI: " + who + std::to_string(port) +
+                                          " receives nothing: the port is past the "
+                                          "patcher's port limit (" +
+                                          std::to_string(kMaxPorts) + ")");
     return kNoHandle;
   }
 
@@ -107,6 +115,7 @@ YSE::MIDI::inHub::Handle YSE::MIDI::inHub::Subscribe(unsigned int port) {
     // Unsubscribe is what makes the clear-out safe — the producer may still
     // have been mid-push when the last owner let go.
     sub.inUse.store(true, std::memory_order_relaxed);
+    sub.queue.Reserve();
     inEvent discard;
     while (sub.queue.TryPop(discard)) {}
     sub.dropped.store(0, std::memory_order_relaxed);
@@ -118,10 +127,9 @@ YSE::MIDI::inHub::Handle YSE::MIDI::inHub::Subscribe(unsigned int port) {
     return MakeHandle(port, i);
   }
 
-  INTERNAL::LogImpl().emit(E_MIDI_WARNING, "MIDI: input port " + std::to_string(port) +
-                                               " already has " +
-                                               std::to_string(kMaxSubscriptionsPerPort) +
-                                               " patcher listeners; refusing another");
+  INTERNAL::LogImpl().emit(
+      E_ERROR, "MIDI: " + who + std::to_string(port) + " receives nothing: the port already has " +
+                   std::to_string(kMaxSubscriptionsPerPort) + " patcher listeners, the limit");
   return kNoHandle;
 }
 
