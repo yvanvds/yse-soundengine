@@ -3,7 +3,8 @@
 
     loudnessMeter.hpp
     Momentary, short-term and integrated loudness in LUFS after ITU-R
-    BS.1770 and EBU R 128 (issue #1129).
+    BS.1770 and EBU R 128 (issue #1129), loudness range after EBU Tech 3342
+    and true peak after BS.1770 Annex 2 (issue #1237).
 
   ==============================================================================
 */
@@ -25,7 +26,8 @@ namespace YSE {
     /**
      *  @brief A loudness meter after ITU-R BS.1770-4 and EBU R 128: the
      *         momentary, short-term and integrated loudness of one or more
-     *         channels in LUFS, and their sample peak in dBFS.
+     *         channels in LUFS, their loudness range in LU, and their sample
+     *         peak in dBFS and true peak in dBTP.
      *
      *  **K-weighting.** Every channel runs through the two biquads of
      *  BS.1770, a high shelf (about +4 dB above 1.5 kHz) and a high-pass
@@ -55,9 +57,28 @@ namespace YSE {
      *  exact, and only the bin holding the relative gate is included or
      *  left out as a whole, by its mean loudness.
      *
+     *  **Loudness range** (EBU Tech 3342) is the spread of the short-term
+     *  loudness: from the moment 3 s have been measured, every step's
+     *  short-term loudness at or above -70 LUFS goes into a second
+     *  histogram of the same kind. Values more than 20 LU below the mean
+     *  (in energy) of those are left out; the range is the 95th percentile
+     *  of the rest minus the 10th, the percentiles picked by rank as Tech
+     *  3342's reference code does (``round((n - 1) p)`` in sorted order) and
+     *  read as the mean loudness of the bin the rank falls in. 0 while
+     *  nothing passes the gates.
+     *
+     *  **Peaks.** The sample peak is the largest magnitude per channel
+     *  since the last ``reset()``. The true peak oversamples each channel 4
+     *  times with the 48-tap polyphase interpolator of BS.1770 Annex 2 (in
+     *  floating point, so without its 12.04 dB headroom shift) and keeps the
+     *  largest magnitude of the interpolated and the original samples, so it
+     *  never reads below the sample peak. The same filter runs at every
+     *  rate: above 48 kHz it oversamples more than the standard asks, at
+     *  44.1 kHz it reaches 176.4 kHz rather than the 192 kHz the standard
+     *  prefers.
+     *
      *  Silence, and an integrated loudness with no block past the gates,
-     *  read as ``SILENCE``, as does a peak of 0. The sample peak is the
-     *  largest magnitude per channel since the last ``reset()``.
+     *  read as ``SILENCE``, as does a peak of 0.
      *
      *  **Reports.** With an interval set, a block call returns how many
      *  interval periods ended in it; the values are then read with the
@@ -65,13 +86,13 @@ namespace YSE {
      *  samples with the live ``SAMPLERATE``.
      *
      *  **Sample rate.** Every block call checks ``SAMPLERATE``; when it has
-     *  changed the meter derives new coefficients and step length and starts
-     *  over, as after ``reset()``.
+     *  changed the meter derives new coefficients and step length, clears the
+     *  filters' memory and starts over, as after ``reset()``.
      *
      *  A block holds at most ``STANDARD_BUFFERSIZE`` samples; a longer
      *  input is processed up to that length, and a channel shorter than the
      *  first reads as silence past its end. Call it from one thread at a
-     *  time. The constructor allocates the histogram; nothing allocates,
+     *  time. The constructor allocates the histograms; nothing allocates,
      *  locks or blocks on the processing path.
      */
     class API loudnessMeter {
@@ -148,6 +169,16 @@ namespace YSE {
        *         all channels. */
       Flt peak(UInt channel = 0) const;
 
+      /** @brief The loudness range in LU since the last reset (EBU Tech
+       *         3342). Walks the histogram after a new value arrived, else
+       *         returns the last result. */
+      Flt loudnessRange();
+
+      /** @brief The true peak in dBTP: of channel @p channel counted from
+       *         1, or with 0 (or a channel out of range) the highest of all
+       *         channels. */
+      Flt truePeak(UInt channel = 0) const;
+
       /** @brief The number of 400 ms blocks above the absolute gate since
        *         the last reset. */
       std::uint64_t gatedBlocks() const;
@@ -160,15 +191,37 @@ namespace YSE {
       /** @brief The reporting interval in milliseconds. */
       Flt interval() const;
 
-      /** @brief Starts over: clears the filters, the windows, the
-       *         integrated loudness and the peaks. Keeps the channel
-       *         weights and the interval. */
+      /** @brief Starts over: clears the windows, the integrated loudness,
+       *         the loudness range and the peaks. Keeps the channel weights,
+       *         the interval and the memory of the K-weighting filters and
+       *         the true-peak interpolator, since the signal goes on. */
       loudnessMeter& reset();
 
     private:
       static constexpr UInt WINDOW_STEPS = 30; // 3 s in 100 ms steps
       static constexpr UInt MOMENTARY_STEPS = 4; // 400 ms
       static constexpr int BINS = 10000; // 0.01 LU from -70 to +30 LUFS
+      static constexpr UInt TAPS = 12; // per phase of the true-peak filter
+
+      // Gated values by loudness: 0.01 LU bins from -70 LUFS, each with
+      // the count and the summed energy of its values.
+      struct histogram {
+        histogram();
+        void add(Dbl loudness, Dbl energy);
+        void clear();
+        // The bin of a loudness, clamped to the bins.
+        static int bin(Dbl loudness);
+        // The mean loudness of bin b, which must not be empty.
+        Dbl mean(int b) const;
+        // The first bin at or above the relative gate `gate` that counts,
+        // and how many values from there on pass it; `strict` gates out a
+        // value equal to the gate (BS.1770), else keeps it (Tech 3342).
+        int gated(Dbl gate, bool strict, std::uint64_t& n, Dbl& energy) const;
+        std::vector<std::uint64_t> count;
+        std::vector<Dbl> energy;
+        std::uint64_t total;
+        Dbl totalEnergy;
+      };
 
       struct state {
         Dbl x1 = 0.0;
@@ -192,18 +245,23 @@ namespace YSE {
       std::array<state, MAX_CHANNELS> shelfState;
       std::array<state, MAX_CHANNELS> highPassState;
       std::array<Flt, MAX_CHANNELS> peaks;
+      std::array<Flt, MAX_CHANNELS> truePeaks;
+      // The last TAPS input samples of each channel, twice over so the
+      // filter reads them in one run.
+      std::array<std::array<Flt, 2 * TAPS>, MAX_CHANNELS> history;
+      std::array<UInt, MAX_CHANNELS> historyPos;
       std::array<Dbl, WINDOW_STEPS> steps; // energy sums of the last steps
       UInt stepPos;
       UInt stepsSeen; // up to WINDOW_STEPS
       Flt momentaryLoudness;
       Flt shortTermLoudness;
 
-      std::vector<std::uint64_t> binCount;
-      std::vector<Dbl> binEnergy;
-      std::uint64_t gatedCount;
-      Dbl gatedEnergy;
+      histogram blocks; // 400 ms block loudness, for the integrated loudness
+      histogram shortTerms; // short-term loudness, for the loudness range
       bool integratedDirty;
       Flt integratedLoudness;
+      bool rangeDirty;
+      Flt range;
 
       Flt intervalMs;
       Dbl elapsed;

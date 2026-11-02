@@ -295,14 +295,19 @@ relative to full scale): the momentary loudness over the last 400 ms, the
 short-term loudness over the last 3 s, and the integrated loudness of
 everything since the start or the last ``reset``, leaving out the parts at
 -70 LUFS or below and those 10 LU or more below the rest. The fourth outlet
-gives the sample peak in dBFS. The signals pass through the K-weighting
-filters of the standard, which follow the sample rate. The first argument
+gives the loudness range in LU after EBU Tech 3342: how far the short-term
+loudness spreads, from its 10th to its 95th percentile, once 3 s have been
+measured. The last two give the sample peak in dBFS and the true peak in
+dBTP, which looks between the samples by oversampling them 4 times and so
+also catches the crests that fall between them. The signals pass through the
+K-weighting filters of the standard, which follow the sample rate. The first argument
 sets the number of signal inlets; all of them are measured together, each
-with a weight of 1. A bang reports all four values, answered at the start
+with a weight of 1. A bang reports all six values, answered at the start
 of the next block with the values up to there; the second argument, or
 ``interval``, sets a time in milliseconds to report automatically. A number
-picks the inlet whose peak is reported, 0 the highest of all, and reports.
-Silence reads -200. The loudness range and the true peak are not measured.
+picks the inlet whose peaks are reported, 0 the highest of all, and reports.
+Silence reads -200. ``reset`` starts the integrated loudness, the loudness
+range and the peaks over.
 
 .. code-block:: text
 

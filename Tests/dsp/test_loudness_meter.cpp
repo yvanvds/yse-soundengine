@@ -2,7 +2,9 @@
 // issue #1129. References: the K-weighting coefficients of ITU-R BS.1770-4
 // at 48 kHz, the minimum-requirement test signals of EBU Tech 3341 (cases 1
 // to 6: 1 kHz sines whose loudness is known in closed form), and a
-// brute-force gating reference that keeps every block.
+// brute-force gating reference that keeps every block. Issue #1237 adds the
+// loudness range (EBU Tech 3342 cases 1 to 4 and its reference code) and
+// the true peak (Tech 3341 cases 15 to 23).
 
 #include <doctest/doctest.h>
 #include <algorithm>
@@ -425,7 +427,272 @@ TEST_SUITE("dsp") {
     CHECK(m.weight(1) == 0.f);
   }
 
-  TEST_CASE("loudnessMeter: processing allocates nothing (#1129)") {
+  // ---- Loudness range (EBU Tech 3342) and true peak (BS.1770 Annex 2),
+  // issue #1237.
+
+  TEST_CASE("loudnessMeter: EBU Tech 3342 cases 1 to 4, the loudness range (#1237)") {
+    struct Case {
+      std::vector<double> levels;
+      double want;
+    };
+    const std::vector<Case> cases = {
+        {{-20.0, -30.0}, 10.0},
+        {{-20.0, -15.0}, 5.0},
+        {{-40.0, -20.0}, 20.0},
+        {{-50.0, -35.0, -20.0, -35.0, -50.0}, 15.0},
+    };
+    for (UInt sr : {48000u, 44100u}) {
+      CAPTURE(sr);
+      ScopedSampleRate rate(sr);
+      for (const Case& c : cases) {
+        CAPTURE(c.want);
+        std::vector<Segment> segments;
+        segments.reserve(c.levels.size());
+        for (double db : c.levels)
+          segments.push_back({20.0, Stereo(db)});
+        loudnessMeter m(2);
+        Run(m, segments);
+        CHECK(std::fabs(m.loudnessRange() - c.want) <= 1.0);
+        // The steady tones fix both percentiles closely.
+        CHECK(std::fabs(m.loudnessRange() - c.want) <= 0.1);
+      }
+    }
+  }
+
+  TEST_CASE("loudnessMeter: the loudness range matches Tech 3342's reference code on every "
+            "short-term value (#1237)") {
+    ScopedSampleRate rate(48000);
+    loudnessMeter m;
+    std::vector<double> shortTerm; // as Tech 3342's code takes them
+    std::uint32_t seed = 1237;
+    std::uint64_t n = 0;
+    // 60 s in 100 ms steps over levels from -85 to -5 dBFS.
+    for (int step = 0; step < 600; ++step) {
+      seed = seed * 1664525u + 1013904223u;
+      const double db = -85.0 + 80.0 * static_cast<double>(seed >> 8) / 16777216.0;
+      const double amp = std::pow(10.0, db / 20.0);
+      for (UInt done = 0; done < 4800; done += N) {
+        buffer part(N);
+        for (UInt i = 0; i < N; ++i, ++n)
+          part.getPtr()[i] = static_cast<float>(
+              amp * std::sin(2.0 * Pi * 997.0 * static_cast<double>(n) / 48000.0));
+        m(part);
+      }
+      if (step >= 29) shortTerm.push_back(m.shortTerm());
+    }
+    // Tech 3342, Appendix: gate at -70 LUFS, then 20 LU below the mean
+    // power, then the 95th minus the 10th percentile by rank.
+    std::vector<double> abs;
+    for (double l : shortTerm)
+      if (l >= -70.0) abs.push_back(l);
+    REQUIRE(!abs.empty());
+    double power = 0.0;
+    for (double l : abs)
+      power += std::pow(10.0, l / 10.0);
+    const double gate = 10.0 * std::log10(power / static_cast<double>(abs.size())) - 20.0;
+    std::vector<double> rel;
+    for (double l : abs)
+      if (l >= gate) rel.push_back(l);
+    std::sort(rel.begin(), rel.end());
+    const double last = static_cast<double>(rel.size() - 1);
+    const double want = rel[static_cast<std::size_t>(std::llround(last * 0.95))] -
+                        rel[static_cast<std::size_t>(std::llround(last * 0.10))];
+    CHECK(want > 5.0);
+    CHECK(std::fabs(m.loudnessRange() - want) <= 0.02);
+  }
+
+  TEST_CASE("loudnessMeter: the loudness range waits for 3 s and starts over on reset() "
+            "(#1237)") {
+    ScopedSampleRate rate(48000);
+    loudnessMeter m;
+    CHECK(m.loudnessRange() == 0.f);
+    Run(m, {{2.9, {-20.0}}});
+    CHECK(m.loudnessRange() == 0.f); // no full short-term window yet
+    Run(m, {{5.0, {-20.0}}, {5.0, {-30.0}}});
+    CHECK(m.loudnessRange() > 5.f);
+    m.reset();
+    CHECK(m.loudnessRange() == 0.f);
+    Run(m, {{6.0, {-75.0}}});
+    CHECK(m.loudnessRange() == 0.f); // below the absolute gate
+  }
+
+  namespace {
+    // A raised-cosine fade over the first and last `fade` samples.
+    double Taper(std::size_t i, std::size_t length, std::size_t fade) {
+      const std::size_t edge = std::min(i, length - 1 - i);
+      if (edge >= fade) return 1.0;
+      return 0.5 - 0.5 * std::cos(Pi * static_cast<double>(edge) / static_cast<double>(fade));
+    }
+
+    // Runs one signal through both channels of a stereo meter.
+    float TruePeakOf(const std::vector<float>& x) {
+      loudnessMeter m(2);
+      for (std::size_t at = 0; at < x.size(); at += N) {
+        const UInt len = static_cast<UInt>(std::min<std::size_t>(N, x.size() - at));
+        buffer b(len);
+        for (UInt i = 0; i < len; ++i)
+          b.getPtr()[i] = x[at + i];
+        buffer* pair[2] = {&b, &b};
+        m(pair, 2);
+      }
+      CHECK(m.truePeak(1) == m.truePeak(2));
+      return m.truePeak();
+    }
+
+    // Tech 3341 cases 15 to 19: a tapered sine of `fraction` fs.
+    std::vector<float> TruePeakSine(double fraction, double amp, double degrees) {
+      const std::size_t length = 24000; // 0.5 s at 48 kHz
+      std::vector<float> x(length);
+      for (std::size_t i = 0; i < length; ++i)
+        x[i] = static_cast<float>(
+            Taper(i, length, 480) * amp *
+            std::sin(2.0 * Pi * fraction * static_cast<double>(i) + degrees * Pi / 180.0));
+      return x;
+    }
+
+    // Tech 3341 cases 20 to 23: at 4 fs, a sine of fs/6 at 0.5 holding one
+    // period of fs/4 at 1.0, continuous in phase on both sides, lowpassed
+    // and taken down to fs from sample `offset`. EBU's own files are not
+    // used: this synthesises the signal as the case describes it.
+    std::vector<float> TruePeakBurst(std::size_t offset) {
+      std::vector<double> hi;
+      const std::size_t sixth = 24; // samples per period of fs/6 at 4 fs
+      hi.reserve(2000 * sixth + 16);
+      for (std::size_t i = 0; i < 1000 * sixth; ++i)
+        hi.push_back(0.5 * std::sin(2.0 * Pi * static_cast<double>(i % sixth) / sixth));
+      for (std::size_t i = 0; i < 16; ++i) // one period of fs/4 at 4 fs
+        hi.push_back(std::sin(2.0 * Pi * static_cast<double>(i) / 16.0));
+      for (std::size_t i = 0; i < 1000 * sixth; ++i)
+        hi.push_back(0.5 * std::sin(2.0 * Pi * static_cast<double>(i % sixth) / sixth));
+      for (std::size_t i = 0; i < hi.size(); ++i)
+        hi[i] *= Taper(i, hi.size(), 1920);
+      // A Blackman-windowed sinc lowpass at 20 kHz of 4 * 48 kHz.
+      constexpr int half = 127;
+      const double cut = 20000.0 / 192000.0;
+      std::vector<double> h;
+      for (int k = -half; k <= half; ++k) {
+        const double sinc =
+            k == 0 ? 2.0 * cut : std::sin(2.0 * Pi * cut * k) / (Pi * static_cast<double>(k));
+        const double w =
+            0.42 + 0.5 * std::cos(Pi * k / (half + 1)) + 0.08 * std::cos(2.0 * Pi * k / (half + 1));
+        h.push_back(sinc * w);
+      }
+      std::vector<double> filtered(hi.size(), 0.0);
+      double crest = 0.0;
+      for (std::size_t n = 0; n < hi.size(); ++n) {
+        double y = 0.0;
+        for (std::size_t j = 0; j < h.size(); ++j) {
+          // Tap j weighs the sample j - half after n.
+          const auto at = static_cast<std::ptrdiff_t>(n + half) - static_cast<std::ptrdiff_t>(j);
+          if (at >= 0 && at < static_cast<std::ptrdiff_t>(hi.size()))
+            y += h[j] * hi[static_cast<std::size_t>(at)];
+        }
+        filtered[n] = y;
+        crest = std::max(crest, std::fabs(y));
+      }
+      // The lowpass rounds the burst's crest a little; scaled so the
+      // band-limited waveform peaks at exactly 0 dBTP, the expected result.
+      CHECK(crest > 0.9);
+      std::vector<float> x;
+      for (std::size_t n = offset; n < hi.size(); n += 4)
+        x.push_back(static_cast<float>(filtered[n] / crest));
+      return x;
+    }
+
+    void WithinTruePeakTolerance(float got, double want) {
+      CHECK(got <= want + 0.2);
+      CHECK(got >= want - 0.4);
+    }
+  } // namespace
+
+  TEST_CASE("loudnessMeter: EBU Tech 3341 cases 15 to 19, true peak of sines (#1237)") {
+    ScopedSampleRate rate(48000);
+    WithinTruePeakTolerance(TruePeakOf(TruePeakSine(0.25, 0.5, 0.0)), -6.0); // 15
+    WithinTruePeakTolerance(TruePeakOf(TruePeakSine(0.25, 0.5, 45.0)), -6.0); // 16
+    WithinTruePeakTolerance(TruePeakOf(TruePeakSine(1.0 / 6.0, 0.5, 60.0)), -6.0); // 17
+    WithinTruePeakTolerance(TruePeakOf(TruePeakSine(0.125, 0.5, 67.5)), -6.0); // 18
+    WithinTruePeakTolerance(TruePeakOf(TruePeakSine(0.25, 1.41, 45.0)), 3.0); // 19
+    // Case 16's samples sit 3 dB below the waveform's crest: the sample
+    // peak misses what the true peak finds.
+    loudnessMeter m;
+    const std::vector<float> x = TruePeakSine(0.25, 0.5, 45.0);
+    buffer b(N);
+    for (std::size_t at = 0; at + N <= x.size(); at += N) {
+      for (UInt i = 0; i < N; ++i)
+        b.getPtr()[i] = x[at + i];
+      m(b);
+    }
+    CHECK(m.peak() == doctest::Approx(-9.03).epsilon(0.01));
+    CHECK(m.truePeak() > m.peak() + 2.5f);
+  }
+
+  TEST_CASE("loudnessMeter: EBU Tech 3341 cases 20 to 23, a burst downsampled at four "
+            "offsets (#1237)") {
+    ScopedSampleRate rate(48000);
+    for (std::size_t offset = 0; offset < 4; ++offset) {
+      CAPTURE(offset);
+      WithinTruePeakTolerance(TruePeakOf(TruePeakBurst(offset)), 0.0);
+    }
+  }
+
+  TEST_CASE("loudnessMeter: the true peak is per channel, never below the sample peak, and "
+            "starts over on reset() (#1237)") {
+    ScopedSampleRate rate(48000);
+    loudnessMeter m(2);
+    CHECK(m.truePeak() == loudnessMeter::SILENCE);
+    buffer a(N);
+    buffer b(N);
+    a = 0.f;
+    b = 0.f;
+    a.getPtr()[10] = 1.f; // an impulse: no interpolated sample reaches it
+    b.getPtr()[20] = -0.25f;
+    buffer* pair[2] = {&a, &b};
+    m(pair, 2);
+    CHECK(m.truePeak(1) == 0.f);
+    CHECK(m.truePeak(1) >= m.peak(1));
+    CHECK(m.truePeak(2) >= m.peak(2));
+    CHECK(m.truePeak(2) == doctest::Approx(20.0 * std::log10(0.25)).epsilon(1e-4));
+    CHECK(m.truePeak() == m.truePeak(1));
+    CHECK(m.truePeak(9) == m.truePeak());
+    m.reset();
+    CHECK(m.truePeak() == loudnessMeter::SILENCE);
+    // Nothing of the impulse is left in the interpolator after a reset.
+    a = 0.f;
+    m(a);
+    CHECK(m.truePeak() == loudnessMeter::SILENCE);
+  }
+
+  TEST_CASE("loudnessMeter: reset() keeps the filters' memory, so a continuing signal reads "
+            "no step (#1237)") {
+    ScopedSampleRate rate(48000);
+    loudnessMeter kept;
+    loudnessMeter fresh;
+    // A sine that is on its crest 1 s in, where the reset falls: had the
+    // interpolator forgotten the samples before, it would see a step from
+    // silence and overshoot.
+    const std::vector<Segment> tone = {{1.0, {-6.0}}};
+    Run(kept, tone, N, 1000.25);
+    Run(fresh, tone, N, 1000.25);
+    kept.reset(); // at a step boundary: 1 s is 10 steps
+    // Run() starts the phase over; the second second continues from 1 s.
+    std::vector<float> x(48000);
+    for (std::size_t i = 0; i < x.size(); ++i)
+      x[i] = static_cast<float>(
+          std::pow(10.0, -6.0 / 20.0) *
+          std::sin(2.0 * Pi * 1000.25 * static_cast<double>(i + 48000) / 48000.0));
+    buffer b(N);
+    for (std::size_t at = 0; at < x.size(); at += N) {
+      for (UInt i = 0; i < N; ++i)
+        b.getPtr()[i] = x[at + i];
+      kept(b);
+      fresh(b);
+    }
+    CHECK(kept.momentary() == doctest::Approx(fresh.momentary()).epsilon(1e-6));
+    CHECK(kept.truePeak() <= fresh.truePeak());
+    CHECK(kept.truePeak() == doctest::Approx(-6.0).epsilon(0.1 / 6.0));
+  }
+
+  TEST_CASE("loudnessMeter: processing allocates nothing (#1129, #1237)") {
     ScopedSampleRate rate(48000);
     loudnessMeter m(2);
     buffer a(N);
@@ -438,11 +705,13 @@ TEST_SUITE("dsp") {
     {
       TestHelpers::ProbeScope probe;
       UInt reports = 0;
-      for (int k = 0; k < 2000; ++k) {
+      for (int k = 0; k < 2000; ++k) { // 5.3 s: the loudness range fills too
         reports += m(pair, 2);
         if (k % 100 == 0) {
           (void)m.integrated();
+          (void)m.loudnessRange();
           (void)m.peak(1);
+          (void)m.truePeak(2);
         }
       }
       m(a);

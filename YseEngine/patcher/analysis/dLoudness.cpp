@@ -50,8 +50,10 @@ CONSTRUCT_DSP() {
 
   ShapePorts();
 
-  // out 0 - 3: momentary, short-term, integrated, sample peak; sent after
-  // the block (issue #1037)
+  // out 0 - 5: momentary, short-term, integrated, loudness range, sample
+  // peak, true peak; sent after the block (issue #1037)
+  ADD_OUT_FLOAT;
+  ADD_OUT_FLOAT;
   ADD_OUT_FLOAT;
   ADD_OUT_FLOAT;
   ADD_OUT_FLOAT;
@@ -59,7 +61,8 @@ CONSTRUCT_DSP() {
 
   ADD_DESCRIPTION("Measures loudness after EBU R 128 and ITU-R BS.1770: the momentary (400 "
                   "ms), short-term (3 s) and gated integrated loudness of one or more signals "
-                  "in LUFS, and their sample peak in dBFS, on a bang or every interval.");
+                  "in LUFS, their loudness range in LU, and their sample peak and true peak, "
+                  "on a bang or every interval.");
   ADD_CATEGORY(pCategory::ANALYSIS);
   OUTLET_DOC(0, "momentary",
              "The momentary loudness in LUFS: the K-weighted level of the last 400 ms. -200 "
@@ -73,10 +76,19 @@ CONSTRUCT_DSP() {
              "The integrated loudness in LUFS since the start or the last reset, gated at -70 "
              "LUFS and 10 LU below the mean. -200 while nothing passes the gates.",
              "-200 or more LUFS");
-  OUTLET_DOC(3, "sample peak",
+  OUTLET_DOC(3, "loudness range",
+             "The loudness range in LU since the start or the last reset (EBU Tech 3342): the "
+             "spread of the short-term loudness between its 10th and 95th percentiles. 0 until "
+             "3 s have been measured.",
+             "0 or more LU");
+  OUTLET_DOC(4, "sample peak",
              "The largest sample magnitude since the start or the last reset in dBFS, of the "
              "chosen channel or of all channels. -200 for none.",
              "-200 or more dBFS");
+  OUTLET_DOC(5, "true peak",
+             "The true peak since the start or the last reset in dBTP, 4 times oversampled "
+             "(ITU-R BS.1770), of the chosen channel or of all channels. -200 for none.",
+             "-200 or more dBTP");
   PARAM_DOC("loudness", "1 0",
             "The number of signal inlets, measured together (1-64), then the reporting "
             "interval in milliseconds, 0 to report only on a bang ('~loudness 2 100'). Later "
@@ -119,10 +131,10 @@ void dLoudness::ShapePorts() {
       REG_INT_IN(SetChannelInt);
       INLET_DOC(0, count == 1 ? "signal" : "signal 1",
                 "A signal to measure; unconnected it reads as silence. A bang reports; a "
-                "number picks the channel whose sample peak is reported (0 the highest of "
-                "all) and reports. Also takes 'channel <n>', 'interval <ms>' (0 stops "
+                "number picks the channel whose peaks are reported (0 the highest of all) "
+                "and reports. Also takes 'channel <n>', 'interval <ms>' (0 stops "
                 "automatic reports) and 'reset', which starts the integrated loudness and "
-                "the peak over.",
+                "the loudness range and the peaks over.",
                 "any float");
     } else {
       inputs.emplace_back(this, false, i);
@@ -195,7 +207,10 @@ CALC() {
   // traversal. A report gives the values up to the end of the last block,
   // then a reset that came with it starts over.
   const auto arm = [this]() {
-    outputs[3].ArmFloat(fn.peak(static_cast<UInt>(channel.load())));
+    const auto pick = static_cast<UInt>(channel.load());
+    outputs[5].ArmFloat(fn.truePeak(pick));
+    outputs[4].ArmFloat(fn.peak(pick));
+    outputs[3].ArmFloat(fn.loudnessRange());
     outputs[2].ArmFloat(fn.integrated());
     outputs[1].ArmFloat(fn.shortTerm());
     outputs[0].ArmFloat(fn.momentary());

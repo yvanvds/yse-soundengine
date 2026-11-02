@@ -1,5 +1,6 @@
 // Tests for the ~loudness patcher object (patcher/analysis/dLoudness), issue
-// #1129. The measurement is DSP::loudnessMeter's and is tested in
+// #1129, with the loudness range and true peak outlets of #1237. The
+// measurement is DSP::loudnessMeter's and is tested in
 // Tests/dsp/test_loudness_meter.cpp; these show that the signals, the bang,
 // the numbers and the messages reach it, that the reports go out only
 // through the armed outlets (#1037), that the channel count shapes the
@@ -35,33 +36,41 @@ namespace {
   constexpr unsigned int N = YSE::STANDARD_BUFFERSIZE;
   constexpr double Pi = 3.14159265358979323846;
 
-  // ~loudness (one channel) with sinks on all four outlets. Block() runs one
+  // ~loudness (one channel) with sinks on all six outlets. Block() runs one
   // block and the flush the patcher runs after its traversal, and says
   // whether a report went out.
   struct Rig {
     FloatSink momentary;
     FloatSink shortTerm;
     FloatSink integrated;
+    FloatSink range;
     FloatSink peak;
+    FloatSink truePeak;
     dLoudness ld;
 
     Rig() {
       Wire(ld, 0, momentary);
       Wire(ld, 1, shortTerm);
       Wire(ld, 2, integrated);
-      Wire(ld, 3, peak);
+      Wire(ld, 3, range);
+      Wire(ld, 4, peak);
+      Wire(ld, 5, truePeak);
     }
     bool Block(buffer& in) {
       momentary.gotFloat = false;
       shortTerm.gotFloat = false;
       integrated.gotFloat = false;
+      range.gotFloat = false;
       peak.gotFloat = false;
+      truePeak.gotFloat = false;
       ld.ResetDSP();
       ld.GetInlet(0)->SetBuffer(&in, YSE::T_DSP); // runs CALC()
       ld.FlushArmedOutlets(YSE::T_GUI);
       CHECK(momentary.gotFloat == peak.gotFloat);
       CHECK(shortTerm.gotFloat == peak.gotFloat);
       CHECK(integrated.gotFloat == peak.gotFloat);
+      CHECK(range.gotFloat == peak.gotFloat);
+      CHECK(truePeak.gotFloat == peak.gotFloat);
       return peak.gotFloat;
     }
   };
@@ -87,9 +96,9 @@ TEST_SUITE("patcher") {
     REQUIRE(obj != nullptr);
     CHECK(std::string(obj->Type()) == "~loudness");
     CHECK(obj->GetInputs() == 1);
-    CHECK(obj->GetOutputs() == 4);
+    CHECK(obj->GetOutputs() == 6);
     CHECK(obj->IsDSPInput(0));
-    for (int i = 0; i < 4; ++i)
+    for (int i = 0; i < 6; ++i)
       CHECK(obj->OutputDataType(i) == YSE::OUT_TYPE::FLOAT);
 
     std::unique_ptr<YSE::PATCHER::pObject> o(YSE::PATCHER::Register().Get(YSE::OBJ::D_LOUDNESS));
@@ -106,8 +115,8 @@ TEST_SUITE("patcher") {
     loudnessMeter ref;
     buffer in(N);
     int k = 0;
-    for (; k < 750; ++k) { // 2 s
-      Sine(in, k, 0.1);
+    for (; k < 1688; ++k) { // 2 s at -20 dBFS, then 2.5 s at -30
+      Sine(in, k, k < 750 ? 0.1 : 0.0316);
       CHECK_FALSE(rig.Block(in)); // no bang, no interval: no report
       ref(in);
     }
@@ -117,18 +126,24 @@ TEST_SUITE("patcher") {
     const float s = ref.shortTerm();
     const float i = ref.integrated();
     const float pk = ref.peak();
+    const float lra = ref.loudnessRange();
+    const float tp = ref.truePeak();
     Sine(in, k, 0.5); // this block comes after the report
     REQUIRE(rig.Block(in));
     CHECK(rig.momentary.received == m);
     CHECK(rig.shortTerm.received == s);
     CHECK(rig.integrated.received == i);
     CHECK(rig.peak.received == pk);
-    CHECK(std::fabs(m - -23.f) <= 0.1f);
+    CHECK(rig.range.received == lra);
+    CHECK(rig.truePeak.received == tp);
+    CHECK(std::fabs(m - -33.f) <= 0.1f);
     CHECK(pk == doctest::Approx(-20.f).epsilon(1e-3));
+    CHECK(tp >= pk);
+    CHECK(lra > 1.f); // the step from -20 to -30 dBFS spreads the short-term loudness
   }
 
   TEST_CASE("~loudness: a number picks the peak channel and reports; 'channel' only picks "
-            "(#1129)") {
+            "(#1129, #1237)") {
     ScopedSampleRate rate(48000);
     patcherImplementation p(1, nullptr);
     YSE::pHandle* h = p.CreateObject(YSE::OBJ::D_LOUDNESS, "2");
@@ -141,11 +156,14 @@ TEST_SUITE("patcher") {
     two.SetParams("2");
     REQUIRE(two.GetInlet(1) != nullptr);
     FloatSink peak;
-    FloatSink other[3];
+    FloatSink truePeak;
+    FloatSink other[4];
     Wire(two, 0, other[0]);
     Wire(two, 1, other[1]);
     Wire(two, 2, other[2]);
-    Wire(two, 3, peak);
+    Wire(two, 3, other[3]);
+    Wire(two, 4, peak);
+    Wire(two, 5, truePeak);
     buffer left(N);
     buffer right(N);
     left = 0.25f;
@@ -162,6 +180,9 @@ TEST_SUITE("patcher") {
     two.FlushArmedOutlets(YSE::T_GUI);
     REQUIRE(peak.gotFloat);
     CHECK(peak.received == doctest::Approx(20.f * std::log10(0.25f)).epsilon(1e-4));
+    REQUIRE(truePeak.gotFloat);
+    const float leftTruePeak = truePeak.received;
+    CHECK(leftTruePeak >= peak.received);
 
     two.GetInlet(0)->SetFloat(2.7f, YSE::T_GUI); // converted to int: 2
     peak.gotFloat = false;
@@ -170,6 +191,8 @@ TEST_SUITE("patcher") {
     two.FlushArmedOutlets(YSE::T_GUI);
     REQUIRE(peak.gotFloat);
     CHECK(peak.received == doctest::Approx(20.f * std::log10(0.5f)).epsilon(1e-4));
+    CHECK(truePeak.received >= peak.received);
+    CHECK(truePeak.received > leftTruePeak + 5.f); // the right channel's
 
     two.GetInlet(0)->SetMessage("channel 1", YSE::T_GUI);
     peak.gotFloat = false;
@@ -264,19 +287,21 @@ TEST_SUITE("patcher") {
     CHECK(a->GetParams() == "3 100");
     CHECK(a->GetInputs() == 3);
     CHECK(a->IsDSPInput(2));
-    CHECK(a->GetOutputs() == 4);
+    CHECK(a->GetOutputs() == 6);
     CHECK(b->GetParams() == "");
     CHECK(b->GetInputs() == 1);
   }
 
   TEST_CASE("~loudness: in a rendered patch, a stereo 1 kHz sine at -23 dBFS reads -23 LUFS, "
-            "reported every 100 ms after a JSON round trip (#1129)") {
+            "reported every 100 ms after a JSON round trip (#1129, #1237)") {
     ScopedSampleRate rate(48000);
     std::string dump;
     unsigned int mID = 0;
     unsigned int sID = 0;
     unsigned int iID = 0;
     unsigned int pID = 0;
+    unsigned int rID = 0;
+    unsigned int tID = 0;
     {
       patcherImplementation src(1, nullptr);
       const double amp = std::pow(10.0, -23.0 / 20.0);
@@ -288,6 +313,8 @@ TEST_SUITE("patcher") {
       YSE::pHandle* sOut = src.CreateObject(YSE::OBJ::G_FLOAT, "");
       YSE::pHandle* iOut = src.CreateObject(YSE::OBJ::G_FLOAT, "");
       YSE::pHandle* pOut = src.CreateObject(YSE::OBJ::G_FLOAT, "");
+      YSE::pHandle* rOut = src.CreateObject(YSE::OBJ::G_FLOAT, "");
+      YSE::pHandle* tOut = src.CreateObject(YSE::OBJ::G_FLOAT, "");
       YSE::pHandle* control = src.CreateObject(YSE::OBJ::G_RECEIVE, "ld1129");
       REQUIRE(osc != nullptr);
       REQUIRE(level != nullptr);
@@ -300,11 +327,15 @@ TEST_SUITE("patcher") {
       src.Connect(ld, 0, mOut, 0);
       src.Connect(ld, 1, sOut, 0);
       src.Connect(ld, 2, iOut, 0);
-      src.Connect(ld, 3, pOut, 0);
+      src.Connect(ld, 3, rOut, 0);
+      src.Connect(ld, 4, pOut, 0);
+      src.Connect(ld, 5, tOut, 0);
       mID = mOut->GetID();
       sID = sOut->GetID();
       iID = iOut->GetID();
       pID = pOut->GetID();
+      rID = rOut->GetID();
+      tID = tOut->GetID();
       dump = src.DumpJSON();
     }
     patcherImplementation dst(1, nullptr);
@@ -313,10 +344,14 @@ TEST_SUITE("patcher") {
     YSE::pHandle* sOut = dst.GetHandleFromID(sID);
     YSE::pHandle* iOut = dst.GetHandleFromID(iID);
     YSE::pHandle* pOut = dst.GetHandleFromID(pID);
+    YSE::pHandle* rOut = dst.GetHandleFromID(rID);
+    YSE::pHandle* tOut = dst.GetHandleFromID(tID);
     REQUIRE(mOut != nullptr);
     REQUIRE(sOut != nullptr);
     REQUIRE(iOut != nullptr);
     REQUIRE(pOut != nullptr);
+    REQUIRE(rOut != nullptr);
+    REQUIRE(tOut != nullptr);
 
     for (int k = 0; k < 375 * 5; ++k) // 5 s
       dst.Calculate(YSE::T_DSP);
@@ -324,6 +359,12 @@ TEST_SUITE("patcher") {
     CHECK(std::fabs(GuiFloat(sOut) - -23.f) <= 0.1f);
     CHECK(std::fabs(GuiFloat(iOut) - -23.f) <= 0.1f);
     CHECK(GuiFloat(pOut) == doctest::Approx(-23.f).epsilon(1e-2));
+    // A steady tone has no loudness range. ~cycle starts on its crest, a
+    // step from silence that the interpolator overshoots: the true peak
+    // reads above the tone's crest until a reset.
+    CHECK(GuiFloat(rOut) <= 0.05f);
+    CHECK(GuiFloat(tOut) > -23.f);
+    CHECK(GuiFloat(tOut) < -21.5f);
 
     // 'reset' through the receive, then silence on the integrated loudness
     // until 400 ms have been measured again.
@@ -336,6 +377,9 @@ TEST_SUITE("patcher") {
     for (int k = 0; k < 375; ++k)
       dst.Calculate(YSE::T_DSP);
     CHECK(std::fabs(GuiFloat(iOut) - -23.f) <= 0.1f);
+    // The reset kept the interpolator's memory, so the steady tone's true
+    // peak is its crest.
+    CHECK(std::fabs(GuiFloat(tOut) - -23.f) <= 0.1f);
   }
 
   TEST_CASE("~loudness: numbers, messages, a bang, blocks and the flush on the audio thread "

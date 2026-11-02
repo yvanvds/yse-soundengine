@@ -20,21 +20,21 @@ namespace YSE {
      *  - Inlets: one signal per channel (the first argument, default 1),
      *    measured together; unconnected they read as silence. The first
      *    also takes a bang, which reports; a number, which picks the channel
-     *    whose sample peak is reported (0 the highest of all, as Max's int
-     *    and channel attribute) and reports; ``channel <n>``;
-     *    ``interval <ms>``; and ``reset``, which starts the integrated
-     *    loudness and the peaks over at the next block, after a report that
+     *    whose peaks are reported (0 the highest of all, as Max's int and
+     *    channel attribute) and reports; ``channel <n>``; ``interval <ms>``;
+     *    and ``reset``, which starts the integrated loudness, the loudness
+     *    range and the peaks over at the next block, after a report that
      *    came with it.
-     *  - Outlets: the momentary, short-term and integrated loudness in LUFS
-     *    and the sample peak in dBFS, right to left. A report gives the
+     *  - Outlets: the momentary, short-term and integrated loudness in LUFS,
+     *    the loudness range in LU, the sample peak in dBFS and the true peak
+     *    in dBTP (issue #1237), sent right to left. A report gives the
      *    values up to the end of the last block, at the start of the next.
      *  - Parameter ``loudness``: the channel count, then the reporting
      *    interval in ms (``~loudness 2 100``). A list parameter, so a new
      *    channel count rebuilds the object off the audio thread; a later
      *    number or message is not saved.
      *
-     *  Dropped from Max's surface: the loudness range and the true peak
-     *  outlets. The numbers, the bang and the reset reach the audio thread
+     *  The numbers, the bang and the reset reach the audio thread
      *  through atomics, read at the start of each block. The wrapper
      *  contains no sample math.
      */
