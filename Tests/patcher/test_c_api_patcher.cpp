@@ -79,6 +79,10 @@ namespace {
   // A structural re-parse target (issue #968): its argument is its outlet
   // count, so a set_params rebuilds it rather than patching it in place.
   constexpr const char* kGate = ".gate";
+  // The preset bank (issue #1229): read-only GUI cells, active slot first and
+  // then one occupancy flag per slot.
+  constexpr const char* kPreset = ".preset";
+  constexpr const char* kXYSlider = ".xyslider";
 
   // Read a snprintf-convention getter into a std::string, using the two-call
   // size-then-fill pattern a binding would use.
@@ -1430,6 +1434,62 @@ TEST_SUITE("capilowcov") {
       CHECK(readCells(h) == std::vector<float>{0.f, 0.f, 1.f, 0.f, 0.f, 1.f});
       CHECK(readWhole(h) == readCells(h));
     }
+
+    yse_patcher_destroy(p);
+  }
+
+  TEST_CASE("c-api phandle: .preset reports slot occupancy through its GUI cells (#1229)") {
+    // What a host drawing the slot grid polls: the whole-state read stays the
+    // active slot alone, and cells 1..slots say which slots hold a snapshot —
+    // including a cable-style `clear <n>` of a slot that is not the active
+    // one, which moves nothing else a host can see.
+    YsePatcher* p = yse_patcher_create();
+    REQUIRE(p != nullptr);
+    yse_patcher_init(p, 2);
+    YsePHandle* preset = yse_patcher_create_object(p, kPreset, "4");
+    YsePHandle* pad = yse_patcher_create_object(p, kXYSlider, "0 127 0 127");
+    REQUIRE(preset != nullptr);
+    REQUIRE(pad != nullptr);
+
+    CHECK(yse_phandle_gui_value_is_settable(preset) == 0);
+    CHECK(yse_phandle_get_gui_value_count(preset) == 5u);
+
+    const auto whole = [preset] {
+      return readString(
+          [preset](char* b, size_t c) { return yse_phandle_get_gui_value(preset, b, c); });
+    };
+    const auto cell = [preset](unsigned int i) {
+      return readString(
+          [preset, i](char* b, size_t c) { return yse_phandle_get_gui_value_at(preset, i, b, c); });
+    };
+    const auto occupancy = [&cell] {
+      std::string out;
+      for (unsigned int i = 1; i <= 4; i++)
+        out += cell(i);
+      return out;
+    };
+
+    CHECK(whole() == "-1");
+    CHECK(cell(0) == "-1");
+    CHECK(occupancy() == "0000");
+
+    yse_phandle_set_list(pad, 0, "10 20");
+    yse_phandle_set_list(preset, 0, "store 0");
+    yse_phandle_set_list(preset, 0, "store 2");
+    CHECK(whole() == "2");
+    CHECK(cell(0) == "2");
+    CHECK(occupancy() == "1010");
+
+    yse_phandle_set_list(preset, 0, "clear 0");
+    CHECK(whole() == "2");
+    CHECK(occupancy() == "0010");
+
+    yse_phandle_set_list(preset, 0, "clearall");
+    CHECK(whole() == "-1");
+    CHECK(occupancy() == "0000");
+
+    // Past the last slot is "", as for every object.
+    CHECK(yse_phandle_get_gui_value_at(preset, 5, nullptr, 0) == 0u);
 
     yse_patcher_destroy(p);
   }

@@ -434,6 +434,13 @@ namespace YSE {
       //                        does not re-parse the whole state.
       //   GuiValueIsSettable() Whether the write half below holds.
       //
+      // ONE READ-ONLY EXCEPTION to "GetGuiValue() is every cell": `.preset`
+      // (issue #1229). Its bulk read was the active slot alone before it grew
+      // cells, and hosts parse it as one number, so it stays that — cell 0 —
+      // while cells 1..N carry slot occupancy for a host to read by index. It
+      // is not settable, so no `.preset` snapshot or round trip ever reads its
+      // bulk form; a host wanting the occupancy uses the per-cell reads.
+      //
       // Cells are strings rather than a typed payload because the controls
       // that need this share no element type — `.rslider` a float pair,
       // `.multislider` floats, `.matrixctrl` cell states, `.function`
