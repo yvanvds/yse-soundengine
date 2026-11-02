@@ -7,9 +7,9 @@
 // the true peak (Tech 3341 cases 15 to 23). Issue #1240 adds Tech 3341
 // cases 9 to 12, builds cases 20 to 23 as Table 1 defines them, and
 // measures the test set's files (Tech 3341 cases 7 and 8, Tech 3342 cases 5
-// and 6) when YSE_EBU_LOUDNESS_DIR points at them. Tech 3341 cases 13 and
-// 14 (the maximum momentary loudness of tones 20 ms apart) are not met: the
-// momentary window moves in 100 ms steps, #1242.
+// and 6) when YSE_EBU_LOUDNESS_DIR points at them. Issue #1242 slides the
+// momentary window in 5 ms sub-steps and adds the maxima, for Tech 3341
+// cases 13 and 14.
 
 #include <doctest/doctest.h>
 #include <algorithm>
@@ -265,14 +265,17 @@ TEST_SUITE("dsp") {
       segments.push_back({3.0 - i * 0.15, Stereo(-1000.0)});
     }
     std::vector<double> top(20, -1000.0);
+    std::vector<double> held(20, -1000.0);
     loudnessMeter m(2);
     Run(m, segments, N, 1000.0, [&](double t) {
       const auto i = static_cast<std::size_t>(std::min(19.0, std::floor((t - 1e-9) / 6.0)));
       top[i] = std::max(top[i], static_cast<double>(m.shortTerm()));
+      held[i] = m.maxShortTerm(); // the meter's own maximum at the end
     });
     for (int i = 0; i < 20; ++i) {
       CAPTURE(i);
       CHECK(std::fabs(top[static_cast<std::size_t>(i)] - (-38.0 + i)) <= 0.1);
+      CHECK(std::fabs(held[static_cast<std::size_t>(i)] - (-38.0 + i)) <= 0.1);
     }
   }
 
@@ -298,6 +301,73 @@ TEST_SUITE("dsp") {
     REQUIRE(seen > 0);
     CHECK(low >= -23.1);
     CHECK(high <= -22.9);
+  }
+
+  TEST_CASE("loudnessMeter: EBU Tech 3341 case 13, the file-based maximum momentary "
+            "loudness (#1242)") {
+    for (UInt sr : {48000u, 44100u}) {
+      CAPTURE(sr);
+      ScopedSampleRate rate(sr);
+      // 20 files: i * 20 ms of silence, 400 ms at -23 dBFS, 1 s of
+      // silence; the meter starts over for each. A window that moved in
+      // 100 ms steps read up to 0.46 LU low here.
+      for (int i = 0; i < 20; ++i) {
+        CAPTURE(i);
+        loudnessMeter m(2);
+        double top = -1000.0;
+        Run(m, {{i * 0.02, Stereo(-1000.0)}, {0.4, Stereo(-23.0)}, {1.0, Stereo(-1000.0)}}, N,
+            1000.0, [&](double) { top = std::max(top, static_cast<double>(m.momentary())); });
+        CHECK(std::fabs(top - -23.0) <= 0.1);
+        CHECK(m.maxMomentary() == doctest::Approx(top).epsilon(1e-6));
+      }
+    }
+  }
+
+  TEST_CASE("loudnessMeter: EBU Tech 3341 case 14, the live maximum momentary loudness "
+            "(#1242)") {
+    ScopedSampleRate rate(48000);
+    // One signal of 20 tones: i * 20 ms of silence, 400 ms at -38 + i dBFS,
+    // 400 - i * 20 ms of silence; 800 ms each. Each tone is 1 dB above the
+    // last, so the maximum read at the end of each 800 ms is that tone's.
+    std::vector<Segment> segments;
+    for (int i = 0; i < 20; ++i) {
+      segments.push_back({i * 0.02, Stereo(-1000.0)});
+      segments.push_back({0.4, Stereo(-38.0 + i)});
+      segments.push_back({0.4 - i * 0.02, Stereo(-1000.0)});
+    }
+    std::vector<double> held(20, -1000.0);
+    loudnessMeter m(2);
+    Run(m, segments, N, 1000.0, [&](double t) {
+      const auto i = static_cast<std::size_t>(std::min(19.0, std::floor((t - 1e-9) / 0.8)));
+      held[i] = m.maxMomentary();
+    });
+    for (int i = 0; i < 20; ++i) {
+      CAPTURE(i);
+      CHECK(std::fabs(held[static_cast<std::size_t>(i)] - (-38.0 + i)) <= 0.1);
+    }
+  }
+
+  TEST_CASE("loudnessMeter: the maxima hold the highest momentary and short-term loudness "
+            "until reset() (#1242)") {
+    ScopedSampleRate rate(48000);
+    loudnessMeter m;
+    CHECK(m.maxMomentary() == loudnessMeter::SILENCE);
+    CHECK(m.maxShortTerm() == loudnessMeter::SILENCE);
+    Run(m, {{4.0, {-20.0}}, {4.0, {-40.0}}});
+    CHECK(m.momentary() < -40.f);
+    CHECK(std::fabs(m.maxMomentary() - -23.0) <= 0.1);
+    CHECK(std::fabs(m.maxShortTerm() - -23.0) <= 0.1);
+    // The momentary loudness moves every 5 ms, not every 100 ms.
+    float last = m.momentary();
+    int changes = 0;
+    Run(m, {{0.1, {-10.0}}}, 48, 1000.0, [&](double) {
+      if (m.momentary() != last) changes++;
+      last = m.momentary();
+    });
+    CHECK(changes >= 19);
+    m.reset();
+    CHECK(m.maxMomentary() == loudnessMeter::SILENCE);
+    CHECK(m.maxShortTerm() == loudnessMeter::SILENCE);
   }
 
   TEST_CASE("loudnessMeter: momentary and short-term windows fill with silence first "
@@ -959,6 +1029,7 @@ TEST_SUITE("dsp") {
         reports += m(pair, 2);
         if (k % 100 == 0) {
           (void)m.integrated();
+          (void)m.maxMomentary();
           (void)m.loudnessRange();
           (void)m.peak(1);
           (void)m.truePeak(2);
