@@ -3,6 +3,7 @@
 #include "../math/gExprEval.h"
 #include "../pListArgs.h"
 #include "../pObjectList.hpp"
+#include <cmath>
 #include <cstddef>
 #include <string>
 
@@ -20,20 +21,59 @@ namespace {
     return std::string(digits, written);
   }
 
+  // One whitespace-delimited token at `cursor` read as an int, with `cursor`
+  // left past it. An int token reads as itself; a float token is accepted only
+  // when it is whole (`1.`, `1.0`, `1e0`), and reads as that int (#1231).
+  //
+  // The float half is what lets `.matrixctrl` drive this object directly: it
+  // spells every cell value as a float, so a cell switched on arrives as
+  // `0 1 1.`. A fractional token (`0.5`) is still refused rather than
+  // truncated — it names no port and no on/off state, so the strictness that
+  // keeps `connect 0 1 please` from looking like a working connection keeps it
+  // out too. Out-of-range values saturate at the `int` limits, as
+  // `ReadIntArgAt` does. No allocation and no exception; the float path costs
+  // `ReadNumericToken`'s one bounded stack copy.
+  bool ReadIndexToken(const std::string& text, std::size_t& cursor, int& out) {
+    std::size_t start = cursor;
+    while (start < text.size() && (text[start] == ' ' || text[start] == '\t'))
+      start++;
+    std::size_t end = start;
+    while (end < text.size() && text[end] != ' ' && text[end] != '\t')
+      end++;
+    if (end == start) return false;
+
+    if (!YSE::PATCHER::TokenLooksLikeFloat(text.c_str() + start, end - start)) {
+      std::size_t intCursor = start;
+      if (!YSE::PATCHER::ReadIntArgAt(text, intCursor, out) || intCursor != end) return false;
+      cursor = end;
+      return true;
+    }
+
+    float number = 0.f;
+    if (!YSE::PATCHER::ReadNumericToken(text.c_str() + start, end - start, number)) return false;
+    if (std::floor(number) != number) return false;
+    if (number >= 2147483647.f)
+      out = 2147483647;
+    else if (number <= -2147483648.f)
+      out = -2147483647 - 1;
+    else
+      out = static_cast<int>(number);
+    cursor = end;
+    return true;
+  }
+
   // Exactly `count` integers starting at `at`, with nothing but whitespace
   // after them. Returns false and writes nothing useful otherwise.
   //
   // Strict on both ends on purpose. A short list is not the message Max
   // documents — `connect 0` names no outlet — and a long one is not either:
-  // `ReadIntArgAt` stops at the first thing it cannot read, so without the
-  // trailing check `connect 0 1 please` would quietly become `connect 0 1` and
-  // a patch's typo would look like a working connection. Same real-time
-  // properties as the readers it is built from: no allocation, no locale, no
-  // exception.
+  // without the trailing check `connect 0 1 please` would quietly become
+  // `connect 0 1` and a patch's typo would look like a working connection.
+  // Same real-time properties as `ReadIndexToken`, which reads each number.
   bool ReadExactInts(const std::string& text, std::size_t at, int* out, int count) {
     std::size_t cursor = at;
     for (int i = 0; i < count; i++) {
-      if (!YSE::PATCHER::ReadIntArgAt(text, cursor, out[i])) return false;
+      if (!ReadIndexToken(text, cursor, out[i])) return false;
     }
     while (cursor < text.size() && (text[cursor] == ' ' || text[cursor] == '\t'))
       cursor++;
