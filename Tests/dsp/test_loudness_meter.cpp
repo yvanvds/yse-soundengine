@@ -6,8 +6,9 @@
 // loudness range (EBU Tech 3342 cases 1 to 4 and its reference code) and
 // the true peak (Tech 3341 cases 15 to 23). Issue #1240 adds Tech 3341
 // cases 9 to 12, builds cases 20 to 23 as Table 1 defines them, and
-// measures the test set's files (Tech 3341 cases 7 and 8, Tech 3342 cases 5
-// and 6) when YSE_EBU_LOUDNESS_DIR points at them. Issue #1242 slides the
+// measures every case of EBU's loudness test set v05 from its own files
+// (Tech 3341 cases 1 to 23, Tech 3342 cases 1 to 6) when
+// YSE_EBU_LOUDNESS_DIR points at them. Issue #1242 slides the
 // momentary window in 5 ms sub-steps and adds the maxima, for Tech 3341
 // cases 13 and 14.
 
@@ -915,11 +916,27 @@ TEST_SUITE("dsp") {
       return {};
     }
 
+    // What a test-set file measures: the final values, and the momentary
+    // and short-term loudness after every block with the seconds measured
+    // so far.
+    struct Measured {
+      double seconds = 0.0; // the file's length
+      std::vector<double> at;
+      std::vector<double> momentary;
+      std::vector<double> shortTerm;
+      double integrated = 0.0;
+      double range = 0.0;
+      double truePeak = 0.0;
+      double maxMomentary = 0.0;
+      double maxShortTerm = 0.0;
+    };
+
     // Decodes every channel of `file` and runs it, then `silence` seconds
     // of silence, through a meter with one channel per file channel, at the
-    // file's rate. False when the file does not decode.
-    bool MeasureFile(const std::filesystem::path& file, double silence, Flt& integrated, Flt& range,
-                     Flt& truePeak) {
+    // file's rate, channel c weighted `weights[c]` (1 past its end). False
+    // when the file does not decode.
+    bool MeasureFile(const std::filesystem::path& file, double silence,
+                     const std::vector<float>& weights, Measured& out) {
       std::vector<std::unique_ptr<YSE::DSP::fileBuffer>> channels;
       const std::string path = file.string();
       while (channels.size() < loudnessMeter::MAX_CHANNELS) {
@@ -933,7 +950,10 @@ TEST_SUITE("dsp") {
       ScopedSampleRate rate(fileRate);
       const auto count = static_cast<UInt>(channels.size());
       loudnessMeter m(count);
+      for (std::size_t c = 0; c < weights.size() && c < count; ++c)
+        m.weight(static_cast<UInt>(c), weights[c]);
       const UInt frames = channels.front()->getLength();
+      out.seconds = static_cast<double>(frames) / fileRate;
       const UInt total = frames + static_cast<UInt>(std::llround(silence * fileRate));
       std::vector<buffer> bufs(count, buffer(N));
       std::vector<buffer*> ptrs;
@@ -950,46 +970,189 @@ TEST_SUITE("dsp") {
             bufs[c].getPtr()[i] = at + i < have ? in[at + i] : 0.f;
         }
         m(ptrs.data(), count);
+        out.at.push_back(static_cast<double>(at + len) / fileRate);
+        out.momentary.push_back(m.momentary());
+        out.shortTerm.push_back(m.shortTerm());
       }
-      integrated = m.integrated();
-      range = m.loudnessRange();
-      truePeak = m.truePeak();
+      out.integrated = m.integrated();
+      out.range = m.loudnessRange();
+      out.truePeak = m.truePeak();
+      out.maxMomentary = m.maxMomentary();
+      out.maxShortTerm = m.maxShortTerm();
       return true;
+    }
+
+    // The lowest and highest of `values` from `from` seconds to the file's
+    // end.
+    void Spread(const Measured& got, const std::vector<double>& values, double from, double& low,
+                double& high) {
+      low = 1000.0;
+      high = -1000.0;
+      for (std::size_t k = 0; k < got.at.size(); ++k) {
+        if (got.at[k] < from || got.at[k] > got.seconds) continue;
+        low = std::min(low, values[k]);
+        high = std::max(high, values[k]);
+      }
+    }
+
+    // The highest of `values` in each of `count` spans of `span` seconds.
+    std::vector<double> SpanMaxima(const Measured& got, const std::vector<double>& values,
+                                   double span, std::size_t count) {
+      std::vector<double> top(count, -1000.0);
+      for (std::size_t k = 0; k < got.at.size(); ++k) {
+        const double i = std::floor((got.at[k] - 1e-9) / span);
+        if (i < 0.0 || i >= static_cast<double>(count)) continue;
+        const auto s = static_cast<std::size_t>(i);
+        top[s] = std::max(top[s], values[k]);
+      }
+      return top;
+    }
+
+    void Within(double got, double want, double below, double above) {
+      CHECK(got >= want - below);
+      CHECK(got <= want + above);
     }
   } // namespace
 
-  TEST_CASE("loudnessMeter: EBU test set files from YSE_EBU_LOUDNESS_DIR, Tech 3341 cases "
-            "7, 8 and 20 to 23 and Tech 3342 cases 5 and 6 (#1240)") {
+  TEST_CASE("loudnessMeter: every case of the EBU loudness test set from "
+            "YSE_EBU_LOUDNESS_DIR, Tech 3341 cases 1 to 23 and Tech 3342 cases 1 to 6 "
+            "(#1240)") {
     const char* dir = std::getenv("YSE_EBU_LOUDNESS_DIR");
     if (dir == nullptr || *dir == '\0' || !std::filesystem::is_directory(dir)) {
-      MESSAGE("SKIPPED: YSE_EBU_LOUDNESS_DIR is not set to a directory, so the EBU test set "
-              "files (Tech 3341 cases 7, 8, 20-23, Tech 3342 cases 5, 6) are not measured");
+      MESSAGE("SKIPPED: YSE_EBU_LOUDNESS_DIR is not set to a directory, so the EBU loudness "
+              "test set files (Tech 3341 cases 1-23, Tech 3342 cases 1-6) are not measured");
       return;
     }
-    enum class What { Integrated, Range, TruePeak };
+    using Check = std::function<void(const Measured&)>;
     struct FileCase {
-      const char* name;
+      std::string name;
       std::vector<std::string> files;
-      What what;
-      double want;
-      double below; // accepted below `want`
-      double above; // accepted above `want`
+      Check check;
+      double silence = 0.0; // after the file
+      std::vector<float> weights = {};
     };
+    const auto steady = [](double level) {
+      return [level](const Measured& got) {
+        // M, S and I of a steady tone, M and S read halfway through.
+        const std::size_t mid =
+            std::lower_bound(got.at.begin(), got.at.end(), got.seconds / 2) - got.at.begin();
+        REQUIRE(mid < got.at.size());
+        MESSAGE("M ", got.momentary[mid], " S ", got.shortTerm[mid], " I ", got.integrated);
+        Within(got.momentary[mid], level, 0.1, 0.1);
+        Within(got.shortTerm[mid], level, 0.1, 0.1);
+        Within(got.integrated, level, 0.1, 0.1);
+      };
+    };
+    const Check integrated = [](const Measured& got) {
+      MESSAGE("I ", got.integrated);
+      Within(got.integrated, -23.0, 0.1, 0.1);
+    };
+    const auto range = [](double want) {
+      return [want](const Measured& got) {
+        MESSAGE("LRA ", got.range);
+        Within(got.range, want, 1.0, 1.0);
+      };
+    };
+    const auto truePeak = [](double want) {
+      return [want](const Measured& got) {
+        MESSAGE("TP ", got.truePeak);
+        Within(got.truePeak, want, 0.4, 0.2);
+      };
+    };
+    // The surround channels weigh 1.41 (BS.1770); in the 6-channel file
+    // the silent LFE, 4th, weighs nothing.
+    const std::vector<float> five = {1.f, 1.f, 1.f, 1.41f, 1.41f};
+    const std::vector<float> six = {1.f, 1.f, 1.f, 0.f, 1.41f, 1.41f};
     // The EBU file names (seq-3341-7_seq-3342-5-24bit.wav holds both cases
     // 3341-7 and 3342-5, seq-3341-2011-8_seq-3342-6-24bit-v02.wav both
-    // 3341-8 and 3342-6) and Table 1's expected values.
-    const std::vector<FileCase> cases = {
-        {"Tech 3341 case 7", {"seq-3341-7"}, What::Integrated, -23.0, 0.1, 0.1},
-        {"Tech 3341 case 8", {"seq-3341-2011-8", "seq-3341-8"}, What::Integrated, -23.0, 0.1, 0.1},
-        {"Tech 3342 case 5", {"seq-3342-5"}, What::Range, 5.0, 1.0, 1.0},
-        {"Tech 3342 case 6", {"seq-3342-6"}, What::Range, 15.0, 1.0, 1.0},
-        {"Tech 3341 case 20", {"seq-3341-20"}, What::TruePeak, 0.0, 0.4, 0.2},
-        {"Tech 3341 case 21", {"seq-3341-21"}, What::TruePeak, 0.0, 0.4, 0.2},
-        {"Tech 3341 case 22", {"seq-3341-22"}, What::TruePeak, 0.0, 0.4, 0.2},
-        {"Tech 3341 case 23", {"seq-3341-23"}, What::TruePeak, 0.0, 0.4, 0.2},
+    // 3341-8 and 3342-6) and Table 1's expected values. Tech 3342's
+    // reference code takes the loudness range after 1.5 s of silence past a
+    // file's end.
+    std::vector<FileCase> cases = {
+        {"Tech 3341 case 1", {"seq-3341-1"}, steady(-23.0)},
+        {"Tech 3341 case 2", {"seq-3341-2"}, steady(-33.0)},
+        {"Tech 3341 case 3", {"seq-3341-3"}, integrated},
+        {"Tech 3341 case 4", {"seq-3341-4"}, integrated},
+        {"Tech 3341 case 5", {"seq-3341-5"}, integrated},
+        {"Tech 3341 case 6, 5 channels", {"seq-3341-6-5channels"}, integrated, 0.0, five},
+        {"Tech 3341 case 6, 6 channels WAVE_FORMAT_EXTENSIBLE",
+         {"seq-3341-6-6channels"},
+         integrated,
+         0.0,
+         six},
+        {"Tech 3341 case 7", {"seq-3341-7"}, integrated},
+        {"Tech 3341 case 8", {"seq-3341-2011-8", "seq-3341-8"}, integrated},
+        {"Tech 3341 case 9",
+         {"seq-3341-9"},
+         [](const Measured& got) {
+           double low = 0.0;
+           double high = 0.0;
+           Spread(got, got.shortTerm, 3.0, low, high);
+           MESSAGE("S from 3 s: ", low, " to ", high);
+           Within(low, -23.0, 0.1, 0.1);
+           Within(high, -23.0, 0.1, 0.1);
+         }},
+        {"Tech 3341 case 11",
+         {"seq-3341-11"},
+         [](const Measured& got) {
+           const std::vector<double> top = SpanMaxima(got, got.shortTerm, 6.0, 20);
+           MESSAGE("max S per 6 s: ", top.front(), " ... ", top.back());
+           for (std::size_t i = 0; i < top.size(); ++i) {
+             CAPTURE(i);
+             Within(top[i], -38.0 + static_cast<double>(i), 0.1, 0.1);
+           }
+         }},
+        {"Tech 3341 case 12",
+         {"seq-3341-12"},
+         [](const Measured& got) {
+           double low = 0.0;
+           double high = 0.0;
+           Spread(got, got.momentary, 1.0, low, high);
+           MESSAGE("M from 1 s: ", low, " to ", high);
+           Within(low, -23.0, 0.1, 0.1);
+           Within(high, -23.0, 0.1, 0.1);
+         }},
+        {"Tech 3341 case 14",
+         {"seq-3341-14"},
+         [](const Measured& got) {
+           const std::vector<double> top = SpanMaxima(got, got.momentary, 0.8, 20);
+           MESSAGE("max M per 800 ms: ", top.front(), " ... ", top.back());
+           for (std::size_t i = 0; i < top.size(); ++i) {
+             CAPTURE(i);
+             Within(top[i], -38.0 + static_cast<double>(i), 0.1, 0.1);
+           }
+         }},
+        {"Tech 3341 case 15", {"seq-3341-15"}, truePeak(-6.0)},
+        {"Tech 3341 case 16", {"seq-3341-16"}, truePeak(-6.0)},
+        {"Tech 3341 case 17", {"seq-3341-17"}, truePeak(-6.0)},
+        {"Tech 3341 case 18", {"seq-3341-18"}, truePeak(-6.0)},
+        {"Tech 3341 case 19", {"seq-3341-19"}, truePeak(3.0)},
+        {"Tech 3341 case 20", {"seq-3341-20"}, truePeak(0.0)},
+        {"Tech 3341 case 21", {"seq-3341-21"}, truePeak(0.0)},
+        {"Tech 3341 case 22", {"seq-3341-22"}, truePeak(0.0)},
+        {"Tech 3341 case 23", {"seq-3341-23"}, truePeak(0.0)},
+        {"Tech 3342 case 1", {"seq-3342-1"}, range(10.0), 1.5},
+        {"Tech 3342 case 2", {"seq-3342-2"}, range(5.0), 1.5},
+        {"Tech 3342 case 3", {"seq-3342-3"}, range(20.0), 1.5},
+        {"Tech 3342 case 4", {"seq-3342-4"}, range(15.0), 1.5},
+        {"Tech 3342 case 5", {"seq-3342-5"}, range(5.0), 1.5},
+        {"Tech 3342 case 6", {"seq-3342-6"}, range(15.0), 1.5},
     };
+    // Cases 10 and 13 are 20 files each (seq-3341-10-1 to -20, seq-3341-13-1
+    // to -20); each is measured from a reset meter for its maximum.
+    for (int i = 1; i <= 20; ++i) {
+      const std::string n = std::to_string(i);
+      cases.push_back({"Tech 3341 case 10-" + n, {"seq-3341-10-" + n}, [](const Measured& got) {
+                         MESSAGE("max S ", got.maxShortTerm);
+                         Within(got.maxShortTerm, -23.0, 0.1, 0.1);
+                       }});
+      cases.push_back({"Tech 3341 case 13-" + n, {"seq-3341-13-" + n}, [](const Measured& got) {
+                         MESSAGE("max M ", got.maxMomentary);
+                         Within(got.maxMomentary, -23.0, 0.1, 0.1);
+                       }});
+    }
     for (const FileCase& c : cases) {
-      const std::string name = c.name;
+      const std::string& name = c.name;
       CAPTURE(name);
       const std::filesystem::path file = FindEbuFile(dir, c.files);
       if (file.empty()) {
@@ -998,17 +1161,12 @@ TEST_SUITE("dsp") {
         MESSAGE(why);
         continue;
       }
-      CAPTURE(file.string());
-      Flt integrated = 0.f;
-      Flt range = 0.f;
-      Flt truePeak = 0.f;
-      // Tech 3342's reference code takes the loudness range after 1.5 s of
-      // silence past a file's end.
-      REQUIRE(MeasureFile(file, c.what == What::Range ? 1.5 : 0.0, integrated, range, truePeak));
-      const double got =
-          c.what == What::Integrated ? integrated : (c.what == What::Range ? range : truePeak);
-      CHECK(got >= c.want - c.below);
-      CHECK(got <= c.want + c.above);
+      const std::string path = file.string();
+      CAPTURE(path);
+      Measured got;
+      const bool decoded = MeasureFile(file, c.silence, c.weights, got);
+      CHECK(decoded);
+      if (decoded) c.check(got);
     }
   }
 
