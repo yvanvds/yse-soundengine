@@ -29,11 +29,17 @@
 #include <doctest/doctest.h>
 
 #include <string>
+#include <vector>
 
 #include "headers/defines.hpp"
 
+#include "support/capilowcov_offline.hpp"
+
+#include "yse_c/yse_channel.h"
 #include "yse_c/yse_common.h"
 #include "yse_c/yse_midi.h"
+#include "yse_c/yse_patcher.h"
+#include "yse_c/yse_sound.h"
 
 #if YSE_ENABLE_MIDI_DEVICE
 #include <cstddef>
@@ -72,6 +78,14 @@ namespace {
     }
   };
 #endif
+
+  // A GUI value read the way a C host reads it: size query, then fill.
+  std::string guiValue(YsePHandle* h) {
+    const size_t need = yse_phandle_get_gui_value(h, nullptr, 0);
+    std::vector<char> buf(need + 1, '\0');
+    yse_phandle_get_gui_value(h, buf.data(), buf.size());
+    return std::string(buf.data());
+  }
 
 } // namespace
 
@@ -296,6 +310,84 @@ TEST_SUITE("capilowcov") {
     for (const auto& k : sink.kept)
       yse_midi_in_free_message(k.bytes);
     yse_midi_in_destroy(m);
+  }
+#endif
+
+  // ─── MIDI input injection (#1247) ──────────────────────────────────────────
+
+  TEST_CASE("c-api midi in inject: argument errors are reported, not ignored (#1247)") {
+    const unsigned char noteOn[] = {0x90, 60, 100};
+#if YSE_ENABLE_MIDI_DEVICE
+    CHECK(yse_midi_in_inject(7, nullptr, 3) == YSE_ERR_INVALID_ARGUMENT);
+    CHECK(yse_midi_in_inject(7, noteOn, 0) == YSE_ERR_INVALID_ARGUMENT);
+    // The hub has eight input ports, 0..7.
+    CHECK(yse_midi_in_inject(8, noteOn, sizeof(noteOn)) == YSE_ERR_INVALID_ARGUMENT);
+    CHECK(std::string(yse_last_error()).find("port 8") != std::string::npos);
+    // A port nothing listens to takes the message and drops it.
+    CHECK(yse_midi_in_inject(7, noteOn, sizeof(noteOn)) == YSE_OK);
+#else
+    CHECK(yse_midi_in_inject(7, noteOn, sizeof(noteOn)) == YSE_ERR_MIDI);
+#endif
+  }
+
+#if YSE_ENABLE_MIDI_DEVICE
+  TEST_CASE("c-api midi in inject: a patch's MIDI input objects hear injected messages, with no "
+            "hardware (#1247)") {
+    // The host's view, end to end through the C ABI only: a patch built with
+    // yse_patcher_*, played by a sound in a running (offline) engine, fed by
+    // yse_midi_in_inject and read back through the GUI value of `.i` boxes.
+    // Port 7, as in test_patcher_midiin.cpp: a machine with eight MIDI inputs
+    // is rare enough that real traffic cannot reach the assertions.
+    REQUIRE(capilowcov::ensureOffline());
+
+    YsePatcher* patch = yse_patcher_create();
+    REQUIRE(patch != nullptr);
+    REQUIRE(yse_patcher_init(patch, 1) == YSE_OK);
+
+    YsePHandle* notein = yse_patcher_create_object(patch, ".notein", "7");
+    YsePHandle* ctlin = yse_patcher_create_object(patch, ".ctlin", "7");
+    YsePHandle* pitch = yse_patcher_create_object(patch, ".i", nullptr);
+    YsePHandle* velocity = yse_patcher_create_object(patch, ".i", nullptr);
+    YsePHandle* ccValue = yse_patcher_create_object(patch, ".i", nullptr);
+    REQUIRE(notein != nullptr);
+    REQUIRE(ctlin != nullptr);
+    REQUIRE(pitch != nullptr);
+    REQUIRE(velocity != nullptr);
+    REQUIRE(ccValue != nullptr);
+    yse_patcher_connect(patch, notein, 0, pitch, 0);
+    yse_patcher_connect(patch, notein, 1, velocity, 0);
+    yse_patcher_connect(patch, ctlin, 0, ccValue, 0);
+
+    YseSound* snd = yse_sound_create();
+    REQUIRE(snd != nullptr);
+    REQUIRE(yse_sound_load_patcher(snd, patch, yse_channel_master(), 0.f) == YSE_OK);
+    yse_sound_play(snd);
+    capilowcov::pump(10);
+
+    CHECK(guiValue(pitch) == "0");
+    CHECK(guiValue(ccValue) == "0");
+
+    const unsigned char noteOn[] = {0x90, 64, 99};
+    const unsigned char cc[] = {0xB0, 7, 42};
+    REQUIRE(yse_midi_in_inject(7, noteOn, sizeof(noteOn)) == YSE_OK);
+    REQUIRE(yse_midi_in_inject(7, cc, sizeof(cc)) == YSE_OK);
+    capilowcov::pump(10);
+
+    CHECK(guiValue(pitch) == "64");
+    CHECK(guiValue(velocity) == "99");
+    CHECK(guiValue(ccValue) == "42");
+
+    // A message on another port does not reach port 7's listeners.
+    const unsigned char otherPort[] = {0x90, 70, 10};
+    REQUIRE(yse_midi_in_inject(6, otherPort, sizeof(otherPort)) == YSE_OK);
+    capilowcov::pump(10);
+    CHECK(guiValue(pitch) == "64");
+
+    yse_sound_stop(snd);
+    capilowcov::pump(5);
+    yse_sound_destroy(snd);
+    capilowcov::pump(5);
+    yse_patcher_destroy(patch);
   }
 #endif
 

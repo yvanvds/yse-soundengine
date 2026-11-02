@@ -7,6 +7,7 @@
 
 #if YSE_ENABLE_MIDI_DEVICE
 #include "../midi/device.hpp"
+#include "../midi/midiInHub.h"
 #define YSE_C_HAVE_MIDI_OUT 1
 #else
 #define YSE_C_HAVE_MIDI_OUT 0
@@ -399,6 +400,40 @@ YSE_C_API void yse_midi_in_disconnect_synth(YseMidiIn* m, YseSynth* synth) {
   if (s) to_impl(m)->cpp.disconnect(*s);
 }
 
+YSE_C_API YseStatus yse_midi_in_inject(unsigned int port, const unsigned char* bytes,
+                                       size_t length) {
+  if (bytes == nullptr || length == 0) {
+    yse_c::set_last_error("yse_midi_in_inject: no bytes to inject");
+    return YSE_ERR_INVALID_ARGUMENT;
+  }
+  try {
+    if (port >= YSE::MIDI::inHub::kMaxPorts) {
+      yse_c::set_last_error("yse_midi_in_inject: port " + std::to_string(port) +
+                            " is past the patcher's input ports (0.." +
+                            std::to_string(YSE::MIDI::inHub::kMaxPorts - 1) + ")");
+      return YSE_ERR_INVALID_ARGUMENT;
+    }
+    YSE::MIDI::inHub& hub = YSE::MIDI::InHub();
+    // Every subscription queue is single-producer. On a port the hub holds a
+    // real device for, that producer is RtMidi's input thread, and a second
+    // pusher would corrupt the queue, so injection is refused there rather
+    // than racing it (#1247).
+    if (hub.PortIsOpen(port)) {
+      yse_c::set_last_error("yse_midi_in_inject: MIDI input port " + std::to_string(port) +
+                            " is open on a real device; inject on a port without one");
+      return YSE_ERR_MIDI;
+    }
+    hub.Deliver(port, bytes, length);
+    return YSE_OK;
+  } catch (const std::exception& e) {
+    yse_c::set_last_error(e.what());
+    return YSE_ERR_EXCEPTION;
+  } catch (...) {
+    yse_c::set_last_error("yse_midi_in_inject: unknown C++ exception");
+    return YSE_ERR_EXCEPTION;
+  }
+}
+
 #else
 // Stub the midiOut surface on platforms without RtMidi so the C ABI is
 // uniform across builds. Each call sets last_error and returns / no-ops.
@@ -442,6 +477,10 @@ YSE_C_API void yse_midi_in_free_message(unsigned char* bytes) {
 }
 YSE_C_API void yse_midi_in_connect_synth(YseMidiIn*, YseSynth*, int) {}
 YSE_C_API void yse_midi_in_disconnect_synth(YseMidiIn*, YseSynth*) {}
+YSE_C_API YseStatus yse_midi_in_inject(unsigned int, const unsigned char*, size_t) {
+  yse_c::set_last_error("MIDI input is Windows/Linux only");
+  return YSE_ERR_MIDI;
+}
 #endif
 
 // ─── midiNote ──────────────────────────────────────────────────────
