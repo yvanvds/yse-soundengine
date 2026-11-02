@@ -7,6 +7,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <string>
+#include <vector>
 
 using namespace YSE::PATCHER;
 #define className gDict
@@ -152,6 +153,154 @@ namespace {
     }
   }
 
+  // The leaf a flat "a::b::c" path names in a nested document, or nullptr when
+  // the document holds no leaf there. Used to store entries in a given order
+  // (issue #1243); a member whose own name contains "::" is not reachable this
+  // way, and FlattenJson's pass after the ordered one still stores it.
+  const nlohmann::json::value_type* FindLeaf(const nlohmann::json::value_type& root,
+                                             const std::string& path) {
+    const nlohmann::json::value_type* node = &root;
+    std::size_t at = 0;
+    while (true) {
+      if (!node->is_object()) return nullptr;
+      const std::size_t separator = path.find(kDictPathSeparator, at);
+      const std::string segment =
+          (separator == std::string::npos) ? path.substr(at) : path.substr(at, separator - at);
+      const auto child = node->find(segment);
+      if (child == node->end()) return nullptr;
+      if (separator == std::string::npos) return child->is_object() ? nullptr : &*child;
+      node = &*child;
+      at = separator + kSeparatorLength;
+    }
+  }
+
+  // ─── key order, read from the text (issue #1243) ────────────────────────────
+  //
+  // A recursive walk over a document nlohmann has already accepted, so it only
+  // has to find where tokens end, not judge them. Keys are decoded by handing
+  // the quoted token to nlohmann, which is what makes a key with escapes come
+  // out exactly as the parsed document spells it.
+  class PathOrderWalker {
+  public:
+    PathOrderWalker(const char* text, std::size_t length, std::vector<std::string>& paths)
+      : at(text), end(text + length), out(paths) {}
+
+    bool Run() {
+      SkipSpace();
+      if (!Object(true)) return false;
+      SkipSpace();
+      return at == end;
+    }
+
+  private:
+    const char* at;
+    const char* end;
+    std::vector<std::string>& out;
+    std::string path;
+
+    void SkipSpace() {
+      while (at < end && (*at == ' ' || *at == '\t' || *at == '\n' || *at == '\r'))
+        at++;
+    }
+
+    // Leaves `at` past the closing quote. `decoded`, when given, receives the
+    // string's value.
+    bool String(std::string* decoded) {
+      if (at >= end || *at != '"') return false;
+      const char* begin = at++;
+      while (at < end && *at != '"') {
+        if (*at == '\\') at++;
+        at++;
+      }
+      if (at >= end) return false;
+      at++;
+      if (decoded != nullptr) {
+        const nlohmann::json key = nlohmann::json::parse(begin, at, nullptr, false);
+        if (!key.is_string()) return false;
+        *decoded = key.get<std::string>();
+      }
+      return true;
+    }
+
+    bool Array() {
+      at++; // '['
+      SkipSpace();
+      if (at < end && *at == ']') {
+        at++;
+        return true;
+      }
+      while (true) {
+        SkipSpace();
+        if (!Value()) return false;
+        SkipSpace();
+        if (at >= end) return false;
+        if (*at == ']') {
+          at++;
+          return true;
+        }
+        if (*at != ',') return false;
+        at++;
+      }
+    }
+
+    // Any value, recording nothing — an object inside an array is not a
+    // dictionary path, FlattenJson's reading.
+    bool Value() {
+      if (at >= end) return false;
+      if (*at == '{') return Object(false);
+      if (*at == '[') return Array();
+      if (*at == '"') return String(nullptr);
+      while (at < end && *at != ',' && *at != '}' && *at != ']' && *at != ' ' && *at != '\t' &&
+             *at != '\n' && *at != '\r')
+        at++;
+      return true;
+    }
+
+    bool Object(bool record) {
+      if (at >= end || *at != '{') return false;
+      at++;
+      SkipSpace();
+      if (at < end && *at == '}') {
+        at++;
+        return true;
+      }
+      std::string key;
+      while (true) {
+        SkipSpace();
+        if (!String(record ? &key : nullptr)) return false;
+        SkipSpace();
+        if (at >= end || *at != ':') return false;
+        at++;
+        SkipSpace();
+        if (at >= end) return false;
+
+        if (record) {
+          const std::size_t mark = path.size();
+          if (!path.empty()) path += kDictPathSeparator;
+          path += key;
+          if (*at == '{') {
+            if (!Object(true)) return false;
+          } else {
+            if (!Value()) return false;
+            out.push_back(path);
+          }
+          path.resize(mark);
+        } else if (!Value()) {
+          return false;
+        }
+
+        SkipSpace();
+        if (at >= end) return false;
+        if (*at == '}') {
+          at++;
+          return true;
+        }
+        if (*at != ',') return false;
+        at++;
+      }
+    }
+  };
+
   // Doc strings, hoisted out of CONSTRUCT() because they are long enough that
   // the constructor stops being readable with them inline — .coll's arrangement.
   constexpr char kInletDoc[] =
@@ -269,12 +418,40 @@ void YSE::PATCHER::DictToJson(const dictStore& store, nlohmann::json::value_type
   }
 }
 
-void YSE::PATCHER::DictFromJson(const nlohmann::json::value_type& in, dictStore& store) {
+void YSE::PATCHER::DictFromJson(const nlohmann::json::value_type& in, dictStore& store,
+                                const std::vector<std::string>* order) {
   store.count = 0;
   if (!in.is_object()) return;
+
+  // The given order first (issue #1243): `in` walks alphabetically, so it can
+  // only supply what the order list does not name. Storing the ordered entries
+  // first also means a document past MAX_ENTRIES keeps its first-written
+  // entries rather than its alphabetically-first ones.
+  std::string text;
+  if (order != nullptr) {
+    for (const std::string& path : *order) {
+      const nlohmann::json::value_type* leaf = FindLeaf(in, path);
+      if (leaf == nullptr) continue;
+      JsonLeafText(*leaf, text);
+      DictStoreAt(store, path.c_str(), path.size(), text.c_str(), text.size());
+    }
+  }
+
+  // Everything, in the document's order. An entry the ordered pass stored is
+  // assigned the same value again where it already stands — DictStoreAt keeps a
+  // replaced entry in place — so this pass only appends what was not named.
   std::string path;
   path.reserve(dictStore::KEY_CAPACITY + 1);
   FlattenJson(in, path, store);
+}
+
+bool YSE::PATCHER::DictJsonPathOrder(const char* text, std::size_t length,
+                                     std::vector<std::string>& paths) {
+  paths.clear();
+  PathOrderWalker walker(text, length, paths);
+  if (walker.Run()) return true;
+  paths.clear();
+  return false;
 }
 
 // ─── values, spelled as JSON on a message path ────────────────────────────────
@@ -781,6 +958,16 @@ bool gDict::DumpState(nlohmann::json::value_type& json) {
   nlohmann::json contents;
   DictToJson(*store, contents);
   json["contents"] = contents;
+
+  // The patch file's objects are nlohmann::json objects, which sort their
+  // members, so "contents" alone reloads alphabetically at every level. The
+  // flat paths in storage order travel beside it and RestoreState stores in
+  // that order (issue #1243). A patch without this list still loads, in the
+  // order "contents" holds.
+  nlohmann::json order = nlohmann::json::array();
+  for (std::size_t i = 0; i < store->count; i++)
+    order.push_back(store->entries[i].key);
+  json["order"] = order;
   return true;
 }
 
@@ -795,9 +982,20 @@ void gDict::RestoreState(const nlohmann::json::value_type& json) {
   const auto stored = json.find("contents");
   if (stored == json.end() || !stored->is_object()) return;
 
+  // The storage order the save recorded (issue #1243). Read before taking the
+  // guard: building it allocates, and none of it touches the store.
+  std::vector<std::string> order;
+  const auto savedOrder = json.find("order");
+  if (savedOrder != json.end() && savedOrder->is_array()) {
+    order.reserve(savedOrder->size());
+    for (const auto& path : *savedOrder) {
+      if (path.is_string()) order.push_back(path.get<std::string>());
+    }
+  }
+
   const dictStoreGuard guard(store->busy);
   if (!guard.Held()) return;
-  DictFromJson(*stored, *store);
+  DictFromJson(*stored, *store, &order);
 }
 
 // ─── diagnostics ──────────────────────────────────────────────────────────────

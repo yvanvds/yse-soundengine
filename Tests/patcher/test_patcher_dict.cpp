@@ -499,9 +499,13 @@ TEST_SUITE("patcher") {
     const std::string json = src.DumpJSON();
     CHECK(json.find(".dict") != std::string::npos);
     // Nested in the saved form, not a table of dotted keys — the acceptance
-    // criterion the epic states.
-    CHECK(json.find("\"voice\"") != std::string::npos);
-    CHECK(json.find("voice::1::freq") == std::string::npos);
+    // criterion the epic states. Checked on "contents" itself: the flat paths
+    // also travel beside it as the storage order list (issue #1243).
+    const nlohmann::json saved = nlohmann::json::parse(json);
+    const nlohmann::json& contents = saved["object 0"]["state"]["contents"];
+    REQUIRE(contents.is_object());
+    CHECK(contents["voice"].is_object());
+    CHECK(contents.find("voice::1::freq") == contents.end());
 
     YSE::patcher loaded;
     loaded.create(2);
@@ -528,6 +532,106 @@ TEST_SUITE("patcher") {
     copy->SetListData(0, "get chord");
     CHECK(sink.gotList);
     CHECK(sink.listValue == "0 4 7");
+  }
+
+  TEST_CASE("dict: a reload keeps the order entries were first written (#1243)") {
+    // getkeys, .dict.iter and .dict.serialize all report storage order, so a
+    // saved patch has to bring that order back. The patch file is an
+    // nlohmann::json document, whose objects sort their keys, so the nested
+    // contents alone come back alphabetical at every level. Keys chosen so
+    // that alphabetical order differs from written order at both the top
+    // level and inside "voice".
+    MultiSink keys;
+    YSE::pHandle keysHandle(&keys);
+    MultiSink doc;
+    YSE::pHandle docHandle(&doc);
+
+    std::string json;
+    {
+      YSE::patcher src;
+      src.create(2);
+      src.name("dict1243a");
+      YSE::pHandle* d = src.CreateObject(YSE::OBJ::G_DICT, "synth");
+      REQUIRE(d != nullptr);
+      REQUIRE(src.CreateObject(YSE::OBJ::G_DICT_SERIALIZE, "synth") != nullptr);
+      d->SetListData(0, "set freq 440");
+      d->SetListData(0, "set gain 0.5");
+      d->SetListData(0, "set chord 0 4 7");
+      d->SetListData(0, "set voice::2::b 1");
+      d->SetListData(0, "set voice::1::a 2");
+      json = src.DumpJSON();
+    }
+    // The source patcher is gone, so nothing still holds "synth": the reload
+    // starts from an empty registry, as a patch opened in a fresh session does.
+
+    YSE::patcher loaded;
+    loaded.create(2);
+    loaded.name("dict1243a");
+    loaded.ParseJSON(json);
+    REQUIRE(loaded.Objects() == 2);
+
+    YSE::pHandle* copy = nullptr;
+    YSE::pHandle* ser = nullptr;
+    for (unsigned int i = 0; i < loaded.Objects(); i++) {
+      YSE::pHandle* h = loaded.GetHandleFromList(i);
+      if (h == nullptr) continue;
+      if (std::string(h->Type()) == YSE::OBJ::G_DICT) copy = h;
+      if (std::string(h->Type()) == YSE::OBJ::G_DICT_SERIALIZE) ser = h;
+    }
+    REQUIRE(copy != nullptr);
+    REQUIRE(ser != nullptr);
+    loaded.Connect(copy, 0, &keysHandle, 0);
+    loaded.Connect(ser, 0, &docHandle, 0);
+
+    copy->SetListData(0, "getkeys");
+    CHECK(keys.gotList);
+    CHECK(keys.listValue == "freq gain chord voice");
+
+    ser->SetBang(0);
+    CHECK(doc.gotList);
+    CHECK(doc.listValue == "{\"freq\":440,\"gain\":0.5,\"chord\":[0,4,7],\"voice\":{\"2\":{\"b\":1}"
+                           ",\"1\":{\"a\":2}}}");
+  }
+
+  TEST_CASE("dict: DictJsonPathOrder lists leaf paths in written order (#1243)") {
+    // The order half of .dict.deserialize's parse. Escaped keys are decoded the
+    // way nlohmann decodes them, objects inside arrays are not paths, and an
+    // empty object contributes nothing — FlattenJson's readings.
+    std::vector<std::string> paths;
+    const std::string text = " { \"z\" : [1, {\"in\":2}, \"]}\"] , "
+                             "\"q\\\"k\":true,\"n\":{\"y\":null,\"e\":{},\"x\":-1.5e3}} ";
+    REQUIRE(YSE::PATCHER::DictJsonPathOrder(text.c_str(), text.size(), paths));
+    CHECK(paths == std::vector<std::string>{"z", "q\"k", "n::y", "n::x"});
+
+    const std::string broken = "{\"a\":1";
+    CHECK_FALSE(YSE::PATCHER::DictJsonPathOrder(broken.c_str(), broken.size(), paths));
+    CHECK(paths.empty());
+  }
+
+  TEST_CASE("dict: a saved patch without an entry order still loads (#1243)") {
+    // A patch saved before #1243 carries the contents but no order list. It
+    // has to load the contents, in the order the saved document holds them.
+    const std::string json = R"({"object 0":{"type":".dict","ID":0,"parms":"keys1243b",)"
+                             R"("state":{"contents":{"b":1,"a":{"y":2,"x":3}}}}})";
+    MultiSink keys;
+    YSE::pHandle keysHandle(&keys);
+
+    YSE::patcher loaded;
+    loaded.create(2);
+    loaded.name("dict1243b");
+    loaded.ParseJSON(json);
+    REQUIRE(loaded.Objects() == 1);
+    YSE::pHandle* copy = loaded.GetHandleFromList(0);
+    REQUIRE(copy != nullptr);
+    loaded.Connect(copy, 0, &keysHandle, 0);
+
+    copy->SetListData(0, "getsize");
+    CHECK(keys.gotInt);
+    CHECK(keys.intValue == 3);
+    keys.reset();
+    copy->SetListData(0, "getkeys");
+    CHECK(keys.gotList);
+    CHECK(keys.listValue == "a b");
   }
 
   TEST_CASE("dict: an empty dictionary writes no state key (#550)") {
