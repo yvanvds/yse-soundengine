@@ -108,9 +108,16 @@ namespace YSE {
           same time is well past what the object family was built for. */
       static constexpr unsigned int kMaxPorts = 8;
 
-      /** Objects that may listen to one port. Every `.notein`, `.ctlin`, ...
-          on a port takes one slot. */
-      static constexpr unsigned int kMaxSubscriptionsPerPort = 8;
+      /** Objects that may listen to one port, counted across every patcher
+          alive at once. Every `.notein`, `.ctlin`, ... on a port takes one
+          slot. Eight was too few (issue #1246): one keyboard patch with a
+          `.notein`, `.ctlin`, `.bendin`, `.touchin` and a few filtered `.ctlin`s
+          reached it, and a disposed patcher holds its slots until the engine
+          actually destroys it, so swapping one patch for another briefly
+          needs both sets. A slot's queue storage is allocated the first time
+          the slot is claimed, so the ceiling costs a few hundred bytes per
+          unused slot rather than a whole queue. */
+      static constexpr unsigned int kMaxSubscriptionsPerPort = 64;
 
       /** Events one subscription may hold before a message is dropped. Sized
           for a SysEx dump rather than for controller traffic (issue #950):
@@ -142,11 +149,17 @@ namespace YSE {
        *         first time anything asks for it.
        *
        *  Returns `kNoHandle` when `port` is past `kMaxPorts` or the port's
-       *  slots are all taken — both logged. A port that exists in the table but
-       *  could not be *opened* still yields a handle: the subscription is
-       *  valid, it just never receives anything until something injects into
-       *  it, which is what lets the object family be tested without hardware. */
-      Handle Subscribe(unsigned int port);
+       *  slots are all taken — both logged, naming `listener` (the object's
+       *  type, e.g. ".notein") when one is given. A port that exists in the
+       *  table but could not be *opened* still yields a handle: the
+       *  subscription is valid, it just never receives anything until
+       *  something injects into it, which is what lets the object family be
+       *  tested without hardware.
+       *
+       *  The first claim of a slot allocates its queue storage (issue #1246);
+       *  this is the control thread, and the storage is kept for the life of
+       *  the hub, so neither the producer nor the consumer ever allocates. */
+      Handle Subscribe(unsigned int port, const char* listener = nullptr);
 
       /** @brief Control thread. Give a slot back. Safe on `kNoHandle`. */
       void Unsubscribe(Handle handle);
@@ -185,12 +198,22 @@ namespace YSE {
       // much room is left *before* pushing, so that a message is queued whole
       // or not at all (issue #950); `lfQueue` can only say whether one more
       // element fits. The storage is allocated once, on the control thread,
-      // when the hub is built; nothing here allocates afterwards. The indices
+      // by `Reserve()` the first time the slot is claimed (issue #1246), and is
+      // never freed before the hub; nothing here allocates afterwards. The
+      // producer only touches a slot after reading `live` (release-stored after
+      // `Reserve()`), and the consumer only holds a handle `Subscribe` returned
+      // after it, so neither can see the storage missing. The indices
       // count up forever and are masked on use, so `write - read` is the fill
       // level with no wasted slot.
       class eventRing {
       public:
-        eventRing() : slots(std::make_unique<inEvent[]>(kQueueCapacity)) {}
+        eventRing() = default;
+
+        // Control thread, hub mutex held. Allocate the storage if this slot
+        // has never been claimed before.
+        void Reserve() {
+          if (slots == nullptr) slots = std::make_unique<inEvent[]>(kQueueCapacity);
+        }
 
         // Producer. Room left, never over-reported: the consumer can only
         // make it larger between this call and the pushes that follow.

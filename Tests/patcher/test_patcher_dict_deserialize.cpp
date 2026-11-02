@@ -257,13 +257,13 @@ TEST_SUITE("patcher") {
     CHECK(rig.dict.Lookup("voice::1::gain") == "0.5");
     CHECK(rig.dict.Lookup("chord") == "0 4 7");
     CHECK(rig.dict.Lookup("muted").empty());
-    // Storage order is nlohmann's object order (sorted by key), exactly as a
-    // saved patch reloads through RestoreState — the same document, whichever
-    // road it arrives by. Pinned so a drift between the two roads would show.
-    CHECK(rig.dict.KeyAt(0) == "chord");
-    CHECK(rig.dict.KeyAt(1) == "muted");
-    CHECK(rig.dict.KeyAt(2) == "voice::1::freq");
-    CHECK(rig.dict.KeyAt(3) == "voice::1::gain");
+    // Storage order is the order the document writes its keys in, the order a
+    // saved patch reloads in through RestoreState too (issue #1243) — the same
+    // dictionary, whichever road it arrives by.
+    CHECK(rig.dict.KeyAt(0) == "voice::1::freq");
+    CHECK(rig.dict.KeyAt(1) == "voice::1::gain");
+    CHECK(rig.dict.KeyAt(2) == "chord");
+    CHECK(rig.dict.KeyAt(3) == "muted");
   }
 
   TEST_CASE("dict.deserialize: a parsed document replaces the dictionary whole (#771)") {
@@ -294,6 +294,27 @@ TEST_SUITE("patcher") {
     CHECK(rig.dict.Lookup("b").empty());
     CHECK(rig.dict.Lookup("c") == "1 x 0");
     CHECK(rig.dict.Lookup("n::m") == "2");
+  }
+
+  TEST_CASE("dict.deserialize: a document loads in the order its keys are written (#1243)") {
+    // getkeys, .dict.iter and .dict.serialize report storage order, so a
+    // document has to land in the order it spells, at every level — not in the
+    // alphabetical order an nlohmann::json object would sort it into.
+    Rig rig("dd1243a", "d1243a");
+    RefSink doc;
+    gDictSerialize ser;
+    ser.SetParent(&rig.p);
+    ser.SetParams("d1243a");
+    Wire(ser, 0, doc);
+
+    const std::string document = R"({"title":"intro","bpm":120,"part":{"verse":1,"chorus":2}})";
+    rig.Submit(document);
+    rig.Pump();
+    REQUIRE(rig.des.Parsed() == 1);
+
+    ser.GetInlet(0)->SetBang(YSE::T_GUI);
+    REQUIRE(doc.count == 1);
+    CHECK(doc.received == document);
   }
 
   TEST_CASE("dict.deserialize: an empty document is an empty dictionary, announced (#771)") {

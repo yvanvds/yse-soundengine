@@ -4710,7 +4710,7 @@
     "params": [
       {
         "default": "0",
-        "doc": "MIDI input port to listen to, counted from 0; .midiinfo lists them. A port that cannot be opened leaves the object silent, and the patch still loads.",
+        "doc": "MIDI input port to listen to, counted from 0; .midiinfo lists them. A port that cannot be opened leaves the object silent, and the patch still loads. At most 64 MIDI input objects, across all open patches, can listen to one port; past that an object stays silent and the log names it.",
         "name": "port",
         "range": "0-7"
       },
@@ -5654,7 +5654,7 @@
     "params": [
       {
         "default": "0",
-        "doc": "MIDI input port to listen to, counted from 0; .midiinfo lists them. A port that cannot be opened leaves the object silent, and the patch still loads.",
+        "doc": "MIDI input port to listen to, counted from 0; .midiinfo lists them. A port that cannot be opened leaves the object silent, and the patch still loads. At most 64 MIDI input objects, across all open patches, can listen to one port; past that an object stays silent and the log names it.",
         "name": "port",
         "range": "0-7"
       },
@@ -8600,7 +8600,7 @@
     "params": [
       {
         "default": "0",
-        "doc": "MIDI input port to listen to, counted from 0; .midiinfo lists them. A port that cannot be opened leaves the object silent, and the patch still loads.",
+        "doc": "MIDI input port to listen to, counted from 0; .midiinfo lists them. A port that cannot be opened leaves the object silent, and the patch still loads. At most 64 MIDI input objects, across all open patches, can listen to one port; past that an object stays silent and the log names it.",
         "name": "port",
         "range": "0-7"
       }
@@ -9257,7 +9257,7 @@
     "params": [
       {
         "default": "0",
-        "doc": "MIDI input port to listen to, counted from 0; .midiinfo lists them. A port that cannot be opened leaves the object silent, and the patch still loads.",
+        "doc": "MIDI input port to listen to, counted from 0; .midiinfo lists them. A port that cannot be opened leaves the object silent, and the patch still loads. At most 64 MIDI input objects, across all open patches, can listen to one port; past that an object stays silent and the log names it.",
         "name": "port",
         "range": "0-7"
       },
@@ -9390,7 +9390,7 @@
     "params": [
       {
         "default": "0",
-        "doc": "MIDI input port to listen to, counted from 0; .midiinfo lists them. A port that cannot be opened leaves the object silent, and the patch still loads.",
+        "doc": "MIDI input port to listen to, counted from 0; .midiinfo lists them. A port that cannot be opened leaves the object silent, and the patch still loads. At most 64 MIDI input objects, across all open patches, can listen to one port; past that an object stays silent and the log names it.",
         "name": "port",
         "range": "0-7"
       },
@@ -9864,7 +9864,7 @@
     "params": [
       {
         "default": "0",
-        "doc": "MIDI input port to listen to, counted from 0; .midiinfo lists them. A port that cannot be opened leaves the object silent, and the patch still loads.",
+        "doc": "MIDI input port to listen to, counted from 0; .midiinfo lists them. A port that cannot be opened leaves the object silent, and the patch still loads. At most 64 MIDI input objects, across all open patches, can listen to one port; past that an object stays silent and the log names it.",
         "name": "port",
         "range": "0-7"
       },
@@ -10085,7 +10085,7 @@
     "params": [
       {
         "default": "0",
-        "doc": "MIDI input port to listen to, counted from 0; .midiinfo lists them. A port that cannot be opened leaves the object silent, and the patch still loads.",
+        "doc": "MIDI input port to listen to, counted from 0; .midiinfo lists them. A port that cannot be opened leaves the object silent, and the patch still loads. At most 64 MIDI input objects, across all open patches, can listen to one port; past that an object stays silent and the log names it.",
         "name": "port",
         "range": "0-7"
       },
@@ -11127,7 +11127,7 @@
     "params": [
       {
         "default": "0",
-        "doc": "MIDI input port to listen to, counted from 0; .midiinfo lists them. A port that cannot be opened leaves the object silent, and the patch still loads.",
+        "doc": "MIDI input port to listen to, counted from 0; .midiinfo lists them. A port that cannot be opened leaves the object silent, and the patch still loads. At most 64 MIDI input objects, across all open patches, can listen to one port; past that an object stays silent and the log names it.",
         "name": "port",
         "range": "0-7"
       },
@@ -11270,7 +11270,7 @@
     "params": [
       {
         "default": "0",
-        "doc": "MIDI input port to listen to, counted from 0; .midiinfo lists them. A port that cannot be opened leaves the object silent, and the patch still loads.",
+        "doc": "MIDI input port to listen to, counted from 0; .midiinfo lists them. A port that cannot be opened leaves the object silent, and the patch still loads. At most 64 MIDI input objects, across all open patches, can listen to one port; past that an object stays silent and the log names it.",
         "name": "port",
         "range": "0-7"
       }
@@ -12396,7 +12396,7 @@
     "params": [
       {
         "default": "0",
-        "doc": "MIDI input port to listen to, counted from 0; .midiinfo lists them. A port that cannot be opened leaves the object silent, and the patch still loads.",
+        "doc": "MIDI input port to listen to, counted from 0; .midiinfo lists them. A port that cannot be opened leaves the object silent, and the patch still loads. At most 64 MIDI input objects, across all open patches, can listen to one port; past that an object stays silent and the log names it.",
         "name": "port",
         "range": "0-7"
       }
@@ -13119,7 +13119,7 @@
     "params": [
       {
         "default": "0",
-        "doc": "MIDI input port to listen to, counted from 0; .midiinfo lists them. A port that cannot be opened leaves the object silent, and the patch still loads.",
+        "doc": "MIDI input port to listen to, counted from 0; .midiinfo lists them. A port that cannot be opened leaves the object silent, and the patch still loads. At most 64 MIDI input objects, across all open patches, can listen to one port; past that an object stays silent and the log names it.",
         "name": "port",
         "range": "0-7"
       },
@@ -13802,7 +13802,7 @@
     "params": [
       {
         "default": "0",
-        "doc": "MIDI input port to listen to, counted from 0; .midiinfo lists them. A port that cannot be opened leaves the object silent, and the patch still loads.",
+        "doc": "MIDI input port to listen to, counted from 0; .midiinfo lists them. A port that cannot be opened leaves the object silent, and the patch still loads. At most 64 MIDI input objects, across all open patches, can listen to one port; past that an object stays silent and the log names it.",
         "name": "port",
         "range": "0-7"
       },
@@ -13847,7 +13847,7 @@
     "params": [
       {
         "default": "0",
-        "doc": "MIDI input port to listen to, counted from 0; .midiinfo lists them. A port that cannot be opened leaves the object silent, and the patch still loads.",
+        "doc": "MIDI input port to listen to, counted from 0; .midiinfo lists them. A port that cannot be opened leaves the object silent, and the patch still loads. At most 64 MIDI input objects, across all open patches, can listen to one port; past that an object stays silent and the log names it.",
         "name": "port",
         "range": "0-7"
       },
@@ -13971,7 +13971,7 @@
     "params": [
       {
         "default": "0",
-        "doc": "MIDI input port to listen to, counted from 0; .midiinfo lists them. A port that cannot be opened leaves the object silent, and the patch still loads.",
+        "doc": "MIDI input port to listen to, counted from 0; .midiinfo lists them. A port that cannot be opened leaves the object silent, and the patch still loads. At most 64 MIDI input objects, across all open patches, can listen to one port; past that an object stays silent and the log names it.",
         "name": "port",
         "range": "0-7"
       },
@@ -14052,7 +14052,7 @@
     "params": [
       {
         "default": "0",
-        "doc": "MIDI input port to listen to, counted from 0; .midiinfo lists them. A port that cannot be opened leaves the object silent, and the patch still loads.",
+        "doc": "MIDI input port to listen to, counted from 0; .midiinfo lists them. A port that cannot be opened leaves the object silent, and the patch still loads. At most 64 MIDI input objects, across all open patches, can listen to one port; past that an object stays silent and the log names it.",
         "name": "port",
         "range": "0-7"
       }
@@ -14098,7 +14098,7 @@
     "params": [
       {
         "default": "0",
-        "doc": "MIDI input port to listen to, counted from 0; .midiinfo lists them. A port that cannot be opened leaves the object silent, and the patch still loads.",
+        "doc": "MIDI input port to listen to, counted from 0; .midiinfo lists them. A port that cannot be opened leaves the object silent, and the patch still loads. At most 64 MIDI input objects, across all open patches, can listen to one port; past that an object stays silent and the log names it.",
         "name": "port",
         "range": "0-7"
       },

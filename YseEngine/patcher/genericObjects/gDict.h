@@ -118,6 +118,14 @@ namespace YSE {
       // resized; only the first `count` entries are live.
       std::vector<dictEntry> entries;
       std::size_t count = 0;
+
+      // Whether a `.dict` has bound this store yet. Saved contents are restored
+      // by the first `.dict` on a name, not by whichever object created the
+      // store: every `.dict.*` binder acquires the store too, and in a patch
+      // where one has a lower ID it is the creator (issue #1250). Set on the
+      // control thread in gDict::Rebind; an atomic so two control-side callers
+      // can never both claim it.
+      std::atomic<bool> holderClaimed{false};
     };
 
     /**
@@ -249,8 +257,33 @@ namespace YSE {
      *  entries past ``MAX_ENTRIES``, are dropped; the rest of the document still
      *  loads. That is ``.coll``'s rule for an over-long record, for
      *  ``.coll``'s reason.
+     *
+     *  @p order, when given, lists flat ``::`` paths in the order the entries
+     *  are to be stored. An ``nlohmann::json`` object keeps its members in a
+     *  ``std::map``, so walking @p in alone yields them alphabetically at every
+     *  level; the paths in @p order are stored first, in that order, and
+     *  anything in @p in that @p order does not name follows in the document's
+     *  own order. A path @p in does not hold as a leaf is skipped. This is what
+     *  keeps storage order — the order ``getkeys``, ``.dict.iter`` and
+     *  ``.dict.serialize`` report — across a save and reload (#1243).
      */
-    void DictFromJson(const nlohmann::json::value_type& in, dictStore& store);
+    void DictFromJson(const nlohmann::json::value_type& in, dictStore& store,
+                      const std::vector<std::string>* order = nullptr);
+
+    /**
+     *  @brief List the leaf paths of a JSON object document in the order they
+     *         are written in @p text.
+     *
+     *  The order half of ``.dict.deserialize``'s parse (#1243): the parsed
+     *  ``nlohmann::json`` has already lost it, so this reads it from the text
+     *  and ``DictFromJson`` takes it as its ``order``. Each leaf — every member
+     *  that is not itself an object — becomes one ``a::b::c`` path, the path
+     *  ``DictFromJson`` would store it under. **Background or control thread
+     *  only**; it allocates. Call it on text nlohmann has already accepted as
+     *  an object: it returns false, with @p paths cleared, on anything it
+     *  cannot read rather than guessing.
+     */
+    bool DictJsonPathOrder(const char* text, std::size_t length, std::vector<std::string>& paths);
 
     /**
      *  @brief Append one stored value to @p out, spelled as JSON — the RT-safe
@@ -408,13 +441,20 @@ namespace YSE {
      *  ### What persists, and who restores it
      *
      *  The **contents**, through ``pObject::DumpState`` / ``RestoreState``, as
-     *  a nested JSON object under the object's ``state`` key. Every bound
-     *  ``.dict`` writes them and only the object that **created** the store
-     *  reads them back — ``.coll``'s rule (#684), and for ``.coll``'s reasons:
-     *  a single nominated writer would stop saving the day that object was
-     *  deleted from the patch, and a patcher loaded into an engine where its
-     *  name is already live must join the running dictionary rather than reset
-     *  it under whatever is using it.
+     *  a nested JSON object under the object's ``state`` key ``contents``,
+     *  with the flat paths in storage order beside it under ``order`` — that
+     *  layer's objects sort their members, so without the list a reload would
+     *  come back alphabetical (#1243). Every bound
+     *  ``.dict`` writes them and only the **first** ``.dict`` to bind the
+     *  store reads them back, and only into a store that is still empty —
+     *  ``.coll``'s rule (#684), and for ``.coll``'s reasons: a single
+     *  nominated writer would stop saving the day that object was deleted from
+     *  the patch, and a patcher loaded into an engine where its name is
+     *  already live must join the running dictionary rather than reset it
+     *  under whatever is using it. "First ``.dict``" rather than ``.coll``'s
+     *  "created the store", because every ``.dict.*`` object binds the store
+     *  too and one with a lower ID would otherwise create it and leave the
+     *  saved contents unread (#1250).
      *
      *  The serialisation goes through the layer ``DumpJSON`` / ``ParseJSON``
      *  actually runs on, which is **nlohmann::json** — the same
@@ -557,8 +597,10 @@ namespace YSE {
     // message handler needs a null check.
     std::shared_ptr<dictStore> store;
 
-    // Whether this object brought `store` into existence — what decides whether
-    // it restores saved contents into it. `.coll`'s rule.
+    // Whether this object was the first `.dict` to bind `store` — what decides
+    // whether it restores saved contents into it. `.coll`'s rule, except that a
+    // `.dict.*` binder creating the store first does not take the claim
+    // (issue #1250).
     bool createdStore = true;
 
     // "dictionary <name>", built once per rebind so a bang is a send of a

@@ -289,14 +289,17 @@ void gArray::Rebind() {
   bool created = false;
   if (address.empty()) {
     store = std::make_shared<arrayStore>();
-    created = true;
   } else {
     store = AcquireNamedStore<arrayStore>(address, created);
   }
   boundAddress = address;
-  // Only the object that brought the array into existence restores saved
-  // contents into it; one joining an established name adopts what is there.
-  createdStore = created;
+  // Only the first .array on the store restores saved contents into it; one
+  // joining an established name adopts what is there. "First .array", not
+  // "created the store": every .array.* object acquires the store in its own
+  // Rebind(), and ParseJSON builds objects in stored-ID order (#730), so an
+  // .array.push placed before the .array would otherwise be the creator and the
+  // saved contents would be skipped (issue #1245).
+  createdStore = !store->holderClaimed.exchange(true, std::memory_order_acq_rel);
 }
 
 void gArray::RefreshReference() {
@@ -561,7 +564,7 @@ bool gArray::DumpState(nlohmann::json::value_type& json) {
 }
 
 void gArray::RestoreState(const nlohmann::json::value_type& json) {
-  // Only the object that created the array fills it. Within one patch that makes
+  // Only the first .array to bind the array fills it. Within one patch that makes
   // the first .array of a name the one that loads and its siblings adopt what it
   // loaded; across patchers it means a patch opened into an engine where its
   // name is already live joins the running array rather than resetting it under
@@ -573,6 +576,11 @@ void gArray::RestoreState(const nlohmann::json::value_type& json) {
 
   const arrayStoreGuard guard(store->busy);
   if (!guard.Held()) return;
+  // A store some .array.* binder created and filled before any .array arrived is
+  // live data, and the first .array adopts it rather than rewinding it — the
+  // same promise the creator rule made (issue #1245). A store loaded from this
+  // parse is still empty here.
+  if (store->count != 0) return;
   ArrayFromJson(*stored, *store);
 }
 

@@ -27,7 +27,8 @@ any message, so ``set chord 0 4 7`` stores one value of three numbers. See
 Every ``.dict`` with the same name in a patcher uses the same dictionary, and
 two patchers with the same name share theirs. A ``.dict`` without a name
 keeps a private dictionary and sends no reference. The contents are saved
-with the patch as nested JSON. See :ref:`data-sharing` and
+with the patch as nested JSON, and a reloaded dictionary keeps the order its
+entries were first written. See :ref:`data-sharing` and
 :ref:`data-saved`.
 
 **The other .dict objects**
@@ -93,6 +94,7 @@ sends. It replaces the contents of the named dictionary, and the reference
 then leaves the outlet:
 
 - Nested objects become ``::`` key paths.
+- The entries are stored in the order the document writes them.
 - An array becomes a list value. Arrays and objects inside an array are
   dropped.
 - ``true`` and ``false`` become ``1`` and ``0``; ``null`` becomes an empty

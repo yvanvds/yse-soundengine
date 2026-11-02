@@ -180,6 +180,30 @@ YSE_C_API void yse_midi_in_connect_synth(YseMidiIn* m, YseSynth* synth, int chan
    a synth that was never connected. */
 YSE_C_API void yse_midi_in_disconnect_synth(YseMidiIn* m, YseSynth* synth);
 
+/** Hand `length` bytes to the patcher's MIDI input objects (.notein, .ctlin,
+   .midiin, .sysexin, ...) listening on `port`, as if they had arrived on that
+   input port (issue #1247). It is the entry point a real port's input thread
+   uses, so the objects decode, filter and emit exactly as they would for
+   hardware: the message reaches them on the next audio block that runs their
+   patcher. This is the hook a host uses to test or drive a patch's MIDI input
+   without a device or a loopback port.
+
+   `port` is the number the objects were given (their `port` argument), 0..7.
+   Pass one complete message per call; a SysEx dump may be long and is
+   delivered whole or, if it does not fit an object's queue, not at all. A port
+   no object listens to accepts the message and drops it.
+
+   Threading: call it from one non-audio thread at a time per port. Each
+   object's input queue has a single producer, so the call is refused with
+   YSE_ERR_MIDI on a port the engine holds open on a real device, whose input
+   thread is already that producer — inject on a port with no device behind it.
+
+   Returns YSE_OK when the message was handed over, YSE_ERR_INVALID_ARGUMENT
+   for NULL / empty bytes or a port past 7, and YSE_ERR_MIDI for an open port
+   or a build without MIDI device support. */
+YSE_C_API YseStatus yse_midi_in_inject(unsigned int port, const unsigned char* bytes,
+                                       size_t length);
+
 /* ─── midiNote convenience value ──────────────────────────────────── */
 
 YSE_C_API YseMidiNote* yse_midi_note_create(unsigned char note, unsigned int velocity);

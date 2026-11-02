@@ -47,6 +47,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <thread>
 #include <vector>
@@ -55,6 +56,8 @@
 
 #if YSE_ENABLE_MIDI_DEVICE
 
+#include "implementations/logImplementation.h"
+#include "internal/rtLogQueue.h"
 #include "midi/midiInHub.h"
 #include "patcher/graphState.h"
 #include "patcher/inlet.h"
@@ -171,6 +174,36 @@ namespace {
       }
       return count;
     }
+  };
+
+  // The engine log, as a host sees it (cf. test_patcher_signal_loops).
+  struct LogCapture : YSE::logHandler {
+    LogCapture() {
+      YSE::INTERNAL::RtLog().drain();
+      YSE::Log().setHandler(this);
+    }
+    ~LogCapture() override {
+      YSE::Log().setHandler(nullptr);
+    }
+    LogCapture(const LogCapture&) = delete;
+    LogCapture& operator=(const LogCapture&) = delete;
+    LogCapture(LogCapture&&) = delete;
+    LogCapture& operator=(LogCapture&&) = delete;
+
+    void AddMessage(const std::string& message) override {
+      const std::lock_guard<std::mutex> lock(mutex);
+      lines.push_back(message);
+    }
+    bool Saw(const std::string& needle) const {
+      const std::lock_guard<std::mutex> lock(mutex);
+      for (const std::string& line : lines) {
+        if (line.find(needle) != std::string::npos) return true;
+      }
+      return false;
+    }
+
+    mutable std::mutex mutex;
+    std::vector<std::string> lines;
   };
 
   void Deliver(unsigned int port, std::initializer_list<int> bytes) {
@@ -351,6 +384,46 @@ TEST_SUITE("patcher") {
     subs.pop_back();
     Sub reused(kTestPort);
     CHECK(reused.handle != inHub::kNoHandle);
+  }
+
+  TEST_CASE("midi inHub: one port takes well over eight listeners (#1246)") {
+    // Eight was the old ceiling, and a single keyboard patch reached it. Every
+    // one of the listeners below must hear the same message.
+    REQUIRE(inHub::kMaxSubscriptionsPerPort >= 64);
+    std::vector<std::unique_ptr<Sub>> subs;
+    for (unsigned int i = 0; i < inHub::kMaxSubscriptionsPerPort; i++) {
+      subs.push_back(std::make_unique<Sub>(kTestPort));
+      REQUIRE(subs.back()->handle != inHub::kNoHandle);
+    }
+    Deliver(kTestPort, {0xB0, 1, 11});
+    int heard = 0;
+    for (const auto& sub : subs) {
+      if (sub->Drain() == 1) heard++;
+    }
+    CHECK(heard == static_cast<int>(inHub::kMaxSubscriptionsPerPort));
+  }
+
+  TEST_CASE("midi input: an object refused a listener slot says so, naming itself and the port"
+            " (#1246)") {
+    // Fill the port, then add one more object to a patcher. It loads but can
+    // never hear anything, and a host must be told which object and why — at
+    // error level, which a release build's default log level still delivers.
+    std::vector<std::unique_ptr<Sub>> subs;
+    for (unsigned int i = 0; i < inHub::kMaxSubscriptionsPerPort; i++) {
+      subs.push_back(std::make_unique<Sub>(kTestPort));
+      REQUIRE(subs.back()->handle != inHub::kNoHandle);
+    }
+
+    const YSE::ERROR_LEVEL before = YSE::Log().getLevel();
+    YSE::Log().setLevel(YSE::EL_ERROR);
+    LogCapture log;
+    patcherImplementation patch(1, nullptr);
+    YSE::pHandle* refused = patch.CreateObject(YSE::OBJ::M_CTLIN, "7");
+    YSE::Log().setLevel(before);
+
+    CHECK(refused != nullptr); // the patch still loads
+    CHECK(log.Saw(".ctlin on input port 7 receives nothing"));
+    CHECK(log.Saw(std::to_string(inHub::kMaxSubscriptionsPerPort) + " patcher listeners"));
   }
 
   TEST_CASE("midi inHub: a full queue drops and counts rather than allocating (#529)") {

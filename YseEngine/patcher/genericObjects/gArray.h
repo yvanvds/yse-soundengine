@@ -106,6 +106,14 @@ namespace YSE {
       // resized; only the first `count` elements are live.
       std::vector<std::string> elements;
       std::size_t count = 0;
+
+      // Whether an `.array` has bound this store yet. Saved contents are
+      // restored by the first `.array` on a name, not by whichever object created
+      // the store: every `.array.*` binder acquires the store too, and in a patch
+      // where one has a lower ID it is the creator (issue #1245). Set on the
+      // control thread in gArray::Rebind; an atomic so two control-side callers
+      // can never both claim it.
+      std::atomic<bool> holderClaimed{false};
     };
 
     /**
@@ -369,11 +377,15 @@ namespace YSE {
      *
      *  The **contents**, through ``pObject::DumpState`` / ``RestoreState``, as a
      *  JSON array under the object's ``state`` key. Every bound ``.array`` writes
-     *  them and only the object that **created** the store reads them back —
-     *  ``.coll``'s rule (#684), and for ``.coll``'s reasons: a single nominated
-     *  writer would stop saving the day that object was deleted from the patch,
-     *  and a patcher loaded into an engine where its name is already live must
-     *  join the running array rather than reset it under whatever is using it.
+     *  them and only the **first** ``.array`` to bind the store reads them back,
+     *  and only into a store that is still empty — ``.coll``'s rule (#684), and
+     *  for ``.coll``'s reasons: a single nominated writer would stop saving the
+     *  day that object was deleted from the patch, and a patcher loaded into an
+     *  engine where its name is already live must join the running array rather
+     *  than reset it under whatever is using it. "First ``.array``" rather than
+     *  ``.coll``'s "created the store", because every ``.array.*`` object binds
+     *  the store too and one with a lower ID would otherwise create it and leave
+     *  the saved contents unread (#1245).
      *
      *  The serialisation goes through the layer ``DumpJSON`` / ``ParseJSON``
      *  actually runs on, which is **nlohmann::json** — the same
@@ -512,8 +524,10 @@ namespace YSE {
     // handler needs a null check.
     std::shared_ptr<arrayStore> store;
 
-    // Whether this object brought `store` into existence — what decides whether
-    // it restores saved contents into it. `.coll`'s rule.
+    // Whether this object was the first `.array` to bind `store` — what decides
+    // whether it restores saved contents into it. `.coll`'s rule, except that an
+    // `.array.*` binder creating the store first does not take the claim
+    // (issue #1245).
     bool createdStore = true;
 
     // "array <name>", built once per rebind so a bang is a send of a string the

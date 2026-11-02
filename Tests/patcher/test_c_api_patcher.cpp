@@ -42,9 +42,11 @@
 #include "c_api/yse_c_internal.hpp"
 #include "patcher/patcher.hpp"
 
+#include "yse_c/yse_channel.h"
 #include "yse_c/yse_common.h"
 #include "yse_c/yse_enums.h"
 #include "yse_c/yse_patcher.h"
+#include "yse_c/yse_sound.h"
 #include "yse_c/yse_system.h"
 
 namespace {
@@ -1538,6 +1540,105 @@ TEST_SUITE("capilowcov") {
     // Stopped before it is torn down, so no timer callback outlives the graph.
     yse_phandle_set_int(metro, 0, 0);
     yse_patcher_destroy(p);
+  }
+
+  // ─── one sender, several receivers (issue #1239) ───────────────────────────
+
+  TEST_CASE("c-api patcher: one value into .s or .forward reaches every .r of the name in a "
+            "mounted, rendering patch (#1239)") {
+    // The repro from #1239 at the host's level: a patch mounted as a sound and
+    // rendered offline, one sender and four `.r p`, each into `.trigger b` →
+    // `.counter`. Every counter has to move once per value — not one of them,
+    // and not twice — for `.s`, `.forward`, a `.s` fired on the render thread,
+    // and `.s` with globalOnly, in a named patcher and an anonymous one, with
+    // receivers created both before and after the sender.
+    REQUIRE(capilowcov::ensureOffline());
+
+    enum class Drive { Host, RenderThread };
+    struct Variant {
+      const char* label;
+      const char* senderType;
+      const char* senderArgs;
+      Drive drive;
+      const char* name; // nullptr leaves the patcher anonymous
+    };
+    const Variant variants[] = {
+        {".s, anonymous", ".s", "p", Drive::Host, nullptr},
+        {".s, named", ".s", "p", Drive::Host, "x.y"},
+        {".s on the render thread, anonymous", ".s", "p", Drive::RenderThread, nullptr},
+        {".s on the render thread, named", ".s", "p", Drive::RenderThread, "x.y"},
+        {".forward, anonymous", ".forward", "p", Drive::Host, nullptr},
+        {".forward, named", ".forward", "p", Drive::Host, "x.y"},
+        {".forward on the render thread, named", ".forward", "p", Drive::RenderThread, "x.y"},
+        {".s globalOnly, named", ".s", "p 1", Drive::Host, "x.y"},
+    };
+
+    const auto counterValue = [](YsePHandle* h) {
+      return readString([h](char* b, size_t c) { return yse_phandle_get_gui_value(h, b, c); });
+    };
+
+    for (const Variant& v : variants) {
+      const std::string label = v.label;
+      CAPTURE(label);
+      YsePatcher* patch = yse_patcher_create();
+      REQUIRE(patch != nullptr);
+      REQUIRE(yse_patcher_init(patch, 1) == YSE_OK);
+      if (v.name != nullptr) REQUIRE(yse_patcher_set_name(patch, v.name) == YSE_OK);
+
+      std::vector<YsePHandle*> counters;
+      const auto addReceiver = [&] {
+        YsePHandle* r = yse_patcher_create_object(patch, kReceive, "p");
+        YsePHandle* t = yse_patcher_create_object(patch, ".trigger", "b");
+        YsePHandle* c = yse_patcher_create_object(patch, kCounter, nullptr);
+        REQUIRE(r != nullptr);
+        REQUIRE(t != nullptr);
+        REQUIRE(c != nullptr);
+        yse_patcher_connect(patch, r, 0, t, 0);
+        yse_patcher_connect(patch, t, 0, c, 0);
+        counters.push_back(c);
+      };
+
+      // Two receivers before the sender and two after: the bug picked one by
+      // creation order, and which side it picked depended on the name.
+      addReceiver();
+      addReceiver();
+      YsePHandle* sender = yse_patcher_create_object(patch, v.senderType, v.senderArgs);
+      REQUIRE(sender != nullptr);
+      addReceiver();
+      addReceiver();
+      if (v.drive == Drive::RenderThread) {
+        // `.r trig` → sender: the host value is drained at the top of a block,
+        // so the sender fires on the audio thread.
+        YsePHandle* trig = yse_patcher_create_object(patch, kReceive, "trig");
+        REQUIRE(trig != nullptr);
+        yse_patcher_connect(patch, trig, 0, sender, 0);
+      }
+
+      YseSound* snd = yse_sound_create();
+      REQUIRE(snd != nullptr);
+      REQUIRE(yse_sound_load_patcher(snd, patch, yse_channel_master(), 0.f) == YSE_OK);
+      yse_sound_play(snd);
+      capilowcov::pump(10);
+
+      for (int value = 1; value <= 3; value++) {
+        if (v.drive == Drive::Host) {
+          yse_phandle_set_int(sender, 0, 5);
+        } else {
+          CHECK(yse_patcher_pass_int(patch, 5, "trig") != 0);
+        }
+        capilowcov::pump(10);
+        for (std::size_t i = 0; i < counters.size(); i++) {
+          CAPTURE(i);
+          CHECK(counterValue(counters[i]) == std::to_string(value));
+        }
+      }
+
+      yse_sound_stop(snd);
+      capilowcov::pump(5);
+      yse_sound_destroy(snd);
+      capilowcov::pump(5);
+      yse_patcher_destroy(patch);
+    }
   }
 
   // ─── subpatchers ───────────────────────────────────────────────────────────

@@ -5,7 +5,9 @@
 #include "../../internal/global.h"
 
 #include <cstring>
+#include <string>
 #include <thread>
+#include <vector>
 
 using namespace YSE::PATCHER;
 
@@ -192,7 +194,12 @@ void dictParser::RunSlot(Entry& e) {
   // capacities and over-long entries follow .coll's drop-the-record rule.
   e.ok = parsed.is_object();
   if (e.ok) {
-    DictFromJson(parsed, *e.staged);
+    // The parsed object has sorted its members; the order they are written in
+    // comes from the text (issue #1243). A walk that cannot read it leaves the
+    // list empty and the document loads in the parsed object's order.
+    std::vector<std::string> order;
+    DictJsonPathOrder(e.text.get(), e.textLength, order);
+    DictFromJson(parsed, *e.staged, &order);
   }
 
   // Cannot fail: PARSING is a state Release waits out rather than claiming,
