@@ -730,14 +730,17 @@ void gDict::Rebind() {
   bool created = false;
   if (address.empty()) {
     store = std::make_shared<dictStore>();
-    created = true;
   } else {
     store = AcquireNamedStore<dictStore>(address, created);
   }
   boundAddress = address;
-  // Only the object that brought the dictionary into existence restores saved
-  // contents into it; one joining an established name adopts what is there.
-  createdStore = created;
+  // Only the first .dict on the store restores saved contents into it; one
+  // joining an established name adopts what is there. "First .dict", not
+  // "created the store": every .dict.* object acquires the store in its own
+  // Rebind(), and ParseJSON builds objects in stored-ID order (#730), so a
+  // .dict.serialize placed before the .dict would otherwise be the creator and
+  // the saved contents would be skipped (issue #1250).
+  createdStore = !store->holderClaimed.exchange(true, std::memory_order_acq_rel);
 }
 
 void gDict::RefreshReference() {
@@ -972,7 +975,7 @@ bool gDict::DumpState(nlohmann::json::value_type& json) {
 }
 
 void gDict::RestoreState(const nlohmann::json::value_type& json) {
-  // Only the object that created the dictionary fills it. Within one patch that
+  // Only the first .dict to bind the dictionary fills it. Within one patch that
   // makes the first .dict of a name the one that loads and its siblings adopt
   // what it loaded; across patchers it means a patch opened into an engine where
   // its name is already live joins the running dictionary rather than resetting
@@ -995,6 +998,11 @@ void gDict::RestoreState(const nlohmann::json::value_type& json) {
 
   const dictStoreGuard guard(store->busy);
   if (!guard.Held()) return;
+  // A store some .dict.* binder created and filled before any .dict arrived is
+  // live data, and the first .dict adopts it rather than rewinding it — the
+  // same promise the creator rule made (issue #1250). A store loaded from this
+  // parse is still empty here.
+  if (store->count != 0) return;
   DictFromJson(*stored, *store, &order);
 }
 

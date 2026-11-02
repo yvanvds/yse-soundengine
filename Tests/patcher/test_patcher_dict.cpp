@@ -38,6 +38,7 @@
 #include <vector>
 
 #include "patcher/genericObjects/gDict.h"
+#include "patcher/genericObjects/gDictPack.h"
 #include "patcher/inlet.h"
 #include "patcher/namedStore.h"
 #include "patcher/pEnums.h"
@@ -54,6 +55,7 @@ using TestHelpers::MultiSink;
 using TestHelpers::Wire;
 using YSE::PATCHER::dictStore;
 using YSE::PATCHER::gDict;
+using YSE::PATCHER::gDictPack;
 
 namespace {
 
@@ -591,6 +593,79 @@ TEST_SUITE("patcher") {
     CHECK(doc.gotList);
     CHECK(doc.listValue == "{\"freq\":440,\"gain\":0.5,\"chord\":[0,4,7],\"voice\":{\"2\":{\"b\":1}"
                            ",\"1\":{\"a\":2}}}");
+  }
+
+  TEST_CASE("dict: contents reload when a .dict.* binder of the name has a lower ID (#1250)") {
+    // Every .dict.* object acquires the named store in its Rebind(), and
+    // ParseJSON builds objects in stored-ID order (#730). A binder placed before
+    // the .dict therefore brings the (empty) store into existence first; the
+    // saved contents must still land, and in the order they were written
+    // (#1243). Checked for more than one binder, since the issue is about
+    // binding, not about what the binder does.
+    for (const char* binderType : {YSE::OBJ::G_DICT_SERIALIZE, YSE::OBJ::G_DICT_ITER}) {
+      CAPTURE(std::string(binderType));
+      MultiSink out;
+      YSE::pHandle outHandle(&out);
+
+      std::string json;
+      {
+        YSE::patcher src;
+        src.create(2);
+        src.name("dict1250a");
+        REQUIRE(src.CreateObject(binderType, "pq") != nullptr);
+        YSE::pHandle* holder = src.CreateObject(YSE::OBJ::G_DICT, "pq");
+        REQUIRE(holder != nullptr);
+        holder->SetListData(0, "set z 1");
+        holder->SetListData(0, "set a 5");
+        json = src.DumpJSON();
+      }
+      // The source patcher is gone, so nothing still holds "pq": the reload
+      // starts from an empty registry, as a patch opened in a fresh session does.
+
+      YSE::patcher loaded;
+      loaded.create(2);
+      loaded.name("dict1250a");
+      loaded.ParseJSON(json);
+      REQUIRE(loaded.Objects() == 2);
+
+      YSE::pHandle* copy = nullptr;
+      for (unsigned int i = 0; i < loaded.Objects(); i++) {
+        YSE::pHandle* h = loaded.GetHandleFromList(i);
+        if (h != nullptr && std::string(h->Type()) == YSE::OBJ::G_DICT) copy = h;
+      }
+      REQUIRE(copy != nullptr);
+      loaded.Connect(copy, 0, &outHandle, 0);
+
+      copy->SetListData(0, "getkeys");
+      CHECK(out.gotList);
+      CHECK(out.listValue == "z a");
+
+      copy->SetListData(0, "get a");
+      CHECK(out.gotInt);
+      CHECK(out.intValue == 5);
+    }
+  }
+
+  TEST_CASE("dict: a reload does not overwrite a dictionary a live binder already filled (#1250)") {
+    // The other half of the old creator rule: a .dict arriving on a live name
+    // adopts what is there. With the restore claim moved from "created the
+    // store" to "first .dict on it", a store that a binder created and filled
+    // before any .dict existed must still not be reset by the first .dict.
+    YSE::PATCHER::patcherImplementation p(2, nullptr);
+    p.SetName("dict1250b");
+
+    gDictPack pack;
+    pack.SetParent(&p);
+    pack.SetParams("pq freq");
+    pack.GetInlet(0)->SetList(std::string("440"), YSE::T_GUI);
+
+    gDict late;
+    late.SetParent(&p);
+    late.SetParams("pq");
+    REQUIRE(late.Count() == 1);
+    late.RestoreState(nlohmann::json::parse(R"({"contents":{"other":9},"order":["other"]})"));
+    CHECK(late.Count() == 1);
+    CHECK(late.Lookup("freq") == "440");
   }
 
   TEST_CASE("dict: DictJsonPathOrder lists leaf paths in written order (#1243)") {
