@@ -214,3 +214,26 @@ up to there, and several reports in one block send only the last.
 .. code-block:: text
 
    [~cycle 440] -> [~* 0.5] -> [~peakamp 100]   0.5, ten times a second
+
+.. patcher-object:: ~average
+
+Averages a signal over its last N samples and outputs the result as a
+signal, one value per sample. It follows the level of a signal: an envelope
+follower, a level meter or a smoothed control. There are three modes.
+``bipolar``, the default, is the plain mean, so a tone centred on 0 averages
+near 0 and only the DC offset remains. ``absolute`` is the mean of the
+absolute values. ``rms`` is the root mean square, the usual measure of
+loudness.
+
+The first argument is the longest interval in samples, 100 by default,
+and the object starts with that interval. The second argument is the mode
+word, such as ``~average 1000 rms``. A number sent to the inlet changes the
+interval, clamped to 1 and the maximum. The words ``bipolar``, ``absolute``
+and ``rms``, or ``mode`` followed by one of them, change the mode. Until a
+full interval of samples has arrived, the missing ones count as 0, so the
+output ramps up from silence. A sample that is not a number or is infinite
+also counts as 0.
+
+.. code-block:: text
+
+   [~cycle 480] -> [~average 100 rms]   about 0.707: one full cycle at 48 kHz

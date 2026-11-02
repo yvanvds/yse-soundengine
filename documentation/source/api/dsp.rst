@@ -178,6 +178,9 @@ Analysis
 .. doxygenfile:: dsp/analysis/peakTracker.hpp
    :project: libYSE
 
+.. doxygenfile:: dsp/analysis/movingAverage.hpp
+   :project: libYSE
+
 Filters
 -------
 

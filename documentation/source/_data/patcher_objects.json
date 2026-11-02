@@ -15699,6 +15699,43 @@
     "params": [],
     "requires_midi_device": false
   },
+  "~average": {
+    "category": "ANALYSIS",
+    "description": "The running average of a signal over its last N samples, as a signal: the plain mean (bipolar), the mean magnitude (absolute) or the root mean square (rms). For envelope following and level detection.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The signal to average; unconnected it reads as silence. A number sets the averaging interval in samples, clamped to 1 and the maximum. 'bipolar', 'absolute' and 'rms' set the mode, as does 'mode' followed by one of them.",
+        "index": 0,
+        "label": "signal",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~average",
+    "outlets": [
+      {
+        "doc": "The average of the last interval samples at every sample: their mean in bipolar mode, their mean absolute value in absolute mode, their root mean square in rms mode. Before a full interval has arrived the missing samples count as 0.",
+        "index": 0,
+        "label": "average",
+        "range": "any float",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "100 bipolar",
+        "doc": "The maximum averaging interval in samples, which is also the initial interval, then the mode: bipolar, absolute or rms ('~average 1000 rms'). The maximum sizes the history and is clamped to 1-1048576. Later numbers and messages do not change what is saved.",
+        "name": "average",
+        "range": "a maximum interval, then a mode"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~biquad": {
     "category": "FILTER",
     "description": "Two-pole, two-zero filter driven directly by five coefficients, y(n) = a0 x(n) + a1 x(n-1) + a2 x(n-2) - b1 y(n-1) - b2 y(n-2), each a number or a signal read per sample: any biquad design, or a ringing oscillator.",
