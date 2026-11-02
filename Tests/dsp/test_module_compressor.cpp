@@ -17,8 +17,10 @@
 #include <doctest/doctest.h>
 #include <algorithm>
 #include <cmath>
+#include <cstring>
 #include <vector>
 #include "dsp/modules/compressor.hpp"
+#include "dsp/smoother.hpp"
 #include "headers/defines.hpp"
 #include "support/alloc_probe.hpp"
 #include "support/audio_helpers.hpp"
@@ -84,6 +86,141 @@ namespace {
       if (p > peak) peak = p;
     }
     return 20.0f * std::log10(peak);
+  }
+
+  // ─── the compressor as it was before #1241, verbatim ──────────────────────
+  //
+  // The defaults of the controls #1241 added must leave the output bit for bit
+  // what it was. This is the class's processing as of 50c799bc (#1235), kept
+  // here as the reference those tests compare against.
+  class legacyCompressor : public YSE::DSP::dspObject {
+  public:
+    legacyCompressor()
+      : gainBuf(YSE::STANDARD_BUFFERSIZE),
+        wet(YSE::STANDARD_BUFFERSIZE),
+        dry(YSE::STANDARD_BUFFERSIZE) {}
+    Flt threshold = -18.0f;
+    Flt ratio = 4.0f;
+    Flt attack = 10.0f;
+    Flt release = 100.0f;
+    Flt makeup = 0.0f;
+    bool rms = false;
+    Flt reductionDb = 0.0f;
+
+    void create() override {
+      rmsCoef = YSE::DSP::onePoleCoef(0.01f, static_cast<Flt>(YSE::SAMPLERATE));
+      gain = 1.0f;
+      msEnv = 0.0f;
+    }
+    void process(MULTICHANNELBUFFER& buffer) override {
+      run(buffer, buffer);
+    }
+    void process(MULTICHANNELBUFFER& buffer, MULTICHANNELBUFFER& key) {
+      run(buffer, key);
+    }
+
+  private:
+    static Flt dbToLinL(Flt db) {
+      return std::pow(10.0f, db / 20.0f);
+    }
+    static Flt linToDbL(Flt lin) {
+      return 20.0f * std::log10(lin + 1.0e-9f);
+    }
+    void run(MULTICHANNELBUFFER& buffer, MULTICHANNELBUFFER& key) {
+      createIfNeeded();
+      if (buffer.empty()) return;
+      const UInt length = buffer[0].getLength();
+      for (UInt offset = 0; offset < length;) {
+        const UInt piece = std::min<UInt>(length - offset, YSE::STANDARD_BUFFERSIZE);
+        runPiece(buffer, key, offset, piece);
+        offset += piece;
+      }
+    }
+    void runPiece(MULTICHANNELBUFFER& buffer, MULTICHANNELBUFFER& key, UInt offset, UInt length) {
+      const std::size_t n = buffer.size();
+      const std::size_t keys = key.size();
+      if (gainBuf.getLength() != length) gainBuf.resize(length);
+      if (wet.getLength() != length) wet.resize(length);
+      const Flt sr = static_cast<Flt>(YSE::SAMPLERATE);
+      const Flt thresholdDb = std::clamp(threshold, -60.0f, 0.0f);
+      const Flt ratioVal = std::clamp(ratio, 1.0f, 20.0f);
+      const Flt slope = 1.0f / ratioVal - 1.0f;
+      const Flt attackCoef = YSE::DSP::onePoleCoef(attack * 0.001f, sr);
+      const Flt releaseCoef = YSE::DSP::onePoleCoef(release * 0.001f, sr);
+      const Flt makeupLin = dbToLinL(makeup);
+      rmsCoef = YSE::DSP::onePoleCoef(0.01f, sr);
+      Flt g = gain;
+      Flt ms = msEnv;
+      Flt* gb = gainBuf.getPtr();
+      for (UInt i = 0; i < length; ++i) {
+        Flt level;
+        if (rms) {
+          Flt sumSq = 0.0f;
+          for (std::size_t ch = 0; ch < keys; ++ch) {
+            const Flt s = key[ch].getPtr()[offset + i];
+            sumSq += s * s;
+          }
+          const Flt meanSq = sumSq / static_cast<Flt>(keys);
+          ms = YSE::DSP::onePoleSmooth(ms, meanSq, rmsCoef);
+          level = std::sqrt(ms);
+        } else {
+          Flt peak = 0.0f;
+          for (std::size_t ch = 0; ch < keys; ++ch) {
+            const Flt a = std::abs(key[ch].getPtr()[offset + i]);
+            if (a > peak) peak = a;
+          }
+          level = peak;
+        }
+        const Flt levelDb = linToDbL(level);
+        Flt targetGainDb = 0.0f;
+        if (levelDb > thresholdDb) targetGainDb = (levelDb - thresholdDb) * slope;
+        const Flt targetGain = dbToLinL(targetGainDb);
+        const Flt coef = (targetGain < g) ? attackCoef : releaseCoef;
+        g = YSE::DSP::onePoleSmooth(g, targetGain, coef);
+        gb[i] = g * makeupLin;
+      }
+      gain = g;
+      msEnv = ms;
+      reductionDb = linToDbL(g);
+      for (std::size_t ch = 0; ch < n; ++ch) {
+        Flt* x = buffer[ch].getPtr() + offset;
+        Flt* w = wet.getPtr();
+        for (UInt i = 0; i < length; ++i)
+          w[i] = x[i] * gb[i];
+        if (length == buffer[ch].getLength()) {
+          calculateImpact(buffer[ch], wet);
+        } else {
+          if (dry.getLength() != length) dry.resize(length);
+          Flt* d = dry.getPtr();
+          std::copy(x, x + length, d);
+          calculateImpact(dry, wet);
+          std::copy(d, d + length, x);
+        }
+      }
+    }
+
+    Flt gain = 1.0f;
+    Flt msEnv = 0.0f;
+    Flt rmsCoef = 0.0f;
+    YSE::DSP::buffer gainBuf;
+    YSE::DSP::buffer wet;
+    YSE::DSP::buffer dry;
+  };
+
+  // Bit for bit, not within a tolerance.
+  bool sameBits(YSE::DSP::buffer& a, YSE::DSP::buffer& b) {
+    return a.getLength() == b.getLength() &&
+           std::memcmp(a.getPtr(), b.getPtr(), a.getLength() * sizeof(Flt)) == 0;
+  }
+
+  // A signal with loud and quiet stretches, so the gain moves both ways.
+  void fillBursts(YSE::DSP::buffer& b, UInt start, UInt channel) {
+    for (UInt i = 0; i < b.getLength(); ++i) {
+      const UInt n = start + i;
+      const float level = (n / 900) % 3 == 0 ? 0.95f : ((n / 900) % 3 == 1 ? 0.02f : 0.3f);
+      b.getPtr()[i] =
+          level * std::sin(static_cast<float>(n) * (0.021f + 0.013f * static_cast<float>(channel)));
+    }
   }
 
 } // anonymous namespace
@@ -604,6 +741,465 @@ TEST_SUITE("dsp") {
       offset += piece;
     }
     CHECK(whole.gainReductionDb() == pieces.gainReductionDb());
+  }
+
+  // ─── range, gate, lookahead, sidechain filter, coupling, smoothing, freeze,
+  //     progressive release (issue #1241) ────────────────────────────────────
+
+  TEST_CASE("compressor: the controls of #1241 default to off") {
+    compressor c;
+    CHECK(c.range() == compressor::MAX_RANGE);
+    CHECK_FALSE(c.freeze());
+    CHECK_FALSE(c.progressiveRelease());
+    CHECK(c.gainSmoothing() == 0.0f);
+    CHECK_FALSE(c.gate());
+    CHECK(c.gateThreshold() == compressor::DEFAULT_GATE_THRESHOLD);
+    CHECK(c.lookahead() == 0u);
+    CHECK(c.latency() == 0u);
+    CHECK(c.maxLookahead() == compressor::DEFAULT_MAX_LOOKAHEAD);
+    CHECK(c.maxChannels() == compressor::DEFAULT_MAX_CHANNELS);
+    CHECK_FALSE(c.sidechainFilter());
+    CHECK(c.sidechainFrequency() == compressor::DEFAULT_SIDECHAIN_FREQUENCY);
+    CHECK(c.linked());
+
+    c.range(12.0f)
+        .freeze(true)
+        .progressiveRelease(true)
+        .gainSmoothing(30.0f)
+        .gate(true)
+        .gateThreshold(-50.0f)
+        .lookahead(64)
+        .sidechainFilter(true)
+        .sidechainFrequency(250.0f)
+        .linked(false);
+    CHECK(c.range() == 12.0f);
+    CHECK(c.freeze());
+    CHECK(c.progressiveRelease());
+    CHECK(c.gainSmoothing() == 30.0f);
+    CHECK(c.gate());
+    CHECK(c.gateThreshold() == -50.0f);
+    CHECK(c.lookahead() == 64u);
+    CHECK(c.latency() == 64u);
+    CHECK(c.sidechainFilter());
+    CHECK(c.sidechainFrequency() == 250.0f);
+    CHECK_FALSE(c.linked());
+
+    // Clamped; not finite: ignored.
+    c.range(-3.0f);
+    CHECK(c.range() == 0.0f);
+    c.range(500.0f);
+    CHECK(c.range() == compressor::MAX_RANGE);
+    c.range(std::nanf(""));
+    CHECK(c.range() == compressor::MAX_RANGE);
+    c.gainSmoothing(-1.0f);
+    CHECK(c.gainSmoothing() == 0.0f);
+    c.gainSmoothing(1.0e6f);
+    CHECK(c.gainSmoothing() == compressor::MAX_SMOOTHING);
+    c.gateThreshold(-500.0f);
+    CHECK(c.gateThreshold() == compressor::MIN_GATE_THRESHOLD);
+    c.gateThreshold(10.0f);
+    CHECK(c.gateThreshold() == 0.0f);
+    c.sidechainFrequency(1.0f);
+    CHECK(c.sidechainFrequency() == compressor::MIN_SIDECHAIN_FREQUENCY);
+    c.sidechainFrequency(1.0e6f);
+    CHECK(c.sidechainFrequency() == compressor::MAX_SIDECHAIN_FREQUENCY);
+    c.lookahead(1000000);
+    CHECK(c.lookahead() == c.maxLookahead());
+
+    compressor big(4096, 2);
+    CHECK(big.maxLookahead() == 4096u);
+    CHECK(big.maxChannels() == 2u);
+    compressor huge(10000000, 1000);
+    CHECK(huge.maxLookahead() == compressor::MAX_LOOKAHEAD);
+    CHECK(huge.maxChannels() == compressor::MAX_CHANNELS);
+  }
+
+  TEST_CASE("compressor: with the #1241 controls at their defaults the output is bit for bit "
+            "the compressor before them") {
+    struct config {
+      bool rms;
+      Flt threshold, ratio, attack, release, makeup, impact;
+      UInt channels, keyChannels, block;
+    };
+    const config configs[] = {
+        {false, -18.0f, 4.0f, 10.0f, 100.0f, 0.0f, 1.0f, 2, 0, 128},
+        {true, -24.0f, 6.0f, 2.0f, 40.0f, 3.0f, 1.0f, 2, 0, 64},
+        {false, -30.0f, 20.0f, 0.1f, 5.0f, 6.0f, 0.6f, 1, 0, 300},
+        {true, -40.0f, 2.0f, 30.0f, 300.0f, -2.0f, 0.3f, 3, 0, 1000},
+        {false, -20.0f, 8.0f, 1.0f, 50.0f, 0.0f, 1.0f, 2, 1, 128},
+        {true, -20.0f, 8.0f, 1.0f, 50.0f, 0.0f, 0.8f, 1, 2, 77},
+    };
+    for (const config& cf : configs) {
+      CAPTURE(cf.rms);
+      CAPTURE(cf.block);
+      CAPTURE(cf.channels);
+      CAPTURE(cf.keyChannels);
+      // The default constructor and the one ~comp uses.
+      compressor now;
+      compressor sized(4096, 2);
+      legacyCompressor before;
+      for (compressor* c : {&now, &sized}) {
+        c->detector(cf.rms ? YSE::DSP::MODULES::DETECT_RMS : YSE::DSP::MODULES::DETECT_PEAK)
+            .threshold(cf.threshold)
+            .ratio(cf.ratio)
+            .attack(cf.attack)
+            .release(cf.release)
+            .makeup(cf.makeup)
+            .impact(cf.impact);
+      }
+      before.rms = cf.rms;
+      before.threshold = cf.threshold;
+      before.ratio = cf.ratio;
+      before.attack = cf.attack;
+      before.release = cf.release;
+      before.makeup = cf.makeup;
+      before.impact(cf.impact);
+
+      MULTICHANNELBUFFER a(cf.channels), b(cf.channels), r(cf.channels), key(cf.keyChannels);
+      for (auto* m : {&a, &b, &r, &key})
+        for (auto& ch : *m)
+          ch.resize(cf.block);
+      UInt start = 0;
+      Flt deepest = 0.0f;
+      for (int block = 0; block < 60; ++block) {
+        for (UInt ch = 0; ch < cf.channels; ++ch) {
+          fillBursts(a[ch], start, ch);
+          b[ch] = a[ch];
+          r[ch] = a[ch];
+        }
+        for (UInt ch = 0; ch < cf.keyChannels; ++ch)
+          fillBursts(key[ch], start + 450, ch + 3);
+        start += cf.block;
+        if (cf.keyChannels > 0) {
+          now.process(a, key);
+          sized.process(b, key);
+          before.process(r, key);
+        } else {
+          now.process(a);
+          sized.process(b);
+          before.process(r);
+        }
+        for (UInt ch = 0; ch < cf.channels; ++ch) {
+          REQUIRE(sameBits(a[ch], r[ch]));
+          REQUIRE(sameBits(b[ch], r[ch]));
+        }
+        REQUIRE(now.gainReductionDb() == before.reductionDb);
+        REQUIRE(sized.gainReductionDb() == before.reductionDb);
+        deepest = std::min(deepest, before.reductionDb);
+      }
+      CHECK(deepest < -1.0f); // it did compress
+    }
+  }
+
+  TEST_CASE("compressor: range caps the gain reduction at the set dB (#1241)") {
+    // 0 dBFS against -40, ratio 20: (0 + 40) * (1/20 - 1) = -38 dB unlimited.
+    auto reductionWith = [](Flt range) {
+      compressor c;
+      c.threshold(-40.0f).ratio(20.0f).attack(1.0f).release(50.0f).range(range);
+      MULTICHANNELBUFFER buf(1);
+      buf[0].resize(256);
+      for (int b = 0; b < static_cast<int>(0.5f * sr() / 256.0f) + 4; ++b) {
+        buf[0] = 1.0f;
+        c.process(buf);
+      }
+      return c.gainReductionDb();
+    };
+    CHECK(reductionWith(compressor::MAX_RANGE) == doctest::Approx(-38.0f).epsilon(1e-3));
+    CHECK(reductionWith(12.0f) == doctest::Approx(-12.0f).epsilon(1e-3));
+    CHECK(reductionWith(3.0f) == doctest::Approx(-3.0f).epsilon(1e-3));
+    CHECK(reductionWith(0.0f) == doctest::Approx(0.0f).epsilon(1e-5));
+    // A range deeper than the curve reaches changes nothing.
+    CHECK(reductionWith(60.0f) == doctest::Approx(-38.0f).epsilon(1e-3));
+  }
+
+  TEST_CASE("compressor: the noise gate attenuates below its threshold (#1241)") {
+    // The compressor's own threshold is at 0 dBFS, so only the gate acts.
+    auto outputDb = [](bool gate, Flt inputDb) {
+      compressor c;
+      c.threshold(0.0f).attack(1.0f).release(20.0f).gate(gate).gateThreshold(-50.0f);
+      MULTICHANNELBUFFER buf(1);
+      buf[0].resize(256);
+      SineGen g(1000.0f, dbToLin(inputDb));
+      for (int b = 0; b < static_cast<int>(1.0f * sr() / 256.0f); ++b) {
+        g.fill(buf[0]);
+        c.process(buf);
+      }
+      float peak = 0.0f;
+      for (int b = 0; b < 8; ++b) {
+        g.fill(buf[0]);
+        c.process(buf);
+        peak = std::max(peak, peakAbs(buf[0]));
+      }
+      return 20.0f * std::log10(peak + 1.0e-30f);
+    };
+    // Under the gate threshold: through without the gate, gone with it.
+    CHECK(outputDb(false, -70.0f) == doctest::Approx(-70.0f).epsilon(0.01));
+    CHECK(outputDb(true, -70.0f) < -150.0f);
+    // Over it: the gate stays open (the held level keeps it open at the
+    // zero crossings).
+    CHECK(outputDb(true, -30.0f) == doctest::Approx(-30.0f).epsilon(0.01));
+  }
+
+  TEST_CASE("compressor: lookahead delays the output by the reported latency and catches a "
+            "transient (#1241)") {
+    const UInt lookahead = 48;
+    {
+      // Under the threshold the output is the input, delayed by latency().
+      compressor c;
+      c.lookahead(lookahead);
+      REQUIRE(c.latency() == lookahead);
+      MULTICHANNELBUFFER buf(2);
+      buf[0].resize(100);
+      buf[1].resize(100);
+      std::vector<float> in0, in1, out0, out1;
+      for (int block = 0; block < 6; ++block) {
+        for (UInt i = 0; i < 100; ++i) {
+          const float v = 0.01f * std::sin(0.05f * static_cast<float>(block * 100 + i));
+          buf[0].getPtr()[i] = v;
+          buf[1].getPtr()[i] = -0.5f * v;
+          in0.push_back(v);
+          in1.push_back(-0.5f * v);
+        }
+        c.process(buf);
+        out0.insert(out0.end(), buf[0].getPtr(), buf[0].getPtr() + 100);
+        out1.insert(out1.end(), buf[1].getPtr(), buf[1].getPtr() + 100);
+      }
+      for (UInt i = 0; i < lookahead; ++i) {
+        CHECK(out0[i] == 0.0f);
+        CHECK(out1[i] == 0.0f);
+      }
+      for (std::size_t i = lookahead; i < out0.size(); ++i) {
+        REQUIRE(out0[i] == in0[i - lookahead]);
+        REQUIRE(out1[i] == in1[i - lookahead]);
+      }
+    }
+    // A step from silence to full scale against -20 dB, ratio 20, fastest
+    // attack: without lookahead the first samples get through nearly
+    // untouched; with it the gain is already down when the step comes out.
+    auto firstPeak = [](UInt la) {
+      compressor c;
+      c.threshold(-20.0f).ratio(20.0f).attack(0.1f).release(100.0f).lookahead(la);
+      MULTICHANNELBUFFER buf(1);
+      buf[0].resize(128);
+      buf[0] = 0.0f;
+      c.process(buf);
+      buf[0] = 1.0f;
+      c.process(buf);
+      return peakAbs(buf[0]);
+    };
+    CHECK(firstPeak(0) > 0.8f);
+    CHECK(firstPeak(lookahead) < 0.15f);
+  }
+
+  TEST_CASE("compressor: the sidechain high-pass stops low-frequency ducking (#1241)") {
+    // A quiet signal, keyed by a loud tone: 40 Hz is far under a 500 Hz
+    // high-pass, 5 kHz far over it.
+    auto reduction = [](bool filter, float keyHz) {
+      compressor c;
+      c.threshold(-18.0f).ratio(4.0f).attack(1.0f).release(50.0f);
+      c.sidechainFilter(filter).sidechainFrequency(500.0f);
+      MULTICHANNELBUFFER buf(1), key(1);
+      buf[0].resize(256);
+      key[0].resize(256);
+      SineGen k(keyHz, 1.0f);
+      float deepest = 0.0f;
+      for (int b = 0; b < static_cast<int>(1.0f * sr() / 256.0f); ++b) {
+        buf[0] = 0.001f;
+        k.fill(key[0]);
+        c.process(buf, key);
+        if (b > 40) deepest = std::min(deepest, c.gainReductionDb());
+      }
+      return deepest;
+    };
+    CHECK(reduction(false, 40.0f) < -10.0f); // a bass key ducks unfiltered
+    CHECK(reduction(true, 40.0f) > -0.5f); // and not through the high-pass
+    CHECK(reduction(true, 5000.0f) < -10.0f); // a high key still ducks
+    // The same with the buffer as its own key.
+    compressor c;
+    c.threshold(-18.0f).ratio(4.0f).attack(1.0f).sidechainFilter(true).sidechainFrequency(500.0f);
+    MULTICHANNELBUFFER buf(1);
+    buf[0].resize(256);
+    SineGen bass(40.0f, 1.0f);
+    for (int b = 0; b < 200; ++b) {
+      bass.fill(buf[0]);
+      c.process(buf);
+    }
+    CHECK(c.gainReductionDb() > -0.5f);
+  }
+
+  TEST_CASE("compressor: unlinked coupling ducks only the loud channel (#1241)") {
+    for (int rms = 0; rms < 2; ++rms) {
+      CAPTURE(rms);
+      compressor c;
+      c.detector(rms != 0 ? YSE::DSP::MODULES::DETECT_RMS : YSE::DSP::MODULES::DETECT_PEAK)
+          .threshold(-30.0f)
+          .ratio(8.0f)
+          .attack(5.0f)
+          .release(120.0f)
+          .linked(false);
+      MULTICHANNELBUFFER buf(2);
+      buf[0].resize(256);
+      buf[1].resize(256);
+      SineGen loud(440.0f, dbToLin(0.0f));
+      SineGen quiet(660.0f, dbToLin(-40.0f));
+      YSE::DSP::buffer dry1(256);
+      float in0 = 0.0f, out0 = 0.0f;
+      for (int b = 0; b < static_cast<int>(1.0f * sr() / 256.0f); ++b) {
+        loud.fill(buf[0]);
+        quiet.fill(buf[1]);
+        dry1 = buf[1];
+        in0 = TestHelpers::measureRms(buf[0]);
+        c.process(buf);
+        out0 = TestHelpers::measureRms(buf[0]);
+        // The quiet channel is left exactly as it came in.
+        REQUIRE(sameBits(buf[1], dry1));
+      }
+      CHECK(out0 < in0 * 0.3f); // the loud one is turned down
+      CHECK(c.gainReductionDb() < -10.0f); // the deepest channel
+    }
+
+    // A stereo key keys each channel with its own key channel.
+    compressor c;
+    c.threshold(-18.0f).ratio(4.0f).attack(1.0f).release(50.0f).linked(false);
+    MULTICHANNELBUFFER buf(2), key(2);
+    for (auto* m : {&buf, &key})
+      for (auto& ch : *m)
+        ch.resize(256);
+    key[0] = 0.0f;
+    key[1] = 1.0f;
+    for (int b = 0; b < 100; ++b) {
+      buf[0] = 0.01f;
+      buf[1] = 0.01f;
+      c.process(buf, key);
+    }
+    CHECK(buf[0].getPtr()[255] == 0.01f);
+    CHECK(buf[1].getPtr()[255] == doctest::Approx(0.01f * dbToLin(-13.5f)).epsilon(1e-3));
+  }
+
+  TEST_CASE("compressor: freeze holds the gain (#1241)") {
+    compressor c;
+    c.threshold(-24.0f).ratio(8.0f).attack(2.0f).release(50.0f);
+    MULTICHANNELBUFFER buf(1);
+    buf[0].resize(256);
+    for (int b = 0; b < 100; ++b) {
+      buf[0] = 1.0f;
+      c.process(buf);
+    }
+    const Flt held = c.gainReductionDb();
+    REQUIRE(held < -10.0f);
+    c.freeze(true);
+    for (int b = 0; b < 200; ++b) {
+      buf[0] = 0.0f;
+      c.process(buf);
+      REQUIRE(c.gainReductionDb() == held);
+    }
+    // Louder still: held too.
+    buf[0] = 4.0f;
+    c.process(buf);
+    CHECK(c.gainReductionDb() == held);
+    CHECK(buf[0].getPtr()[0] == doctest::Approx(4.0f * dbToLin(held)).epsilon(1e-4));
+    c.freeze(false);
+    for (int b = 0; b < 400; ++b) {
+      buf[0] = 0.0f;
+      c.process(buf);
+    }
+    CHECK(c.gainReductionDb() > -0.1f);
+  }
+
+  TEST_CASE("compressor: progressive release recovers faster from deep reduction (#1241)") {
+    auto afterRelease = [](bool progressive) {
+      compressor c;
+      c.threshold(-40.0f).ratio(20.0f).attack(1.0f).release(200.0f).progressiveRelease(progressive);
+      MULTICHANNELBUFFER buf(1);
+      buf[0].resize(256);
+      for (int b = 0; b < 100; ++b) {
+        buf[0] = 1.0f;
+        c.process(buf);
+      }
+      // 50 ms of silence.
+      for (int b = 0; b < static_cast<int>(0.05f * sr() / 256.0f); ++b) {
+        buf[0] = 0.0f;
+        c.process(buf);
+      }
+      return c.gainReductionDb();
+    };
+    const Flt plain = afterRelease(false);
+    const Flt progressive = afterRelease(true);
+    CAPTURE(plain);
+    CAPTURE(progressive);
+    CHECK(plain < -10.0f);
+    CHECK(progressive > plain + 6.0f);
+  }
+
+  TEST_CASE("compressor: gain smoothing slows the gain down (#1241)") {
+    auto afterAttack = [](Flt smoothing) {
+      compressor c;
+      c.threshold(-30.0f).ratio(10.0f).attack(0.1f).gainSmoothing(smoothing);
+      MULTICHANNELBUFFER buf(1);
+      buf[0].resize(static_cast<UInt>(0.002f * sr())); // 2 ms
+      buf[0] = 1.0f;
+      c.process(buf);
+      return c.gainReductionDb();
+    };
+    const Flt sharp = afterAttack(0.0f);
+    const Flt smooth = afterAttack(20.0f);
+    CHECK(sharp < -20.0f);
+    CHECK(smooth > -5.0f);
+    CHECK(smooth < -0.5f);
+    // Settled, both reach the same reduction.
+    compressor c;
+    c.threshold(-30.0f).ratio(10.0f).attack(0.1f).gainSmoothing(20.0f);
+    MULTICHANNELBUFFER buf(1);
+    buf[0].resize(256);
+    for (int b = 0; b < static_cast<int>(0.5f * sr() / 256.0f); ++b) {
+      buf[0] = 1.0f;
+      c.process(buf);
+    }
+    CHECK(c.gainReductionDb() == doctest::Approx(-27.0f).epsilon(1e-3));
+  }
+
+  TEST_CASE("compressor: every #1241 control on, with lookahead changes at run time, "
+            "allocates nothing") {
+    compressor c(1024, 2);
+    c.detector(YSE::DSP::MODULES::DETECT_RMS)
+        .range(10.0f)
+        .freeze(false)
+        .progressiveRelease(true)
+        .gainSmoothing(5.0f)
+        .gate(true)
+        .gateThreshold(-50.0f)
+        .lookahead(100)
+        .sidechainFilter(true)
+        .sidechainFrequency(200.0f)
+        .linked(false)
+        .impact(0.7f);
+    MULTICHANNELBUFFER first(2), longer(3), key(1);
+    for (auto& ch : first)
+      ch.resize(64);
+    for (auto& ch : longer)
+      ch.resize(YSE::STANDARD_BUFFERSIZE * 3 + 11);
+    key[0].resize(YSE::STANDARD_BUFFERSIZE * 3 + 11);
+    first[0] = 0.5f;
+    first[1] = 0.25f;
+    for (auto& ch : longer)
+      ch = 0.8f;
+    key[0] = 1.0f;
+    {
+      TestHelpers::ProbeScope probe;
+      c.process(first);
+      c.process(longer);
+      c.process(longer, key);
+      c.lookahead(1000000); // clamped to the delay line
+      c.process(first);
+      c.lookahead(7);
+      c.linked(true).freeze(true).sidechainFrequency(3000.0f);
+      c.process(longer, key);
+      c.process(longer);
+      c.linked(false).detector(YSE::DSP::MODULES::DETECT_PEAK).lookahead(0);
+      c.process(longer, key);
+      CHECK(TestHelpers::g_alloc_count.load() == 0);
+    }
+    CHECK(c.lookahead() == 0u);
   }
 
 } // TEST_SUITE("dsp")

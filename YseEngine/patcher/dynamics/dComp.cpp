@@ -35,7 +35,7 @@ namespace {
 
 #define className dComp
 
-CONSTRUCT_DSP(), stereo(2), key(1) {
+CONSTRUCT_DSP(), fn(MAX_DELAY_SAMPLES, 2), stereo(2), key(1) {
   // Size the scratch here, on the control thread, not on the audio thread.
   stereo[0].resize(STANDARD_BUFFERSIZE);
   stereo[1].resize(STANDARD_BUFFERSIZE);
@@ -73,7 +73,10 @@ CONSTRUCT_DSP(), stereo(2), key(1) {
   INLET_DOC(0, "left",
             "The left signal (unconnected, the last number sent here, else 0). Takes "
             "threshold <dB>, ratio <n>, attack <ms>, release <ms>, makeup <dB>, detector <0|1>, "
-            "mix <0-1>, bypass <0|1>, meters <0|1>, meterrate <ms> and meterdata.",
+            "mix <0-1>, bypass <0|1>, range <dB>, smoothgain <ms>, freezelevel <0|1>, "
+            "progressiverelease <0|1>, ngenabled <0|1>, ngthreshold <dB>, delay <ms>, "
+            "sidechainfilterenabled <0|1>, sidechainfilterfreq <Hz>, channelcoupling <0|1>, "
+            "meters <0|1>, meterrate <ms> and meterdata.",
             "any float");
   INLET_DOC(1, "right", "The right signal (unconnected, the last number sent here, else 0).",
             "any float");
@@ -92,7 +95,12 @@ CONSTRUCT_DSP(), stereo(2), key(1) {
             "Any of 'threshold <dB>' (-18, -60 to 0), 'ratio <n>' (4, 1 to 20), 'attack <ms>' "
             "(10), 'release <ms>' (100), 'makeup <dB>' (0, -24 to 24), 'detector <0|1>' (0: "
             "peak, 1: RMS), 'mix <0-1>' (1, fully compressed), 'bypass <0|1>' (0), 'meters "
-            "<0|1>' (1) and 'meterrate <ms>' (100).",
+            "<0|1>' (1), 'meterrate <ms>' (100), 'range <dB>' (120, no limit, 0 to 120), "
+            "'smoothgain <ms>' (0, off, to 1000), 'freezelevel <0|1>' (0), "
+            "'progressiverelease <0|1>' (0), 'ngenabled <0|1>' (0), 'ngthreshold <dB>' (-60, "
+            "-96 to 0), 'delay <ms>' (0, lookahead, at most 4096 samples), "
+            "'sidechainfilterenabled <0|1>' (0), 'sidechainfilterfreq <Hz>' (100, 10 to 20000) "
+            "and 'channelcoupling <0|1>' (1: linked, 0: each channel on its own).",
             "words and values");
 }
 
@@ -105,6 +113,16 @@ void dComp::Defaults() {
   mix = 1.f;
   meterRate = DEFAULT_METER_RATE;
   detector = DSP::MODULES::DETECT_PEAK;
+  range = DSP::MODULES::compressor::MAX_RANGE;
+  smoothGain = 0.f;
+  gateThreshold = DSP::MODULES::compressor::DEFAULT_GATE_THRESHOLD;
+  delayMs = 0.f;
+  sidechainFrequency = DSP::MODULES::compressor::DEFAULT_SIDECHAIN_FREQUENCY;
+  freeze = false;
+  progressive = false;
+  gate = false;
+  sidechainFilter = false;
+  coupled = true;
   bypass = false;
   meters = true;
   meterRequested = false;
@@ -130,6 +148,26 @@ bool dComp::ApplyWord(std::string_view word, float value) {
     mix = std::clamp(value, 0.f, 1.f);
   } else if (word == "bypass") {
     bypass = value != 0.f;
+  } else if (word == "range") {
+    range = value;
+  } else if (word == "smoothgain") {
+    smoothGain = value;
+  } else if (word == "freezelevel") {
+    freeze = value != 0.f;
+  } else if (word == "progressiverelease") {
+    progressive = value != 0.f;
+  } else if (word == "ngenabled") {
+    gate = value != 0.f;
+  } else if (word == "ngthreshold") {
+    gateThreshold = value;
+  } else if (word == "delay") {
+    delayMs = std::max(value, 0.f);
+  } else if (word == "sidechainfilterenabled") {
+    sidechainFilter = value != 0.f;
+  } else if (word == "sidechainfilterfreq") {
+    sidechainFrequency = value;
+  } else if (word == "channelcoupling") {
+    coupled = value != 0.f;
   } else if (word == "meters") {
     meters = value != 0.f;
   } else if (word == "meterrate") {
@@ -187,6 +225,21 @@ CALC() {
   fn.release(release.load());
   fn.makeup(makeup.load());
   fn.detector(static_cast<compressorDetector>(detector.load()));
+  fn.range(range.load());
+  fn.gainSmoothing(smoothGain.load());
+  fn.freeze(freeze.load());
+  fn.progressiveRelease(progressive.load());
+  fn.gate(gate.load());
+  fn.gateThreshold(gateThreshold.load());
+  fn.sidechainFilter(sidechainFilter.load());
+  fn.sidechainFrequency(sidechainFrequency.load());
+  fn.linked(coupled.load());
+  // The lookahead in samples at the current rate; the class holds it at its
+  // delay line.
+  const double delaySamples =
+      std::min(std::round(static_cast<double>(delayMs.load()) * 0.001 * SAMPLERATE),
+               static_cast<double>(MAX_DELAY_SAMPLES));
+  fn.lookahead(static_cast<UInt>(delaySamples));
   // Bypass is a fully dry mix: the input comes out unchanged while the
   // detector keeps running, so switching back does not jump.
   fn.impact(bypass.load() ? 0.f : mix.load());

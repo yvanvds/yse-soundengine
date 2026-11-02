@@ -377,4 +377,249 @@ TEST_SUITE("patcher") {
     CHECK(meter.gotFloat);
   }
 
+  // ─── the controls of #1241 ──────────────────────────────────────────────
+
+  TEST_CASE("~comp: range, gate, delay, sidechain filter, coupling, smoothing, freeze and "
+            "progressive release reach the class through the settings (#1241)") {
+    TestHelpers::ScopedSampleRate rate(48000);
+    {
+      // Off until set: the class's defaults.
+      dComp obj;
+      obj.Calculate(YSE::T_DSP);
+      compressor& f = obj.Compressor();
+      CHECK(f.range() == compressor::MAX_RANGE);
+      CHECK(f.gainSmoothing() == 0.f);
+      CHECK_FALSE(f.freeze());
+      CHECK_FALSE(f.progressiveRelease());
+      CHECK_FALSE(f.gate());
+      CHECK(f.gateThreshold() == compressor::DEFAULT_GATE_THRESHOLD);
+      CHECK(f.lookahead() == 0u);
+      CHECK_FALSE(f.sidechainFilter());
+      CHECK(f.sidechainFrequency() == compressor::DEFAULT_SIDECHAIN_FREQUENCY);
+      CHECK(f.linked());
+      CHECK(f.maxLookahead() == dComp::MAX_DELAY_SAMPLES);
+    }
+    {
+      dComp obj;
+      const std::string args =
+          "range 12 smoothgain 5 freezelevel 1 progressiverelease 1 ngenabled 1 ngthreshold -70 "
+          "delay 2 sidechainfilterenabled 1 sidechainfilterfreq 250 channelcoupling 0";
+      obj.SetParams(args);
+      CHECK(obj.GetParams() == args);
+      obj.Calculate(YSE::T_DSP);
+      compressor& f = obj.Compressor();
+      CHECK(f.range() == 12.f);
+      CHECK(f.gainSmoothing() == 5.f);
+      CHECK(f.freeze());
+      CHECK(f.progressiveRelease());
+      CHECK(f.gate());
+      CHECK(f.gateThreshold() == -70.f);
+      CHECK(f.lookahead() == 96u); // 2 ms at 48 kHz
+      CHECK(f.latency() == 96u);
+      CHECK(f.sidechainFilter());
+      CHECK(f.sidechainFrequency() == 250.f);
+      CHECK_FALSE(f.linked());
+    }
+    {
+      // Clamped by the class, and the delay at the object's delay line.
+      dComp obj;
+      obj.SetParams("range 500 smoothgain -3 ngthreshold -200 delay 100000 "
+                    "sidechainfilterfreq 1 channelcoupling 1");
+      obj.Calculate(YSE::T_DSP);
+      compressor& f = obj.Compressor();
+      CHECK(f.range() == compressor::MAX_RANGE);
+      CHECK(f.gainSmoothing() == 0.f);
+      CHECK(f.gateThreshold() == compressor::MIN_GATE_THRESHOLD);
+      CHECK(f.lookahead() == dComp::MAX_DELAY_SAMPLES);
+      CHECK(f.sidechainFrequency() == compressor::MIN_SIDECHAIN_FREQUENCY);
+      CHECK(f.linked());
+      obj.SetParams("delay -5");
+      obj.Calculate(YSE::T_DSP);
+      CHECK(obj.Compressor().lookahead() == 0u);
+    }
+  }
+
+  TEST_CASE("~comp: the #1241 messages against the DSP class, bit for bit (#1241)") {
+    TestHelpers::ScopedSampleRate rate(48000);
+    BufferSink out0;
+    BufferSink out1;
+    dComp obj;
+    obj.SetParams("threshold -24 ratio 6 attack 1 release 30 meters 0");
+    obj.ConnectOutlet(out0.GetInlet(0), 0);
+    out0.ConnectInlet(obj.GetOutlet(0), 0);
+    obj.ConnectOutlet(out1.GetInlet(0), 1);
+    out1.ConnectInlet(obj.GetOutlet(1), 0);
+
+    compressor reference(dComp::MAX_DELAY_SAMPLES, 2);
+    reference.threshold(-24.f).ratio(6.f).attack(1.f).release(30.f);
+    buffer objIn0(N);
+    buffer objIn1(N);
+    MULTICHANNELBUFFER ref(2);
+    ref[0].resize(N);
+    ref[1].resize(N);
+    unsigned int start = 0;
+    const auto step = [&]() {
+      for (int i = 0; i < 6; ++i) {
+        obj.ResetDSP();
+        Fill(objIn0, start, 0);
+        Fill(ref[0], start, 0);
+        Fill(objIn1, start + 300, 1);
+        Fill(ref[1], start + 300, 1);
+        start += N;
+        obj.GetInlet(0)->SetBuffer(&objIn0, YSE::T_GUI);
+        obj.GetInlet(1)->SetBuffer(&objIn1, YSE::T_GUI);
+        obj.Calculate(YSE::T_DSP);
+        REQUIRE(out0.received != nullptr);
+        REQUIRE(out1.received != nullptr);
+        reference.process(ref);
+        CHECK(TestHelpers::buffersNearlyEqual(*out0.received, ref[0], 0.f));
+        CHECK(TestHelpers::buffersNearlyEqual(*out1.received, ref[1], 0.f));
+      }
+    };
+
+    step();
+    obj.SetMessage("range 6", 0.f);
+    reference.range(6.f);
+    step();
+    obj.SetMessage("smoothgain 10", 0.f);
+    reference.gainSmoothing(10.f);
+    step();
+    obj.SetMessage("progressiverelease 1", 0.f);
+    reference.progressiveRelease(true);
+    step();
+    obj.SetMessage("ngenabled 1", 0.f);
+    reference.gate(true);
+    step();
+    obj.SetMessage("ngthreshold -20", 0.f);
+    reference.gateThreshold(-20.f);
+    step();
+    obj.GetInlet(0)->SetMessage("delay 1.5", YSE::T_GUI);
+    reference.lookahead(72); // 1.5 ms at 48 kHz
+    step();
+    CHECK(obj.Compressor().latency() == 72u);
+    obj.SetMessage("sidechainfilterenabled 1", 0.f);
+    reference.sidechainFilter(true);
+    step();
+    obj.SetMessage("sidechainfilterfreq 400", 0.f);
+    reference.sidechainFrequency(400.f);
+    step();
+    obj.SetMessage("channelcoupling 0", 0.f);
+    reference.linked(false);
+    step();
+    obj.SetMessage("freezelevel 1", 0.f);
+    reference.freeze(true);
+    step();
+    obj.SetMessage("freezelevel 0", 0.f);
+    reference.freeze(false);
+    obj.SetMessage("delay 0", 0.f);
+    reference.lookahead(0);
+    obj.SetMessage("channelcoupling 1", 0.f);
+    reference.linked(true);
+    step();
+    CHECK(reference.gainReductionDb() < -0.5f);
+  }
+
+  TEST_CASE("~comp: the #1241 settings in a rendered patch after a JSON round trip (#1241)") {
+    TestHelpers::ScopedSampleRate rate(48000);
+    const std::string args = "threshold -30 ratio 8 attack 1 release 30 range 9 smoothgain 2 "
+                             "progressiverelease 1 ngenabled 1 ngthreshold -40 delay 1 "
+                             "sidechainfilterenabled 1 sidechainfilterfreq 200 channelcoupling 0 "
+                             "meterrate 0";
+    std::string dump;
+    unsigned int compID = 0;
+    {
+      patcherImplementation src(2, nullptr);
+      YSE::pHandle* left = src.CreateObject(YSE::OBJ::D_PHASOR, "375");
+      YSE::pHandle* quiet = src.CreateObject(YSE::OBJ::D_MULTIPLY, "0.05");
+      YSE::pHandle* right = src.CreateObject(YSE::OBJ::D_PHASOR, "750");
+      YSE::pHandle* comp = src.CreateObject(YSE::OBJ::D_COMP, args);
+      YSE::pHandle* dac = src.CreateObject(YSE::OBJ::D_DAC, "");
+      REQUIRE(left != nullptr);
+      REQUIRE(quiet != nullptr);
+      REQUIRE(right != nullptr);
+      REQUIRE(comp != nullptr);
+      REQUIRE(dac != nullptr);
+      src.Connect(left, 0, quiet, 0);
+      src.Connect(quiet, 0, comp, 0);
+      src.Connect(right, 0, comp, 1);
+      src.Connect(comp, 0, dac, 0);
+      src.Connect(comp, 1, dac, 1);
+      compID = comp->GetID();
+      dump = src.DumpJSON();
+    }
+    CHECK(dump.find("channelcoupling 0") != std::string::npos);
+    patcherImplementation dst(2, nullptr);
+    dst.ParseJSON(dump);
+    YSE::pHandle* comp = dst.GetHandleFromID(compID);
+    REQUIRE(comp != nullptr);
+
+    // The same chain, made here.
+    phasor leftRef;
+    phasor rightRef;
+    compressor reference(dComp::MAX_DELAY_SAMPLES, 2);
+    reference.threshold(-30.f).ratio(8.f).attack(1.f).release(30.f).range(9.f).gainSmoothing(2.f);
+    reference.progressiveRelease(true).gate(true).gateThreshold(-40.f).lookahead(48);
+    reference.sidechainFilter(true).sidechainFrequency(200.f).linked(false);
+    MULTICHANNELBUFFER ref(2);
+    for (int block = 0; block < 20; ++block) {
+      CAPTURE(block);
+      dst.Calculate(YSE::T_DSP);
+      buffer& l = leftRef(375.f, N);
+      ref[0].resize(N);
+      for (unsigned int i = 0; i < N; ++i)
+        ref[0].getPtr()[i] = l.getPtr()[i] * 0.05f;
+      ref[1] = rightRef(750.f, N);
+      reference.process(ref);
+      CHECK(TestHelpers::buffersNearlyEqual(dst.output[0], ref[0], 0.f));
+      CHECK(TestHelpers::buffersNearlyEqual(dst.output[1], ref[1], 0.f));
+    }
+    // Unlinked: the loud right channel is held to the range, the quiet
+    // left one is not touched by the compressor; the delay is 48 samples.
+    CHECK(reference.gainReductionDb() == doctest::Approx(-9.f).epsilon(0.05));
+    CHECK(reference.latency() == 48u);
+  }
+
+  TEST_CASE("~comp: every #1241 control on, changed by messages on the audio thread, "
+            "allocates nothing (#1241)") {
+    TestHelpers::ScopedSampleRate rate(48000);
+    BufferSink out;
+    dComp comp;
+    comp.SetParams("range 10 smoothgain 3 progressiverelease 1 ngenabled 1 delay 1 "
+                   "sidechainfilterenabled 1 channelcoupling 0 detector 1 mix 0.7");
+    comp.ConnectOutlet(out.GetInlet(0), 0);
+    out.ConnectInlet(comp.GetOutlet(0), 0);
+    buffer in(N);
+    in = 0.8f;
+    buffer key(N);
+    key = 1.f;
+    const std::string delayLong = "delay 1000";
+    const std::string delayShort = "delay 0.25";
+    const std::string freeze = "freezelevel 1";
+    const std::string coupled = "channelcoupling 1";
+    const std::string freq = "sidechainfilterfreq 900";
+    const std::string gate = "ngthreshold -30";
+    {
+      TestHelpers::ProbeScope probe;
+      const auto block = [&](bool sidechain) {
+        comp.ResetDSP();
+        comp.GetInlet(0)->SetBuffer(&in, YSE::T_DSP);
+        comp.GetInlet(1)->SetBuffer(&in, YSE::T_DSP);
+        if (sidechain) comp.GetInlet(2)->SetBuffer(&key, YSE::T_DSP);
+        comp.Calculate(YSE::T_DSP);
+      };
+      block(false);
+      comp.GetInlet(0)->SetMessage(delayLong, YSE::T_DSP); // held at the delay line
+      block(true);
+      comp.GetInlet(0)->SetMessage(delayShort, YSE::T_DSP);
+      comp.GetInlet(0)->SetMessage(freeze, YSE::T_DSP);
+      comp.GetInlet(0)->SetMessage(coupled, YSE::T_DSP);
+      comp.GetInlet(0)->SetMessage(freq, YSE::T_DSP);
+      comp.GetInlet(0)->SetMessage(gate, YSE::T_DSP);
+      block(false);
+      block(true);
+      CHECK(TestHelpers::g_alloc_count.load() == 0);
+    }
+    CHECK(comp.Compressor().lookahead() == 12u);
+  }
+
 } // TEST_SUITE("patcher")

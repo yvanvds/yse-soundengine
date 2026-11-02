@@ -101,8 +101,8 @@ A stereo compressor. When the level goes over the threshold, the signal is
 turned down: with a ratio of 4, a level 8 dB over the threshold comes out 2 dB
 over it. Both channels share one gain, taken from the louder of them, so the
 balance between them stays put. The attack sets how quickly the gain comes
-down when the level rises, the release how quickly it comes back up. There is
-no lookahead, so the output is not delayed, and a sudden peak can get through
+down when the level rises, the release how quickly it comes back up. Without
+a ``delay`` the output is not delayed, and a sudden peak can get through
 before the gain has come down.
 
 Connect a signal to the right inlet and the level is taken from it instead of
@@ -126,13 +126,38 @@ messages to the left inlet (not saved):
   values blend in the signal as it came in.
 - ``bypass <0|1>``: send the signal through unchanged. The level is still
   followed, so switching back does not jump.
+- ``range <dB>``: the most the signal is turned down, default 120 (no limit),
+  from 0 to 120. With ``range 6`` a loud passage is never more than 6 dB
+  quieter.
+- ``smoothgain <ms>``: smooth the gain changes further, after the attack and
+  release, default 0 (off), up to 1000.
+- ``freezelevel <0|1>``: hold the gain where it is, default 0. The level is
+  still followed, so switching back picks up from there.
+- ``progressiverelease <0|1>``: let the gain come back up faster the more the
+  signal was turned down: twice as fast at 6 dB, three times at 12, default 0.
+- ``ngenabled <0|1>``: a noise gate, default 0. While the level stays under
+  ``ngthreshold <dB>`` (default -60, from -96 to 0) the signal fades out over
+  the release time, and it fades back in over the attack time.
+- ``delay <ms>``: look ahead, default 0. The signal is delayed by this much
+  while the level is taken from it undelayed, so the gain is already down
+  when a peak comes out. The output is that much late; the delay is rounded
+  to samples, at most 4096. Changing it empties the delay, so expect a short
+  gap.
+- ``sidechainfilterenabled <0|1>``: take the level from the signal with its
+  lows cut, below ``sidechainfilterfreq <Hz>`` (default 100, from 10 to
+  20000), default 0. A bass or kick drum then no longer pumps the rest of
+  the mix. Only the level is filtered, not the signal that comes out.
+- ``channelcoupling <0|1>``: 1 (the default) turns both channels down by the
+  same amount; 0 gives each channel a gain of its own, so a loud left channel
+  does not turn the right one down. With a sidechain, each channel then
+  listens to the sidechain alone.
 - ``meters <0|1>``: whether the rightmost outlet reports, default 1.
 - ``meterrate <ms>``: how often it reports, default 100; 0 reports every audio
   block.
 
 The rightmost outlet sends the deepest gain reduction since the last report,
 in dB, read at the end of each audio block: 0 when nothing was compressed, -6
-when the signal was halved. ``meterdata`` asks for one report after the next
+when the signal was halved. The noise gate counts as gain reduction too. ``meterdata`` asks for one report after the next
 block, even with the meters off. An unconnected left or middle inlet reads the
 last number sent to it, else 0.
 
@@ -140,6 +165,9 @@ last number sent to it, else 0.
 
    [~comp threshold -24 ratio 6 attack 2 release 80 makeup 4]
    a bass line held in place, brought back up by 4 dB after compression
+
+   [~comp threshold -20 ratio 10 attack 0.1 delay 2 sidechainfilterenabled 1]
+   a mix held under control without the kick pumping it, 2 ms late
 
 .. patcher-object:: ~multiband
 
