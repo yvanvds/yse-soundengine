@@ -184,6 +184,9 @@ Analysis
 .. doxygenfile:: dsp/analysis/minMax.hpp
    :project: libYSE
 
+.. doxygenfile:: dsp/analysis/sampleCapture.hpp
+   :project: libYSE
+
 Filters
 -------
 

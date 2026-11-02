@@ -16232,6 +16232,51 @@
     ],
     "requires_midi_device": false
   },
+  "~capture": {
+    "category": "ANALYSIS",
+    "description": "Stores the most recent (or the first) samples of a signal and sends them out as lists of numbers on a dump, or writes them to a text file. For debugging and test patches.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT",
+          "BANG"
+        ],
+        "doc": "The signal to store, or a number used while no signal is connected. A bang or 'dump' sends the stored values; 'clear' empties the store; 'write' followed by a file name saves them as text, one value per line.",
+        "index": 0,
+        "label": "signal",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~capture",
+    "outlets": [
+      {
+        "doc": "On a dump, the stored values oldest first, as lists of at most 256 values. A large store goes out over several blocks.",
+        "index": 0,
+        "label": "values",
+        "range": "list",
+        "type": "LIST"
+      },
+      {
+        "doc": "On a dump, how many values follow, before the first list.",
+        "index": 1,
+        "label": "count",
+        "range": "0 and up",
+        "type": "INT"
+      }
+    ],
+    "params": [
+      {
+        "default": "4096",
+        "doc": "An optional 'f' to keep the first samples instead of the most recent ones, the number of samples to keep (clamped to 1-1048576), then up to 10 positions in each block, counted from 0, to store instead of every sample ('~capture f 1000 0 64'). The stored samples are not saved with the patch.",
+        "name": "capture",
+        "range": "'f', a sample count, then block positions"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~cartopol": {
     "category": "MATH",
     "description": "Converts a signal pair from Cartesian to polar form: the real and imaginary parts in, the magnitude and phase out. On the two outputs of a Hilbert transform it gives the envelope and the instantaneous phase.",

@@ -157,6 +157,7 @@
 #include "analysis/dAverage.h"
 #include "analysis/dAvg.h"
 #include "analysis/dMinmax.h"
+#include "analysis/dCapture.h"
 #include "delay/dTapin.h"
 #include "delay/dTapout.h"
 #include "delay/dComb.h"
@@ -451,6 +452,7 @@ pRegistry::pRegistry() {
   Add(OBJ::D_AVERAGE, dAverage::Create);
   Add(OBJ::D_AVG, dAvg::Create);
   Add(OBJ::D_MINMAX, dMinmax::Create);
+  Add(OBJ::D_CAPTURE, dCapture::Create);
   Add(OBJ::D_TAPIN, dTapin::Create);
   Add(OBJ::D_TAPOUT, dTapout::Create);
   Add(OBJ::D_COMB, dComb::Create);

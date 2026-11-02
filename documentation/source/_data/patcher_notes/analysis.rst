@@ -269,3 +269,21 @@ since the last report.
 .. code-block:: text
 
    [~cycle 440] -> [~minmax]   about -1 and 1, the swing of the sine
+
+.. patcher-object:: ~capture
+
+Stores the samples of a signal so a patch can look at them: by default the
+most recent 4096, or with an ``f`` argument the first ones, until ``clear``.
+A bang or ``dump`` sends them out, oldest first: the right outlet first sends
+how many follow, then the left outlet sends them as lists of at most 256
+numbers, each short enough for any list object to hold. The dump is taken
+from the store as it is at the end of the next block; a large store goes out
+over several blocks while recording goes on. ``write`` followed by a file
+name saves the store as text, one value per line. The arguments are an
+optional ``f``, the number of samples to keep, then up to 10 positions in
+each block to store instead of every sample. The stored samples are not
+saved with the patch.
+
+.. code-block:: text
+
+   [~cycle 440] -> [~capture f 64]   a bang: 64, then the first 64 samples as one list
