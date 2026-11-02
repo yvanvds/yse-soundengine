@@ -41,6 +41,7 @@
 #include <vector>
 
 #include "patcher/genericObjects/gArray.h"
+#include "patcher/genericObjects/gArrayEnds.h"
 #include "patcher/inlet.h"
 #include "patcher/namedStore.h"
 #include "patcher/pEnums.h"
@@ -57,6 +58,7 @@ using TestHelpers::MultiSink;
 using TestHelpers::Wire;
 using YSE::PATCHER::arrayStore;
 using YSE::PATCHER::gArray;
+using YSE::PATCHER::gArrayPush;
 
 namespace {
 
@@ -613,6 +615,73 @@ TEST_SUITE("patcher") {
     copy->SetListData(0, "getvalue");
     CHECK(sink.gotList);
     CHECK(sink.listValue == "60 0.5 lead");
+  }
+
+  TEST_CASE("array: contents reload when an .array.* binder of the name has a lower ID (#1245)") {
+    // Every .array.* object acquires the named store in its Rebind(), and
+    // ParseJSON builds objects in stored-ID order (#730). A binder placed before
+    // the .array therefore brings the (empty) store into existence first; the
+    // saved contents must still land. Checked for a writer and a reader binder,
+    // since the issue is about binding, not about what the binder does.
+    for (const char* binderType : {YSE::OBJ::G_ARRAY_PUSH, YSE::OBJ::G_ARRAY_LENGTH}) {
+      CAPTURE(std::string(binderType));
+      MultiSink sink;
+      YSE::pHandle sinkHandle(&sink);
+
+      std::string json;
+      {
+        YSE::patcher src;
+        src.create(2);
+        src.name("array1245a");
+        REQUIRE(src.CreateObject(binderType, "q") != nullptr);
+        YSE::pHandle* holder = src.CreateObject(YSE::OBJ::G_ARRAY, "q");
+        REQUIRE(holder != nullptr);
+        holder->SetListData(0, "append 60 64 67");
+        json = src.DumpJSON();
+      }
+      // The source patcher is gone, so nothing still holds "q": the reload
+      // starts from an empty registry, as a patch opened in a fresh session does.
+
+      YSE::patcher loaded;
+      loaded.create(2);
+      loaded.name("array1245a");
+      loaded.ParseJSON(json);
+      REQUIRE(loaded.Objects() == 2);
+
+      YSE::pHandle* copy = nullptr;
+      for (unsigned int i = 0; i < loaded.Objects(); i++) {
+        YSE::pHandle* h = loaded.GetHandleFromList(i);
+        if (h != nullptr && std::string(h->Type()) == ".array") copy = h;
+      }
+      REQUIRE(copy != nullptr);
+      loaded.Connect(copy, 0, &sinkHandle, 0);
+
+      copy->SetListData(0, "getvalue");
+      CHECK(sink.gotList);
+      CHECK(sink.listValue == "60 64 67");
+    }
+  }
+
+  TEST_CASE("array: a reload does not overwrite an array a live binder already filled (#1245)") {
+    // The other half of the old creator rule: an .array arriving on a live name
+    // adopts what is there. With the restore claim moved from "created the
+    // store" to "first .array on it", a store that a binder created and filled
+    // before any .array existed must still not be reset by the first .array.
+    YSE::PATCHER::patcherImplementation p(2, nullptr);
+    p.SetName("array1245b");
+
+    gArrayPush push;
+    push.SetParent(&p);
+    push.SetParams("q");
+    push.GetInlet(0)->SetList("1 2", YSE::T_GUI);
+
+    gArray late;
+    late.SetParent(&p);
+    late.SetParams("q");
+    REQUIRE(late.Count() == 2);
+    late.RestoreState(nlohmann::json::parse(R"({"contents":[9]})"));
+    CHECK(late.Count() == 2);
+    CHECK(late.ElementAt(0) == "1");
   }
 
   TEST_CASE("array: an empty array writes no state key (#548)") {
