@@ -77,9 +77,8 @@ namespace YSE {
      *  not change the result while the settings stay put (the compressor
      *  reads its settings once per piece). Settings may be changed from
      *  another thread than the one processing; process from one thread at a
-     *  time. Everything is allocated in the constructor, which also runs
-     *  each compressor over one silent block so that its own scratch is
-     *  sized there; processing allocates nothing.
+     *  time. Everything is allocated in the constructor; processing allocates
+     *  nothing.
      */
     class API multibandCompressor {
     public:

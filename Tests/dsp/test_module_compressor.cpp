@@ -15,6 +15,7 @@
 // windows are derived from the actual SAMPLERATE so the tests hold at any rate.
 
 #include <doctest/doctest.h>
+#include <algorithm>
 #include <cmath>
 #include <vector>
 #include "dsp/modules/compressor.hpp"
@@ -535,6 +536,74 @@ TEST_SUITE("dsp") {
       c.process(buf, key);
       CHECK(TestHelpers::g_alloc_count.load() == 0);
     }
+  }
+
+  // ─── no allocation on the process path (issue #1235) ──────────────────────
+
+  TEST_CASE("compressor: the first block and longer blocks allocate nothing (#1235)") {
+    // A freshly built compressor, no warm-up: the first block, then blocks
+    // that grow past every length seen so far, with and without a sidechain.
+    compressor c;
+    c.detector(YSE::DSP::MODULES::DETECT_RMS).impact(0.5f);
+    MULTICHANNELBUFFER first(2), longer(2), longest(1), key(1);
+    for (auto& ch : first)
+      ch.resize(64);
+    for (auto& ch : longer)
+      ch.resize(YSE::STANDARD_BUFFERSIZE);
+    longest[0].resize(YSE::STANDARD_BUFFERSIZE * 4 + 37);
+    key[0].resize(YSE::STANDARD_BUFFERSIZE * 4 + 37);
+    first[0] = 0.5f;
+    first[1] = 0.25f;
+    longer[0] = 0.9f;
+    longer[1] = -0.9f;
+    longest[0] = 0.75f;
+    key[0] = 1.0f;
+    {
+      TestHelpers::ProbeScope probe;
+      c.process(first);
+      c.process(longer);
+      c.process(longest);
+      c.process(longest, key);
+      c.process(longer, key);
+      CHECK(TestHelpers::g_alloc_count.load() == 0);
+    }
+  }
+
+  TEST_CASE("compressor: a long block gives the same output as the same signal in short "
+            "blocks (#1235)") {
+    // Blocks longer than STANDARD_BUFFERSIZE are processed in pieces of at
+    // most that size, so how the signal is cut into blocks does not change
+    // the result while the settings stay put.
+    const UInt total = YSE::STANDARD_BUFFERSIZE * 3 + 50;
+    compressor whole, pieces;
+    whole.threshold(-30.0f).ratio(6.0f).attack(1.0f).impact(0.7f);
+    pieces.threshold(-30.0f).ratio(6.0f).attack(1.0f).impact(0.7f);
+
+    MULTICHANNELBUFFER big(2);
+    for (auto& ch : big)
+      ch.resize(total);
+    SineGen g0(300.0f, 0.9f), g1(450.0f, 0.6f);
+    g0.fill(big[0]);
+    g1.fill(big[1]);
+    std::vector<float> in0(big[0].getPtr(), big[0].getPtr() + total);
+    std::vector<float> in1(big[1].getPtr(), big[1].getPtr() + total);
+    whole.process(big);
+
+    MULTICHANNELBUFFER small(2);
+    for (UInt offset = 0; offset < total;) {
+      const UInt piece = std::min<UInt>(total - offset, YSE::STANDARD_BUFFERSIZE);
+      small[0].resize(piece);
+      small[1].resize(piece);
+      std::copy(in0.begin() + offset, in0.begin() + offset + piece, small[0].getPtr());
+      std::copy(in1.begin() + offset, in1.begin() + offset + piece, small[1].getPtr());
+      pieces.process(small);
+      for (UInt i = 0; i < piece; ++i) {
+        REQUIRE(small[0].getPtr()[i] == big[0].getPtr()[offset + i]);
+        REQUIRE(small[1].getPtr()[i] == big[1].getPtr()[offset + i]);
+      }
+      offset += piece;
+    }
+    CHECK(whole.gainReductionDb() == pieces.gainReductionDb());
   }
 
 } // TEST_SUITE("dsp")

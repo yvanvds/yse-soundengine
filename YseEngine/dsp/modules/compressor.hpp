@@ -54,8 +54,13 @@ namespace YSE {
        *  ``dspObject::process``).
        *
        *  The wet/dry balance is the inherited ``impact()``; ``impact(1)`` (the
-       *  default) is the fully-compressed insert. ``process`` allocates nothing
-       *  in steady state.
+       *  default) is the fully-compressed insert.
+       *
+       *  ``process`` allocates nothing, the first block included: the scratch
+       *  is sized in the constructor, and a block longer than
+       *  ``STANDARD_BUFFERSIZE`` is processed in pieces of at most that size.
+       *  How a signal is cut into blocks does not change the result while the
+       *  settings stay put (they are read once per piece).
        */
       class API compressor : public dspObject {
       public:
@@ -124,12 +129,14 @@ namespace YSE {
          *  channel of it is shorter than ``buffer``'s blocks, the detector
          *  listens to ``buffer`` itself, exactly as ``process(buffer)``. A key
          *  equal to the buffer gives the one-argument result bit for bit.
-         *  ``key`` is only read. Allocates nothing in steady state.
+         *  ``key`` is only read. Allocates nothing.
          */
         void process(MULTICHANNELBUFFER& buffer, MULTICHANNELBUFFER& key);
 
       private:
         void run(MULTICHANNELBUFFER& buffer, MULTICHANNELBUFFER& key);
+        void runPiece(MULTICHANNELBUFFER& buffer, MULTICHANNELBUFFER& key, UInt offset,
+                      UInt length);
 
         aFlt parmThreshold; // dBFS
         aFlt parmRatio;
@@ -145,9 +152,11 @@ namespace YSE {
 
         aFlt reductionDb; // last gain reduction (dB, <= 0) for metering
 
+        // Scratch, sized STANDARD_BUFFERSIZE in the constructor; a longer block
+        // is processed in pieces of at most that size, so it never grows.
         DSP::buffer gainBuf; // per-sample applied linear gain (shared across channels)
-        DSP::buffer wet; // per-block compressed scratch for the wet/dry mix
-        std::size_t blockLength; // last seen block length (scratch sizing)
+        DSP::buffer wet; // per-piece compressed scratch for the wet/dry mix
+        DSP::buffer dry; // dry copy of one piece of a longer block, for the mix
       };
 
     } // namespace MODULES
