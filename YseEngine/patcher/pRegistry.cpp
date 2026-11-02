@@ -162,6 +162,7 @@
 #include "dynamics/dLimi.h"
 #include "dynamics/dPeaklim.h"
 #include "dynamics/dComp.h"
+#include "dynamics/dMultiband.h"
 #include "delay/dDelay.h"
 #include "sampling/dBuffer.h"
 
@@ -453,6 +454,7 @@ pRegistry::pRegistry() {
   Add(OBJ::D_LIMI, dLimi::Create);
   Add(OBJ::D_PEAKLIM, dPeaklim::Create);
   Add(OBJ::D_COMP, dComp::Create);
+  Add(OBJ::D_MULTIBAND, dMultiband::Create);
   Add(OBJ::D_BUFFER, dBuffer::Create);
 
   Add(OBJ::G_SWITCH, gSwitch::Create);

@@ -278,6 +278,7 @@ namespace YSE {
     DEFOBJ(D_LIMI, "~limi");
     DEFOBJ(D_PEAKLIM, "~peaklim");
     DEFOBJ(D_COMP, "~comp");
+    DEFOBJ(D_MULTIBAND, "~multiband");
 
     DEFOBJ(D_BUFFER, "~buffer");
 

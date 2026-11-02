@@ -153,6 +153,7 @@
 #include "dsp/modules/normalize.hpp"
 #include "dsp/dynamics/lookaheadLimiter.hpp"
 #include "dsp/modules/compressor.hpp"
+#include "dsp/dynamics/multibandCompressor.hpp"
 #include "dsp/modules/ringModulator.hpp"
 #include "dsp/modules/sineWave.hpp"
 #include "dsp/modules/granulator.hpp"

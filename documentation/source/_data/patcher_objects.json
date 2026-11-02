@@ -18292,6 +18292,89 @@
     ],
     "requires_midi_device": false
   },
+  "~multiband": {
+    "category": "DYNAMICS",
+    "description": "A multiband compressor: splits a stereo signal into 2 to 5 frequency bands, compresses each band on its own and adds them back together. Reports the gain reduction of every band.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The left signal (unconnected, the last number sent here, else 0). Takes the settings as messages: threshold, ratio, attack, release, makeup, drive and level <value> (every band, or one with its number after the word: threshold2 <dB>), freq1-freq4 <Hz>, output <dB>, detector <0|1>, bypass <0|1>, meters <0|1>, meterrate <ms>, and meterdata.",
+        "index": 0,
+        "label": "left",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The right signal (unconnected, the last number sent here, else 0).",
+        "index": 1,
+        "label": "right",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~multiband",
+    "outlets": [
+      {
+        "doc": "The left signal compressed, its bands added back together.",
+        "index": 0,
+        "label": "left",
+        "range": "any float",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "The right signal compressed, its bands added back together.",
+        "index": 1,
+        "label": "right",
+        "range": "any float",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "The deepest gain reduction of band 1 since the last report, in dB, read at the end of each block: every meterrate ms while meters is on, and after the next block on meterdata.",
+        "index": 2,
+        "label": "band 1",
+        "range": "0 or less",
+        "type": "FLOAT"
+      },
+      {
+        "doc": "The deepest gain reduction of band 2 since the last report, in dB, read at the end of each block: every meterrate ms while meters is on, and after the next block on meterdata.",
+        "index": 3,
+        "label": "band 2",
+        "range": "0 or less",
+        "type": "FLOAT"
+      },
+      {
+        "doc": "The deepest gain reduction of band 3 since the last report, in dB, read at the end of each block: every meterrate ms while meters is on, and after the next block on meterdata.",
+        "index": 4,
+        "label": "band 3",
+        "range": "0 or less",
+        "type": "FLOAT"
+      },
+      {
+        "doc": "The deepest gain reduction of band 4 since the last report, in dB, read at the end of each block: every meterrate ms while meters is on, and after the next block on meterdata.",
+        "index": 5,
+        "label": "band 4",
+        "range": "0 or less",
+        "type": "FLOAT"
+      }
+    ],
+    "params": [
+      {
+        "default": "4",
+        "doc": "The band count (2-5, default 4), then any of 'threshold <dB>' (-18, -60 to 0), 'ratio <n>' (4, 1 to 20), 'attack <ms>' (10), 'release <ms>' (100), 'makeup <dB>' (0, -24 to 24), 'drive <dB>' (0) and 'level <dB>' (0, both -96 to 24) for every band, or for one band with its number after the word ('threshold2 -24'); 'freq1' to 'freq4 <Hz>' (the crossovers, default 200 1000 5000 for 4 bands, 120 500 2000 8000 for 5); 'output <dB>' (0); 'detector <0|1>' (0: peak, 1: RMS); 'bypass <0|1>' (0); 'meters <0|1>' (1) and 'meterrate <ms>' (100).",
+        "name": "settings",
+        "range": "a number, then words and values"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~noise": {
     "category": "OSC",
     "description": "White-noise generator. Sends a new block of random samples on every audio block.",

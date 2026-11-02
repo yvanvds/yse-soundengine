@@ -46,6 +46,7 @@ set(YSE_TEST_SOURCES
   dsp/test_scale.cpp
   dsp/test_normalize.cpp
   dsp/test_lookahead_limiter.cpp
+  dsp/test_multiband_compressor.cpp
   dsp/test_direction.cpp
   dsp/test_edge_detector.cpp
   dsp/test_schmitt_trigger.cpp
@@ -294,6 +295,7 @@ set(YSE_TEST_SOURCES
   patcher/test_patcher_signal_normalize.cpp
   patcher/test_patcher_signal_limiters.cpp
   patcher/test_patcher_signal_comp.cpp
+  patcher/test_patcher_signal_multiband.cpp
   patcher/test_patcher_signal_change.cpp
   patcher/test_patcher_signal_edge.cpp
   patcher/test_patcher_signal_thresh.cpp
@@ -1462,6 +1464,7 @@ set_source_files_properties(
   patcher/test_patcher_signal_normalize.cpp
   patcher/test_patcher_signal_limiters.cpp
   patcher/test_patcher_signal_comp.cpp
+  patcher/test_patcher_signal_multiband.cpp
   patcher/test_patcher_signal_change.cpp
   patcher/test_patcher_signal_edge.cpp
   patcher/test_patcher_signal_thresh.cpp
