@@ -18277,6 +18277,69 @@
     ],
     "requires_midi_device": false
   },
+  "~minmax": {
+    "category": "ANALYSIS",
+    "description": "Tracks the running minimum and maximum of a signal: the lowest and highest sample values since the last reset, as signals and on a bang.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT",
+          "BANG"
+        ],
+        "doc": "The signal to measure, or a number used while no signal is connected. A bang reports the minimum and maximum so far; 'reset' starts over.",
+        "index": 0,
+        "label": "signal",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The reset signal, or a number used while none is connected: every sample where it is not 0 starts over at that sample.",
+        "index": 1,
+        "label": "reset",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~minmax",
+    "outlets": [
+      {
+        "doc": "The lowest sample value since the last reset, after each sample. 0 until the first.",
+        "index": 0,
+        "label": "minimum",
+        "range": "any float",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "The highest sample value since the last reset, after each sample. 0 until the first.",
+        "index": 1,
+        "label": "maximum",
+        "range": "any float",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "The lowest sample value since the last reset, on a bang.",
+        "index": 2,
+        "label": "minimum on bang",
+        "range": "any float",
+        "type": "FLOAT"
+      },
+      {
+        "doc": "The highest sample value since the last reset, on a bang.",
+        "index": 3,
+        "label": "maximum on bang",
+        "range": "any float",
+        "type": "FLOAT"
+      }
+    ],
+    "params": [],
+    "requires_midi_device": false
+  },
   "~mstosamps": {
     "category": "MATH",
     "description": "Converts milliseconds to samples at the current sample rate. A number or list in is also converted at once and sent from the right outlet.",

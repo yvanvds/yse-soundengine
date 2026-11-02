@@ -133,6 +133,7 @@
 #include "dsp/analysis/zeroCrossing.hpp"
 #include "dsp/analysis/peakTracker.hpp"
 #include "dsp/analysis/movingAverage.hpp"
+#include "dsp/analysis/minMax.hpp"
 #include "dsp/operators/compare.hpp"
 #include "dsp/operators/trig.hpp"
 #include "dsp/operators/rounding.hpp"

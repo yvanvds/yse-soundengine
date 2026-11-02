@@ -181,6 +181,9 @@ Analysis
 .. doxygenfile:: dsp/analysis/movingAverage.hpp
    :project: libYSE
 
+.. doxygenfile:: dsp/analysis/minMax.hpp
+   :project: libYSE
+
 Filters
 -------
 

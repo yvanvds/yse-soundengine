@@ -252,3 +252,20 @@ as 0. Use ``~average`` for a running average as a signal.
 .. code-block:: text
 
    [~cycle 440] -> [~avg]   about 0.637 (2/pi) on every bang
+
+.. patcher-object:: ~minmax
+
+Tracks the lowest and the highest sample value of a signal since the last
+reset. The left outlets carry both as signals, updated on every sample; a
+bang sends them as numbers from the right outlets, answered at the start of
+the next block with the values up to there. A bang does not start over:
+``reset`` does, at the start of the next block, after any bang sent with it.
+The right inlet resets sample-accurately: every sample where it is not 0
+starts over at that sample, so a held non-zero number there makes both
+outputs follow the input. Until the first sample both are 0, and a sample
+that is not a number is skipped. Use ``~peakamp`` for the largest magnitude
+since the last report.
+
+.. code-block:: text
+
+   [~cycle 440] -> [~minmax]   about -1 and 1, the swing of the sine
