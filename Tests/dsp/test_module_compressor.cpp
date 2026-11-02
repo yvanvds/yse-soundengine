@@ -19,6 +19,7 @@
 #include <vector>
 #include "dsp/modules/compressor.hpp"
 #include "headers/defines.hpp"
+#include "support/alloc_probe.hpp"
 #include "support/audio_helpers.hpp"
 
 static constexpr float kPi = 3.14159265358979323846f;
@@ -390,6 +391,149 @@ TEST_SUITE("dsp") {
       c.process(buf);
       CHECK(peakAbs(buf[0]) < 50.0f);
       CHECK(peakAbs(buf[1]) < 50.0f);
+    }
+  }
+
+  // ─── external sidechain (issue #1116) ──────────────────────────────────────
+
+  TEST_CASE("compressor: a sidechain equal to the buffer gives process(buffer) bit for bit "
+            "(#1116)") {
+    for (int rms = 0; rms < 2; ++rms) {
+      CAPTURE(rms);
+      compressor plain;
+      compressor keyed;
+      for (compressor* c : {&plain, &keyed})
+        c->threshold(-24.0f).ratio(6.0f).attack(2.0f).release(40.0f).makeup(3.0f).detector(
+            rms != 0 ? YSE::DSP::MODULES::DETECT_RMS : YSE::DSP::MODULES::DETECT_PEAK);
+      MULTICHANNELBUFFER a(2), b(2), key(2);
+      for (auto* m : {&a, &b, &key})
+        for (auto& ch : *m)
+          ch.resize(128);
+      SineGen g0(300.0f, 0.9f), g1(470.0f, 0.2f);
+      for (int block = 0; block < 40; ++block) {
+        g0.fill(a[0]);
+        g1.fill(a[1]);
+        b[0] = a[0];
+        b[1] = a[1];
+        key[0] = a[0];
+        key[1] = a[1];
+        plain.process(a);
+        keyed.process(b, key);
+        CHECK(TestHelpers::buffersNearlyEqual(a[0], b[0], 0.0f));
+        CHECK(TestHelpers::buffersNearlyEqual(a[1], b[1], 0.0f));
+      }
+      CHECK(plain.gainReductionDb() == keyed.gainReductionDb());
+      CHECK(plain.gainReductionDb() < -1.0f);
+    }
+  }
+
+  TEST_CASE("compressor: a silent sidechain leaves a loud signal alone (#1116)") {
+    compressor c;
+    c.threshold(-30.0f).ratio(10.0f);
+    MULTICHANNELBUFFER buf(1), key(1);
+    buf[0].resize(256);
+    key[0].resize(256);
+    key[0] = 0.0f;
+    SineGen g(440.0f, 1.0f);
+    YSE::DSP::buffer dry(256);
+    for (int block = 0; block < 50; ++block) {
+      g.fill(buf[0]);
+      dry = buf[0];
+      c.process(buf, key);
+      CHECK(TestHelpers::buffersNearlyEqual(buf[0], dry, 0.0f));
+    }
+    CHECK(c.gainReductionDb() == doctest::Approx(0.0f).epsilon(1e-6));
+  }
+
+  TEST_CASE("compressor: a loud sidechain ducks a quiet signal by the static curve (#1116)") {
+    // A key at 0 dBFS against threshold -18, ratio 4: (0 + 18) * (1/4 - 1)
+    // = -13.5 dB, applied to a -40 dBFS signal that alone would pass.
+    compressor c;
+    c.threshold(-18.0f).ratio(4.0f).attack(1.0f).release(50.0f);
+    MULTICHANNELBUFFER buf(2), key(1);
+    buf[0].resize(256);
+    buf[1].resize(256);
+    key[0].resize(256);
+    key[0] = 1.0f;
+    SineGen g0(440.0f, dbToLin(-40.0f)), g1(550.0f, dbToLin(-40.0f));
+    YSE::DSP::buffer dry0(256), dry1(256);
+    const int settle = static_cast<int>(0.5f * sr() / 256.0f) + 4;
+    for (int block = 0; block < settle; ++block) {
+      g0.fill(buf[0]);
+      g1.fill(buf[1]);
+      c.process(buf, key);
+    }
+    g0.fill(buf[0]);
+    g1.fill(buf[1]);
+    dry0 = buf[0];
+    dry1 = buf[1];
+    c.process(buf, key);
+    const float expected = dbToLin(-13.5f);
+    for (unsigned i = 0; i < 256; ++i) {
+      CHECK(buf[0].getPtr()[i] == doctest::Approx(dry0.getPtr()[i] * expected).epsilon(1e-3));
+      CHECK(buf[1].getPtr()[i] == doctest::Approx(dry1.getPtr()[i] * expected).epsilon(1e-3));
+    }
+    CHECK(c.gainReductionDb() == doctest::Approx(-13.5f).epsilon(1e-3));
+
+    // The key's channels are linked: the loudest of them is the level.
+    compressor two;
+    two.threshold(-18.0f).ratio(4.0f).attack(1.0f).release(50.0f);
+    MULTICHANNELBUFFER mono(1), keys(2);
+    mono[0].resize(256);
+    keys[0].resize(256);
+    keys[1].resize(256);
+    keys[0] = 0.01f;
+    keys[1] = -1.0f;
+    for (int block = 0; block < settle; ++block) {
+      mono[0] = 0.001f;
+      two.process(mono, keys);
+    }
+    CHECK(two.gainReductionDb() == doctest::Approx(-13.5f).epsilon(1e-3));
+  }
+
+  TEST_CASE("compressor: an empty or short sidechain falls back to the buffer (#1116)") {
+    compressor plain, emptyKey, shortKey;
+    for (compressor* c : {&plain, &emptyKey, &shortKey})
+      c->threshold(-20.0f).ratio(8.0f);
+    MULTICHANNELBUFFER a(1), b(1), d(1), none, brief(1);
+    a[0].resize(128);
+    b[0].resize(128);
+    d[0].resize(128);
+    brief[0].resize(64);
+    brief[0] = 0.0f; // silent: would leave the signal alone if it were used
+    SineGen g(330.0f, 0.8f);
+    for (int block = 0; block < 20; ++block) {
+      g.fill(a[0]);
+      b[0] = a[0];
+      d[0] = a[0];
+      plain.process(a);
+      emptyKey.process(b, none);
+      shortKey.process(d, brief);
+      CHECK(TestHelpers::buffersNearlyEqual(a[0], b[0], 0.0f));
+      CHECK(TestHelpers::buffersNearlyEqual(a[0], d[0], 0.0f));
+    }
+    CHECK(plain.gainReductionDb() < -1.0f);
+  }
+
+  TEST_CASE("compressor: processing, with and without a sidechain, allocates nothing "
+            "(#1116)") {
+    compressor c;
+    c.detector(YSE::DSP::MODULES::DETECT_RMS);
+    MULTICHANNELBUFFER buf(2), key(1);
+    for (auto& ch : buf)
+      ch.resize(128);
+    key[0].resize(128);
+    buf[0] = 0.5f;
+    buf[1] = 0.25f;
+    key[0] = 1.0f;
+    c.process(buf); // the first block sizes the scratch
+    {
+      TestHelpers::ProbeScope probe;
+      c.process(buf);
+      c.process(buf, key);
+      c.threshold(-30.0f).ratio(2.0f).attack(5.0f).release(20.0f).makeup(2.0f).impact(0.5f);
+      c.process(buf, key);
+      CHECK(TestHelpers::g_alloc_count.load() == 0);
     }
   }
 

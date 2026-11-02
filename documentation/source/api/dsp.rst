@@ -37,6 +37,12 @@ Math
 .. doxygenfile:: dsp/operators/overdrive.hpp
    :project: libYSE
 
+.. doxygenfile:: dsp/operators/fold.hpp
+   :project: libYSE
+
+.. doxygenfile:: dsp/operators/scale.hpp
+   :project: libYSE
+
 Generators
 ----------
 
@@ -252,6 +258,18 @@ Delay
 
 .. doxygenfile:: dsp/delay/sampleDelay.hpp
    :project: libYSE
+
+Dynamics
+--------
+
+.. doxygenfile:: dsp/dynamics/lookaheadLimiter.hpp
+   :project: libYSE
+
+.. doxygenfile:: dsp/dynamics/multibandCompressor.hpp
+   :project: libYSE
+
+The compressor that ``~comp`` wraps, :cpp:class:`YSE::DSP::MODULES::compressor`,
+is documented with the effects on :doc:`effects`.
 
 Sample buffers
 --------------

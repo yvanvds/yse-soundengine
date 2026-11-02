@@ -113,7 +113,24 @@ namespace YSE {
         /** @brief dspObject audio-thread entry point. */
         void process(MULTICHANNELBUFFER& buffer) override;
 
+        /**
+         *  @brief Process ``buffer`` in place with the detector listening to
+         *         ``key`` instead (an external sidechain).
+         *
+         *  The level is taken from every channel of ``key`` (linked, as from
+         *  the buffer in the one-argument ``process``) and the resulting gain
+         *  is applied to every channel of ``buffer``. ``key`` may have a
+         *  different channel count from ``buffer``. When ``key`` is empty or a
+         *  channel of it is shorter than ``buffer``'s blocks, the detector
+         *  listens to ``buffer`` itself, exactly as ``process(buffer)``. A key
+         *  equal to the buffer gives the one-argument result bit for bit.
+         *  ``key`` is only read. Allocates nothing in steady state.
+         */
+        void process(MULTICHANNELBUFFER& buffer, MULTICHANNELBUFFER& key);
+
       private:
+        void run(MULTICHANNELBUFFER& buffer, MULTICHANNELBUFFER& key);
+
         aFlt parmThreshold; // dBFS
         aFlt parmRatio;
         aFlt parmAttack; // ms
