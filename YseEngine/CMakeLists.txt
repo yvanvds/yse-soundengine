@@ -135,6 +135,10 @@ set(YSE_SRCS
   dsp/analysis/spikeDetector.cpp
   dsp/analysis/zeroCrossing.cpp
   dsp/analysis/peakTracker.cpp
+  dsp/analysis/movingAverage.cpp
+  dsp/analysis/minMax.cpp
+  dsp/analysis/loudnessMeter.cpp
+  dsp/analysis/sampleCapture.cpp
   dsp/operators/compare.cpp
   dsp/operators/trig.cpp
   dsp/operators/rounding.cpp
@@ -192,6 +196,11 @@ set(YSE_SRCS
   patcher/analysis/dSpike.cpp
   patcher/analysis/dZerox.cpp
   patcher/analysis/dPeakamp.cpp
+  patcher/analysis/dAverage.cpp
+  patcher/analysis/dAvg.cpp
+  patcher/analysis/dMinmax.cpp
+  patcher/analysis/dLoudness.cpp
+  patcher/analysis/dCapture.cpp
   patcher/analysis/dWhat.cpp
   patcher/analysis/dWhere.cpp
   patcher/delay/dTapin.cpp
@@ -665,6 +674,11 @@ set_source_files_properties(
   patcher/analysis/dSpike.cpp
   patcher/analysis/dZerox.cpp
   patcher/analysis/dPeakamp.cpp
+  patcher/analysis/dAverage.cpp
+  patcher/analysis/dAvg.cpp
+  patcher/analysis/dMinmax.cpp
+  patcher/analysis/dLoudness.cpp
+  patcher/analysis/dCapture.cpp
   patcher/analysis/dWhat.cpp
   patcher/analysis/dWhere.cpp
   patcher/delay/dTapin.cpp

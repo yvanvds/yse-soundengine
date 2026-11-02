@@ -36,13 +36,10 @@ namespace {
 #define className dComp
 
 CONSTRUCT_DSP(), stereo(2), key(1) {
-  // Size the scratch here, on the control thread: the class sizes its own
-  // per-block buffers on the first block it sees, so one silent block (which
-  // leaves its gain at 1) keeps that allocation off the audio thread.
+  // Size the scratch here, on the control thread, not on the audio thread.
   stereo[0].resize(STANDARD_BUFFERSIZE);
   stereo[1].resize(STANDARD_BUFFERSIZE);
   key[0].resize(STANDARD_BUFFERSIZE);
-  fn.process(stereo);
   Defaults();
 
   // in 0: left; the settings as messages

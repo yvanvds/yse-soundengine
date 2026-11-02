@@ -178,6 +178,18 @@ Analysis
 .. doxygenfile:: dsp/analysis/peakTracker.hpp
    :project: libYSE
 
+.. doxygenfile:: dsp/analysis/movingAverage.hpp
+   :project: libYSE
+
+.. doxygenfile:: dsp/analysis/minMax.hpp
+   :project: libYSE
+
+.. doxygenfile:: dsp/analysis/sampleCapture.hpp
+   :project: libYSE
+
+.. doxygenfile:: dsp/analysis/loudnessMeter.hpp
+   :project: libYSE
+
 Filters
 -------
 

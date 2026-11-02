@@ -214,3 +214,101 @@ up to there, and several reports in one block send only the last.
 .. code-block:: text
 
    [~cycle 440] -> [~* 0.5] -> [~peakamp 100]   0.5, ten times a second
+
+.. patcher-object:: ~average
+
+Averages a signal over its last N samples and outputs the result as a
+signal, one value per sample. It follows the level of a signal: an envelope
+follower, a level meter or a smoothed control. There are three modes.
+``bipolar``, the default, is the plain mean, so a tone centred on 0 averages
+near 0 and only the DC offset remains. ``absolute`` is the mean of the
+absolute values. ``rms`` is the root mean square, the usual measure of
+loudness.
+
+The first argument is the longest interval in samples, 100 by default,
+and the object starts with that interval. The second argument is the mode
+word, such as ``~average 1000 rms``. A number sent to the inlet changes the
+interval, clamped to 1 and the maximum. The words ``bipolar``, ``absolute``
+and ``rms``, or ``mode`` followed by one of them, change the mode. Until a
+full interval of samples has arrived, the missing ones count as 0, so the
+output ramps up from silence. A sample that is not a number or is infinite
+also counts as 0.
+
+.. code-block:: text
+
+   [~cycle 480] -> [~average 100 rms]   about 0.707: one full cycle at 48 kHz
+
+.. patcher-object:: ~avg
+
+Reports the average absolute value of a signal since the last report: a
+cheap way to poll the level of a signal from control logic. Every bang
+outputs the mean of the absolute sample values that arrived since the
+previous bang, then starts measuring again, so a ``.metro`` driving the bang
+sets how often the level is read. A bang is answered at the start of the
+next block with the average up to there. With no samples since the last
+bang, the report is 0. A sample that is not a number or is infinite counts
+as 0. Use ``~average`` for a running average as a signal.
+
+.. code-block:: text
+
+   [~cycle 440] -> [~avg]   about 0.637 (2/pi) on every bang
+
+.. patcher-object:: ~minmax
+
+Tracks the lowest and the highest sample value of a signal since the last
+reset. The left outlets carry both as signals, updated on every sample; a
+bang sends them as numbers from the right outlets, answered at the start of
+the next block with the values up to there. A bang does not start over:
+``reset`` does, at the start of the next block, after any bang sent with it.
+The right inlet resets sample-accurately: every sample where it is not 0
+starts over at that sample, so a held non-zero number there makes both
+outputs follow the input. Until the first sample both are 0, and a sample
+that is not a number is skipped. Use ``~peakamp`` for the largest magnitude
+since the last report.
+
+.. code-block:: text
+
+   [~cycle 440] -> [~minmax]   about -1 and 1, the swing of the sine
+
+.. patcher-object:: ~capture
+
+Stores the samples of a signal so a patch can look at them: by default the
+most recent 4096, or with an ``f`` argument the first ones, until ``clear``.
+A bang or ``dump`` sends them out, oldest first: the right outlet first sends
+how many follow, then the left outlet sends them as lists of at most 256
+numbers, each short enough for any list object to hold. The dump is taken
+from the store as it is at the end of the next block; a large store goes out
+over several blocks while recording goes on. ``write`` followed by a file
+name saves the store as text, one value per line. The arguments are an
+optional ``f``, the number of samples to keep, then up to 10 positions in
+each block to store instead of every sample. The stored samples are not
+saved with the patch.
+
+.. code-block:: text
+
+   [~cycle 440] -> [~capture f 64]   a bang: 64, then the first 64 samples as one list
+
+.. patcher-object:: ~loudness
+
+Measures loudness after EBU R 128 and ITU-R BS.1770 in LUFS (loudness units
+relative to full scale): the momentary loudness over the last 400 ms, the
+short-term loudness over the last 3 s, and the integrated loudness of
+everything since the start or the last ``reset``, leaving out the parts at
+-70 LUFS or below and those 10 LU or more below the rest. The fourth outlet
+gives the loudness range in LU after EBU Tech 3342: how far the short-term
+loudness spreads, from its 10th to its 95th percentile, once 3 s have been
+measured. The last two give the sample peak in dBFS and the true peak in
+dBTP, which looks between the samples by oversampling them 4 times and so
+also catches the crests that fall between them. The signals pass through the
+K-weighting filters of the standard, which follow the sample rate. The first argument
+sets the number of signal inlets; all of them are measured together, each
+with a weight of 1. A bang reports all six values, answered at the start
+of the next block with the values up to there; the second argument, or
+``interval``, sets a time in milliseconds to report automatically. A number
+picks the inlet whose peaks are reported, 0 the highest of all, and reports.
+Silence reads -200. ``reset`` starts the integrated loudness, the loudness
+range and the peaks over.
+
+.. code-block:: text
+
+   [~cycle 1000] -> [~* 0.1] -> [~loudness 1 100]   about -23 LUFS

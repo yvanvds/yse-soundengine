@@ -40,10 +40,6 @@ namespace YSE {
         signal[b].resize(channelCount);
         for (DSP::buffer& s : signal[b])
           s.resize(STANDARD_BUFFERSIZE);
-        // The compressor sizes its scratch on the first block it sees: a
-        // silent one here (its gain stays at 1) keeps that off the audio
-        // thread. Shorter blocks later fit in what it has.
-        compressors[b].process(signal[b]);
       }
     }
 

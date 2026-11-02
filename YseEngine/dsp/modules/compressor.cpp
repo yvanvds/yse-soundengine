@@ -47,7 +47,9 @@ YSE::DSP::MODULES::compressor::compressor()
     msEnv(0.0f),
     rmsCoef(0.0f),
     reductionDb(0.0f),
-    blockLength(0) {}
+    gainBuf(STANDARD_BUFFERSIZE),
+    wet(STANDARD_BUFFERSIZE),
+    dry(STANDARD_BUFFERSIZE) {}
 
 YSE::DSP::MODULES::compressor& YSE::DSP::MODULES::compressor::detector(compressorDetector value) {
   parmDetector.store(static_cast<Int>(value));
@@ -136,18 +138,30 @@ void YSE::DSP::MODULES::compressor::run(MULTICHANNELBUFFER& buffer, MULTICHANNEL
 
   if (buffer.empty()) return;
 
+  // The scratch holds STANDARD_BUFFERSIZE samples from the constructor, so a
+  // longer block is processed in pieces of at most that size: nothing is
+  // allocated on the first block or when the block length grows (#1235).
+  // The gain recursion runs per sample, so the cut does not change the result
+  // while the settings stay put.
+  const UInt length = buffer[0].getLength();
+  for (UInt offset = 0; offset < length;) {
+    const UInt piece = std::min<UInt>(length - offset, STANDARD_BUFFERSIZE);
+    runPiece(buffer, key, offset, piece);
+    offset += piece;
+  }
+}
+
+void YSE::DSP::MODULES::compressor::runPiece(MULTICHANNELBUFFER& buffer, MULTICHANNELBUFFER& key,
+                                             UInt offset, UInt length) {
   const std::size_t n = buffer.size();
-  const std::size_t length = buffer[0].getLength();
   // The detector's channels: the buffer's own, or the sidechain's.
   const std::size_t keys = key.size();
 
-  if (length != blockLength) {
-    gainBuf.resize(static_cast<UInt>(length));
-    wet.resize(static_cast<UInt>(length));
-    blockLength = length;
-  }
+  // Within the capacity set in the constructor: no allocation.
+  if (gainBuf.getLength() != length) gainBuf.resize(length);
+  if (wet.getLength() != length) wet.resize(length);
 
-  // Snapshot parameters once per block (control-thread atomics → audio locals).
+  // Snapshot parameters once per piece (control-thread atomics → audio locals).
   const Flt sr = static_cast<Flt>(SAMPLERATE);
   const Flt thresholdDb = parmThreshold.load();
   const Flt ratioVal = parmRatio.load();
@@ -164,13 +178,13 @@ void YSE::DSP::MODULES::compressor::run(MULTICHANNELBUFFER& buffer, MULTICHANNEL
   Flt* gb = gainBuf.getPtr();
 
   // ─── Pass 1: one linked sidechain → one gain curve for every channel ───
-  for (std::size_t i = 0; i < length; ++i) {
+  for (UInt i = 0; i < length; ++i) {
     // Linked detector level across all channels at this sample.
     Flt level;
     if (rms) {
       Flt sumSq = 0.0f;
       for (std::size_t ch = 0; ch < keys; ++ch) {
-        const Flt s = key[ch].getPtr()[i];
+        const Flt s = key[ch].getPtr()[offset + i];
         sumSq += s * s;
       }
       const Flt meanSq = sumSq / static_cast<Flt>(keys);
@@ -179,7 +193,7 @@ void YSE::DSP::MODULES::compressor::run(MULTICHANNELBUFFER& buffer, MULTICHANNEL
     } else {
       Flt peak = 0.0f;
       for (std::size_t ch = 0; ch < keys; ++ch) {
-        const Flt a = std::abs(key[ch].getPtr()[i]);
+        const Flt a = std::abs(key[ch].getPtr()[offset + i]);
         if (a > peak) peak = a;
       }
       level = peak;
@@ -204,10 +218,19 @@ void YSE::DSP::MODULES::compressor::run(MULTICHANNELBUFFER& buffer, MULTICHANNEL
 
   // ─── Pass 2: apply the shared gain to every channel, then wet/dry mix ───
   for (std::size_t ch = 0; ch < n; ++ch) {
-    Flt* x = buffer[ch].getPtr(); // dry input (preserved for calculateImpact)
+    Flt* x = buffer[ch].getPtr() + offset; // dry input (preserved for calculateImpact)
     Flt* w = wet.getPtr();
-    for (std::size_t i = 0; i < length; ++i)
+    for (UInt i = 0; i < length; ++i)
       w[i] = x[i] * gb[i];
-    calculateImpact(buffer[ch], wet);
+    if (length == buffer[ch].getLength()) {
+      calculateImpact(buffer[ch], wet);
+    } else {
+      // A piece of a longer block: mix through the dry scratch.
+      if (dry.getLength() != length) dry.resize(length);
+      Flt* d = dry.getPtr();
+      std::copy(x, x + length, d);
+      calculateImpact(dry, wet);
+      std::copy(d, d + length, x);
+    }
   }
 }

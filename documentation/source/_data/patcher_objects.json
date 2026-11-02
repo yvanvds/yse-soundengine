@@ -15699,6 +15699,72 @@
     "params": [],
     "requires_midi_device": false
   },
+  "~average": {
+    "category": "ANALYSIS",
+    "description": "The running average of a signal over its last N samples, as a signal: the plain mean (bipolar), the mean magnitude (absolute) or the root mean square (rms). For envelope following and level detection.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The signal to average; unconnected it reads as silence. A number sets the averaging interval in samples, clamped to 1 and the maximum. 'bipolar', 'absolute' and 'rms' set the mode, as does 'mode' followed by one of them.",
+        "index": 0,
+        "label": "signal",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~average",
+    "outlets": [
+      {
+        "doc": "The average of the last interval samples at every sample: their mean in bipolar mode, their mean absolute value in absolute mode, their root mean square in rms mode. Before a full interval has arrived the missing samples count as 0.",
+        "index": 0,
+        "label": "average",
+        "range": "any float",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "100 bipolar",
+        "doc": "The maximum averaging interval in samples, which is also the initial interval, then the mode: bipolar, absolute or rms ('~average 1000 rms'). The maximum sizes the history and is clamped to 1-1048576. Later numbers and messages do not change what is saved.",
+        "name": "average",
+        "range": "a maximum interval, then a mode"
+      }
+    ],
+    "requires_midi_device": false
+  },
+  "~avg": {
+    "category": "ANALYSIS",
+    "description": "Reports the average absolute value of a signal since the last bang: cheap level polling.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "BANG"
+        ],
+        "doc": "The signal to measure; unconnected it reads as silence. A bang reports the average so far and starts again.",
+        "index": 0,
+        "label": "signal",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~avg",
+    "outlets": [
+      {
+        "doc": "The mean absolute sample value since the last bang. 0 when nothing was measured.",
+        "index": 0,
+        "label": "average",
+        "range": "0 or more",
+        "type": "FLOAT"
+      }
+    ],
+    "params": [],
+    "requires_midi_device": false
+  },
   "~biquad": {
     "category": "FILTER",
     "description": "Two-pole, two-zero filter driven directly by five coefficients, y(n) = a0 x(n) + a1 x(n-1) + a2 x(n-2) - b1 y(n-1) - b2 y(n-2), each a number or a signal read per sample: any biquad design, or a ringing oscillator.",
@@ -16162,6 +16228,51 @@
         "doc": "Optional: an audio file to load when the object is created, then the size in ms and the number of channels. A number in the file's place is the size.",
         "name": "file",
         "range": "file, ms, count"
+      }
+    ],
+    "requires_midi_device": false
+  },
+  "~capture": {
+    "category": "ANALYSIS",
+    "description": "Stores the most recent (or the first) samples of a signal and sends them out as lists of numbers on a dump, or writes them to a text file. For debugging and test patches.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT",
+          "BANG"
+        ],
+        "doc": "The signal to store, or a number used while no signal is connected. A bang or 'dump' sends the stored values; 'clear' empties the store; 'write' followed by a file name saves them as text, one value per line.",
+        "index": 0,
+        "label": "signal",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~capture",
+    "outlets": [
+      {
+        "doc": "On a dump, the stored values oldest first, as lists of at most 256 values. A large store goes out over several blocks.",
+        "index": 0,
+        "label": "values",
+        "range": "list",
+        "type": "LIST"
+      },
+      {
+        "doc": "On a dump, how many values follow, before the first list.",
+        "index": 1,
+        "label": "count",
+        "range": "0 and up",
+        "type": "INT"
+      }
+    ],
+    "params": [
+      {
+        "default": "4096",
+        "doc": "An optional 'f' to keep the first samples instead of the most recent ones, the number of samples to keep (clamped to 1-1048576), then up to 10 positions in each block, counted from 0, to store instead of every sample ('~capture f 1000 0 64'). The stored samples are not saved with the patch.",
+        "name": "capture",
+        "range": "'f', a sample count, then block positions"
       }
     ],
     "requires_midi_device": false
@@ -18071,6 +18182,79 @@
     ],
     "requires_midi_device": false
   },
+  "~loudness": {
+    "category": "ANALYSIS",
+    "description": "Measures loudness after EBU R 128 and ITU-R BS.1770: the momentary (400 ms), short-term (3 s) and gated integrated loudness of one or more signals in LUFS, their loudness range in LU, and their sample peak and true peak, on a bang or every interval.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT",
+          "BANG"
+        ],
+        "doc": "A signal to measure; unconnected it reads as silence. A bang reports; a number picks the channel whose peaks are reported (0 the highest of all) and reports. Also takes 'channel <n>', 'interval <ms>' (0 stops automatic reports) and 'reset', which starts the integrated loudness and the loudness range and the peaks over.",
+        "index": 0,
+        "label": "signal",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~loudness",
+    "outlets": [
+      {
+        "doc": "The momentary loudness in LUFS: the K-weighted level of the last 400 ms. -200 for silence.",
+        "index": 0,
+        "label": "momentary",
+        "range": "-200 or more LUFS",
+        "type": "FLOAT"
+      },
+      {
+        "doc": "The short-term loudness in LUFS: the K-weighted level of the last 3 s. -200 for silence.",
+        "index": 1,
+        "label": "short-term",
+        "range": "-200 or more LUFS",
+        "type": "FLOAT"
+      },
+      {
+        "doc": "The integrated loudness in LUFS since the start or the last reset, gated at -70 LUFS and 10 LU below the mean. -200 while nothing passes the gates.",
+        "index": 2,
+        "label": "integrated",
+        "range": "-200 or more LUFS",
+        "type": "FLOAT"
+      },
+      {
+        "doc": "The loudness range in LU since the start or the last reset (EBU Tech 3342): the spread of the short-term loudness between its 10th and 95th percentiles. 0 until 3 s have been measured.",
+        "index": 3,
+        "label": "loudness range",
+        "range": "0 or more LU",
+        "type": "FLOAT"
+      },
+      {
+        "doc": "The largest sample magnitude since the start or the last reset in dBFS, of the chosen channel or of all channels. -200 for none.",
+        "index": 4,
+        "label": "sample peak",
+        "range": "-200 or more dBFS",
+        "type": "FLOAT"
+      },
+      {
+        "doc": "The true peak since the start or the last reset in dBTP, 4 times oversampled (ITU-R BS.1770), of the chosen channel or of all channels. -200 for none.",
+        "index": 5,
+        "label": "true peak",
+        "range": "-200 or more dBTP",
+        "type": "FLOAT"
+      }
+    ],
+    "params": [
+      {
+        "default": "1 0",
+        "doc": "The number of signal inlets, measured together (1-64), then the reporting interval in milliseconds, 0 to report only on a bang ('~loudness 2 100'). Later numbers and messages do not change what is saved.",
+        "name": "loudness",
+        "range": "a channel count, then an interval in ms"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~lp": {
     "category": "FILTER",
     "description": "Single-pole lowpass filter. Attenuates content above the cutoff frequency.",
@@ -18209,6 +18393,69 @@
         "range": "any float"
       }
     ],
+    "requires_midi_device": false
+  },
+  "~minmax": {
+    "category": "ANALYSIS",
+    "description": "Tracks the running minimum and maximum of a signal: the lowest and highest sample values since the last reset, as signals and on a bang.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT",
+          "BANG"
+        ],
+        "doc": "The signal to measure, or a number used while no signal is connected. A bang reports the minimum and maximum so far; 'reset' starts over.",
+        "index": 0,
+        "label": "signal",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The reset signal, or a number used while none is connected: every sample where it is not 0 starts over at that sample.",
+        "index": 1,
+        "label": "reset",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~minmax",
+    "outlets": [
+      {
+        "doc": "The lowest sample value since the last reset, after each sample. 0 until the first.",
+        "index": 0,
+        "label": "minimum",
+        "range": "any float",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "The highest sample value since the last reset, after each sample. 0 until the first.",
+        "index": 1,
+        "label": "maximum",
+        "range": "any float",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "The lowest sample value since the last reset, on a bang.",
+        "index": 2,
+        "label": "minimum on bang",
+        "range": "any float",
+        "type": "FLOAT"
+      },
+      {
+        "doc": "The highest sample value since the last reset, on a bang.",
+        "index": 3,
+        "label": "maximum on bang",
+        "range": "any float",
+        "type": "FLOAT"
+      }
+    ],
+    "params": [],
     "requires_midi_device": false
   },
   "~mstosamps": {
