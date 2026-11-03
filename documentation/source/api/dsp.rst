@@ -288,9 +288,16 @@ Sample buffers
 
 Shared, named, multichannel sample buffers: what ``~buffer`` holds and the
 sampling objects play. Change one from a control thread, read it from the
-audio thread through a ``sampleBufferReader``.
+audio thread through a ``sampleBufferReader``, and write its samples in place
+at audio rate through a ``sampleBufferWriter``.
 
 .. doxygenfile:: dsp/sampling/sampleBuffer.hpp
+   :project: libYSE
+
+Reading and writing single samples by index, on a pinned
+``sampleWriteView``: what ``~peek`` and ``~poke`` do.
+
+.. doxygenfile:: dsp/sampling/sampleAccess.hpp
    :project: libYSE
 
 Filter primitives

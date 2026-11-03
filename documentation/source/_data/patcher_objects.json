@@ -19114,6 +19114,75 @@
     ],
     "requires_midi_device": false
   },
+  "~peek": {
+    "category": "SAMPLING",
+    "description": "Reads and writes single samples of a named sample buffer by message: an index reads the sample there, or writes the value sent just before it. Works with the audio stopped too.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "A sample index, from 0: the sample there goes out, or the value from the middle inlet is written there. A list 'index value [channel]' writes at once. 'clip 0' and 'clip 1' turn clipping of written values off and on.",
+        "index": 0,
+        "label": "index",
+        "range": "0 or higher"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The value the next index writes, instead of reading.",
+        "index": 1,
+        "label": "value",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The buffer channel to read and write, from 1.",
+        "index": 2,
+        "label": "channel",
+        "range": "1 or higher"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~peek",
+    "outlets": [
+      {
+        "doc": "The sample at the index. Nothing when the index is outside the buffer.",
+        "index": 0,
+        "label": "sample",
+        "range": "any float",
+        "type": "FLOAT"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The buffer to read and write.",
+        "name": "name",
+        "range": "buffer name"
+      },
+      {
+        "default": "1",
+        "doc": "The buffer channel to read and write, from 1.",
+        "name": "channel",
+        "range": "1 or higher"
+      },
+      {
+        "default": "1",
+        "doc": "1 limits written values to -1 to 1, 0 writes them as they are.",
+        "name": "clip",
+        "range": "0 or 1"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~phaseshift": {
     "category": "FILTER",
     "description": "Second-order allpass with a center frequency in Hz and a Q, both settable per sample: the level is unchanged, the phase turns from 0 to -360 degrees and is -180 at the center frequency. For phaser stages and phase distortion.",
@@ -19270,6 +19339,63 @@
       }
     ],
     "params": [],
+    "requires_midi_device": false
+  },
+  "~poke": {
+    "category": "SAMPLING",
+    "description": "Writes a signal into a named sample buffer, each sample at the index a second signal gives. An index of -1 writes nothing.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "The values to write: a signal, or a number used while no signal is connected. A list 'value index [channel]' writes one value at once.",
+        "index": 0,
+        "label": "value",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Where to write each value, in samples from 0: a signal, or a number used while no signal is connected. Below 0 or past the end of the buffer writes nothing.",
+        "index": 1,
+        "label": "index",
+        "range": "-1, 0 or higher"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The buffer channel to write, from 1.",
+        "index": 2,
+        "label": "channel",
+        "range": "1 or higher"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~poke",
+    "outlets": [],
+    "params": [
+      {
+        "default": "",
+        "doc": "The buffer to write.",
+        "name": "name",
+        "range": "buffer name"
+      },
+      {
+        "default": "1",
+        "doc": "The buffer channel to write, from 1.",
+        "name": "channel",
+        "range": "1 or higher"
+      }
+    ],
     "requires_midi_device": false
   },
   "~poltocar": {

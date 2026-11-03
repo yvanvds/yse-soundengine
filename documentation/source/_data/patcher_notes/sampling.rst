@@ -96,3 +96,57 @@ into ``~info``:
    [~buffer drums]
     |
    [~info drums]      reports every file loaded into drums
+
+.. patcher-object:: ~peek
+
+Reads and writes one sample of the buffer of its name at a time, by message.
+The arguments are ``name [channel] [clip]``. Channels count from 1, sample
+indexes from 0.
+
+- An index (an int, or a float, which is truncated) in the left inlet sends
+  the sample there out of the outlet.
+- A value sent to the middle inlet first is written at the next index
+  instead, and nothing is sent. The value is used once.
+- A list ``index value [channel]`` in the left inlet writes at once. A
+  channel given there stays the channel afterwards.
+- The right inlet sets the channel.
+- ``clip 1`` (the default, also the third argument) limits written values to
+  -1 to 1; ``clip 0`` writes them as they are.
+
+An index or channel outside the buffer reads and writes nothing. Everything
+happens as the message arrives, so ``~peek`` works with the audio stopped,
+and a value it writes is heard by every object playing the buffer from the
+next sample they read. Messages that reach one ``~peek`` from two threads
+at the same moment are not queued: the second one is ignored.
+
+.. code-block:: text
+
+   [~peek table]     5 in the left inlet sends sample 5
+                     0.5 in the middle, then 5 on the left, writes 0.5 there
+
+.. patcher-object:: ~poke
+
+Writes a signal into the buffer of its name, each sample at the position a
+second signal gives. The arguments are ``name [channel]``; channels count
+from 1.
+
+- Left inlet: the values. A number is used while no signal is connected. A
+  list ``value index [channel]`` writes one value at once; a channel given
+  there stays the channel afterwards.
+- Middle inlet: where each value goes, in samples from 0, truncated to a
+  whole sample. A number is used while no signal is connected; it starts at
+  -1. An index below 0, or past the end of the buffer, writes nothing, so
+  -1 pauses writing.
+- Right inlet: the channel.
+
+Values are written as they are, without clipping, and every reader of the
+buffer hears them at once. A signal counter into the middle inlet records:
+
+.. code-block:: text
+
+   [~adc]          -> [~poke loop] left inlet: the samples to record
+   [~count 0 0 1]  -> [~poke loop] middle inlet: 0, 1, 2 ... one per sample
+
+Changing the buffer from a ``~buffer`` message while ``~poke`` writes is
+safe; whatever ``~poke`` writes while the change is being made is lost, and
+it carries on in the changed buffer.

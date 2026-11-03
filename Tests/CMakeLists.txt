@@ -65,6 +65,7 @@ set(YSE_TEST_SOURCES
   dsp/test_polar.cpp
   dsp/test_delayLine.cpp
   dsp/test_sampleBuffer.cpp
+  dsp/test_sample_access.cpp
   dsp/test_smoother.cpp
   utils/test_atomic.cpp
   utils/test_vector.cpp
@@ -324,6 +325,7 @@ set(YSE_TEST_SOURCES
   patcher/test_patcher_tapin_tapout.cpp
   patcher/test_patcher_buffer.cpp
   patcher/test_patcher_info.cpp
+  patcher/test_patcher_peek_poke.cpp
   patcher/test_patcher_snapshot.cpp
   patcher/test_patcher_armed_outlets.cpp
   patcher/test_patcher_cycle.cpp
@@ -1500,6 +1502,7 @@ set_source_files_properties(
   patcher/test_patcher_tapin_tapout.cpp
   patcher/test_patcher_buffer.cpp
   patcher/test_patcher_info.cpp
+  patcher/test_patcher_peek_poke.cpp
   patcher/test_patcher_snapshot.cpp
   patcher/test_patcher_armed_outlets.cpp
   patcher/test_patcher_cycle.cpp

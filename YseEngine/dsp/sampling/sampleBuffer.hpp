@@ -24,7 +24,36 @@ namespace YSE {
   namespace DSP {
 
     class sampleBufferReader;
+    class sampleBufferWriter;
     class sampleView;
+    class sampleWriteView;
+
+    namespace detail {
+      // One sample, loaded and stored as a relaxed atomic (issue #1144). A
+      // sampleBufferWriter writes published samples in place while readers
+      // and control-side copies read them, possibly on other threads; the
+      // relaxed access makes those concurrent reads and writes well defined
+      // (and visible to TSan) and costs a plain load or store on every
+      // target. No ordering: a reader sees the old value or the new one.
+#if defined(__GNUC__) || defined(__clang__)
+      inline Flt LoadSample(const Flt* at) {
+        Flt value;
+        __atomic_load(at, &value, __ATOMIC_RELAXED);
+        return value;
+      }
+      inline void StoreSample(Flt* at, Flt value) {
+        __atomic_store(at, &value, __ATOMIC_RELAXED);
+      }
+#else
+      // MSVC: an aligned 32-bit volatile access is a single load or store.
+      inline Flt LoadSample(const Flt* at) {
+        return *static_cast<const volatile Flt*>(at);
+      }
+      inline void StoreSample(Flt* at, Flt value) {
+        *static_cast<volatile Flt*>(at) = value;
+      }
+#endif
+    } // namespace detail
 
     /** @brief Window shapes for ``sampleBuffer::applyWindow``. */
     enum class SAMPLE_WINDOW {
@@ -174,8 +203,16 @@ namespace YSE {
      *  The cost of that model: a change copies the whole buffer, so it
      *  costs memory and time in proportion to its size. That is fine for
      *  loading, resizing and editing. It is not meant for writing a few
-     *  samples at audio rate; the recording objects (``~record``,
-     *  ``~poke``) get a writer of their own in their own issues.
+     *  samples at audio rate.
+     *
+     *  **Writing at audio rate.** A ``sampleBufferWriter`` writes samples
+     *  in place, into the storage that is published, without a copy, a
+     *  lock or an allocation: what ``~poke``, ``~peek`` and ``~record``
+     *  use. Its writes change the samples but not the shape, and do not
+     *  count as a change (``version`` stays). Readers see them at once.
+     *  A change made while a writer writes wins: what the writer wrote
+     *  into the old storage after the change copied it is not in the new
+     *  one.
      *
      *  Every member that changes the buffer, loads or saves a file, or calls
      *  ``collect`` may allocate, lock or touch the disk: never call one from
@@ -406,6 +443,7 @@ namespace YSE {
 
     private:
       friend class sampleBufferReader;
+      friend class sampleBufferWriter;
       friend class sampleBufferRegistry;
 
       // One reader's claim on a storage: the reader writes it on the audio
@@ -497,6 +535,13 @@ namespace YSE {
      *  Channels are stored one after another (``channel(c)`` points at
      *  ``frames()`` samples). Keep a view for one block at most: while you
      *  hold it, the storage it shows cannot be freed.
+     *
+     *  A ``sampleBufferWriter`` may write the samples while you read them.
+     *  ``at`` and ``linear`` read each sample as a relaxed atomic, so that
+     *  is well defined from any thread. Reading through ``channel`` is a
+     *  plain read: fine while every writer of the buffer runs on the same
+     *  thread as you (one patcher's objects do), a data race when one runs
+     *  on another render thread at the same moment.
      */
     class API sampleView {
     public:
@@ -541,7 +586,7 @@ namespace YSE {
       /** @brief One sample; 0 outside the buffer. */
       Flt at(UInt c, UInt frame) const {
         if (c >= numChannels || frame >= numFrames) return 0.f;
-        return samples[static_cast<std::size_t>(c) * numFrames + frame];
+        return detail::LoadSample(samples + static_cast<std::size_t>(c) * numFrames + frame);
       }
 
       /** @brief Channel @p c at a fractional position, linearly
@@ -606,6 +651,150 @@ namespace YSE {
       /** @brief The buffer's current samples, held until the view goes.
        *         Audio thread: no allocation, no lock. Empty when unbound. */
       sampleView pin() const;
+
+    private:
+      std::shared_ptr<sampleBuffer> target;
+      sampleBuffer::hazard* slot = nullptr;
+    };
+
+    /**
+     *  @brief Read and write access to a buffer's samples for one block.
+     *         Made by ``sampleBufferWriter::pin``.
+     *
+     *  Writes go into the published storage in place, so every reader of
+     *  the buffer sees them at once, and they keep the buffer's shape:
+     *  a write outside it is dropped. Every access is a relaxed atomic one,
+     *  so readers and other writers on other threads may use the same
+     *  samples at the same moment; of two writes to one sample, one wins.
+     *  Keep a view for one block at most, as a ``sampleView``.
+     */
+    class API sampleWriteView {
+    public:
+      sampleWriteView(sampleWriteView&& other) noexcept;
+      sampleWriteView& operator=(sampleWriteView&&) = delete;
+      sampleWriteView(const sampleWriteView&) = delete;
+      sampleWriteView& operator=(const sampleWriteView&) = delete;
+      ~sampleWriteView();
+
+      /** @brief Whether there is nothing to read or write: no buffer
+       *         bound, no channels, or no samples. */
+      bool empty() const {
+        return numFrames == 0 || numChannels == 0;
+      }
+
+      /** @brief Number of channels. */
+      UInt channels() const {
+        return numChannels;
+      }
+
+      /** @brief Length in samples, per channel. */
+      UInt frames() const {
+        return numFrames;
+      }
+
+      /** @brief The rate the samples are at, in Hz (never 0). */
+      Flt sampleRate() const {
+        return rate;
+      }
+
+      /** @brief The buffer's ``version`` this storage belongs to. Writes do
+       *         not change it. */
+      std::uint64_t version() const {
+        return storageVersion;
+      }
+
+      /** @brief One sample; 0 outside the buffer. */
+      Flt at(UInt c, UInt frame) const {
+        if (c >= numChannels || frame >= numFrames) return 0.f;
+        return detail::LoadSample(samples + static_cast<std::size_t>(c) * numFrames + frame);
+      }
+
+      /** @brief Set one sample. @return false, and nothing written, outside
+       *         the buffer. */
+      bool set(UInt c, UInt frame, Flt value) {
+        if (c >= numChannels || frame >= numFrames) return false;
+        detail::StoreSample(samples + static_cast<std::size_t>(c) * numFrames + frame, value);
+        return true;
+      }
+
+      /**
+       *  @brief Write @p count samples into channel @p c from
+       *         @p startFrame.
+       *
+       *  @return How many were written: fewer at the end of the buffer, 0
+       *          for a channel it does not have.
+       */
+      UInt write(UInt c, UInt startFrame, const Flt* values, UInt count);
+
+      /**
+       *  @brief Copy up to @p count samples of channel @p c, from
+       *         @p startFrame, into @p out.
+       *
+       *  @return How many were copied: fewer at the end of the buffer, 0 for
+       *          a channel it does not have.
+       */
+      UInt read(UInt c, UInt startFrame, Flt* out, UInt count) const;
+
+    private:
+      friend class sampleBufferWriter;
+      sampleWriteView() = default;
+
+      std::atomic<const sampleBuffer::storage*>* slot = nullptr;
+      Flt* samples = nullptr;
+      UInt numChannels = 0;
+      UInt numFrames = 0;
+      Flt rate = 0.f;
+      std::uint64_t storageVersion = 0;
+    };
+
+    /**
+     *  @brief The way to write a ``sampleBuffer`` at audio rate (issue
+     *         #1144): in place, without a copy, a lock or an allocation.
+     *
+     *  Used like a ``sampleBufferReader``: bind it to a buffer on a control
+     *  thread, then call ``pin`` once per block (or once per message) and
+     *  read and write through the ``sampleWriteView`` it returns. While the
+     *  view exists the storage it shows stays allocated, however the buffer
+     *  is changed meanwhile; the next ``pin`` sees the change.
+     *
+     *  .. code-block:: cpp
+     *
+     *     // control thread
+     *     writer.bind(DSP::sampleBufferRegistry::acquire("loop"));
+     *
+     *     // audio thread, once per block
+     *     DSP::sampleWriteView view = writer.pin();
+     *     view.write(0, position, block.getPtr(), block.getLength());
+     *
+     *  A writer's samples are visible to every reader of the buffer at once,
+     *  and a change of the buffer made meanwhile wins (see ``sampleBuffer``).
+     *  One writer is one claim, as one reader is: pin it from one thread at
+     *  a time, and let the view go before the next ``pin``. ``bind``, the
+     *  constructor and the destructor allocate and lock, so they belong on
+     *  a control thread, never while a view of this writer exists.
+     */
+    class API sampleBufferWriter {
+    public:
+      sampleBufferWriter() = default;
+      explicit sampleBufferWriter(std::shared_ptr<sampleBuffer> buffer);
+      ~sampleBufferWriter();
+      sampleBufferWriter(const sampleBufferWriter&) = delete;
+      sampleBufferWriter& operator=(const sampleBufferWriter&) = delete;
+      sampleBufferWriter(sampleBufferWriter&&) = delete;
+      sampleBufferWriter& operator=(sampleBufferWriter&&) = delete;
+
+      /** @brief Write @p buffer from now on; null unbinds. Control thread. */
+      void bind(std::shared_ptr<sampleBuffer> buffer);
+
+      /** @brief The bound buffer, or null. */
+      const std::shared_ptr<sampleBuffer>& buffer() const {
+        return target;
+      }
+
+      /** @brief The buffer's current samples, held until the view goes.
+       *         Any thread, one at a time: no allocation, no lock. Empty
+       *         when unbound. */
+      sampleWriteView pin() const;
 
     private:
       std::shared_ptr<sampleBuffer> target;

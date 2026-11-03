@@ -15,6 +15,8 @@ port: ownership, lifetime, reclamation and naming. Decided in design gate
 | `DSP::sampleBufferRegistry` | process-wide names → buffers, and ids → buffers | control and background (one mutex) |
 | `DSP::sampleBufferReader` | one reader's claim on a buffer | bind: control; `pin`: audio |
 | `DSP::sampleView` | one block's read access to a pinned storage | the thread that pinned it |
+| `DSP::sampleBufferWriter` | one writer's claim on a buffer, writing in place (#1144) | bind: control; `pin`: one thread at a time |
+| `DSP::sampleWriteView` | one block's read and write access to a pinned storage | the thread that pinned it |
 | `~buffer` (`PATCHER::dBuffer`) | the patcher face: arguments and messages | messages: any; work: background |
 
 All of it is a public C++ API in `yse.hpp`. A host can create `drums`, load it, and have a patch's
@@ -71,8 +73,8 @@ thread must never free one.
 channel). Every change builds a new block on the calling thread — resize, file decode, or a copy of
 the current block that the edit then changes — and publishes it with one `seq_cst` store to an
 atomic pointer. A per-buffer mutex, taken only by control and background threads, serialises
-edits, so two concurrent edits cannot lose each other. A block is never written after it is
-published, so a reader reads samples nobody is writing. Copying costs memory and time in
+edits, so two concurrent edits cannot lose each other. A block's shape never changes after it is
+published, and only a `sampleBufferWriter` writes its samples. Copying costs memory and time in
 proportion to the buffer, which is right for loading and editing and wrong for writing a few
 samples at audio rate; see *Writers* below.
 
@@ -174,20 +176,57 @@ Because `info()` locks and copies a string, a `~info` bang is a `fileScheduler` 
 Resolving by name at each bang (instead of holding the buffer) lets `set <name>` work from the audio
 thread without a lookup there, and finds a buffer created after the object.
 
-## Writers (deferred to their own issues)
+## Writers: in place, with relaxed atomics (#1144)
 
-`~record` ([#1143](https://github.com/yvanvds/yse-soundengine/issues/1143)) and `~poke`
-([#1144](https://github.com/yvanvds/yse-soundengine/issues/1144)) write samples at audio rate.
-Copy on write is the wrong tool for that, and a published block is immutable by this design. Those
-issues add a writer of their own; the constraint this design puts on them:
+`~poke` ([#1144](https://github.com/yvanvds/yse-soundengine/issues/1144)), `~peek`'s writes and
+`~record` ([#1143](https://github.com/yvanvds/yse-soundengine/issues/1143)) write samples at audio
+rate, where copy on write is the wrong tool. The constraints #1039 set: the audio thread never
+allocates or frees a block and never takes the buffer mutex, and a writer must not race the
+control-side copies.
 
-- the audio thread still never allocates or frees a block, and still never takes the buffer mutex;
-- control-side edits copy the published block, so a recorder writing into that same block at the
-  same moment would race with the copy. The writer needs either a block of its own that it
-  publishes, or control-side edits that wait for it. Which one is #1143's decision;
-- the decision is theirs, but it must pass the same three-thread stress test
-  (`Tests/dsp/test_sampleBuffer.cpp`, "a reader never sees freed or half-made storage") under ASan
-  and TSan with a writer thread added.
+**Decision: write the published block in place.** `DSP::sampleBufferWriter` is the reader's twin:
+bind on a control thread (it attaches a hazard slot of its own), `pin()` once per block on any one
+thread, and the `DSP::sampleWriteView` it returns has `set` / `write` next to `at` / `read`. Pinning
+is the reader's hazard claim, so a block a writer holds is never freed under it. The block's shape
+stays immutable; only its samples change, so nothing about publishing or retirement moves, and
+`version()` does not count writes (a write is not a new file).
+
+**Why the copies do not race.** Every write is a relaxed atomic store
+(`detail::StoreSample`: `__atomic_store` on GCC/Clang, an aligned volatile store on MSVC; C++17 has
+no `atomic_ref`), and every read of a published block that can overlap one is a relaxed atomic
+load: `sampleView::at` / `linear`, the write view's reads, and every control-side copy (`edit`,
+`setSize`, `crop`, `copyFrom`, `getSamples`, `write` to disk), which now copy through
+`CopySamples` rather than `memcpy`. On every target both are a plain load or store, so readers pay
+nothing; the copies lose vectorisation, which is control-thread time. TSan sees well-defined
+atomics rather than a race. A reader that walks `sampleView::channel()` with plain loads is fine
+while every writer of the buffer runs on its thread (one patcher's objects do), and is a data race
+when a writer on another render thread writes the same block at the same moment; `at` / `linear`
+are the cross-thread-safe reads.
+
+**What an edit made during writes means.** An edit copies the block, changes the copy and
+publishes it. Writes that land in the old block after the copy passed them are not in the new one,
+and a writer that pinned the old block before the publish finishes its block there; the next pin
+writes the new block. So an edit made while a writer writes wins. The alternative, edits that wait
+for writers, would make a control thread spin on the audio thread or the audio thread wait on an
+edit; neither is worth it for what is a user editing a buffer that is being recorded into.
+
+**Why not a block of the writer's own.** A writer that publishes its own block has to copy the
+whole buffer each block (readers must see the rest of it), or keep two blocks in step, which is
+the same copy. In place costs nothing per block.
+
+**The claim is one thread's.** One writer is one claim, as one reader is. `~poke` pins one writer
+in `CALC()` and a second, guarded by its `exchange(true)` flag, for a list written from a message;
+`~peek` has only the guarded one, since everything it does arrives as messages, on any thread,
+and it answers at once (so it works with the audio stopped). The guard's loser drops its message,
+the stateful-object rule.
+
+The stress test in `Tests/dsp/test_sampleBuffer.cpp` ("a writer and a reader race edits safely")
+runs a writer, a reader, an editor that resizes, fills and copies out, and a collector, and is
+meant to be run under ASan and TSan.
+
+**For `~record` (#1143)**: bind a `sampleBufferWriter` in `PARM_PARSE`, pin it at the top of
+`CALC()`, and `write(channel, position, block, length)` each block, wrapping at the end of the
+buffer yourself. Nothing else is needed from the store.
 
 ## Not ported from Max
 
