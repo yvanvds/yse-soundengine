@@ -320,6 +320,18 @@ which players that loop a region use as well.
 .. doxygenfile:: dsp/sampling/sampleRegion.hpp
    :project: libYSE
 
+A sample buffer played from a start to an end point at a speed, backward,
+in a loop with a crossfade across the jump, or at the positions of a
+signal: what ``~play`` does. It reads with ``sampleView::cubic`` and loops
+through ``loopCrossfade``, which other players that crossfade a loop use as
+well.
+
+.. doxygenfile:: dsp/sampling/bufferPlayer.hpp
+   :project: libYSE
+
+.. doxygenfile:: dsp/sampling/loopCrossfade.hpp
+   :project: libYSE
+
 Filter primitives
 -----------------
 

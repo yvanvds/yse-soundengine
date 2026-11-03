@@ -593,6 +593,19 @@ namespace YSE {
        *         interpolated; 0 outside the buffer. */
       Flt linear(UInt c, Dbl position) const;
 
+      /**
+       *  @brief Channel @p c at a fractional position, through the 4-point
+       *         cubic kernel of ``interpolate4`` (``interpolate4::kernel``).
+       *
+       *  The position is held inside the buffer: below 0 (or not a number)
+       *  it reads the first sample, past the last sample it reads the last
+       *  one, and the neighbours the kernel needs past either end repeat
+       *  the end sample. Exact at whole positions. 0 for a channel the
+       *  buffer lacks or an empty buffer. What the buffer players read with
+       *  (``bufferPlayer``, issue #1140).
+       */
+      Flt cubic(UInt c, Dbl position) const;
+
     private:
       friend class sampleBufferReader;
       sampleView() = default;

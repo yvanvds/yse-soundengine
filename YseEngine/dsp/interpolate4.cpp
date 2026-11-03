@@ -51,7 +51,7 @@ YSE::DSP::buffer& YSE::DSP::interpolate4::operator()(YSE::DSP::buffer& in) {
   for (int i = 0; i < n; i++) {
     double findex = *inData++ + onset;
     int index = (int)findex;
-    Flt frac, a, b, c, d, cminusb;
+    Flt frac;
 
     if (index < 1)
       index = 1, frac = 0;
@@ -60,14 +60,7 @@ YSE::DSP::buffer& YSE::DSP::interpolate4::operator()(YSE::DSP::buffer& in) {
     else
       frac = (float)findex - index;
     wp = data->getPtr() + index;
-    a = wp[-1];
-    b = wp[0];
-    c = wp[1];
-    d = wp[2];
-    cminusb = c - b;
-    *outData++ =
-        b + frac * (cminusb - 0.1666667f * (1.f - frac) *
-                                  ((d - a - 3.f * cminusb) * frac + (d + 2.f * a - 3.f * b)));
+    *outData++ = kernel(wp[-1], wp[0], wp[1], wp[2], frac);
   }
   return out;
 

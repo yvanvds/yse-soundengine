@@ -19394,6 +19394,74 @@
     "params": [],
     "requires_midi_device": false
   },
+  "~play": {
+    "category": "SAMPLING",
+    "description": "Plays a named sample buffer from a start to an end point at normal speed or over a given time, forward or backward, once or in a loop, or at the positions a signal gives; bangs when playback reaches its end.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "A connected signal is the position to play, in milliseconds into the buffer: rising plays forward, falling backward. Unconnected, a number other than 0 plays the whole buffer and 0 stops. Also takes 'start [start] [end] [duration]' (in ms: from start to end, backward when end comes first, over duration or at normal speed), 'stop', 'pause', 'resume', 'loop <0/1>', 'loopinterp <0/1>', 'interptime <ms>' and 'set <name>' (another buffer, from a later block). None of them is saved.",
+        "index": 0,
+        "label": "position",
+        "range": "0 or higher"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~play",
+    "outlets": [
+      {
+        "doc": "Buffer channel 1 as it plays. Silence while stopped or paused, and for a channel the buffer lacks.",
+        "index": 0,
+        "label": "out",
+        "range": "any float",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "A bang after the block in which playback reached its end point. Not sent in a loop, on stop, or while following a position signal.",
+        "index": 1,
+        "label": "done",
+        "range": "bang",
+        "type": "BANG"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The buffer to play. A set message does not change what is saved.",
+        "name": "name",
+        "range": "buffer name"
+      },
+      {
+        "default": "1",
+        "doc": "The number of signal outlets, each playing the buffer channel of its number. Buffer channels past the last outlet are mixed into the outlets.",
+        "name": "channels",
+        "range": "1 to 64"
+      },
+      {
+        "default": "0",
+        "doc": "1 makes playback carry on from the start point when it reaches the end point, instead of stopping.",
+        "name": "loop",
+        "range": "0 or 1"
+      },
+      {
+        "default": "0",
+        "doc": "1 crossfades a loop across its jump back to the start point, so it does not click.",
+        "name": "loopinterp",
+        "range": "0 or 1"
+      },
+      {
+        "default": "50",
+        "doc": "The length of the loop crossfade, in milliseconds; at most the length of the loop.",
+        "name": "interptime",
+        "range": "0 or higher"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~poke": {
     "category": "SAMPLING",
     "description": "Writes a signal into a named sample buffer, each sample at the index a second signal gives. An index of -1 writes nothing.",

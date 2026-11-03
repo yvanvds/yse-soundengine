@@ -233,6 +233,15 @@ at the pinned view's rate and length, end 0 meaning the buffer's end, with `phas
 0-1 sync output. The looping players (`~groove`, `~phasegroove`) and `~play` take their loop
 points and sync the same way.
 
+**For `~play` (#1140)**: `DSP::bufferPlayer` keeps its points in milliseconds, not a
+`sampleRegion`, because Max's `start <start> <end>` plays backward when the end comes first and
+`start 500 0` means "down to 0", so an end of 0 cannot mean the buffer's end there (the end of the
+buffer is an end below 0). It reads with `sampleView::cubic`, the `interpolate4` kernel on a pinned
+view with positions held inside the buffer, and loops through `DSP::loopCrossfade`
+(`dsp/sampling/loopCrossfade.hpp`): Max's `loopinterp` / `interptime`, the last `fade` frames
+before the jump mixed with the frames one loop length away, in either direction. Both are meant
+for `~groove` and `~phasegroove`.
+
 ## Rebinding by name: one mailbox for the family (#1256)
 
 `set <name>` on `~peek` and `~poke`, and on the players, `~index` and `~record` after them,

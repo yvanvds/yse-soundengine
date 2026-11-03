@@ -745,6 +745,13 @@ reader: bind it in ``PARM_PARSE``, pin it once per block at the top of
   buffer's end. ``phase(frame)`` gives the 0-1 sync signal. ``~record``
   (``DSP::bufferRecorder``) is the reference; a player that loops a region
   uses the same helper.
+- An interpolating player reads with ``sampleView::cubic``, the 4-point
+  kernel of ``interpolate4`` with positions held inside the buffer, and
+  crossfades a loop across its jump with ``DSP::loopCrossfade``
+  (``dsp/sampling/loopCrossfade.hpp``, Max's ``loopinterp`` and
+  ``interptime``). ``~play`` (``DSP::bufferPlayer``, issue
+  `#1140 <https://github.com/yvanvds/yse-soundengine/issues/1140>`_) is the
+  reference; its done bang is an armed outlet.
 
 Switching buffers with ``set``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

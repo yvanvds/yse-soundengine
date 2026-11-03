@@ -43,6 +43,22 @@ namespace YSE {
       /** @brief Resample ``in`` (treated as fractional positions) through the cubic kernel. */
       buffer& operator()(YSE::DSP::buffer& in);
 
+      /**
+       *  @brief The 4-point cubic kernel itself: the value at @p frac (0 to
+       *         1) between @p b and @p c, with @p a before @p b and @p d
+       *         after @p c.
+       *
+       *  Shared by ``operator()`` here and ``sampleView::cubic``, which
+       *  the buffer players read with (issue #1140), so both sound alike.
+       *  Exact at the samples: ``frac`` 0 gives @p b and 1 gives @p c.
+       */
+      static Flt kernel(Flt a, Flt b, Flt c, Flt d, Flt frac) {
+        const Flt cminusb = c - b;
+        return b +
+               frac * (cminusb - 0.1666667f * (1.f - frac) *
+                                     ((d - a - 3.f * cminusb) * frac + (d + 2.f * a - 3.f * b)));
+      }
+
     private:
       buffer* data;
       buffer out;
