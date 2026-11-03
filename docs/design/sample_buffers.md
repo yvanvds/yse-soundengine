@@ -252,7 +252,10 @@ writes through the second writer of the same binding; a list holding the guard d
 one block. `~peek` has no `CALC()` and takes in its index and list handlers under its guard, so a
 rebind reaches it with the audio stopped (the scheduler slots themselves come back only when the
 patcher renders). `~index` (#1145) takes at the top of `CALC()` with no guard: no message of
-its reads the buffer, so its reader belongs to the audio thread alone. `~cycle` keeps its own copy: its record also carries an offset and a size that
+its reads the buffer, so its reader belongs to the audio thread alone. `~table` (#1148) takes the same way; its
+messages that need the table (a number, `bang`, `goto`, `next`, `prev`) are queued as commands
+and applied after the take, so they too stay on the audio thread, and Max's `name` attribute
+message is a second spelling of `set`. `~cycle` keeps its own copy: its record also carries an offset and a size that
 are merged across superseded requests, which the generic mailbox does not have.
 
 A rebind is not saved: `DumpJSON` writes the creation argument, as for `~cycle`.

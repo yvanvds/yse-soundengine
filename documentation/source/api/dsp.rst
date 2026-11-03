@@ -302,6 +302,13 @@ does.
 .. doxygenfile:: dsp/sampling/sampleAccess.hpp
    :project: libYSE
 
+A sample buffer read as a table of values at signal rate, with
+interpolation, out-of-range rules, input and output scaling, stepping and
+weighted random draws: what ``~table`` does.
+
+.. doxygenfile:: dsp/sampling/tableLookup.hpp
+   :project: libYSE
+
 Filter primitives
 -----------------
 

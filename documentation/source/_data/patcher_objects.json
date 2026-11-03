@@ -21269,6 +21269,104 @@
     ],
     "requires_midi_device": false
   },
+  "~table": {
+    "category": "SAMPLING",
+    "description": "Reads a named sample buffer as a table of values at signal rate: looked up at an index, stepped through on triggers, or drawn from at random with each entry's value as its weight.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT",
+          "BANG"
+        ],
+        "doc": "A signal, or a number used while no signal is connected. In inputmode 0 the index to read, in 1 and 2 a trigger. 'bang' jumps to a random entry; 'goto <index>', 'next' and 'prev' move the position. 'interp', 'extend', 'inmap', 'outscale', 'inputmode', 'triggermode', 'range' and 'signed' set the attributes, 'name <name>' or 'set <name>' switches buffers (none of them saved with the patch).",
+        "index": 0,
+        "label": "input",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~table",
+    "outlets": [
+      {
+        "doc": "The entries read, scaled by outscale. Silence without a buffer, or while it is empty.",
+        "index": 0,
+        "label": "out",
+        "range": "any float",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The buffer read as the table: its first channel.",
+        "name": "name",
+        "range": "buffer name"
+      },
+      {
+        "default": "0",
+        "doc": "0 reads the entry at or below the index, 1 a line between the two around it, 2 the nearest.",
+        "name": "interp",
+        "range": "0, 1 or 2"
+      },
+      {
+        "default": "0",
+        "doc": "Outside the table: 0 reads 0, 1 the first or last entry, 2 wraps around, 3 keeps the output as it was.",
+        "name": "extend",
+        "range": "0 to 3"
+      },
+      {
+        "default": "0",
+        "doc": "The input that reads entry 0. With inmap_hi it scales an input range to the table's length; equal ends turn the map off.",
+        "name": "inmap_lo",
+        "range": "any float"
+      },
+      {
+        "default": "0",
+        "doc": "The input that reads one past the last entry.",
+        "name": "inmap_hi",
+        "range": "any float"
+      },
+      {
+        "default": "0",
+        "doc": "What the bottom of the value range comes out as. With outscale_hi it scales the value range to an output range; equal ends turn the scale off.",
+        "name": "outscale_lo",
+        "range": "any float"
+      },
+      {
+        "default": "0",
+        "doc": "What the top of the value range comes out as.",
+        "name": "outscale_hi",
+        "range": "any float"
+      },
+      {
+        "default": "0",
+        "doc": "0: the input is the index. 1: each trigger steps to the next entry. 2: each trigger jumps to a random entry.",
+        "name": "inputmode",
+        "range": "0, 1 or 2"
+      },
+      {
+        "default": "0",
+        "doc": "What counts as a trigger in inputmodes 1 and 2: 0 a change from 0 to anything else, 1 any change.",
+        "name": "triggermode",
+        "range": "0 or 1"
+      },
+      {
+        "default": "128",
+        "doc": "The table's value range for outscale: 0 to range - 1, or -range to range when signed.",
+        "name": "range",
+        "range": "1 or higher"
+      },
+      {
+        "default": "0",
+        "doc": "1 makes the value range -range to range.",
+        "name": "signed",
+        "range": "0 or 1"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~tanh": {
     "category": "MATH",
     "description": "Outputs the hyperbolic tangent of the input: a smooth soft clipper that bends any signal into -1..1. Scale the signal up first to drive it harder.",

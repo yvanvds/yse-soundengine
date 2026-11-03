@@ -192,3 +192,50 @@ from the next block.
 the background and read from a later block on; ``set`` alone reads silence.
 The switch is not saved with the patch: a reloaded ``~index`` reads the
 buffer of its argument.
+
+.. patcher-object:: ~table
+
+Reads the first channel of the buffer of its name as a table of values:
+entry 0 is its first sample. The arguments, all after the name optional,
+are ``name interp extend inmap_lo inmap_hi outscale_lo outscale_hi
+inputmode triggermode range signed``; a message of the same name changes
+each while the patch runs.
+
+- ``interp``: 0 reads the entry at or below the index, 1 a straight line
+  between the two around it (1.5 between 5 and 10 reads 7.5), 2 the
+  nearest entry.
+- ``extend``: an index outside the table reads 0 (0), the first or last
+  entry (1), the entry it reaches with the table repeated (2: 130 in a
+  table of 128 reads entry 2), or leaves the output as it was (3).
+- ``inmap lo hi``: the input from ``lo`` to ``hi`` covers the table,
+  whatever its length. ``inmap 0 1`` turns a 0-1 phase into an index, so a
+  ``~phasor`` with ``extend 2`` and ``interp 1`` plays the table as a wave.
+  ``inmap none``, or two equal numbers, turns it off.
+- ``outscale lo hi``: the value range comes out as ``lo`` to ``hi``. The
+  value range is 0 to ``range - 1``, or ``-range`` to ``range`` with
+  ``signed 1``; ``range`` starts at 128. ``outscale none`` turns it off.
+- ``inputmode``: 0 reads at the index the input gives. 1 steps to the next
+  entry on every trigger in the input, 2 jumps to a random entry, each
+  entry as likely as its value is large (entries at 0 or below are never
+  chosen). ``triggermode`` 0 counts a change from 0 to anything else as a
+  trigger, 1 any change.
+
+.. code-block:: text
+
+   [~phasor 2]
+    |
+   [~table curve 1 2 0 1]   the buffer curve, twice a second, smoothly
+
+A number in the inlet is used while no signal is connected: the index, or
+a trigger in inputmodes 1 and 2. ``next`` and ``prev`` step one entry up or
+down, wrapping round the ends, and keep a fractional part. ``goto <index>``
+sets where the next ``next`` or ``prev`` goes without changing the output;
+a new ``~table`` reads entry 0 on its first ``next``. ``bang`` jumps to a
+random entry by weight, whatever the mode.
+
+The table is as long as the buffer. Fill it with a ``~buffer`` message, a
+``~poke``, or from the host; changes are heard from the next block.
+``name <name>`` or ``set <name>`` switches to another buffer, looked up in
+the background and read from a later block on; ``set`` alone reads
+silence. Messages are not saved with the patch: a reloaded ``~table`` reads
+the buffer and uses the settings of its arguments.
