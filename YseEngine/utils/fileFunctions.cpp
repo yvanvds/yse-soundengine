@@ -13,14 +13,29 @@
 #include <fstream>
 
 #if defined YSE_WINDOWS
-#include <Windows.h>
 #include <filesystem>
+#include <system_error>
 
+// The process's working directory, as the POSIX branch reports it. This used to
+// return the executable's folder (GetModuleFileNameA with the file name cut
+// off), so on Windows every relative sound or patcher file name resolved next to
+// the host .exe instead of where the host had chdir'ed to (#1249).
+// std::filesystem::current_path reads it with GetCurrentDirectoryW, so it is
+// neither cut short at MAX_PATH nor limited to the ANSI code page. The narrow
+// form is returned because every consumer opens the joined path with a narrow
+// API (std::ifstream, the sound file reader), which reads it in that code page.
+// A directory that code page cannot spell has no narrow absolute form at all;
+// "." still names it to those APIs, which resolve a relative path against the
+// real working directory themselves.
 std::string YSE::GetCurrentWorkingDirectory() {
-  char buffer[MAX_PATH];
-  GetModuleFileNameA(NULL, buffer, MAX_PATH);
-  std::string::size_type pos = std::string(buffer).find_last_of("\\/");
-  return std::string(buffer).substr(0, pos);
+  std::error_code ec;
+  const std::filesystem::path cwd = std::filesystem::current_path(ec);
+  if (ec || cwd.empty()) return ".";
+  try {
+    return cwd.string();
+  } catch (...) {
+    return ".";
+  }
 }
 
 bool YSE::IsPathAbsolute(const std::string& p) {

@@ -73,6 +73,7 @@ set(YSE_TEST_SOURCES
   utils/test_interpolators.cpp
   utils/test_intrusive_list.cpp
   utils/test_random.cpp
+  utils/test_file_functions.cpp
   internal/test_threadpool.cpp
   internal/test_render_scheduler.cpp
   internal/test_cpu_topology.cpp

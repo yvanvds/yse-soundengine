@@ -48,6 +48,7 @@
 #include "patcher/patcherImplementation.h"
 #include "patcher/sinks.hpp"
 #include "support/alloc_probe.hpp"
+#include "support/scoped_cwd.hpp"
 
 using TestHelpers::MultiSink;
 using TestHelpers::Wire;
@@ -1057,6 +1058,50 @@ TEST_SUITE("patcher") {
     CHECK(log[0] == "d:i 1");
     // And the slot came back, so a failed read does not leak the table away.
     CHECK(p.FileIO()->PendingCount() == 0);
+  }
+
+  TEST_CASE("coll: a relative name reads and writes in the working directory (#1249)") {
+    // The patcher docs' "Where paths point": a relative name is relative to the
+    // process's working directory. On Windows it used to land next to the host
+    // executable instead, whatever directory the host had moved to, while Linux
+    // already used the working directory — so a patch that wrote `cues.txt`
+    // wrote it to a different place per platform. Asserted at the level a patch
+    // sees it: a bare file name in a `write`, the file found where the docs say,
+    // and a `read` of the same bare name bringing it back.
+    TestHelpers::ScopedWorkingDirectory cwd("yse_coll_cwd_1249");
+    const std::filesystem::path expected = cwd.path() / "cues_1249.txt";
+
+    std::vector<std::string> log;
+    Recorder data;
+    Recorder file;
+    data.log = &log;
+    data.tag = "d";
+    file.log = &log;
+    file.tag = "file";
+    YSE::pHandle dataHandle(&data);
+    YSE::pHandle fileHandle(&file);
+
+    patcherImplementation p(1, nullptr);
+    YSE::pHandle* coll = p.CreateObject(YSE::OBJ::G_COLL, "");
+    REQUIRE(coll != nullptr);
+    p.Connect(coll, 0, &dataHandle, 0);
+    p.Connect(coll, 3, &fileHandle, 0);
+
+    coll->SetListData(0, "0 cue");
+    coll->SetListData(0, "write cues_1249.txt");
+    SettleFiles(p);
+    CHECK(ReadWholeFile(expected.string()) == "0, cue;\n");
+
+    coll->SetListData(0, "clear");
+    coll->SetListData(0, "read cues_1249.txt");
+    SettleFiles(p);
+    REQUIRE(log.size() == 1);
+    CHECK(log[0] == "file:bang");
+
+    log.clear();
+    coll->SetListData(0, "0");
+    REQUIRE(log.size() == 1);
+    CHECK(log[0] == "d:l cue");
   }
 
   TEST_CASE("coll: a file with more records than the collection holds keeps the first 256 (#683)") {
