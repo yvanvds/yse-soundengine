@@ -30,6 +30,39 @@
 #include <cstring>
 #include <iostream>
 
+// compiler-rt 22's ReportDestroyLocked() builds its ScopedReport with placement
+// new, then returns without destroying it when RestoreStack() can't find the
+// lock in the trace history. That leaves report_mtx locked and the thread's
+// ignore_interceptors raised for the life of the process (issue #1263). Every
+// later atomic and mutex operation on that thread then skips TSan's
+// synchronisation, so correct code races, and the report of that race blocks on
+// report_mtx forever. The earlier release (21) and LLVM's current main both use
+// a stack variable, so only this release line has the leak.
+//
+// YSE's own code can't reach it. libstdc++'s std::mutex and std::shared_mutex
+// never destroy their pthread object, and the engine and the tests use no pthread
+// mutex of their own, apart from the gate in support/test_tsan_runtime.cpp. The
+// host can. PipeWire's libjack destroys a locked mutex in libspa-support, under
+// jack_client_open() in Pa_Initialize(), on some runs. The mutex: suppression in
+// tools/tsan/host-audio.supp is checked after the leak, so it can't help. Turning
+// the check off closes the path, and it costs no coverage of our own code. An
+// environment TSAN_OPTIONS overrides this, which is how to run that gate without
+// the fix.
+#if defined(__has_feature)
+#if __has_feature(thread_sanitizer)
+#define YSE_UNDER_TSAN 1
+#endif
+#endif
+#if defined(__SANITIZE_THREAD__)
+#define YSE_UNDER_TSAN 1
+#endif
+#if defined(YSE_UNDER_TSAN)
+// Called while the runtime initialises, before it can take an instrumented call.
+extern "C" __attribute__((no_sanitize("thread"))) const char* __tsan_default_options() {
+  return "report_destroy_locked=0";
+}
+#endif
+
 // Honour YSE_TEST_FORCED_RATE before any test (or doctest's discovery pass)
 // can construct an SAMPLERATE-baking DSP object. The variable is read on the
 // first call into the test binary so it works in both the desktop main()

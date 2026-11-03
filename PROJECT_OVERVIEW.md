@@ -566,6 +566,7 @@ Tests/
     null_device.hpp                   # engineInit / engineInitWithAudio helpers
     alloc_probe.{hpp,cpp}             # Replaced operator new/new[]; ProbeScope counts RT-path allocations on the arming thread
     test_alloc_probe.cpp              # Self-test: the probe must see every allocation shape it claims to, and only its own thread
+    test_tsan_runtime.cpp             # TSan only: destroying a locked mutex must not wedge the runtime (#1263)
     android_asset_bridge.cpp          # Extracts assets/fixtures/ to internal data path
     fixtures/
       test_mono_44100.wav             # 244 B mono PCM
