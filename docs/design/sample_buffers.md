@@ -250,6 +250,15 @@ overshoot (crossfaded through `loopCrossfade` in the direction it plays) and `PE
 the loop points. The output buffers and the channel-mixing read are `DSP::playerOutputs`
 (`dsp/sampling/playerOutputs.hpp`), factored out of `bufferPlayer` so every player shares them.
 
+**For `~phasegroove` (#1142)**: Max's `phasegroove~` turns a ramp into the speed of a `groove~` it
+finds through the cord. A YSE object does not look at what it is connected to, so here the ramp
+drives the player: `groovePlayer::phase(view, phases)`, a second way into `DSP::groovePlayer` next
+to `operator()`, reads frame `low + phase * (high - low)` of the same `sampleRegion` loop, through
+the same `playerOutputs` and `loopCrossfade`, with sync the wrapped phase. It takes no speed, so
+neither `Wrap` nor `OffTheEnd` applies: the ramp says where to read and the position needs no
+integrating, so it cannot drift from the tempo. The crossfade's direction comes from the ramp's
+slope the short way round, so a wrap from 1 to 0 keeps it rising.
+
 ## Rebinding by name: one mailbox for the family (#1256)
 
 `set <name>` on `~peek` and `~poke`, and on the players, `~index` and `~record` after them,

@@ -757,6 +757,9 @@ reader: bind it in ``PARM_PARSE``, pin it once per block at the top of
   ``~play`` and ``~groove`` (``DSP::groovePlayer``, issue
   `#1141 <https://github.com/yvanvds/yse-soundengine/issues/1141>`_, the
   reference for a speed-driven player with loop points and a sync outlet).
+  ``~phasegroove`` (issue
+  `#1142 <https://github.com/yvanvds/yse-soundengine/issues/1142>`_) is that
+  same class driven by a phase, through ``groovePlayer::phase``.
 
 Switching buffers with ``set``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

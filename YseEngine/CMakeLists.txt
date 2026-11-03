@@ -229,6 +229,7 @@ set(YSE_SRCS
   patcher/sampling/dRecord.cpp
   patcher/sampling/dPlay.cpp
   patcher/sampling/dGroove.cpp
+  patcher/sampling/dPhaseGroove.cpp
   patcher/filters/dVcf.cpp
   patcher/filters/dSah.cpp
   patcher/filters/dSash.cpp
@@ -716,6 +717,7 @@ set_source_files_properties(
   patcher/sampling/dRecord.cpp
   patcher/sampling/dPlay.cpp
   patcher/sampling/dGroove.cpp
+  patcher/sampling/dPhaseGroove.cpp
   patcher/filters/dVcf.cpp
   patcher/filters/dSah.cpp
   patcher/filters/dSash.cpp

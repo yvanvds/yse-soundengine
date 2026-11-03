@@ -19338,6 +19338,102 @@
     ],
     "requires_midi_device": false
   },
+  "~phasegroove": {
+    "category": "SAMPLING",
+    "description": "Plays the loop of a named sample buffer where a ramp from 0 to 1 says, so a ~phasor plays it once per cycle: tempo-locked loops and slicing.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Where in the loop to read, a signal: 0 is the loop start, rising to 1 at the loop end, and a phase outside that wraps round the loop. Unconnected, it is the last number sent, else 0. Also takes 'setloop <start> <end>', 'reset' (the loop is the whole buffer), 'loopinterp <0/1>', 'interptime <ms>', 'loopstart <ms>', 'loopend <ms>' and 'set <name>' (another buffer, from a later block). None of them is saved.",
+        "index": 0,
+        "label": "phase",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The loop start, in milliseconds into the buffer. A connected signal sets it once per block, from the block's first sample.",
+        "index": 1,
+        "label": "loop start",
+        "range": "0 or higher"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The loop end, in milliseconds into the buffer; 0 is its end. A connected signal sets it once per block, from the block's first sample.",
+        "index": 2,
+        "label": "loop end",
+        "range": "0 or higher"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~phasegroove",
+    "outlets": [
+      {
+        "doc": "Buffer channel 1 at the phase. Silence for a channel the buffer lacks and for a loop that holds nothing.",
+        "index": 0,
+        "label": "out",
+        "range": "any float",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "The phase each sample is read at, kept in 0 to 1. 0 with no buffer and for a loop that holds nothing.",
+        "index": 1,
+        "label": "sync",
+        "range": "0 to 1",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The buffer to play. A set message does not change what is saved.",
+        "name": "name",
+        "range": "buffer name"
+      },
+      {
+        "default": "1",
+        "doc": "The number of sample outlets, each playing the buffer channel of its number. Buffer channels past the last outlet are mixed into the outlets.",
+        "name": "channels",
+        "range": "1 to 64"
+      },
+      {
+        "default": "0",
+        "doc": "1 crossfades the loop across the point the ramp wraps at, so it does not click.",
+        "name": "loopinterp",
+        "range": "0 or 1"
+      },
+      {
+        "default": "50",
+        "doc": "The length of the loop crossfade, in milliseconds; at most the length of the loop.",
+        "name": "interptime",
+        "range": "0 or higher"
+      },
+      {
+        "default": "0",
+        "doc": "The loop start, in milliseconds into the buffer.",
+        "name": "loopstart",
+        "range": "0 or higher"
+      },
+      {
+        "default": "0",
+        "doc": "The loop end, in milliseconds into the buffer; 0 is its end.",
+        "name": "loopend",
+        "range": "0 or higher"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~phaseshift": {
     "category": "FILTER",
     "description": "Second-order allpass with a center frequency in Hz and a Q, both settable per sample: the level is unchanged, the phase turns from 0 to -360 degrees and is -180 at the center frequency. For phaser stages and phase distortion.",

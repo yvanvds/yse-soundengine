@@ -1,13 +1,15 @@
 // Tests for YSE::DSP::groovePlayer (YseEngine/dsp/sampling/groovePlayer.hpp)
 // and YSE::DSP::playerOutputs (playerOutputs.hpp), issue #1141: a sample
 // buffer played at the speed of a signal, forward and backward, between loop
-// points it jumps across (with a crossfade) or swings over, with a sync output.
+// points it jumps across (with a crossfade) or swings over, with a sync output,
+// and the loop read where a phase says (#1142).
 // The buffers hold a ramp (sample n is n + 1000 c), which the 4-point kernel
 // reproduces exactly away from the ends, and run at 1000 Hz with the engine at
 // 1000 Hz unless a test says otherwise, so a millisecond is a frame and a
 // sample, and every expected value is in closed form.
 
 #include <doctest/doctest.h>
+#include <algorithm>
 #include <cmath>
 #include <limits>
 #include <memory>
@@ -514,6 +516,288 @@ TEST_SUITE("dsp") {
           g(view, (pass % 2) == 0 ? speed : few);
         } else {
           g(view, (pass % 5) == 2 ? -1.5f : 2.f, (pass % 4) == 1 ? 40 : N);
+        }
+      }
+      CHECK(TestHelpers::g_alloc_count.load() == 0);
+    }
+  }
+
+  // The phase-driven block (#1142). Loop 100 to 200 ms: frame 100 + 100 p.
+
+  TEST_CASE("groovePlayer::phase: a ramp reads the loop in a straight line, sync the phase "
+            "(#1142)") {
+    SampleRateGuard rate(1000);
+    auto b = Ramp(1, 1000);
+    sampleBufferReader reader(b);
+    groovePlayer g;
+    g.loopPoints(100.f, 200.f);
+    buffer ramp(N);
+    for (UInt i = 0; i < N; ++i)
+      ramp.getPtr()[i] = static_cast<float>(i) / static_cast<float>(N);
+    sampleView view = reader.pin();
+    buffer& out = g.phase(view, ramp);
+    CHECK(&out == &g.out(0));
+    for (UInt i = 0; i < N; ++i) {
+      CAPTURE(i);
+      const float p = ramp.getPtr()[i];
+      CHECK(out.getPtr()[i] == doctest::Approx(100.f + 100.f * p));
+      CHECK(g.sync().getPtr()[i] == doctest::Approx(p));
+    }
+    CHECK(g.position() == doctest::Approx(100.0 + 100.0 * (N - 1.0) / N));
+
+    // A loop of another length: the same ramp plays it once, in the same time.
+    g.loopPoints(10.f, 20.f);
+    g.phase(view, ramp);
+    for (UInt i = 0; i < N; ++i)
+      CHECK(g.out().getPtr()[i] == doctest::Approx(10.f + 10.f * ramp.getPtr()[i]));
+
+    // By default the loop is the whole buffer.
+    g.reset();
+    g.phase(view, 0.5f);
+    CHECK(g.out().getPtr()[0] == doctest::Approx(500.f));
+  }
+
+  TEST_CASE("groovePlayer::phase: outside 0 to 1 wraps round the loop; 1 is the end; not a "
+            "number holds (#1142)") {
+    SampleRateGuard rate(1000);
+    auto b = Ramp(1, 1000);
+    sampleBufferReader reader(b);
+    groovePlayer g;
+    g.loopPoints(100.f, 200.f);
+    sampleView view = reader.pin();
+    const auto at = [&](float phase) {
+      g.phase(view, phase, 4);
+      CHECK(g.out().getLength() == 4);
+      return g.out().getPtr()[3];
+    };
+    CHECK(at(0.f) == 100.f);
+    CHECK(at(0.25f) == doctest::Approx(125.f));
+    CHECK(at(1.25f) == doctest::Approx(125.f));
+    CHECK(g.sync().getPtr()[3] == doctest::Approx(0.25f));
+    CHECK(at(-0.75f) == doctest::Approx(125.f));
+    CHECK(at(1.f) == doctest::Approx(200.f)); // a one-shot ramp at rest
+    CHECK(g.sync().getPtr()[3] == 1.f);
+    CHECK(at(2.f) == doctest::Approx(100.f));
+    CHECK(at(0.5f) == doctest::Approx(150.f));
+    CHECK(at(std::numeric_limits<float>::quiet_NaN()) == doctest::Approx(150.f));
+    CHECK(at(std::numeric_limits<float>::infinity()) == doctest::Approx(150.f));
+    CHECK(g.sync().getPtr()[3] == doctest::Approx(0.5f));
+  }
+
+  TEST_CASE("groovePlayer::phase: a falling ramp plays backward, a held phase holds, loop mode "
+            "plays no part (#1142)") {
+    SampleRateGuard rate(1000);
+    auto b = Ramp(1, 1000);
+    sampleBufferReader reader(b);
+    groovePlayer g;
+    g.loopPoints(100.f, 200.f);
+    buffer falling(N);
+    for (UInt i = 0; i < N; ++i)
+      falling.getPtr()[i] = 1.f - static_cast<float>(i) / static_cast<float>(N);
+    sampleView view = reader.pin();
+    std::vector<float> off;
+    for (GROOVE_LOOP mode : {GROOVE_LOOP::OFF, GROOVE_LOOP::ON, GROOVE_LOOP::PENDULUM}) {
+      g.loop(mode);
+      g.phase(view, falling);
+      std::vector<float> now = Copy(g.out());
+      CHECK(now[0] == doctest::Approx(200.f));
+      CHECK(now[N - 1] < now[0]);
+      if (off.empty()) off = now;
+      CHECK(now == off);
+      CHECK(g.playing()); // never runs off: no speed to carry it
+    }
+    g.phase(view, 0.3f);
+    for (UInt i = 0; i < N; ++i)
+      CHECK(g.out().getPtr()[i] == doctest::Approx(130.f));
+  }
+
+  TEST_CASE("groovePlayer::phase: the crossfade follows the ramp's direction, also across its "
+            "wrap (#1142)") {
+    SampleRateGuard rate(1000);
+    auto b = Ramp(1, 1000);
+    sampleBufferReader reader(b);
+    groovePlayer g;
+    g.loopPoints(100.f, 200.f).loopInterp(true).interpTime(10.f);
+    sampleView view = reader.pin();
+
+    // Rising: the last 10 frames fade to the 10 frames before the loop start.
+    // Frame 196 at 0.6 of the fade gives 196 + 0.6 (96 - 196) = 136. The wrap
+    // reads 0 at frame 100: still rising, no fade there.
+    buffer rising(5);
+    const float up[5] = {0.5f, 0.75f, 0.96f, 0.f, 0.02f};
+    std::copy(up, up + 5, rising.getPtr());
+    g.phase(view, rising);
+    CHECK(g.out().getPtr()[0] == doctest::Approx(150.f));
+    CHECK(g.out().getPtr()[1] == doctest::Approx(175.f));
+    CHECK(g.out().getPtr()[2] == doctest::Approx(136.f));
+    CHECK(g.out().getPtr()[3] == doctest::Approx(100.f));
+    CHECK(g.out().getPtr()[4] == doctest::Approx(102.f));
+
+    // Falling: the first 10 frames fade to the 10 frames after the loop end.
+    // Frame 104 at 0.6 of the fade gives 104 + 0.6 (204 - 104) = 164. The wrap
+    // reads 0.98 at frame 198: still falling, no fade there.
+    buffer down(5);
+    const float dn[5] = {0.5f, 0.25f, 0.04f, 0.98f, 0.9f};
+    std::copy(dn, dn + 5, down.getPtr());
+    g.phase(view, down);
+    CHECK(g.out().getPtr()[0] == doctest::Approx(150.f));
+    CHECK(g.out().getPtr()[1] == doctest::Approx(125.f));
+    CHECK(g.out().getPtr()[2] == doctest::Approx(164.f));
+    CHECK(g.out().getPtr()[3] == doctest::Approx(198.f));
+    CHECK(g.out().getPtr()[4] == doctest::Approx(190.f));
+
+    // A held phase keeps the last direction: still falling.
+    buffer settle(2);
+    settle.getPtr()[0] = 0.5f;
+    settle.getPtr()[1] = 0.04f;
+    g.phase(view, settle);
+    g.phase(view, 0.04f, 4);
+    CHECK(g.out().getPtr()[3] == doctest::Approx(164.f));
+
+    // Off, or no length: the plain read.
+    g.interpTime(0.f);
+    g.phase(view, 0.04f, 4);
+    CHECK(g.out().getPtr()[3] == doctest::Approx(104.f));
+    g.interpTime(10.f).loopInterp(false);
+    g.phase(view, 0.04f, 4);
+    CHECK(g.out().getPtr()[3] == doctest::Approx(104.f));
+  }
+
+  TEST_CASE("groovePlayer::phase: silence without a loop, a buffer, or after a stop; a speed "
+            "takes over where it read (#1142)") {
+    SampleRateGuard rate(1000);
+    auto b = Ramp(1, 1000);
+    sampleBufferReader reader(b);
+    groovePlayer g;
+    sampleView view = reader.pin();
+
+    // A loop that holds nothing.
+    g.loopPoints(300.f, 300.f);
+    g.phase(view, 0.5f);
+    CHECK(Silent(Copy(g.out())));
+    CHECK(Silent(Copy(g.sync())));
+
+    // A stop lasts until a jump; the jump only starts it again.
+    g.loopPoints(100.f, 200.f).stop();
+    g.phase(view, 0.5f);
+    CHECK(Silent(Copy(g.out())));
+    CHECK_FALSE(g.playing());
+    g.position(700.f);
+    g.phase(view, 0.5f);
+    CHECK(g.out().getPtr()[0] == doctest::Approx(150.f));
+    g.stop().endLoop();
+    g.phase(view, 0.5f);
+    CHECK(g.out().getPtr()[0] == doctest::Approx(150.f));
+
+    // A speed goes on from where the phase read.
+    g.phase(view, 0.5f, 1);
+    CHECK(g.position() == doctest::Approx(150.0));
+    g.loop(GROOVE_LOOP::OFF);
+    g(view, 1.f, 3);
+    CHECK(g.out().getPtr()[0] == doctest::Approx(150.f));
+    CHECK(g.out().getPtr()[2] == doctest::Approx(152.f));
+
+    // No buffer, and an empty one.
+    sampleBufferReader none;
+    {
+      sampleView nothing = none.pin();
+      g.phase(nothing, 0.5f);
+      CHECK(Silent(Copy(g.out())));
+      CHECK(Silent(Copy(g.sync())));
+    }
+    auto empty = sampleBuffer::create(1, 0, RATE);
+    sampleBufferReader emptyReader(empty);
+    {
+      sampleView nothing = emptyReader.pin();
+      g.phase(nothing, 0.5f);
+      CHECK(Silent(Copy(g.out())));
+    }
+  }
+
+  TEST_CASE("groovePlayer::phase: follows the buffer as it is, not the engine's rate (#1142)") {
+    SampleRateGuard rate(1000);
+    auto b = Ramp(1, 1000);
+    sampleBufferReader reader(b);
+    groovePlayer g;
+    g.loopPoints(100.f, 200.f);
+    {
+      sampleView view = reader.pin();
+      g.phase(view, 0.5f);
+      CHECK(g.out().getPtr()[0] == doctest::Approx(150.f));
+      YSE::SAMPLERATE = 48000; // the ramp carries the tempo
+      g.phase(view, 0.5f);
+      CHECK(g.out().getPtr()[0] == doctest::Approx(150.f));
+    }
+
+    // The points are ms of the buffer: 100 ms is 200 frames at 2000 Hz.
+    b->setSampleRate(2000.f);
+    {
+      sampleView view = reader.pin();
+      g.phase(view, 0.5f);
+      CHECK(g.out().getPtr()[0] == doctest::Approx(300.f));
+    }
+
+    // A loop end past the buffer is its end, and follows a resize.
+    b->setSampleRate(RATE);
+    g.loopPoints(0.f, 0.f);
+    {
+      sampleView view = reader.pin();
+      g.phase(view, 0.5f);
+      CHECK(g.out().getPtr()[0] == doctest::Approx(500.f));
+    }
+    b->setSize(500);
+    {
+      sampleView view = reader.pin();
+      g.phase(view, 0.5f);
+      CHECK(g.out().getPtr()[0] == doctest::Approx(250.f));
+    }
+  }
+
+  TEST_CASE("groovePlayer::phase: channels as playerOutputs; a block as long as its phases, cut "
+            "to STANDARD_BUFFERSIZE (#1142)") {
+    SampleRateGuard rate(1000);
+    auto b = Ramp(3, 1000);
+    sampleBufferReader reader(b);
+    groovePlayer g(2);
+    g.loopPoints(100.f, 200.f);
+    sampleView view = reader.pin();
+    buffer few(40);
+    std::fill(few.getPtr(), few.getPtr() + 40, 0.5f);
+    g.phase(view, few);
+    CHECK(g.out(0).getLength() == 40);
+    CHECK(g.sync().getLength() == 40);
+    // Channels 0 and 2 mix into output 0; channel 1 is output 1.
+    CHECK(g.out(0).getPtr()[39] == doctest::Approx(150.f + 2150.f));
+    CHECK(g.out(1).getPtr()[39] == doctest::Approx(1150.f));
+    g.phase(view, 0.5f, N * 4);
+    CHECK(g.out(0).getLength() == N);
+    g.channels(3);
+    g.phase(view, 0.5f);
+    CHECK(g.out(2).getPtr()[0] == doctest::Approx(2150.f));
+  }
+
+  TEST_CASE("groovePlayer::phase: blocks allocate nothing (#1142)") {
+    SampleRateGuard rate(1000);
+    auto b = Ramp(3, 1000);
+    sampleBufferReader reader(b);
+    groovePlayer g(2);
+    buffer ramp(N);
+    for (UInt i = 0; i < N; ++i)
+      ramp.getPtr()[i] = static_cast<float>(i) * 0.03f - 1.f;
+    buffer few(40);
+    few.getPtr()[3] = 0.5f;
+    {
+      TestHelpers::ProbeScope probe;
+      for (int pass = 0; pass < 40; ++pass) {
+        if (pass == 3) g.loopInterp(true).loopPoints(100.f, 150.f);
+        if (pass == 8) g.interpTime(5.f).endLoop();
+        if (pass == 22) g.stop();
+        if (pass == 25) g.reset().position(10.f);
+        sampleView view = reader.pin();
+        if (pass % 3 == 0) {
+          g.phase(view, (pass % 2) == 0 ? ramp : few);
+        } else {
+          g.phase(view, 0.25f, (pass % 4) == 1 ? 40 : N);
         }
       }
       CHECK(TestHelpers::g_alloc_count.load() == 0);

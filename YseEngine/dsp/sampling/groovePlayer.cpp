@@ -61,6 +61,24 @@ buffer& groovePlayer::operator()(const sampleView& view, Flt speed, UInt length)
   return outputs.out(0);
 }
 
+buffer& groovePlayer::phase(const sampleView& view, buffer& phases) {
+  ProcessPhase(view, phases.getPtr(), 0.f, phases.getLength());
+  return outputs.out(0);
+}
+
+buffer& groovePlayer::phase(const sampleView& view, Flt at, UInt length) {
+  ProcessPhase(view, nullptr, at, length);
+  return outputs.out(0);
+}
+
+UInt groovePlayer::Begin(UInt blockLength) {
+  const UInt length = outputs.clear(blockLength);
+  // Within the capacity set at construction: no allocation.
+  if (syncOut.getLength() != length) syncOut.resize(length);
+  std::fill(syncOut.getPtr(), syncOut.getPtr() + length, 0.f);
+  return length;
+}
+
 void groovePlayer::Wrap(Dbl& frame, Dbl step, Dbl low, Dbl high) {
   const Dbl span = high - low;
   if (loopMode == GROOVE_LOOP::ON) {
@@ -95,11 +113,8 @@ void groovePlayer::Wrap(Dbl& frame, Dbl step, Dbl low, Dbl high) {
 
 void groovePlayer::Process(const sampleView& view, const Flt* speeds, Flt constant,
                            UInt blockLength) {
-  const UInt length = outputs.clear(blockLength);
-  // Within the capacity set at construction: no allocation.
-  if (syncOut.getLength() != length) syncOut.resize(length);
+  const UInt length = Begin(blockLength);
   Flt* sync = syncOut.getPtr();
-  std::fill(sync, sync + length, 0.f);
   if (view.empty()) return;
 
   // The loop in frames of the buffer as it is in this block.
@@ -149,6 +164,48 @@ void groovePlayer::Process(const sampleView& view, const Flt* speeds, Flt consta
   }
   // Stopped as the end is passed, not a block later.
   if (!looping && isPlaying) OffTheEnd(frame, step, last);
+  cursor = frame / toFrame;
+}
+
+void groovePlayer::ProcessPhase(const sampleView& view, const Flt* phases, Flt constant,
+                                UInt blockLength) {
+  const UInt length = Begin(blockLength);
+  Flt* sync = syncOut.getPtr();
+  jump = JUMP::NONE; // the phase says where it reads
+  if (view.empty() || !isPlaying) return;
+
+  // The loop in frames of the buffer as it is in this block.
+  const Flt rate = view.sampleRate();
+  const sampleRegion region = sampleRegion::fromMs(loopStartMs, loopEndMs, rate, view.frames());
+  if (region.empty()) return;
+  const auto low = static_cast<Dbl>(region.start);
+  const auto high = static_cast<Dbl>(region.end);
+  const Dbl toFrame = static_cast<Dbl>(rate) * 0.001;
+
+  loopCrossfade xfade;
+  const loopCrossfade* fading = nullptr;
+  if (crossfading && fadeMs > 0.f) {
+    xfade = loopCrossfade::make(low, high, static_cast<Dbl>(fadeMs) * toFrame);
+    fading = &xfade;
+  }
+
+  Dbl frame = cursor * toFrame;
+  for (UInt i = 0; i < length; ++i) {
+    const auto raw = static_cast<Dbl>(phases != nullptr ? phases[i] : constant);
+    Dbl at = lastPhase;
+    if (std::isfinite(raw)) at = raw >= 0.0 && raw <= 1.0 ? raw : raw - std::floor(raw);
+
+    // The short way round: a ramp wrapping from 1 to 0 still rises.
+    Dbl moved = at - lastPhase;
+    if (moved > 0.5) moved -= 1.0;
+    if (moved < -0.5) moved += 1.0;
+    if (moved != 0.0) phaseFalling = moved < 0.0;
+    lastPhase = at;
+
+    frame = low + at * (high - low);
+    outputs.read(view, i, frame, fading, !phaseFalling);
+    sync[i] = static_cast<Flt>(at);
+  }
   cursor = frame / toFrame;
 }
 

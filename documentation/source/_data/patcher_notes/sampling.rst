@@ -416,3 +416,54 @@ looked up in the background and played from a later block on, from the
 position playback had reached; ``set`` alone plays silence. Messages are
 not saved with the patch: a reloaded ``~groove`` uses the buffer and the
 settings of its arguments.
+
+.. patcher-object:: ~phasegroove
+
+Plays the buffer of its name where a ramp in its left inlet says: 0 is the
+loop start and 1 the loop end, so a ``~phasor`` plays the loop once per cycle
+whatever its length. That locks a loop to a tempo, and a slice to a step. The
+arguments, all after the name optional, are
+``name channels loopinterp interptime loopstart loopend``. ``channels`` (1
+to 64) sets how many sample outlets there are, as for ``~groove``: the first
+plays buffer channel 1, and so on, with missing channels silent and extra
+ones mixed in. The rightmost outlet is the sync signal. There is no ``~groove``
+to connect: ``~phasegroove`` is the player.
+
+- **Phase.** A ramp that rises plays forward, one that falls plays backward,
+  and one that stands still holds the sample there; the ramp's speed is the
+  loop's. A phase outside 0 to 1 wraps round the loop, so 1.25 reads where
+  0.25 does and a ramp with an offset added plays the loop from further on. 1
+  itself is the loop end, where a one-shot ramp comes to rest. With nothing
+  connected the phase is the last number sent to the inlet, else 0.
+- **Loop points.** The middle inlet sets the loop start and the right inlet
+  the loop end, in milliseconds; an end of 0 is the end of the buffer, so the
+  loop is the whole buffer until it is set. ``setloop <start> <end>``,
+  ``loopstart <ms>`` and ``loopend <ms>`` set them too, and ``reset`` goes back
+  to the whole buffer. A signal connected to one of those inlets sets its point
+  once per block, from the block's first sample. A loop whose end is not after
+  its start plays silence.
+- **Crossfade.** With ``loopinterp 1``, the last ``interptime`` milliseconds
+  before the ramp wraps (50 by default, at most the loop's length) are
+  crossfaded with the sound on the far side of the point it wraps to, so the
+  loop does not click. It follows the way the ramp is moving.
+- **Sync.** The right outlet is the phase each sample was read at, kept in 0
+  to 1: the ramp, wrapped.
+
+.. code-block:: text
+
+   [~phasor 2]   [setloop 250 750(
+    |             |
+   [~phasegroove drums]              half a second of it, twice a second
+    |
+   [~dac]
+
+Samples are read between the frames with a 4-point interpolation. The ramp
+sets the tempo, so the engine's sample rate plays no part; the loop points are
+milliseconds of the buffer, held at its end and following it when it is resized
+or a file is read into it.
+
+With no buffer, or an empty one, ``~phasegroove`` plays silence.
+``set <name>`` in the left inlet switches to another buffer, looked up in the
+background and played from a later block on; ``set`` alone plays silence.
+Messages and numbers are not saved with the patch: a reloaded ``~phasegroove``
+uses the buffer and the settings of its arguments.

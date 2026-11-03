@@ -80,6 +80,11 @@ namespace YSE {
      *    and while stopped.
      *  - **Channels.** As ``playerOutputs``: output ``k`` plays buffer
      *    channel ``k``, missing channels are silent, extra ones mixed in.
+     *  - **Following a phase** (``phase``, issue #1142). The other way to
+     *    drive it: instead of a speed, each sample of a signal says where in
+     *    the loop to read, 0 at the loop start rising to 1 at the loop end,
+     *    so a ramp plays the loop once per cycle whatever the loop's length:
+     *    what the patcher's ``~phasegroove`` does. See ``phase``.
      *
      *  With no buffer bound, or an empty one, the outputs and sync are
      *  silence and the position stays where it was.
@@ -210,6 +215,45 @@ namespace YSE {
        *         output 0. */
       buffer& operator()(const sampleView& view, Flt speed, UInt length = STANDARD_BUFFERSIZE);
 
+      /**
+       *  @brief One block read where @p phases says, as a fraction of the
+       *         loop; as long as it, up to ``STANDARD_BUFFERSIZE``. Returns
+       *         output 0.
+       *
+       *  Sample ``i`` is read at ``start + phase * (end - start)`` of the
+       *  loop points, for this block's buffer, with the same 4-point read as
+       *  a speed. A rising ramp plays the loop forward, a falling one
+       *  backward, a held value holds the sample there, and how fast the
+       *  ramp runs is how fast the loop plays: neither the engine's sample
+       *  rate nor the buffer's enters into it, except that the loop points
+       *  are milliseconds of the buffer.
+       *
+       *  - A phase outside 0 to 1 wraps round the loop, so 1.25 and -0.75
+       *    read where 0.25 does, and an offset ramp shifts the loop. 1 itself
+       *    is the loop end, where a one-shot ramp comes to rest. A phase
+       *    that is not a number holds the last one.
+       *  - ``loop`` plays no part: the ramp decides what happens at the
+       *    points. With ``loopInterp`` on, the last ``interpTime`` ms before
+       *    the point the ramp wraps from are crossfaded with the sound on the
+       *    far side of the point it wraps to (``loopCrossfade``), in the
+       *    direction the ramp is moving. Its direction is taken the short way
+       *    round from one phase to the next, so a wrap does not reverse it.
+       *  - ``sync()`` is the phase read, kept in 0 to 1.
+       *  - A loop that holds nothing plays silence, as no buffer or an empty
+       *    one does. So does a player stopped by ``stop`` or by a speed that
+       *    ran off the buffer, until the next ``position``, ``startLoop`` or
+       *    ``endLoop``; those three only start it again here, since the
+       *    phase says where it reads.
+       *  - ``position()`` gives where the block's last sample was read, so
+       *    a speed can take over from there.
+       */
+      buffer& phase(const sampleView& view, buffer& phases);
+
+      /** @brief One block of @p length samples, up to
+       *         ``STANDARD_BUFFERSIZE``, at the constant phase @p at: holds
+       *         the sample there. Returns output 0. */
+      buffer& phase(const sampleView& view, Flt at, UInt length = STANDARD_BUFFERSIZE);
+
       /** @brief Output @p channel of the last block (from 0); the last
        *         output past the count. */
       buffer& out(UInt channel = 0) {
@@ -224,6 +268,11 @@ namespace YSE {
     private:
       // The block, at the speed of `speeds[i]` (or `constant` when null).
       void Process(const sampleView& view, const Flt* speeds, Flt constant, UInt length);
+      // The block, read at the phase `phases[i]` (or `constant` when null).
+      void ProcessPhase(const sampleView& view, const Flt* phases, Flt constant, UInt length);
+      // The outputs and sync silent and `length` samples long, or as much of
+      // it as they hold. Returns that length.
+      UInt Begin(UInt length);
 
       // A jump to a loop point, waiting for a block with something to play
       // (the points are frames of the buffer as it is then).
@@ -247,6 +296,8 @@ namespace YSE {
       Flt loopEndMs = 0.f;
       Dbl cursor = 0.0; // ms
       Dbl direction = 1.0; // -1 on the way back in a pendulum loop
+      Dbl lastPhase = 0.0; // the phase last read, in 0 to 1
+      bool phaseFalling = false; // the way the phase was last moving
     };
 
   } // namespace DSP

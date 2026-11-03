@@ -336,6 +336,7 @@ set(YSE_TEST_SOURCES
   patcher/test_patcher_record.cpp
   patcher/test_patcher_play.cpp
   patcher/test_patcher_groove.cpp
+  patcher/test_patcher_phasegroove.cpp
   patcher/test_patcher_snapshot.cpp
   patcher/test_patcher_armed_outlets.cpp
   patcher/test_patcher_cycle.cpp
@@ -1529,6 +1530,7 @@ set_source_files_properties(
   patcher/test_patcher_record.cpp
   patcher/test_patcher_play.cpp
   patcher/test_patcher_groove.cpp
+  patcher/test_patcher_phasegroove.cpp
   patcher/test_patcher_snapshot.cpp
   patcher/test_patcher_armed_outlets.cpp
   patcher/test_patcher_cycle.cpp

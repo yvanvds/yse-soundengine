@@ -334,9 +334,10 @@ well.
 
 A sample buffer played at the speed of a signal, forward or backward,
 between loop points it jumps across (with a crossfade) or swings over, with
-a sync output: what ``~groove`` does. Its outputs, and the read that mixes
-the buffer's channels into them, are a ``playerOutputs``, which every buffer
-player shares.
+a sync output: what ``~groove`` does. It can also follow a phase instead of a
+speed, reading the loop where a 0 to 1 ramp says: what ``~phasegroove`` does.
+Its outputs, and the read that mixes the buffer's channels into them, are a
+``playerOutputs``, which every buffer player shares.
 
 .. doxygenfile:: dsp/sampling/groovePlayer.hpp
    :project: libYSE
