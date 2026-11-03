@@ -49,6 +49,100 @@ namespace YSE {
     };
 
     /**
+     *  @brief A loop a sound file defines, in sample frames of that file.
+     *
+     *  Positions are as the file states them: a later ``read`` with a start
+     *  offset, a ``crop`` or a ``setSize`` does not move them.
+     */
+    struct sampleLoop {
+      /** @brief Whether the file defines this loop. */
+      bool defined = false;
+      /** @brief The first frame of the loop. */
+      UInt start = 0;
+      /** @brief The frame the loop ends at. */
+      UInt end = 0;
+    };
+
+    /**
+     *  @brief The instrument data a sound file carries: an AIFF ``INST``
+     *         chunk, or a WAV ``smpl`` chunk.
+     *
+     *  A WAV ``smpl`` chunk has a base note, a detune and loops but no key
+     *  or velocity range and no gain, so those keep the full range (0 to
+     *  127) and a gain of 1.
+     */
+    struct sampleInstrument {
+      /** @brief Whether the file has instrument data at all. */
+      bool defined = false;
+      /** @brief The MIDI note the sample sounds at, unshifted. */
+      Int baseNote = 60;
+      /** @brief The detune, in cents. */
+      Int detune = 0;
+      /** @brief The lowest MIDI note the sample is meant for. */
+      Int keyLow = 0;
+      /** @brief The highest MIDI note the sample is meant for. */
+      Int keyHigh = 127;
+      /** @brief The lowest MIDI velocity the sample is meant for. */
+      Int velocityLow = 0;
+      /** @brief The highest MIDI velocity the sample is meant for. */
+      Int velocityHigh = 127;
+      /** @brief The gain the file states: decibels in AIFF, 1 for WAV. */
+      Int gain = 0;
+      /** @brief The loop to play while a note is held: the file's first
+       *         loop (an AIFF sustain loop). */
+      sampleLoop sustainLoop;
+      /** @brief The loop to play after a note is released: the file's
+       *         second loop (an AIFF release loop). */
+      sampleLoop releaseLoop;
+    };
+
+    /**
+     *  @brief Everything ``sampleBuffer::info`` reports, taken at one
+     *         moment: the buffer's shape and the file last read into it.
+     *
+     *  The shape and the file fields always agree with each other, unlike
+     *  separate calls to ``channels``, ``frames`` and ``sampleRate`` made
+     *  during a change.
+     */
+    struct API sampleBufferInfo {
+      /** @brief Number of channels. */
+      UInt channels = 0;
+      /** @brief Length in samples, per channel. */
+      UInt frames = 0;
+      /** @brief The rate the samples are at, in Hz (never 0). */
+      Flt sampleRate = 0.f;
+      /** @brief Length in milliseconds at ``sampleRate``. */
+      Flt lengthMs = 0.f;
+      /** @brief The buffer's ``version`` this snapshot belongs to. */
+      std::uint64_t version = 0;
+
+      /**
+       *  @brief The path of the file last read into the buffer, as ``read``
+       *         was given it; empty when no file was read.
+       *
+       *  It stays after later edits, and a ``copyFrom`` takes the source's.
+       */
+      std::string filePath;
+      /** @brief How many channels that file has, which may differ from
+       *         ``channels``; 0 when no file was read. */
+      UInt fileChannels = 0;
+      /** @brief That file's instrument data and loops. */
+      sampleInstrument instrument;
+
+      /** @brief Whether a file was read into the buffer. */
+      bool hasFile() const {
+        return !filePath.empty();
+      }
+
+      /** @brief The last part of ``filePath``, after its final ``/`` or
+       *         ``\``. */
+      std::string fileName() const;
+
+      /** @brief @p frameCount frames in milliseconds at ``sampleRate``. */
+      Flt framesToMs(UInt frameCount) const;
+    };
+
+    /**
      *  @brief A multichannel block of samples that many readers share, by
      *         name or by pointer: the memory behind Max's ``buffer~``.
      *
@@ -144,6 +238,18 @@ namespace YSE {
        */
       std::uint64_t version() const;
 
+      /**
+       *  @brief The shape, rate and file details at one moment: what Max's
+       *         ``info~`` reports.
+       *
+       *  The file details are those of the last successful ``read`` or
+       *  ``replace`` (or of the source of a ``copyFrom``): its path, its
+       *  channel count, and its instrument data and loops. Edits keep
+       *  them. Takes the buffer's lock and copies the path, so it belongs
+       *  on a control or background thread, never on the audio thread.
+       */
+      sampleBufferInfo info() const;
+
       // ─── files ─────────────────────────────────────────────────────────────
 
       /**
@@ -169,7 +275,8 @@ namespace YSE {
        *
        *  The buffer takes the file's sample rate. Samples are not resampled:
        *  a reader plays them at the right speed by comparing
-       *  ``sampleRate`` with the engine rate.
+       *  ``sampleRate`` with the engine rate. The file's path, channel count
+       *  and instrument data become what ``info`` reports.
        */
       bool read(const char* path, Flt startMs = 0.f, Flt durationMs = -1.f, Int channels = -1);
 
@@ -257,8 +364,8 @@ namespace YSE {
        */
       void normalize(Flt peak = 1.f);
 
-      /** @brief Take the shape, rate and samples of @p other (Max's
-       *         ``duplicate``). */
+      /** @brief Take the shape, rate and samples of @p other, and the file
+       *         details its ``info`` reports (Max's ``duplicate``). */
       void copyFrom(const sampleBuffer& other);
 
       /**
@@ -328,6 +435,10 @@ namespace YSE {
 
       mutable std::mutex mutex;
       std::shared_ptr<const storage> owner; // under mutex
+      // The last file read (info()): path, channels, instrument. Under mutex.
+      std::string lastFilePath;
+      UInt lastFileChannels = 0;
+      sampleInstrument lastFileInstrument;
       std::vector<std::shared_ptr<const storage>> retired; // under mutex
       std::vector<std::unique_ptr<hazard>> hazards; // under mutex
 

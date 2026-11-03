@@ -698,6 +698,15 @@ The rules:
   ``view.sampleRate() / SAMPLERATE``. Cache neither across blocks.
 - The DSP class takes the view (or the reader) per block, not the buffer,
   so it stays a one-thread class. It never edits the buffer: edits allocate.
+- A control object that only reports on a buffer, such as ``~info``
+  (issue `#1138 <https://github.com/yvanvds/yse-soundengine/issues/1138>`_),
+  needs no reader. ``DSP::sampleBuffer::info()`` returns the shape, the rate
+  and the last file's path, channels, loops and instrument data in one
+  consistent ``DSP::sampleBufferInfo``, but it locks and copies, so call it
+  in a ``fileScheduler`` task (``RequestTask``), never in a message handler.
+  The task looks the buffer up by name with ``sampleBufferRegistry::find``
+  and writes the answer into its fixed record; ``DeliverFileResult`` sends
+  it.
 
 Porting an MSP object
 ---------------------

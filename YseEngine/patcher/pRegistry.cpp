@@ -170,6 +170,7 @@
 #include "dynamics/dMultiband.h"
 #include "delay/dDelay.h"
 #include "sampling/dBuffer.h"
+#include "sampling/dInfo.h"
 
 #include "guiObjects/gInt.h"
 #include "guiObjects/gFloat.h"
@@ -466,6 +467,7 @@ pRegistry::pRegistry() {
   Add(OBJ::D_COMP, dComp::Create);
   Add(OBJ::D_MULTIBAND, dMultiband::Create);
   Add(OBJ::D_BUFFER, dBuffer::Create);
+  Add(OBJ::D_INFO, dInfo::Create);
 
   Add(OBJ::G_SWITCH, gSwitch::Create);
   Add(OBJ::G_GATE, gGate::Create);

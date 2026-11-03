@@ -214,6 +214,7 @@ set(YSE_SRCS
   patcher/dynamics/dComp.cpp
   patcher/dynamics/dMultiband.cpp
   patcher/sampling/dBuffer.cpp
+  patcher/sampling/dInfo.cpp
   patcher/filters/dVcf.cpp
   patcher/filters/dSah.cpp
   patcher/filters/dSash.cpp
@@ -692,6 +693,7 @@ set_source_files_properties(
   patcher/dynamics/dComp.cpp
   patcher/dynamics/dMultiband.cpp
   patcher/sampling/dBuffer.cpp
+  patcher/sampling/dInfo.cpp
   patcher/filters/dVcf.cpp
   patcher/filters/dSah.cpp
   patcher/filters/dSash.cpp

@@ -156,6 +156,24 @@ The DSP class of a sampling object (`DSP::bufferPlayer`, `DSP::groovePlayer`, ..
 `sampleView` (or the reader) per block rather than a `sampleBuffer`, so it stays a plain one-thread
 class as the MSP conventions require.
 
+## Reporting on a buffer from a control object
+
+`~info` ([#1138](https://github.com/yvanvds/yse-soundengine/issues/1138)) reads a buffer's details,
+not its samples, so it holds no reader. `sampleBuffer::info()` returns a `sampleBufferInfo`: the
+shape and rate of the current block plus the last file read (path, channel count, and the
+`sampleInstrument` — base note, detune, key and velocity range, gain, sustain and release loops —
+from libsndfile's `SFC_GET_INSTRUMENT`, i.e. an AIFF `INST` or WAV `smpl` chunk), all taken under
+the buffer mutex so they agree. The file details live beside `owner` under the mutex rather than in
+the published block: no audio-thread reader needs them, and edits that rebuild the block
+(`setSize`, `crop`) keep them for free. A successful `read` / `replace` sets them, `copyFrom` copies
+them, nothing else touches them.
+
+Because `info()` locks and copies a string, a `~info` bang is a `fileScheduler` task like a
+`~buffer` query: the record carries the buffer **name**, the task resolves it with
+`sampleBufferRegistry::find` on the background pool, and the answer comes back in the same record.
+Resolving by name at each bang (instead of holding the buffer) lets `set <name>` work from the audio
+thread without a lookup there, and finds a buffer created after the object.
+
 ## Writers (deferred to their own issues)
 
 `~record` ([#1143](https://github.com/yvanvds/yse-soundengine/issues/1143)) and `~poke`

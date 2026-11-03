@@ -55,3 +55,44 @@ four messages can be waiting at once in one patcher; more are ignored.
 
    [~buffer drums kit.wav]       loads kit.wav when the patch opens
    [~buffer scratch 2000 2]      two seconds of silence, in stereo
+
+.. patcher-object:: ~info
+
+Reports what the buffer of its name holds. The argument names the buffer;
+``set <name>`` names another one, and ``set`` alone names none. A bang sends
+the report, from the right outlet to the left, so the sample rate arrives
+last:
+
+- outlet 9: the path of the file last loaded into the buffer, as it was given
+  to ``read`` or ``replace``;
+- outlet 8: how many channels that file has. Without a file, the buffer's own
+  channel count;
+- outlet 7: the file's name, without its folders;
+- outlet 6: the buffer's length in milliseconds;
+- outlets 5 and 4: the end and start of the file's release loop, in
+  milliseconds;
+- outlets 3 and 2: the end and start of its sustain loop;
+- outlet 1: the file's instrument data as one list: base note, detune in
+  cents, lowest and highest note, lowest and highest velocity, and gain;
+- outlet 0: the rate the samples are at, in Hz.
+
+What the buffer does not have is not sent: no file name, path, loops or
+instrument data before a file is loaded, and no loop the file does not
+define. The loops and instrument data come from an AIFF file's instrument
+chunk (sustain and release loop) or a WAV file's sampler chunk (its first
+two loops; a WAV file states no key or velocity range and no gain, so those
+come out as 0 127 0 127 1). Loop points are where the file puts them: they do
+not move when the buffer is cropped or resized afterwards. The file details
+stay until another file is loaded.
+
+The report is gathered in the background and arrives at the start of a later
+audio block, after any message sent to a ``~buffer`` in the same patch before
+the bang. So ``read`` followed by a bang reports the new file. The usual
+patch wires the left outlet of ``~buffer`` (a bang when a file has loaded)
+into ``~info``:
+
+.. code-block:: text
+
+   [~buffer drums]
+    |
+   [~info drums]      reports every file loaded into drums

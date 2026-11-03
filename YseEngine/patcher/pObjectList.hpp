@@ -49,7 +49,7 @@ namespace YSE {
    *    and dumped as lists), ``D_LOUDNESS`` (EBU R 128 loudness in LUFS).
    *  - DSP delay: `D_TAPIN`, `D_TAPOUT`, `D_COMB`, `D_TEETH`, `D_DELAY`.
    *  - DSP dynamics: ``D_NORMALIZE`` (scaling by the running peak).
-   *  - DSP sampling: ``D_BUFFER``.
+   *  - DSP sampling: ``D_BUFFER``, ``D_INFO`` (a buffer's details).
    *  - DSP math: ``D_ADD``, ``D_MULTIPLY``, ``D_CLIP``, ``D_REVERSESUBSTRACT``,
    *    ``D_REVERSEDIVIDE``, ``D_MODULO``, ``D_PLUSEQUALS``,
    *    ``D_DELTA`` (difference between successive samples), ``D_DEGRADE``
@@ -290,6 +290,7 @@ namespace YSE {
     DEFOBJ(D_MULTIBAND, "~multiband");
 
     DEFOBJ(D_BUFFER, "~buffer");
+    DEFOBJ(D_INFO, "~info");
 
     DEFOBJ(G_INT, ".i");
     DEFOBJ(G_FLOAT, ".f");

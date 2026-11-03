@@ -188,7 +188,48 @@ namespace {
 
   constexpr sf_count_t CHUNK_FRAMES = 8192;
 
+  // A file's instrument data, through libsndfile: an AIFF INST chunk (its
+  // sustain and release loops, positions resolved from the MARK chunk) or a
+  // WAV smpl chunk (its first two loops). A loop with no play mode is none.
+  sampleInstrument InstrumentOf(SndfileHandle& handle) {
+    sampleInstrument out;
+    SF_INSTRUMENT data{};
+    if (handle.command(SFC_GET_INSTRUMENT, &data, sizeof(data)) != SF_TRUE) return out;
+    out.defined = true;
+    // The fields are plain char, whose sign differs between platforms (ARM
+    // makes it unsigned): notes and velocities are 0..127, the detune is
+    // signed cents.
+    out.baseNote = static_cast<unsigned char>(data.basenote);
+    // NOLINTNEXTLINE(bugprone-signed-char-misuse,cert-str34-c): the detune is signed
+    out.detune = static_cast<signed char>(data.detune);
+    out.keyLow = static_cast<unsigned char>(data.key_lo);
+    out.keyHigh = static_cast<unsigned char>(data.key_hi);
+    out.velocityLow = static_cast<unsigned char>(data.velocity_lo);
+    out.velocityHigh = static_cast<unsigned char>(data.velocity_hi);
+    out.gain = data.gain;
+    sampleLoop* loops[2] = {&out.sustainLoop, &out.releaseLoop};
+    const int count = std::min(data.loop_count, 2);
+    for (int i = 0; i < count; ++i) {
+      if (data.loops[i].mode == SF_LOOP_NONE) continue;
+      loops[i]->defined = true;
+      loops[i]->start = data.loops[i].start;
+      loops[i]->end = data.loops[i].end;
+    }
+    return out;
+  }
+
 } // namespace
+
+// ─── sampleBufferInfo ─────────────────────────────────────────────────────────
+
+std::string sampleBufferInfo::fileName() const {
+  const std::size_t slash = filePath.find_last_of("/\\");
+  return slash == std::string::npos ? filePath : filePath.substr(slash + 1);
+}
+
+Flt sampleBufferInfo::framesToMs(UInt frameCount) const {
+  return static_cast<Flt>(static_cast<double>(frameCount) * 1000.0 / sampleRate);
+}
 
 // ─── sampleBuffer ─────────────────────────────────────────────────────────────
 
@@ -248,6 +289,20 @@ Flt sampleBuffer::lengthMs() const {
 
 std::uint64_t sampleBuffer::version() const {
   return changes.load(std::memory_order_acquire);
+}
+
+sampleBufferInfo sampleBuffer::info() const {
+  sampleBufferInfo out;
+  const std::lock_guard<std::mutex> lock(mutex);
+  out.channels = owner->channels;
+  out.frames = owner->frames;
+  out.sampleRate = owner->rate > 0.f ? owner->rate : EngineRate();
+  out.lengthMs = out.framesToMs(owner->frames);
+  out.version = owner->version;
+  out.filePath = lastFilePath;
+  out.fileChannels = lastFileChannels;
+  out.instrument = lastFileInstrument;
+  return out;
 }
 
 std::shared_ptr<const sampleBuffer::storage> sampleBuffer::snapshot() const {
@@ -388,8 +443,13 @@ bool sampleBuffer::read(const char* path, Flt startMs, Flt durationMs, Int chann
       done += got;
     }
   }
+  sampleInstrument instrument = InstrumentOf(file.handle);
 
-  publish(std::move(next));
+  const std::lock_guard<std::mutex> lock(mutex);
+  lastFilePath = path;
+  lastFileChannels = static_cast<UInt>(fileChannels);
+  lastFileInstrument = instrument;
+  publishLocked(std::move(next));
   return true;
 }
 
@@ -545,8 +605,23 @@ void sampleBuffer::normalize(Flt peak) {
 void sampleBuffer::copyFrom(const sampleBuffer& other) {
   // The source's lock, then ours, never both: two buffers copying from each
   // other cannot deadlock.
-  const std::shared_ptr<const storage> source = other.snapshot();
-  publish(std::make_shared<storage>(*source));
+  std::shared_ptr<const storage> source;
+  std::string sourcePath;
+  UInt sourceChannels = 0;
+  sampleInstrument sourceInstrument;
+  {
+    const std::lock_guard<std::mutex> lock(other.mutex);
+    source = other.owner;
+    sourcePath = other.lastFilePath;
+    sourceChannels = other.lastFileChannels;
+    sourceInstrument = other.lastFileInstrument;
+  }
+  auto next = std::make_shared<storage>(*source);
+  const std::lock_guard<std::mutex> lock(mutex);
+  lastFilePath = std::move(sourcePath);
+  lastFileChannels = sourceChannels;
+  lastFileInstrument = sourceInstrument;
+  publishLocked(std::move(next));
 }
 
 void sampleBuffer::setSamples(UInt channel, UInt startFrame, const Flt* values, UInt count) {

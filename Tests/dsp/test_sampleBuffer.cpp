@@ -18,6 +18,7 @@
 #include "dsp/sampling/sampleBuffer.hpp"
 #include "headers/constants.hpp"
 #include "support/alloc_probe.hpp"
+#include "support/sample_fixtures.hpp"
 
 using YSE::DSP::sampleBuffer;
 using YSE::DSP::sampleBufferReader;
@@ -251,6 +252,159 @@ TEST_SUITE("dsp") {
     CHECK(b->version() == before);
     CHECK(Channel(*b, 0) == std::vector<float>{100.f, 101.f, 102.f});
     CHECK_FALSE(sampleBuffer::create(1, 0)->write(TempFile("yse_empty_1039.wav").c_str()));
+  }
+
+  // ─── info ─────────────────────────────────────────────────────────────────
+
+  TEST_CASE("sampleBuffer: info reports the shape, and no file before one is read (#1138)") {
+    auto b = sampleBuffer::create(3, 2205, 22050.f);
+    const YSE::DSP::sampleBufferInfo info = b->info();
+    CHECK(info.channels == 3);
+    CHECK(info.frames == 2205);
+    CHECK(info.sampleRate == doctest::Approx(22050.f));
+    CHECK(info.lengthMs == doctest::Approx(100.f));
+    CHECK(info.version == b->version());
+    CHECK_FALSE(info.hasFile());
+    CHECK(info.fileName().empty());
+    CHECK(info.fileChannels == 0);
+    CHECK_FALSE(info.instrument.defined);
+    CHECK_FALSE(info.instrument.sustainLoop.defined);
+    CHECK_FALSE(info.instrument.releaseLoop.defined);
+    CHECK(info.framesToMs(441) == doctest::Approx(20.f));
+  }
+
+  TEST_CASE("sampleBuffer: info follows the engine rate for a rate-0 buffer (#1138)") {
+    SampleRateGuard guard;
+    auto b = sampleBuffer::create(1, 4800);
+    YSE::SAMPLERATE = 48000;
+    CHECK(b->info().sampleRate == doctest::Approx(48000.f));
+    CHECK(b->info().lengthMs == doctest::Approx(100.f));
+    YSE::SAMPLERATE = 96000;
+    CHECK(b->info().lengthMs == doctest::Approx(50.f));
+  }
+
+  TEST_CASE("sampleBuffer: info reports a WAV file's smpl loops and base note (#1138)") {
+    const std::string path = TempFile("yse_info_loops_1138.wav");
+    // 100..200 and 300..400 at 20 kHz: 5..10 ms and 15..20 ms.
+    REQUIRE(
+        TestHelpers::WavWithLoops(path, 2, 1000, 20000, 64, 12, {{1, 100, 200}, {2, 300, 400}}));
+    auto b = sampleBuffer::create(1, 0);
+    REQUIRE(b->read(path.c_str()));
+    const YSE::DSP::sampleBufferInfo info = b->info();
+
+    CHECK(info.hasFile());
+    CHECK(info.filePath == path);
+    CHECK(info.fileName() == "yse_info_loops_1138.wav");
+    // read kept the buffer's one channel; the file had two.
+    CHECK(info.channels == 1);
+    CHECK(info.fileChannels == 2);
+    CHECK(info.frames == 1000);
+    CHECK(info.lengthMs == doctest::Approx(50.f));
+
+    const YSE::DSP::sampleInstrument& in = info.instrument;
+    REQUIRE(in.defined);
+    CHECK(in.baseNote == 64);
+    CHECK(in.detune == 12);
+    CHECK(in.keyLow == 0);
+    CHECK(in.keyHigh == 127);
+    REQUIRE(in.sustainLoop.defined);
+    CHECK(in.sustainLoop.start == 100);
+    CHECK(in.sustainLoop.end == 200);
+    CHECK(info.framesToMs(in.sustainLoop.start) == doctest::Approx(5.f));
+    CHECK(info.framesToMs(in.sustainLoop.end) == doctest::Approx(10.f));
+    REQUIRE(in.releaseLoop.defined);
+    CHECK(in.releaseLoop.start == 300);
+    CHECK(in.releaseLoop.end == 400);
+    Remove(path);
+  }
+
+  TEST_CASE("sampleBuffer: info reports an AIFF file's INST chunk (#1138)") {
+    const std::string path = TempFile("yse_info_inst_1138.aif");
+    TestHelpers::FixtureInstrument inst;
+    inst.baseNote = 57;
+    inst.detune = -7;
+    inst.keyLow = 40;
+    inst.keyHigh = 70;
+    inst.velocityLow = 10;
+    inst.velocityHigh = 100;
+    inst.gain = 3;
+    inst.sustain = {1, 1000, 3000};
+    SUBCASE("both loops") {
+      inst.release = {2, 4000, 7000};
+      REQUIRE(TestHelpers::AiffWithInstrument(path, 1, 10000, 10000, inst));
+      auto b = sampleBuffer::create();
+      REQUIRE(b->replace(path.c_str()));
+      const YSE::DSP::sampleBufferInfo info = b->info();
+      CHECK(info.sampleRate == doctest::Approx(10000.f));
+      const YSE::DSP::sampleInstrument& in = info.instrument;
+      REQUIRE(in.defined);
+      CHECK(in.baseNote == 57);
+      CHECK(in.detune == -7);
+      CHECK(in.keyLow == 40);
+      CHECK(in.keyHigh == 70);
+      CHECK(in.velocityLow == 10);
+      CHECK(in.velocityHigh == 100);
+      CHECK(in.gain == 3);
+      CHECK(in.sustainLoop.defined);
+      CHECK(info.framesToMs(in.sustainLoop.start) == doctest::Approx(100.f));
+      CHECK(info.framesToMs(in.sustainLoop.end) == doctest::Approx(300.f));
+      CHECK(in.releaseLoop.defined);
+      CHECK(info.framesToMs(in.releaseLoop.start) == doctest::Approx(400.f));
+      CHECK(info.framesToMs(in.releaseLoop.end) == doctest::Approx(700.f));
+    }
+    SUBCASE("a release loop with no play mode is no loop") {
+      inst.release = {0, 4000, 7000};
+      REQUIRE(TestHelpers::AiffWithInstrument(path, 1, 10000, 10000, inst));
+      auto b = sampleBuffer::create();
+      REQUIRE(b->replace(path.c_str()));
+      CHECK(b->info().instrument.sustainLoop.defined);
+      CHECK_FALSE(b->info().instrument.releaseLoop.defined);
+    }
+    Remove(path);
+  }
+
+  TEST_CASE("sampleBuffer: info keeps the file through edits, copies and failed reads (#1138)") {
+    const std::string loops = TempFile("yse_info_keep_1138.wav");
+    const std::string plain = TempFile("yse_info_plain_1138.wav");
+    REQUIRE(TestHelpers::WavWithLoops(loops, 1, 500, 10000, 60, 0, {{1, 10, 20}}));
+    REQUIRE(sampleBuffer::create(2, 8, 10000.f)->write(plain.c_str()));
+
+    auto b = sampleBuffer::create();
+    REQUIRE(b->replace(loops.c_str()));
+    b->setSize(50);
+    b->fill(1.f);
+    REQUIRE(b->crop(5, 40));
+    CHECK_FALSE(b->read("no/such/file_1138.wav"));
+    YSE::DSP::sampleBufferInfo info = b->info();
+    CHECK(info.frames == 35);
+    CHECK(info.filePath == loops);
+    REQUIRE(info.instrument.sustainLoop.defined);
+    CHECK(info.instrument.sustainLoop.start == 10); // as the file states it
+
+    auto copy = sampleBuffer::create();
+    copy->copyFrom(*b);
+    CHECK(copy->info().filePath == loops);
+    CHECK(copy->info().instrument.sustainLoop.end == 20);
+
+    // A file without instrument data replaces the old file's.
+    REQUIRE(b->replace(plain.c_str()));
+    info = b->info();
+    CHECK(info.filePath == plain);
+    CHECK(info.fileChannels == 2);
+    CHECK_FALSE(info.instrument.defined);
+    CHECK_FALSE(info.instrument.sustainLoop.defined);
+    Remove(loops);
+    Remove(plain);
+  }
+
+  TEST_CASE("sampleBufferInfo: fileName takes the last part of either separator (#1138)") {
+    YSE::DSP::sampleBufferInfo info;
+    info.filePath = "kit/drums.wav";
+    CHECK(info.fileName() == "drums.wav");
+    info.filePath = "C:\\samples\\kick.aif";
+    CHECK(info.fileName() == "kick.aif");
+    info.filePath = "plain.wav";
+    CHECK(info.fileName() == "plain.wav");
   }
 
   // ─── the registry ─────────────────────────────────────────────────────────

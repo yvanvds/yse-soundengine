@@ -17832,6 +17832,104 @@
     ],
     "requires_midi_device": false
   },
+  "~info": {
+    "category": "SAMPLING",
+    "description": "Reports what a named sample buffer holds: its sample rate, length and channels, and the name, path, loop points and instrument data of the file last loaded into it.",
+    "inlets": [
+      {
+        "accepts": [
+          "BANG"
+        ],
+        "doc": "bang reports on the buffer; set <name> picks another buffer (set alone, none).",
+        "index": 0,
+        "label": "messages",
+        "range": ""
+      }
+    ],
+    "is_dsp": true,
+    "name": "~info",
+    "outlets": [
+      {
+        "doc": "The rate the buffer's samples are at, in Hz.",
+        "index": 0,
+        "label": "sample rate",
+        "range": "Hz",
+        "type": "FLOAT"
+      },
+      {
+        "doc": "The file's instrument data: base note, detune in cents, lowest and highest note, lowest and highest velocity, gain. Not sent when the file has none.",
+        "index": 1,
+        "label": "instrument",
+        "range": "list",
+        "type": "LIST"
+      },
+      {
+        "doc": "Where the file's sustain loop starts, in ms. Not sent without the loop.",
+        "index": 2,
+        "label": "sustain start",
+        "range": "ms",
+        "type": "FLOAT"
+      },
+      {
+        "doc": "Where the file's sustain loop ends, in ms. Not sent without the loop.",
+        "index": 3,
+        "label": "sustain end",
+        "range": "ms",
+        "type": "FLOAT"
+      },
+      {
+        "doc": "Where the file's release loop starts, in ms. Not sent without the loop.",
+        "index": 4,
+        "label": "release start",
+        "range": "ms",
+        "type": "FLOAT"
+      },
+      {
+        "doc": "Where the file's release loop ends, in ms. Not sent without the loop.",
+        "index": 5,
+        "label": "release end",
+        "range": "ms",
+        "type": "FLOAT"
+      },
+      {
+        "doc": "The buffer's length, in ms.",
+        "index": 6,
+        "label": "length",
+        "range": "ms",
+        "type": "FLOAT"
+      },
+      {
+        "doc": "The name of the file last loaded into the buffer. Not sent when none was.",
+        "index": 7,
+        "label": "file name",
+        "range": "",
+        "type": "LIST"
+      },
+      {
+        "doc": "How many channels that file has, or the buffer has when no file was loaded.",
+        "index": 8,
+        "label": "channels",
+        "range": "count",
+        "type": "INT"
+      },
+      {
+        "doc": "The path of the file last loaded into the buffer, as it was given to read. Not sent when none was.",
+        "index": 9,
+        "label": "file path",
+        "range": "",
+        "type": "LIST"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The buffer to report on.",
+        "name": "name",
+        "range": "any symbol"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~inlet": {
     "category": "ENCAPSULATION",
     "description": "A signal inlet of the subpatcher it is in. With index N, the signal the parent connects to the subpatcher's inlet N comes out of this object, inside the subpatcher.",
