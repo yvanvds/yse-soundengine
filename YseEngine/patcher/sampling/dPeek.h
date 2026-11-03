@@ -6,6 +6,7 @@
 #include "../pObject.h"
 #include "../../dsp/sampling/sampleAccess.hpp"
 #include "../../dsp/sampling/sampleBuffer.hpp"
+#include "bufferBinding.h"
 
 namespace YSE {
   namespace PATCHER {
@@ -46,12 +47,23 @@ namespace YSE {
      *  for the other stateful objects. The value is sent after the guard is
      *  let go, so a reply that comes back into this object is not.
      *
-     *  Not ported: ``set`` (binding another buffer looks a name up and
-     *  attaches a claim, which locks and allocates, and a message may arrive
-     *  on the audio thread; change the ``name`` argument instead, which
-     *  rebuilds the object; an RT-safe rebind is issue #1256) and
-     *  ``mouse`` (Max opens an editor window on a double click; the host
-     *  draws, the engine has no window).
+     *  ### Rebinding: ``set <name>`` (issue #1256)
+     *
+     *  ``set <name>`` reads and writes buffer ``name`` from then on; ``set``
+     *  with no name leaves the object unbound. The writer is bound in the
+     *  background through a ``bufferBinding`` (see bufferBinding.h): the
+     *  message only hands the name to the patcher's ``fileScheduler``, and
+     *  the next index or list takes the new writer, under the guard, before
+     *  it reads or writes. The writer let go is freed by a further task,
+     *  never on the thread that sent the message. Outside a patcher ``set``
+     *  does nothing.
+     *
+     *  **Saving.** A ``set`` is not saved: ``DumpJSON`` writes the ``name``
+     *  argument the object was created with, and a reloaded patch (or a
+     *  live ``SetParams`` rebuild) reads that buffer again.
+     *
+     *  Not ported: ``mouse`` (Max opens an editor window on a double click;
+     *  the host draws, the engine has no window).
      */
     PATCHER_CLASS(dPeek, YSE::OBJ::D_PEEK)
     _DO_MESSAGES
@@ -67,9 +79,17 @@ namespace YSE {
     _FLOAT_IN(ChannelFloat)
     _INT_IN(Channel)
 
-    /** @brief The buffer read and written, or null without a name. Tests. */
+    void SetParent(pObject* newParent) override;
+
+    /** @brief The buffer read and written, or null without a name. Only
+     *         while no message is being handled (tests). */
     const std::shared_ptr<DSP::sampleBuffer>& Buffer() const {
-      return writer.buffer();
+      return binding.Current().buffer();
+    }
+
+    /** @brief A writer let go by a ``set`` and not yet freed. Tests. */
+    bool ReleasePending() const {
+      return binding.ReleasePending();
     }
 
     /** @brief The channel, from 1. */
@@ -89,7 +109,8 @@ namespace YSE {
     void Write(int index, float value);
     void SetChannel(int value);
 
-    DSP::sampleBufferWriter writer;
+    // Taken and pinned only by the guard's holder.
+    bufferBinding<DSP::sampleBufferWriter> binding;
     DSP::sampleAccess access; // used only by the guard's holder
 
     std::string bufferName;
@@ -100,7 +121,7 @@ namespace YSE {
     aFlt pendingValue;
     std::atomic<bool> pending{false};
 
-    // The handlers' guard over `writer` and `access`.
+    // The handlers' guard over `binding` and `access`.
     std::atomic<bool> busy{false};
   };
 

@@ -60,24 +60,30 @@ CONSTRUCT_DSP() {
   ADD_CATEGORY(pCategory::SAMPLING);
   INLET_DOC(0, "value",
             "The values to write: a signal, or a number used while no signal is connected. A "
-            "list 'value index [channel]' writes one value at once.",
+            "list 'value index [channel]' writes one value at once. 'set <name>' switches to "
+            "another buffer (from a later block; not saved with the patch).",
             "any float");
   INLET_DOC(1, "index",
             "Where to write each value, in samples from 0: a signal, or a number used while no "
             "signal is connected. Below 0 or past the end of the buffer writes nothing.",
             "-1, 0 or higher");
   INLET_DOC(2, "channel", "The buffer channel to write, from 1.", "1 or higher");
-  PARAM_DOC("name", "", "The buffer to write.", "buffer name");
+  PARAM_DOC("name", "", "The buffer to write. A set message does not change what is saved.",
+            "buffer name");
   PARAM_DOC("channel", "1", "The buffer channel to write, from 1.", "1 or higher");
+}
+
+void dPoke::SetParent(pObject* newParent) {
+  pObject::SetParent(newParent);
+  // The scheduler `set` goes through, built here so a message on the audio
+  // thread finds it.
+  EnableFileIO();
 }
 
 // Control thread: the name is a string parameter, so a change of argument
 // rebuilds the object and this runs on one no audio thread has seen.
 PARM_PARSE() {
-  std::shared_ptr<DSP::sampleBuffer> buffer =
-      bufferName.empty() ? nullptr : DSP::sampleBufferRegistry::acquire(bufferName);
-  signalWriter.bind(buffer);
-  messageWriter.bind(buffer);
+  binding.Bind(bufferName);
   StoreChannel(channel.load(std::memory_order_relaxed));
 }
 
@@ -142,16 +148,28 @@ LIST_IN(List) {
   // Another thread is writing a list: drop this one rather than wait.
   if (busy.exchange(true, std::memory_order_acquire)) return;
   {
-    DSP::sampleWriteView view = messageWriter.pin();
+    DSP::sampleWriteView view = binding.Current().message.pin();
     messagePath.channel(static_cast<UInt>(channel.load(std::memory_order_relaxed) - 1));
     messagePath(view, numbers[0], numbers[1]); // value, index
   } // the view goes before the guard
   busy.store(false, std::memory_order_release);
 }
 
+// `set [name]`, on any thread: handed to the background.
+MESSAGES() {
+  (void)value;
+  binding.HandleSet(*this, message);
+}
+
 CALC() {
   (void)thread;
-  DSP::sampleWriteView view = signalWriter.pin();
+  // A `set` waiting: take it while no list is in. A list that holds the guard
+  // only defers it to the next block.
+  if (!busy.exchange(true, std::memory_order_acquire)) {
+    binding.Take(*this);
+    busy.store(false, std::memory_order_release);
+  }
+  DSP::sampleWriteView view = binding.Current().signal.pin();
   if (view.empty()) return;
   signalPath.channel(static_cast<UInt>(channel.load(std::memory_order_relaxed) - 1));
 

@@ -71,22 +71,32 @@ CONSTRUCT_DSP() {
   INLET_DOC(0, "index",
             "A sample index, from 0: the sample there goes out, or the value from the middle "
             "inlet is written there. A list 'index value [channel]' writes at once. 'clip 0' "
-            "and 'clip 1' turn clipping of written values off and on.",
+            "and 'clip 1' turn clipping of written values off and on. 'set <name>' switches to "
+            "another buffer (not saved with the patch).",
             "0 or higher");
   INLET_DOC(1, "value", "The value the next index writes, instead of reading.", "any float");
   INLET_DOC(2, "channel", "The buffer channel to read and write, from 1.", "1 or higher");
   OUTLET_DOC(0, "sample", "The sample at the index. Nothing when the index is outside the buffer.",
              "any float");
-  PARAM_DOC("name", "", "The buffer to read and write.", "buffer name");
+  PARAM_DOC("name", "",
+            "The buffer to read and write. A set message does not change what is saved.",
+            "buffer name");
   PARAM_DOC("channel", "1", "The buffer channel to read and write, from 1.", "1 or higher");
   PARAM_DOC("clip", "1", "1 limits written values to -1 to 1, 0 writes them as they are.",
             "0 or 1");
 }
 
+void dPeek::SetParent(pObject* newParent) {
+  pObject::SetParent(newParent);
+  // The scheduler `set` goes through, built here so a message on the audio
+  // thread finds it.
+  EnableFileIO();
+}
+
 // Control thread: the name is a string parameter, so a change of argument
 // rebuilds the object and this runs on one no other thread has seen.
 PARM_PARSE() {
-  writer.bind(bufferName.empty() ? nullptr : DSP::sampleBufferRegistry::acquire(bufferName));
+  binding.Bind(bufferName);
   SetChannel(channel.load(std::memory_order_relaxed));
 }
 
@@ -101,7 +111,8 @@ void dPeek::Access(int index, YSE::THREAD thread) {
   // claim).
   if (busy.exchange(true, std::memory_order_acquire)) return;
   {
-    DSP::sampleWriteView view = writer.pin();
+    binding.Take(*this); // a `set` waiting since the last message
+    DSP::sampleWriteView view = binding.Current().pin();
     access.channel(static_cast<UInt>(channel.load(std::memory_order_relaxed) - 1));
     access.clip(clip.load(std::memory_order_relaxed) != 0);
     if (pending.exchange(false, std::memory_order_acq_rel)) {
@@ -117,7 +128,8 @@ void dPeek::Access(int index, YSE::THREAD thread) {
 void dPeek::Write(int index, float value) {
   if (busy.exchange(true, std::memory_order_acquire)) return;
   {
-    DSP::sampleWriteView view = writer.pin();
+    binding.Take(*this);
+    DSP::sampleWriteView view = binding.Current().pin();
     access.channel(static_cast<UInt>(channel.load(std::memory_order_relaxed) - 1));
     access.clip(clip.load(std::memory_order_relaxed) != 0);
     access.write(view, index, value);
@@ -178,9 +190,10 @@ INT_IN(Channel) {
   SetChannel(value);
 }
 
-// `clip <flag>`, read in place.
+// `set [name]` and `clip <flag>`, read in place.
 MESSAGES() {
   (void)value;
+  if (binding.HandleSet(*this, message)) return;
   const char* text = message.c_str();
   const std::size_t length = message.size();
   std::size_t at = 0;

@@ -228,6 +228,34 @@ meant to be run under ASan and TSan.
 `CALC()`, and `write(channel, position, block, length)` each block, wrapping at the end of the
 buffer yourself. Nothing else is needed from the store.
 
+## Rebinding by name: one mailbox for the family (#1256)
+
+`set <name>` on `~peek` and `~poke`, and on the players, `~index` and `~record` after them,
+cannot bind in the message handler: `acquire` locks the registry and `bind` attaches a hazard
+slot under the buffer mutex, and the message may be on the audio thread. `~cycle` solved this for
+its table in #1192; #1256 lifted the mechanism into `PATCHER::bufferBinding<Binding>`
+(`patcher/sampling/bufferBinding.h`), templated on what is bound (`sampleBufferReader`,
+`sampleBufferWriter`, or a struct of several with a `bind` that binds each).
+
+**Decision: bind in a task, hand over through a one-slot mailbox.** `Request` / `HandleSet` copy
+the name into a fixed record and submit it as a `fileScheduler` `TASK` (wait-free, no allocation).
+On the background pool the task makes and binds a new binding and exchanges it into `incoming`,
+freeing any unread one there (the last request wins). The thread that pins calls `Take`: one
+exchange swaps it into `current`, the old one goes to `retired`, and a release task frees it. A
+take waits while `retired` is still full, so the taking thread never frees and never waits. The
+mailbox is found by id in a process-wide table, not through the object, so a task in flight
+outlives the object's deletion. The core is type-erased (`void*` plus create / destroy function
+pointers) in `bufferBinding.cpp`; the template only casts.
+
+**Who takes.** `~poke` takes at the top of `CALC()` while holding its list guard, since the list
+writes through the second writer of the same binding; a list holding the guard defers the take
+one block. `~peek` has no `CALC()` and takes in its index and list handlers under its guard, so a
+rebind reaches it with the audio stopped (the scheduler slots themselves come back only when the
+patcher renders). `~cycle` keeps its own copy: its record also carries an offset and a size that
+are merged across superseded requests, which the generic mailbox does not have.
+
+A rebind is not saved: `DumpJSON` writes the creation argument, as for `~cycle`.
+
 ## Not ported from Max
 
 `set` / `name` (renaming from a message would look a name up on the audio thread; change the

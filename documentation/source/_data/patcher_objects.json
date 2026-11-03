@@ -19124,7 +19124,7 @@
           "INT",
           "LIST"
         ],
-        "doc": "A sample index, from 0: the sample there goes out, or the value from the middle inlet is written there. A list 'index value [channel]' writes at once. 'clip 0' and 'clip 1' turn clipping of written values off and on.",
+        "doc": "A sample index, from 0: the sample there goes out, or the value from the middle inlet is written there. A list 'index value [channel]' writes at once. 'clip 0' and 'clip 1' turn clipping of written values off and on. 'set <name>' switches to another buffer (not saved with the patch).",
         "index": 0,
         "label": "index",
         "range": "0 or higher"
@@ -19164,7 +19164,7 @@
     "params": [
       {
         "default": "",
-        "doc": "The buffer to read and write.",
+        "doc": "The buffer to read and write. A set message does not change what is saved.",
         "name": "name",
         "range": "buffer name"
       },
@@ -19352,7 +19352,7 @@
           "INT",
           "LIST"
         ],
-        "doc": "The values to write: a signal, or a number used while no signal is connected. A list 'value index [channel]' writes one value at once.",
+        "doc": "The values to write: a signal, or a number used while no signal is connected. A list 'value index [channel]' writes one value at once. 'set <name>' switches to another buffer (from a later block; not saved with the patch).",
         "index": 0,
         "label": "value",
         "range": "any float"
@@ -19385,7 +19385,7 @@
     "params": [
       {
         "default": "",
-        "doc": "The buffer to write.",
+        "doc": "The buffer to write. A set message does not change what is saved.",
         "name": "name",
         "range": "buffer name"
       },

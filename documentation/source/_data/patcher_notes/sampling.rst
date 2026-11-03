@@ -119,6 +119,11 @@ and a value it writes is heard by every object playing the buffer from the
 next sample they read. Messages that reach one ``~peek`` from two threads
 at the same moment are not queued: the second one is ignored.
 
+``set <name>`` switches to another buffer; ``set`` alone leaves ``~peek``
+without one. The buffer is looked up in the background and the next index
+or list uses it, with the audio stopped too. The switch is not saved with
+the patch: a reloaded ``~peek`` uses the buffer of its argument.
+
 .. code-block:: text
 
    [~peek table]     5 in the left inlet sends sample 5
@@ -150,3 +155,8 @@ buffer hears them at once. A signal counter into the middle inlet records:
 Changing the buffer from a ``~buffer`` message while ``~poke`` writes is
 safe; whatever ``~poke`` writes while the change is being made is lost, and
 it carries on in the changed buffer.
+
+``set <name>`` in the left inlet switches to another buffer, looked up in
+the background and written from a later block on; ``set`` alone stops
+writing. The switch is not saved with the patch: a reloaded ``~poke``
+writes the buffer of its argument.

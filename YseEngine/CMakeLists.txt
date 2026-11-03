@@ -214,6 +214,7 @@ set(YSE_SRCS
   patcher/dynamics/dPeaklim.cpp
   patcher/dynamics/dComp.cpp
   patcher/dynamics/dMultiband.cpp
+  patcher/sampling/bufferBinding.cpp
   patcher/sampling/dBuffer.cpp
   patcher/sampling/dInfo.cpp
   patcher/sampling/dPeek.cpp
@@ -695,6 +696,7 @@ set_source_files_properties(
   patcher/dynamics/dPeaklim.cpp
   patcher/dynamics/dComp.cpp
   patcher/dynamics/dMultiband.cpp
+  patcher/sampling/bufferBinding.cpp
   patcher/sampling/dBuffer.cpp
   patcher/sampling/dInfo.cpp
   patcher/sampling/dPeek.cpp

@@ -6,6 +6,7 @@
 #include "../pObject.h"
 #include "../../dsp/sampling/sampleAccess.hpp"
 #include "../../dsp/sampling/sampleBuffer.hpp"
+#include "bufferBinding.h"
 
 namespace YSE {
   namespace PATCHER {
@@ -43,15 +44,28 @@ namespace YSE {
      *  through the usual ``exchange(true)`` guard, and the one that loses is
      *  dropped.
      *
-     *  Not ported: ``set`` (binding another buffer looks a name up and
-     *  attaches a claim, which locks and allocates, and a message may arrive
-     *  on the audio thread; change the ``name`` argument instead, which
-     *  rebuilds the object; an RT-safe rebind is issue #1256) and
-     *  ``mouse`` (Max opens an editor window on a double click; the host
-     *  draws, the engine has no window).
+     *  ### Rebinding: ``set <name>`` (issue #1256)
+     *
+     *  ``set <name>`` in the left inlet writes buffer ``name`` from then on;
+     *  ``set`` with no name leaves the object unbound. Both writers are bound
+     *  in the background through one ``bufferBinding`` (see
+     *  bufferBinding.h): the message only hands the name to the patcher's
+     *  ``fileScheduler``, and the top of a later ``CALC()`` takes the new
+     *  pair with one exchange. The list path shares the pair, so ``CALC()``
+     *  takes it under the list's guard and, while a list holds the guard,
+     *  tries again next block. The writers let go are freed by a further
+     *  task, never on the audio thread. The swap happens only while the
+     *  patcher renders, and outside a patcher ``set`` does nothing.
+     *
+     *  **Saving.** A ``set`` is not saved: ``DumpJSON`` writes the ``name``
+     *  argument the object was created with, and a reloaded patch (or a
+     *  live ``SetParams`` rebuild) writes that buffer again.
+     *
+     *  Not ported: ``mouse`` (Max opens an editor window on a double click;
+     *  the host draws, the engine has no window).
      */
     PATCHER_CLASS(dPoke, YSE::OBJ::D_POKE)
-    _NO_MESSAGES
+    _DO_MESSAGES
     _DO_CALCULATE
 
     _PARM_PARSE
@@ -64,10 +78,28 @@ namespace YSE {
     _FLOAT_IN(SetChannelFloat)
     _INT_IN(SetChannel)
 
-    /** @brief The buffer written, or null without a name. Tests. */
+    void SetParent(pObject* newParent) override;
+
+    /** @brief The buffer written, or null without a name. Only while no
+     *         block runs (tests). */
     const std::shared_ptr<DSP::sampleBuffer>& Buffer() const {
-      return signalWriter.buffer();
+      return binding.Current().signal.buffer();
     }
+
+    /** @brief Writers let go by a ``set`` and not yet freed. Tests. */
+    bool ReleasePending() const {
+      return binding.ReleasePending();
+    }
+
+    // The audio thread's claim and the list's, bound to one buffer together.
+    struct writers {
+      DSP::sampleBufferWriter signal;
+      DSP::sampleBufferWriter message; // pinned only by the guard's holder
+      void bind(const std::shared_ptr<DSP::sampleBuffer>& buffer) {
+        signal.bind(buffer);
+        message.bind(buffer);
+      }
+    };
 
     /** @brief The channel, from 1. */
     int CurrentChannel() const {
@@ -77,10 +109,9 @@ namespace YSE {
   private:
     void StoreChannel(int value);
 
-    // The audio thread's claim and class, and the list's.
-    DSP::sampleBufferWriter signalWriter;
+    // Taken by CALC() under `busy`; the list reads it under `busy`.
+    bufferBinding<writers> binding;
     DSP::sampleIndexWriter signalPath;
-    DSP::sampleBufferWriter messageWriter;
     DSP::sampleIndexWriter messagePath; // used only by the guard's holder
     std::atomic<bool> busy{false};
 

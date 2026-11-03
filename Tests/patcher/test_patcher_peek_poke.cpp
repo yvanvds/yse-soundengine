@@ -6,6 +6,8 @@
 // rendered patch beside a ~buffer: ~poke recording a signal that ~peek reads
 // back, ~peek writing what a host reads, a control thread peeking while the
 // audio thread pokes, a round trip, and allocation-free messages and blocks.
+// The `set` section (#1256) covers the shared PATCHER::bufferBinding: ~peek
+// and ~poke rebinding, alone, allocation-free and while blocks run.
 
 #include <doctest/doctest.h>
 #include <atomic>
@@ -15,11 +17,13 @@
 #include <vector>
 #include "dsp/sampling/sampleBuffer.hpp"
 #include "headers/constants.hpp"
+#include "patcher/io/fileScheduler.h"
 #include "patcher/pHandle.hpp"
 #include "patcher/pObjectList.hpp"
 #include "patcher/pRegistry.h"
 #include "patcher/patcher.hpp"
 #include "patcher/patcherImplementation.h"
+#include "patcher/sampling/bufferBinding.h"
 #include "patcher/sampling/dPeek.h"
 #include "patcher/sampling/dPoke.h"
 #include "support/alloc_probe.hpp"
@@ -87,6 +91,39 @@ namespace {
   YSE::PATCHER::pObject* Object(patcherImplementation& p, YSE::pHandle* h) {
     return p.GetObjectFromID(h->GetID());
   }
+
+  // A ~poke in a patcher, fed by two ~sig: the value and the index (#1256).
+  struct PokeRig {
+    patcherImplementation p{1, nullptr};
+    YSE::pHandle* value = nullptr;
+    YSE::pHandle* index = nullptr;
+    YSE::pHandle* handle = nullptr;
+    dPoke* poke = nullptr;
+
+    PokeRig(const std::string& args, float v, int at) {
+      value = p.CreateObject(YSE::OBJ::D_SIG, std::to_string(v));
+      index = p.CreateObject(YSE::OBJ::D_SIG, std::to_string(at));
+      handle = p.CreateObject(YSE::OBJ::D_POKE, args);
+      REQUIRE(handle != nullptr);
+      p.Connect(value, 0, handle, 0);
+      p.Connect(index, 0, handle, 1);
+      poke = static_cast<dPoke*>(Object(p, handle));
+    }
+
+    void Message(const std::string& text, YSE::THREAD thread = YSE::T_GUI) {
+      poke->GetInlet(0)->SetMessage(text, thread);
+    }
+
+    // The bind task runs on the background pool, the next block takes the
+    // writers, and the task that frees the old ones runs after it.
+    void Settle() {
+      YSE::PATCHER::fileScheduler* io = p.FileIO();
+      REQUIRE(io != nullptr);
+      io->WaitIdle();
+      p.Calculate(YSE::T_DSP);
+      io->WaitIdle();
+    }
+  };
 
 } // namespace
 
@@ -495,6 +532,285 @@ TEST_SUITE("patcher") {
     control.join();
     CHECK(bad.load() == 0);
     CHECK(reads.load() > 0);
+  }
+
+  // ─── set (#1256) ──────────────────────────────────────────────────────────
+
+  TEST_CASE("bufferBinding: a reader binding is rebound by name in the background (#1256)") {
+    using YSE::PATCHER::bufferBinding;
+    auto a = Counting("bind_1256_a", 1, 4);
+    auto b = Counting("bind_1256_b", 1, 4);
+    // Any object in a patcher with file I/O can own one; a ~peek is.
+    PeekRig owner("");
+    YSE::PATCHER::fileScheduler* io = owner.p.FileIO();
+    REQUIRE(io != nullptr);
+
+    bufferBinding<YSE::DSP::sampleBufferReader> binding;
+    CHECK(binding.Current().buffer() == nullptr);
+    binding.Bind("bind_1256_a");
+    CHECK(binding.Current().buffer() == a);
+    CHECK_FALSE(binding.Take(*owner.peek)); // nothing waiting
+
+    // Of two requests before a take, the last wins.
+    CHECK(binding.Request(*owner.peek, "bind_1256_a", 11));
+    CHECK(binding.Request(*owner.peek, "bind_1256_b", 11));
+    io->WaitIdle();
+    CHECK(binding.Current().buffer() == a); // not before the take
+    CHECK(binding.Take(*owner.peek));
+    CHECK(binding.Current().buffer() == b);
+    CHECK(binding.Current().pin().at(0, 2) == 12.f);
+    io->WaitIdle(); // the release task Take() asked for
+    CHECK_FALSE(binding.ReleasePending());
+    owner.p.Calculate(YSE::T_DSP); // hands the slots back
+
+    // An empty name unbinds; a name no slot holds is refused.
+    CHECK(binding.HandleSet(*owner.peek, "set"));
+    io->WaitIdle();
+    CHECK(binding.Take(*owner.peek));
+    CHECK(binding.Current().buffer() == nullptr);
+    CHECK(binding.Current().pin().empty());
+    const std::string tooLong(YSE::PATCHER::fileScheduler::PATH_CAPACITY, 'x');
+    CHECK_FALSE(binding.Request(*owner.peek, tooLong.c_str(), tooLong.size()));
+    CHECK_FALSE(binding.HandleSet(*owner.peek, "clip 0")); // not a set
+    io->WaitIdle();
+    CHECK(io->Dropped() == 0); // refused before it reached the table
+
+    // Outside a patcher there is no scheduler: refused.
+    dPeek standalone;
+    CHECK_FALSE(binding.Request(standalone, "bind_1256_a", 11));
+  }
+
+  TEST_CASE("~peek: set reads and writes another buffer, with the audio stopped (#1256)") {
+    auto a = Counting("peek_set_1256_a", 1, 8);
+    auto b = Counting("peek_set_1256_b", 2, 8);
+    b->applyOffset(100.f); // 110, 111, ... and 120, 121, ...
+    PeekRig r("peek_set_1256_a");
+    YSE::PATCHER::fileScheduler* io = r.p.FileIO();
+    REQUIRE(io != nullptr);
+    r.Index(3);
+    CHECK(r.sink.lastFloat == 13.f);
+
+    r.Message("set peek_set_1256_b");
+    io->WaitIdle();
+    // No block has run: the next index takes the new writer and reads b.
+    r.Index(3);
+    CHECK(r.sink.lastFloat == 113.f);
+    CHECK(r.peek->Buffer() == b);
+    r.Channel(2);
+    r.Index(3);
+    CHECK(r.sink.lastFloat == 123.f); // b has a second channel
+    r.Value(0.5f);
+    r.Index(1);
+    CHECK(At(*b, 1, 1) == 0.5f);
+    CHECK(At(*a, 0, 1) == 11.f);
+    io->WaitIdle();
+    CHECK_FALSE(r.peek->ReleasePending()); // a's writer is freed
+
+    // A list takes it too. set with no name unbinds.
+    r.p.Calculate(YSE::T_DSP);
+    r.Message("set peek_set_1256_a");
+    io->WaitIdle();
+    r.peek->GetInlet(0)->SetList("2 -0.25 1", YSE::T_GUI);
+    CHECK(At(*a, 0, 2) == -0.25f);
+    CHECK(r.peek->Buffer() == a);
+    r.Message("set");
+    io->WaitIdle();
+    const int before = r.sink.count;
+    r.Index(0);
+    CHECK(r.sink.count == before);
+    CHECK(r.peek->Buffer() == nullptr);
+    CHECK(io->Dropped() == 0);
+  }
+
+  TEST_CASE("~poke: set writes another buffer from a later block (#1256)") {
+    auto a = Counting("poke_set_1256_a", 1, 8);
+    auto b = Counting("poke_set_1256_b", 1, 8);
+    PokeRig r("poke_set_1256_a", 0.5f, 2);
+    r.p.Calculate(YSE::T_DSP);
+    CHECK(At(*a, 0, 2) == 0.5f);
+
+    r.Message("set poke_set_1256_b");
+    r.Settle();
+    CHECK(r.poke->Buffer() == b);
+    CHECK(At(*b, 0, 2) == 0.5f);
+    CHECK_FALSE(r.poke->ReleasePending());
+    // The list writes the new buffer too, and the old one no more.
+    r.poke->GetInlet(0)->SetList("0.75 5", YSE::T_GUI);
+    CHECK(At(*b, 0, 5) == 0.75f);
+    CHECK(At(*a, 0, 5) == 15.f);
+    a->fill(0.f);
+    r.p.Calculate(YSE::T_DSP);
+    CHECK(At(*a, 0, 2) == 0.f);
+
+    // set with no name: unbound, writes nothing.
+    r.Message("set");
+    r.Settle();
+    CHECK(r.poke->Buffer() == nullptr);
+    b->fill(0.f);
+    r.p.Calculate(YSE::T_DSP);
+    r.poke->GetInlet(0)->SetList("0.75 5", YSE::T_GUI);
+    CHECK(At(*b, 0, 2) == 0.f);
+    CHECK(At(*b, 0, 5) == 0.f);
+    CHECK(r.p.FileIO()->Dropped() == 0);
+  }
+
+  TEST_CASE("~peek / ~poke: a set is not saved by DumpJSON (#1256)") {
+    auto a = Counting("json_set_1256_a", 1, 8);
+    auto b = Counting("json_set_1256_b", 1, 8);
+    std::string before;
+    {
+      PokeRig r("json_set_1256_a", 0.5f, 4);
+      REQUIRE(r.p.CreateObject(YSE::OBJ::D_PEEK, "json_set_1256_a") != nullptr);
+      before = r.p.DumpJSON();
+      r.Message("set json_set_1256_b");
+      r.Settle();
+      CHECK(r.poke->Buffer() == b);
+      // The creation arguments are what is saved.
+      CHECK(r.p.DumpJSON() == before);
+    }
+    CHECK(before.find("json_set_1256_b") == std::string::npos);
+    a->fill(0.f);
+    patcherImplementation dst(1, nullptr);
+    dst.ParseJSON(before);
+    dst.Calculate(YSE::T_DSP);
+    CHECK(At(*a, 0, 4) == 0.5f); // the reload writes a again
+  }
+
+  TEST_CASE("~poke: a set in flight survives the object's deletion (#1256)") {
+    auto a = Counting("poke_deleted_1256", 1, 8);
+    const long held = a.use_count();
+    {
+      PokeRig r("", 0.f, -1);
+      r.Message("set poke_deleted_1256");
+      r.p.DeleteObject(r.handle);
+      r.p.FileIO()->WaitIdle();
+      r.p.Calculate(YSE::T_DSP);
+      r.p.FileIO()->WaitIdle();
+    }
+    // Whatever the task bound was freed with the object.
+    CHECK(a.use_count() == held);
+  }
+
+  TEST_CASE("~peek / ~poke: set allocates and locks nothing on the audio thread (#1256)") {
+    auto a = Counting("rt_set_1256_a", 1, 64);
+    auto b = Counting("rt_set_1256_b", 1, 64);
+    PokeRig r("rt_set_1256_a", 0.5f, 7);
+    YSE::pHandle* peekHandle = r.p.CreateObject(YSE::OBJ::D_PEEK, "rt_set_1256_a");
+    REQUIRE(peekHandle != nullptr);
+    YSE::PATCHER::pObject* peek = Object(r.p, peekHandle);
+    r.Settle();
+    // Built before the probe: the strings themselves allocate.
+    const std::string toB = "set rt_set_1256_b";
+    const std::string toA = "set rt_set_1256_a";
+    for (const std::string* m : {&toB, &toA, &toB}) {
+      CAPTURE(*m);
+      {
+        // Lock-free too: the request is a CAS into the scheduler's table.
+        TestHelpers::ProbeScope probe;
+        r.Message(*m, YSE::T_DSP);
+        peek->GetInlet(0)->SetMessage(*m, YSE::T_DSP);
+        CHECK(TestHelpers::g_alloc_count.load() == 0);
+      }
+      r.p.FileIO()->WaitIdle();
+      {
+        // The block that takes the new writers and asks for the old ones to
+        // go, and the index that does the same for ~peek.
+        TestHelpers::ProbeScope probe;
+        r.p.Calculate(YSE::T_DSP);
+        peek->GetInlet(1)->SetFloat(0.25f, YSE::T_DSP);
+        peek->GetInlet(0)->SetInt(9, YSE::T_DSP);
+        CHECK(TestHelpers::g_alloc_count.load() == 0);
+      }
+      r.p.FileIO()->WaitIdle();
+      CHECK_FALSE(r.poke->ReleasePending());
+      CHECK_FALSE(static_cast<dPeek*>(peek)->ReleasePending());
+      r.p.Calculate(YSE::T_DSP); // hands the slots back
+    }
+    CHECK(r.poke->Buffer() == b);
+    CHECK(static_cast<dPeek*>(peek)->Buffer() == b);
+    CHECK(At(*b, 0, 7) == 0.5f);
+    CHECK(At(*b, 0, 9) == 0.25f);
+    CHECK(r.p.FileIO()->Dropped() == 0);
+  }
+
+  TEST_CASE("~peek / ~poke: control threads set while the audio thread writes (#1256)") {
+    // Two buffers of different lengths, filled 1 and 2; ~poke writes -1 all
+    // over whichever it holds. Every value ~peek reads is whole, and the
+    // buffers are never freed under a writer. Under ASan or TSan a broken
+    // handoff shows up here.
+    auto ones = sampleBufferRegistry::acquire("race_set_1256_1");
+    ones->setSize(YSE::STANDARD_BUFFERSIZE);
+    ones->fill(1.f);
+    auto twos = sampleBufferRegistry::acquire("race_set_1256_2");
+    twos->setSize(YSE::STANDARD_BUFFERSIZE * 2);
+    twos->fill(2.f);
+    TestHelpers::FloatSink floats; // before the ~peek that sends to it
+    auto sinkHandle = std::make_unique<YSE::pHandle>(&floats);
+    patcherImplementation p(1, nullptr);
+    YSE::pHandle* value = p.CreateObject(YSE::OBJ::D_SIG, "-1");
+    YSE::pHandle* index = p.CreateObject(
+        YSE::OBJ::D_COUNT, "0 " + std::to_string(YSE::STANDARD_BUFFERSIZE * 2) + " 1");
+    YSE::pHandle* pokeHandle = p.CreateObject(YSE::OBJ::D_POKE, "race_set_1256_1");
+    YSE::pHandle* peekHandle = p.CreateObject(YSE::OBJ::D_PEEK, "race_set_1256_2");
+    p.Connect(value, 0, pokeHandle, 0);
+    p.Connect(index, 0, pokeHandle, 1);
+    auto* poke = static_cast<dPoke*>(Object(p, pokeHandle));
+    YSE::PATCHER::pObject* peek = Object(p, peekHandle);
+    p.Connect(peekHandle, 0, sinkHandle.get(), 0);
+    const std::string toOnes = "set race_set_1256_1";
+    const std::string toTwos = "set race_set_1256_2";
+
+    std::atomic<bool> stop{false};
+    std::atomic<int> reads{0};
+    std::atomic<int> bad{0};
+    std::thread pokeControl([&] {
+      int n = 0;
+      while (!stop.load()) {
+        poke->GetInlet(0)->SetMessage((n++ % 2) != 0 ? toOnes : toTwos, YSE::T_GUI);
+        if (n % 8 == 0) poke->GetInlet(0)->SetList("-1 3", YSE::T_GUI);
+        std::this_thread::yield();
+      }
+    });
+    std::thread peekControl([&] {
+      int n = 0;
+      while (!stop.load()) {
+        if (n % 16 == 0)
+          peek->GetInlet(0)->SetMessage((n / 16) % 2 != 0 ? toOnes : toTwos, YSE::T_GUI);
+        floats.gotFloat = false;
+        peek->GetInlet(0)->SetInt(n++ % static_cast<int>(YSE::STANDARD_BUFFERSIZE), YSE::T_GUI);
+        if (floats.gotFloat) {
+          const float v = floats.received;
+          if (!(v == 1.f || v == 2.f || v == -1.f)) bad.fetch_add(1);
+          reads.fetch_add(1);
+        }
+        std::this_thread::yield();
+      }
+    });
+
+    int switches = 0;
+    const YSE::DSP::sampleBuffer* last = poke->Buffer().get();
+    for (int block = 0; block < 20000 && (block < 2000 || switches == 0 || reads.load() < 100);
+         ++block) {
+      p.Calculate(YSE::T_DSP);
+      // Between blocks, on the thread that takes: safe to look.
+      const YSE::DSP::sampleBuffer* now = poke->Buffer().get();
+      if (now != last) switches++;
+      last = now;
+    }
+    stop.store(true);
+    pokeControl.join();
+    peekControl.join();
+    CHECK(bad.load() == 0);
+    CHECK(reads.load() > 0);
+    CHECK(switches > 0);
+
+    // Quiet again, everything let go is freed.
+    for (int i = 0; i < 3; ++i) {
+      p.FileIO()->WaitIdle();
+      p.Calculate(YSE::T_DSP);
+    }
+    p.FileIO()->WaitIdle();
+    CHECK_FALSE(poke->ReleasePending());
   }
 
 } // TEST_SUITE("patcher")
