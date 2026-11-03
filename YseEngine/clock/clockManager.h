@@ -75,6 +75,25 @@ namespace YSE {
           A no-op for an unknown name. Control thread only. */
       void setTempo(const std::string& name, Flt bpm, Flt rampSeconds);
 
+      /** The patcher's by-name tempo write (issue #1254): ``setTempo``, unless
+          the host has marked the clock host-owned, in which case nothing is
+          written. Says which happened so the writer can warn. Control thread
+          only (it takes the mutex); the audio-callback route is
+          ``domainClock::requestPatchTempo`` through a resolved binding. */
+      TempoWrite requestPatchTempo(const std::string& name, Flt bpm, Flt rampSeconds);
+
+      /** Mark the named clock's tempo as the host's (``on``) or shared again
+          (issue #1254). Patch tempo writes to a host-owned clock are refused;
+          host writes and every read are unaffected. Returns false for an
+          unknown name. The flag belongs to the clock: a clock destroyed and
+          created again under the same name starts shared. Control thread
+          only. */
+      bool setHostOwned(const std::string& name, bool on);
+
+      /** Whether the named clock is host-owned; false for an unknown name.
+          Control thread only. */
+      bool isHostOwned(const std::string& name);
+
       /** Current beat position (running integral of tempo) of the named clock,
           or 0 for an unknown name. Control/UI thread. */
       Dbl beatPosition(const std::string& name);

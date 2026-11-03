@@ -277,6 +277,36 @@ YSE_C_API void yse_system_set_tempo(YseSystem* sys, const char* name, float bpm,
   }
 }
 
+YSE_C_API YseStatus yse_system_set_clock_host_owned(YseSystem* sys, const char* name,
+                                                    int host_owned) {
+  if (!sys) {
+    yse_c::set_last_error("yse_system_set_clock_host_owned: system handle is NULL");
+    return YSE_ERR_INVALID_HANDLE;
+  }
+  if (!name || name[0] == '\0') {
+    yse_c::set_last_error("yse_system_set_clock_host_owned: name must be a non-empty string");
+    return YSE_ERR_INVALID_ARGUMENT;
+  }
+  return yse_c::guard("yse_system_set_clock_host_owned", YSE_ERR_EXCEPTION, [&] {
+    if (!to_cpp(sys)->setClockHostOwned(name, host_owned != 0)) {
+      yse_c::set_last_error(std::string("yse_system_set_clock_host_owned: no live clock named \"") +
+                            name + "\"");
+      return YSE_ERR_INVALID_ARGUMENT;
+    }
+    return YSE_OK;
+  });
+}
+
+YSE_C_API int yse_system_clock_host_owned(YseSystem* sys, const char* name) {
+  if (!sys || !name) return 0;
+  try {
+    return to_cpp(sys)->isClockHostOwned(name) ? 1 : 0;
+  } catch (...) {
+    yse_c::set_last_error("unknown C++ exception in yse_system_clock_host_owned");
+    return 0;
+  }
+}
+
 YSE_C_API double yse_system_beat_position(YseSystem* sys, const char* name) {
   if (!sys || !name) return 0.0;
   try {

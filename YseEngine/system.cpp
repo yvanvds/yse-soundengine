@@ -492,6 +492,14 @@ YSE::system& YSE::system::setTempo(const std::string& name, float bpm, float ram
   return *this;
 }
 
+bool YSE::system::setClockHostOwned(const std::string& name, bool hostOwned) {
+  return CLOCK::Manager().setHostOwned(name, hostOwned);
+}
+
+bool YSE::system::isClockHostOwned(const std::string& name) {
+  return CLOCK::Manager().isHostOwned(name);
+}
+
 double YSE::system::beatPosition(const std::string& name) {
   return CLOCK::Manager().beatPosition(name);
 }

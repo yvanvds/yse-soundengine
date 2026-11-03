@@ -281,6 +281,12 @@ to milliseconds. ``.tempo``, ``.timepoint``, ``.when``, ``.timer`` and
 Only ``.transport`` and ``.setclock`` create clocks, and neither one ever
 destroys a clock. All other objects only use a clock that already exists.
 
+The host can mark a clock **host-owned** with ``System::setClockHostOwned``.
+A patch can still bind to that clock, read it and count on it, but
+``.transport``, ``.setclock`` and ``.tempo`` cannot change its tempo. Their
+writes are ignored, and each object logs one warning naming the clock. A
+``.transport`` on a host-owned clock therefore cannot stop it.
+
 .. _time-clock-resolution:
 
 How accurate a beat is

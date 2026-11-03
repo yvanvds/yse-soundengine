@@ -236,6 +236,110 @@ TEST_SUITE("clock") {
     yse_system_set_tempo(sys, nullptr, 120.f, 0.f);
   }
 
+  // ─── Host-owned clocks (issue #1254) ──────────────────────────────────────────
+
+  TEST_CASE("clock: a host-owned clock refuses patch tempo writes, not host ones (#1254)") {
+    auto& mgr = YSE::CLOCK::Manager();
+    REQUIRE(mgr.createClock("clk.own", 120.f));
+    CHECK_FALSE(mgr.isHostOwned("clk.own")); // shared by default
+
+    // Shared: a patch write lands.
+    CHECK(mgr.requestPatchTempo("clk.own", 90.f, 0.f) == YSE::CLOCK::TempoWrite::WRITTEN);
+    tick(0.01f);
+    CHECK(mgr.currentTempo("clk.own") == doctest::Approx(90.f));
+
+    REQUIRE(mgr.setHostOwned("clk.own", true));
+    CHECK(mgr.isHostOwned("clk.own"));
+
+    // Host-owned: the patch write is refused, by name and through a binding's
+    // handle alike, and the tempo is untouched.
+    CHECK(mgr.requestPatchTempo("clk.own", 0.f, 0.f) == YSE::CLOCK::TempoWrite::HOST_OWNED);
+    const std::shared_ptr<YSE::CLOCK::domainClock> bound = mgr.lookup("clk.own");
+    REQUIRE(bound != nullptr);
+    CHECK(bound->requestPatchTempo(0.f, 0.f) == YSE::CLOCK::TempoWrite::HOST_OWNED);
+    tick(0.5f);
+    CHECK(mgr.currentTempo("clk.own") == doctest::Approx(90.f));
+    // Reading is unaffected: the clock kept advancing at 90 BPM.
+    CHECK(mgr.beatPosition("clk.own") == doctest::Approx(90.0 * 0.51 / 60.0));
+
+    // The host's own route still works.
+    mgr.setTempo("clk.own", 60.f, 0.f);
+    tick(0.01f);
+    CHECK(mgr.currentTempo("clk.own") == doctest::Approx(60.f));
+
+    // And handing the clock back makes it a shared lever again.
+    REQUIRE(mgr.setHostOwned("clk.own", false));
+    CHECK(mgr.requestPatchTempo("clk.own", 30.f, 0.f) == YSE::CLOCK::TempoWrite::WRITTEN);
+    tick(0.01f);
+    CHECK(mgr.currentTempo("clk.own") == doctest::Approx(30.f));
+
+    mgr.destroyClock("clk.own");
+    tick(0.01f);
+  }
+
+  TEST_CASE("clock: the host-owned flag belongs to the clock, not the name (#1254)") {
+    auto& mgr = YSE::CLOCK::Manager();
+    // Unknown names: nothing to flag, nothing to write.
+    CHECK_FALSE(mgr.setHostOwned("clk.own.none", true));
+    CHECK_FALSE(mgr.isHostOwned("clk.own.none"));
+    CHECK(mgr.requestPatchTempo("clk.own.none", 90.f, 0.f) == YSE::CLOCK::TempoWrite::NO_CLOCK);
+
+    REQUIRE(mgr.createClock("clk.own.re", 120.f));
+    REQUIRE(mgr.setHostOwned("clk.own.re", true));
+    mgr.destroyClock("clk.own.re");
+    CHECK_FALSE(mgr.isHostOwned("clk.own.re"));
+
+    // A clock created again under the name starts shared.
+    REQUIRE(mgr.createClock("clk.own.re", 120.f));
+    CHECK_FALSE(mgr.isHostOwned("clk.own.re"));
+    CHECK(mgr.requestPatchTempo("clk.own.re", 90.f, 0.f) == YSE::CLOCK::TempoWrite::WRITTEN);
+
+    mgr.destroyClock("clk.own.re");
+    tick(0.01f);
+  }
+
+  TEST_CASE("clock: C API sets and reads the host-owned flag (#1254)") {
+    YseSystem* sys = yse_system_get();
+    REQUIRE(sys != nullptr);
+    REQUIRE(yse_system_create_clock(sys, "clk.capi.own", 120.f) == YSE_OK);
+
+    CHECK(yse_system_clock_host_owned(sys, "clk.capi.own") == 0);
+    CHECK(yse_system_set_clock_host_owned(sys, "clk.capi.own", 1) == YSE_OK);
+    CHECK(yse_system_clock_host_owned(sys, "clk.capi.own") == 1);
+    CHECK(YSE::System().isClockHostOwned("clk.capi.own"));
+    CHECK(YSE::CLOCK::Manager().requestPatchTempo("clk.capi.own", 0.f, 0.f) ==
+          YSE::CLOCK::TempoWrite::HOST_OWNED);
+
+    // The host's own tempo route is untouched by the flag.
+    yse_system_set_tempo(sys, "clk.capi.own", 60.f, 0.f);
+    tick(0.01f);
+    CHECK(yse_system_current_tempo(sys, "clk.capi.own") == doctest::Approx(60.0f));
+
+    CHECK(yse_system_set_clock_host_owned(sys, "clk.capi.own", 0) == YSE_OK);
+    CHECK(yse_system_clock_host_owned(sys, "clk.capi.own") == 0);
+
+    // Failures carry a status and a reason.
+    yse_clear_last_error();
+    CHECK(yse_system_set_clock_host_owned(sys, "clk.capi.own.none", 1) == YSE_ERR_INVALID_ARGUMENT);
+    CHECK(std::string(yse_last_error()).find("clk.capi.own.none") != std::string::npos);
+    yse_clear_last_error();
+    CHECK(yse_system_set_clock_host_owned(sys, "", 1) == YSE_ERR_INVALID_ARGUMENT);
+    CHECK_FALSE(std::string(yse_last_error()).empty());
+    yse_clear_last_error();
+    CHECK(yse_system_set_clock_host_owned(sys, nullptr, 1) == YSE_ERR_INVALID_ARGUMENT);
+    CHECK_FALSE(std::string(yse_last_error()).empty());
+    yse_clear_last_error();
+    CHECK(yse_system_set_clock_host_owned(nullptr, "clk.capi.own", 1) == YSE_ERR_INVALID_HANDLE);
+    CHECK_FALSE(std::string(yse_last_error()).empty());
+    yse_clear_last_error();
+    CHECK(yse_system_clock_host_owned(nullptr, "clk.capi.own") == 0);
+    CHECK(yse_system_clock_host_owned(sys, nullptr) == 0);
+    CHECK(yse_system_clock_host_owned(sys, "clk.capi.own.none") == 0);
+
+    yse_system_destroy_clock(sys, "clk.capi.own");
+    tick(0.01f);
+  }
+
   // ─── Regression: a release marked while a delete job is in flight ───────────
 
   TEST_CASE("clock: a destroy marked during an in-flight delete job is still reaped "

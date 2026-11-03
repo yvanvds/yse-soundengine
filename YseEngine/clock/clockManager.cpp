@@ -74,6 +74,28 @@ void YSE::CLOCK::managerObject::setTempo(const std::string& name, Flt bpm, Flt r
   if (clock != nullptr) clock->requestTempo(bpm, rampSeconds);
 }
 
+YSE::CLOCK::TempoWrite YSE::CLOCK::managerObject::requestPatchTempo(const std::string& name,
+                                                                    Flt bpm, Flt rampSeconds) {
+  std::scoped_lock lk(implementationsMutex);
+  std::shared_ptr<domainClock> clock = findLive(name);
+  if (clock == nullptr) return TempoWrite::NO_CLOCK;
+  return clock->requestPatchTempo(bpm, rampSeconds);
+}
+
+bool YSE::CLOCK::managerObject::setHostOwned(const std::string& name, bool on) {
+  std::scoped_lock lk(implementationsMutex);
+  std::shared_ptr<domainClock> clock = findLive(name);
+  if (clock == nullptr) return false;
+  clock->setHostOwned(on);
+  return true;
+}
+
+bool YSE::CLOCK::managerObject::isHostOwned(const std::string& name) {
+  std::scoped_lock lk(implementationsMutex);
+  std::shared_ptr<domainClock> clock = findLive(name);
+  return clock != nullptr && clock->isHostOwned();
+}
+
 Dbl YSE::CLOCK::managerObject::beatPosition(const std::string& name) {
   std::scoped_lock lk(implementationsMutex);
   std::shared_ptr<domainClock> clock = findLive(name);

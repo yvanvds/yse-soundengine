@@ -150,10 +150,16 @@ namespace YSE {
      *  ``.transport``'s does, decided from ``patcherImplementation::CallingThread``
      *  (#690) rather than from the ``THREAD`` tag, because the tag is dispatch
      *  semantics and not thread identity. Off the audio callback
-     *  ``CLOCK::Manager().setTempo`` is called by name, inline, which needs no
-     *  resolved binding — so a start in the same breath as ``CreateObject``
-     *  retempos the clock immediately. On it, ``clockBridge::RequestTempo`` is
-     *  three atomic stores the clock consumes on its next block.
+     *  ``CLOCK::Manager().requestPatchTempo`` is called by name, inline, which
+     *  needs no resolved binding — so a start in the same breath as
+     *  ``CreateObject`` retempos the clock immediately. On it,
+     *  ``clockBridge::RequestTempo`` is three atomic stores the clock consumes
+     *  on its next block.
+     *
+     *  Either route refuses a clock the host has marked with
+     *  ``system::setClockHostOwned`` (issue #1254): the tempo stays the host's,
+     *  the first refusal logs a warning naming the clock, and the object still
+     *  counts on the clock at whatever tempo the host gives it.
      *
      *  The grid is guarded by ``.metro``'s non-blocking ``busy`` exchange, whose
      *  loser does nothing rather than waiting: this object is reachable from the
@@ -327,6 +333,11 @@ namespace YSE {
     // naming the same clock, so this shares a slot with the `.transport` driving
     // it rather than costing one of its own.
     std::atomic<clockBridge::Handle> binding{0};
+
+    // Set once a tempo write has been refused because the host owns the clock
+    // (#1254), so the warning is logged once per run of refusals rather than
+    // once per write. See ReportTempoWrite.
+    std::atomic<bool> warnedHostOwned{false};
 
     // Whether the metronome is running. Outside the guard, so that a wakeup
     // which lost the guard to a stop still finds it false and does not re-arm.

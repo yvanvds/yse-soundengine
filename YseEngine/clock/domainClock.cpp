@@ -29,6 +29,7 @@ YSE::CLOCK::domainClock::domainClock(const std::string& name, Flt initialTempo)
     reqTempo(0.f),
     reqRamp(0.f),
     reqDirty(false),
+    hostOwned(false),
     released(false),
     objectStatus(OBJECT_READY) {}
 

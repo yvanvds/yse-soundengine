@@ -145,6 +145,11 @@ namespace YSE {
      *    ``clockBridge::RESOLVE_INTERVAL_BLOCKS`` blocks of the object being
      *    created, after which every message lands.
      *
+     *  Both routes refuse a clock the host has marked with
+     *  ``system::setClockHostOwned`` (issue #1254): nothing is written, the
+     *  first refusal logs a warning naming the clock, and ``bang`` still
+     *  reports the clock's beat.
+     *
      *  ### Real-time behaviour
      *
      *  ``Calculate()`` does nothing: the object is driven entirely by its
@@ -238,6 +243,11 @@ namespace YSE {
     // the same clock, so this shares a slot with every `.metro clock <name>`
     // running on it rather than costing one of its own.
     std::atomic<clockBridge::Handle> binding{0};
+
+    // Set once a tempo write has been refused because the host owns the clock
+    // (#1254), so the warning is logged once per run of refusals rather than
+    // once per write. See ReportTempoWrite.
+    std::atomic<bool> warnedHostOwned{false};
   };
 }
 }
