@@ -19885,6 +19885,93 @@
     ],
     "requires_midi_device": false
   },
+  "~record": {
+    "category": "SAMPLING",
+    "description": "Records signals into a named sample buffer, between a start and an end point, once or in a loop, with a sync signal that ramps from 0 to 1 over the recording: live looping and sampling.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The signal to record into channel 1; unconnected it records silence. A number other than 0 starts recording, 0 stops it. Also takes 'append <0/1>', 'loop <0/1>', 'loopstart <ms>', 'loopend <ms>', 'reset' (the whole buffer again) and 'set <name>' (another buffer, from a later block). None of them is saved.",
+        "index": 0,
+        "label": "signal",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The start point, in milliseconds into the buffer.",
+        "index": 1,
+        "label": "start",
+        "range": "0 or higher"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The end point, in milliseconds into the buffer; 0 is its end.",
+        "index": 2,
+        "label": "end",
+        "range": "0 or higher"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~record",
+    "outlets": [
+      {
+        "doc": "While recording, where each sample goes: 0 at the start point rising to 1 at the end point. 0 while not recording.",
+        "index": 0,
+        "label": "sync",
+        "range": "0 to 1",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The buffer to record into. A set message does not change what is saved.",
+        "name": "name",
+        "range": "buffer name"
+      },
+      {
+        "default": "1",
+        "doc": "The number of signal inlets, each recorded into the buffer channel of its number.",
+        "name": "channels",
+        "range": "1 to 64"
+      },
+      {
+        "default": "0",
+        "doc": "1 makes a start carry on where the last recording stopped, instead of at the start point.",
+        "name": "append",
+        "range": "0 or 1"
+      },
+      {
+        "default": "0",
+        "doc": "1 makes recording carry on from the start point when it reaches the end point, instead of stopping.",
+        "name": "loop",
+        "range": "0 or 1"
+      },
+      {
+        "default": "0",
+        "doc": "The start point, in milliseconds into the buffer.",
+        "name": "loopstart",
+        "range": "0 or higher"
+      },
+      {
+        "default": "0",
+        "doc": "The end point, in milliseconds into the buffer; 0 is its end.",
+        "name": "loopend",
+        "range": "0 or higher"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~rect": {
     "category": "OSC",
     "description": "Antialiased rectangle (pulse) oscillator switching between 1 and -1. A width of 0.5 is a square wave; sweep the width for pulse-width modulation. A sync signal restarts the cycle, for hard sync.",

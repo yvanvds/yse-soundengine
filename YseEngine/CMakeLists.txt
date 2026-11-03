@@ -155,6 +155,7 @@ set(YSE_SRCS
   dsp/sampling/sampleBuffer.cpp
   dsp/sampling/sampleAccess.cpp
   dsp/sampling/tableLookup.cpp
+  dsp/sampling/bufferRecorder.cpp
   dsp/sfzModel.cpp
   dsp/wavetable.cpp
   implementations/listenerImplementation.cpp
@@ -222,6 +223,7 @@ set(YSE_SRCS
   patcher/sampling/dPoke.cpp
   patcher/sampling/dIndex.cpp
   patcher/sampling/dTable.cpp
+  patcher/sampling/dRecord.cpp
   patcher/filters/dVcf.cpp
   patcher/filters/dSah.cpp
   patcher/filters/dSash.cpp
@@ -706,6 +708,7 @@ set_source_files_properties(
   patcher/sampling/dPoke.cpp
   patcher/sampling/dIndex.cpp
   patcher/sampling/dTable.cpp
+  patcher/sampling/dRecord.cpp
   patcher/filters/dVcf.cpp
   patcher/filters/dSah.cpp
   patcher/filters/dSash.cpp

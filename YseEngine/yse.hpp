@@ -149,6 +149,8 @@
 #include "dsp/sampling/sampleBuffer.hpp"
 #include "dsp/sampling/sampleAccess.hpp"
 #include "dsp/sampling/tableLookup.hpp"
+#include "dsp/sampling/sampleRegion.hpp"
+#include "dsp/sampling/bufferRecorder.hpp"
 #include "dsp/ramp.hpp"
 #include "dsp/envelope.hpp"
 #include "dsp/ADSRenvelope.hpp"

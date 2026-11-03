@@ -239,3 +239,56 @@ The table is as long as the buffer. Fill it with a ``~buffer`` message, a
 the background and read from a later block on; ``set`` alone reads
 silence. Messages are not saved with the patch: a reloaded ``~table`` reads
 the buffer and uses the settings of its arguments.
+
+.. patcher-object:: ~record
+
+Records signals into the buffer of its name. The arguments, all after the
+name optional, are ``name channels append loop loopstart loopend``.
+``channels`` (1 to 64) sets how many signal inlets there are: the first
+signal goes into buffer channel 1, the second into channel 2, and so on. A
+buffer with fewer channels drops the signals it has no channel for, and
+its channels past the last signal are left as they are.
+
+- The signal inlets record what reaches them. An unconnected one records
+  silence.
+- A number other than 0 in the left inlet starts recording, 0 stops it.
+  Changes take effect at the next block.
+- The two inlets on the right set the start point and the end point, in
+  milliseconds into the buffer. An end point of 0, the default, is the end
+  of the buffer; ``reset`` puts both back to 0, so recording covers the
+  whole buffer again. ``loopstart <ms>`` and ``loopend <ms>`` in the left
+  inlet do the same as the two inlets.
+- A start begins at the start point, also while recording already runs.
+  With ``append 1`` it carries on where the last recording stopped instead,
+  as long as that is between the points.
+- Recording stops when it reaches the end point. With ``loop 1`` it
+  carries on from the start point, over and over, until it is stopped.
+- The outlet sends a sync signal: while recording, where each sample goes,
+  rising from 0 at the start point to 1 at the end point; 0 while not
+  recording.
+
+The points are milliseconds at the buffer's own sample rate and follow its
+length, so they stay right after the buffer is resized or a file is read
+into it. Samples are written as they arrive, not resampled. Every object
+playing the buffer hears what was recorded from the next block, so a
+recording can be played while it is being made:
+
+.. code-block:: text
+
+   [~adc]
+    |
+   [~record loop 1 0 1]   1 starts it; the buffer loop, over and over
+    |
+   [~snapshot 100]        where the recording is, 10 times a second
+
+Editing the buffer from a ``~buffer`` message while ``~record`` writes is
+safe; whatever it records while the change is being made is lost, and it
+carries on in the changed buffer. With no buffer, or an empty one,
+nothing is recorded and the sync signal is 0, but a started recording
+waits and begins once the buffer has room.
+
+``set <name>`` in the left inlet switches to another buffer, looked up in
+the background and written from a later block on; a recording carries on
+there from where it had got to. ``set`` alone stops writing. Messages are
+not saved with the patch: a reloaded ``~record`` uses the buffer and the
+settings of its arguments.

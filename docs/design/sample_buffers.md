@@ -226,7 +226,12 @@ meant to be run under ASan and TSan.
 
 **For `~record` (#1143)**: bind a `sampleBufferWriter` in `PARM_PARSE`, pin it at the top of
 `CALC()`, and `write(channel, position, block, length)` each block, wrapping at the end of the
-buffer yourself. Nothing else is needed from the store.
+buffer yourself. Nothing else is needed from the store. As built, `DSP::bufferRecorder` writes
+one stretch per channel up to the end point and wraps there. Its loop points are a
+`DSP::sampleRegion` (`dsp/sampling/sampleRegion.hpp`): milliseconds turned into frames each block
+at the pinned view's rate and length, end 0 meaning the buffer's end, with `phase(frame)` for a
+0-1 sync output. The looping players (`~groove`, `~phasegroove`) and `~play` take their loop
+points and sync the same way.
 
 ## Rebinding by name: one mailbox for the family (#1256)
 

@@ -175,6 +175,7 @@
 #include "sampling/dPoke.h"
 #include "sampling/dIndex.h"
 #include "sampling/dTable.h"
+#include "sampling/dRecord.h"
 
 #include "guiObjects/gInt.h"
 #include "guiObjects/gFloat.h"
@@ -476,6 +477,7 @@ pRegistry::pRegistry() {
   Add(OBJ::D_POKE, dPoke::Create);
   Add(OBJ::D_INDEX, dIndex::Create);
   Add(OBJ::D_TABLE, dTable::Create);
+  Add(OBJ::D_RECORD, dRecord::Create);
 
   Add(OBJ::G_SWITCH, gSwitch::Create);
   Add(OBJ::G_GATE, gGate::Create);
