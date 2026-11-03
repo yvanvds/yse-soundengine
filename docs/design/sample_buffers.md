@@ -15,6 +15,8 @@ port: ownership, lifetime, reclamation and naming. Decided in design gate
 | `DSP::sampleBufferRegistry` | process-wide names → buffers, and ids → buffers | control and background (one mutex) |
 | `DSP::sampleBufferReader` | one reader's claim on a buffer | bind: control; `pin`: audio |
 | `DSP::sampleView` | one block's read access to a pinned storage | the thread that pinned it |
+| `DSP::sampleBufferWriter` | one writer's claim on a buffer, writing in place (#1144) | bind: control; `pin`: one thread at a time |
+| `DSP::sampleWriteView` | one block's read and write access to a pinned storage | the thread that pinned it |
 | `~buffer` (`PATCHER::dBuffer`) | the patcher face: arguments and messages | messages: any; work: background |
 
 All of it is a public C++ API in `yse.hpp`. A host can create `drums`, load it, and have a patch's
@@ -71,8 +73,8 @@ thread must never free one.
 channel). Every change builds a new block on the calling thread — resize, file decode, or a copy of
 the current block that the edit then changes — and publishes it with one `seq_cst` store to an
 atomic pointer. A per-buffer mutex, taken only by control and background threads, serialises
-edits, so two concurrent edits cannot lose each other. A block is never written after it is
-published, so a reader reads samples nobody is writing. Copying costs memory and time in
+edits, so two concurrent edits cannot lose each other. A block's shape never changes after it is
+published, and only a `sampleBufferWriter` writes its samples. Copying costs memory and time in
 proportion to the buffer, which is right for loading and editing and wrong for writing a few
 samples at audio rate; see *Writers* below.
 
@@ -156,20 +158,107 @@ The DSP class of a sampling object (`DSP::bufferPlayer`, `DSP::groovePlayer`, ..
 `sampleView` (or the reader) per block rather than a `sampleBuffer`, so it stays a plain one-thread
 class as the MSP conventions require.
 
-## Writers (deferred to their own issues)
+## Reporting on a buffer from a control object
 
-`~record` ([#1143](https://github.com/yvanvds/yse-soundengine/issues/1143)) and `~poke`
-([#1144](https://github.com/yvanvds/yse-soundengine/issues/1144)) write samples at audio rate.
-Copy on write is the wrong tool for that, and a published block is immutable by this design. Those
-issues add a writer of their own; the constraint this design puts on them:
+`~info` ([#1138](https://github.com/yvanvds/yse-soundengine/issues/1138)) reads a buffer's details,
+not its samples, so it holds no reader. `sampleBuffer::info()` returns a `sampleBufferInfo`: the
+shape and rate of the current block plus the last file read (path, channel count, and the
+`sampleInstrument` — base note, detune, key and velocity range, gain, sustain and release loops —
+from libsndfile's `SFC_GET_INSTRUMENT`, i.e. an AIFF `INST` or WAV `smpl` chunk), all taken under
+the buffer mutex so they agree. The file details live beside `owner` under the mutex rather than in
+the published block: no audio-thread reader needs them, and edits that rebuild the block
+(`setSize`, `crop`) keep them for free. A successful `read` / `replace` sets them, `copyFrom` copies
+them, nothing else touches them.
 
-- the audio thread still never allocates or frees a block, and still never takes the buffer mutex;
-- control-side edits copy the published block, so a recorder writing into that same block at the
-  same moment would race with the copy. The writer needs either a block of its own that it
-  publishes, or control-side edits that wait for it. Which one is #1143's decision;
-- the decision is theirs, but it must pass the same three-thread stress test
-  (`Tests/dsp/test_sampleBuffer.cpp`, "a reader never sees freed or half-made storage") under ASan
-  and TSan with a writer thread added.
+Because `info()` locks and copies a string, a `~info` bang is a `fileScheduler` task like a
+`~buffer` query: the record carries the buffer **name**, the task resolves it with
+`sampleBufferRegistry::find` on the background pool, and the answer comes back in the same record.
+Resolving by name at each bang (instead of holding the buffer) lets `set <name>` work from the audio
+thread without a lookup there, and finds a buffer created after the object.
+
+## Writers: in place, with relaxed atomics (#1144)
+
+`~poke` ([#1144](https://github.com/yvanvds/yse-soundengine/issues/1144)), `~peek`'s writes and
+`~record` ([#1143](https://github.com/yvanvds/yse-soundengine/issues/1143)) write samples at audio
+rate, where copy on write is the wrong tool. The constraints #1039 set: the audio thread never
+allocates or frees a block and never takes the buffer mutex, and a writer must not race the
+control-side copies.
+
+**Decision: write the published block in place.** `DSP::sampleBufferWriter` is the reader's twin:
+bind on a control thread (it attaches a hazard slot of its own), `pin()` once per block on any one
+thread, and the `DSP::sampleWriteView` it returns has `set` / `write` next to `at` / `read`. Pinning
+is the reader's hazard claim, so a block a writer holds is never freed under it. The block's shape
+stays immutable; only its samples change, so nothing about publishing or retirement moves, and
+`version()` does not count writes (a write is not a new file).
+
+**Why the copies do not race.** Every write is a relaxed atomic store
+(`detail::StoreSample`: `__atomic_store` on GCC/Clang, an aligned volatile store on MSVC; C++17 has
+no `atomic_ref`), and every read of a published block that can overlap one is a relaxed atomic
+load: `sampleView::at` / `linear`, the write view's reads, and every control-side copy (`edit`,
+`setSize`, `crop`, `copyFrom`, `getSamples`, `write` to disk), which now copy through
+`CopySamples` rather than `memcpy`. On every target both are a plain load or store, so readers pay
+nothing; the copies lose vectorisation, which is control-thread time. TSan sees well-defined
+atomics rather than a race. A reader that walks `sampleView::channel()` with plain loads is fine
+while every writer of the buffer runs on its thread (one patcher's objects do), and is a data race
+when a writer on another render thread writes the same block at the same moment; `at` / `linear`
+are the cross-thread-safe reads.
+
+**What an edit made during writes means.** An edit copies the block, changes the copy and
+publishes it. Writes that land in the old block after the copy passed them are not in the new one,
+and a writer that pinned the old block before the publish finishes its block there; the next pin
+writes the new block. So an edit made while a writer writes wins. The alternative, edits that wait
+for writers, would make a control thread spin on the audio thread or the audio thread wait on an
+edit; neither is worth it for what is a user editing a buffer that is being recorded into.
+
+**Why not a block of the writer's own.** A writer that publishes its own block has to copy the
+whole buffer each block (readers must see the rest of it), or keep two blocks in step, which is
+the same copy. In place costs nothing per block.
+
+**The claim is one thread's.** One writer is one claim, as one reader is. `~poke` pins one writer
+in `CALC()` and a second, guarded by its `exchange(true)` flag, for a list written from a message;
+`~peek` has only the guarded one, since everything it does arrives as messages, on any thread,
+and it answers at once (so it works with the audio stopped). The guard's loser drops its message,
+the stateful-object rule.
+
+The stress test in `Tests/dsp/test_sampleBuffer.cpp` ("a writer and a reader race edits safely")
+runs a writer, a reader, an editor that resizes, fills and copies out, and a collector, and is
+meant to be run under ASan and TSan.
+
+**For `~record` (#1143)**: bind a `sampleBufferWriter` in `PARM_PARSE`, pin it at the top of
+`CALC()`, and `write(channel, position, block, length)` each block, wrapping at the end of the
+buffer yourself. Nothing else is needed from the store.
+
+## Rebinding by name: one mailbox for the family (#1256)
+
+`set <name>` on `~peek` and `~poke`, and on the players, `~index` and `~record` after them,
+cannot bind in the message handler: `acquire` locks the registry and `bind` attaches a hazard
+slot under the buffer mutex, and the message may be on the audio thread. `~cycle` solved this for
+its table in #1192; #1256 lifted the mechanism into `PATCHER::bufferBinding<Binding>`
+(`patcher/sampling/bufferBinding.h`), templated on what is bound (`sampleBufferReader`,
+`sampleBufferWriter`, or a struct of several with a `bind` that binds each).
+
+**Decision: bind in a task, hand over through a one-slot mailbox.** `Request` / `HandleSet` copy
+the name into a fixed record and submit it as a `fileScheduler` `TASK` (wait-free, no allocation).
+On the background pool the task makes and binds a new binding and exchanges it into `incoming`,
+freeing any unread one there (the last request wins). The thread that pins calls `Take`: one
+exchange swaps it into `current`, the old one goes to `retired`, and a release task frees it. A
+take waits while `retired` is still full, so the taking thread never frees and never waits. The
+mailbox is found by id in a process-wide table, not through the object, so a task in flight
+outlives the object's deletion. The core is type-erased (`void*` plus create / destroy function
+pointers) in `bufferBinding.cpp`; the template only casts.
+
+**Who takes.** `~poke` takes at the top of `CALC()` while holding its list guard, since the list
+writes through the second writer of the same binding; a list holding the guard defers the take
+one block. `~peek` has no `CALC()` and takes in its index and list handlers under its guard, so a
+rebind reaches it with the audio stopped (the scheduler slots themselves come back only when the
+patcher renders). `~index` (#1145) takes at the top of `CALC()` with no guard: no message of
+its reads the buffer, so its reader belongs to the audio thread alone. `~table` (#1148) takes the same way; its
+messages that need the table (a number, `bang`, `goto`, `next`, `prev`) are queued as commands
+and applied after the take, so they too stay on the audio thread, and Max's `name` attribute
+message is a second spelling of `set`. `~cycle` keeps its own copy: its record also carries an offset and a size that
+are merged across superseded requests, which the generic mailbox does not have.
+
+A rebind is not saved: `DumpJSON` writes the creation argument, as for `~cycle`.
 
 ## Not ported from Max
 

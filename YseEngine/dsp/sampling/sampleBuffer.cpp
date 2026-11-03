@@ -23,9 +23,13 @@
 namespace YSE {
   namespace DSP {
 
-    // The storage a buffer publishes. Never changed once published: a change
-    // builds a new one (sampleBuffer::edit), so a reader holding this one
-    // reads samples nobody is writing.
+    // The storage a buffer publishes. Its shape never changes once published:
+    // a change builds a new one (sampleBuffer::edit), so a reader holding this
+    // one keeps a whole block. Its samples may be written in place by a
+    // sampleBufferWriter (issue #1144), always as relaxed atomic stores, so
+    // every read of a published storage's samples that can overlap one is a
+    // relaxed atomic load (detail::LoadSample, CopySamples): the views, and
+    // every control-side copy below. Storage nobody has seen yet is plain.
     struct sampleBuffer::storage {
       UInt channels = 0;
       UInt frames = 0;
@@ -59,6 +63,37 @@ namespace {
 
   Flt EngineRate() {
     return YSE::SAMPLERATE > 0 ? static_cast<Flt>(YSE::SAMPLERATE) : 44100.f;
+  }
+
+  // Copy `count` samples out of a published storage, which a writer may be
+  // writing meanwhile: relaxed atomic loads, never a memcpy.
+  void CopySamples(const Flt* from, std::size_t count, Flt* to) {
+    for (std::size_t i = 0; i < count; ++i)
+      to[i] = detail::LoadSample(from + i);
+  }
+
+  // A fresh, unpublished copy of a published storage.
+  std::shared_ptr<sampleBuffer::storage> CopyOf(const sampleBuffer::storage& source) {
+    auto copy =
+        std::make_shared<sampleBuffer::storage>(source.channels, source.frames, source.rate);
+    CopySamples(source.samples.data(), source.samples.size(), copy->samples.data());
+    return copy;
+  }
+
+  // The hazard-pointer claim the reader and the writer make (issue #1039):
+  // announce the storage, then check it is still the published one. If a
+  // change slipped in between, announce the new one. Only a change published
+  // inside that window makes it go round again, and changes come from
+  // control threads, so in practice it runs once.
+  const sampleBuffer::storage* Claim(const std::atomic<const sampleBuffer::storage*>& source,
+                                     std::atomic<const sampleBuffer::storage*>& held) {
+    const sampleBuffer::storage* data = source.load(std::memory_order_acquire);
+    for (;;) {
+      held.store(data, std::memory_order_seq_cst);
+      const sampleBuffer::storage* again = source.load(std::memory_order_seq_cst);
+      if (again == data) return data;
+      data = again;
+    }
   }
 
   UInt MsToFrames(Flt ms, Flt rate) {
@@ -188,7 +223,48 @@ namespace {
 
   constexpr sf_count_t CHUNK_FRAMES = 8192;
 
+  // A file's instrument data, through libsndfile: an AIFF INST chunk (its
+  // sustain and release loops, positions resolved from the MARK chunk) or a
+  // WAV smpl chunk (its first two loops). A loop with no play mode is none.
+  sampleInstrument InstrumentOf(SndfileHandle& handle) {
+    sampleInstrument out;
+    SF_INSTRUMENT data{};
+    if (handle.command(SFC_GET_INSTRUMENT, &data, sizeof(data)) != SF_TRUE) return out;
+    out.defined = true;
+    // The fields are plain char, whose sign differs between platforms (ARM
+    // makes it unsigned): notes and velocities are 0..127, the detune is
+    // signed cents.
+    out.baseNote = static_cast<unsigned char>(data.basenote);
+    // NOLINTNEXTLINE(bugprone-signed-char-misuse,cert-str34-c): the detune is signed
+    out.detune = static_cast<signed char>(data.detune);
+    out.keyLow = static_cast<unsigned char>(data.key_lo);
+    out.keyHigh = static_cast<unsigned char>(data.key_hi);
+    out.velocityLow = static_cast<unsigned char>(data.velocity_lo);
+    out.velocityHigh = static_cast<unsigned char>(data.velocity_hi);
+    out.gain = data.gain;
+    sampleLoop* loops[2] = {&out.sustainLoop, &out.releaseLoop};
+    const int count = std::min(data.loop_count, 2);
+    for (int i = 0; i < count; ++i) {
+      if (data.loops[i].mode == SF_LOOP_NONE) continue;
+      loops[i]->defined = true;
+      loops[i]->start = data.loops[i].start;
+      loops[i]->end = data.loops[i].end;
+    }
+    return out;
+  }
+
 } // namespace
+
+// ─── sampleBufferInfo ─────────────────────────────────────────────────────────
+
+std::string sampleBufferInfo::fileName() const {
+  const std::size_t slash = filePath.find_last_of("/\\");
+  return slash == std::string::npos ? filePath : filePath.substr(slash + 1);
+}
+
+Flt sampleBufferInfo::framesToMs(UInt frameCount) const {
+  return static_cast<Flt>(static_cast<double>(frameCount) * 1000.0 / sampleRate);
+}
 
 // ─── sampleBuffer ─────────────────────────────────────────────────────────────
 
@@ -250,6 +326,20 @@ std::uint64_t sampleBuffer::version() const {
   return changes.load(std::memory_order_acquire);
 }
 
+sampleBufferInfo sampleBuffer::info() const {
+  sampleBufferInfo out;
+  const std::lock_guard<std::mutex> lock(mutex);
+  out.channels = owner->channels;
+  out.frames = owner->frames;
+  out.sampleRate = owner->rate > 0.f ? owner->rate : EngineRate();
+  out.lengthMs = out.framesToMs(owner->frames);
+  out.version = owner->version;
+  out.filePath = lastFilePath;
+  out.fileChannels = lastFileChannels;
+  out.instrument = lastFileInstrument;
+  return out;
+}
+
 std::shared_ptr<const sampleBuffer::storage> sampleBuffer::snapshot() const {
   const std::lock_guard<std::mutex> lock(mutex);
   return owner;
@@ -306,7 +396,7 @@ std::size_t sampleBuffer::retiredCount() const {
 
 template <class Edit> void sampleBuffer::edit(Edit&& change) {
   const std::lock_guard<std::mutex> lock(mutex);
-  auto next = std::make_shared<storage>(*owner);
+  auto next = CopyOf(*owner);
   change(*next);
   publishLocked(std::move(next));
 }
@@ -388,8 +478,13 @@ bool sampleBuffer::read(const char* path, Flt startMs, Flt durationMs, Int chann
       done += got;
     }
   }
+  sampleInstrument instrument = InstrumentOf(file.handle);
 
-  publish(std::move(next));
+  const std::lock_guard<std::mutex> lock(mutex);
+  lastFilePath = path;
+  lastFileChannels = static_cast<UInt>(fileChannels);
+  lastFileInstrument = instrument;
+  publishLocked(std::move(next));
   return true;
 }
 
@@ -418,7 +513,7 @@ bool sampleBuffer::write(const char* path, SAMPLE_FILE format) const {
     for (UInt c = 0; c < data->channels; ++c) {
       const Flt* in = data->channel(c) + done;
       for (sf_count_t i = 0; i < count; ++i) {
-        scratch[static_cast<std::size_t>(i) * data->channels + c] = in[i];
+        scratch[static_cast<std::size_t>(i) * data->channels + c] = detail::LoadSample(in + i);
       }
     }
     if (handle.writef(scratch.data(), count) != count) return false;
@@ -437,7 +532,7 @@ void sampleBuffer::setSize(UInt frameCount, Int channelCount) {
   const UInt keepChannels = std::min(chans, owner->channels);
   const UInt keepFrames = std::min(frameCount, owner->frames);
   for (UInt c = 0; c < keepChannels; ++c) {
-    std::copy_n(owner->channel(c), keepFrames, next->channel(c));
+    CopySamples(owner->channel(c), keepFrames, next->channel(c));
   }
   publishLocked(std::move(next));
 }
@@ -456,7 +551,7 @@ bool sampleBuffer::crop(UInt startFrame, UInt endFrame) {
   if (startFrame >= endFrame) return false;
   auto next = std::make_shared<storage>(owner->channels, endFrame - startFrame, owner->rate);
   for (UInt c = 0; c < owner->channels; ++c) {
-    std::copy(owner->channel(c) + startFrame, owner->channel(c) + endFrame, next->channel(c));
+    CopySamples(owner->channel(c) + startFrame, endFrame - startFrame, next->channel(c));
   }
   publishLocked(std::move(next));
   return true;
@@ -545,8 +640,23 @@ void sampleBuffer::normalize(Flt peak) {
 void sampleBuffer::copyFrom(const sampleBuffer& other) {
   // The source's lock, then ours, never both: two buffers copying from each
   // other cannot deadlock.
-  const std::shared_ptr<const storage> source = other.snapshot();
-  publish(std::make_shared<storage>(*source));
+  std::shared_ptr<const storage> source;
+  std::string sourcePath;
+  UInt sourceChannels = 0;
+  sampleInstrument sourceInstrument;
+  {
+    const std::lock_guard<std::mutex> lock(other.mutex);
+    source = other.owner;
+    sourcePath = other.lastFilePath;
+    sourceChannels = other.lastFileChannels;
+    sourceInstrument = other.lastFileInstrument;
+  }
+  auto next = CopyOf(*source);
+  const std::lock_guard<std::mutex> lock(mutex);
+  lastFilePath = std::move(sourcePath);
+  lastFileChannels = sourceChannels;
+  lastFileInstrument = sourceInstrument;
+  publishLocked(std::move(next));
 }
 
 void sampleBuffer::setSamples(UInt channel, UInt startFrame, const Flt* values, UInt count) {
@@ -562,7 +672,7 @@ UInt sampleBuffer::getSamples(UInt channel, UInt startFrame, Flt* out, UInt coun
   const std::shared_ptr<const storage> data = snapshot();
   if (channel >= data->channels || startFrame >= data->frames) return 0;
   const UInt n = std::min(count, data->frames - startFrame);
-  std::copy_n(data->channel(channel) + startFrame, n, out);
+  CopySamples(data->channel(channel) + startFrame, n, out);
   return n;
 }
 
@@ -650,8 +760,9 @@ Flt sampleView::linear(UInt c, Dbl position) const {
   if (index >= numFrames) return 0.f;
   const Flt* s = samples + static_cast<std::size_t>(c) * numFrames;
   const auto frac = static_cast<Flt>(position - static_cast<Dbl>(index));
-  const Flt next = index + 1 < numFrames ? s[index + 1] : 0.f;
-  return s[index] + (next - s[index]) * frac;
+  const Flt here = detail::LoadSample(s + index);
+  const Flt next = index + 1 < numFrames ? detail::LoadSample(s + index + 1) : 0.f;
+  return here + (next - here) * frac;
 }
 
 sampleBufferReader::sampleBufferReader(std::shared_ptr<sampleBuffer> buffer) {
@@ -673,21 +784,76 @@ sampleView sampleBufferReader::pin() const {
   sampleView view;
   if (target == nullptr || slot == nullptr) return view;
 
-  // A hazard pointer: announce the storage, then check it is still the
-  // published one. If a change slipped in between, announce the new one.
-  // Only a change published inside that window makes it go round again, and
-  // changes come from control threads, so in practice it runs once.
-  const std::atomic<const sampleBuffer::storage*>& source = target->published;
-  const sampleBuffer::storage* data = source.load(std::memory_order_acquire);
-  for (;;) {
-    slot->held.store(data, std::memory_order_seq_cst);
-    const sampleBuffer::storage* again = source.load(std::memory_order_seq_cst);
-    if (again == data) break;
-    data = again;
-  }
+  const sampleBuffer::storage* data = Claim(target->published, slot->held);
 
   view.slot = &slot->held;
   view.samples = data->samples.data();
+  view.numChannels = data->channels;
+  view.numFrames = data->frames;
+  view.rate = data->rate > 0.f ? data->rate : EngineRate();
+  view.storageVersion = data->version;
+  return view;
+}
+
+// ─── sampleWriteView / sampleBufferWriter (issue #1144) ───────────────────────
+
+sampleWriteView::sampleWriteView(sampleWriteView&& other) noexcept
+  : slot(other.slot),
+    samples(other.samples),
+    numChannels(other.numChannels),
+    numFrames(other.numFrames),
+    rate(other.rate),
+    storageVersion(other.storageVersion) {
+  other.slot = nullptr;
+}
+
+sampleWriteView::~sampleWriteView() {
+  if (slot != nullptr) slot->store(nullptr, std::memory_order_release);
+}
+
+UInt sampleWriteView::write(UInt c, UInt startFrame, const Flt* values, UInt count) {
+  if (values == nullptr || c >= numChannels || startFrame >= numFrames) return 0;
+  const UInt n = std::min(count, numFrames - startFrame);
+  Flt* out = samples + static_cast<std::size_t>(c) * numFrames + startFrame;
+  for (UInt i = 0; i < n; ++i)
+    detail::StoreSample(out + i, values[i]);
+  return n;
+}
+
+UInt sampleWriteView::read(UInt c, UInt startFrame, Flt* out, UInt count) const {
+  if (out == nullptr || c >= numChannels || startFrame >= numFrames) return 0;
+  const UInt n = std::min(count, numFrames - startFrame);
+  CopySamples(samples + static_cast<std::size_t>(c) * numFrames + startFrame, n, out);
+  return n;
+}
+
+sampleBufferWriter::sampleBufferWriter(std::shared_ptr<sampleBuffer> buffer) {
+  bind(std::move(buffer));
+}
+
+sampleBufferWriter::~sampleBufferWriter() {
+  bind(nullptr);
+}
+
+void sampleBufferWriter::bind(std::shared_ptr<sampleBuffer> buffer) {
+  if (target != nullptr) target->detach(slot);
+  slot = nullptr;
+  target = std::move(buffer);
+  if (target != nullptr) slot = target->attach();
+}
+
+sampleWriteView sampleBufferWriter::pin() const {
+  sampleWriteView view;
+  if (target == nullptr || slot == nullptr) return view;
+
+  // The same claim a reader makes, so the storage outlives the view.
+  const sampleBuffer::storage* data = Claim(target->published, slot->held);
+
+  view.slot = &slot->held;
+  // Every storage is made non-const (make_shared<storage>) and only published
+  // as const, so writing its samples is defined. The shape stays as it is.
+  view.samples =
+      const_cast<Flt*>(data->samples.data()); // NOLINT(cppcoreguidelines-pro-type-const-cast)
   view.numChannels = data->channels;
   view.numFrames = data->frames;
   view.rate = data->rate > 0.f ? data->rate : EngineRate();

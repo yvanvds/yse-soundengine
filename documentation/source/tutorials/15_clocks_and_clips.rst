@@ -256,6 +256,29 @@ Patcher objects use the same clocks by name. ``.transport`` and
 other timed objects can count beats on them. A clip and a patch on the same
 clock fire in the same block. See :doc:`/patcher/time`.
 
+By default the host and a patch share a clock's tempo: a ``.transport main``
+with ``stop`` pauses ``main`` for everyone. When a clock's tempo is yours alone,
+mark it **host-owned**:
+
+.. code-block:: cpp
+
+   YSE::System().createClock("domain.drum", 96.f);
+   YSE::System().setClockHostOwned("domain.drum");  // patches may read, not drive
+
+Patches can still bind to a host-owned clock and count on it. ``.transport``,
+``.setclock`` and ``.tempo`` cannot change its tempo: their writes are
+ignored, and each object logs one warning naming the clock. Your own
+``setTempo`` works as before. ``setClockHostOwned(name, false)`` shares the
+clock again, and ``isClockHostOwned(name)`` reads the flag.
+``setClockHostOwned`` returns ``false`` for a name that has no clock. It
+works on a clock a patch created first. The flag belongs to the clock, so a
+clock you destroy and create again starts shared. In the C API the calls are
+``yse_system_set_clock_host_owned`` and ``yse_system_clock_host_owned``.
+
+.. versionadded:: 3.2
+   Host-owned clocks (issue `#1254
+   <https://github.com/yvanvds/yse-soundengine/issues/1254>`_).
+
 The C API
 ---------
 

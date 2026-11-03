@@ -8,7 +8,8 @@
 namespace YSE {
   namespace CLOCK {
     class domainClock;
-  }
+    enum class TempoWrite;
+  } // namespace CLOCK
 
   namespace PATCHER {
 
@@ -196,12 +197,16 @@ namespace YSE {
        *  clock's own ``update`` consumes on the next block, so nothing here
        *  touches ``CLOCK::Manager``'s mutex.
        *
-       *  Returns false, having written nothing, for handle 0, an out-of-range
-       *  handle, or a binding that has not resolved yet. A caller that is *not*
-       *  on the audio callback should prefer ``CLOCK::Manager().setTempo`` by
-       *  name, which needs no resolved binding at all — see ``gTransport``.
+       *  Returns ``NO_CLOCK``, having written nothing, for handle 0, an
+       *  out-of-range handle, or a binding that has not resolved yet, and
+       *  ``HOST_OWNED``, again having written nothing, for a clock the host has
+       *  claimed with ``system::setClockHostOwned`` (issue #1254) — one more
+       *  acquire load, so the refusal stays wait-free. A caller that is *not*
+       *  on the audio callback should prefer
+       *  ``CLOCK::Manager().requestPatchTempo`` by name, which needs no
+       *  resolved binding at all — see ``gTransport``.
        */
-      bool RequestTempo(Handle handle, float bpm, float rampSeconds);
+      CLOCK::TempoWrite RequestTempo(Handle handle, float bpm, float rampSeconds);
 
       /**
        *  @brief The beat the bound clock stood at when this binding resolved.
@@ -323,6 +328,27 @@ namespace YSE {
       // Audio-thread-only: the block Poll is next allowed to do a pass on.
       std::uint64_t nextPollBlock_ = 0;
     };
+
+    /**
+     *  @brief Report a tempo write refused because the host owns the clock
+     *         (issue #1254). Any thread; allocation-free on the audio callback.
+     *
+     *  The patcher's three tempo writers (``.transport``, ``.setclock``,
+     *  ``.tempo``) call this with the outcome of every write. A ``HOST_OWNED``
+     *  outcome logs one line naming the object and the clock, then stays
+     *  quiet until a write lands again, so a slider into a host-owned clock is
+     *  one warning rather than one per move; ``WRITTEN`` re-arms it, and
+     *  ``NO_CLOCK`` leaves it alone. @p warned is the object's own flag.
+     *
+     *  Off the audio callback the line goes straight to the engine log as an
+     *  ``E_WARNING``, like the patcher's other warnings. On it the line is
+     *  built on the stack and posted to ``INTERNAL::RtLog()`` — the writer
+     *  must have touched ``RtLog()`` on the control thread first, which the
+     *  three objects do in ``SetParent`` — and reaches the log at the next
+     *  ``system::update``.
+     */
+    void ReportTempoWrite(CLOCK::TempoWrite outcome, const char* objectType, const char* clockName,
+                          bool onAudioThread, std::atomic<bool>& warned);
 
   } // namespace PATCHER
 } // namespace YSE

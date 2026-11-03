@@ -17832,6 +17832,157 @@
     ],
     "requires_midi_device": false
   },
+  "~index": {
+    "category": "SAMPLING",
+    "description": "Reads a named sample buffer at the sample indexes a signal gives, without interpolation: a fractional index reads the whole sample below it.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Where to read, in samples from 0: a signal, or a number used while no signal is connected. Below 0 reads the first sample, past the end the last. 'set <name>' switches to another buffer (from a later block; not saved with the patch).",
+        "index": 0,
+        "label": "index",
+        "range": "0 or higher"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The buffer channel to read, from 1.",
+        "index": 1,
+        "label": "channel",
+        "range": "1 or higher"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~index",
+    "outlets": [
+      {
+        "doc": "The sample at each index. Silence without a buffer, or for a channel the buffer lacks.",
+        "index": 0,
+        "label": "out",
+        "range": "any float",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The buffer to read. A set message does not change what is saved.",
+        "name": "name",
+        "range": "buffer name"
+      },
+      {
+        "default": "1",
+        "doc": "The buffer channel to read, from 1.",
+        "name": "channel",
+        "range": "1 or higher"
+      }
+    ],
+    "requires_midi_device": false
+  },
+  "~info": {
+    "category": "SAMPLING",
+    "description": "Reports what a named sample buffer holds: its sample rate, length and channels, and the name, path, loop points and instrument data of the file last loaded into it.",
+    "inlets": [
+      {
+        "accepts": [
+          "BANG"
+        ],
+        "doc": "bang reports on the buffer; set <name> picks another buffer (set alone, none).",
+        "index": 0,
+        "label": "messages",
+        "range": ""
+      }
+    ],
+    "is_dsp": true,
+    "name": "~info",
+    "outlets": [
+      {
+        "doc": "The rate the buffer's samples are at, in Hz.",
+        "index": 0,
+        "label": "sample rate",
+        "range": "Hz",
+        "type": "FLOAT"
+      },
+      {
+        "doc": "The file's instrument data: base note, detune in cents, lowest and highest note, lowest and highest velocity, gain. Not sent when the file has none.",
+        "index": 1,
+        "label": "instrument",
+        "range": "list",
+        "type": "LIST"
+      },
+      {
+        "doc": "Where the file's sustain loop starts, in ms. Not sent without the loop.",
+        "index": 2,
+        "label": "sustain start",
+        "range": "ms",
+        "type": "FLOAT"
+      },
+      {
+        "doc": "Where the file's sustain loop ends, in ms. Not sent without the loop.",
+        "index": 3,
+        "label": "sustain end",
+        "range": "ms",
+        "type": "FLOAT"
+      },
+      {
+        "doc": "Where the file's release loop starts, in ms. Not sent without the loop.",
+        "index": 4,
+        "label": "release start",
+        "range": "ms",
+        "type": "FLOAT"
+      },
+      {
+        "doc": "Where the file's release loop ends, in ms. Not sent without the loop.",
+        "index": 5,
+        "label": "release end",
+        "range": "ms",
+        "type": "FLOAT"
+      },
+      {
+        "doc": "The buffer's length, in ms.",
+        "index": 6,
+        "label": "length",
+        "range": "ms",
+        "type": "FLOAT"
+      },
+      {
+        "doc": "The name of the file last loaded into the buffer. Not sent when none was.",
+        "index": 7,
+        "label": "file name",
+        "range": "",
+        "type": "LIST"
+      },
+      {
+        "doc": "How many channels that file has, or the buffer has when no file was loaded.",
+        "index": 8,
+        "label": "channels",
+        "range": "count",
+        "type": "INT"
+      },
+      {
+        "doc": "The path of the file last loaded into the buffer, as it was given to read. Not sent when none was.",
+        "index": 9,
+        "label": "file path",
+        "range": "",
+        "type": "LIST"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The buffer to report on.",
+        "name": "name",
+        "range": "any symbol"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~inlet": {
     "category": "ENCAPSULATION",
     "description": "A signal inlet of the subpatcher it is in. With index N, the signal the parent connects to the subpatcher's inlet N comes out of this object, inside the subpatcher.",
@@ -19016,6 +19167,75 @@
     ],
     "requires_midi_device": false
   },
+  "~peek": {
+    "category": "SAMPLING",
+    "description": "Reads and writes single samples of a named sample buffer by message: an index reads the sample there, or writes the value sent just before it. Works with the audio stopped too.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "A sample index, from 0: the sample there goes out, or the value from the middle inlet is written there. A list 'index value [channel]' writes at once. 'clip 0' and 'clip 1' turn clipping of written values off and on. 'set <name>' switches to another buffer (not saved with the patch).",
+        "index": 0,
+        "label": "index",
+        "range": "0 or higher"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The value the next index writes, instead of reading.",
+        "index": 1,
+        "label": "value",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The buffer channel to read and write, from 1.",
+        "index": 2,
+        "label": "channel",
+        "range": "1 or higher"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~peek",
+    "outlets": [
+      {
+        "doc": "The sample at the index. Nothing when the index is outside the buffer.",
+        "index": 0,
+        "label": "sample",
+        "range": "any float",
+        "type": "FLOAT"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The buffer to read and write. A set message does not change what is saved.",
+        "name": "name",
+        "range": "buffer name"
+      },
+      {
+        "default": "1",
+        "doc": "The buffer channel to read and write, from 1.",
+        "name": "channel",
+        "range": "1 or higher"
+      },
+      {
+        "default": "1",
+        "doc": "1 limits written values to -1 to 1, 0 writes them as they are.",
+        "name": "clip",
+        "range": "0 or 1"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~phaseshift": {
     "category": "FILTER",
     "description": "Second-order allpass with a center frequency in Hz and a Q, both settable per sample: the level is unchanged, the phase turns from 0 to -360 degrees and is -180 at the center frequency. For phaser stages and phase distortion.",
@@ -19172,6 +19392,63 @@
       }
     ],
     "params": [],
+    "requires_midi_device": false
+  },
+  "~poke": {
+    "category": "SAMPLING",
+    "description": "Writes a signal into a named sample buffer, each sample at the index a second signal gives. An index of -1 writes nothing.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "The values to write: a signal, or a number used while no signal is connected. A list 'value index [channel]' writes one value at once. 'set <name>' switches to another buffer (from a later block; not saved with the patch).",
+        "index": 0,
+        "label": "value",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Where to write each value, in samples from 0: a signal, or a number used while no signal is connected. Below 0 or past the end of the buffer writes nothing.",
+        "index": 1,
+        "label": "index",
+        "range": "-1, 0 or higher"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The buffer channel to write, from 1.",
+        "index": 2,
+        "label": "channel",
+        "range": "1 or higher"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~poke",
+    "outlets": [],
+    "params": [
+      {
+        "default": "",
+        "doc": "The buffer to write. A set message does not change what is saved.",
+        "name": "name",
+        "range": "buffer name"
+      },
+      {
+        "default": "1",
+        "doc": "The buffer channel to write, from 1.",
+        "name": "channel",
+        "range": "1 or higher"
+      }
+    ],
     "requires_midi_device": false
   },
   "~poltocar": {
@@ -20988,6 +21265,104 @@
         "doc": "0: a new swing applies at once; 1: it waits for the input to wrap, so no ramp changes length halfway.",
         "name": "syncupdate",
         "range": "0-1"
+      }
+    ],
+    "requires_midi_device": false
+  },
+  "~table": {
+    "category": "SAMPLING",
+    "description": "Reads a named sample buffer as a table of values at signal rate: looked up at an index, stepped through on triggers, or drawn from at random with each entry's value as its weight.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT",
+          "BANG"
+        ],
+        "doc": "A signal, or a number used while no signal is connected. In inputmode 0 the index to read, in 1 and 2 a trigger. 'bang' jumps to a random entry; 'goto <index>', 'next' and 'prev' move the position. 'interp', 'extend', 'inmap', 'outscale', 'inputmode', 'triggermode', 'range' and 'signed' set the attributes, 'name <name>' or 'set <name>' switches buffers (none of them saved with the patch).",
+        "index": 0,
+        "label": "input",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~table",
+    "outlets": [
+      {
+        "doc": "The entries read, scaled by outscale. Silence without a buffer, or while it is empty.",
+        "index": 0,
+        "label": "out",
+        "range": "any float",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The buffer read as the table: its first channel.",
+        "name": "name",
+        "range": "buffer name"
+      },
+      {
+        "default": "0",
+        "doc": "0 reads the entry at or below the index, 1 a line between the two around it, 2 the nearest.",
+        "name": "interp",
+        "range": "0, 1 or 2"
+      },
+      {
+        "default": "0",
+        "doc": "Outside the table: 0 reads 0, 1 the first or last entry, 2 wraps around, 3 keeps the output as it was.",
+        "name": "extend",
+        "range": "0 to 3"
+      },
+      {
+        "default": "0",
+        "doc": "The input that reads entry 0. With inmap_hi it scales an input range to the table's length; equal ends turn the map off.",
+        "name": "inmap_lo",
+        "range": "any float"
+      },
+      {
+        "default": "0",
+        "doc": "The input that reads one past the last entry.",
+        "name": "inmap_hi",
+        "range": "any float"
+      },
+      {
+        "default": "0",
+        "doc": "What the bottom of the value range comes out as. With outscale_hi it scales the value range to an output range; equal ends turn the scale off.",
+        "name": "outscale_lo",
+        "range": "any float"
+      },
+      {
+        "default": "0",
+        "doc": "What the top of the value range comes out as.",
+        "name": "outscale_hi",
+        "range": "any float"
+      },
+      {
+        "default": "0",
+        "doc": "0: the input is the index. 1: each trigger steps to the next entry. 2: each trigger jumps to a random entry.",
+        "name": "inputmode",
+        "range": "0, 1 or 2"
+      },
+      {
+        "default": "0",
+        "doc": "What counts as a trigger in inputmodes 1 and 2: 0 a change from 0 to anything else, 1 any change.",
+        "name": "triggermode",
+        "range": "0 or 1"
+      },
+      {
+        "default": "128",
+        "doc": "The table's value range for outscale: 0 to range - 1, or -range to range when signed.",
+        "name": "range",
+        "range": "1 or higher"
+      },
+      {
+        "default": "0",
+        "doc": "1 makes the value range -range to range.",
+        "name": "signed",
+        "range": "0 or 1"
       }
     ],
     "requires_midi_device": false

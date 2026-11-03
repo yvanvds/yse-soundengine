@@ -153,6 +153,8 @@ set(YSE_SRCS
   dsp/rawFilters.cpp
   dsp/sample_functions.cpp
   dsp/sampling/sampleBuffer.cpp
+  dsp/sampling/sampleAccess.cpp
+  dsp/sampling/tableLookup.cpp
   dsp/sfzModel.cpp
   dsp/wavetable.cpp
   implementations/listenerImplementation.cpp
@@ -213,7 +215,13 @@ set(YSE_SRCS
   patcher/dynamics/dPeaklim.cpp
   patcher/dynamics/dComp.cpp
   patcher/dynamics/dMultiband.cpp
+  patcher/sampling/bufferBinding.cpp
   patcher/sampling/dBuffer.cpp
+  patcher/sampling/dInfo.cpp
+  patcher/sampling/dPeek.cpp
+  patcher/sampling/dPoke.cpp
+  patcher/sampling/dIndex.cpp
+  patcher/sampling/dTable.cpp
   patcher/filters/dVcf.cpp
   patcher/filters/dSah.cpp
   patcher/filters/dSash.cpp
@@ -691,7 +699,13 @@ set_source_files_properties(
   patcher/dynamics/dPeaklim.cpp
   patcher/dynamics/dComp.cpp
   patcher/dynamics/dMultiband.cpp
+  patcher/sampling/bufferBinding.cpp
   patcher/sampling/dBuffer.cpp
+  patcher/sampling/dInfo.cpp
+  patcher/sampling/dPeek.cpp
+  patcher/sampling/dPoke.cpp
+  patcher/sampling/dIndex.cpp
+  patcher/sampling/dTable.cpp
   patcher/filters/dVcf.cpp
   patcher/filters/dSah.cpp
   patcher/filters/dSash.cpp

@@ -19,6 +19,19 @@
 namespace YSE {
   namespace CLOCK {
 
+    /** @brief What became of a tempo write a *patch* asked for (issue #1254).
+     *
+     *  Host writes (``system::setTempo``) always land and answer nothing; only
+     *  the patcher's writers (``.transport``, ``.setclock``, ``.tempo``) go
+     *  through a path that can be refused, and they need to tell a refusal
+     *  apart from a clock that is not there so they can warn about the one
+     *  that is the host's business. */
+    enum class TempoWrite {
+      WRITTEN, ///< Queued for the clock's next block.
+      NO_CLOCK, ///< No such clock (or a binding that has not resolved yet).
+      HOST_OWNED, ///< The host owns this clock's tempo; nothing was written.
+    };
+
     /** @brief One named musical (beat) clock, derived from the audio callback.
      *
      *  A domain clock is a *beat accumulator*: every audio block it advances by
@@ -37,6 +50,13 @@ namespace YSE {
      *  from the control thread and hand their intent over through atomics; the
      *  cross-thread readers (``beatPosition`` / ``currentTempo``) read published
      *  snapshots and never touch the audio-thread-owned members.
+     *
+     *  Ownership of the tempo (issue #1254): a clock is a shared lever by
+     *  default — the host and any patch naming it may both set its tempo. The
+     *  host can mark a clock *host-owned* (``setHostOwned``); patch writes then
+     *  go through ``requestPatchTempo`` and are refused, while ``requestTempo``
+     *  (the host's route) and every read keep working. The flag is one atomic,
+     *  so the refusal is as wait-free as the write it replaces.
      *
      *  Lifetime: a clock is owned by ``shared_ptr`` and every binding taken
      *  through ``managerObject::lookup`` holds a share (issue #707), so
@@ -63,6 +83,29 @@ namespace YSE {
       /** @brief Control-thread. Queue a new tempo target reached over
        *         ``rampSeconds`` (clamped to ``>= 0``; 0 is instant). */
       void requestTempo(Flt bpm, Flt rampSeconds);
+
+      /** @brief Any thread; wait-free. The patcher's tempo write (issue #1254).
+       *
+       *  ``requestTempo`` unless the host owns this clock, in which case
+       *  nothing is written and ``HOST_OWNED`` comes back. A patch write that
+       *  passed the check just before the host set the flag still lands; the
+       *  flag guards against patches, not against a race the host starts. */
+      TempoWrite requestPatchTempo(Flt bpm, Flt rampSeconds) {
+        if (isHostOwned()) return TempoWrite::HOST_OWNED;
+        requestTempo(bpm, rampSeconds);
+        return TempoWrite::WRITTEN;
+      }
+
+      /** @brief Control-thread. Mark the clock's tempo as the host's, or give
+       *         it back to everyone (issue #1254). */
+      void setHostOwned(bool on) {
+        hostOwned.store(on, std::memory_order_release);
+      }
+
+      /** @brief Cross-thread read: whether patch tempo writes are refused. */
+      bool isHostOwned() const {
+        return hostOwned.load(std::memory_order_acquire);
+      }
 
       /** @brief Control-thread. Flag the clock for retirement by the manager. */
       void release() {
@@ -124,6 +167,10 @@ namespace YSE {
       aFlt reqTempo;
       aFlt reqRamp;
       aBool reqDirty;
+
+      // Set by the host (issue #1254): patch tempo writes are refused while it
+      // is true. Read by any thread, including the audio callback.
+      aBool hostOwned;
 
       // Lifecycle. `released` is set by destroyClock on the control thread;
       // `objectStatus` reaches OBJECT_DELETE once the audio thread has retired

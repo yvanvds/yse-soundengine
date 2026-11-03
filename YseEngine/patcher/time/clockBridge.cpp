@@ -1,6 +1,8 @@
 #include "clockBridge.h"
 #include "../../clock/clockManager.h"
+#include "../../implementations/logImplementation.h"
 #include "../../internal/global.h"
+#include "../../internal/rtLogQueue.h"
 #include <cstring>
 #include <string>
 
@@ -136,15 +138,15 @@ bool clockBridge::Tempo(Handle handle, float& bpm) const {
   return true;
 }
 
-bool clockBridge::RequestTempo(Handle handle, float bpm, float rampSeconds) {
-  if (handle == 0 || handle > CAPACITY) return false;
+YSE::CLOCK::TempoWrite clockBridge::RequestTempo(Handle handle, float bpm, float rampSeconds) {
+  if (handle == 0 || handle > CAPACITY) return CLOCK::TempoWrite::NO_CLOCK;
   CLOCK::domainClock* clock = entries_[handle - 1].clock.load(std::memory_order_acquire);
-  if (clock == nullptr) return false;
-  // Three atomic stores into the clock's request slot; the clock consumes them
-  // on its next `update`. No lock, no allocation — which is what makes this the
-  // route a message handler that turns out to be on the audio callback takes.
-  clock->requestTempo(bpm, rampSeconds);
-  return true;
+  if (clock == nullptr) return CLOCK::TempoWrite::NO_CLOCK;
+  // One acquire load of the host-owned flag (#1254), then three atomic stores
+  // into the clock's request slot; the clock consumes them on its next
+  // `update`. No lock, no allocation — which is what makes this the route a
+  // message handler that turns out to be on the audio callback takes.
+  return clock->requestPatchTempo(bpm, rampSeconds);
 }
 
 double clockBridge::ResolveBeat(Handle handle) const {
@@ -196,4 +198,48 @@ void clockBridge::WaitIdle() {
   for (std::size_t i = 0; i < CAPACITY; ++i) {
     entries_[i].job.join();
   }
+}
+
+namespace {
+
+  // Append the C string `text` to `line` at `at`, never past `cap`. Bounded and
+  // allocation-free, because ReportTempoWrite may run on the audio callback.
+  std::size_t Append(char* line, std::size_t at, std::size_t cap, const char* text) {
+    if (text == nullptr) return at;
+    while (at < cap && *text != '\0')
+      line[at++] = *text++;
+    return at;
+  }
+
+} // namespace
+
+void YSE::PATCHER::ReportTempoWrite(CLOCK::TempoWrite outcome, const char* objectType,
+                                    const char* clockName, bool onAudioThread,
+                                    std::atomic<bool>& warned) {
+  if (outcome == CLOCK::TempoWrite::WRITTEN) {
+    // A write landed, so the clock is shared (again): the next refusal is news.
+    warned.store(false, std::memory_order_relaxed);
+    return;
+  }
+  if (outcome != CLOCK::TempoWrite::HOST_OWNED) return;
+  // One line per run of refusals, claimed with one exchange so two threads
+  // refused at once still log once.
+  if (warned.exchange(true, std::memory_order_relaxed)) return;
+
+  // The whole line on the stack: this may be the audio callback.
+  constexpr std::size_t cap = INTERNAL::rtLogQueue::kLineCapacity;
+  char line[cap + 1];
+  std::size_t n = Append(line, 0, cap, "patcher: ");
+  n = Append(line, n, cap, objectType);
+  n = Append(line, n, cap, ": clock '");
+  n = Append(line, n, cap, clockName);
+  n = Append(line, n, cap, "' is owned by the host; its tempo was not changed");
+  line[n] = '\0';
+
+  if (onAudioThread) {
+    // Lost on a full queue, which the queue counts and reports itself.
+    INTERNAL::RtLog().post(line, n);
+    return;
+  }
+  INTERNAL::LogImpl().emit(E_WARNING, std::string(line, n));
 }

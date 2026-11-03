@@ -1,6 +1,7 @@
 
 #include "gTempo.h"
 #include "../../clock/clockManager.h"
+#include "../../internal/rtLogQueue.h"
 #include "../pListArgs.h"
 #include "../pObjectList.hpp"
 #include "../pSelector.h"
@@ -119,6 +120,12 @@ void gTempo::SetParent(pObject* parent) {
   // A standalone object has no patcher, so no bridge and no scheduler: nothing
   // to bind and nothing to arm.
   if (parent == nullptr) return;
+
+  // A refused write on the audio callback warns through the real-time log
+  // queue (#1254), whose first touch allocates its ring — so take it here, on
+  // the control thread, before a `clock <name>` can give this object a clock.
+  (void)INTERNAL::RtLog();
+
   if (clockname.empty()) return;
 
   clockBridge* clocks = Clocks();
@@ -303,7 +310,8 @@ void gTempo::PushTempo(float bpm, float rampSeconds, YSE::THREAD thread) {
     // its next block. An unresolved binding drops the write rather than
     // blocking, and the bridge's own Poll has it resolved within
     // clockBridge::RESOLVE_INTERVAL_BLOCKS blocks.
-    clocks->RequestTempo(bound, bpm, rampSeconds);
+    ReportTempoWrite(clocks->RequestTempo(bound, bpm, rampSeconds), Type(), clocks->NameOf(bound),
+                     true, warnedHostOwned);
     return;
   }
 
@@ -318,11 +326,16 @@ void gTempo::PushTempo(float bpm, float rampSeconds, YSE::THREAD thread) {
   // manager wants and therefore costs nothing to pass. Only a `clock <name>`
   // re-point needs one built, and this branch is never the audio callback, so
   // that allocation is this thread's to make.
+  //
+  // A clock the host owns (#1254) refuses the write; the object still counts on
+  // it, and warns once that its tempo is not the patch's to set.
   if (clockname == name) {
-    CLOCK::Manager().setTempo(clockname, bpm, rampSeconds);
+    ReportTempoWrite(CLOCK::Manager().requestPatchTempo(clockname, bpm, rampSeconds), Type(), name,
+                     false, warnedHostOwned);
     return;
   }
-  CLOCK::Manager().setTempo(std::string(name), bpm, rampSeconds);
+  ReportTempoWrite(CLOCK::Manager().requestPatchTempo(std::string(name), bpm, rampSeconds), Type(),
+                   name, false, warnedHostOwned);
 }
 
 // ─── Max's methods ──────────────────────────────────────────────────────────

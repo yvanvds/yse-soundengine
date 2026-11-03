@@ -283,7 +283,8 @@ YSE_C_API size_t yse_system_midi_out_device_name(YseSystem* sys, unsigned int id
    exact. Tempo is a playable, rampable control and is not clamped: 0 pauses a
    clock, a negative tempo runs it backwards.
 
-   Threading: create/destroy/set_tempo are control-thread calls; beat_position
+   Threading: create/destroy/set_tempo/set_clock_host_owned are control-thread
+   calls; beat_position
    and current_tempo may be read from the UI thread at frame rate. None run on
    or block the audio callback. `name` is a NUL-terminated UTF-8 string. */
 
@@ -303,6 +304,24 @@ YSE_C_API int yse_system_clock_exists(YseSystem* sys, const char* name);
    No-op for an unknown name or NULL args. */
 YSE_C_API void yse_system_set_tempo(YseSystem* sys, const char* name, float bpm,
                                     float ramp_seconds);
+
+/** Make the named clock's tempo the host's alone (`host_owned` non-zero), or
+   share it again (0) (issue #1254). Patch objects (.transport, .setclock,
+   .tempo) cannot set the tempo of a host-owned clock: their writes are ignored
+   and each object logs one warning naming the clock. Patches can still bind to
+   it and read and count on it, and yse_system_set_tempo still works. Works on
+   any live clock, including one a patch created first; a clock destroyed and
+   created again starts shared.
+
+   YSE_OK on success; YSE_ERR_INVALID_HANDLE on a NULL `sys`;
+   YSE_ERR_INVALID_ARGUMENT when `name` is NULL or empty or no live clock has
+   it. Every failure leaves its reason in yse_last_error(). */
+YSE_C_API YseStatus yse_system_set_clock_host_owned(YseSystem* sys, const char* name,
+                                                    int host_owned);
+
+/** Returns 1 if the named clock is host-owned, else 0 (also for an unknown
+   name or NULL args). */
+YSE_C_API int yse_system_clock_host_owned(YseSystem* sys, const char* name);
 
 /** Current beat position (running integral of tempo) of the named clock, or 0
    for an unknown name or NULL args. */

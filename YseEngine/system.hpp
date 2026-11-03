@@ -669,10 +669,10 @@ namespace YSE {
     /// clocks derive from the single sample clock, polytemporal relationships
     /// stay exact and deterministic. Tempo is a playable, rampable control.
     ///
-    /// **Threading.** ``createClock`` / ``destroyClock`` / ``setTempo`` are
-    /// control-thread operations; ``beatPosition`` / ``currentTempo`` may be
-    /// read from the UI thread at frame rate (e.g. for a playhead). None of
-    /// them run on or block the audio callback.
+    /// **Threading.** ``createClock`` / ``destroyClock`` / ``setTempo`` /
+    /// ``setClockHostOwned`` are control-thread operations; ``beatPosition`` / ``currentTempo`` may
+    /// be read from the UI thread at frame rate (e.g. for a playhead). None of them run on or block
+    /// the audio callback.
     /// @{
 
     /** @brief Create a domain clock.
@@ -702,6 +702,29 @@ namespace YSE {
      *  unknown name.
      */
     system& setTempo(const std::string& name, float bpm, float rampSeconds = 0.f);
+
+    /** @brief Make a clock's tempo the host's alone, or share it again
+     *         (issue #1254).
+     *
+     *  By default a clock is a shared lever: the host and any patch naming it
+     *  (``.transport``, ``.setclock``, ``.tempo``) may all set its tempo. A
+     *  **host-owned** clock refuses tempo writes from patch objects — each
+     *  object logs one warning naming the clock — while patches can still bind
+     *  to it and read and count on it (``.when``, ``.timepoint``,
+     *  ``.translate``, ``.metro`` / ``.delay`` / ``.clocker`` after
+     *  ``clock <name>``). ``setTempo`` from the host keeps working.
+     *
+     *  Works on any live clock, including one a patch created first. The flag
+     *  belongs to the clock: destroy it and create it again and the new clock
+     *  starts shared.
+     *
+     *  @return ``false`` for an unknown name; nothing changes.
+     */
+    bool setClockHostOwned(const std::string& name, bool hostOwned = true);
+
+    /** @brief Whether a clock is host-owned (see ``setClockHostOwned``).
+     *         ``false`` for an unknown name. */
+    bool isClockHostOwned(const std::string& name);
 
     /** @brief Current beat position (running integral of tempo) of a clock, or
      *         0 for an unknown name. */

@@ -1,6 +1,7 @@
 
 #include "gSetClock.h"
 #include "../../clock/clockManager.h"
+#include "../../internal/rtLogQueue.h"
 #include "../pListArgs.h"
 #include "../pObjectList.hpp"
 #include "../pSelector.h"
@@ -87,6 +88,10 @@ void gSetClock::SetParent(pObject* parent) {
   if (parent == nullptr) return;
   if (clockname.empty()) return;
 
+  // A refused write on the audio callback warns through the real-time log
+  // queue (#1254), whose first touch allocates its ring — so take it here.
+  (void)INTERNAL::RtLog();
+
   // The one call in this object that takes CLOCK::Manager's mutex, made on the
   // one hook that is guaranteed to be the control thread. Created *running* at
   // `tempo`, which is the whole difference between this object and a
@@ -124,12 +129,14 @@ bool gSetClock::OnAudioThread(YSE::THREAD thread) const {
 void gSetClock::Push(float bpm, float seconds, YSE::THREAD thread) {
   if (clockname.empty()) return;
 
+  // Both routes refuse a clock the host owns (#1254) and say so.
   if (!OnAudioThread(thread)) {
     // By name, inline. Takes the manager's mutex, which this thread is allowed
     // to do, and needs no resolved binding — so a tempo sent in the same breath
     // as CreateObject lands immediately rather than waiting for the background
     // pool to have found the clock.
-    CLOCK::Manager().setTempo(clockname, bpm, seconds);
+    ReportTempoWrite(CLOCK::Manager().requestPatchTempo(clockname, bpm, seconds), Type(),
+                     clockname.c_str(), false, warnedHostOwned);
     return;
   }
 
@@ -139,7 +146,8 @@ void gSetClock::Push(float bpm, float seconds, YSE::THREAD thread) {
   // is a background hop away and every later command lands.
   clockBridge* clocks = Clocks();
   if (clocks == nullptr) return;
-  clocks->RequestTempo(binding.load(std::memory_order_relaxed), bpm, seconds);
+  ReportTempoWrite(clocks->RequestTempo(binding.load(std::memory_order_relaxed), bpm, seconds),
+                   Type(), clockname.c_str(), true, warnedHostOwned);
 }
 
 void gSetClock::Retempo(float bpm, YSE::THREAD thread) {

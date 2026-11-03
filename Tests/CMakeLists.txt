@@ -65,6 +65,8 @@ set(YSE_TEST_SOURCES
   dsp/test_polar.cpp
   dsp/test_delayLine.cpp
   dsp/test_sampleBuffer.cpp
+  dsp/test_sample_access.cpp
+  dsp/test_table_lookup.cpp
   dsp/test_smoother.cpp
   utils/test_atomic.cpp
   utils/test_vector.cpp
@@ -73,6 +75,7 @@ set(YSE_TEST_SOURCES
   utils/test_interpolators.cpp
   utils/test_intrusive_list.cpp
   utils/test_random.cpp
+  utils/test_file_functions.cpp
   internal/test_threadpool.cpp
   internal/test_render_scheduler.cpp
   internal/test_cpu_topology.cpp
@@ -322,6 +325,10 @@ set(YSE_TEST_SOURCES
   patcher/test_patcher_signal_loops.cpp
   patcher/test_patcher_tapin_tapout.cpp
   patcher/test_patcher_buffer.cpp
+  patcher/test_patcher_info.cpp
+  patcher/test_patcher_peek_poke.cpp
+  patcher/test_patcher_index.cpp
+  patcher/test_patcher_signal_table.cpp
   patcher/test_patcher_snapshot.cpp
   patcher/test_patcher_armed_outlets.cpp
   patcher/test_patcher_cycle.cpp
@@ -347,6 +354,7 @@ set(YSE_TEST_SOURCES
   patcher/test_patcher_clock_bridge.cpp
   patcher/test_patcher_transport.cpp
   patcher/test_patcher_setclock.cpp
+  patcher/test_patcher_host_owned_clock.cpp
   patcher/test_patcher_when.cpp
   patcher/test_patcher_translate.cpp
   patcher/test_patcher_timepoint.cpp
@@ -1496,6 +1504,10 @@ set_source_files_properties(
   patcher/test_patcher_signal_loops.cpp
   patcher/test_patcher_tapin_tapout.cpp
   patcher/test_patcher_buffer.cpp
+  patcher/test_patcher_info.cpp
+  patcher/test_patcher_peek_poke.cpp
+  patcher/test_patcher_index.cpp
+  patcher/test_patcher_signal_table.cpp
   patcher/test_patcher_snapshot.cpp
   patcher/test_patcher_armed_outlets.cpp
   patcher/test_patcher_cycle.cpp
@@ -1521,6 +1533,7 @@ set_source_files_properties(
   patcher/test_patcher_clock_bridge.cpp
   patcher/test_patcher_transport.cpp
   patcher/test_patcher_setclock.cpp
+  patcher/test_patcher_host_owned_clock.cpp
   patcher/test_patcher_when.cpp
   patcher/test_patcher_translate.cpp
   patcher/test_patcher_timepoint.cpp

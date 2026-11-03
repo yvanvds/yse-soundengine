@@ -698,6 +698,89 @@ The rules:
   ``view.sampleRate() / SAMPLERATE``. Cache neither across blocks.
 - The DSP class takes the view (or the reader) per block, not the buffer,
   so it stays a one-thread class. It never edits the buffer: edits allocate.
+  To write samples, see `Writing a sample buffer`_.
+- A control object that only reports on a buffer, such as ``~info``
+  (issue `#1138 <https://github.com/yvanvds/yse-soundengine/issues/1138>`_),
+  needs no reader. ``DSP::sampleBuffer::info()`` returns the shape, the rate
+  and the last file's path, channels, loops and instrument data in one
+  consistent ``DSP::sampleBufferInfo``, but it locks and copies, so call it
+  in a ``fileScheduler`` task (``RequestTask``), never in a message handler.
+  The task looks the buffer up by name with ``sampleBufferRegistry::find``
+  and writes the answer into its fixed record; ``DeliverFileResult`` sends
+  it.
+
+Writing a sample buffer
+~~~~~~~~~~~~~~~~~~~~~~~
+
+An object that writes samples at audio rate, such as ``~poke`` (issue
+`#1144 <https://github.com/yvanvds/yse-soundengine/issues/1144>`_) or
+``~record``, holds a ``DSP::sampleBufferWriter``. It is used like the
+reader: bind it in ``PARM_PARSE``, pin it once per block at the top of
+``CALC()``, and write through the ``DSP::sampleWriteView`` it returns:
+
+.. code-block:: cpp
+
+   CALC() {
+     DSP::sampleWriteView view = writer.pin();
+     if (view.empty()) return;
+     view.write(channel, position, block.getPtr(), block.getLength());
+   }
+
+- Writes go into the buffer in place: no copy, no lock, no allocation. Every
+  reader of the buffer sees them at once, and they keep its shape (a write
+  outside it is dropped).
+- Every access is a relaxed atomic one, so a reader on another render
+  thread may read the same samples meanwhile. Read with ``at`` and
+  ``linear``; a plain loop over ``sampleView::channel()`` is only safe from
+  the writer's own thread.
+- A ``~buffer`` edit made while the object writes wins: what was written
+  into the old samples after the edit copied them is lost, and the next
+  block writes the edited buffer.
+- One writer is one claim. An object that also writes from a message, which
+  may arrive on any thread, gives the message path a second writer behind
+  an ``exchange(true)`` guard, as ``~poke`` does for its list.
+
+Switching buffers with ``set``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Binding a reader or a writer locks and allocates, and a ``set <name>``
+message may arrive on the audio thread, so a sampling object never binds in
+a message handler. It holds its reader or writer in a
+``PATCHER::bufferBinding`` (``patcher/sampling/bufferBinding.h``, issue
+`#1256 <https://github.com/yvanvds/yse-soundengine/issues/1256>`_), which
+binds in a ``fileScheduler`` task and hands the result over through a
+one-slot mailbox:
+
+.. code-block:: cpp
+
+   // header
+   bufferBinding<DSP::sampleBufferReader> binding;  // or a writer
+
+   void SetParent(pObject* p) override {
+     pObject::SetParent(p);
+     EnableFileIO();  // the scheduler the task goes through
+   }
+   PARM_PARSE() { binding.Bind(bufferName); }
+   MESSAGES() {
+     if (binding.HandleSet(*this, message)) return;
+     ...
+   }
+   CALC() {
+     binding.Take(*this);  // a waiting rebind, at the top of the block
+     DSP::sampleView view = binding.Current().pin();
+     ...
+   }
+
+- ``Take`` and ``Current`` belong to one thread at a time, the one that
+  pins. An object whose message handlers read too (``~peek``) takes under
+  its ``exchange(true)`` guard; one whose message path holds a second claim
+  (``~poke``'s list) bundles both in one struct with a ``bind`` that binds
+  each, and ``CALC()`` takes only when it wins the guard.
+- The binding let go is freed by a further task, never on the audio
+  thread. The swap needs the patcher to render, since the scheduler hands
+  its slots back there.
+- A ``set`` is not saved: ``DumpJSON`` writes the name argument. Say so in
+  the object's notes.
 
 Porting an MSP object
 ---------------------

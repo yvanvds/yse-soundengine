@@ -83,6 +83,14 @@ namespace YSE {
      *  ``SetParent`` again and gets a fresh clock and a fresh binding, which is
      *  the supported way across a close.
      *
+     *  **What happens when the host owns the clock** (issue #1254). A host
+     *  that marked the clock with ``system::setClockHostOwned`` has taken the
+     *  lever back: every tempo write this object would make — ``start``,
+     *  ``stop``, a tempo — is refused on both routes below, and the first
+     *  refusal logs a warning naming the clock. The object's own wanted state
+     *  (``Running``, ``WantedTempo``) still follows its messages, and ``bang``
+     *  still reports the clock, so a patch can watch a clock it cannot drive.
+     *
      *  ### Two routes to the clock, and why there are two
      *
      *  A patcher message handler runs on **whichever thread dispatched the
@@ -221,6 +229,11 @@ namespace YSE {
     // the same clock, so this shares a slot with any `.metro clock <name>` in
     // the same patcher rather than costing one of its own.
     std::atomic<clockBridge::Handle> binding{0};
+
+    // Set once a tempo write has been refused because the host owns the clock
+    // (#1254), so the warning is logged once per run of refusals rather than
+    // once per write. See ReportTempoWrite.
+    std::atomic<bool> warnedHostOwned{false};
   };
 }
 }

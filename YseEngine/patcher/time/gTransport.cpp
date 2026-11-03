@@ -1,6 +1,7 @@
 
 #include "gTransport.h"
 #include "../../clock/clockManager.h"
+#include "../../internal/rtLogQueue.h"
 #include "../pListArgs.h"
 #include "../pObjectList.hpp"
 #include "../pSelector.h"
@@ -98,6 +99,10 @@ void gTransport::SetParent(pObject* parent) {
   if (parent == nullptr) return;
   if (clockname.empty()) return;
 
+  // A refused write on the audio callback warns through the real-time log
+  // queue (#1254), whose first touch allocates its ring — so take it here.
+  (void)INTERNAL::RtLog();
+
   // The one call in this object that takes CLOCK::Manager's mutex, made on the
   // one hook that is guaranteed to be the control thread. `createClock` is
   // first-registration-wins, so this is a no-op for a clock the host already
@@ -137,12 +142,15 @@ void gTransport::Push(YSE::THREAD thread) {
   const float bpm = on ? tempo.load(std::memory_order_relaxed) : 0.f;
   const float seconds = on ? ramp.load(std::memory_order_relaxed) : 0.f;
 
+  // Both routes refuse a clock the host owns (#1254) and say so, so the patch
+  // can still read the clock but a `stop` here cannot halt it.
   if (!OnAudioThread(thread)) {
     // By name, inline. Takes the manager's mutex, which this thread is allowed
     // to do, and needs no resolved binding — so a `start` sent in the same
     // breath as CreateObject lands immediately rather than waiting for the
     // background pool to have found the clock.
-    CLOCK::Manager().setTempo(clockname, bpm, seconds);
+    ReportTempoWrite(CLOCK::Manager().requestPatchTempo(clockname, bpm, seconds), Type(),
+                     clockname.c_str(), false, warnedHostOwned);
     return;
   }
 
@@ -152,7 +160,8 @@ void gTransport::Push(YSE::THREAD thread) {
   // is a background hop away and every later command lands.
   clockBridge* clocks = Clocks();
   if (clocks == nullptr) return;
-  clocks->RequestTempo(binding.load(std::memory_order_relaxed), bpm, seconds);
+  ReportTempoWrite(clocks->RequestTempo(binding.load(std::memory_order_relaxed), bpm, seconds),
+                   Type(), clockname.c_str(), true, warnedHostOwned);
 }
 
 bool gTransport::ReadClock(YSE::THREAD thread, double& beat, float& bpm) const {

@@ -2,14 +2,16 @@
 // sampleBufferReader (YseEngine/dsp/sampling/), issue #1039: the shared,
 // named sample buffer behind ~buffer and the sampling family.
 //
-// Three groups: the edits in closed form, the registry's naming and lifetime
-// rules, and the reader's promise that a pinned view stays readable while the
-// buffer changes underneath it, which the last case hammers from three
-// threads so ASan / TSan can see a freed or racing storage.
+// Four groups: the edits in closed form, the registry's naming and lifetime
+// rules, the reader's promise that a pinned view stays readable while the
+// buffer changes underneath it, and the writer's in-place writes (#1144). The
+// reader and writer stress cases hammer that from several threads so ASan /
+// TSan can see a freed or racing storage.
 
 #include <doctest/doctest.h>
 #include <atomic>
 #include <cmath>
+#include <cstdint>
 #include <filesystem>
 #include <string>
 #include <system_error>
@@ -18,11 +20,14 @@
 #include "dsp/sampling/sampleBuffer.hpp"
 #include "headers/constants.hpp"
 #include "support/alloc_probe.hpp"
+#include "support/sample_fixtures.hpp"
 
 using YSE::DSP::sampleBuffer;
 using YSE::DSP::sampleBufferReader;
 using YSE::DSP::sampleBufferRegistry;
+using YSE::DSP::sampleBufferWriter;
 using YSE::DSP::sampleView;
+using YSE::DSP::sampleWriteView;
 
 namespace {
 
@@ -253,6 +258,159 @@ TEST_SUITE("dsp") {
     CHECK_FALSE(sampleBuffer::create(1, 0)->write(TempFile("yse_empty_1039.wav").c_str()));
   }
 
+  // ─── info ─────────────────────────────────────────────────────────────────
+
+  TEST_CASE("sampleBuffer: info reports the shape, and no file before one is read (#1138)") {
+    auto b = sampleBuffer::create(3, 2205, 22050.f);
+    const YSE::DSP::sampleBufferInfo info = b->info();
+    CHECK(info.channels == 3);
+    CHECK(info.frames == 2205);
+    CHECK(info.sampleRate == doctest::Approx(22050.f));
+    CHECK(info.lengthMs == doctest::Approx(100.f));
+    CHECK(info.version == b->version());
+    CHECK_FALSE(info.hasFile());
+    CHECK(info.fileName().empty());
+    CHECK(info.fileChannels == 0);
+    CHECK_FALSE(info.instrument.defined);
+    CHECK_FALSE(info.instrument.sustainLoop.defined);
+    CHECK_FALSE(info.instrument.releaseLoop.defined);
+    CHECK(info.framesToMs(441) == doctest::Approx(20.f));
+  }
+
+  TEST_CASE("sampleBuffer: info follows the engine rate for a rate-0 buffer (#1138)") {
+    SampleRateGuard guard;
+    auto b = sampleBuffer::create(1, 4800);
+    YSE::SAMPLERATE = 48000;
+    CHECK(b->info().sampleRate == doctest::Approx(48000.f));
+    CHECK(b->info().lengthMs == doctest::Approx(100.f));
+    YSE::SAMPLERATE = 96000;
+    CHECK(b->info().lengthMs == doctest::Approx(50.f));
+  }
+
+  TEST_CASE("sampleBuffer: info reports a WAV file's smpl loops and base note (#1138)") {
+    const std::string path = TempFile("yse_info_loops_1138.wav");
+    // 100..200 and 300..400 at 20 kHz: 5..10 ms and 15..20 ms.
+    REQUIRE(
+        TestHelpers::WavWithLoops(path, 2, 1000, 20000, 64, 12, {{1, 100, 200}, {2, 300, 400}}));
+    auto b = sampleBuffer::create(1, 0);
+    REQUIRE(b->read(path.c_str()));
+    const YSE::DSP::sampleBufferInfo info = b->info();
+
+    CHECK(info.hasFile());
+    CHECK(info.filePath == path);
+    CHECK(info.fileName() == "yse_info_loops_1138.wav");
+    // read kept the buffer's one channel; the file had two.
+    CHECK(info.channels == 1);
+    CHECK(info.fileChannels == 2);
+    CHECK(info.frames == 1000);
+    CHECK(info.lengthMs == doctest::Approx(50.f));
+
+    const YSE::DSP::sampleInstrument& in = info.instrument;
+    REQUIRE(in.defined);
+    CHECK(in.baseNote == 64);
+    CHECK(in.detune == 12);
+    CHECK(in.keyLow == 0);
+    CHECK(in.keyHigh == 127);
+    REQUIRE(in.sustainLoop.defined);
+    CHECK(in.sustainLoop.start == 100);
+    CHECK(in.sustainLoop.end == 200);
+    CHECK(info.framesToMs(in.sustainLoop.start) == doctest::Approx(5.f));
+    CHECK(info.framesToMs(in.sustainLoop.end) == doctest::Approx(10.f));
+    REQUIRE(in.releaseLoop.defined);
+    CHECK(in.releaseLoop.start == 300);
+    CHECK(in.releaseLoop.end == 400);
+    Remove(path);
+  }
+
+  TEST_CASE("sampleBuffer: info reports an AIFF file's INST chunk (#1138)") {
+    const std::string path = TempFile("yse_info_inst_1138.aif");
+    TestHelpers::FixtureInstrument inst;
+    inst.baseNote = 57;
+    inst.detune = -7;
+    inst.keyLow = 40;
+    inst.keyHigh = 70;
+    inst.velocityLow = 10;
+    inst.velocityHigh = 100;
+    inst.gain = 3;
+    inst.sustain = {1, 1000, 3000};
+    SUBCASE("both loops") {
+      inst.release = {2, 4000, 7000};
+      REQUIRE(TestHelpers::AiffWithInstrument(path, 1, 10000, 10000, inst));
+      auto b = sampleBuffer::create();
+      REQUIRE(b->replace(path.c_str()));
+      const YSE::DSP::sampleBufferInfo info = b->info();
+      CHECK(info.sampleRate == doctest::Approx(10000.f));
+      const YSE::DSP::sampleInstrument& in = info.instrument;
+      REQUIRE(in.defined);
+      CHECK(in.baseNote == 57);
+      CHECK(in.detune == -7);
+      CHECK(in.keyLow == 40);
+      CHECK(in.keyHigh == 70);
+      CHECK(in.velocityLow == 10);
+      CHECK(in.velocityHigh == 100);
+      CHECK(in.gain == 3);
+      CHECK(in.sustainLoop.defined);
+      CHECK(info.framesToMs(in.sustainLoop.start) == doctest::Approx(100.f));
+      CHECK(info.framesToMs(in.sustainLoop.end) == doctest::Approx(300.f));
+      CHECK(in.releaseLoop.defined);
+      CHECK(info.framesToMs(in.releaseLoop.start) == doctest::Approx(400.f));
+      CHECK(info.framesToMs(in.releaseLoop.end) == doctest::Approx(700.f));
+    }
+    SUBCASE("a release loop with no play mode is no loop") {
+      inst.release = {0, 4000, 7000};
+      REQUIRE(TestHelpers::AiffWithInstrument(path, 1, 10000, 10000, inst));
+      auto b = sampleBuffer::create();
+      REQUIRE(b->replace(path.c_str()));
+      CHECK(b->info().instrument.sustainLoop.defined);
+      CHECK_FALSE(b->info().instrument.releaseLoop.defined);
+    }
+    Remove(path);
+  }
+
+  TEST_CASE("sampleBuffer: info keeps the file through edits, copies and failed reads (#1138)") {
+    const std::string loops = TempFile("yse_info_keep_1138.wav");
+    const std::string plain = TempFile("yse_info_plain_1138.wav");
+    REQUIRE(TestHelpers::WavWithLoops(loops, 1, 500, 10000, 60, 0, {{1, 10, 20}}));
+    REQUIRE(sampleBuffer::create(2, 8, 10000.f)->write(plain.c_str()));
+
+    auto b = sampleBuffer::create();
+    REQUIRE(b->replace(loops.c_str()));
+    b->setSize(50);
+    b->fill(1.f);
+    REQUIRE(b->crop(5, 40));
+    CHECK_FALSE(b->read("no/such/file_1138.wav"));
+    YSE::DSP::sampleBufferInfo info = b->info();
+    CHECK(info.frames == 35);
+    CHECK(info.filePath == loops);
+    REQUIRE(info.instrument.sustainLoop.defined);
+    CHECK(info.instrument.sustainLoop.start == 10); // as the file states it
+
+    auto copy = sampleBuffer::create();
+    copy->copyFrom(*b);
+    CHECK(copy->info().filePath == loops);
+    CHECK(copy->info().instrument.sustainLoop.end == 20);
+
+    // A file without instrument data replaces the old file's.
+    REQUIRE(b->replace(plain.c_str()));
+    info = b->info();
+    CHECK(info.filePath == plain);
+    CHECK(info.fileChannels == 2);
+    CHECK_FALSE(info.instrument.defined);
+    CHECK_FALSE(info.instrument.sustainLoop.defined);
+    Remove(loops);
+    Remove(plain);
+  }
+
+  TEST_CASE("sampleBufferInfo: fileName takes the last part of either separator (#1138)") {
+    YSE::DSP::sampleBufferInfo info;
+    info.filePath = "kit/drums.wav";
+    CHECK(info.fileName() == "drums.wav");
+    info.filePath = "C:\\samples\\kick.aif";
+    CHECK(info.fileName() == "kick.aif");
+    info.filePath = "plain.wav";
+    CHECK(info.fileName() == "plain.wav");
+  }
+
   // ─── the registry ─────────────────────────────────────────────────────────
 
   TEST_CASE("sampleBufferRegistry: one buffer per name, held weakly (#1039)") {
@@ -438,6 +596,216 @@ TEST_SUITE("dsp") {
     CHECK(bad.load() == 0);
     CHECK(blocks.load() > 0);
     // Every reader is gone, so everything retired can go.
+    b->collect();
+    CHECK(b->retiredCount() == 0);
+  }
+
+  // ─── the writer (issue #1144) ─────────────────────────────────────────────
+
+  TEST_CASE("sampleBufferWriter: an unbound writer pins an empty view (#1144)") {
+    sampleBufferWriter writer;
+    sampleWriteView view = writer.pin();
+    CHECK(view.empty());
+    CHECK_FALSE(view.set(0, 0, 1.f));
+    CHECK(view.at(0, 0) == 0.f);
+    float out = 9.f;
+    CHECK(view.read(0, 0, &out, 1) == 0);
+    CHECK(view.write(0, 0, &out, 1) == 0);
+  }
+
+  TEST_CASE("sampleBufferWriter: writes land in place, seen by readers at once (#1144)") {
+    auto b = Counting(2, 8, 8000.f);
+    const std::uint64_t before = b->version();
+    sampleBufferWriter writer(b);
+    sampleBufferReader reader(b);
+    {
+      sampleWriteView w = writer.pin();
+      CHECK(w.channels() == 2);
+      CHECK(w.frames() == 8);
+      CHECK(w.sampleRate() == doctest::Approx(8000.f));
+      CHECK(w.at(1, 3) == 203.f);
+      CHECK(w.set(1, 3, -0.25f));
+      CHECK_FALSE(w.set(1, 8, 5.f)); // past the end: dropped
+      CHECK_FALSE(w.set(2, 0, 5.f)); // no such channel
+      // A reader pinned meanwhile shares the storage, so it sees the write.
+      sampleView r = reader.pin();
+      CHECK(r.at(1, 3) == -0.25f);
+      CHECK(r.at(0, 3) == 103.f);
+    }
+    // A write is not a change: same version, same shape, no copy retired.
+    CHECK(b->version() == before);
+    CHECK(b->frames() == 8);
+    CHECK(b->retiredCount() == 0);
+    CHECK(Channel(*b, 1)[3] == -0.25f);
+  }
+
+  TEST_CASE("sampleWriteView: write and read clip to the buffer and count (#1144)") {
+    auto b = sampleBuffer::create(1, 4);
+    sampleBufferWriter writer(b);
+    sampleWriteView w = writer.pin();
+    const float values[3] = {1.f, 2.f, 3.f};
+    CHECK(w.write(0, 2, values, 3) == 2); // only two fit
+    CHECK(w.write(1, 0, values, 3) == 0);
+    CHECK(w.write(0, 4, values, 3) == 0);
+    CHECK(w.write(0, 0, nullptr, 3) == 0);
+    float out[4] = {9.f, 9.f, 9.f, 9.f};
+    CHECK(w.read(0, 1, out, 4) == 3);
+    CHECK(out[0] == 0.f);
+    CHECK(out[1] == 1.f);
+    CHECK(out[2] == 2.f);
+    CHECK(out[3] == 9.f); // untouched
+    CHECK(w.read(0, 4, out, 1) == 0);
+  }
+
+  TEST_CASE("sampleBufferWriter: edits keep what was written before them (#1144)") {
+    auto b = sampleBuffer::create(1, 4);
+    sampleBufferWriter writer(b);
+    { writer.pin().set(0, 1, 0.5f); }
+    b->applyGain(2.f);
+    b->setSize(6);
+    std::vector<float> got = Channel(*b, 0);
+    REQUIRE(got.size() == 6);
+    CHECK(got[1] == 1.f);
+    CHECK(got[5] == 0.f);
+    // The next pin writes into the new storage.
+    { writer.pin().set(0, 5, 0.75f); }
+    CHECK(Channel(*b, 0)[5] == 0.75f);
+  }
+
+  TEST_CASE("sampleBufferWriter: a change made while a view is held wins (#1144)") {
+    auto b = Counting(1, 4);
+    sampleBufferWriter writer(b);
+    {
+      sampleWriteView w = writer.pin();
+      b->fill(7.f); // a new storage is published; the view keeps the old one
+      CHECK(w.set(0, 0, -1.f)); // lands in the old storage, kept alive
+      CHECK(w.at(0, 0) == -1.f);
+      CHECK(b->retiredCount() == 1);
+    }
+    CHECK(Channel(*b, 0)[0] == 7.f);
+    b->collect();
+    CHECK(b->retiredCount() == 0);
+    CHECK(writer.pin().at(0, 0) == 7.f);
+  }
+
+  TEST_CASE("sampleBufferWriter: rebinding and destroying let go of the buffer (#1144)") {
+    auto a = Counting(1, 4);
+    auto b = Counting(1, 8);
+    {
+      sampleBufferWriter writer(a);
+      writer.bind(b);
+      CHECK(writer.buffer() == b);
+      CHECK(writer.pin().frames() == 8);
+      writer.bind(nullptr);
+      CHECK(writer.buffer() == nullptr);
+      CHECK(writer.pin().empty());
+      writer.bind(a);
+    }
+    a->fill(0.f);
+    b->fill(0.f);
+    CHECK(a->retiredCount() == 0);
+    CHECK(b->retiredCount() == 0);
+  }
+
+  TEST_CASE("sampleWriteView: a rate-0 buffer follows the engine rate (#1144)") {
+    SampleRateGuard guard;
+    auto b = sampleBuffer::create(1, 4, 0.f);
+    sampleBufferWriter writer(b);
+    YSE::SAMPLERATE = 22050;
+    CHECK(writer.pin().sampleRate() == doctest::Approx(22050.f));
+    YSE::SAMPLERATE = 96000;
+    CHECK(writer.pin().sampleRate() == doctest::Approx(96000.f));
+  }
+
+  TEST_CASE("sampleBufferWriter: pin, write and read allocate nothing (#1144)") {
+    auto b = Counting(2, 256);
+    sampleBufferWriter writer(b);
+    float block[64] = {};
+    float sum = 0.f;
+    {
+      TestHelpers::ProbeScope probe;
+      for (int k = 0; k < 4; ++k) {
+        sampleWriteView w = writer.pin();
+        for (UInt i = 0; i < 64; ++i)
+          block[i] = static_cast<float>(k);
+        w.write(0, static_cast<UInt>(k) * 64, block, 64);
+        w.set(1, static_cast<UInt>(k), 0.5f);
+        w.read(1, 0, block, 64);
+        sum += w.at(0, 0) + block[0];
+      }
+      CHECK(TestHelpers::g_alloc_count.load() == 0);
+    }
+    CHECK(sum == doctest::Approx(2.f)); // block[0] is channel 1 frame 0: 0.5 each time
+  }
+
+  TEST_CASE("sampleBufferWriter: a writer and a reader race edits safely (#1144)") {
+    // The #1039 stress test with a writer added, as the design note asks.
+    // One thread writes WRITTEN into every frame but the first, once per
+    // "block"; one reads through at(); one edits (resize, fill, a copy out);
+    // one collects. Every sample a reader sees is the fill value (frame 0
+    // and anything not yet written), WRITTEN, or 0 where a grow added
+    // samples. Under ASan a freed storage is a use-after-free; under TSan the
+    // writer's stores racing the reads or the edits' copies would be
+    // reported.
+    constexpr float WRITTEN = -0.5f;
+    auto b = sampleBufferRegistry::acquire("race_1144");
+    b->setSize(64);
+    b->fill(1.f);
+    std::atomic<bool> stop{false};
+    std::atomic<int> bad{0};
+    std::atomic<long> readBlocks{0};
+    std::atomic<long> writeBlocks{0};
+
+    std::thread writer([&] {
+      sampleBufferWriter w(b);
+      while (!stop.load(std::memory_order_relaxed)) {
+        sampleWriteView view = w.pin();
+        for (UInt c = 0; c < view.channels(); ++c)
+          for (UInt i = 1; i < view.frames(); ++i)
+            view.set(c, i, WRITTEN);
+        writeBlocks.fetch_add(1, std::memory_order_relaxed);
+      }
+    });
+    std::thread audio([&] {
+      sampleBufferReader reader(b);
+      while (!stop.load(std::memory_order_relaxed)) {
+        sampleView view = reader.pin();
+        if (view.empty()) continue;
+        const float first = view.at(0, 0);
+        for (UInt c = 0; c < view.channels(); ++c) {
+          for (UInt i = 0; i < view.frames(); ++i) {
+            const float s = view.at(c, i);
+            if (s != first && s != 0.f && s != WRITTEN) bad.fetch_add(1, std::memory_order_relaxed);
+          }
+        }
+        readBlocks.fetch_add(1, std::memory_order_relaxed);
+      }
+    });
+    std::thread collector([&] {
+      while (!stop.load(std::memory_order_relaxed))
+        sampleBufferRegistry::collect();
+    });
+
+    std::vector<float> copy(300);
+    for (int k = 1; k <= 400; ++k) {
+      b->setSize(32 + static_cast<UInt>((k * 37) % 200), 1 + k % 3);
+      b->fill(static_cast<float>(k));
+      b->getSamples(0, 0, copy.data(), static_cast<UInt>(copy.size()));
+    }
+    const long seenRead = readBlocks.load();
+    const long seenWrite = writeBlocks.load();
+    while (readBlocks.load() < seenRead + 4 || writeBlocks.load() < seenWrite + 4)
+      std::this_thread::yield();
+    stop = true;
+    writer.join();
+    audio.join();
+    collector.join();
+
+    CHECK(bad.load() == 0);
+    CHECK(readBlocks.load() > 0);
+    CHECK(writeBlocks.load() > 0);
+    // The writer's last block reached the last storage.
+    CHECK(Channel(*b, 0).back() == WRITTEN);
     b->collect();
     CHECK(b->retiredCount() == 0);
   }
