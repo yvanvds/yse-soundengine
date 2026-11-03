@@ -10,17 +10,16 @@
 #ifndef YSE_DSP_SAMPLING_BUFFERPLAYER_HPP
 #define YSE_DSP_SAMPLING_BUFFERPLAYER_HPP
 
-#include <vector>
 #include "../../headers/constants.hpp"
 #include "../../headers/defines.hpp"
 #include "../../headers/types.hpp"
 #include "../buffer.hpp"
+#include "playerOutputs.hpp"
 
 namespace YSE {
   namespace DSP {
 
     class sampleView;
-    struct loopCrossfade;
 
     /**
      *  @brief Plays a ``sampleBuffer`` from a start to an end point at a
@@ -90,7 +89,7 @@ namespace YSE {
     class API bufferPlayer {
     public:
       /** @brief The most outputs a player has. */
-      static constexpr UInt MAX_CHANNELS = 64;
+      static constexpr UInt MAX_CHANNELS = playerOutputs::MAX_CHANNELS;
       /** @brief The default loop crossfade, in milliseconds. */
       static constexpr Flt DEFAULT_INTERP_TIME = 50.f;
 
@@ -102,7 +101,7 @@ namespace YSE {
        *         not on the audio thread. */
       bufferPlayer& channels(UInt outputs);
       UInt channels() const {
-        return static_cast<UInt>(outputs.size());
+        return outputs.channels();
       }
 
       /**
@@ -187,18 +186,11 @@ namespace YSE {
       /** @brief Output @p channel of the last block (from 0); the last
        *         output past the count. */
       buffer& out(UInt channel = 0) {
-        return outputs[channel < outputs.size() ? channel : outputs.size() - 1];
+        return outputs.out(channel);
       }
 
     private:
-      // The outputs `length` long (at most STANDARD_BUFFERSIZE), silent.
-      UInt Clear(UInt length);
-      // Every buffer channel at `frame`, added into the outputs at sample
-      // `i`; crossfaded by `xfade` across its jump when it is not null.
-      void Read(const sampleView& view, UInt i, Dbl frame, const loopCrossfade* xfade,
-                bool forward);
-
-      std::vector<buffer> outputs;
+      playerOutputs outputs;
       bool isPlaying = false;
       bool isPaused = false;
       bool starting = false; // a start waiting for a block with something to play

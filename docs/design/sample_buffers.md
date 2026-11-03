@@ -242,6 +242,14 @@ view with positions held inside the buffer, and loops through `DSP::loopCrossfad
 before the jump mixed with the frames one loop length away, in either direction. Both are meant
 for `~groove` and `~phasegroove`.
 
+**For `~groove` (#1141)**: `DSP::groovePlayer` takes its loop points as a `sampleRegion` (Max's
+`loopend 0` is the buffer's end) made per block from the pinned view, and its sync output is
+`sampleRegion::phase` over the loop. The speed is a signal, so the position moves by
+`speed * bufferRate / engineRate` frames a sample, kept in ms between blocks; loop `ON` jumps by the
+overshoot (crossfaded through `loopCrossfade` in the direction it plays) and `PENDULUM` reflects off
+the loop points. The output buffers and the channel-mixing read are `DSP::playerOutputs`
+(`dsp/sampling/playerOutputs.hpp`), factored out of `bufferPlayer` so every player shares them.
+
 ## Rebinding by name: one mailbox for the family (#1256)
 
 `set <name>` on `~peek` and `~poke`, and on the players, `~index` and `~record` after them,

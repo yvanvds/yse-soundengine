@@ -751,7 +751,12 @@ reader: bind it in ``PARM_PARSE``, pin it once per block at the top of
   (``dsp/sampling/loopCrossfade.hpp``, Max's ``loopinterp`` and
   ``interptime``). ``~play`` (``DSP::bufferPlayer``, issue
   `#1140 <https://github.com/yvanvds/yse-soundengine/issues/1140>`_) is the
-  reference; its done bang is an armed outlet.
+  reference; its done bang is an armed outlet. The output channels and the
+  read that mixes buffer channels into them (with the crossfade) are
+  ``DSP::playerOutputs`` (``dsp/sampling/playerOutputs.hpp``), shared by
+  ``~play`` and ``~groove`` (``DSP::groovePlayer``, issue
+  `#1141 <https://github.com/yvanvds/yse-soundengine/issues/1141>`_, the
+  reference for a speed-driven player with loop points and a sync outlet).
 
 Switching buffers with ``set``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

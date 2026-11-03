@@ -16,16 +16,10 @@
 
 using namespace YSE::DSP;
 
-bufferPlayer::bufferPlayer(UInt count) {
-  channels(count);
-}
+bufferPlayer::bufferPlayer(UInt count) : outputs(count) {}
 
 bufferPlayer& bufferPlayer::channels(UInt count) {
-  count = std::clamp<UInt>(count, 1, MAX_CHANNELS);
-  outputs.clear();
-  outputs.reserve(count);
-  for (UInt c = 0; c < count; ++c)
-    outputs.emplace_back(YSE::STANDARD_BUFFERSIZE);
+  outputs.channels(count);
   return *this;
 }
 
@@ -56,44 +50,21 @@ bufferPlayer& bufferPlayer::resume() {
   return *this;
 }
 
-UInt bufferPlayer::Clear(UInt length) {
-  length = std::min(length, YSE::STANDARD_BUFFERSIZE);
-  for (buffer& out : outputs) {
-    // Within the capacity set by channels(): no allocation.
-    if (out.getLength() != length) out.resize(length);
-    std::fill(out.getPtr(), out.getPtr() + length, 0.f);
-  }
-  return length;
-}
-
-void bufferPlayer::Read(const sampleView& view, UInt i, Dbl frame, const loopCrossfade* xfade,
-                        bool forward) {
-  // The crossfade weight is the same for every channel: worked out once.
-  Dbl partner = 0.0;
-  const Flt g = xfade != nullptr ? xfade->weight(frame, forward, partner) : 0.f;
-  const auto count = static_cast<UInt>(outputs.size());
-  for (UInt k = 0; k < view.channels(); ++k) {
-    Flt v = view.cubic(k, frame);
-    if (g > 0.f) v += g * (view.cubic(k, partner) - v);
-    outputs[k % count].getPtr()[i] += v;
-  }
-}
-
 buffer& bufferPlayer::operator()(const sampleView& view, buffer& positionsMs) {
   finished = false;
-  const UInt length = Clear(positionsMs.getLength());
-  if (view.empty()) return outputs[0];
+  const UInt length = outputs.clear(positionsMs.getLength());
+  if (view.empty()) return outputs.out(0);
   const Dbl toFrame = static_cast<Dbl>(view.sampleRate()) * 0.001;
   const Flt* at = positionsMs.getPtr();
   for (UInt i = 0; i < length; ++i)
-    Read(view, i, static_cast<Dbl>(at[i]) * toFrame, nullptr, true);
-  return outputs[0];
+    outputs.read(view, i, static_cast<Dbl>(at[i]) * toFrame, nullptr, true);
+  return outputs.out(0);
 }
 
 buffer& bufferPlayer::operator()(const sampleView& view, UInt blockLength) {
   finished = false;
-  const UInt length = Clear(blockLength);
-  if (!isPlaying || isPaused || view.empty()) return outputs[0];
+  const UInt length = outputs.clear(blockLength);
+  if (!isPlaying || isPaused || view.empty()) return outputs.out(0);
 
   // The points in ms, kept inside the buffer as it is in this block.
   const Dbl rate = static_cast<Dbl>(view.sampleRate());
@@ -109,7 +80,7 @@ buffer& bufferPlayer::operator()(const sampleView& view, UInt blockLength) {
     // Nothing to play: an end at once.
     isPlaying = false;
     finished = true;
-    return outputs[0];
+    return outputs.out(0);
   }
   const bool forward = to > from;
 
@@ -140,7 +111,7 @@ buffer& bufferPlayer::operator()(const sampleView& view, UInt blockLength) {
         cursor = from - std::fmod(from - cursor, span);
       }
     }
-    Read(view, i, cursor * toFrame, fading, forward);
+    outputs.read(view, i, cursor * toFrame, fading, forward);
     cursor += forward ? step : -step;
   }
   // Ended as the end point is reached, not a block later.
@@ -149,5 +120,5 @@ buffer& bufferPlayer::operator()(const sampleView& view, UInt blockLength) {
     isPaused = false;
     finished = true;
   }
-  return outputs[0];
+  return outputs.out(0);
 }

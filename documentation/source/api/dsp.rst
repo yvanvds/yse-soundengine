@@ -332,6 +332,18 @@ well.
 .. doxygenfile:: dsp/sampling/loopCrossfade.hpp
    :project: libYSE
 
+A sample buffer played at the speed of a signal, forward or backward,
+between loop points it jumps across (with a crossfade) or swings over, with
+a sync output: what ``~groove`` does. Its outputs, and the read that mixes
+the buffer's channels into them, are a ``playerOutputs``, which every buffer
+player shares.
+
+.. doxygenfile:: dsp/sampling/groovePlayer.hpp
+   :project: libYSE
+
+.. doxygenfile:: dsp/sampling/playerOutputs.hpp
+   :project: libYSE
+
 Filter primitives
 -----------------
 

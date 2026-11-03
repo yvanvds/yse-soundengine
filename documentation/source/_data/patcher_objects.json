@@ -17753,6 +17753,108 @@
     ],
     "requires_midi_device": false
   },
+  "~groove": {
+    "category": "SAMPLING",
+    "description": "Plays a named sample buffer at the speed of a signal, forward or backward, between loop points it can loop or swing back and forth over, with a sync signal that ramps from 0 to 1 over the loop: a sampler voice.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The speed to play at, a signal: 1 is normal speed, 2 twice as fast, -1 backward, 0 holds the sample at the position. Unconnected, the speed is 0. A number jumps to that position, in milliseconds into the buffer, and plays from there, also after a stop. Also takes 'setloop <start> <end>', 'startloop' and 'endloop' (jump to a loop point and play), 'stop', 'reset' (the loop is the whole buffer), 'loop <0/1/2>', 'loopinterp <0/1>', 'interptime <ms>', 'loopstart <ms>', 'loopend <ms>' and 'set <name>' (another buffer, from a later block). None of them is saved.",
+        "index": 0,
+        "label": "speed",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The loop start, in milliseconds into the buffer. A connected signal sets it once per block, from the block's first sample.",
+        "index": 1,
+        "label": "loop start",
+        "range": "0 or higher"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The loop end, in milliseconds into the buffer; 0 is its end. A connected signal sets it once per block, from the block's first sample.",
+        "index": 2,
+        "label": "loop end",
+        "range": "0 or higher"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~groove",
+    "outlets": [
+      {
+        "doc": "Buffer channel 1 as it plays. Silence once stopped, and for a channel the buffer lacks.",
+        "index": 0,
+        "label": "out",
+        "range": "any float",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "Where in the loop each sample is read: 0 at the loop start rising to 1 at the loop end. 0 outside the loop and while stopped.",
+        "index": 1,
+        "label": "sync",
+        "range": "0 to 1",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The buffer to play. A set message does not change what is saved.",
+        "name": "name",
+        "range": "buffer name"
+      },
+      {
+        "default": "1",
+        "doc": "The number of sample outlets, each playing the buffer channel of its number. Buffer channels past the last outlet are mixed into the outlets.",
+        "name": "channels",
+        "range": "1 to 64"
+      },
+      {
+        "default": "0",
+        "doc": "0 plays through the loop points to an end of the buffer and stops there; 1 jumps back to the other loop point on reaching one; 2 turns round at each loop point.",
+        "name": "loop",
+        "range": "0, 1 or 2"
+      },
+      {
+        "default": "0",
+        "doc": "1 crossfades a loop (loop 1) across its jump, so it does not click.",
+        "name": "loopinterp",
+        "range": "0 or 1"
+      },
+      {
+        "default": "50",
+        "doc": "The length of the loop crossfade, in milliseconds; at most the length of the loop.",
+        "name": "interptime",
+        "range": "0 or higher"
+      },
+      {
+        "default": "0",
+        "doc": "The loop start, in milliseconds into the buffer.",
+        "name": "loopstart",
+        "range": "0 or higher"
+      },
+      {
+        "default": "0",
+        "doc": "The loop end, in milliseconds into the buffer; 0 is its end.",
+        "name": "loopend",
+        "range": "0 or higher"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~hilbert": {
     "category": "FILTER",
     "description": "Phase quadrature filter: splits a signal into two outputs 90 degrees apart across the band, the real and imaginary parts of its analytic signal. For single-sideband modulation, frequency shifting and envelope following.",
