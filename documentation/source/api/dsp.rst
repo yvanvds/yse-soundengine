@@ -309,6 +309,42 @@ weighted random draws: what ``~table`` does.
 .. doxygenfile:: dsp/sampling/tableLookup.hpp
    :project: libYSE
 
+Signals recorded into a sample buffer between loop points, once or in a loop,
+with append and a sync output: what ``~record`` does. The loop points are a
+``sampleRegion``, a span in frames made from milliseconds for each block,
+which players that loop a region use as well.
+
+.. doxygenfile:: dsp/sampling/bufferRecorder.hpp
+   :project: libYSE
+
+.. doxygenfile:: dsp/sampling/sampleRegion.hpp
+   :project: libYSE
+
+A sample buffer played from a start to an end point at a speed, backward,
+in a loop with a crossfade across the jump, or at the positions of a
+signal: what ``~play`` does. It reads with ``sampleView::cubic`` and loops
+through ``loopCrossfade``, which other players that crossfade a loop use as
+well.
+
+.. doxygenfile:: dsp/sampling/bufferPlayer.hpp
+   :project: libYSE
+
+.. doxygenfile:: dsp/sampling/loopCrossfade.hpp
+   :project: libYSE
+
+A sample buffer played at the speed of a signal, forward or backward,
+between loop points it jumps across (with a crossfade) or swings over, with
+a sync output: what ``~groove`` does. It can also follow a phase instead of a
+speed, reading the loop where a 0 to 1 ramp says: what ``~phasegroove`` does.
+Its outputs, and the read that mixes the buffer's channels into them, are a
+``playerOutputs``, which every buffer player shares.
+
+.. doxygenfile:: dsp/sampling/groovePlayer.hpp
+   :project: libYSE
+
+.. doxygenfile:: dsp/sampling/playerOutputs.hpp
+   :project: libYSE
+
 Filter primitives
 -----------------
 

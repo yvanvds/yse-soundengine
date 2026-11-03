@@ -53,7 +53,12 @@ namespace YSE {
    *    ``D_PEEK`` (one sample read or written by message), ``D_POKE`` (a
    *    signal written at signal-rate indexes), ``D_INDEX`` (a buffer read
    *    at signal-rate indexes, without interpolation), ``D_TABLE`` (a
-   *    buffer read as a table of values: lookup, stepping, random draws).
+   *    buffer read as a table of values: lookup, stepping, random draws),
+   *    ``D_RECORD`` (signals recorded into a buffer, once or in a loop),
+   *    ``D_PLAY`` (a buffer played from a start to an end point, or at
+   *    signal-rate positions), ``D_GROOVE`` (a buffer played at a
+   *    signal-rate speed between loop points, with a sync output),
+   *    ``D_PHASEGROOVE`` (a buffer's loop read where a 0 to 1 ramp says).
    *  - DSP math: ``D_ADD``, ``D_MULTIPLY``, ``D_CLIP``, ``D_REVERSESUBSTRACT``,
    *    ``D_REVERSEDIVIDE``, ``D_MODULO``, ``D_PLUSEQUALS``,
    *    ``D_DELTA`` (difference between successive samples), ``D_DEGRADE``
@@ -299,6 +304,10 @@ namespace YSE {
     DEFOBJ(D_POKE, "~poke");
     DEFOBJ(D_INDEX, "~index");
     DEFOBJ(D_TABLE, "~table");
+    DEFOBJ(D_RECORD, "~record");
+    DEFOBJ(D_PLAY, "~play");
+    DEFOBJ(D_GROOVE, "~groove");
+    DEFOBJ(D_PHASEGROOVE, "~phasegroove");
 
     DEFOBJ(G_INT, ".i");
     DEFOBJ(G_FLOAT, ".f");

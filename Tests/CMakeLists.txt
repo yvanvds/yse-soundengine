@@ -68,6 +68,9 @@ set(YSE_TEST_SOURCES
   dsp/test_sampleBuffer.cpp
   dsp/test_sample_access.cpp
   dsp/test_table_lookup.cpp
+  dsp/test_buffer_recorder.cpp
+  dsp/test_buffer_player.cpp
+  dsp/test_groove_player.cpp
   dsp/test_smoother.cpp
   utils/test_atomic.cpp
   utils/test_vector.cpp
@@ -330,6 +333,10 @@ set(YSE_TEST_SOURCES
   patcher/test_patcher_peek_poke.cpp
   patcher/test_patcher_index.cpp
   patcher/test_patcher_signal_table.cpp
+  patcher/test_patcher_record.cpp
+  patcher/test_patcher_play.cpp
+  patcher/test_patcher_groove.cpp
+  patcher/test_patcher_phasegroove.cpp
   patcher/test_patcher_snapshot.cpp
   patcher/test_patcher_armed_outlets.cpp
   patcher/test_patcher_cycle.cpp
@@ -1520,6 +1527,10 @@ set_source_files_properties(
   patcher/test_patcher_peek_poke.cpp
   patcher/test_patcher_index.cpp
   patcher/test_patcher_signal_table.cpp
+  patcher/test_patcher_record.cpp
+  patcher/test_patcher_play.cpp
+  patcher/test_patcher_groove.cpp
+  patcher/test_patcher_phasegroove.cpp
   patcher/test_patcher_snapshot.cpp
   patcher/test_patcher_armed_outlets.cpp
   patcher/test_patcher_cycle.cpp

@@ -739,6 +739,27 @@ reader: bind it in ``PARM_PARSE``, pin it once per block at the top of
 - One writer is one claim. An object that also writes from a message, which
   may arrive on any thread, gives the message path a second writer behind
   an ``exchange(true)`` guard, as ``~poke`` does for its list.
+- Loop points in milliseconds become frames through
+  ``DSP::sampleRegion::fromMs`` (``dsp/sampling/sampleRegion.hpp``), once
+  per block from the pinned view's rate and length, with an end of 0 for the
+  buffer's end. ``phase(frame)`` gives the 0-1 sync signal. ``~record``
+  (``DSP::bufferRecorder``) is the reference; a player that loops a region
+  uses the same helper.
+- An interpolating player reads with ``sampleView::cubic``, the 4-point
+  kernel of ``interpolate4`` with positions held inside the buffer, and
+  crossfades a loop across its jump with ``DSP::loopCrossfade``
+  (``dsp/sampling/loopCrossfade.hpp``, Max's ``loopinterp`` and
+  ``interptime``). ``~play`` (``DSP::bufferPlayer``, issue
+  `#1140 <https://github.com/yvanvds/yse-soundengine/issues/1140>`_) is the
+  reference; its done bang is an armed outlet. The output channels and the
+  read that mixes buffer channels into them (with the crossfade) are
+  ``DSP::playerOutputs`` (``dsp/sampling/playerOutputs.hpp``), shared by
+  ``~play`` and ``~groove`` (``DSP::groovePlayer``, issue
+  `#1141 <https://github.com/yvanvds/yse-soundengine/issues/1141>`_, the
+  reference for a speed-driven player with loop points and a sync outlet).
+  ``~phasegroove`` (issue
+  `#1142 <https://github.com/yvanvds/yse-soundengine/issues/1142>`_) is that
+  same class driven by a phase, through ``groovePlayer::phase``.
 
 Switching buffers with ``set``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

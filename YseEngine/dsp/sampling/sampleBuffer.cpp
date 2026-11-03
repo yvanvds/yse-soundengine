@@ -9,6 +9,7 @@
 
 #include "sampleBuffer.hpp"
 #include "../../headers/constants.hpp"
+#include "../interpolate4.hpp"
 #include "../../internal/customFileReader.h"
 #include "../../io.hpp"
 
@@ -763,6 +764,22 @@ Flt sampleView::linear(UInt c, Dbl position) const {
   const Flt here = detail::LoadSample(s + index);
   const Flt next = index + 1 < numFrames ? detail::LoadSample(s + index + 1) : 0.f;
   return here + (next - here) * frac;
+}
+
+Flt sampleView::cubic(UInt c, Dbl position) const {
+  if (c >= numChannels || numFrames == 0) return 0.f;
+  const Flt* s = samples + static_cast<std::size_t>(c) * numFrames;
+  const std::size_t last = numFrames - 1;
+  if (!(position > 0.0)) return detail::LoadSample(s);
+  if (position >= static_cast<Dbl>(last)) return detail::LoadSample(s + last);
+  const auto index = static_cast<std::size_t>(position);
+  const auto frac = static_cast<Flt>(position - static_cast<Dbl>(index));
+  // index < last here, so index + 1 is inside; the outer two repeat the ends.
+  const Flt a = detail::LoadSample(s + (index > 0 ? index - 1 : 0));
+  const Flt b = detail::LoadSample(s + index);
+  const Flt n = detail::LoadSample(s + index + 1);
+  const Flt d = detail::LoadSample(s + (index + 2 <= last ? index + 2 : last));
+  return interpolate4::kernel(a, b, n, d, frac);
 }
 
 sampleBufferReader::sampleBufferReader(std::shared_ptr<sampleBuffer> buffer) {

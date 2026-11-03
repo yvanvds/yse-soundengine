@@ -226,7 +226,38 @@ meant to be run under ASan and TSan.
 
 **For `~record` (#1143)**: bind a `sampleBufferWriter` in `PARM_PARSE`, pin it at the top of
 `CALC()`, and `write(channel, position, block, length)` each block, wrapping at the end of the
-buffer yourself. Nothing else is needed from the store.
+buffer yourself. Nothing else is needed from the store. As built, `DSP::bufferRecorder` writes
+one stretch per channel up to the end point and wraps there. Its loop points are a
+`DSP::sampleRegion` (`dsp/sampling/sampleRegion.hpp`): milliseconds turned into frames each block
+at the pinned view's rate and length, end 0 meaning the buffer's end, with `phase(frame)` for a
+0-1 sync output. The looping players (`~groove`, `~phasegroove`) and `~play` take their loop
+points and sync the same way.
+
+**For `~play` (#1140)**: `DSP::bufferPlayer` keeps its points in milliseconds, not a
+`sampleRegion`, because Max's `start <start> <end>` plays backward when the end comes first and
+`start 500 0` means "down to 0", so an end of 0 cannot mean the buffer's end there (the end of the
+buffer is an end below 0). It reads with `sampleView::cubic`, the `interpolate4` kernel on a pinned
+view with positions held inside the buffer, and loops through `DSP::loopCrossfade`
+(`dsp/sampling/loopCrossfade.hpp`): Max's `loopinterp` / `interptime`, the last `fade` frames
+before the jump mixed with the frames one loop length away, in either direction. Both are meant
+for `~groove` and `~phasegroove`.
+
+**For `~groove` (#1141)**: `DSP::groovePlayer` takes its loop points as a `sampleRegion` (Max's
+`loopend 0` is the buffer's end) made per block from the pinned view, and its sync output is
+`sampleRegion::phase` over the loop. The speed is a signal, so the position moves by
+`speed * bufferRate / engineRate` frames a sample, kept in ms between blocks; loop `ON` jumps by the
+overshoot (crossfaded through `loopCrossfade` in the direction it plays) and `PENDULUM` reflects off
+the loop points. The output buffers and the channel-mixing read are `DSP::playerOutputs`
+(`dsp/sampling/playerOutputs.hpp`), factored out of `bufferPlayer` so every player shares them.
+
+**For `~phasegroove` (#1142)**: Max's `phasegroove~` turns a ramp into the speed of a `groove~` it
+finds through the cord. A YSE object does not look at what it is connected to, so here the ramp
+drives the player: `groovePlayer::phase(view, phases)`, a second way into `DSP::groovePlayer` next
+to `operator()`, reads frame `low + phase * (high - low)` of the same `sampleRegion` loop, through
+the same `playerOutputs` and `loopCrossfade`, with sync the wrapped phase. It takes no speed, so
+neither `Wrap` nor `OffTheEnd` applies: the ramp says where to read and the position needs no
+integrating, so it cannot drift from the tempo. The crossfade's direction comes from the ramp's
+slope the short way round, so a wrap from 1 to 0 keeps it rising.
 
 ## Rebinding by name: one mailbox for the family (#1256)
 

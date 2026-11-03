@@ -239,3 +239,231 @@ The table is as long as the buffer. Fill it with a ``~buffer`` message, a
 the background and read from a later block on; ``set`` alone reads
 silence. Messages are not saved with the patch: a reloaded ``~table`` reads
 the buffer and uses the settings of its arguments.
+
+.. patcher-object:: ~record
+
+Records signals into the buffer of its name. The arguments, all after the
+name optional, are ``name channels append loop loopstart loopend``.
+``channels`` (1 to 64) sets how many signal inlets there are: the first
+signal goes into buffer channel 1, the second into channel 2, and so on. A
+buffer with fewer channels drops the signals it has no channel for, and
+its channels past the last signal are left as they are.
+
+- The signal inlets record what reaches them. An unconnected one records
+  silence.
+- A number other than 0 in the left inlet starts recording, 0 stops it.
+  Changes take effect at the next block.
+- The two inlets on the right set the start point and the end point, in
+  milliseconds into the buffer. An end point of 0, the default, is the end
+  of the buffer; ``reset`` puts both back to 0, so recording covers the
+  whole buffer again. ``loopstart <ms>`` and ``loopend <ms>`` in the left
+  inlet do the same as the two inlets.
+- A start begins at the start point, also while recording already runs.
+  With ``append 1`` it carries on where the last recording stopped instead,
+  as long as that is between the points.
+- Recording stops when it reaches the end point. With ``loop 1`` it
+  carries on from the start point, over and over, until it is stopped.
+- The outlet sends a sync signal: while recording, where each sample goes,
+  rising from 0 at the start point to 1 at the end point; 0 while not
+  recording.
+
+The points are milliseconds at the buffer's own sample rate and follow its
+length, so they stay right after the buffer is resized or a file is read
+into it. Samples are written as they arrive, not resampled. Every object
+playing the buffer hears what was recorded from the next block, so a
+recording can be played while it is being made:
+
+.. code-block:: text
+
+   [~adc]
+    |
+   [~record loop 1 0 1]   1 starts it; the buffer loop, over and over
+    |
+   [~snapshot 100]        where the recording is, 10 times a second
+
+Editing the buffer from a ``~buffer`` message while ``~record`` writes is
+safe; whatever it records while the change is being made is lost, and it
+carries on in the changed buffer. With no buffer, or an empty one,
+nothing is recorded and the sync signal is 0, but a started recording
+waits and begins once the buffer has room.
+
+``set <name>`` in the left inlet switches to another buffer, looked up in
+the background and written from a later block on; a recording carries on
+there from where it had got to. ``set`` alone stops writing. Messages are
+not saved with the patch: a reloaded ``~record`` uses the buffer and the
+settings of its arguments.
+
+.. patcher-object:: ~play
+
+Plays the buffer of its name. The arguments, all after the name optional,
+are ``name channels loop loopinterp interptime``. ``channels`` (1 to 64)
+sets how many signal outlets there are: the first plays buffer channel 1,
+the second channel 2, and so on. Outlets the buffer has no channel for are
+silent, and buffer channels past the last outlet are mixed in, channel
+``n + channels`` into the outlet of channel ``n``. The rightmost outlet
+bangs when playback reaches its end point.
+
+``~play`` plays in one of two ways, decided by what is connected to its
+left inlet.
+
+- **With a signal connected**, the signal is the position to play, in
+  milliseconds into the buffer: a rising signal plays forward, a falling
+  one backward, a still one repeats one sample. Positions before the start
+  or past the end of the buffer hold its first or last sample. A ``~line``
+  ramping from one point to another over a time plays that part of the
+  buffer at the speed the time gives.
+- **With nothing connected**, ``~play`` plays on its own. A number other
+  than 0 plays the whole buffer at normal speed, 0 stops.
+  ``start <start> <end> <duration>`` plays from the start point to the
+  end point, in milliseconds, over the duration; every number is optional.
+  Without a duration it plays at normal speed, without an end point to the
+  end of the buffer, and without numbers the whole buffer. An end point
+  before the start point plays backward. ``stop`` stops, ``pause`` holds
+  the position and ``resume`` goes on from it. Changes take effect at the
+  next block, and of several sent before a block the last one counts.
+
+When playback reaches the end point it stops and the right outlet bangs,
+after the block in which it ended. With ``loop 1`` it carries on from the
+start point instead, until it is stopped, and does not bang. With
+``loopinterp 1`` as well, the last ``interptime`` milliseconds before each
+jump back (50 by default, at most the loop's length) are crossfaded with
+the sound leading up to the start point, so the loop does not click. A
+loop at the very start of the buffer crossfades toward its first sample.
+A ``stop`` is not an end and does not bang, and a position signal never
+ends.
+
+Samples are read between the frames with a 4-point interpolation. The
+points are milliseconds at the buffer's own sample rate, and normal speed
+follows both that rate and the engine's, so a buffer recorded at another
+rate plays at its own pitch. Points past the buffer are held at its end
+and follow it when it is resized or a file is read into it:
+
+.. code-block:: text
+
+   [start 0 1000 500(
+    |
+   [~play drums]          the first second, twice as fast
+    |          \
+   [~dac]      [.counter] how many times it finished
+
+With no buffer, or an empty one, ``~play`` plays silence, but a started
+playback waits and begins once the buffer has samples. ``set <name>`` in
+the left inlet switches to another buffer, looked up in the background
+and played from a later block on, from the position playback had reached;
+``set`` alone plays silence. Messages are not saved with the patch: a
+reloaded ``~play`` uses the buffer and the settings of its arguments, and
+starts stopped.
+
+.. patcher-object:: ~groove
+
+Plays the buffer of its name at the speed of the signal in its left inlet:
+the sampler voice. The arguments, all after the name optional, are
+``name channels loop loopinterp interptime loopstart loopend``.
+``channels`` (1 to 64) sets how many sample outlets there are, as for
+``~play``: the first plays buffer channel 1, and so on, with missing
+channels silent and extra ones mixed in. The rightmost outlet is the sync
+signal.
+
+- **Speed.** 1 plays at normal speed, 2 twice as fast and an octave up,
+  0.5 at half speed, -1 backward. The speed can change at every sample, for
+  vibrato or scratching. At 0 the position stands still and the outlets
+  hold the sample there. With nothing connected the speed is 0.
+- **Position.** A number in the left inlet jumps to that position, in
+  milliseconds into the buffer, and plays from there. ``startloop`` jumps
+  to the loop start and ``endloop`` to the loop end. ``stop`` silences
+  ``~groove`` until the next number, ``startloop`` or ``endloop``. A new
+  ``~groove`` plays from 0 as soon as its speed is not 0. Changes take
+  effect at the next block, and of several sent before a block the last
+  one counts.
+- **Loop points.** The middle inlet sets the loop start and the right
+  inlet the loop end, in milliseconds; an end of 0 is the end of the
+  buffer, so the loop is the whole buffer until it is set.
+  ``setloop <start> <end>``, ``loopstart <ms>`` and ``loopend <ms>`` set
+  them too, and ``reset`` goes back to the whole buffer. A signal
+  connected to one of those inlets sets its point once per block, from the
+  block's first sample.
+- **Looping.** With ``loop 0`` (the default) the loop points are played
+  through, and playback stops when it runs off either end of the buffer.
+  With ``loop 1``, playing forward past the loop end goes on from the loop
+  start, and playing backward past the loop start goes on from the loop
+  end; a position before the loop plays into it. With ``loop 2`` playback
+  turns round at each loop point and swings back and forth between them.
+- **Crossfade.** With ``loop 1`` and ``loopinterp 1``, the last
+  ``interptime`` milliseconds before each jump (50 by default, at most the
+  loop's length) are crossfaded with the sound on the far side of the point
+  it jumps to, so the loop does not click.
+- **Sync.** The right outlet ramps from 0 at the loop start to 1 at the
+  loop end as playback goes through the loop, whichever way it goes, and
+  is 0 outside the loop and while stopped: a phase to drive envelopes or
+  other players in time with the loop.
+
+.. code-block:: text
+
+   [~sig 1]   [setloop 250 750(   [loop 1(
+    |          |                  |
+   [~groove drums]                half a second, round and round
+    |          \
+   [~dac]      [~snapshot]        where in the loop it is
+
+Samples are read between the frames with a 4-point interpolation. Normal
+speed follows both the buffer's sample rate and the engine's, so a buffer
+recorded at another rate plays at its own pitch. Points past the buffer are
+held at its end and follow it when it is resized or a file is read into it.
+
+With no buffer, or an empty one, ``~groove`` plays silence and keeps its
+position. ``set <name>`` in the left inlet switches to another buffer,
+looked up in the background and played from a later block on, from the
+position playback had reached; ``set`` alone plays silence. Messages are
+not saved with the patch: a reloaded ``~groove`` uses the buffer and the
+settings of its arguments.
+
+.. patcher-object:: ~phasegroove
+
+Plays the buffer of its name where a ramp in its left inlet says: 0 is the
+loop start and 1 the loop end, so a ``~phasor`` plays the loop once per cycle
+whatever its length. That locks a loop to a tempo, and a slice to a step. The
+arguments, all after the name optional, are
+``name channels loopinterp interptime loopstart loopend``. ``channels`` (1
+to 64) sets how many sample outlets there are, as for ``~groove``: the first
+plays buffer channel 1, and so on, with missing channels silent and extra
+ones mixed in. The rightmost outlet is the sync signal. There is no ``~groove``
+to connect: ``~phasegroove`` is the player.
+
+- **Phase.** A ramp that rises plays forward, one that falls plays backward,
+  and one that stands still holds the sample there; the ramp's speed is the
+  loop's. A phase outside 0 to 1 wraps round the loop, so 1.25 reads where
+  0.25 does and a ramp with an offset added plays the loop from further on. 1
+  itself is the loop end, where a one-shot ramp comes to rest. With nothing
+  connected the phase is the last number sent to the inlet, else 0.
+- **Loop points.** The middle inlet sets the loop start and the right inlet
+  the loop end, in milliseconds; an end of 0 is the end of the buffer, so the
+  loop is the whole buffer until it is set. ``setloop <start> <end>``,
+  ``loopstart <ms>`` and ``loopend <ms>`` set them too, and ``reset`` goes back
+  to the whole buffer. A signal connected to one of those inlets sets its point
+  once per block, from the block's first sample. A loop whose end is not after
+  its start plays silence.
+- **Crossfade.** With ``loopinterp 1``, the last ``interptime`` milliseconds
+  before the ramp wraps (50 by default, at most the loop's length) are
+  crossfaded with the sound on the far side of the point it wraps to, so the
+  loop does not click. It follows the way the ramp is moving.
+- **Sync.** The right outlet is the phase each sample was read at, kept in 0
+  to 1: the ramp, wrapped.
+
+.. code-block:: text
+
+   [~phasor 2]   [setloop 250 750(
+    |             |
+   [~phasegroove drums]              half a second of it, twice a second
+    |
+   [~dac]
+
+Samples are read between the frames with a 4-point interpolation. The ramp
+sets the tempo, so the engine's sample rate plays no part; the loop points are
+milliseconds of the buffer, held at its end and following it when it is resized
+or a file is read into it.
+
+With no buffer, or an empty one, ``~phasegroove`` plays silence.
+``set <name>`` in the left inlet switches to another buffer, looked up in the
+background and played from a later block on; ``set`` alone plays silence.
+Messages and numbers are not saved with the patch: a reloaded ``~phasegroove``
+uses the buffer and the settings of its arguments.

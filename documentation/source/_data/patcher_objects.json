@@ -17753,6 +17753,108 @@
     ],
     "requires_midi_device": false
   },
+  "~groove": {
+    "category": "SAMPLING",
+    "description": "Plays a named sample buffer at the speed of a signal, forward or backward, between loop points it can loop or swing back and forth over, with a sync signal that ramps from 0 to 1 over the loop: a sampler voice.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The speed to play at, a signal: 1 is normal speed, 2 twice as fast, -1 backward, 0 holds the sample at the position. Unconnected, the speed is 0. A number jumps to that position, in milliseconds into the buffer, and plays from there, also after a stop. Also takes 'setloop <start> <end>', 'startloop' and 'endloop' (jump to a loop point and play), 'stop', 'reset' (the loop is the whole buffer), 'loop <0/1/2>', 'loopinterp <0/1>', 'interptime <ms>', 'loopstart <ms>', 'loopend <ms>' and 'set <name>' (another buffer, from a later block). None of them is saved.",
+        "index": 0,
+        "label": "speed",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The loop start, in milliseconds into the buffer. A connected signal sets it once per block, from the block's first sample.",
+        "index": 1,
+        "label": "loop start",
+        "range": "0 or higher"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The loop end, in milliseconds into the buffer; 0 is its end. A connected signal sets it once per block, from the block's first sample.",
+        "index": 2,
+        "label": "loop end",
+        "range": "0 or higher"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~groove",
+    "outlets": [
+      {
+        "doc": "Buffer channel 1 as it plays. Silence once stopped, and for a channel the buffer lacks.",
+        "index": 0,
+        "label": "out",
+        "range": "any float",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "Where in the loop each sample is read: 0 at the loop start rising to 1 at the loop end. 0 outside the loop and while stopped.",
+        "index": 1,
+        "label": "sync",
+        "range": "0 to 1",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The buffer to play. A set message does not change what is saved.",
+        "name": "name",
+        "range": "buffer name"
+      },
+      {
+        "default": "1",
+        "doc": "The number of sample outlets, each playing the buffer channel of its number. Buffer channels past the last outlet are mixed into the outlets.",
+        "name": "channels",
+        "range": "1 to 64"
+      },
+      {
+        "default": "0",
+        "doc": "0 plays through the loop points to an end of the buffer and stops there; 1 jumps back to the other loop point on reaching one; 2 turns round at each loop point.",
+        "name": "loop",
+        "range": "0, 1 or 2"
+      },
+      {
+        "default": "0",
+        "doc": "1 crossfades a loop (loop 1) across its jump, so it does not click.",
+        "name": "loopinterp",
+        "range": "0 or 1"
+      },
+      {
+        "default": "50",
+        "doc": "The length of the loop crossfade, in milliseconds; at most the length of the loop.",
+        "name": "interptime",
+        "range": "0 or higher"
+      },
+      {
+        "default": "0",
+        "doc": "The loop start, in milliseconds into the buffer.",
+        "name": "loopstart",
+        "range": "0 or higher"
+      },
+      {
+        "default": "0",
+        "doc": "The loop end, in milliseconds into the buffer; 0 is its end.",
+        "name": "loopend",
+        "range": "0 or higher"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~hilbert": {
     "category": "FILTER",
     "description": "Phase quadrature filter: splits a signal into two outputs 90 degrees apart across the band, the real and imaginary parts of its analytic signal. For single-sideband modulation, frequency shifting and envelope following.",
@@ -19236,6 +19338,102 @@
     ],
     "requires_midi_device": false
   },
+  "~phasegroove": {
+    "category": "SAMPLING",
+    "description": "Plays the loop of a named sample buffer where a ramp from 0 to 1 says, so a ~phasor plays it once per cycle: tempo-locked loops and slicing.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Where in the loop to read, a signal: 0 is the loop start, rising to 1 at the loop end, and a phase outside that wraps round the loop. Unconnected, it is the last number sent, else 0. Also takes 'setloop <start> <end>', 'reset' (the loop is the whole buffer), 'loopinterp <0/1>', 'interptime <ms>', 'loopstart <ms>', 'loopend <ms>' and 'set <name>' (another buffer, from a later block). None of them is saved.",
+        "index": 0,
+        "label": "phase",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The loop start, in milliseconds into the buffer. A connected signal sets it once per block, from the block's first sample.",
+        "index": 1,
+        "label": "loop start",
+        "range": "0 or higher"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The loop end, in milliseconds into the buffer; 0 is its end. A connected signal sets it once per block, from the block's first sample.",
+        "index": 2,
+        "label": "loop end",
+        "range": "0 or higher"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~phasegroove",
+    "outlets": [
+      {
+        "doc": "Buffer channel 1 at the phase. Silence for a channel the buffer lacks and for a loop that holds nothing.",
+        "index": 0,
+        "label": "out",
+        "range": "any float",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "The phase each sample is read at, kept in 0 to 1. 0 with no buffer and for a loop that holds nothing.",
+        "index": 1,
+        "label": "sync",
+        "range": "0 to 1",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The buffer to play. A set message does not change what is saved.",
+        "name": "name",
+        "range": "buffer name"
+      },
+      {
+        "default": "1",
+        "doc": "The number of sample outlets, each playing the buffer channel of its number. Buffer channels past the last outlet are mixed into the outlets.",
+        "name": "channels",
+        "range": "1 to 64"
+      },
+      {
+        "default": "0",
+        "doc": "1 crossfades the loop across the point the ramp wraps at, so it does not click.",
+        "name": "loopinterp",
+        "range": "0 or 1"
+      },
+      {
+        "default": "50",
+        "doc": "The length of the loop crossfade, in milliseconds; at most the length of the loop.",
+        "name": "interptime",
+        "range": "0 or higher"
+      },
+      {
+        "default": "0",
+        "doc": "The loop start, in milliseconds into the buffer.",
+        "name": "loopstart",
+        "range": "0 or higher"
+      },
+      {
+        "default": "0",
+        "doc": "The loop end, in milliseconds into the buffer; 0 is its end.",
+        "name": "loopend",
+        "range": "0 or higher"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~phaseshift": {
     "category": "FILTER",
     "description": "Second-order allpass with a center frequency in Hz and a Q, both settable per sample: the level is unchanged, the phase turns from 0 to -360 degrees and is -180 at the center frequency. For phaser stages and phase distortion.",
@@ -19392,6 +19590,74 @@
       }
     ],
     "params": [],
+    "requires_midi_device": false
+  },
+  "~play": {
+    "category": "SAMPLING",
+    "description": "Plays a named sample buffer from a start to an end point at normal speed or over a given time, forward or backward, once or in a loop, or at the positions a signal gives; bangs when playback reaches its end.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "A connected signal is the position to play, in milliseconds into the buffer: rising plays forward, falling backward. Unconnected, a number other than 0 plays the whole buffer and 0 stops. Also takes 'start [start] [end] [duration]' (in ms: from start to end, backward when end comes first, over duration or at normal speed), 'stop', 'pause', 'resume', 'loop <0/1>', 'loopinterp <0/1>', 'interptime <ms>' and 'set <name>' (another buffer, from a later block). None of them is saved.",
+        "index": 0,
+        "label": "position",
+        "range": "0 or higher"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~play",
+    "outlets": [
+      {
+        "doc": "Buffer channel 1 as it plays. Silence while stopped or paused, and for a channel the buffer lacks.",
+        "index": 0,
+        "label": "out",
+        "range": "any float",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "A bang after the block in which playback reached its end point. Not sent in a loop, on stop, or while following a position signal.",
+        "index": 1,
+        "label": "done",
+        "range": "bang",
+        "type": "BANG"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The buffer to play. A set message does not change what is saved.",
+        "name": "name",
+        "range": "buffer name"
+      },
+      {
+        "default": "1",
+        "doc": "The number of signal outlets, each playing the buffer channel of its number. Buffer channels past the last outlet are mixed into the outlets.",
+        "name": "channels",
+        "range": "1 to 64"
+      },
+      {
+        "default": "0",
+        "doc": "1 makes playback carry on from the start point when it reaches the end point, instead of stopping.",
+        "name": "loop",
+        "range": "0 or 1"
+      },
+      {
+        "default": "0",
+        "doc": "1 crossfades a loop across its jump back to the start point, so it does not click.",
+        "name": "loopinterp",
+        "range": "0 or 1"
+      },
+      {
+        "default": "50",
+        "doc": "The length of the loop crossfade, in milliseconds; at most the length of the loop.",
+        "name": "interptime",
+        "range": "0 or higher"
+      }
+    ],
     "requires_midi_device": false
   },
   "~poke": {
@@ -19881,6 +20147,93 @@
         "doc": "1: stop after one output ramp and hold until a goto or reset.",
         "name": "oneshot",
         "range": "0-1"
+      }
+    ],
+    "requires_midi_device": false
+  },
+  "~record": {
+    "category": "SAMPLING",
+    "description": "Records signals into a named sample buffer, between a start and an end point, once or in a loop, with a sync signal that ramps from 0 to 1 over the recording: live looping and sampling.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The signal to record into channel 1; unconnected it records silence. A number other than 0 starts recording, 0 stops it. Also takes 'append <0/1>', 'loop <0/1>', 'loopstart <ms>', 'loopend <ms>', 'reset' (the whole buffer again) and 'set <name>' (another buffer, from a later block). None of them is saved.",
+        "index": 0,
+        "label": "signal",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The start point, in milliseconds into the buffer.",
+        "index": 1,
+        "label": "start",
+        "range": "0 or higher"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The end point, in milliseconds into the buffer; 0 is its end.",
+        "index": 2,
+        "label": "end",
+        "range": "0 or higher"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~record",
+    "outlets": [
+      {
+        "doc": "While recording, where each sample goes: 0 at the start point rising to 1 at the end point. 0 while not recording.",
+        "index": 0,
+        "label": "sync",
+        "range": "0 to 1",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The buffer to record into. A set message does not change what is saved.",
+        "name": "name",
+        "range": "buffer name"
+      },
+      {
+        "default": "1",
+        "doc": "The number of signal inlets, each recorded into the buffer channel of its number.",
+        "name": "channels",
+        "range": "1 to 64"
+      },
+      {
+        "default": "0",
+        "doc": "1 makes a start carry on where the last recording stopped, instead of at the start point.",
+        "name": "append",
+        "range": "0 or 1"
+      },
+      {
+        "default": "0",
+        "doc": "1 makes recording carry on from the start point when it reaches the end point, instead of stopping.",
+        "name": "loop",
+        "range": "0 or 1"
+      },
+      {
+        "default": "0",
+        "doc": "The start point, in milliseconds into the buffer.",
+        "name": "loopstart",
+        "range": "0 or higher"
+      },
+      {
+        "default": "0",
+        "doc": "The end point, in milliseconds into the buffer; 0 is its end.",
+        "name": "loopend",
+        "range": "0 or higher"
       }
     ],
     "requires_midi_device": false
