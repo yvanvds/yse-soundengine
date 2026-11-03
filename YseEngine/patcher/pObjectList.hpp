@@ -51,7 +51,8 @@ namespace YSE {
    *  - DSP dynamics: ``D_NORMALIZE`` (scaling by the running peak).
    *  - DSP sampling: ``D_BUFFER``, ``D_INFO`` (a buffer's details),
    *    ``D_PEEK`` (one sample read or written by message), ``D_POKE`` (a
-   *    signal written at signal-rate indexes).
+   *    signal written at signal-rate indexes), ``D_INDEX`` (a buffer read
+   *    at signal-rate indexes, without interpolation).
    *  - DSP math: ``D_ADD``, ``D_MULTIPLY``, ``D_CLIP``, ``D_REVERSESUBSTRACT``,
    *    ``D_REVERSEDIVIDE``, ``D_MODULO``, ``D_PLUSEQUALS``,
    *    ``D_DELTA`` (difference between successive samples), ``D_DEGRADE``
@@ -295,6 +296,7 @@ namespace YSE {
     DEFOBJ(D_INFO, "~info");
     DEFOBJ(D_PEEK, "~peek");
     DEFOBJ(D_POKE, "~poke");
+    DEFOBJ(D_INDEX, "~index");
 
     DEFOBJ(G_INT, ".i");
     DEFOBJ(G_FLOAT, ".f");

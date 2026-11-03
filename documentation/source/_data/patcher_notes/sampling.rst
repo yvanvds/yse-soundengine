@@ -160,3 +160,35 @@ it carries on in the changed buffer.
 the background and written from a later block on; ``set`` alone stops
 writing. The switch is not saved with the patch: a reloaded ``~poke``
 writes the buffer of its argument.
+
+.. patcher-object:: ~index
+
+Reads the buffer of its name at the positions a signal gives, one sample
+each, without interpolation. The arguments are ``name [channel]``; channels
+count from 1.
+
+- Left inlet: where to read, in samples from 0. A fractional position reads
+  the whole sample below it. A number is used while no signal is connected;
+  it starts at 0. Below 0 reads the first sample and past the end the last.
+- Right inlet: the channel. A channel the buffer does not have reads
+  silence, as does a name no buffer holds samples for yet.
+
+A signal counter into the left inlet plays the buffer back at its own pace,
+one sample per sample, which suits a buffer used as a table of values (a
+window shape, a step sequence) rather than a sound to play at another pitch:
+
+.. code-block:: text
+
+   [~count 0 512 1]   0, 1, 2 ... 511, and again
+    |
+   [~index window]    the samples of window, in order
+
+Reading follows the same rule for a fractional position as ``~poke``
+writing, so one index signal into both reads back what was written there.
+Changes to the buffer, from a ``~buffer`` message or a ``~poke``, are heard
+from the next block.
+
+``set <name>`` in the left inlet switches to another buffer, looked up in
+the background and read from a later block on; ``set`` alone reads silence.
+The switch is not saved with the patch: a reloaded ``~index`` reads the
+buffer of its argument.

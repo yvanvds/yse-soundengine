@@ -219,6 +219,7 @@ set(YSE_SRCS
   patcher/sampling/dInfo.cpp
   patcher/sampling/dPeek.cpp
   patcher/sampling/dPoke.cpp
+  patcher/sampling/dIndex.cpp
   patcher/filters/dVcf.cpp
   patcher/filters/dSah.cpp
   patcher/filters/dSash.cpp
@@ -701,6 +702,7 @@ set_source_files_properties(
   patcher/sampling/dInfo.cpp
   patcher/sampling/dPeek.cpp
   patcher/sampling/dPoke.cpp
+  patcher/sampling/dIndex.cpp
   patcher/filters/dVcf.cpp
   patcher/filters/dSah.cpp
   patcher/filters/dSash.cpp

@@ -17832,6 +17832,59 @@
     ],
     "requires_midi_device": false
   },
+  "~index": {
+    "category": "SAMPLING",
+    "description": "Reads a named sample buffer at the sample indexes a signal gives, without interpolation: a fractional index reads the whole sample below it.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Where to read, in samples from 0: a signal, or a number used while no signal is connected. Below 0 reads the first sample, past the end the last. 'set <name>' switches to another buffer (from a later block; not saved with the patch).",
+        "index": 0,
+        "label": "index",
+        "range": "0 or higher"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The buffer channel to read, from 1.",
+        "index": 1,
+        "label": "channel",
+        "range": "1 or higher"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~index",
+    "outlets": [
+      {
+        "doc": "The sample at each index. Silence without a buffer, or for a channel the buffer lacks.",
+        "index": 0,
+        "label": "out",
+        "range": "any float",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The buffer to read. A set message does not change what is saved.",
+        "name": "name",
+        "range": "buffer name"
+      },
+      {
+        "default": "1",
+        "doc": "The buffer channel to read, from 1.",
+        "name": "channel",
+        "range": "1 or higher"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~info": {
     "category": "SAMPLING",
     "description": "Reports what a named sample buffer holds: its sample rate, length and channels, and the name, path, loop points and instrument data of the file last loaded into it.",

@@ -3,7 +3,7 @@
 
     sampleAccess.hpp
     Reading and writing single samples of a sample buffer by index
-    (issue #1144).
+    (issues #1144, #1145).
 
   ==============================================================================
 */
@@ -11,6 +11,7 @@
 #ifndef YSE_DSP_SAMPLING_SAMPLEACCESS_HPP
 #define YSE_DSP_SAMPLING_SAMPLEACCESS_HPP
 
+#include "../../headers/constants.hpp"
 #include "../../headers/defines.hpp"
 #include "../../headers/types.hpp"
 #include "../buffer.hpp"
@@ -18,6 +19,7 @@
 namespace YSE {
   namespace DSP {
 
+    class sampleView;
     class sampleWriteView;
 
     /**
@@ -119,6 +121,72 @@ namespace YSE {
 
     private:
       UInt targetChannel = 0;
+    };
+
+    /**
+     *  @brief Reads a ``sampleBuffer`` at sample indexes given by a signal,
+     *         without interpolation: what the patcher's ``~index`` does.
+     *
+     *  Output sample ``i`` is the buffer's sample at the frame given by
+     *  sample ``i`` of the indexes, truncated toward 0 to a whole frame
+     *  (the same frame ``sampleIndexWriter`` writes for that index, so a
+     *  ``~poke`` and an ``~index`` driven by one index signal meet). An index
+     *  below 0, or not a number, reads the first frame; one past the end
+     *  reads the last. A channel the buffer lacks, or an empty or unbound
+     *  buffer, reads silence.
+     *
+     *  It works on the ``sampleView`` a ``sampleBufferReader`` pins for the
+     *  block. Every read is a relaxed atomic load, so a writer on another
+     *  render thread may write the same samples meanwhile. Indexes count
+     *  samples of the buffer, whatever its rate or the engine's, so there is
+     *  no state derived from the sample rate.
+     *
+     *  .. code-block:: cpp
+     *
+     *     // control thread
+     *     reader.bind(DSP::sampleBufferRegistry::acquire("table"));
+     *
+     *     // audio thread, once per block
+     *     DSP::sampleView view = reader.pin();
+     *     DSP::buffer& out = index(view, indexes);
+     *
+     *  The output is sized to ``STANDARD_BUFFERSIZE`` when the object is
+     *  made; a shorter block resizes it down without allocating, and a longer
+     *  one is cut to ``STANDARD_BUFFERSIZE``. Processing allocates nothing
+     *  and takes no lock. Not thread-safe: one thread at a time.
+     */
+    class API sampleIndexReader {
+    public:
+      sampleIndexReader();
+
+      /** @brief The channel read, from 0. */
+      void channel(UInt c) {
+        targetChannel = c;
+      }
+      UInt channel() const {
+        return targetChannel;
+      }
+
+      /** @brief One sample: the channel's sample at @p index, truncated and
+       *         clamped to the buffer; 0 for a channel the buffer lacks or
+       *         an empty buffer. */
+      Flt read(const sampleView& view, Flt index) const;
+
+      /** @brief One block: the sample at each index. As long as
+       *         @p indexes, up to ``STANDARD_BUFFERSIZE``. */
+      buffer& operator()(const sampleView& view, buffer& indexes);
+
+      /** @brief One block of @p length samples, all read at @p index. */
+      buffer& operator()(const sampleView& view, Flt index, UInt length = STANDARD_BUFFERSIZE);
+
+      /** @brief The output of the last call. */
+      buffer& out() {
+        return output;
+      }
+
+    private:
+      UInt targetChannel = 0;
+      buffer output;
     };
 
   } // namespace DSP

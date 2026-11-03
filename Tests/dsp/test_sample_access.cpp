@@ -1,8 +1,10 @@
-// Tests for YSE::DSP::sampleAccess and sampleIndexWriter
-// (YseEngine/dsp/sampling/sampleAccess.hpp), issue #1144: one sample read or
-// written by index (~peek), and a signal written at signal-rate indexes
-// (~poke). Both work on the view a sampleBufferWriter pins; the writer itself
-// is tested in test_sampleBuffer.cpp.
+// Tests for YSE::DSP::sampleAccess, sampleIndexWriter and sampleIndexReader
+// (YseEngine/dsp/sampling/sampleAccess.hpp), issues #1144 and #1145: one
+// sample read or written by index (~peek), a signal written at signal-rate
+// indexes (~poke), and a buffer read at signal-rate indexes without
+// interpolation (~index). The first two work on the view a sampleBufferWriter
+// pins, the reader on a sampleBufferReader's; both are tested in
+// test_sampleBuffer.cpp.
 
 #include <doctest/doctest.h>
 #include <cmath>
@@ -19,8 +21,11 @@
 using YSE::DSP::buffer;
 using YSE::DSP::sampleAccess;
 using YSE::DSP::sampleBuffer;
+using YSE::DSP::sampleBufferReader;
 using YSE::DSP::sampleBufferWriter;
+using YSE::DSP::sampleIndexReader;
 using YSE::DSP::sampleIndexWriter;
+using YSE::DSP::sampleView;
 using YSE::DSP::sampleWriteView;
 
 namespace {
@@ -269,6 +274,171 @@ TEST_SUITE("dsp") {
       CHECK(TestHelpers::g_alloc_count.load() == 0);
     }
     CHECK(out == 0.75f);
+  }
+
+  // ─── sampleIndexReader ────────────────────────────────────────────────────
+
+  TEST_CASE("sampleIndexReader: the sample at each index, truncated and clamped (#1145)") {
+    auto b = Counting(2, 8);
+    sampleBufferReader readerOf(b);
+    sampleIndexReader index;
+    CHECK(index.channel() == 0);
+    // 2.9 truncates to 2, -0.5 to 0; below 0 or NaN reads the first frame,
+    // 8 and beyond the last.
+    buffer indexes =
+        Ramp({0.f, 2.9f, 7.f, -0.5f, -1.f, 8.f, 1e9f, std::numeric_limits<float>::quiet_NaN(),
+              std::numeric_limits<float>::infinity()});
+    sampleView view = readerOf.pin();
+    buffer& out = index(view, indexes);
+    CHECK(&out == &index.out());
+    REQUIRE(out.getLength() == 9);
+    const float expected[] = {10.f, 12.f, 17.f, 10.f, 10.f, 17.f, 17.f, 10.f, 17.f};
+    for (UInt i = 0; i < 9; ++i) {
+      CAPTURE(i);
+      CHECK(out.getPtr()[i] == expected[i]);
+    }
+    index.channel(1);
+    buffer& second = index(view, indexes);
+    CHECK(second.getPtr()[0] == 20.f);
+    CHECK(second.getPtr()[1] == 22.f);
+    CHECK(second.getPtr()[2] == 27.f);
+    CHECK(index.read(view, 5.5f) == 25.f);
+    CHECK(index.read(view, -3.f) == 20.f);
+    CHECK(index.read(view, 99.f) == 27.f);
+  }
+
+  TEST_CASE("sampleIndexReader: no channel, no buffer or no samples read silence (#1145)") {
+    auto b = Counting(1, 4);
+    sampleBufferReader readerOf(b);
+    sampleIndexReader index;
+    buffer indexes = Ramp({0.f, 1.f, 2.f});
+    {
+      sampleView view = readerOf.pin();
+      index.channel(1); // the buffer has one
+      buffer& out = index(view, indexes);
+      for (UInt i = 0; i < 3; ++i)
+        CHECK(out.getPtr()[i] == 0.f);
+      CHECK(index.read(view, 0.f) == 0.f);
+      CHECK(index(view, 1.f, 4).getPtr()[3] == 0.f);
+    }
+    index.channel(0);
+    sampleBufferReader unbound;
+    sampleView none = unbound.pin();
+    CHECK(none.empty());
+    buffer& silent = index(none, indexes);
+    for (UInt i = 0; i < 3; ++i)
+      CHECK(silent.getPtr()[i] == 0.f);
+    CHECK(index.read(none, 0.f) == 0.f);
+
+    auto empty = sampleBuffer::create(1, 0);
+    sampleBufferReader emptyReader(empty);
+    sampleView nothing = emptyReader.pin();
+    CHECK(index(nothing, indexes).getPtr()[0] == 0.f);
+    CHECK(index(nothing, 3.f).getPtr()[0] == 0.f);
+  }
+
+  TEST_CASE("sampleIndexReader: one index for a block, and block lengths (#1145)") {
+    auto b = Counting(1, 8);
+    sampleBufferReader readerOf(b);
+    sampleIndexReader index;
+    sampleView view = readerOf.pin();
+    buffer& out = index(view, 3.7f);
+    REQUIRE(out.getLength() == YSE::STANDARD_BUFFERSIZE);
+    for (UInt i = 0; i < YSE::STANDARD_BUFFERSIZE; ++i)
+      CHECK(out.getPtr()[i] == 13.f);
+    CHECK(index(view, 6.f, 5).getLength() == 5);
+    CHECK(index.out().getPtr()[4] == 16.f);
+    // A block longer than STANDARD_BUFFERSIZE is cut to it.
+    buffer longer(YSE::STANDARD_BUFFERSIZE * 2);
+    longer = 1.f;
+    CHECK(index(view, longer).getLength() == YSE::STANDARD_BUFFERSIZE);
+    CHECK(index(view, 1.f, YSE::STANDARD_BUFFERSIZE * 3).getLength() == YSE::STANDARD_BUFFERSIZE);
+  }
+
+  TEST_CASE("sampleIndexReader: a sine table read back in reverse, closed form (#1145)") {
+    // A table of sin(0.1 n), read by the indexes 63 - n, is sin(0.1 (63 - n))
+    // exactly: no interpolation, every index whole.
+    auto b = sampleBuffer::create(1, 64);
+    std::vector<float> table(64);
+    for (UInt n = 0; n < 64; ++n)
+      table[n] = std::sin(0.1f * static_cast<float>(n));
+    b->setSamples(0, 0, table.data(), 64);
+    sampleBufferReader readerOf(b);
+    sampleIndexReader index;
+    buffer indexes(64);
+    for (UInt n = 0; n < 64; ++n)
+      indexes.getPtr()[n] = static_cast<float>(63 - n);
+    sampleView view = readerOf.pin();
+    buffer& out = index(view, indexes);
+    for (UInt n = 0; n < 64; ++n)
+      CHECK(out.getPtr()[n] == table[63 - n]);
+  }
+
+  TEST_CASE("sampleIndexReader: reads the frame sampleIndexWriter writes for an index (#1145)") {
+    // One fractional index signal into both: each read lands where the
+    // write did.
+    auto b = sampleBuffer::create(1, 16);
+    sampleBufferWriter writer(b);
+    sampleBufferReader readerOf(b);
+    sampleIndexWriter poke;
+    sampleIndexReader index;
+    buffer values(8);
+    buffer indexes(8);
+    for (UInt i = 0; i < 8; ++i) {
+      values.getPtr()[i] = 0.1f * static_cast<float>(i + 1);
+      indexes.getPtr()[i] = 1.75f * static_cast<float>(i) + 0.5f;
+    }
+    {
+      sampleWriteView w = writer.pin();
+      CHECK(poke(w, values, indexes) == 8);
+    }
+    sampleView view = readerOf.pin();
+    buffer& out = index(view, indexes);
+    for (UInt i = 0; i < 8; ++i)
+      CHECK(out.getPtr()[i] == values.getPtr()[i]);
+  }
+
+  TEST_CASE("sampleIndexReader: no state follows the sample rate (#1145)") {
+    // Indexes are samples of the buffer, whatever the engine rate or the
+    // buffer's.
+    SampleRateGuard guard;
+    auto b = Counting(1, 8);
+    sampleBufferReader readerOf(b);
+    sampleIndexReader index;
+    YSE::SAMPLERATE = 22050;
+    {
+      sampleView view = readerOf.pin();
+      CHECK(index(view, 5.f, 2).getPtr()[1] == 15.f);
+    }
+    YSE::SAMPLERATE = 96000;
+    sampleView view = readerOf.pin();
+    CHECK(index(view, 5.f, 2).getPtr()[1] == 15.f);
+    CHECK(index.read(view, 2.f) == 12.f);
+  }
+
+  TEST_CASE("sampleIndexReader: processing allocates nothing (#1145)") {
+    auto b = Counting(2, 1024);
+    sampleBufferReader readerOf(b);
+    sampleIndexReader index;
+    buffer indexes(YSE::STANDARD_BUFFERSIZE);
+    buffer shorter(16);
+    for (UInt i = 0; i < YSE::STANDARD_BUFFERSIZE; ++i)
+      indexes.getPtr()[i] = static_cast<float>(i * 7);
+    shorter = 3.f;
+    float last = 0.f;
+    {
+      TestHelpers::ProbeScope probe;
+      for (int block = 0; block < 4; ++block) {
+        sampleView view = readerOf.pin();
+        index.channel(static_cast<UInt>(block % 2));
+        index(view, indexes);
+        index(view, shorter); // down and back up, within capacity
+        index(view, 2.5f);
+        last = index(view, indexes).getPtr()[1];
+      }
+      CHECK(TestHelpers::g_alloc_count.load() == 0);
+    }
+    CHECK(last == 27.f); // channel 1, frame 7
   }
 
 } // TEST_SUITE

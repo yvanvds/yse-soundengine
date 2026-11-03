@@ -295,7 +295,9 @@ at audio rate through a ``sampleBufferWriter``.
    :project: libYSE
 
 Reading and writing single samples by index, on a pinned
-``sampleWriteView``: what ``~peek`` and ``~poke`` do.
+``sampleWriteView``: what ``~peek`` and ``~poke`` do. Reading a pinned
+``sampleView`` at signal-rate indexes without interpolation: what ``~index``
+does.
 
 .. doxygenfile:: dsp/sampling/sampleAccess.hpp
    :project: libYSE
