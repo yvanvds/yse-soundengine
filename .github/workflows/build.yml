@@ -43,13 +43,24 @@ jobs:
     # taken against 20.1, giving 40. That is still 1/9 of GitHub's 360-minute
     # default, so a genuinely hung scan is killed inside the hour.
     #
+    # Re-measured 2026-11-03 (#1261) after the patcher and MSP batches roughly
+    # tripled the suite: over the last 58 successful runs p50 26.5 min, p90
+    # 34.9, p95 37.2, longest completed run 38.6. 40 had drifted to ~1.15x the
+    # worst run, and PR #1258 was cancelled at the cap twice with every test
+    # green. GitHub runners come in speed tiers, and on the slowest the coverage
+    # suites run ~2x slower (yse_tests_clock ~36-40 s vs ~10-12 s is a quick
+    # tier marker), so a modest suite increase on a slow-tier runner is enough to
+    # cross it. 3x p90 = 104.7 -> 105, which also covers 2x worst (77.2). Still
+    # under a third of GitHub's 360-minute default. Re-check these numbers when
+    # p50 has moved by more than ~25%: the rule only holds if it is re-applied.
+    #
     # One more reason the margin has to be wide: the clock includes runner
     # acquisition, not just execution. Observed directly during the Actions
     # incident of 2026-08-06 -- a run of this job reported started_at 16:59:04
     # but did not execute step 1 until 17:07:26, so 8m22s of the budget was
     # spent queueing before a single command ran. Sizing the cap against step
     # durations alone therefore understates what it actually has to cover.
-    timeout-minutes: 40
+    timeout-minutes: 105
     env:
       BUILD_WRAPPER_OUT_DIR: build_wrapper_output_directory # Directory where build-wrapper output will be placed
     steps:
