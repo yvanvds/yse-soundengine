@@ -30,7 +30,10 @@ race:snd_pcm_area_copy
 deadlock:libspa-support.so
 deadlock:libasound.so
 
-# Double lock and destroy-of-a-locked-mutex inside libspa-support, under
-# Pa_Initialize / Pa_OpenStream / refreshDevices(). The device-refresh suite
-# reaches these even with the audio server hidden.
+# Double lock inside libspa-support, under Pa_Initialize / Pa_OpenStream /
+# refreshDevices(). The device-refresh suite reaches this even with the audio
+# server hidden. Its destroy-of-a-locked-mutex is not suppressed here: on
+# compiler-rt 22 that report can wedge the runtime before any suppression is
+# checked, so yse_tests turns it off with report_destroy_locked=0 (Tests/main.cpp,
+# issue #1263).
 mutex:libspa-support.so

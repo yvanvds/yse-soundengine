@@ -7,6 +7,7 @@ set(YSE_TEST_SOURCES
   test_sanity.cpp
   support/alloc_probe.cpp
   support/test_alloc_probe.cpp
+  support/test_tsan_runtime.cpp
   dsp/test_buffer.cpp
   dsp/test_file_buffer.cpp
   dsp/test_ramp.cpp
@@ -804,6 +805,17 @@ add_test(
   WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
 set_tests_properties(yse_tests_probe PROPERTIES LABELS tests)
+
+# The TSan runtime's destroy-of-a-locked-mutex path (issue #1263), registered on
+# its own because a failure wedges the runtime: the short timeout is the failure
+# signal, and no other suite shares the process. The one case compiles only under
+# TSan, so this entry matches nothing in the other builds. Needs no engine session.
+add_test(
+  NAME    yse_tests_tsanruntime
+  COMMAND yse_tests --test-suite=tsanruntime
+  WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+)
+set_tests_properties(yse_tests_tsanruntime PROPERTIES LABELS tests TIMEOUT 60)
 
 add_test(
   NAME    yse_tests_patcher
