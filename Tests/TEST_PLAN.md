@@ -24,7 +24,9 @@
 > `YSE_TESTS_ALLOW_MONOLITHIC=1` to reproduce that crash on purpose.
 > Sanitizer runs: `python yse.py test --sanitizer asan|tsan` (TSan is
 > Linux/clang only; `tools/ci-linux/Dockerfile.sanitizers` reproduces it on
-> Windows).
+> Windows). Forced-rate run: `YSE_TEST_FORCED_RATE=44100 python yse.py test`
+> (#72), the second pass of CI's coverage job, which runs on pushes only
+> (#1269), so a PR does not catch a sample-rate bug unless you run this.
 >
 > The render-scheduler measurement protocol and baselines (#857–#862) that
 > used to sit at the end of this file are now in
