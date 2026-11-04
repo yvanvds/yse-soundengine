@@ -1,0 +1,60 @@
+name: Windows
+
+# The only job that tests on real Windows (#1266). build-windows in release.yml
+# only builds, and only on tags or manual dispatch. This one is too slow to put
+# on every PR, so it runs on pushes to dev. A PR starts it only when the PR
+# changes this file, which is how a change to the workflow gets tested before
+# it merges.
+on:
+  push:
+    branches:
+      - dev
+  pull_request:
+    paths:
+      - .github/workflows/windows.yml
+  workflow_dispatch:
+
+jobs:
+  test-windows:
+    # Mirror build.yml's release-flow gate: the push that landed the SHAs on dev
+    # already ran this workflow, so skip the duplicate PR-event run for a
+    # dev -> master or master -> dev PR that happens to carry this file.
+    if: github.event_name != 'pull_request' || (github.head_ref != 'dev' && github.head_ref != 'master')
+    name: Build and test (Windows x64)
+    runs-on: windows-latest
+    # Provisional, sized for the first run with no history (see the #621 rule on
+    # the build job in build.yml). Re-measure once dev has real runs.
+    timeout-minutes: 120
+    permissions:
+      contents: read
+    defaults:
+      run:
+        shell: msys2 {0}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      - name: Setup MSYS2 (CLANG64)
+        uses: msys2/setup-msys2@e9898307ac31d1a803454791be09ab9973336e1c # v2.31.1
+        with:
+          msystem: CLANG64
+          update: false
+          install: >-
+            mingw-w64-clang-x86_64-cmake
+            mingw-w64-clang-x86_64-ninja
+            mingw-w64-clang-x86_64-clang
+            mingw-w64-clang-x86_64-binutils
+            mingw-w64-clang-x86_64-pkgconf
+            mingw-w64-clang-x86_64-portaudio
+            mingw-w64-clang-x86_64-libsndfile
+            mingw-w64-clang-x86_64-rtmidi
+            mingw-w64-clang-x86_64-python
+
+      - name: Build and run the full ctest set
+        run: python yse.py test
+
+      # ctest prints a test's output only on failure, so a green run never names
+      # a case. The #1249 cases are the Windows-specific reason this job exists,
+      # and this step puts them in the log by name, whatever ctest decided.
+      - name: 'Run the #1249 cases by name'
+        if: ${{ !cancelled() }}
+        run: ./build-tests/bin/yse_tests.exe --test-case='*#1249*' --duration=true
