@@ -1,0 +1,78 @@
+name: Restore compile cache
+description: >
+  Turns ccache on for the rest of the job and restores this job's cache. Run it
+  after the compiler is installed and before the first configure (#1271). Pair
+  it with ccache-save at the end of the job.
+
+# Which jobs use this: the ones PRs wait on. `Build and analyze` does not, and
+# must not: it no longer affects PR wait, and it combines Sonar's build-wrapper
+# with --coverage, so a caching mistake could quietly damage the analysis.
+# windows.yml does not either, because it does not run on ordinary PRs.
+#
+# What ccache sees is unchanged on purpose. Nothing here sets
+# CCACHE_SLOPPINESS, so a hit needs the same compiler, flags and preprocessed
+# input. ccache stores nothing for a failed compile, so a compile break cannot
+# be hidden. CCACHE_BASEDIR stays unset too. It would rewrite the compiler's
+# paths to relative ones, which changes __FILE__ in doctest's messages and the
+# paths in sanitizer reports. It would also buy nothing here: the checkout is
+# at the same absolute path in every run on a hosted runner, and ccache hashes
+# the working directory anyway when -g is on.
+
+inputs:
+  id:
+    description: >
+      Names this cache. Must differ between any two jobs or matrix legs with
+      different flags, because sharing one would only thrash it.
+    required: true
+  compiler:
+    description: The C++ compiler the job builds with. Its --version goes into the key.
+    required: true
+  max-size:
+    description: CCACHE_MAXSIZE for this job.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Turn on ccache
+      id: setup
+      shell: bash
+      env:
+        CACHE_ID: ${{ inputs.id }}
+        COMPILER: ${{ inputs.compiler }}
+        MAX_SIZE: ${{ inputs.max-size }}
+      # CMake reads the launcher variables from the environment on the first
+      # configure, so CMakePresets.json stays the source of truth.
+      #
+      # CCACHE_COMPILERCHECK=content because the default compares the compiler's
+      # mtime, which says little about a tool that was just installed or
+      # unpacked. Hashing the binary is strictly stronger.
+      run: |
+        {
+          echo "CMAKE_C_COMPILER_LAUNCHER=ccache"
+          echo "CMAKE_CXX_COMPILER_LAUNCHER=ccache"
+          echo "CCACHE_DIR=$HOME/.cache/ccache"
+          echo "CCACHE_MAXSIZE=$MAX_SIZE"
+          echo "CCACHE_COMPILERCHECK=content"
+        } >> "$GITHUB_ENV"
+        "$COMPILER" --version
+        compiler_id=$("$COMPILER" --version | sha256sum | cut -c1-16)
+        prefix="ccache-v1-$CACHE_ID-$compiler_id-"
+        echo "prefix=$prefix" >> "$GITHUB_OUTPUT"
+        echo "CCACHE_KEY=$prefix$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" >> "$GITHUB_ENV"
+    - name: Restore the cache
+      # A cache key can't be overwritten, so a fixed key would freeze the cache
+      # at its first save. The key is unique per run, and restore-keys picks the
+      # newest entry with this job's prefix. The compiler hash is in the prefix,
+      # so a runner-image compiler bump starts a new cache and doesn't restore
+      # entries that could never hit.
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ~/.cache/ccache
+        key: ${{ env.CCACHE_KEY }}
+        restore-keys: ${{ steps.setup.outputs.prefix }}
+    - name: Zero the ccache counters
+      # The counters live in the cache directory, so they arrive with it. Zero
+      # them so the numbers ccache-save prints describe this run only.
+      shell: bash
+      run: ccache -z
