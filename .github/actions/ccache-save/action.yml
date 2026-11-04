@@ -10,11 +10,6 @@ runs:
     - name: Show ccache statistics
       shell: bash
       run: ccache -s -v
-    - name: TEMPORARY list the compiles that missed
-      shell: bash
-      run: |
-        awk '/Working directory:/ {cwd[$2]=$NF} /Source file:/ {src[$2]=$NF}
-             /Result: .*miss/ {print cwd[$2], src[$2]}' "$HOME/ccache-debug.log" | sort | uniq -c | sort -rn | head -60
     - name: Save the cache
       # Saves from dev pushes only. A PR can read its base branch's caches, but
       # dev can't read a PR's, so a PR's save would never reach another branch.

@@ -60,7 +60,6 @@ runs:
           echo "CCACHE_DIR=$HOME/.cache/ccache"
           echo "CCACHE_MAXSIZE=$MAX_SIZE"
           echo "CCACHE_COMPILERCHECK=content"
-          echo "CCACHE_LOGFILE=$HOME/ccache-debug.log"
         } >> "$GITHUB_ENV"
         "$COMPILER" --version
         compiler_id=$("$COMPILER" --version | sha256sum | cut -c1-16)
