@@ -29,11 +29,13 @@ inputs:
     required: true
   max-size:
     # One full build measured on PR #1272: 0.30 GB for GCC, 0.34 for Android,
-    # 0.17-0.21 for clang. The limit is about 1.75x that, so one full rebuild's
-    # worth of stale objects can sit beside the current ones. A larger limit
-    # only fills with stale objects that every save then uploads, out of the
-    # repo's 10 GB. The objects grow with the code, so raise it if `ccache -s`
-    # shows the cache at its limit and the hit rate falling.
+    # 0.17-0.21 for clang. The limit is about 1.75x that, so a full rebuild
+    # evicts only part of the objects it replaced. After one, the six caches
+    # fill to their limits and each dev push saves about 2.3 GiB, so the repo's
+    # 10 GB holds about four pushes. That is enough: restore-keys only reads each
+    # job's newest entry, and LRU eviction removes the superseded ones first.
+    # The objects grow with the code, so raise a limit if one full build no
+    # longer fits under it, which shows as a falling hit rate in `ccache -s`.
     description: CCACHE_MAXSIZE for this job.
     required: true
 
