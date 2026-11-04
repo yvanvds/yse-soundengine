@@ -28,6 +28,12 @@ inputs:
     description: The C++ compiler the job builds with. Its --version goes into the key.
     required: true
   max-size:
+    # One full build measured on PR #1272: 0.30 GB for GCC, 0.34 for Android,
+    # 0.17-0.21 for clang. The limit is about 1.75x that, so one full rebuild's
+    # worth of stale objects can sit beside the current ones. A larger limit
+    # only fills with stale objects that every save then uploads, out of the
+    # repo's 10 GB. The objects grow with the code, so raise it if `ccache -s`
+    # shows the cache at its limit and the hit rate falling.
     description: CCACHE_MAXSIZE for this job.
     required: true
 

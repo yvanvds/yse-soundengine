@@ -233,7 +233,7 @@ jobs:
         with:
           id: tests-debug-gcc
           compiler: g++
-          max-size: 3G
+          max-size: 500M
       - name: Build and run the full ctest set
         run: python3 yse.py test
       - name: Report and save compile cache
@@ -350,7 +350,7 @@ jobs:
         with:
           id: android-${{ matrix.abi }}
           compiler: ${{ steps.ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/clang++
-          max-size: 3G
+          max-size: 600M
       - name: Configure CMake
         run: >
           cmake -B build-android -G Ninja
@@ -429,7 +429,7 @@ jobs:
         with:
           id: ${{ matrix.preset }}
           compiler: clang++
-          max-size: 3G
+          max-size: 350M
       - name: Configure (${{ matrix.preset }})
         run: cmake --preset ${{ matrix.preset }}
       - name: Build
@@ -529,7 +529,7 @@ jobs:
         with:
           id: tests-${{ matrix.san }}
           compiler: clang++
-          max-size: 3G
+          max-size: 350M
       - name: Configure (tests-${{ matrix.san }})
         run: cmake --preset tests-${{ matrix.san }}
       - name: Build
