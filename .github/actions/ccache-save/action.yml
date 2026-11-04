@@ -20,7 +20,7 @@ runs:
       # would spend it on entries nothing else can use.
       #
       # A run with no misses added nothing, so it has nothing to save.
-      if: github.event_name == 'push' && github.ref_name == 'dev' && steps.stats.outputs.misses != '0'
+      if: (github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref_name == 'dev')) && steps.stats.outputs.misses != '0'
       uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: ~/.cache/ccache
