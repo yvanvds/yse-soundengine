@@ -323,7 +323,10 @@ jobs:
     if: needs.android-gate.outputs.run == 'true'
     name: Android build (${{ matrix.abi }})
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    # Sized by the rule on the `build` job (#621). Over the last 70 runs of this
+    # workflow, to 2026-11-05 (93 runs of this job across both ABIs): p50 10.0
+    # min, p90 11.8, worst 18.2. 3x p90 = 35.5, 2x worst = 36.4 -> 40 (#1273).
+    timeout-minutes: 40
     strategy:
       fail-fast: false
       matrix:
@@ -389,7 +392,12 @@ jobs:
     if: github.event_name == 'push' || (github.head_ref != 'dev' && github.head_ref != 'master')
     name: Python build (${{ matrix.label }})
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    # Sized by the rule on the `build` job (#621). Over the last 70 runs of this
+    # workflow, to 2026-11-05 (139 runs of this job across both legs): p50 10.7
+    # min, p90 13.7, worst 20.5. 3x p90 = 2x worst = 41 -> 45 (#1273). Most of
+    # those runs predate ccache (#1271), but a PR that changes a widely included
+    # header still recompiles nearly everything, and caps are never lowered.
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
@@ -489,7 +497,11 @@ jobs:
     if: github.event_name == 'push' || (github.head_ref != 'dev' && github.head_ref != 'master')
     name: Sanitizers (${{ matrix.san }})
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    # Sized by the rule on the `build` job (#621), against the slower TSan leg.
+    # Over the last 70 runs of this workflow, to 2026-11-05 (69 TSan runs): p50
+    # 18.1 min, p90 25.5, worst 28.8. 3x p90 = 76.5, 2x worst = 57.6 -> 80
+    # (#1273). ASan (p90 14.2, worst 17.9) shares this cap and would need 45.
+    timeout-minutes: 80
     strategy:
       fail-fast: false
       matrix:
