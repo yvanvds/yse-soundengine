@@ -167,11 +167,12 @@ For `YSE_ENABLE_PYTHON=ON` add the Python embedding headers + libpython:
 
 ## CI / Distribution
 
-Five GitHub Actions workflows under `.github/workflows/`. PR-event runs whose head is `dev` or `master` (release/sync PRs) are skipped where the push already ran the same SHAs.
+Six GitHub Actions workflows under `.github/workflows/`. PR-event runs whose head is `dev` or `master` (release/sync PRs) are skipped where the push already ran the same SHAs.
 
 | Workflow | Triggers | What it does |
 |----------|----------|--------------|
 | `build.yml` | push (master/dev), PR | `build`: Linux Debug + `YSE_ENABLE_COVERAGE=ON`, two full ctest passes (native + forced 48 kHz), gcovr, SonarCloud scan (`yvanvds_yse-soundengine`). `android-gate` + `build-android`: NDK cross-compile of `libyse.so` + `libyse_tests.so` (both ABIs on push/PR to master, x86_64 only on path-matched PRs to dev, #630). `build-python`: `tests-debug-python` and `tests-debug-python-asan` on Linux/clang, `ctest -L python`. `build-sanitizers`: ASan over the patcher suite (+ lifecycle/logsafety), TSan over every ctest entry bar `yse_unit_tests` and `yse_tests_contentpack` (#824), widened on a push to `dev` to the `tests-tsan-full` sweep |
+| `windows.yml` | push to dev, manual, PRs that change the workflow file | `tests-debug` on MSYS2 Clang64 on a real Windows runner: the full ctest set through `python yse.py test` (#1266). Not on ordinary PRs, so it adds no time to them |
 | `format.yml` | push (master/dev), PR | `clang-format --dry-run --Werror` over `YseEngine/` + `Tests/`, pinned to clang-format 22.1.4 |
 | `release.yml` | tag `v*`, manual | Builds Linux x64, Windows x64, and Android multi-ABI release archives → `dist/` → uploaded as GH release assets |
 | `benchmark.yml` | push (master/dev), PR to master, manual | Runs google-benchmark; results pushed to the `bench-history` orphan branch; PR comments on regressions |
