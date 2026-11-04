@@ -57,7 +57,8 @@ jobs:
 
       # ctest prints a test's output only on failure, so a green run never names
       # a case. The #1249 cases are the Windows-specific reason this job exists,
-      # and this step puts them in the log by name, whatever ctest decided.
-      - name: 'Run the #1249 cases by name'
+      # and the midiout case logs which path this runner takes (#1268). This step
+      # puts them in the log by name, whatever ctest decided.
+      - name: 'Run the #1249 and #1268 cases by name'
         if: ${{ !cancelled() }}
-        run: ./build-tests/bin/yse_tests.exe --test-case='*#1249*' --duration=true
+        run: ./build-tests/bin/yse_tests.exe --test-case='*#1249*,*the port opens on the background pool*' --duration=true

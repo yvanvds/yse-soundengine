@@ -499,6 +499,7 @@ TEST_SUITE("patcher") {
 
     mMidiOut object;
     const std::uint64_t before = MidiPortOpener().Opened();
+    const bool senderWasRunning = YSE::MIDI::OutSender().isRunning();
 
     object.GetInlet(0)->SetList("144 60 100", YSE::T_DSP);
     MidiPortOpener().WaitIdle();
@@ -514,17 +515,32 @@ TEST_SUITE("patcher") {
     // A refusal is not a deferral: the port was there, the bytes were not.
     CHECK(object.Deferred() == 1);
 
-    // "Settled" is the attempt, not its success. On a machine with an output
-    // port, port 0 is now open; on CI, where there is none, the attempt failed
-    // and the object stays closed — which is exactly what an inline open that
-    // threw always left behind.
-    if (YSE::MIDI::DeviceManager().getNumMidiOutDevices() > 0) {
+    // "Settled" is the attempt, not its success, and whether port 0 can open is
+    // not something the port count says (#1268). A Windows runner counts one
+    // port, the GS Wavetable Synth, reports no wave device, and midiOutOpen
+    // refuses that port. So ask the device manager to open it here on the test
+    // thread, after the pool has had its try: a port only the pool cannot open
+    // must still fail the first branch. A port the pool opened is simply found
+    // in the manager's cache.
+    if (YSE::MIDI::DeviceManager().getMidiOutPort(0) != nullptr) {
       CHECK(object.PortOpen());
       // And the thread that will make its sends is up (#949): the open job
       // starts it, since a handler may not spawn a thread.
       CHECK(YSE::MIDI::OutSender().isRunning());
     } else {
+      // No port 0, or one that refuses to open. The object stays closed, which
+      // is exactly what an inline open that threw always left behind.
+      MESSAGE("port 0 cannot open, ", YSE::MIDI::DeviceManager().getNumMidiOutDevices(),
+              " counted: asserting the closed path");
       CHECK_FALSE(object.PortOpen());
+      // The sender is started only for a port that opened.
+      CHECK(YSE::MIDI::OutSender().isRunning() == senderWasRunning);
+      // A real note is safe here, with no device to reach. It passes the gate
+      // and is dropped uncounted: not deferred, since the port has settled, and
+      // not lost to a full lane, since it is never queued.
+      object.GetInlet(0)->SetList("144 60 100", YSE::T_DSP);
+      CHECK(object.Deferred() == 1);
+      CHECK(object.Dropped() == 0);
     }
 
     // And it is asked for once: a settled object goes straight to the send.
