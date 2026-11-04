@@ -195,8 +195,12 @@ jobs:
     if: (github.event_name == 'push' && github.ref_name == 'dev') || (github.event_name == 'pull_request' && github.head_ref != 'dev' && github.head_ref != 'master')
     name: Build and test (GCC)
     runs-on: ubuntu-latest
-    # PLACEHOLDER: sized from the first observed run.
-    timeout-minutes: 60
+    # Provisional. The #621 sizing rule (see the build job above) applied to the
+    # one run there is so far, the first on PR #1270: 9.8 min, of which about 6.2
+    # is the build and 2.8 is ctest. 3x = 29.4 -> 30, which also covers 2x worst
+    # (19.6). One run says nothing about the runner's speed tiers, so re-measure
+    # once this job has a history.
+    timeout-minutes: 30
     env:
       # tests-debug names no compiler, so CMake takes whatever the runner image
       # defaults to. Pin it, as build-python does for clang: this job only means
