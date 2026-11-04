@@ -22,9 +22,12 @@ jobs:
     if: github.event_name != 'pull_request' || (github.head_ref != 'dev' && github.head_ref != 'master')
     name: Build and test (Windows x64)
     runs-on: windows-latest
-    # Provisional, sized for the first run with no history (see the #621 rule on
-    # the build job in build.yml). Re-measure once dev has real runs.
-    timeout-minutes: 120
+    # Provisional. The #621 sizing rule (see the build job in build.yml) applied
+    # to the one run there is so far, the first on PR #1267: 18.4 min, of which
+    # about 12 is the build and 4.5 is ctest. 3x = 55.2 -> 60, which also covers
+    # 2x worst (36.8). One run says nothing about the runner's speed tiers, so
+    # re-measure once dev has a history.
+    timeout-minutes: 60
     permissions:
       contents: read
     defaults:
