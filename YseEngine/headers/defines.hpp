@@ -12,6 +12,7 @@
 #define DEFINES_HPP_INCLUDED
 
 #include <vector>
+inline constexpr int yseCcacheProbe1271 = 1; // TEMPORARY, #1271 worst-case measurement
 
 #if (defined(_WIN32) || defined(_WIN64))
 #define YSE_WIN32 1
