@@ -32,10 +32,16 @@ that string.
   GitHub release assets, with `--generate-notes` as the body (step 9
   replaces it).
 - `.github/workflows/build.yml`, `benchmark.yml`, `documentation.yml`,
-  `format.yml` — the prep PR runs them in full. The dev→master PR skips
-  its PR-event runs (`head_ref == 'dev'`), because the push to `dev`
-  already ran the same SHA. Its required "Build and analyze" check is the
-  green result from that `dev` push.
+  `format.yml` — the prep PR runs them, except "Build and analyze"
+  (coverage, Sonar, the forced 44.1 kHz pass), which does not run on PRs
+  into `dev` (#1269). That job first runs on the release content at the
+  push to `dev` when the prep PR merges. The dev→master PR skips its
+  PR-event runs (`head_ref == 'dev'`), because that push already ran the
+  same SHA. Its required "Build and analyze" check is the green result
+  from that `dev` push.
+- `.github/workflows/windows.yml` — runs on the push to `dev`, not on the
+  prep PR (#1266). It is not a required check on `master`, so nothing but
+  step 7's wait holds a release back when it is red.
 
 ## Procedure
 
@@ -204,16 +210,19 @@ even registered. When green, merge:
 gh pr merge --merge <pr-number>
 ```
 
-`--merge` matches the existing style. This PR is the only full CI matrix
-run of the release. The bump can't break anything this run doesn't
-already cover, and `release.yml` rebuilds every platform from the tag
-anyway.
+`--merge` matches the existing style. This PR's run isn't the full CI
+matrix: coverage, Sonar, the forced 44.1 kHz pass and the Windows tests
+run on the `dev` push that this merge triggers, and step 7 waits for
+them. `release.yml` rebuilds every platform from the tag anyway.
 
 ### 7. Promote dev → master
 
-Wait until the `push` run on `dev` for the merge commit from step 6
-finishes green. The dev→master PR skips its own PR-event runs and
-borrows that result for the required "Build and analyze" check. Then:
+Wait until the `push` runs on `dev` for the merge commit from step 6
+finish green, including `windows.yml`. A failure in any of them is a
+release blocker: this is the first time coverage, Sonar, the forced
+44.1 kHz pass and the Windows tests see the release content. The dev→master
+PR skips its own PR-event runs and borrows the `build.yml` result for the
+required "Build and analyze" check. Then:
 
 ```sh
 gh pr create --base master --head dev \
