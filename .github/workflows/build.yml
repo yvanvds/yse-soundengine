@@ -8,17 +8,25 @@ on:
     types: [opened, synchronize, reopened]
 jobs:
   build:
-    # Skip the PR-event run when the head branch is `dev` or `master`.
-    # The push to either branch that brought the SHAs in has already run
-    # this workflow against the same commits — running it again via the
-    # PR trigger is pure duplication. PRs from feature branches still
-    # run normally because their head_ref is neither 'dev' nor 'master'.
+    # This job does not run on pull requests into `dev` (#1269). It set the whole
+    # wait on every PR, 25-38 min over the last 12 successful ones, with the next
+    # slowest job at 10-21. On such a PR the job shows as skipped.
     #
-    # Covers two release-flow PR types:
-    # - dev → master release PR: head_ref == 'dev'
-    # - master → dev post-release sync PR (carries the version bump
-    #   commit back): head_ref == 'master'
-    if: github.event_name == 'push' || (github.head_ref != 'dev' && github.head_ref != 'master')
+    # What moves after the merge, on purpose: Sonar findings, coverage changes
+    # and sample-rate bugs (the forced 44.1 kHz pass, #72) now surface on `dev`,
+    # not on the PR. A failure here is a bug report on the merge. To check the
+    # sample-rate cross-check before opening a PR, run it locally:
+    #   YSE_TEST_FORCED_RATE=44100 python yse.py test
+    #
+    # The `build-gcc` job below keeps GCC on PRs, without the instrumentation.
+    #
+    # `master` branch protection requires this job's check name, so renaming it
+    # means updating the protection rule. A dev -> master PR takes the result
+    # from the push to `dev` that put its head SHA there, which runs this job.
+    # Any other PR into `master` (release-* branches have done this, e.g. #996)
+    # has no such push, so it still runs the job here: a job skipped by `if:`
+    # reports as passing a required check, which would leave `master` ungated.
+    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.base_ref == 'master' && github.head_ref != 'dev' && github.head_ref != 'master')
     name: Build and analyze
     runs-on: ubuntu-latest
     # Cap sizing rule for every job in this repo's workflows (see #621):
@@ -29,7 +37,7 @@ jobs:
     # log is read.
     #
     # This job is the heaviest in the repo: full Debug build with coverage
-    # instrumentation, two full ctest passes (native + forced 48 kHz), gcovr,
+    # instrumentation, two full ctest passes (native + forced 44.1 kHz), gcovr,
     # then the CFamily scan re-parsing every translation unit. Measured over the
     # 97 runs of 2026-08-03..06: p50 8.6 min, p90 11.3, p95 12.1, longest
     # completed run 14.9. The daily median is climbing as the patcher object
@@ -168,9 +176,7 @@ jobs:
         # report — still runs on master, and the android/python/sanitizer jobs
         # keep their release gate. Only the upload has nowhere to go.
         #
-        # PR events need no guard here: the job-level `if` already skips PRs
-        # whose head is `dev` or `master`, covering both the dev -> master
-        # release PR and the master -> dev sync PR.
+        # PR events need no guard here: the job-level `if` skips every PR.
         if: ${{ !(github.event_name == 'push' && github.ref_name == 'master') }}
         uses: SonarSource/sonarqube-scan-action@22918119ff8e1ca75a623e15c8296b6ea4fbe28f # v8.2.1
         env:
@@ -179,6 +185,45 @@ jobs:
           args: >
             --define "sonar.projectVersion=${{ steps.version.outputs.version }}"
             --define "sonar.cfamily.compile-commands=${{ env.BUILD_WRAPPER_OUT_DIR }}/compile_commands.json"
+
+  build-gcc:
+    # The plain GCC signal on PRs (#1269). Every other PR job builds with clang,
+    # so with `build` off PRs nothing else would test GCC. Native rate only and
+    # no coverage instrumentation: the forced 44.1 kHz pass and the Sonar scan
+    # stay in `build`, see the comment there for what that moves to `dev`.
+    #
+    # Runs on feature-branch PRs (same head_ref exclusion as the other jobs) and
+    # on pushes to dev. Not on pushes to master: `build` runs GCC there, and
+    # everything on master arrived through dev.
+    if: (github.event_name == 'push' && github.ref_name == 'dev') || (github.event_name == 'pull_request' && github.head_ref != 'dev' && github.head_ref != 'master')
+    name: Build and test (GCC)
+    runs-on: ubuntu-latest
+    # Provisional. The #621 sizing rule (see the build job above) applied to the
+    # first two runs, both on PR #1270: 9.8 min (about 6.2 build, 2.8 ctest) and
+    # 13.3 min (about 9.5 build, 3.5 ctest). 3x the slower = 39.9 -> 40, which
+    # also covers 2x worst (26.6). Two runs say little about the runner's speed
+    # tiers, so re-measure once this job has a history.
+    timeout-minutes: 40
+    env:
+      # tests-debug names no compiler, so CMake takes whatever the runner image
+      # defaults to. Pin it, as build-python does for clang: this job only means
+      # something if it is GCC.
+      CC: gcc
+      CXX: g++
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - name: Install dependencies
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y \
+            cmake \
+            ninja-build \
+            pkg-config \
+            portaudio19-dev \
+            libsndfile1-dev \
+            librtmidi-dev
+      - name: Build and run the full ctest set
+        run: python3 yse.py test
 
   android-gate:
     # Decides whether build-android runs and with which ABI matrix (#630).
@@ -307,9 +352,9 @@ jobs:
     # traceback string — CPython's own interpreter-lifetime state is filtered
     # out by tools/lsan/python.supp.
     #
-    # Same trigger gate as the `build` job: continuous on push to dev/master,
-    # plus feature-branch PRs; skipped on release/sync PRs whose head is dev or
-    # master (the push that landed those SHAs already ran this).
+    # Trigger gate: continuous on push to dev/master, plus feature-branch PRs;
+    # skipped on release/sync PRs whose head is dev or master (the push that
+    # landed those SHAs already ran this).
     if: github.event_name == 'push' || (github.head_ref != 'dev' && github.head_ref != 'master')
     name: Python build (${{ matrix.label }})
     runs-on: ubuntu-latest
@@ -396,9 +441,9 @@ jobs:
     # for #828 came back with its fix. timeout-minutes is sized for the sweep
     # leg, not for the PR leg.
     #
-    # Same trigger gate as the `build` job: continuous on push to dev/master,
-    # plus feature-branch PRs; skipped on release/sync PRs whose head is dev or
-    # master (the push that landed those SHAs already ran this).
+    # Trigger gate: continuous on push to dev/master, plus feature-branch PRs;
+    # skipped on release/sync PRs whose head is dev or master (the push that
+    # landed those SHAs already ran this).
     if: github.event_name == 'push' || (github.head_ref != 'dev' && github.head_ref != 'master')
     name: Sanitizers (${{ matrix.san }})
     runs-on: ubuntu-latest

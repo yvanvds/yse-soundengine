@@ -249,6 +249,11 @@ python yse.py release patch --bump-only  # maintainers: bump + commit on release
 Running `yse_tests` directly without a `--test-suite=` / `--test-case=`
 filter is refused; CTest (via `python yse.py test`) is the test entry point.
 
+Tests run at the default 48 kHz. To also check that a DSP or timing change is
+rate-agnostic, run `YSE_TEST_FORCED_RATE=44100 python yse.py test`. CI runs this
+pass on pushes only, not on pull requests, so a sample-rate bug otherwise shows
+up on `dev` after the merge.
+
 On Unix you can also `chmod +x yse.py` and use `./yse.py <command>`.
 Pass `--help` to any subcommand for full usage.
 
