@@ -8,19 +8,19 @@ runs:
   using: composite
   steps:
     - name: Show ccache statistics
-      id: stats
+      shell: bash
+      run: ccache -s -v
+    - name: TEMPORARY list the compiles that missed
       shell: bash
       run: |
-        ccache -s -v
-        echo "misses=$(ccache --print-stats | awk -F'\t' '$1 == "cache_miss" {print $2}')" >> "$GITHUB_OUTPUT"
+        awk '/Working directory:/ {cwd[$2]=$NF} /Source file:/ {src[$2]=$NF}
+             /Result: .*miss/ {print cwd[$2], src[$2]}' "$HOME/ccache-debug.log" | sort | uniq -c | sort -rn | head -60
     - name: Save the cache
       # Saves from dev pushes only. A PR can read its base branch's caches, but
       # dev can't read a PR's, so a PR's save would never reach another branch.
       # The repo has 10 GB of cache with LRU eviction, and a save per PR push
       # would spend it on entries nothing else can use.
-      #
-      # A run with no misses added nothing, so it has nothing to save.
-      if: (github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref_name == 'dev')) && steps.stats.outputs.misses != '0'
+      if: (github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref_name == 'dev'))
       uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: ~/.cache/ccache
