@@ -8,9 +8,9 @@ on:
     types: [opened, synchronize, reopened]
 jobs:
   build:
-    # Pushes only: this job does not run on pull requests (#1269). It set the
-    # whole wait on every PR, 25-38 min over the last 12 successful ones, with
-    # the next slowest job at 10-21. On a PR the job shows as skipped.
+    # This job does not run on pull requests into `dev` (#1269). It set the whole
+    # wait on every PR, 25-38 min over the last 12 successful ones, with the next
+    # slowest job at 10-21. On such a PR the job shows as skipped.
     #
     # What moves after the merge, on purpose: Sonar findings, coverage changes
     # and sample-rate bugs (the forced 44.1 kHz pass, #72) now surface on `dev`,
@@ -23,7 +23,10 @@ jobs:
     # `master` branch protection requires this job's check name, so renaming it
     # means updating the protection rule. A dev -> master PR takes the result
     # from the push to `dev` that put its head SHA there, which runs this job.
-    if: github.event_name == 'push'
+    # Any other PR into `master` (release-* branches have done this, e.g. #996)
+    # has no such push, so it still runs the job here: a job skipped by `if:`
+    # reports as passing a required check, which would leave `master` ungated.
+    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.base_ref == 'master' && github.head_ref != 'dev' && github.head_ref != 'master')
     name: Build and analyze
     runs-on: ubuntu-latest
     # Cap sizing rule for every job in this repo's workflows (see #621):
