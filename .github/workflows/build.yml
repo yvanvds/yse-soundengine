@@ -20,6 +20,10 @@ jobs:
     #
     # The `build-gcc` job below keeps GCC on PRs, without the instrumentation.
     #
+    # No ccache here (#1271), though the jobs PRs wait on have it. This job doesn't
+    # affect PR wait, and a caching mistake under Sonar's build-wrapper and
+    # --coverage could quietly damage the analysis.
+    #
     # `master` branch protection requires this job's check name, so renaming it
     # means updating the protection rule. A dev -> master PR takes the result
     # from the push to `dev` that put its head SHA there, which runs this job.
@@ -218,12 +222,23 @@ jobs:
           sudo apt-get install -y \
             cmake \
             ninja-build \
+            ccache \
             pkg-config \
             portaudio19-dev \
             libsndfile1-dev \
             librtmidi-dev
+      - name: Restore compile cache
+        id: ccache
+        uses: ./.github/actions/ccache-restore
+        with:
+          id: tests-debug-gcc
+          compiler: g++
+          max-size: 500M
       - name: Build and run the full ctest set
         run: python3 yse.py test
+      - name: Report and save compile cache
+        if: ${{ !cancelled() && steps.ccache.outcome == 'success' }}
+        uses: ./.github/actions/ccache-save
 
   android-gate:
     # Decides whether build-android runs and with which ABI matrix (#630).
@@ -250,9 +265,10 @@ jobs:
         # checkout is needed. The path set is everything the NDK
         # cross-compile consumes: engine + test sources (the Android device
         # backend and the test APK scaffolding both live under those two
-        # trees), the vendored deps (doctest), the CMake build files, and
-        # this workflow itself. CMakePresets.json is deliberately absent:
-        # the Android job invokes cmake directly, not through a preset.
+        # trees), the vendored deps (doctest), the CMake build files, this
+        # workflow and the ccache actions it uses. CMakePresets.json is
+        # deliberately absent: the Android job invokes cmake directly, not
+        # through a preset.
         if: github.event_name == 'pull_request' && github.base_ref == 'dev' && github.head_ref != 'master'
         id: filter
         uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
@@ -265,6 +281,7 @@ jobs:
               - 'CMakeLists.txt'
               - 'cmake/**'
               - '.github/workflows/build.yml'
+              - '.github/actions/ccache-*/**'
       - name: Decide ABI set
         id: decide
         env:
@@ -316,13 +333,24 @@ jobs:
       - name: Install host build tools
         run: |
           sudo apt-get update -y
-          sudo apt-get install -y cmake ninja-build
+          sudo apt-get install -y cmake ninja-build ccache
       - name: Setup Android NDK
         id: ndk
         uses: nttld/setup-ndk@afb4c9964b521afb97c864b7d40b11e6911bd410 # v1.5.0
         with:
           ndk-version: r27
           local-cache: true
+      # Only x86_64: it is the one leg PRs into dev run (#630). arm64-v8a runs on
+      # pushes and on PRs into master, so caching it would spend the repo's
+      # cache budget on every push without shortening a PR into dev.
+      - name: Restore compile cache
+        id: ccache
+        if: matrix.abi == 'x86_64'
+        uses: ./.github/actions/ccache-restore
+        with:
+          id: android-${{ matrix.abi }}
+          compiler: ${{ steps.ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/clang++
+          max-size: 600M
       - name: Configure CMake
         run: >
           cmake -B build-android -G Ninja
@@ -342,6 +370,9 @@ jobs:
             build-android/bin/libyse_tests.so
           if-no-files-found: error
           retention-days: 14
+      - name: Report and save compile cache
+        if: ${{ !cancelled() && steps.ccache.outcome == 'success' }}
+        uses: ./.github/actions/ccache-save
 
   build-python:
     # Embedded-CPython acceptance (epic #119, follow-up to #124). Verifies the
@@ -384,6 +415,7 @@ jobs:
           sudo apt-get install -y \
             cmake \
             ninja-build \
+            ccache \
             pkg-config \
             clang \
             libclang-rt-dev \
@@ -391,6 +423,13 @@ jobs:
             libsndfile1-dev \
             librtmidi-dev \
             python3-dev
+      - name: Restore compile cache
+        id: ccache
+        uses: ./.github/actions/ccache-restore
+        with:
+          id: ${{ matrix.preset }}
+          compiler: clang++
+          max-size: 350M
       - name: Configure (${{ matrix.preset }})
         run: cmake --preset ${{ matrix.preset }}
       - name: Build
@@ -405,6 +444,9 @@ jobs:
         env:
           LSAN_OPTIONS: ${{ matrix.asan && format('suppressions={0}/tools/lsan/python.supp', github.workspace) || '' }}
         run: ctest --test-dir ${{ matrix.bdir }} -L python --output-on-failure
+      - name: Report and save compile cache
+        if: ${{ !cancelled() && steps.ccache.outcome == 'success' }}
+        uses: ./.github/actions/ccache-save
 
   build-sanitizers:
     # Memory-safety and data-race gate. Started life as the patcher concurrency
@@ -468,6 +510,7 @@ jobs:
           sudo apt-get install -y \
             cmake \
             ninja-build \
+            ccache \
             pkg-config \
             clang \
             libclang-rt-dev \
@@ -480,6 +523,13 @@ jobs:
         # shadow mapping cannot accommodate ("unexpected memory mapping" abort).
         # 28 is the entropy the sanitizer runtimes are built for.
         run: sudo sysctl -w vm.mmap_rnd_bits=28
+      - name: Restore compile cache
+        id: ccache
+        uses: ./.github/actions/ccache-restore
+        with:
+          id: tests-${{ matrix.san }}
+          compiler: clang++
+          max-size: 350M
       - name: Configure (tests-${{ matrix.san }})
         run: cmake --preset tests-${{ matrix.san }}
       - name: Build
@@ -531,3 +581,6 @@ jobs:
         env:
           ASAN_OPTIONS: detect_leaks=0
         run: ctest --test-dir build-tests-asan -R "yse_tests_lifecycle|yse_tests_logsafety" --output-on-failure
+      - name: Report and save compile cache
+        if: ${{ !cancelled() && steps.ccache.outcome == 'success' }}
+        uses: ./.github/actions/ccache-save

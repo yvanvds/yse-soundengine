@@ -57,6 +57,7 @@ yse.py                           # Python CLI wrapper over cmake --preset / ctes
 .clang-format                    # Repo style: 2-space indent, K&R/attach braces, 100-col (used by yse.py format)
 sonar-project.properties         # SonarCloud analysis configuration
 .github/workflows/               # build, format, release, benchmark, documentation (see CI / Distribution)
+.github/actions/                 # ccache-restore, ccache-save: the compile cache build.yml's PR jobs share (#1271)
 `
 
 The old .NET/Xamarin wrappers, the WPF demo, the UWP build, and the JUCE backend have all been removed.
@@ -168,6 +169,8 @@ For `YSE_ENABLE_PYTHON=ON` add the Python embedding headers + libpython:
 ## CI / Distribution
 
 Six GitHub Actions workflows under `.github/workflows/`. PR-event runs whose head is `dev` or `master` (release/sync PRs) are skipped where the push already ran the same SHAs.
+
+The `build.yml` jobs PRs wait on (`build-gcc`, `build-sanitizers`, `build-python` and the x86_64 leg of `build-android`) use ccache through the `ccache-restore` and `ccache-save` actions (#1271). It is enabled with the `CMAKE_<LANG>_COMPILER_LAUNCHER` environment variables, so the presets don't mention it. Each job and leg has its own cache, keyed on the compiler's `--version`. Pushes to `dev` save, and PRs restore from their base branch. `ccache -s` at the end of each job shows the hit rate. `build` (Sonar build-wrapper plus `--coverage`), arm64-v8a and `windows.yml` are not cached, because none of them affects a PR into `dev`.
 
 | Workflow | Triggers | What it does |
 |----------|----------|--------------|
