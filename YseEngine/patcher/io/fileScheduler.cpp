@@ -54,9 +54,10 @@ fileScheduler::~fileScheduler() {
   // job up inside that window calls threadPoolJob::run(), which is pure
   // virtual (issue #706). Two more windows close with it: ~unique_ptr nulls
   // `entries_` before it destroys the elements, and ~Entry destroys the fields
-  // a running job reads. Control thread: the patcher's destructor, where the
-  // audio thread is already stopped and Clear() has run, so nothing can arm a
-  // new request.
+  // a running job reads. Called from the patcher's destructor, where the
+  // audio thread no longer renders the patch and Clear() has run, so nothing
+  // can arm a new request. That destructor may be on the background pool's
+  // own worker (a patcher a sound owned); join() help-runs there (#1257).
   WaitIdle();
 }
 

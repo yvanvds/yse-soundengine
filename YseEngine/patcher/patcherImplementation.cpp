@@ -305,7 +305,11 @@ patcherImplementation::~patcherImplementation() {
     // the retire lists; wait for both halves of the ping-pong to finish before we
     // free those lists from under them. shuttingDown_ guarantees neither re-arms.
     // These joins are a spin-wait on an atomic flag (INTERNAL::threadPoolJob), not
-    // std::thread::join, so they carry no system_error of their own.
+    // std::thread::join, so they carry no system_error of their own. This
+    // destructor is not always on a control thread: a patcher a sound owns is
+    // freed by the sound manager's delete job on the background pool's one
+    // worker, and there the joins run a still-queued pass themselves rather
+    // than wait for that worker to reach it (issue #1257).
     reclaimJobs_[0].join();
     reclaimJobs_[1].join();
     // FreeAllRetired ignores pins, so let a control thread still inside a
