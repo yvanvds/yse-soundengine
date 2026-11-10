@@ -22569,6 +22569,45 @@
     ],
     "requires_midi_device": false
   },
+  "~typeroute": {
+    "category": "ROUTING",
+    "description": "Sorts what arrives at its one inlet by type: a signal goes out the left outlet, every message (bang, number, list or word message) out the right one. Lets one inlet of a subpatcher take either.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "A signal, or any message: bang, int, float, a list, or a message that starts with a word. Several signal cords are summed.",
+        "index": 0,
+        "label": "in",
+        "range": ""
+      }
+    ],
+    "is_dsp": true,
+    "name": "~typeroute",
+    "outlets": [
+      {
+        "doc": "The signal that arrived, unchanged; silence when no signal is connected. A number never reaches this outlet.",
+        "index": 0,
+        "label": "signal",
+        "range": "",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "Every message that arrived, at once and with its type kept: a bang as a bang, an int as an int, a float as a float, a list or a word message as it was spelled.",
+        "index": 1,
+        "label": "messages",
+        "range": "",
+        "type": "ANY"
+      }
+    ],
+    "params": [],
+    "requires_midi_device": false
+  },
   "~updown": {
     "category": "OSC",
     "description": "A trapezoid envelope driven by a ramp such as a ~phasor, or by a gate: it rises in a fixed time when the ramp starts and falls in a fixed time to end at 0 where the ramp ends, however fast the ramp runs. For click-free gating.",

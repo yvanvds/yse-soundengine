@@ -297,6 +297,7 @@ set(YSE_TEST_SOURCES
   patcher/test_patcher_signal_rampsmooth.cpp
   patcher/test_patcher_signal_gate_selector.cpp
   patcher/test_patcher_signal_matrix.cpp
+  patcher/test_patcher_signal_typeroute.cpp
   patcher/test_patcher_signal_deltaclip.cpp
   patcher/test_patcher_filterdesign.cpp
   patcher/test_patcher_filtergraph.cpp
@@ -1493,6 +1494,7 @@ set_source_files_properties(
   patcher/test_patcher_signal_rampsmooth.cpp
   patcher/test_patcher_signal_gate_selector.cpp
   patcher/test_patcher_signal_matrix.cpp
+  patcher/test_patcher_signal_typeroute.cpp
   patcher/test_patcher_signal_deltaclip.cpp
   patcher/test_patcher_filterdesign.cpp
   patcher/test_patcher_filtergraph.cpp

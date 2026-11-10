@@ -392,3 +392,21 @@ An input with nothing connected is silent.
    [~rect 110] -> inlet 2
    [~tri 110]  -> inlet 3
    send 1, 2 or 3 to change the waveform with a 50 ms crossfade
+
+.. patcher-object:: ~typeroute
+
+One inlet, sorted by type. A signal goes out the left outlet unchanged, and
+every message goes out the right outlet the moment it arrives: a bang as a
+bang, an int as an int, a float as a float, and a list or a message that
+starts with a word as it was spelled. Nothing is converted, so a number sent
+to the inlet never becomes a signal, and the left outlet is silent while no
+signal is connected. Several signal cords into the inlet are summed.
+
+Put it behind an inlet of a subpatcher that should accept either kind of
+input, and wire each outlet to the part of the patch that handles it.
+
+.. code-block:: text
+
+   [~cycle 220] -> [~typeroute]
+   [.receive cmd] -> same inlet
+   left outlet: the tone; right outlet: whatever arrives through cmd

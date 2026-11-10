@@ -182,6 +182,7 @@
 #include "routing/dGate.h"
 #include "routing/dSelector.h"
 #include "routing/dMatrix.h"
+#include "routing/dTypeRoute.h"
 
 #include "guiObjects/gInt.h"
 #include "guiObjects/gFloat.h"
@@ -490,6 +491,7 @@ pRegistry::pRegistry() {
   Add(OBJ::D_GATE, dGate::Create);
   Add(OBJ::D_SELECTOR, dSelector::Create);
   Add(OBJ::D_MATRIX, dMatrix::Create);
+  Add(OBJ::D_TYPEROUTE, dTypeRoute::Create);
 
   Add(OBJ::G_SWITCH, gSwitch::Create);
   Add(OBJ::G_GATE, gGate::Create);

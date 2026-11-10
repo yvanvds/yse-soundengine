@@ -239,6 +239,7 @@ set(YSE_SRCS
   patcher/routing/dSelector.cpp
   patcher/routing/matrixControl.cpp
   patcher/routing/dMatrix.cpp
+  patcher/routing/dTypeRoute.cpp
   patcher/filters/dVcf.cpp
   patcher/filters/dSah.cpp
   patcher/filters/dSash.cpp
@@ -732,6 +733,7 @@ set_source_files_properties(
   patcher/routing/dSelector.cpp
   patcher/routing/matrixControl.cpp
   patcher/routing/dMatrix.cpp
+  patcher/routing/dTypeRoute.cpp
   patcher/filters/dVcf.cpp
   patcher/filters/dSah.cpp
   patcher/filters/dSash.cpp
