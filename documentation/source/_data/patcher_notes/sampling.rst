@@ -467,3 +467,35 @@ With no buffer, or an empty one, ``~phasegroove`` plays silence.
 background and played from a later block on; ``set`` alone plays silence.
 Messages and numbers are not saved with the patch: a reloaded ``~phasegroove``
 uses the buffer and the settings of its arguments.
+
+.. patcher-object:: ~sfinfo
+
+Reports what a sound file holds, without loading it: only the file's header is
+read. ``open <file>`` names a file and reports on it; a bang reports on the
+last file named, by ``open`` or by the argument. The file is read again at
+every bang, so a file that has changed on disk is reported as it is now. The
+report goes out from the right outlet to the left, so the channel count
+arrives last:
+
+- outlet 5: the file's name, without its folders;
+- outlet 4: the sample type: ``int8``, ``uint8``, ``int16``, ``int24``,
+  ``int32``, ``float32``, ``float64``, ``mulaw`` or ``alaw``. A compressed
+  encoding without a fixed sample format, such as Ogg Vorbis or ADPCM, is
+  ``other``;
+- outlet 3: the length in milliseconds;
+- outlet 2: the sample rate in Hz;
+- outlet 1: the size of one sample in bits, 0 for ``other``;
+- outlet 0: the number of channels.
+
+The file is opened in the background and the report arrives at the start of a
+later audio block. A file that does not exist, or is not a sound file the
+engine can read, sends nothing. Names are found the way the other file objects
+find them (see :doc:`/patcher/files`), the host's path resolver included. The
+argument is not read when the patch loads: nothing is reported until the first
+bang.
+
+.. code-block:: text
+
+   [open drums/kick.wav(
+    |
+   [~sfinfo]          channels, sample size, rate, length, type and name

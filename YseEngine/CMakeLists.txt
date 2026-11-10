@@ -235,6 +235,7 @@ set(YSE_SRCS
   patcher/sampling/dPlay.cpp
   patcher/sampling/dGroove.cpp
   patcher/sampling/dPhaseGroove.cpp
+  patcher/sampling/dSfinfo.cpp
   patcher/routing/selectorControl.cpp
   patcher/routing/dGate.cpp
   patcher/routing/dSelector.cpp
@@ -732,6 +733,7 @@ set_source_files_properties(
   patcher/sampling/dPlay.cpp
   patcher/sampling/dGroove.cpp
   patcher/sampling/dPhaseGroove.cpp
+  patcher/sampling/dSfinfo.cpp
   patcher/routing/selectorControl.cpp
   patcher/routing/dGate.cpp
   patcher/routing/dSelector.cpp

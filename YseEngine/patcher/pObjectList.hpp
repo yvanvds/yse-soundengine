@@ -58,7 +58,8 @@ namespace YSE {
    *    ``D_PLAY`` (a buffer played from a start to an end point, or at
    *    signal-rate positions), ``D_GROOVE`` (a buffer played at a
    *    signal-rate speed between loop points, with a sync output),
-   *    ``D_PHASEGROOVE`` (a buffer's loop read where a 0 to 1 ramp says).
+   *    ``D_PHASEGROOVE`` (a buffer's loop read where a 0 to 1 ramp says),
+   *    ``D_SFINFO`` (a sound file's channels, rate, length and format).
    *  - DSP routing: ``D_GATE`` (a signal sent to one of several outlets),
    *    ``D_SELECTOR`` (one of several signals passed to the outlet),
    *    ``D_MATRIX`` (every input to every output at a ramped gain),
@@ -314,6 +315,7 @@ namespace YSE {
     DEFOBJ(D_PLAY, "~play");
     DEFOBJ(D_GROOVE, "~groove");
     DEFOBJ(D_PHASEGROOVE, "~phasegroove");
+    DEFOBJ(D_SFINFO, "~sfinfo");
 
     DEFOBJ(D_GATE, "~gate");
     DEFOBJ(D_SELECTOR, "~selector");

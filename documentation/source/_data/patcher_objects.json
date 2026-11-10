@@ -20993,6 +20993,76 @@
     "params": [],
     "requires_midi_device": false
   },
+  "~sfinfo": {
+    "category": "SAMPLING",
+    "description": "Reports what a sound file holds: its channels, sample size, sample rate, length, sample type and name. Reads only the file's header.",
+    "inlets": [
+      {
+        "accepts": [
+          "BANG"
+        ],
+        "doc": "open <file> names a sound file and reports on it; bang reports on the last file named.",
+        "index": 0,
+        "label": "messages",
+        "range": ""
+      }
+    ],
+    "is_dsp": true,
+    "name": "~sfinfo",
+    "outlets": [
+      {
+        "doc": "How many channels the file has.",
+        "index": 0,
+        "label": "channels",
+        "range": "count",
+        "type": "INT"
+      },
+      {
+        "doc": "The size of one sample in bits, or 0 for a compressed encoding.",
+        "index": 1,
+        "label": "sample size",
+        "range": "bits",
+        "type": "INT"
+      },
+      {
+        "doc": "The file's sample rate, in Hz.",
+        "index": 2,
+        "label": "sample rate",
+        "range": "Hz",
+        "type": "FLOAT"
+      },
+      {
+        "doc": "The file's length, in ms.",
+        "index": 3,
+        "label": "length",
+        "range": "ms",
+        "type": "FLOAT"
+      },
+      {
+        "doc": "int8, uint8, int16, int24, int32, float32, float64, mulaw, alaw, or other.",
+        "index": 4,
+        "label": "sample type",
+        "range": "",
+        "type": "LIST"
+      },
+      {
+        "doc": "The file's name, without its folders.",
+        "index": 5,
+        "label": "file name",
+        "range": "",
+        "type": "LIST"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The sound file a bang reports on.",
+        "name": "file",
+        "range": "file"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~shape": {
     "category": "OSC",
     "description": "A breakpoint envelope played over the length of a ramp such as a ~phasor: one cycle of the ramp is one pass through the envelope, so its length follows the ramp's frequency. For envelopes whose shape is fixed and whose length follows tempo or note length.",

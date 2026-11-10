@@ -339,6 +339,7 @@ set(YSE_TEST_SOURCES
   patcher/test_patcher_tapin_tapout.cpp
   patcher/test_patcher_buffer.cpp
   patcher/test_patcher_info.cpp
+  patcher/test_patcher_sfinfo.cpp
   patcher/test_patcher_peek_poke.cpp
   patcher/test_patcher_index.cpp
   patcher/test_patcher_signal_table.cpp
@@ -1537,6 +1538,7 @@ set_source_files_properties(
   patcher/test_patcher_tapin_tapout.cpp
   patcher/test_patcher_buffer.cpp
   patcher/test_patcher_info.cpp
+  patcher/test_patcher_sfinfo.cpp
   patcher/test_patcher_peek_poke.cpp
   patcher/test_patcher_index.cpp
   patcher/test_patcher_signal_table.cpp

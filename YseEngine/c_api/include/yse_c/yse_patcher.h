@@ -256,8 +256,8 @@ YSE_C_API void yse_patcher_free_message(char* address);
 /** A file name the patch wants to read or write, for the host to place: the
    `read` / `write` messages of .coll, .textfile, .qlist, .mtr, .seq, ~seq,
    .dict.serialize, .dict.deserialize and ~capture, and the sound files
-   ~buffer reads and writes, its file argument included. Absolute names are
-   asked about too.
+   ~buffer reads and writes, its file argument included, and the sound files
+   ~sfinfo reports on. Absolute names are asked about too.
 
    `request_id` is what to answer with yse_patcher_resolve_reply. `patcher`
    is the patcher the request comes from, for comparison only: it may be
