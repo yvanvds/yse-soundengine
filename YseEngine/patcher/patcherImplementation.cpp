@@ -1223,10 +1223,9 @@ void patcherImplementation::ReplaceObjectUnlocked(YSE::pHandle* handle, const st
   // Anything that named the old object as its container now names the
   // replacement (issue #545). `CopyStorageIdentity` already moved the object's
   // own containment across; this is the other direction, and it is what stops a
-  // re-parse of a container from orphaning everything inside it. A `patcher`
-  // object registers no parameters, so it cannot reach this path today — the
-  // loop is here so that it stays true if one ever does, rather than as a fix
-  // for something reachable now.
+  // re-parse of a container from orphaning everything inside it: a `patcher`
+  // object's `name` is a string parameter (issue #1260), so renaming a
+  // subpatcher live comes through here.
   for (auto& any : objects) {
     if (any.second->Container() == old) any.second->SetContainer(fresh);
   }

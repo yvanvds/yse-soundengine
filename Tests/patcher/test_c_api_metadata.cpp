@@ -178,6 +178,25 @@ TEST_SUITE("patcher") {
     }
   }
 
+  TEST_CASE("c-api metadata: the patcher type lists its name argument (#1260)") {
+    // A host that checks typed creation arguments against these parameters
+    // must accept `patcher gain`: one free-text `name`, empty by default.
+    REQUIRE(yse_patcher_get_param_count("patcher") == 1);
+    const char* pname = nullptr;
+    const char* pdoc = nullptr;
+    const char* pdef = nullptr;
+    const char* prange = nullptr;
+    yse_patcher_get_param_info("patcher", 0, &pname, &pdoc, &pdef, &prange);
+    REQUIRE(pname != nullptr);
+    REQUIRE(pdoc != nullptr);
+    REQUIRE(pdef != nullptr);
+    REQUIRE(prange != nullptr);
+    CHECK(std::string(pname) == "name");
+    CHECK(std::string(pdef).empty());
+    CHECK(std::string(prange) == "any text");
+    CHECK(std::strlen(pdoc) > 0);
+  }
+
   TEST_CASE("c-api metadata: optional out-pointers may be null") {
     const int n = yse_patcher_get_type_count();
     REQUIRE(n > 0);

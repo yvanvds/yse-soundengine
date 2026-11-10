@@ -555,6 +555,98 @@ TEST_SUITE("patcher") {
     CHECK(loaded.GetObjectContainer(sink) == loaded.GetHandleFromID(0));
   }
 
+  // ─── the name argument (#1260) ────────────────────────────────────────────
+
+  TEST_CASE("subpatcher: its name is a documented creation argument (#1260)") {
+    // What a host reads to check a typed argument: the registry's one
+    // parameter for `patcher` is `name`, free text, empty by default. Before
+    // #1260 the list was empty and `patcher gain` looked like a surplus
+    // argument to anything that compared the two.
+    std::unique_ptr<YSE::PATCHER::pObject> facade(Register().Get(YSE::OBJ::PATCHER));
+    REQUIRE(facade != nullptr);
+    CHECK(facade->GetParamCount() == 1);
+    const auto& docs = facade->GetParamDocs();
+    REQUIRE(docs.size() == 1);
+    CHECK(docs[0].name == "name");
+    CHECK(docs[0].defaultValue.empty());
+    CHECK(docs[0].range == "any text");
+    CHECK_FALSE(docs[0].doc.empty());
+
+    // Still no pins: the parameter adds a name, not a shape.
+    CHECK(facade->NumInputs() == 0);
+    CHECK(facade->NumOutputs() == 0);
+  }
+
+  TEST_CASE("subpatcher: the name is kept as given and survives a save (#1260)") {
+    // Several words, because a host shows it as a title: the stored string is
+    // what comes back, not the first token the field holds.
+    std::string dump;
+    {
+      patcherImplementation src(1, nullptr);
+      YSE::pHandle* sub = src.CreateObject(YSE::OBJ::PATCHER, "lead synth");
+      REQUIRE(sub != nullptr);
+      CHECK(sub->GetParams() == "lead synth");
+      dump = src.DumpJSON();
+    }
+    patcherImplementation loaded(1, nullptr);
+    loaded.ParseJSON(dump);
+    YSE::pHandle* sub = loaded.GetHandleFromID(0);
+    REQUIRE(sub != nullptr);
+    CHECK(std::string(sub->Type()) == "patcher");
+    CHECK(sub->GetParams() == "lead synth");
+  }
+
+  TEST_CASE("subpatcher: renaming one live keeps everything inside it (#1260)") {
+    // `name` is a string, so a live SetParams on a subpatcher rebuilds the
+    // object and swaps the handle over (#234). Every object inside names the
+    // old one as its container; this is the case that fails if the swap leaves
+    // them pointing at it. A nested subpatcher, so the renamed object's own
+    // containment is checked as well as its contents'.
+    Tap tap;
+    YSE::pHandle tapHandle(&tap);
+
+    std::unique_ptr<YSE::PATCHER::pObject> facade(Register().Get(YSE::OBJ::PATCHER));
+    REQUIRE(facade != nullptr);
+    REQUIRE(facade->ParamsNeedRebuild()); // the path this case is about
+
+    patcherImplementation p(1, nullptr);
+    YSE::pHandle* sub = BuildAdderSubpatch(p);
+    YSE::pHandle* outer = p.CreateObject(YSE::OBJ::PATCHER, "outer");
+    REQUIRE(outer != nullptr);
+    p.SetObjectContainer(sub, outer);
+    YSE::pHandle* in = p.GetHandleFromID(1);
+    YSE::pHandle* add = p.GetHandleFromID(2);
+    YSE::pHandle* out = p.GetHandleFromID(3);
+    REQUIRE(in != nullptr);
+    REQUIRE(add != nullptr);
+    REQUIRE(out != nullptr);
+    p.Connect(sub, 0, &tapHandle, 0);
+
+    sub->SetParams("gain");
+    CHECK(sub->GetParams() == "gain");
+    CHECK(std::string(sub->Type()) == "patcher");
+
+    // Contents still inside, and the renamed subpatcher still inside its own.
+    CHECK(p.GetObjectContainer(in) == sub);
+    CHECK(p.GetObjectContainer(add) == sub);
+    CHECK(p.GetObjectContainer(out) == sub);
+    CHECK(p.GetObjectContainer(sub) == outer);
+    CHECK(p.SubpatcherInlets(sub) == 1);
+    CHECK(p.SubpatcherOutlets(sub) == 1);
+
+    // The boundary still resolves through the renamed object, both ways: the
+    // cord out of it made before the rename, and a value sent in after.
+    sub->SetIntData(0, 7);
+    CHECK(tap.trace() == "f17.00");
+
+    // And it still owns its contents: deleting it takes all four, leaving the
+    // outer subpatcher alone.
+    REQUIRE(p.Objects() == 5);
+    p.DeleteObject(sub);
+    CHECK(p.Objects() == 1);
+    CHECK(p.GetHandleFromList(0) == outer);
+  }
+
   // ─── live editing ─────────────────────────────────────────────────────────
 
   TEST_CASE("subpatcher: editing inside a published subpatcher takes effect (#545)") {

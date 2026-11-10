@@ -28,8 +28,8 @@ reference.
      - What it is
    * - ``patcher``
      - ``PATCHER``
-     - The subpatcher itself. It has no inlets, no outlets and no arguments
-       of its own.
+     - The subpatcher itself. It has no inlets or outlets of its own. Its one
+       argument is a free-text **name** for a host to show as its title.
    * - ``.inlet``
      - ``G_INLET``
      - A message inlet of the subpatcher it is in. Bang, int, float and list
