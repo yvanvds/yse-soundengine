@@ -17760,6 +17760,53 @@
     ],
     "requires_midi_device": false
   },
+  "~gate": {
+    "category": "ROUTING",
+    "description": "Sends a signal to one of several outlets, chosen by a number or a signal, or to none; the other outlets carry silence. Switches hard, or crossfades over a ramp time to avoid clicks.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT",
+          "BANG"
+        ],
+        "doc": "The open outlet, from 1, as a number (truncated) or a signal read per sample; 0 or less closes every outlet, above the count opens the last. Unconnected, the last number sent here. 'next' or bang opens the next outlet, wrapping; 'ramptime <ms>' crossfades each switch over that time (0, the default, switches hard); 'stepmode 1' makes each whole-number change of the signal open the next outlet.",
+        "index": 0,
+        "label": "outlet",
+        "range": "0 or more"
+      },
+      {
+        "accepts": [
+          "BUFFER"
+        ],
+        "doc": "The signal to send to the open outlet (unconnected reads 0).",
+        "index": 1,
+        "label": "in",
+        "range": ""
+      }
+    ],
+    "is_dsp": true,
+    "name": "~gate",
+    "outlets": [
+      {
+        "doc": "The input while outlet 1 is open, silence otherwise.",
+        "index": 0,
+        "label": "outlet 1",
+        "range": "",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "1 0",
+        "doc": "The number of outlets (1-128) and the outlet open at the start (0 closes them all), with 'ramptime <ms>' and 'stepmode <0|1>' among them ('~gate 4 1 ramptime 10'). Later messages do not change what is saved.",
+        "name": "arguments",
+        "range": "a count, then an outlet, then the keywords"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~groove": {
     "category": "SAMPLING",
     "description": "Plays a named sample buffer at the speed of a signal, forward or backward, between loop points it can loop or swing back and forth over, with a sync signal that ramps from 0 to 1 over the loop: a sampler voice.",
@@ -20741,6 +20788,53 @@
         "doc": "The formula: 0 the power curve; 1 the legacy linedrive formula; 2 the power curve with the exponent inverted when outLow is above outHigh. A 'classic' message changes it, but what is saved stays the argument.",
         "name": "classic",
         "range": "0 to 2"
+      }
+    ],
+    "requires_midi_device": false
+  },
+  "~selector": {
+    "category": "ROUTING",
+    "description": "Passes one of several input signals to its outlet, chosen by a number or a signal, or none. Switches hard, or crossfades over a ramp time to avoid clicks.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT",
+          "BANG"
+        ],
+        "doc": "The open input, from 1, as a number (truncated) or a signal read per sample; 0 or less closes every input, above the count opens the last. Unconnected, the last number sent here. 'next' or bang opens the next input, wrapping; 'ramptime <ms>' crossfades each switch over that time (0, the default, switches hard); 'stepmode 1' makes each whole-number change of the signal open the next input.",
+        "index": 0,
+        "label": "input",
+        "range": "0 or more"
+      },
+      {
+        "accepts": [
+          "BUFFER"
+        ],
+        "doc": "Input 1, passed to the outlet while it is open (unconnected reads 0).",
+        "index": 1,
+        "label": "in 1",
+        "range": ""
+      }
+    ],
+    "is_dsp": true,
+    "name": "~selector",
+    "outlets": [
+      {
+        "doc": "The open input, or silence while every input is closed.",
+        "index": 0,
+        "label": "out",
+        "range": "",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "1 0",
+        "doc": "The number of signal inputs (1-128) and the input open at the start (0 closes them all), with 'ramptime <ms>' and 'stepmode <0|1>' among them ('~selector 4 1 ramptime 10'). Later messages do not change what is saved.",
+        "name": "arguments",
+        "range": "a count, then an input, then the keywords"
       }
     ],
     "requires_midi_device": false

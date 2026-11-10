@@ -345,6 +345,15 @@ Its outputs, and the read that mixes the buffer's channels into them, are a
 .. doxygenfile:: dsp/sampling/playerOutputs.hpp
    :project: libYSE
 
+Routing
+-------
+
+Signal routing over numbered channels, switched hard or with a crossfade:
+what ``~gate`` and ``~selector`` wrap.
+
+.. doxygenfile:: dsp/routing/signalSelector.hpp
+   :project: libYSE
+
 Filter primitives
 -----------------
 

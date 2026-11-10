@@ -116,6 +116,7 @@ set(YSE_TEST_SOURCES
   dsp/test_slide.cpp
   dsp/test_slew_limiter.cpp
   dsp/test_ramp_smooth.cpp
+  dsp/test_signal_selector.cpp
   dsp/test_filter_design.cpp
   dsp/test_filter_bands.cpp
   dsp/test_zplane.cpp
@@ -293,6 +294,7 @@ set(YSE_TEST_SOURCES
   patcher/test_patcher_signal_phaseshift.cpp
   patcher/test_patcher_signal_slide.cpp
   patcher/test_patcher_signal_rampsmooth.cpp
+  patcher/test_patcher_signal_gate_selector.cpp
   patcher/test_patcher_signal_deltaclip.cpp
   patcher/test_patcher_filterdesign.cpp
   patcher/test_patcher_filtergraph.cpp
@@ -1487,6 +1489,7 @@ set_source_files_properties(
   patcher/test_patcher_signal_phaseshift.cpp
   patcher/test_patcher_signal_slide.cpp
   patcher/test_patcher_signal_rampsmooth.cpp
+  patcher/test_patcher_signal_gate_selector.cpp
   patcher/test_patcher_signal_deltaclip.cpp
   patcher/test_patcher_filterdesign.cpp
   patcher/test_patcher_filtergraph.cpp

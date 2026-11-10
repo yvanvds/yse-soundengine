@@ -159,6 +159,7 @@ set(YSE_SRCS
   dsp/sampling/playerOutputs.cpp
   dsp/sampling/bufferPlayer.cpp
   dsp/sampling/groovePlayer.cpp
+  dsp/routing/signalSelector.cpp
   dsp/sfzModel.cpp
   dsp/wavetable.cpp
   implementations/listenerImplementation.cpp
@@ -232,6 +233,9 @@ set(YSE_SRCS
   patcher/sampling/dPlay.cpp
   patcher/sampling/dGroove.cpp
   patcher/sampling/dPhaseGroove.cpp
+  patcher/routing/selectorControl.cpp
+  patcher/routing/dGate.cpp
+  patcher/routing/dSelector.cpp
   patcher/filters/dVcf.cpp
   patcher/filters/dSah.cpp
   patcher/filters/dSash.cpp
@@ -720,6 +724,9 @@ set_source_files_properties(
   patcher/sampling/dPlay.cpp
   patcher/sampling/dGroove.cpp
   patcher/sampling/dPhaseGroove.cpp
+  patcher/routing/selectorControl.cpp
+  patcher/routing/dGate.cpp
+  patcher/routing/dSelector.cpp
   patcher/filters/dVcf.cpp
   patcher/filters/dSah.cpp
   patcher/filters/dSash.cpp

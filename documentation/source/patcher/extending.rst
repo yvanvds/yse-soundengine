@@ -840,8 +840,8 @@ Where the files go
      - One pair per class, or per small family that shares code (the
        comparison operators). ``<topic>`` is one of ``operators``,
        ``generators``, ``filters``, ``delay``, ``dynamics``, ``sampling``,
-       ``spectral``, ``analysis``. The existing flat files in ``dsp/`` stay
-       where they are.
+       ``spectral``, ``analysis``, ``routing``. The existing flat files in
+       ``dsp/`` stay where they are.
    * - ``YseEngine/yse.hpp``
      - An ``#include`` of every new public header, so ``#include "yse.hpp"``
        is all a C++ user needs.

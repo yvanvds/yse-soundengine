@@ -274,3 +274,60 @@ starts with any other word is ignored.
 
 In list mode (a non-zero third argument), the whole rest of the list goes out
 the one indicated outlet as a list. With ``-1`` every outlet gets it.
+
+.. patcher-object:: ~gate
+
+Sends the signal in the right inlet to one of its outlets and silence to all
+the others. The creation arguments are the number of outlets (1 to 128,
+default 1) and the outlet open at the start (default 0, every outlet
+closed). Outlets are numbered from 1, left to right.
+
+The left inlet chooses the outlet, by number or by signal:
+
+- a number: opens that outlet. A fraction is truncated, so 2.7 opens
+  outlet 2. 0 or less closes every outlet; a number above the count opens
+  the last one.
+- ``next`` or bang: opens the next outlet, wrapping from the last to the
+  first. When every outlet is closed, it opens outlet 1.
+- a signal: chooses the outlet sample by sample, by the same rules. While a
+  signal is connected, numbers, ``next`` and bang are remembered but have no
+  effect; the last one applies once the cord is removed.
+- ``ramptime <ms>`` (or ``ramp <ms>``): crossfades each switch over that
+  many milliseconds, so switching does not click. The outlet that opens
+  fades in while the others fade out. 0, the default, switches at once.
+- ``stepmode <0|1>``: with 1, the signal no longer names the outlet.
+  Instead, each change of its whole-number part opens the next outlet, and
+  a whole-number part of 0 or less closes them all.
+
+``ramptime`` and ``stepmode`` can also be given among the creation
+arguments, which are saved with the patch; later messages are not.
+
+.. code-block:: text
+
+   [~cycle 220] -> [~gate 2 1 ramptime 20] right inlet
+   outlet 1 to the left speaker, outlet 2 to the right; send 2 to move the
+   tone across in 20 ms
+
+.. patcher-object:: ~selector
+
+Passes one of its input signals to the outlet, or silence. The creation
+arguments are the number of signal inputs (1 to 128, default 1) and the
+input open at the start (default 0, every input closed). The inputs are the
+inlets right of the first one, numbered from 1.
+
+The left inlet chooses the input exactly as ``~gate``'s chooses an outlet:
+a number (truncated; 0 or less closes, above the count opens the last),
+``next`` or bang for the next input, wrapping, or a signal sample by sample.
+A connected signal wins over the numbers, which apply again once the cord is
+removed. ``ramptime <ms>`` (or ``ramp <ms>``) crossfades from one input to
+the next, and ``stepmode 1`` makes each whole-number change of the signal
+open the next input. Both can be given among the creation arguments.
+
+An input with nothing connected is silent.
+
+.. code-block:: text
+
+   [~saw 110]  -> [~selector 3 1 ramptime 50] inlet 1
+   [~rect 110] -> inlet 2
+   [~tri 110]  -> inlet 3
+   send 1, 2 or 3 to change the waveform with a 50 ms crossfade

@@ -179,6 +179,8 @@
 #include "sampling/dPlay.h"
 #include "sampling/dGroove.h"
 #include "sampling/dPhaseGroove.h"
+#include "routing/dGate.h"
+#include "routing/dSelector.h"
 
 #include "guiObjects/gInt.h"
 #include "guiObjects/gFloat.h"
@@ -484,6 +486,8 @@ pRegistry::pRegistry() {
   Add(OBJ::D_PLAY, dPlay::Create);
   Add(OBJ::D_GROOVE, dGroove::Create);
   Add(OBJ::D_PHASEGROOVE, dPhaseGroove::Create);
+  Add(OBJ::D_GATE, dGate::Create);
+  Add(OBJ::D_SELECTOR, dSelector::Create);
 
   Add(OBJ::G_SWITCH, gSwitch::Create);
   Add(OBJ::G_GATE, gGate::Create);
