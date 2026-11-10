@@ -354,6 +354,12 @@ what ``~gate`` and ``~selector`` wrap.
 .. doxygenfile:: dsp/routing/signalSelector.hpp
    :project: libYSE
 
+A mixing matrix with a ramped gain at every crosspoint: what ``~matrix``
+wraps.
+
+.. doxygenfile:: dsp/routing/mixMatrix.hpp
+   :project: libYSE
+
 Filter primitives
 -----------------
 

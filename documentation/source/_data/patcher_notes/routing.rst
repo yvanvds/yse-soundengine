@@ -308,6 +308,67 @@ arguments, which are saved with the patch; later messages are not.
    outlet 1 to the left speaker, outlet 2 to the right; send 2 to move the
    tone across in 20 ms
 
+.. patcher-object:: ~matrix
+
+A grid of crosspoints: every input reaches every output at a gain of its
+own, and each output is the sum of the inputs connected to it, each times its
+gain. The creation arguments are the number of inputs and of outputs (1 to
+128 each, default 1) and the gain ``connect`` uses (default 1). Inputs and
+outputs are numbered from 0, and nothing is connected at the start. An input
+with nothing connected is silent.
+
+The left inlet is input 0 and also takes the connection messages:
+
+- ``<in> <out> <gain>``: set that crosspoint's gain. A gain of 0
+  disconnects; any other gain, negative too, connects. A fourth number is
+  the ramp time in milliseconds for this one change.
+- ``connect <in> <out> [<out> ...] [<gain>]``: connect the input to every
+  output named. A float as the last item (``0.5``, or ``1.`` for 1) is the
+  gain for all of them; without one the default gain is used.
+- ``disconnect <in> <out> [<out> ...]``: disconnect the input from every
+  output named.
+- ``clear``: disconnect everything.
+- ``ramp <ms>`` (or ``ramptime <ms>``): the ramp time for later changes,
+  10 ms by default.
+- ``exclusive <n>``: 1 lets an input reach only one output, 2 lets an output
+  hear only one input, 3 both, 0 (the default) neither. A new connection
+  wins: the connections it would share an input or an output with fade out
+  while it fades in. Turning the mode on leaves the connections already made
+  alone.
+- ``dump``: send the current gain of every crosspoint that is connected or
+  still fading out. While a gain ramps, this differs from what it was set to.
+- ``dumptarget`` and ``dumpconnections``: send the gain every connected
+  crosspoint was set to.
+- ``print`` and ``dictionary <name>`` are accepted and do nothing. Use
+  ``dumpconnections`` to read the routing.
+
+A port number the matrix does not have, or a message in any other form, is
+ignored.
+
+Every change ramps: the crosspoint's gain moves in a straight line from where
+it is to the new gain over the ramp time, so switching and mixing do not
+click. A change during a ramp starts a new ramp from where the gain has got
+to. A ramp time of 0 switches at once. Changes take effect at the start of
+the next audio block.
+
+The dumps leave by the rightmost outlet after the block, one
+``<in> <out> <gain>`` list per crosspoint, by input and then by output, at
+most 256 lists per block (a larger dump carries on over the next blocks). A
+line has the form of the message that sets a crosspoint, so ``clear``
+followed by the stored lines of ``dumpconnections`` restores a routing. A
+request during a dump waits for it to finish.
+
+``ramp`` and ``exclusive`` can also be given among the creation arguments,
+which are saved with the patch. The connections and later messages are not;
+store the output of ``dumpconnections`` to keep a routing.
+
+.. code-block:: text
+
+   [~matrix 2 2 1 ramp 50]
+   connect 0 0 1      =>  input 0 to both outputs
+   1 1 0.5            =>  input 1 to output 1 at half gain
+   disconnect 0 1     =>  input 0 fades out of output 1 in 50 ms
+
 .. patcher-object:: ~selector
 
 Passes one of its input signals to the outlet, or silence. The creation

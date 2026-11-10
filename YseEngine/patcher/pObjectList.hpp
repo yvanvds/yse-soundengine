@@ -60,7 +60,8 @@ namespace YSE {
    *    signal-rate speed between loop points, with a sync output),
    *    ``D_PHASEGROOVE`` (a buffer's loop read where a 0 to 1 ramp says).
    *  - DSP routing: ``D_GATE`` (a signal sent to one of several outlets),
-   *    ``D_SELECTOR`` (one of several signals passed to the outlet).
+   *    ``D_SELECTOR`` (one of several signals passed to the outlet),
+   *    ``D_MATRIX`` (every input to every output at a ramped gain).
    *  - DSP math: ``D_ADD``, ``D_MULTIPLY``, ``D_CLIP``, ``D_REVERSESUBSTRACT``,
    *    ``D_REVERSEDIVIDE``, ``D_MODULO``, ``D_PLUSEQUALS``,
    *    ``D_DELTA`` (difference between successive samples), ``D_DEGRADE``
@@ -313,6 +314,7 @@ namespace YSE {
 
     DEFOBJ(D_GATE, "~gate");
     DEFOBJ(D_SELECTOR, "~selector");
+    DEFOBJ(D_MATRIX, "~matrix");
 
     DEFOBJ(G_INT, ".i");
     DEFOBJ(G_FLOAT, ".f");

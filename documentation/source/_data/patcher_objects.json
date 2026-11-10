@@ -18613,6 +18613,49 @@
     ],
     "requires_midi_device": false
   },
+  "~matrix": {
+    "category": "ROUTING",
+    "description": "Signal routing and mixing matrix: every input reaches every output at a gain of its own, set by messages, and each output is the sum of its connected inputs. Gain changes ramp, so switching does not click.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "LIST"
+        ],
+        "doc": "Input 0 (unconnected reads silence), and the connection messages, which number inputs and outputs from 0: '<in> <out> <gain> [<ramp ms>]' sets a crosspoint (gain 0 disconnects); 'connect <in> <out> [<out> ...] [<gain>]' connects at the gain, given as a float, or at the default gain; 'disconnect <in> <out> [<out> ...]'; 'clear'; 'ramp <ms>' (alias 'ramptime') for later changes; 'exclusive <0-3>' (1: an input reaches one output, 2: an output hears one input, 3: both; the new connection wins); 'dump', 'dumptarget' and 'dumpconnections' send the crosspoints out the rightmost outlet.",
+        "index": 0,
+        "label": "in 0",
+        "range": ""
+      }
+    ],
+    "is_dsp": true,
+    "name": "~matrix",
+    "outlets": [
+      {
+        "doc": "Output 0: the sum of the inputs connected to it, each times its gain.",
+        "index": 0,
+        "label": "out 0",
+        "range": "",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "One '<in> <out> <gain>' list per crosspoint, by input and then by output, after 'dump' (the current gain of every crosspoint connected or still fading out) or 'dumptarget' / 'dumpconnections' (the gain every connection is heading for). Fed back in after 'clear', the lines restore the routing.",
+        "index": 1,
+        "label": "dump",
+        "range": "",
+        "type": "LIST"
+      }
+    ],
+    "params": [
+      {
+        "default": "1 1 1",
+        "doc": "The number of inputs and of outputs (1-128 each) and the gain 'connect' uses, with 'ramp <ms>' (default 10) and 'exclusive <0-3>' among them ('~matrix 4 2 1 ramp 50'). Later messages and the connections are not saved.",
+        "name": "arguments",
+        "range": "inputs, outputs, gain, then the keywords"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~maximum": {
     "category": "MATH",
     "description": "Outputs the larger of the two inputs, sample by sample. With a number it limits the signal from below; against 0 it is a half-wave rectifier.",

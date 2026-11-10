@@ -160,6 +160,7 @@ set(YSE_SRCS
   dsp/sampling/bufferPlayer.cpp
   dsp/sampling/groovePlayer.cpp
   dsp/routing/signalSelector.cpp
+  dsp/routing/mixMatrix.cpp
   dsp/sfzModel.cpp
   dsp/wavetable.cpp
   implementations/listenerImplementation.cpp
@@ -236,6 +237,8 @@ set(YSE_SRCS
   patcher/routing/selectorControl.cpp
   patcher/routing/dGate.cpp
   patcher/routing/dSelector.cpp
+  patcher/routing/matrixControl.cpp
+  patcher/routing/dMatrix.cpp
   patcher/filters/dVcf.cpp
   patcher/filters/dSah.cpp
   patcher/filters/dSash.cpp
@@ -727,6 +730,8 @@ set_source_files_properties(
   patcher/routing/selectorControl.cpp
   patcher/routing/dGate.cpp
   patcher/routing/dSelector.cpp
+  patcher/routing/matrixControl.cpp
+  patcher/routing/dMatrix.cpp
   patcher/filters/dVcf.cpp
   patcher/filters/dSah.cpp
   patcher/filters/dSash.cpp
