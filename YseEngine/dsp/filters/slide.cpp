@@ -45,16 +45,19 @@ namespace YSE {
       return amount > 1.f ? amount : 1.f;
     }
 
+    Dbl slide::Advance(Dbl current, Flt in, Flt up, Flt down) {
+      if (!std::isfinite(in)) return current;
+      const Dbl target = static_cast<Dbl>(in);
+      const Dbl amount = static_cast<Dbl>(Effective(target > current ? up : down));
+      // The amount is at least 1, so the step never passes the input.
+      const Dbl next = current + (target - current) / amount;
+      if (std::fabs(target - next) <= SNAP_TOLERANCE * std::max(1.0, std::fabs(target)))
+        return target;
+      return next;
+    }
+
     Flt slide::Step(Flt in) {
-      if (std::isfinite(in)) {
-        const Dbl target = static_cast<Dbl>(in);
-        const Dbl amount = static_cast<Dbl>(Effective(target > current ? slideUp : slideDown));
-        // The amount is at least 1, so the step never passes the input.
-        Dbl next = current + (target - current) / amount;
-        if (std::fabs(target - next) <= SNAP_TOLERANCE * std::max(1.0, std::fabs(target)))
-          next = target;
-        current = next;
-      }
+      current = Advance(current, in, slideUp, slideDown);
       return static_cast<Flt>(current);
     }
 

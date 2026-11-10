@@ -153,6 +153,11 @@ other. ``~tapout``'s shortest delay is one block, so it always reads audio
 that was recorded before the block started, and the sound is the same
 whichever of the two runs first.
 
+A named pair works too: ``~receive fb`` -> ... -> ``~send fb``. A
+``~receive`` normally hears its ``~send`` objects in the same block, but in
+a loop like this one it hears the previous block, so the loop has one block
+of delay (see ``~receive`` in :doc:`objects/routing`).
+
 Only signal cords count. A control cord back up the chain (from
 ``~snapshot``, say) is not a loop: its message is sent after the block.
 

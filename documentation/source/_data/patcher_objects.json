@@ -17760,6 +17760,53 @@
     ],
     "requires_midi_device": false
   },
+  "~gate": {
+    "category": "ROUTING",
+    "description": "Sends a signal to one of several outlets, chosen by a number or a signal, or to none; the other outlets carry silence. Switches hard, or crossfades over a ramp time to avoid clicks.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT",
+          "BANG"
+        ],
+        "doc": "The open outlet, from 1, as a number (truncated) or a signal read per sample; 0 or less closes every outlet, above the count opens the last. Unconnected, the last number sent here. 'next' or bang opens the next outlet, wrapping; 'ramptime <ms>' crossfades each switch over that time (0, the default, switches hard); 'stepmode 1' makes each whole-number change of the signal open the next outlet.",
+        "index": 0,
+        "label": "outlet",
+        "range": "0 or more"
+      },
+      {
+        "accepts": [
+          "BUFFER"
+        ],
+        "doc": "The signal to send to the open outlet (unconnected reads 0).",
+        "index": 1,
+        "label": "in",
+        "range": ""
+      }
+    ],
+    "is_dsp": true,
+    "name": "~gate",
+    "outlets": [
+      {
+        "doc": "The input while outlet 1 is open, silence otherwise.",
+        "index": 0,
+        "label": "outlet 1",
+        "range": "",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "1 0",
+        "doc": "The number of outlets (1-128) and the outlet open at the start (0 closes them all), with 'ramptime <ms>' and 'stepmode <0|1>' among them ('~gate 4 1 ramptime 10'). Later messages do not change what is saved.",
+        "name": "arguments",
+        "range": "a count, then an outlet, then the keywords"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~groove": {
     "category": "SAMPLING",
     "description": "Plays a named sample buffer at the speed of a signal, forward or backward, between loop points it can loop or swing back and forth over, with a sync signal that ramps from 0 to 1 over the loop: a sampler voice.",
@@ -18562,6 +18609,49 @@
         "doc": "Initial cutoff frequency in Hz.",
         "name": "frequency",
         "range": "0-20000 Hz"
+      }
+    ],
+    "requires_midi_device": false
+  },
+  "~matrix": {
+    "category": "ROUTING",
+    "description": "Signal routing and mixing matrix: every input reaches every output at a gain of its own, set by messages, and each output is the sum of its connected inputs. Gain changes ramp, so switching does not click.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "LIST"
+        ],
+        "doc": "Input 0 (unconnected reads silence), and the connection messages, which number inputs and outputs from 0: '<in> <out> <gain> [<ramp ms>]' sets a crosspoint (gain 0 disconnects); 'connect <in> <out> [<out> ...] [<gain>]' connects at the gain, given as a float, or at the default gain; 'disconnect <in> <out> [<out> ...]'; 'clear'; 'ramp <ms>' (alias 'ramptime') for later changes; 'exclusive <0-3>' (1: an input reaches one output, 2: an output hears one input, 3: both; the new connection wins); 'dump', 'dumptarget' and 'dumpconnections' send the crosspoints out the rightmost outlet.",
+        "index": 0,
+        "label": "in 0",
+        "range": ""
+      }
+    ],
+    "is_dsp": true,
+    "name": "~matrix",
+    "outlets": [
+      {
+        "doc": "Output 0: the sum of the inputs connected to it, each times its gain.",
+        "index": 0,
+        "label": "out 0",
+        "range": "",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "One '<in> <out> <gain>' list per crosspoint, by input and then by output, after 'dump' (the current gain of every crosspoint connected or still fading out) or 'dumptarget' / 'dumpconnections' (the gain every connection is heading for). Fed back in after 'clear', the lines restore the routing.",
+        "index": 1,
+        "label": "dump",
+        "range": "",
+        "type": "LIST"
+      }
+    ],
+    "params": [
+      {
+        "default": "1 1 1",
+        "doc": "The number of inputs and of outputs (1-128 each) and the gain 'connect' uses, with 'ramp <ms>' (default 10) and 'exclusive <0-3>' among them ('~matrix 4 2 1 ramp 50'). Later messages and the connections are not saved.",
+        "name": "arguments",
+        "range": "inputs, outputs, gain, then the keywords"
       }
     ],
     "requires_midi_device": false
@@ -20158,6 +20248,41 @@
     ],
     "requires_midi_device": false
   },
+  "~receive": {
+    "category": "ROUTING",
+    "description": "Outputs the sum of every ~send with the same name, without a cord. A ~send in this patcher is heard in the same block, or one block later when that closes a feedback loop; one in another patcher is heard one block later.",
+    "inlets": [
+      {
+        "accepts": [
+          "LIST"
+        ],
+        "doc": "'set <name>' receives another name from a later block; no name receives silence.",
+        "index": 0,
+        "label": "set",
+        "range": ""
+      }
+    ],
+    "is_dsp": true,
+    "name": "~receive",
+    "outlets": [
+      {
+        "doc": "The sum of every ~send of the name, or silence when there is none.",
+        "index": 0,
+        "label": "out",
+        "range": "",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The name to receive, at most 63 characters; a longer one is refused and logged. A 'set' message does not change what is saved.",
+        "name": "name",
+        "range": "any name, at most 63 characters"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~record": {
     "category": "SAMPLING",
     "description": "Records signals into a named sample buffer, between a start and an end point, once or in a loop, with a sync signal that ramps from 0 to 1 over the recording: live looping and sampling.",
@@ -20745,6 +20870,83 @@
     ],
     "requires_midi_device": false
   },
+  "~selector": {
+    "category": "ROUTING",
+    "description": "Passes one of several input signals to its outlet, chosen by a number or a signal, or none. Switches hard, or crossfades over a ramp time to avoid clicks.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT",
+          "BANG"
+        ],
+        "doc": "The open input, from 1, as a number (truncated) or a signal read per sample; 0 or less closes every input, above the count opens the last. Unconnected, the last number sent here. 'next' or bang opens the next input, wrapping; 'ramptime <ms>' crossfades each switch over that time (0, the default, switches hard); 'stepmode 1' makes each whole-number change of the signal open the next input.",
+        "index": 0,
+        "label": "input",
+        "range": "0 or more"
+      },
+      {
+        "accepts": [
+          "BUFFER"
+        ],
+        "doc": "Input 1, passed to the outlet while it is open (unconnected reads 0).",
+        "index": 1,
+        "label": "in 1",
+        "range": ""
+      }
+    ],
+    "is_dsp": true,
+    "name": "~selector",
+    "outlets": [
+      {
+        "doc": "The open input, or silence while every input is closed.",
+        "index": 0,
+        "label": "out",
+        "range": "",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "1 0",
+        "doc": "The number of signal inputs (1-128) and the input open at the start (0 closes them all), with 'ramptime <ms>' and 'stepmode <0|1>' among them ('~selector 4 1 ramptime 10'). Later messages do not change what is saved.",
+        "name": "arguments",
+        "range": "a count, then an input, then the keywords"
+      }
+    ],
+    "requires_midi_device": false
+  },
+  "~send": {
+    "category": "ROUTING",
+    "description": "Sends a signal to every ~receive with the same name, without a cord. Several ~send objects with one name are summed.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "The signal to send (several cords sum). Unconnected, the last number sent here is sent as a constant. 'set <name>' sends to another name from a later block (no name sends nowhere); 'clear' sends silence for one block, which empties a feedback loop.",
+        "index": 0,
+        "label": "in",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~send",
+    "outlets": [],
+    "params": [
+      {
+        "default": "",
+        "doc": "The name to send to, at most 63 characters; a longer one is refused and logged. A 'set' message does not change what is saved.",
+        "name": "name",
+        "range": "any name, at most 63 characters"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~seq": {
     "category": "SEQUENCE",
     "description": "Event sequencer driven by a 0..1 ramp: messages stored at phase positions, added or recorded live, sent when the ramp crosses them.",
@@ -20789,6 +20991,76 @@
       }
     ],
     "params": [],
+    "requires_midi_device": false
+  },
+  "~sfinfo": {
+    "category": "SAMPLING",
+    "description": "Reports what a sound file holds: its channels, sample size, sample rate, length, sample type and name. Reads only the file's header.",
+    "inlets": [
+      {
+        "accepts": [
+          "BANG"
+        ],
+        "doc": "open <file> names a sound file and reports on it; bang reports on the last file named.",
+        "index": 0,
+        "label": "messages",
+        "range": ""
+      }
+    ],
+    "is_dsp": true,
+    "name": "~sfinfo",
+    "outlets": [
+      {
+        "doc": "How many channels the file has.",
+        "index": 0,
+        "label": "channels",
+        "range": "count",
+        "type": "INT"
+      },
+      {
+        "doc": "The size of one sample in bits, or 0 for a compressed encoding.",
+        "index": 1,
+        "label": "sample size",
+        "range": "bits",
+        "type": "INT"
+      },
+      {
+        "doc": "The file's sample rate, in Hz.",
+        "index": 2,
+        "label": "sample rate",
+        "range": "Hz",
+        "type": "FLOAT"
+      },
+      {
+        "doc": "The file's length, in ms.",
+        "index": 3,
+        "label": "length",
+        "range": "ms",
+        "type": "FLOAT"
+      },
+      {
+        "doc": "int8, uint8, int16, int24, int32, float32, float64, mulaw, alaw, or other.",
+        "index": 4,
+        "label": "sample type",
+        "range": "",
+        "type": "LIST"
+      },
+      {
+        "doc": "The file's name, without its folders.",
+        "index": 5,
+        "label": "file name",
+        "range": "",
+        "type": "LIST"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The sound file a bang reports on.",
+        "name": "file",
+        "range": "file"
+      }
+    ],
     "requires_midi_device": false
   },
   "~shape": {
@@ -22432,6 +22704,45 @@
     ],
     "requires_midi_device": false
   },
+  "~typeroute": {
+    "category": "ROUTING",
+    "description": "Sorts what arrives at its one inlet by type: a signal goes out the left outlet, every message (bang, number, list or word message) out the right one. Lets one inlet of a subpatcher take either.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "A signal, or any message: bang, int, float, a list, or a message that starts with a word. Several signal cords are summed.",
+        "index": 0,
+        "label": "in",
+        "range": ""
+      }
+    ],
+    "is_dsp": true,
+    "name": "~typeroute",
+    "outlets": [
+      {
+        "doc": "The signal that arrived, unchanged; silence when no signal is connected. A number never reaches this outlet.",
+        "index": 0,
+        "label": "signal",
+        "range": "",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "Every message that arrived, at once and with its type kept: a bang as a bang, an int as an int, a float as a float, a list or a word message as it was spelled.",
+        "index": 1,
+        "label": "messages",
+        "range": "",
+        "type": "ANY"
+      }
+    ],
+    "params": [],
+    "requires_midi_device": false
+  },
   "~updown": {
     "category": "OSC",
     "description": "A trapezoid envelope driven by a ramp such as a ~phasor, or by a gate: it rises in a fixed time when the ramp starts and falls in a fixed time to end at 0 where the ramp ends, however fast the ramp runs. For click-free gating.",
@@ -22551,6 +22862,65 @@
         "doc": "Center frequency in Hz used while no signal is connected.",
         "name": "center",
         "range": "0-20000 Hz"
+      }
+    ],
+    "requires_midi_device": false
+  },
+  "~vectral": {
+    "category": "SPECTRAL",
+    "description": "Smooths a stream of frames, such as spectra, index by index: each value against the value at the same index in the frames before it, with a linear ramp (rampsmooth), a logarithmic slide or a limited change per frame (deltaclip).",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The output index: which stored value each output sample reads, usually a frame's bin index. A signal; unconnected, the last number sent here (0). Also takes 'rampsmooth <up> [down]', 'slide <up> [down]', 'deltaclip <lowest> <highest>', 'size <n>' and 'clear'.",
+        "index": 0,
+        "label": "outIndex",
+        "range": "0 to size - 1"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The input index: where each input sample is smoothed and stored. Equal to the output index, frames come out smoothed in the frame they arrive in; ahead of it by d, shifted by d places. A signal; unconnected, the last number sent here (0). Takes the same words as the left inlet.",
+        "index": 1,
+        "label": "inIndex",
+        "range": "0 to size - 1"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The frame values to smooth, one per sample. A signal; unconnected, the last number sent here (0). Takes the same words as the left inlet.",
+        "index": 2,
+        "label": "in",
+        "range": ""
+      }
+    ],
+    "is_dsp": true,
+    "name": "~vectral",
+    "outlets": [
+      {
+        "doc": "The stored value at the output index, after this sample's input was smoothed in; 0 when the index is outside the frame.",
+        "index": 0,
+        "label": "out",
+        "range": "",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "512",
+        "doc": "The frame size: indexes 0 to size - 1 are used. Also the largest size the 'size' message can set. Changing it rebuilds the object.",
+        "name": "size",
+        "range": "1-65536"
       }
     ],
     "requires_midi_device": false

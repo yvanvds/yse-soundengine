@@ -651,7 +651,25 @@ within one patcher, ``~receive`` runs after the ``~send`` objects of its
 name and hears this block's signal, unless that order would close a loop.
 Then, and for a ``~send`` in another patcher, it hears the previous block.
 The order is decided when the graph is rebuilt, the same way for a given
-patch every time, so the sound is deterministic.
+patch every time, so the sound is deterministic. How it is built:
+
+- ``BuildRenderOrder`` adds a *soft edge* from each ``~send`` to each
+  ``~receive`` of its name, taken in storage-ID order. A soft edge holds the
+  receive back in the compiled order like a cord, but carries nothing. One
+  that would close a loop with the cords and the soft edges already taken
+  is cut.
+- The samples go through ``DSP::signalBus`` (``dsp/routing/signalBus.hpp``),
+  not through the graph. Each sender keeps two blocks. A receiver reads a
+  sender of its own patcher (the same *context*) at its latest block, which
+  is this block's when the order put the sender first and the previous one
+  when a cut put it after. Any other sender it reads at exactly the previous
+  block, by the bus's block clock, which the engine advances between
+  blocks, so two render workers can run the two patchers at once in either
+  order.
+- A ``set`` may arrive on the audio thread, while rebinding looks a bus up
+  and the new name changes the soft edges. The object stores the name in a
+  fixed slot and calls ``RequestSignalBusSync``. A background job then takes
+  the patcher's lock, rebinds and rebuilds the graph.
 
 Reading a sample buffer
 ~~~~~~~~~~~~~~~~~~~~~~~
@@ -840,8 +858,8 @@ Where the files go
      - One pair per class, or per small family that shares code (the
        comparison operators). ``<topic>`` is one of ``operators``,
        ``generators``, ``filters``, ``delay``, ``dynamics``, ``sampling``,
-       ``spectral``, ``analysis``. The existing flat files in ``dsp/`` stay
-       where they are.
+       ``spectral``, ``analysis``, ``routing``. The existing flat files in
+       ``dsp/`` stay where they are.
    * - ``YseEngine/yse.hpp``
      - An ``#include`` of every new public header, so ``#include "yse.hpp"``
        is all a C++ user needs.

@@ -345,6 +345,37 @@ Its outputs, and the read that mixes the buffer's channels into them, are a
 .. doxygenfile:: dsp/sampling/playerOutputs.hpp
    :project: libYSE
 
+Routing
+-------
+
+Signal routing over numbered channels, switched hard or with a crossfade:
+what ``~gate`` and ``~selector`` wrap.
+
+.. doxygenfile:: dsp/routing/signalSelector.hpp
+   :project: libYSE
+
+A mixing matrix with a ramped gain at every crosspoint: what ``~matrix``
+wraps.
+
+.. doxygenfile:: dsp/routing/mixMatrix.hpp
+   :project: libYSE
+
+Named signal buses: audio sent and received by name, without a cord, what
+``~send`` and ``~receive`` wrap.
+
+.. doxygenfile:: dsp/routing/signalBus.hpp
+   :project: libYSE
+
+Spectral
+--------
+
+Successive frames, such as spectra, smoothed index by index with a linear
+ramp, a logarithmic slide or a limited change per frame: what ``~vectral``
+wraps.
+
+.. doxygenfile:: dsp/spectral/vectral.hpp
+   :project: libYSE
+
 Filter primitives
 -----------------
 

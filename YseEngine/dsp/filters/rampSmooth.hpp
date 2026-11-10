@@ -64,6 +64,23 @@ namespace YSE {
       /** @brief Both lengths until they are set: the input passes through. */
       static constexpr Flt DEFAULT_RAMP = 1.f;
 
+      /** @brief What the smoother keeps between samples: the output, the
+       *         ramp's step, the value it heads for and the samples left.
+       *         Public so a class that smooths many values at once
+       *         (``vectral``) keeps one per value and steps each with
+       *         ``Advance``. A default state is the output 0 at rest. */
+      struct state {
+        Dbl current = 0.0;
+        Dbl increment = 0.0;
+        Flt target = 0.f;
+        UInt remaining = 0;
+      };
+
+      /** @brief One step of @p ramp towards @p in, with ramp-up and ramp-down
+       *         lengths @p up and @p down (used as ``Samples`` reads them):
+       *         the equation ``process()`` runs. Returns the new output. */
+      static Flt Advance(state& ramp, Flt in, Flt up, Flt down);
+
       rampSmooth();
 
       /** @brief The ramp-up length in samples, used when the input moves above
@@ -92,7 +109,7 @@ namespace YSE {
 
       /** @brief The current output. */
       Flt value() const {
-        return static_cast<Flt>(current);
+        return static_cast<Flt>(now.current);
       }
 
       /** @brief The number of samples a setting ramps over: its whole part,
@@ -117,10 +134,7 @@ namespace YSE {
 
       Flt rampUp = DEFAULT_RAMP;
       Flt rampDown = DEFAULT_RAMP;
-      Dbl current = 0.0;
-      Dbl increment = 0.0;
-      Flt target = 0.f;
-      UInt remaining = 0;
+      state now;
     };
 
   } // namespace DSP

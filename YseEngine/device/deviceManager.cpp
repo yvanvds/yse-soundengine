@@ -9,6 +9,7 @@
 */
 
 #include "../internalHeaders.h"
+#include "../dsp/routing/signalBus.hpp"
 
 YSE::DEVICE::deviceManager::deviceManager()
   : master(nullptr), currentInputChannels(0), currentOutputChannels(2) {}
@@ -87,6 +88,10 @@ void YSE::DEVICE::deviceManager::renderOneBlock() {
   // block) and the clip transports accurate to one block at any buffer size,
   // exactly as renderOffline() always was.
   advanceDomainClocks(STANDARD_BUFFERSIZE);
+  // The named signal buses' block clock (issue #1136), between blocks: a
+  // receiver reads what a sender in another patcher wrote in the block before
+  // this one, whichever render thread gets to either first.
+  DSP::signalBus::advance();
   CHANNEL::Manager().render(*master);
 }
 

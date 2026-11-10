@@ -159,6 +159,10 @@ set(YSE_SRCS
   dsp/sampling/playerOutputs.cpp
   dsp/sampling/bufferPlayer.cpp
   dsp/sampling/groovePlayer.cpp
+  dsp/routing/signalSelector.cpp
+  dsp/routing/mixMatrix.cpp
+  dsp/routing/signalBus.cpp
+  dsp/spectral/vectral.cpp
   dsp/sfzModel.cpp
   dsp/wavetable.cpp
   implementations/listenerImplementation.cpp
@@ -232,6 +236,17 @@ set(YSE_SRCS
   patcher/sampling/dPlay.cpp
   patcher/sampling/dGroove.cpp
   patcher/sampling/dPhaseGroove.cpp
+  patcher/sampling/dSfinfo.cpp
+  patcher/routing/selectorControl.cpp
+  patcher/routing/dGate.cpp
+  patcher/routing/dSelector.cpp
+  patcher/routing/matrixControl.cpp
+  patcher/routing/dMatrix.cpp
+  patcher/routing/dTypeRoute.cpp
+  patcher/routing/signalBusPort.cpp
+  patcher/spectral/dVectral.cpp
+  patcher/routing/dSend.cpp
+  patcher/routing/dReceive.cpp
   patcher/filters/dVcf.cpp
   patcher/filters/dSah.cpp
   patcher/filters/dSash.cpp
@@ -720,6 +735,17 @@ set_source_files_properties(
   patcher/sampling/dPlay.cpp
   patcher/sampling/dGroove.cpp
   patcher/sampling/dPhaseGroove.cpp
+  patcher/sampling/dSfinfo.cpp
+  patcher/routing/selectorControl.cpp
+  patcher/routing/dGate.cpp
+  patcher/routing/dSelector.cpp
+  patcher/routing/matrixControl.cpp
+  patcher/routing/dMatrix.cpp
+  patcher/routing/dTypeRoute.cpp
+  patcher/routing/signalBusPort.cpp
+  patcher/spectral/dVectral.cpp
+  patcher/routing/dSend.cpp
+  patcher/routing/dReceive.cpp
   patcher/filters/dVcf.cpp
   patcher/filters/dSah.cpp
   patcher/filters/dSash.cpp

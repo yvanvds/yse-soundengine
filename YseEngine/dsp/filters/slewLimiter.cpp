@@ -41,16 +41,16 @@ namespace YSE {
       return *this;
     }
 
+    Flt slewLimiter::Advance(Flt current, Flt in, Flt lowest, Flt highest) {
+      if (!std::isfinite(in)) return current;
+      const Flt change = in - current;
+      if (change >= lowest && change <= highest) return in; // within the limits: the input exactly
+      // Clipped as clip does: a minimum above the maximum gives the maximum.
+      return current + std::min(std::max(change, lowest), highest);
+    }
+
     Flt slewLimiter::Step(Flt in) {
-      if (std::isfinite(in)) {
-        const Flt change = in - current;
-        if (change >= lowest && change <= highest)
-          current = in; // within the limits: the input exactly
-        else
-          // Clipped as clip does: a minimum above the maximum gives the
-          // maximum.
-          current += std::min(std::max(change, lowest), highest);
-      }
+      current = Advance(current, in, lowest, highest);
       return current;
     }
 

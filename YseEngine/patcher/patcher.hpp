@@ -62,9 +62,9 @@ namespace YSE {
    *  every file access the patch's content triggers asks it first: the
    *  ``read`` and ``write`` messages of ``.coll``, ``.textfile``, ``.qlist``,
    *  ``.mtr``, ``.seq``, ``~seq``, ``.dict.serialize``,
-   *  ``.dict.deserialize`` and ``~capture``, and the sound files ``~buffer``
-   *  reads and writes, its file argument included. Absolute names are asked
-   *  about too.
+   *  ``.dict.deserialize`` and ``~capture``, the sound files ``~buffer``
+   *  reads and writes, its file argument included, and the sound files
+   *  ``~sfinfo`` reports on. Absolute names are asked about too.
    *
    *  The exchange is asynchronous. ``Resolve`` is called on the engine's
    *  background thread with the file job parked. The answer is

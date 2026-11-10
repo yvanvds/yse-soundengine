@@ -59,8 +59,9 @@ back like a read's bytes. Tasks run in request order, because the pool has one w
 lets the host decide where every file a patch names lives (`patcher::SetPathResolver`, C:
 `yse_patcher_set_path_resolver`). It is asynchronous because a Dart host cannot answer a synchronous
 native callback from the file thread: a slot that names a file (a read, a write, or a task armed with
-`RequestPathTask`, which is how `~buffer` reads and writes sound files) posts the name to the resolver
-on the background pool and parks in `STATE_RESOLVING`, so the pool keeps running other jobs. The reply
+`RequestPathTask`, which is how `~buffer` reads and writes sound files and `~sfinfo` reads a sound
+file's header) posts the name to the resolver on the background pool and parks in `STATE_RESOLVING`,
+so the pool keeps running other jobs. The reply
 (`patcher::ResolveReply`, any thread, inside the callback or later) is matched by a process-wide request
 id through a registry of live schedulers, never through a pointer the host kept: a path re-arms the slot's
 job, which opens exactly that path; a refusal completes it as a failure. `DeliverComplete` fails a slot
