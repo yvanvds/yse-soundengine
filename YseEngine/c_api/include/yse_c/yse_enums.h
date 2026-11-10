@@ -200,6 +200,10 @@ typedef enum YseReverbPreset {
   YSE_REVERB_UNDERWATER = 10
 } YseReverbPreset;
 
+/** Mirrors YSE::PATH_ACCESS in headers/enums.hpp: what a patch asks to do
+   with a file a YsePatcherPathResolverCallback resolves (issue #1255). */
+typedef enum YsePathAccess { YSE_PATH_READ = 0, YSE_PATH_WRITE = 1 } YsePathAccess;
+
 #ifdef __cplusplus
 }
 #endif

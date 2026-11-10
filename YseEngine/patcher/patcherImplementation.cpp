@@ -339,7 +339,26 @@ void patcherImplementation::EnsureFileIO() {
   // Control thread, under mtx (see the header). Idempotent: the first
   // file-capable object to join builds the table and every later one finds it.
   if (fileIO_.load(std::memory_order_acquire) != nullptr) return;
-  fileIO_.store(new fileScheduler(), std::memory_order_release);
+  auto* io = new fileScheduler();
+  // A resolver the host installed before any file-capable object joined
+  // (issue #1255). The scheduler is not published yet, so nothing can be
+  // inside a resolver on its behalf and the grace wait is immediate.
+  io->SetResolver(pathResolver_, resolveTimeoutMs_);
+  fileIO_.store(io, std::memory_order_release);
+}
+
+void patcherImplementation::SetPathResolver(pathResolver* resolver, unsigned int timeoutMs) {
+  fileScheduler* io = nullptr;
+  {
+    const std::lock_guard<std::mutex> lock(mtx);
+    pathResolver_ = resolver;
+    resolveTimeoutMs_ = timeoutMs;
+    io = fileIO_.load(std::memory_order_acquire);
+  }
+  // Outside mtx: the grace wait below waits for a Resolve call in progress on
+  // the background pool, and a resolver that calls back into this patcher
+  // would take mtx. Once built, the scheduler lives as long as the patcher.
+  if (io != nullptr) io->SetResolver(resolver, timeoutMs);
 }
 
 const char* patcherImplementation::Type() const {

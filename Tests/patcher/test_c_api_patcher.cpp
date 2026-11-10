@@ -28,6 +28,9 @@
 #include <chrono>
 #include <cstdlib>
 #include <cstring>
+#include <filesystem>
+#include <fstream>
+#include <iterator>
 #include <mutex>
 #include <stdexcept>
 #include <string>
@@ -183,6 +186,72 @@ namespace {
       check(ud, address, 'B');
     }
   };
+
+  // ─── path-resolver hosts (issue #1255) ─────────────────────────────────────
+
+  // One request as the callback delivered it, copied out before the strings are
+  // freed the documented way: one yse_patcher_free_message on the name.
+  struct PathAsk {
+    YsePatcher* patcher;
+    unsigned int id;
+    std::string name;
+    YsePathAccess access;
+    std::string objectType;
+    unsigned int objectId;
+  };
+
+  // An asynchronous host — what the Dart wrapper is: the callback only writes
+  // the request down, and the test thread answers it later.
+  struct AsyncHost {
+    std::mutex mtx;
+    std::vector<PathAsk> asks;
+
+    static void YSE_C_CALLBACK record(void* ud, YsePatcher* p, unsigned int id, char* name,
+                                      YsePathAccess access, char* objectType,
+                                      unsigned int objectId) {
+      auto* self = static_cast<AsyncHost*>(ud);
+      PathAsk a{p, id, name, access, objectType, objectId};
+      yse_patcher_free_message(name);
+      const std::lock_guard<std::mutex> lk(self->mtx);
+      self->asks.push_back(std::move(a));
+    }
+
+    std::size_t count() {
+      const std::lock_guard<std::mutex> lk(mtx);
+      return asks.size();
+    }
+    PathAsk last() {
+      const std::lock_guard<std::mutex> lk(mtx);
+      return asks.back();
+    }
+    // Pump the offline engine until the n-th request has arrived. The request
+    // is posted from the background file thread, so it is waited for, bounded.
+    bool waitFor(std::size_t n) {
+      for (int i = 0; i < 500 && count() < n; ++i)
+        capilowcov::pump(1);
+      return count() >= n;
+    }
+  };
+
+  // A synchronous host — a C/C++ one: it answers from inside the callback,
+  // mapping every name into its own folder.
+  struct SyncHost {
+    std::string folder;
+    std::atomic<int> calls{0};
+    static void YSE_C_CALLBACK answer(void* ud, YsePatcher*, unsigned int id, char* name,
+                                      YsePathAccess, char*, unsigned int) {
+      auto* self = static_cast<SyncHost*>(ud);
+      const std::string path = (std::filesystem::path(self->folder) / name).string();
+      yse_patcher_free_message(name);
+      self->calls.fetch_add(1);
+      CHECK(yse_patcher_resolve_reply(id, path.c_str()) == YSE_OK);
+    }
+  };
+
+  std::string fileText(const std::filesystem::path& path) {
+    std::ifstream in(path, std::ios::binary);
+    return std::string((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+  }
 
 } // namespace
 
@@ -2002,6 +2071,165 @@ TEST_SUITE("capilowcov") {
     CHECK(std::strlen(json) > 0u);
     yse_free_string(json);
     yse_free_string(nullptr); // documented as NULL-tolerant
+  }
+
+  // ─── the host's path resolver (issue #1255) ─────────────────────────────────
+
+  TEST_CASE("c-api patcher: the host resolves every file a patch reads or writes (#1255)") {
+    // The flow phi needs, over the flat ABI: a mounted, rendering patch whose
+    // .textfile writes and reads "notes.txt", and the host deciding where that
+    // file lives — answering later from its own thread, or at once from inside
+    // the callback — or refusing, or not answering in time.
+    REQUIRE(capilowcov::ensureOffline());
+    namespace fs = std::filesystem;
+    const fs::path folder = fs::temp_directory_path() / "yse_capi_resolver_1255";
+    std::error_code ec;
+    fs::remove_all(folder, ec);
+    fs::create_directories(folder);
+    const fs::path stored = folder / "project_notes.txt";
+
+    YsePatcher* p = yse_patcher_create();
+    REQUIRE(p != nullptr);
+    REQUIRE(yse_patcher_init(p, 1) == YSE_OK);
+    AsyncHost host;
+    REQUIRE(yse_patcher_set_path_resolver(p, &AsyncHost::record, &host, 0) == YSE_OK);
+
+    // .textfile ─file─▶ .counter, so every finished read is a number the host
+    // can read back; ─lines─▶ .i for the line count after a read.
+    YsePHandle* text = yse_patcher_create_object(p, ".textfile", nullptr);
+    YsePHandle* loads = yse_patcher_create_object(p, kCounter, nullptr);
+    YsePHandle* lines = yse_patcher_create_object(p, kInt, nullptr);
+    REQUIRE(text != nullptr);
+    REQUIRE(loads != nullptr);
+    REQUIRE(lines != nullptr);
+    yse_patcher_connect(p, text, 2, loads, 0);
+    yse_patcher_connect(p, text, 1, lines, 0);
+    const auto value = [](YsePHandle* h) {
+      return readString([h](char* b, size_t c) { return yse_phandle_get_gui_value(h, b, c); });
+    };
+
+    YseSound* snd = yse_sound_create();
+    REQUIRE(snd != nullptr);
+    REQUIRE(yse_sound_load_patcher(snd, p, yse_channel_master(), 0.f) == YSE_OK);
+    yse_sound_play(snd);
+    capilowcov::pump(10);
+
+    // ── write, answered later from the host's thread ──
+    yse_phandle_set_list(text, 0, "hello resolver");
+    yse_phandle_set_list(text, 0, "cr");
+    yse_phandle_set_list(text, 0, "write notes.txt");
+    REQUIRE(host.waitFor(1));
+    PathAsk ask = host.last();
+    CHECK(ask.patcher == p);
+    CHECK(ask.id != 0u);
+    CHECK(ask.name == "notes.txt");
+    CHECK(ask.access == YSE_PATH_WRITE);
+    CHECK(ask.objectType == ".textfile");
+    CHECK(ask.objectId == yse_phandle_get_id(text));
+    // Parked until the host answers.
+    capilowcov::pump(5);
+    CHECK_FALSE(fs::exists(stored));
+    CHECK(yse_patcher_resolve_reply(ask.id, stored.string().c_str()) == YSE_OK);
+    for (int i = 0; i < 500 && fileText(stored) != "hello resolver\n"; ++i)
+      capilowcov::pump(1);
+    CHECK(fileText(stored) == "hello resolver\n");
+    // Answered once.
+    CHECK(yse_patcher_resolve_reply(ask.id, stored.string().c_str()) == YSE_ERR_INVALID_ARGUMENT);
+
+    // ── read, answered later ──
+    yse_phandle_set_list(text, 0, "clear");
+    yse_phandle_set_list(text, 0, "read notes.txt");
+    REQUIRE(host.waitFor(2));
+    ask = host.last();
+    CHECK(ask.name == "notes.txt");
+    CHECK(ask.access == YSE_PATH_READ);
+    CHECK(yse_patcher_resolve_reply(ask.id, stored.string().c_str()) == YSE_OK);
+    for (int i = 0; i < 500 && value(loads) != "1"; ++i)
+      capilowcov::pump(1);
+    CHECK(value(loads) == "1");
+    yse_phandle_set_list(text, 0, "query");
+    capilowcov::pump(2);
+    CHECK(value(lines) == "1");
+
+    // ── refused: fails like a missing file, the file outlet stays silent ──
+    yse_phandle_set_list(text, 0, "read secret.txt");
+    REQUIRE(host.waitFor(3));
+    CHECK(yse_patcher_resolve_reply(host.last().id, nullptr) == YSE_OK);
+    capilowcov::pump(20);
+    CHECK(value(loads) == "1");
+
+    // ── a path the engine cannot carry refuses too, and says so ──
+    yse_phandle_set_list(text, 0, "read notes.txt");
+    REQUIRE(host.waitFor(4));
+    const std::string tooLong(600, 'x');
+    CHECK(yse_patcher_resolve_reply(host.last().id, tooLong.c_str()) == YSE_ERR_INVALID_ARGUMENT);
+    CHECK(std::string(yse_last_error()).find("refused") != std::string::npos);
+    capilowcov::pump(20);
+    CHECK(value(loads) == "1");
+
+    // ── a synchronous host answers from inside the callback ──
+    SyncHost sync;
+    sync.folder = folder.string();
+    fs::copy_file(stored, folder / "notes.txt", fs::copy_options::overwrite_existing);
+    REQUIRE(yse_patcher_set_path_resolver(p, &SyncHost::answer, &sync, 0) == YSE_OK);
+    yse_phandle_set_list(text, 0, "read notes.txt");
+    for (int i = 0; i < 500 && value(loads) != "2"; ++i)
+      capilowcov::pump(1);
+    CHECK(sync.calls.load() == 1);
+    CHECK(value(loads) == "2");
+
+    // ── no answer in time: the request fails, a late answer finds nothing ──
+    REQUIRE(yse_patcher_set_path_resolver(p, &AsyncHost::record, &host, 1) == YSE_OK);
+    yse_phandle_set_list(text, 0, "read notes.txt");
+    REQUIRE(host.waitFor(5));
+    capilowcov::pump(20);
+    CHECK(yse_patcher_resolve_reply(host.last().id, stored.string().c_str()) ==
+          YSE_ERR_INVALID_ARGUMENT);
+    capilowcov::pump(5);
+    CHECK(value(loads) == "2");
+
+    // ── removed: relative names resolve as before, nothing is asked ──
+    REQUIRE(yse_patcher_set_path_resolver(p, nullptr, nullptr, 0) == YSE_OK);
+    const std::string absolute = "read " + stored.string();
+    yse_phandle_set_list(text, 0, absolute.c_str());
+    for (int i = 0; i < 500 && value(loads) != "3"; ++i)
+      capilowcov::pump(1);
+    CHECK(value(loads) == "3");
+    CHECK(host.count() == 5);
+
+    yse_sound_stop(snd);
+    capilowcov::pump(5);
+    yse_sound_destroy(snd);
+    capilowcov::pump(5);
+    yse_patcher_destroy(p);
+    fs::remove_all(folder, ec);
+  }
+
+  TEST_CASE("c-api patcher: a request outlives its patcher safely (#1255)") {
+    // The host may answer after the patcher is gone; the answer is refused
+    // rather than reaching freed memory. Not mounted: a patcher that does not
+    // render still posts its requests, and destroying it frees its table at
+    // once.
+    REQUIRE(capilowcov::ensureOffline());
+    YsePatcher* p = yse_patcher_create();
+    REQUIRE(p != nullptr);
+    AsyncHost host;
+    // Before init: kept, and installed at init.
+    REQUIRE(yse_patcher_set_path_resolver(p, &AsyncHost::record, &host, 0) == YSE_OK);
+    REQUIRE(yse_patcher_init(p, 1) == YSE_OK);
+    YsePHandle* coll = yse_patcher_create_object(p, ".coll", nullptr);
+    REQUIRE(coll != nullptr);
+    yse_phandle_set_list(coll, 0, "read songs.txt");
+    REQUIRE(host.waitFor(1));
+    CHECK(host.last().objectType == ".coll");
+    const unsigned int id = host.last().id;
+    yse_patcher_destroy(p);
+    CHECK(yse_patcher_resolve_reply(id, "/nowhere/songs.txt") == YSE_ERR_INVALID_ARGUMENT);
+
+    // NULL safety.
+    CHECK(yse_patcher_set_path_resolver(nullptr, &AsyncHost::record, &host, 0) ==
+          YSE_ERR_INVALID_HANDLE);
+    CHECK(yse_patcher_resolve_reply(0, "/x") == YSE_ERR_INVALID_ARGUMENT);
   }
 
 } // TEST_SUITE("capilowcov")

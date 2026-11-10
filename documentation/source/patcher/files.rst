@@ -97,6 +97,44 @@ Where paths point
   (for example to read from packed assets), reads go through it and the path
   is passed to it unchanged. That layer can only read, so every ``write``
   fails while it is active.
+- When the host has installed a **path resolver**, the host decides, for
+  every name, relative or absolute. See the next section.
+
+The host's path resolver
+------------------------
+
+A host that keeps patch files in a place of its own, such as next to the
+open project, installs a path resolver on the patcher:
+``patcher::SetPathResolver`` in C++, ``yse_patcher_set_path_resolver`` in the
+C API. While it is installed, every file access that the patch triggers asks
+the host first. That covers the ``read`` and ``write`` messages of all the
+objects on this page, ``~seq`` and ``~capture``, and the sound files that
+``~buffer`` reads and writes, its file argument included.
+
+Each request carries the name exactly as the patch gave it, whether the file
+is read or written, and the requesting patcher and object (type and ID). The
+host answers with the path to use, or refuses:
+
+1. The background thread hands the request to the resolver and parks that
+   file job. Other file jobs keep running.
+2. The host answers with ``patcher::ResolveReply`` /
+   ``yse_patcher_resolve_reply``, from any thread: from inside the callback, or
+   later. A host whose language cannot answer a callback on a foreign thread,
+   such as Dart, answers later.
+3. The job resumes and opens exactly the path the host gave. The engine
+   does not resolve it any further, so the answer should be an absolute path.
+   When a custom file reader is active, the answer is the name passed to it.
+
+The request fails, the way a missing file does, when the host refuses it,
+answers with an empty path or one longer than 511 characters, or does not
+answer within the timeout given at installation (5 seconds by default). The
+timeout is checked while the patcher renders. An answer for a request that
+has already failed, or whose patcher has been destroyed, is refused.
+
+With a resolver installed, ``~buffer`` reads its file argument in the
+background as well, after the host has answered. Its *loaded* outlet bangs
+when the file is in. Without a resolver it reads the file while the patch
+loads, as before.
 
 When something goes wrong
 -------------------------
@@ -106,7 +144,8 @@ Every failure is reported the same way, whatever the cause:
 - the file does not exist or cannot be opened,
 - the file is larger than 128 KiB,
 - a ``write`` while a custom file reader is installed,
-- the request was refused (see *Limits*).
+- the request was refused (see *Limits*),
+- the host's path resolver refused the name or did not answer in time.
 
 **A failed read changes nothing.** The object keeps its current contents and
 its *file* outlet stays silent. Nothing is logged, because the failure is

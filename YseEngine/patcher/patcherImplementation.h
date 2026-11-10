@@ -346,6 +346,13 @@ namespace YSE {
       // #907). Never call from the audio callback: it may wait.
       void SetHandler(oscHandler* handler);
 
+      // Install (or clear, with nullptr) the host's path resolver (issue
+      // #1255) on the file scheduler, or keep it for the scheduler
+      // EnsureFileIO builds later. Returns once no other thread is still
+      // inside the resolver it replaced. Control thread; never the audio
+      // callback, since it may wait.
+      void SetPathResolver(pathResolver* resolver, unsigned int timeoutMs);
+
       // The patcher's deferred-message scheduler (issue #628). Objects reach it
       // through pObject::Scheduler() to arm "send this, but later" from a
       // message handler on any thread; Calculate drains what has come due at
@@ -716,6 +723,11 @@ namespace YSE {
       // reads it on the audio thread while the control thread may be adding the
       // first file-capable object; once non-null it never changes again.
       std::atomic<fileScheduler*> fileIO_{nullptr};
+      // The host's path resolver and its timeout (issue #1255), kept here so a
+      // scheduler EnsureFileIO builds after SetPathResolver still gets them.
+      // Under mtx, like EnsureFileIO itself.
+      pathResolver* pathResolver_ = nullptr;
+      unsigned int resolveTimeoutMs_ = 0;
 
       // A deleted object awaiting reclamation. `epoch` is the block count at
       // retirement (the +2 grace is measured from it). `idGen` is the id-space

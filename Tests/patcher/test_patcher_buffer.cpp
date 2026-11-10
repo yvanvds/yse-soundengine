@@ -9,6 +9,7 @@
 #include <cmath>
 #include <filesystem>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <system_error>
 #include <vector>
@@ -60,7 +61,10 @@ namespace {
     YSE::pHandle* handle;
     dBuffer* buffer;
 
-    explicit Rig(const std::string& args) {
+    explicit Rig(const std::string& args, YSE::pathResolver* resolver = nullptr) {
+      // Installed before the object exists, as a host does on a fresh patch,
+      // so the file argument already goes through it (issue #1255).
+      if (resolver != nullptr) p.SetPathResolver(resolver, 0);
       handle = p.CreateObject(YSE::OBJ::D_BUFFER, args);
       REQUIRE(handle != nullptr);
       buffer = static_cast<dBuffer*>(p.GetObjectFromID(handle->GetID()));
@@ -87,6 +91,27 @@ namespace {
       Message(query);
       Settle();
       return info.gotList ? info.received : std::string();
+    }
+  };
+
+  // A host that keeps sound files somewhere else (issue #1255): it records
+  // every name it is asked about and answers later with a path of its own.
+  struct HostResolver : YSE::pathResolver {
+    struct Asked {
+      unsigned int id;
+      std::string name;
+      YSE::PATH_ACCESS access;
+    };
+    std::mutex mutex;
+    std::vector<Asked> asked;
+    void Resolve(const YSE::pathRequest& r) override {
+      const std::lock_guard<std::mutex> lock(mutex);
+      asked.push_back({r.id, r.name, r.access});
+    }
+    Asked last() {
+      const std::lock_guard<std::mutex> lock(mutex);
+      REQUIRE_FALSE(asked.empty());
+      return asked.back();
     }
   };
 
@@ -387,6 +412,60 @@ TEST_SUITE("patcher") {
       CHECK(TestHelpers::g_alloc_count.load() == 0);
     }
     CHECK(r.info.received == "samps " + std::to_string(YSE::SAMPLERATE / 100));
+  }
+
+  // ─── the host's path resolver (issue #1255) ─────────────────────────────────
+
+  TEST_CASE("buffer: the host places every sound file, the file argument included (#1255)") {
+    const std::string stored = TempFile("yse_buffer_resolved_1255.wav");
+    {
+      auto source = sampleBuffer::create(1, 16, 22050.f);
+      source->fill(0.5f);
+      REQUIRE(source->write(stored.c_str()));
+    }
+    const std::string written = TempFile("yse_buffer_resolved_out_1255.wav");
+
+    HostResolver host;
+    // A name that exists nowhere but in the host's mind.
+    Rig r("resolved_1255 drums/kick_1255.wav", &host);
+    YSE::PATCHER::fileScheduler* io = r.p.FileIO();
+    REQUIRE(io != nullptr);
+    io->WaitIdle();
+
+    // The file argument was not read synchronously: it waits for the host.
+    HostResolver::Asked a = host.last();
+    CHECK(a.name == "drums/kick_1255.wav");
+    CHECK(a.access == YSE::PA_READ);
+    CHECK(r.buffer->Buffer()->frames() == 0);
+    CHECK(YSE::patcher::ResolveReply(a.id, stored.c_str()));
+    r.Settle();
+    CHECK(r.loaded.bangCount == 1);
+    CHECK(r.buffer->Buffer()->frames() == 16);
+    CHECK(r.buffer->FailedTasks() == 0);
+
+    // write and read messages ask too.
+    r.Message("write out_1255.wav");
+    io->WaitIdle();
+    a = host.last();
+    CHECK(a.name == "out_1255.wav");
+    CHECK(a.access == YSE::PA_WRITE);
+    CHECK(YSE::patcher::ResolveReply(a.id, written.c_str()));
+    r.Settle();
+    CHECK(std::filesystem::exists(written));
+
+    r.Message("clear");
+    r.Message("read missing_1255.wav");
+    r.Settle();
+    a = host.last();
+    CHECK(a.name == "missing_1255.wav");
+    // A refusal fails the read like a missing file: no bang, counted.
+    CHECK(YSE::patcher::ResolveReply(a.id, nullptr));
+    r.Settle();
+    CHECK(r.loaded.bangCount == 1);
+    CHECK(r.buffer->FailedTasks() == 1);
+
+    Remove(stored);
+    Remove(written);
   }
 
 } // TEST_SUITE("patcher")

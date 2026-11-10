@@ -30,9 +30,11 @@
 #include <cstddef>
 #include <filesystem>
 #include <fstream>
+#include <mutex>
 #include <string>
 #include <system_error>
 #include <thread>
+#include <vector>
 
 #include "internal/global.h"
 #include "internal/threadPool.h"
@@ -66,6 +68,57 @@ namespace {
     std::error_code ec;
     std::filesystem::remove(path, ec);
     return path.string();
+  }
+
+  std::string ReadAll(const std::string& path) {
+    std::ifstream in(path, std::ios::binary);
+    return std::string((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+  }
+
+  // A host's path resolver (issue #1255) that writes down every request and,
+  // when told to, answers it from inside Resolve the way a synchronous C/C++
+  // host would. Otherwise the test answers later, as an asynchronous host does.
+  struct RecordingResolver : YSE::pathResolver {
+    struct Seen {
+      unsigned int id;
+      std::string name;
+      YSE::PATH_ACCESS access;
+      std::string objectType;
+      unsigned int objectId;
+    };
+    std::mutex mutex;
+    std::vector<Seen> seen;
+    std::string answerInline; // empty: answer later
+
+    void Resolve(const YSE::pathRequest& r) override {
+      {
+        const std::lock_guard<std::mutex> lock(mutex);
+        seen.push_back({r.id, r.name, r.access, r.objectType, r.objectId});
+      }
+      if (!answerInline.empty()) {
+        CHECK(YSE::patcher::ResolveReply(r.id, answerInline.c_str()));
+      }
+    }
+
+    Seen last() {
+      const std::lock_guard<std::mutex> lock(mutex);
+      REQUIRE_FALSE(seen.empty());
+      return seen.back();
+    }
+    std::size_t count() {
+      const std::lock_guard<std::mutex> lock(mutex);
+      return seen.size();
+    }
+  };
+
+  // What a path task was handed, written by the task on the background pool
+  // and read after WaitIdle has joined it.
+  std::string gTaskPath;
+  bool gTaskGotNull = false;
+  bool RecordPathTask(char*, std::size_t, const char* path) {
+    gTaskGotNull = path == nullptr;
+    gTaskPath = path != nullptr ? path : "";
+    return true;
   }
 
 } // namespace
@@ -312,5 +365,191 @@ TEST_SUITE("patcher") {
 
     std::error_code ec;
     std::filesystem::remove(path, ec);
+  }
+
+  // ─── the host's path resolver (issue #1255) ─────────────────────────────────
+
+  TEST_CASE("fileScheduler: a resolver places a write, and the request waits for it (#1255)") {
+    // The asynchronous shape a Dart host needs: the job posts the name and
+    // parks, the answer comes later from another thread, and only then does the
+    // disk work happen — at the path the host gave, not the one the patch named.
+    const std::string mapped = TempFile("yse_resolver_write_1255.txt");
+    fileScheduler io;
+    RecordingResolver resolver;
+    io.SetResolver(&resolver, 0);
+    Target target;
+    target.SetStorageID(7);
+
+    const std::string name = "notes_1255.txt";
+    REQUIRE(io.RequestWrite(&target, 0, name.c_str(), name.size(), "abc", 3));
+    io.WaitIdle();
+
+    REQUIRE(resolver.count() == 1);
+    const RecordingResolver::Seen asked = resolver.last();
+    CHECK(asked.id != 0u);
+    CHECK(asked.name == name);
+    CHECK(asked.access == YSE::PA_WRITE);
+    CHECK(asked.objectType == "file_io_target");
+    CHECK(asked.objectId == 7u);
+    // Parked, not failed and not written: the slot waits for the host.
+    CHECK(io.PendingCount() == 1);
+    CHECK_FALSE(std::filesystem::exists(mapped));
+
+    // The reply may come from any thread.
+    bool answered = false;
+    std::thread host([&] { answered = YSE::patcher::ResolveReply(asked.id, mapped.c_str()); });
+    host.join();
+    CHECK(answered);
+    io.WaitIdle();
+    CHECK(ReadAll(mapped) == "abc");
+    // Answered once: a second answer finds nothing waiting.
+    CHECK_FALSE(YSE::patcher::ResolveReply(asked.id, mapped.c_str()));
+
+    io.DeliverComplete(nullptr, YSE::T_GUI);
+    CHECK(io.PendingCount() == 0);
+    std::error_code ec;
+    std::filesystem::remove(mapped, ec);
+  }
+
+  TEST_CASE("fileScheduler: a synchronous resolver answers from inside Resolve (#1255)") {
+    // A C/C++ host answers before Resolve returns. The reply lands while the
+    // job is still running; the job runs again and opens the answer. Absolute
+    // names are asked about too, and a path task gets the answer as its path.
+    const std::string mapped = TempFile("yse_resolver_sync_1255.wav");
+    const std::string absolute = TempFile("yse_resolver_absolute_1255.wav");
+    fileScheduler io;
+    RecordingResolver resolver;
+    resolver.answerInline = mapped;
+    io.SetResolver(&resolver, 0);
+    Target target;
+
+    gTaskPath.clear();
+    gTaskGotNull = true;
+    REQUIRE(io.RequestPathTask(&target, 0, YSE::PA_READ, absolute.c_str(), absolute.size(),
+                               &RecordPathTask, nullptr, 0));
+    io.WaitIdle();
+    REQUIRE(resolver.count() == 1);
+    CHECK(resolver.last().name == absolute);
+    CHECK(resolver.last().access == YSE::PA_READ);
+    CHECK_FALSE(gTaskGotNull);
+    CHECK(gTaskPath == mapped);
+    io.DeliverComplete(nullptr, YSE::T_GUI);
+    CHECK(io.PendingCount() == 0);
+
+    // Without a resolver nothing is asked, and the task is told so with a null
+    // path: it opens the name it carries, as before #1255.
+    io.SetResolver(nullptr, 0);
+    CHECK_FALSE(io.HasResolver());
+    REQUIRE(io.RequestPathTask(&target, 0, YSE::PA_WRITE, absolute.c_str(), absolute.size(),
+                               &RecordPathTask, nullptr, 0));
+    io.WaitIdle();
+    CHECK(resolver.count() == 1);
+    CHECK(gTaskGotNull);
+    io.DeliverComplete(nullptr, YSE::T_GUI);
+
+    // A path task needs a path and a function.
+    CHECK_FALSE(
+        io.RequestPathTask(&target, 0, YSE::PA_READ, nullptr, 0, &RecordPathTask, nullptr, 0));
+    CHECK_FALSE(io.RequestPathTask(&target, 0, YSE::PA_READ, "x", 1, nullptr, nullptr, 0));
+  }
+
+  TEST_CASE("fileScheduler: a refused, unanswered or orphaned request fails cleanly (#1255)") {
+    const std::string mapped = TempFile("yse_resolver_fail_1255.txt");
+    const std::string name = "fail_1255.txt";
+    RecordingResolver resolver;
+    Target target;
+
+    SUBCASE("refused") {
+      fileScheduler io;
+      io.SetResolver(&resolver, 0);
+      REQUIRE(io.RequestWrite(&target, 0, name.c_str(), name.size(), "x", 1));
+      io.WaitIdle();
+      const unsigned int id = resolver.last().id;
+      CHECK(YSE::patcher::ResolveReply(id, nullptr));
+      io.WaitIdle();
+      CHECK_FALSE(std::filesystem::exists(mapped));
+      // Completed as a failure: the next block frees the slot.
+      io.DeliverComplete(nullptr, YSE::T_GUI);
+      CHECK(io.PendingCount() == 0);
+      CHECK_FALSE(YSE::patcher::ResolveReply(id, mapped.c_str()));
+    }
+
+    SUBCASE("an empty or over-long answer refuses") {
+      fileScheduler io;
+      io.SetResolver(&resolver, 0);
+      const std::string tooLong(fileScheduler::PATH_CAPACITY, 'x');
+      for (const std::string& answer : {std::string(), tooLong}) {
+        REQUIRE(io.RequestWrite(&target, 0, name.c_str(), name.size(), "x", 1));
+        io.WaitIdle();
+        CHECK(YSE::patcher::ResolveReply(resolver.last().id, answer.c_str()));
+        io.WaitIdle();
+        io.DeliverComplete(nullptr, YSE::T_GUI);
+        CHECK(io.PendingCount() == 0);
+      }
+    }
+
+    SUBCASE("timed out") {
+      fileScheduler io;
+      io.SetResolver(&resolver, 1);
+      REQUIRE(io.RequestWrite(&target, 0, name.c_str(), name.size(), "x", 1));
+      io.WaitIdle();
+      const unsigned int id = resolver.last().id;
+      // Before the deadline a block leaves it parked; after it, the block
+      // fails it. Paced rather than slept for one fixed span (#753).
+      TestHelpers::pacedUntil(5000, [&] {
+        io.DeliverComplete(nullptr, YSE::T_GUI);
+        return io.PendingCount() == 0;
+      });
+      CHECK(io.PendingCount() == 0);
+      // Too late: nothing waits under the id any more, and nothing is written.
+      CHECK_FALSE(YSE::patcher::ResolveReply(id, mapped.c_str()));
+      io.WaitIdle();
+      CHECK_FALSE(std::filesystem::exists(mapped));
+    }
+
+    SUBCASE("its scheduler is gone") {
+      unsigned int id = 0;
+      {
+        fileScheduler io;
+        io.SetResolver(&resolver, 0);
+        REQUIRE(io.RequestWrite(&target, 0, name.c_str(), name.size(), "x", 1));
+        io.WaitIdle();
+        id = resolver.last().id;
+      }
+      CHECK_FALSE(YSE::patcher::ResolveReply(id, mapped.c_str()));
+      CHECK_FALSE(std::filesystem::exists(mapped));
+    }
+
+    CHECK_FALSE(YSE::patcher::ResolveReply(0, mapped.c_str()));
+  }
+
+  TEST_CASE("fileScheduler: a patcher hands its resolver to a file table built later (#1255)") {
+    // The host installs the resolver on a fresh patch, before any file-capable
+    // object has joined it and built the table.
+    const std::string mapped = TempFile("yse_resolver_patcher_1255.txt");
+    RecordingResolver resolver;
+    patcherImplementation p(1, nullptr);
+    p.SetPathResolver(&resolver, 0);
+    YSE::pHandle* text = p.CreateObject(YSE::OBJ::G_TEXTFILE, "");
+    REQUIRE(text != nullptr);
+    fileScheduler* io = p.FileIO();
+    REQUIRE(io != nullptr);
+    CHECK(io->HasResolver());
+
+    text->SetListData(0, "kept");
+    text->SetListData(0, "write later_1255.txt");
+    io->WaitIdle();
+    REQUIRE(resolver.count() == 1);
+    CHECK(resolver.last().name == "later_1255.txt");
+    CHECK(resolver.last().objectType == YSE::OBJ::G_TEXTFILE);
+    CHECK(resolver.last().objectId == text->GetID());
+    CHECK(YSE::patcher::ResolveReply(resolver.last().id, mapped.c_str()));
+    io->WaitIdle();
+    CHECK(ReadAll(mapped) == "kept");
+
+    p.SetPathResolver(nullptr, 0);
+    CHECK_FALSE(io->HasResolver());
+    std::error_code ec;
+    std::filesystem::remove(mapped, ec);
   }
 }

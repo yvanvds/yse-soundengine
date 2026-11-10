@@ -54,3 +54,16 @@ arguments are copied into the slot, the function must not touch the requesting o
 it needs by name or id), it may overwrite the arguments with a reply, and the completion hands them
 back like a read's bytes. Tasks run in request order, because the pool has one worker. See
 [sample_buffers.md](sample_buffers.md).
+
+**The host's path resolver.** Issue [#1255](https://github.com/yvanvds/yse-soundengine/issues/1255)
+lets the host decide where every file a patch names lives (`patcher::SetPathResolver`, C:
+`yse_patcher_set_path_resolver`). It is asynchronous because a Dart host cannot answer a synchronous
+native callback from the file thread: a slot that names a file (a read, a write, or a task armed with
+`RequestPathTask`, which is how `~buffer` reads and writes sound files) posts the name to the resolver
+on the background pool and parks in `STATE_RESOLVING`, so the pool keeps running other jobs. The reply
+(`patcher::ResolveReply`, any thread, inside the callback or later) is matched by a process-wide request
+id through a registry of live schedulers, never through a pointer the host kept: a path re-arms the slot's
+job, which opens exactly that path; a refusal completes it as a failure. `DeliverComplete` fails a slot
+still parked at its deadline with one clock read and one CAS, and a scheduler leaves the registry before
+it frees its slots, so a late reply for a destroyed patcher finds nothing. Without a resolver nothing
+changes.

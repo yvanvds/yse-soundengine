@@ -86,6 +86,9 @@ Ownership
    * - ``address`` from a ``YsePatcherSendCallback``
      - You, with ``yse_patcher_free_message(address)``. That also frees ``s``.
        Never free ``s`` on its own.
+   * - ``name`` from a ``YsePatcherPathResolverCallback``
+     - You, with ``yse_patcher_free_message(name)``. That also frees
+       ``object_type``.
    * - The ``char*`` from ``yse_patcher_get_metadata_json``
      - You, with ``yse_free_string``.
    * - ``const char*`` from the other metadata calls
@@ -206,6 +209,9 @@ The header by task
      - ``yse_patcher_set_send_callback``, ``yse_patcher_free_message``; for
        values sent on the bus, ``yse_bus_subscribe`` in ``yse_c/yse_bus.h``
      - :doc:`host_io`
+   * - Decide where patch files live
+     - ``yse_patcher_set_path_resolver``, ``yse_patcher_resolve_reply``
+     - :doc:`files`
    * - Draw controls
      - ``yse_phandle_get_gui_value``, ``yse_phandle_get_gui_value_count``,
        ``yse_phandle_get_gui_value_at``,

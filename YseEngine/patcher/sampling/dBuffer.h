@@ -26,9 +26,12 @@ namespace YSE {
      *  - Arguments: ``name [file] [duration-ms] [channels]``, as in Max. A
      *    number in the second place is the duration. The arguments are
      *    applied when the object is created, on the control thread: the
-     *    size first, then the file (read synchronously, so a loaded patch
-     *    has its samples). A ``~buffer`` with only a name adopts whatever
-     *    the buffer already holds.
+     *    size first, then, once the object joins a patcher, the file (read
+     *    synchronously, so a loaded patch has its samples). While the host
+     *    has a path resolver installed (issue #1255) the file is read like
+     *    a ``read`` message instead, in the background, after the resolver
+     *    has answered. A ``~buffer`` with only a name adopts whatever the
+     *    buffer already holds.
      *  - Messages (left inlet): ``read``, ``replace``, ``readagain``,
      *    ``write``, ``writewave``, ``writeaiff``, ``writeflac``, ``clear``,
      *    ``fill``, ``apply``, ``normalize``, ``setsize``, ``sizeinsamps``,
@@ -91,10 +94,14 @@ namespace YSE {
     }
 
   private:
-    // Control thread: bind `bufferName`, then apply the size and file
-    // arguments.
+    // Control thread: bind `bufferName`, then apply the size argument and
+    // keep the file argument for LoadArgumentFile.
     void Bind();
     void ApplyArguments();
+    // Control thread, once the object has joined a patcher: read the file
+    // argument — synchronously, or through the scheduler while a path resolver
+    // is installed (issue #1255).
+    void LoadArgumentFile();
 
     // Pack `task` and hand it to the scheduler. Any thread, no allocation.
     struct bufferTask;
@@ -102,9 +109,16 @@ namespace YSE {
 
     // The fileTaskFunction: background pool, never touches the object.
     static bool RunTask(char* args, std::size_t argBytes);
+    // The filePathTaskFunction behind read and write (issue #1255): the same
+    // task, opening @p path instead of the name it carries when the host's
+    // resolver gave one.
+    static bool RunPathTask(char* args, std::size_t argBytes, const char* path);
 
     std::string bufferName;
     std::vector<std::string> rest; // [file] [duration] [channels]
+    // The file argument, until LoadArgumentFile reads it.
+    std::string argFile;
+    int argChannels = -1;
 
     std::shared_ptr<DSP::sampleBuffer> buffer;
     std::uint64_t bufferId = 0; // set on the control thread before publication

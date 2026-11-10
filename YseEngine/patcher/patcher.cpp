@@ -32,6 +32,10 @@ void patcher::create(int mainOutputs) {
       pimpl->SetHandler(pendingHandler);
       pendingHandler = nullptr;
     }
+    if (pendingResolver != nullptr) {
+      pimpl->SetPathResolver(pendingResolver, pendingResolveTimeoutMs);
+      pendingResolver = nullptr;
+    }
   } else {
     INTERNAL::LogImpl().emit(E_ERROR, "Patcher could not be Created.");
   }
@@ -176,4 +180,18 @@ void patcher::SetOscHandler(oscHandler* handler) {
     return;
   }
   pimpl->SetHandler(handler);
+}
+
+void patcher::SetPathResolver(pathResolver* resolver, unsigned int timeoutMs) {
+  if (pimpl == nullptr) {
+    // Before create(): no file job can ask yet, so keeping it is enough.
+    pendingResolver = resolver;
+    pendingResolveTimeoutMs = timeoutMs;
+    return;
+  }
+  pimpl->SetPathResolver(resolver, timeoutMs);
+}
+
+bool patcher::ResolveReply(unsigned int requestId, const char* path) {
+  return PATCHER::fileScheduler::Reply(requestId, path);
 }
