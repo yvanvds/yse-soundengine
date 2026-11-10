@@ -13,6 +13,7 @@
 #include "portaudioDeviceManager.h"
 #include "internalHeaders.h"
 #include "internal/denormalGuard.h"
+#include "internal/threadName.h"
 #include <algorithm>
 #include <chrono>
 #include <cmath>
@@ -56,6 +57,9 @@ int YSE::DEVICE::managerObject::paCallback(const void* /*input*/
                                            ,
                                            void* userData) {
   YSE::INTERNAL::enableFlushToZero();
+  // Name PortAudio's callback thread for the host's per-thread CPU view (issue
+  // #1259). Once per thread; a TLS load and a branch on every later callback.
+  YSE::INTERNAL::nameForeignThreadOnce(YSE::INTERNAL::AUDIO_THREAD_NAME);
   // cpuLoad() reports a wall-clock ratio (time in callback / buffer period),
   // EMA-smoothed. We time it ourselves with steady_clock rather than reading
   // Pa_GetStreamCpuLoad so the Oboe path can report a comparable number

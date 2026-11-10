@@ -369,6 +369,13 @@ Each callback runs on a known thread:
        ``yse_patcher_free_message(address)``. ``yse_patcher_destroy`` waits
        for calls in progress, so do not destroy the patcher from inside its
        own callback.
+   * - ``YsePatcherPathResolverCallback``
+       (``yse_patcher_set_path_resolver``)
+     - The engine's background file thread. Never the audio thread.
+     - You own ``name`` (and ``object_type`` with it); release it with
+       ``yse_patcher_free_message(name)``. Answer with
+       ``yse_patcher_resolve_reply`` from any thread, inside the callback or
+       later; the file job waits parked. See :doc:`/patcher/files`.
    * - ``YseMidiInRawCallback``, ``YseMidiInParsedCallback``
      - RtMidi's input thread for that port.
      - Return quickly. You own the raw callback's ``bytes``; release them with
@@ -481,6 +488,7 @@ The C ABI breaks once, with v3.0. Update a v2.4.0 binding for these changes.
        ``yse_patcher_set_container``, ``yse_patcher_get_container``,
        ``yse_patcher_subpatcher_inlets`` / ``_outlets``,
        ``yse_patcher_set_send_callback``, ``yse_patcher_free_message``,
+       ``yse_patcher_set_path_resolver``, ``yse_patcher_resolve_reply``,
        ``yse_phandle_get_gui_value_count``,
        ``yse_phandle_get_gui_value_at``,
        ``yse_phandle_gui_value_is_settable``

@@ -246,9 +246,77 @@ typedef void(YSE_C_CALLBACK* YsePatcherSendCallback)(void* user_data, char* addr
 YSE_C_API YseStatus yse_patcher_set_send_callback(YsePatcher* p, YsePatcherSendCallback cb,
                                                   void* user_data);
 
-/** Release a message delivered to a YsePatcherSendCallback: pass its
-   `address`. NULL is a no-op. */
+/** Release a message delivered to a YsePatcherSendCallback (pass its
+   `address`) or a request delivered to a YsePatcherPathResolverCallback
+   (pass its `name`). NULL is a no-op. */
 YSE_C_API void yse_patcher_free_message(char* address);
+
+/* ─── path resolver (issue #1255) ─────────────────────────────────── */
+
+/** A file name the patch wants to read or write, for the host to place: the
+   `read` / `write` messages of .coll, .textfile, .qlist, .mtr, .seq, ~seq,
+   .dict.serialize, .dict.deserialize and ~capture, and the sound files
+   ~buffer reads and writes, its file argument included. Absolute names are
+   asked about too.
+
+   `request_id` is what to answer with yse_patcher_resolve_reply. `patcher`
+   is the patcher the request comes from, for comparison only: it may be
+   destroyed before the host answers. `name` is the name exactly as the
+   patch gave it, `access` whether the file is read or written, and
+   `object_type` / `object_id` the requesting object (its type string and
+   yse_phandle_get_id).
+
+   The receiver OWNS the strings: `name` and `object_type` are one malloc'd
+   block, released with yse_patcher_free_message(name), which frees
+   `object_type` with it — never free `object_type` on its own. They stay
+   valid after the callback returns, so an asynchronous host (a Dart
+   NativeCallable.listener) can read them later.
+
+   Threading: called on the engine's background file thread, never the audio
+   callback. The file job is parked, not blocked: the callback may answer
+   before it returns, from inside itself, or return at once and answer later
+   from any thread. Keep it short either way — other background jobs wait
+   while it runs. */
+typedef void(YSE_C_CALLBACK* YsePatcherPathResolverCallback)(void* user_data, YsePatcher* patcher,
+                                                             unsigned int request_id, char* name,
+                                                             YsePathAccess access,
+                                                             char* object_type,
+                                                             unsigned int object_id);
+
+/** Install the path resolver for this patcher's file access; NULL for cb
+   removes it, and relative names are then resolved against the working
+   directory as before. user_data is opaque and forwarded to every call.
+
+   A request not answered within `timeout_ms` milliseconds (0 means 5000)
+   fails the way a missing file does. The timeout is checked while the
+   patcher renders, which is also when the failure reaches the object.
+
+   Replaces any previous resolver, but a request already being posted on
+   the file thread may still reach the previous (cb, user_data) pair —
+   always as a pair. Returns once no call into the previous pair is in
+   progress, so it may be released afterwards; requests it was already given
+   can still be answered. yse_patcher_destroy is the point after which no
+   callback runs. Called before yse_patcher_init, the resolver is kept and
+   takes effect at init. May be called from inside the callback.
+
+   YSE_ERR_INVALID_HANDLE on a NULL patcher, YSE_ERR_EXCEPTION (reason in
+   yse_last_error()) if the install could not allocate — the previous
+   resolver is then kept. */
+YSE_C_API YseStatus yse_patcher_set_path_resolver(YsePatcher* p, YsePatcherPathResolverCallback cb,
+                                                  void* user_data, unsigned int timeout_ms);
+
+/** Answer a YsePatcherPathResolverCallback request: `path` is the file to
+   open, used exactly as given (an absolute path), or NULL to refuse, which
+   fails the request the way a missing file does. Any thread, including from
+   inside the callback, and needs no patcher handle, so a late answer for a
+   destroyed patcher is safe.
+
+   YSE_OK when the request was waiting and is now answered.
+   YSE_ERR_INVALID_ARGUMENT, reason in yse_last_error(), when no request is
+   waiting under `request_id` — it was answered already, timed out, or its
+   patcher is gone — and when `path` is empty or 512 bytes or longer, which
+   refuses the request. */
+YSE_C_API YseStatus yse_patcher_resolve_reply(unsigned int request_id, const char* path);
 
 /* ─── handle accessors ───────────────────────────────────────────── */
 

@@ -2,20 +2,26 @@
 
 .. patcher-object:: patcher
 
-A ``patcher`` object has no inlets, outlets or arguments of its own. Create
-its contents with ``CreateObject`` on the same patcher and move them inside
-with ``SetContainer``. Its pins are the boundary objects among its direct
-contents: inlet N is the ``.inlet`` or ``~inlet`` with index N, and outlet N
-the ``.outlet`` or ``~outlet`` with index N. Connect to the subpatcher by pin
+A ``patcher`` object has no inlets or outlets of its own. Create its contents
+with ``CreateObject`` on the same patcher and move them inside with
+``SetContainer``. Its pins are the boundary objects among its direct contents:
+inlet N is the ``.inlet`` or ``~inlet`` with index N, and outlet N the
+``.outlet`` or ``~outlet`` with index N. Connect to the subpatcher by pin
 number, as to any object.
+
+The one argument is the subpatcher's name, free text for a host to show as its
+title: ``patcher gain`` or ``patcher lead synth``. The object keeps the text as
+given and does nothing else with it, so a subpatcher is addressed by its
+handle, never by this name. Renaming one with ``SetParams`` keeps its contents
+and its cords.
 
 Subpatchers nest, and nesting costs the audio thread nothing. Deleting a
 subpatcher deletes everything inside it. On load, the contents fire their
 ``.loadbang`` objects together with the rest of the patch, in no set order.
 
-Names are not local: a ``.r freq`` inside a subpatcher hears every ``freq`` in
-the whole patcher. :doc:`/patcher/subpatchers` explains how to build, connect,
-save and edit subpatchers.
+Send and receive names are not local: a ``.r freq`` inside a subpatcher hears
+every ``freq`` in the whole patcher. :doc:`/patcher/subpatchers` explains how
+to build, connect, save and edit subpatchers.
 
 .. patcher-object:: .inlet
 

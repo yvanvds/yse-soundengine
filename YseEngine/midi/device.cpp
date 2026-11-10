@@ -5,6 +5,7 @@
 #include "midiDeviceManager.h"
 #include "synth/synthInterface.hpp"
 #include "midi/midiSynthRouting.hpp"
+#include "internal/threadName.h"
 #include <thread>
 
 YSE::midiOut::midiOut() : device(nullptr) {}
@@ -389,6 +390,8 @@ void YSE::midiIn::disconnect(YSE::synth& synth) {
 }
 
 void YSE::midiIn::rtMidiTrampoline(double ts, std::vector<unsigned char>* msg, void* userData) {
+  // Name the MIDI driver's input thread, once per thread (issue #1259).
+  INTERNAL::nameForeignThreadOnce(INTERNAL::MIDI_IN_THREAD_NAME);
   if (msg == nullptr || msg->empty() || userData == nullptr) return;
   auto* self = static_cast<midiIn*>(userData);
   self->dispatch(ts, msg->data(), msg->size());

@@ -33,7 +33,11 @@ namespace YSE {
       virtual void run() = 0;
 
       // Wait until the job is no longer queued or running. Spins, then
-      // yields; never called from the audio callback.
+      // yields; never called from the audio callback. Called on one of a
+      // pool's own workers (a job whose run() destroys an object that owns
+      // background jobs), it help-runs the joined job's ring entry instead of
+      // waiting for a worker to reach it, because the worker that would is the
+      // one waiting (issue #1257). See threadPool::helpUntilIdle.
       void join();
       void stop() {
         shouldStop = true;
@@ -110,6 +114,24 @@ namespace YSE {
       void shutdown();
 
     private:
+      // join() on one of this pool's workers (issue #1257). Pops the ring until
+      // `job` is no longer queued, running `job`'s own entries here and putting
+      // every other entry back. Foreign jobs are never run inline: the caller
+      // is inside some job's run() and may hold a lock another job takes (the
+      // sound manager's delete job holds implementationsMutex, which its setup
+      // job also takes). Never locks or allocates.
+      void helpUntilIdle(threadPoolJob& job);
+
+      // Put a foreign entry popped by helpUntilIdle back on the ring, or drop it
+      // the way shutdown() / a full ring would if it cannot go back.
+      void requeue(threadPoolJob* job);
+
+      // Pop every entry and zero its queued count, so a pending join() returns
+      // instead of spinning on a job no worker will run.
+      void drainRing();
+
+      friend class threadPoolJob;
+
       // Holds the handful of manager/setup/refill jobs in flight; far above
       // any realistic live count.
       static constexpr std::size_t CAPACITY = 1024;

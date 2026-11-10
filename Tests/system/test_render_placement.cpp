@@ -20,6 +20,7 @@
 #include "internal/cpuTopology.h"
 #include "internal/global.h"
 #include "internal/renderScheduler.h"
+#include "support/thread_names.hpp"
 
 namespace {
 
@@ -108,6 +109,51 @@ TEST_SUITE("lifecycle") {
     render.setSerialGating(true);
 
     channels.clear();
+    YSE::System().close();
+    YSE::System().renderThreads(previousThreads);
+  }
+
+  // Issue #1259: a host attributing CPU per thread (Linux
+  // /proc/<pid>/task/*/comm, Windows GetThreadDescription) must find the render
+  // workers by name. Each names itself "YSE worker N" before its first block;
+  // the background pool's worker is "YSE background".
+  TEST_CASE("lifecycle: a session's render workers carry their names (#1259)") {
+    using YSE::INTERNAL::renderScheduler;
+    if (!TestHelpers::threadNamesSupported()) {
+      MESSAGE("no thread-name API on this platform; skipped");
+      return;
+    }
+    YSE::System().close();
+    const int previousThreads = YSE::System().renderThreads();
+    YSE::System().renderThreads(2);
+    if (!YSE::System().initOffline()) {
+      YSE::System().renderThreads(previousThreads);
+      return; // no offline device on this host
+    }
+
+    renderScheduler& render = YSE::INTERNAL::Global().renderer();
+    REQUIRE(render.workerCount() == 2);
+    // A worker names itself before it records its placement hint, so once no
+    // hint is pending every worker is named.
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+    while (render.placementHintsPending() != 0 && std::chrono::steady_clock::now() < deadline)
+      std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    CHECK(render.placementHintsPending() == 0);
+
+    bool listed = false;
+    const std::vector<std::string> names = TestHelpers::processThreadNames(listed);
+    if (listed) {
+      std::string all;
+      for (const auto& n : names)
+        all += "[" + n + "] ";
+      INFO("threads: " << all);
+      CHECK(TestHelpers::countThreadsNamed(names, "YSE worker 1") >= 1);
+      CHECK(TestHelpers::countThreadsNamed(names, "YSE worker 2") >= 1);
+      CHECK(TestHelpers::countThreadsNamed(names, "YSE background") >= 1);
+    } else {
+      MESSAGE("this platform cannot list its threads; skipped");
+    }
+
     YSE::System().close();
     YSE::System().renderThreads(previousThreads);
   }

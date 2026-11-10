@@ -7,6 +7,8 @@
 #include <memory>
 
 namespace YSE {
+  class pathResolver;
+
   namespace PATCHER {
 
     class pObject;
@@ -32,6 +34,16 @@ namespace YSE {
      *  result's ``ok``.
      */
     using fileTaskFunction = bool (*)(char* args, std::size_t argBytes);
+
+    /**
+     *  @brief A ``TASK`` that opens a file by name (issue #1255).
+     *
+     *  The same contract as ``fileTaskFunction``, plus the path to open.
+     *  @p path is null when no host path resolver is installed: the task then
+     *  uses the name it carries in @p args exactly as it always did. Otherwise
+     *  it is the resolver's answer, and the task opens that instead.
+     */
+    using filePathTaskFunction = bool (*)(char* args, std::size_t argBytes, const char* path);
 
     /**
      *  @brief One finished file request, as ``pObject::DeliverFileResult``
@@ -160,6 +172,22 @@ namespace YSE {
      *  deterministic; it does not deliver anything, because delivery is the
      *  audio thread's job.
      *
+     *  ### The host's path resolver (issue #1255)
+     *
+     *  A host may install a ``pathResolver`` (``SetResolver``, reached through
+     *  ``patcher::SetPathResolver``). While one is installed, every request
+     *  that names a file — a ``READ``, a ``WRITE``, or a ``TASK`` armed with
+     *  ``RequestPathTask`` — asks it before the disk is touched. The job posts
+     *  the name to the resolver on the background pool, parks its slot in
+     *  ``STATE_RESOLVING`` and returns, so other jobs keep running while the
+     *  host thinks. ``Reply`` (any thread) resumes the slot: with a path it
+     *  re-arms the slot's job, which then opens exactly that path; with a
+     *  refusal it completes the slot as a failure. ``DeliverComplete`` fails a
+     *  slot still parked at its deadline. A reply is matched to its slot by a
+     *  process-wide request id through a registry of live schedulers, so a
+     *  reply for a scheduler that is gone, or a slot that timed out or was
+     *  answered already, finds nothing and is refused.
+     *
      *  ### The recipe for a consuming object
      *
      *  Four issues are queued on this — #687 (``.textfile``), #689
@@ -253,6 +281,44 @@ namespace YSE {
                        std::size_t argBytes);
 
       /**
+       *  @brief ``RequestTask`` for a task that opens the file @p path names
+       *         (issue #1255), so the host's path resolver is asked about it
+       *         first. @p access says whether the file is read or written.
+       *
+       *  Same contract as ``RequestTask``, plus ``RequestRead``'s refusal of an
+       *  empty or over-long path. The task receives the resolver's answer, or
+       *  null when no resolver is installed (see ``filePathTaskFunction``).
+       */
+      bool RequestPathTask(pObject* target, int tag, PATH_ACCESS access, const char* path,
+                           std::size_t pathLength, filePathTaskFunction task, const void* args,
+                           std::size_t argBytes);
+
+      /**
+       *  @brief Install (or clear, with null) the host's path resolver and its
+       *         timeout in milliseconds, 0 meaning
+       *         ``patcher::DEFAULT_RESOLVE_TIMEOUT_MS`` (issue #1255).
+       *
+       *  Control thread. Returns once no other thread is still inside the
+       *  resolver it replaced. Requests already posted stay parked and can
+       *  still be answered with ``Reply`` or time out.
+       */
+      void SetResolver(pathResolver* resolver, unsigned int timeoutMs);
+
+      /** @brief True while a path resolver is installed. Any thread. */
+      bool HasResolver() const;
+
+      /**
+       *  @brief Answer the parked request @p requestId with @p path, or refuse
+       *         it with null, an empty path or one of ``PATH_CAPACITY`` bytes or
+       *         more (issue #1255).
+       *
+       *  Any thread but the audio thread — it takes the registry lock —
+       *  including from inside ``pathResolver::Resolve``. Returns false when
+       *  no live scheduler has a request parked under @p requestId.
+       */
+      static bool Reply(unsigned int requestId, const char* path);
+
+      /**
        *  @brief Hand every finished request to its target, each inside its own
        *         ``messageEventScope``.
        *
@@ -292,13 +358,25 @@ namespace YSE {
       //   FREE --Request*--> CLAIMED --publish--> ARMED --job--> RUNNING
       //        <--DeliverComplete-- COMPLETE <--job--/
       //
-      // Payload fields are written only in CLAIMED, read only in RUNNING, and
-      // read again only in COMPLETE, so they are never touched concurrently.
+      // With a path resolver installed (issue #1255), a slot that names a file
+      // takes a detour before its disk work:
+      //
+      //   RUNNING --job posts the name--> RESOLVING --Reply(path)--> REPLYING
+      //     --> ARMED (resolved; the job runs again and does the disk work)
+      //   RESOLVING --Reply(refusal) / deadline--> COMPLETE (failed)
+      //
+      // Payload fields are written only in CLAIMED (and `resolved` /
+      // `resolvedPath` only in REPLYING), read only in RUNNING, and read again
+      // only in COMPLETE, so they are never touched concurrently. While a slot
+      // is RESOLVING the job may still be inside the resolver call; it reads
+      // only `path` and the requester fields there, which nothing rewrites.
       static constexpr std::uint32_t STATE_FREE = 0;
       static constexpr std::uint32_t STATE_CLAIMED = 1;
       static constexpr std::uint32_t STATE_ARMED = 2;
       static constexpr std::uint32_t STATE_RUNNING = 3;
       static constexpr std::uint32_t STATE_COMPLETE = 4;
+      static constexpr std::uint32_t STATE_RESOLVING = 5;
+      static constexpr std::uint32_t STATE_REPLYING = 6;
 
       struct Entry;
 
@@ -328,18 +406,43 @@ namespace YSE {
         int tag = 0;
         FILE_OP op = FILE_OP::READ;
         fileTaskFunction task = nullptr; // TASK only
+        filePathTaskFunction pathTask = nullptr; // TASK by RequestPathTask only
+        PATH_ACCESS access = PA_READ;
+        // What the resolver is told about the requester (issue #1255), copied
+        // at request time because the job never touches the object. Type()
+        // answers a string literal, so the pointer outlives any object.
+        const char* objectType = "";
+        unsigned int objectId = 0;
+        // The request the slot is parked under while RESOLVING; 0 otherwise.
+        std::atomic<unsigned int> requestId{0};
+        // steady_clock nanoseconds after which a parked slot fails.
+        std::atomic<std::int64_t> deadline{0};
+        // Set by Reply in REPLYING: `resolvedPath` is the path to open.
+        bool resolved = false;
         bool ok = false;
         std::uint32_t byteCount = 0;
         char path[PATH_CAPACITY] = {};
+        // Apart from `path` because a synchronous resolver replies from inside
+        // the call that is still reading `path`.
+        char resolvedPath[PATH_CAPACITY] = {};
         char bytes[BYTES_CAPACITY] = {};
         // Declared last so it is destroyed *first*: ~fileJob joins, and a job
         // that is still running reads every field above it (issue #706).
         fileJob job;
       };
 
-      // Shared claim path behind both Request* fronts.
+      // Shared claim path behind every Request* front.
       bool Arm(pObject* target, int tag, FILE_OP op, const char* path, std::size_t pathLength,
-               const char* bytes, std::size_t byteCount, fileTaskFunction task = nullptr);
+               const char* bytes, std::size_t byteCount, fileTaskFunction task = nullptr,
+               filePathTaskFunction pathTask = nullptr, PATH_ACCESS access = PA_READ);
+
+      // Background pool: hand @p entry's name to the installed resolver and
+      // park it. False when no resolver is installed, and the job goes on with
+      // the name as given.
+      bool PostToResolver(Entry& entry);
+
+      // Re-arm a slot Reply moved to REPLYING with a path, or fail it.
+      static void Resume(Entry& entry, const char* path, std::size_t pathLength);
 
       // Background pool: do @p entry's I/O and publish the outcome.
       void RunSlot(Entry& entry);
@@ -354,6 +457,13 @@ namespace YSE {
       // (issue #706), so nothing is left reading a slot when it goes.
       std::unique_ptr<Entry[]> entries_;
       std::atomic<std::uint64_t> dropped_{0};
+
+      // The host's path resolver (issue #1255). Read once per post, inside the
+      // `resolving_` bracket SetResolver's grace period waits on — the same
+      // handshake patcherImplementation::SetHandler uses for the osc handler.
+      std::atomic<pathResolver*> resolver_{nullptr};
+      std::atomic<unsigned int> resolving_{0};
+      std::atomic<unsigned int> timeoutMs_{0};
     };
 
   } // namespace PATCHER

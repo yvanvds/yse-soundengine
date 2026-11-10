@@ -3,8 +3,10 @@
 // to cover branches that test_sound_state.cpp + test_sound_impl.cpp don't hit.
 
 #include <doctest/doctest.h>
+#include <atomic>
 #include <chrono>
 #include <cstddef>
+#include <memory>
 #include <thread>
 #include <vector>
 #include "yse.hpp"
@@ -15,6 +17,7 @@
 #include "internal/time.h"
 #include "support/null_device.hpp"
 #include "support/timer_pacing.hpp"
+#include "patcher/pool_blocker.hpp"
 
 using namespace std::chrono_literals;
 
@@ -200,6 +203,69 @@ TEST_SUITE("sound") {
     } // ~sound() of every element fires here, queueing release for next drain
     drain(8);
     CHECK(true);
+  }
+
+  TEST_CASE("SOUND::Manager: freeing a sound-owned patcher on the background pool does not "
+            "block sound::create (#1257)") {
+    if (!TestHelpers::engineInit()) return;
+
+    // A patcher mounted as a sound outlives its handle: once the handle is gone
+    // the sound owns it, and the sound manager's delete job frees it on the
+    // background pool's one worker, holding implementationsMutex.
+    // ~patcherImplementation joins its reclaim jobs, which are background jobs
+    // too, so a reclaim pass queued *behind* the delete job used to wait for
+    // the thread that was waiting for it. The next sound::create then blocked
+    // on the mutex for good. Staged deterministically with the pool parked:
+    //   1. release the sound; two ticks queue the delete job behind the blocker;
+    //   2. edit the patcher, which queues a reclaim pass behind the delete job;
+    //   3. drop the handle, so the delete job frees the patcher;
+    //   4. unpark, and create a sound from another thread, the host's view.
+    drain();
+    const std::size_t before = YSE::SOUND::Manager().implementationCount();
+
+    auto p = std::make_unique<YSE::patcher>();
+    p->create(1);
+    auto owner = std::make_unique<YSE::sound>();
+    owner->create(*p);
+    REQUIRE(owner->isValid());
+    drain(); // set up and in the audio thread's list; earlier reclaim passes done
+
+    {
+      TestHelpers::PoolBlocker blocker;
+      REQUIRE(blocker.Park());
+      owner.reset();
+      YSE::INTERNAL::Time().update();
+      YSE::SOUND::Manager().update(); // marks the impl OBJECT_DELETE
+      YSE::INTERNAL::Time().update();
+      YSE::SOUND::Manager().update(); // queues the delete job behind the blocker
+      CHECK(p->CreateObject(".mtof") != nullptr); // publishes: a reclaim pass is queued
+      p.reset(); // the sound owns the patcher now; the delete job frees it
+      blocker.Unpark();
+    }
+
+    // The host's next sound::create, on a thread this case can walk away from
+    // if it blocks, so the failure is reported rather than hanging the suite.
+    auto created = std::make_shared<std::atomic<bool>>(false);
+    auto next = std::make_shared<YSE::sound>();
+    std::thread host([created, next] {
+      next->create(g_src);
+      created->store(true, std::memory_order_release);
+    });
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(10);
+    while (!created->load(std::memory_order_acquire) && std::chrono::steady_clock::now() < deadline)
+      std::this_thread::yield();
+    const bool finished = created->load(std::memory_order_acquire);
+    if (finished)
+      host.join();
+    else
+      host.detach(); // deadlocked: leak the thread so the failure is reported
+    REQUIRE(finished);
+    CHECK(next->isValid());
+
+    // The delete job finished: the patcher's sound is gone from the list.
+    next.reset();
+    drainUntil([before] { return YSE::SOUND::Manager().implementationCount() <= before; });
+    CHECK(YSE::SOUND::Manager().implementationCount() <= before);
   }
 
 } // TEST_SUITE("sound")

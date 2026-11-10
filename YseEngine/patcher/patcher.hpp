@@ -34,6 +34,55 @@ namespace YSE {
   };
 
   /**
+   *  @brief One file name a patch wants to use, as a ``pathResolver`` is
+   *         asked to resolve it (issue #1255).
+   *
+   *  Every pointer is valid only for the duration of the ``Resolve`` call. A
+   *  resolver that answers later copies what it needs first.
+   */
+  struct pathRequest {
+    /** @brief Pass to ``patcher::ResolveReply``. Never 0. */
+    unsigned int id;
+    /** @brief The name exactly as the patch gave it, relative or absolute. */
+    const char* name;
+    /** @brief Whether the file will be read or written. */
+    PATH_ACCESS access;
+    /** @brief The requesting object's type, such as ``".coll"``. */
+    const char* objectType;
+    /** @brief The requesting object's ID in its patcher, as
+     *         ``pHandle::GetID`` reports it. */
+    unsigned int objectId;
+  };
+
+  /**
+   *  @brief Decides where the files a patch reads and writes live (issue
+   *         #1255).
+   *
+   *  Install one with ``patcher::SetPathResolver``. While it is installed,
+   *  every file access the patch's content triggers asks it first: the
+   *  ``read`` and ``write`` messages of ``.coll``, ``.textfile``, ``.qlist``,
+   *  ``.mtr``, ``.seq``, ``~seq``, ``.dict.serialize``,
+   *  ``.dict.deserialize`` and ``~capture``, and the sound files ``~buffer``
+   *  reads and writes, its file argument included. Absolute names are asked
+   *  about too.
+   *
+   *  The exchange is asynchronous. ``Resolve`` is called on the engine's
+   *  background thread with the file job parked. The answer is
+   *  ``patcher::ResolveReply``, from any thread, at any time: from inside
+   *  ``Resolve`` (a synchronous resolver) or later (a host whose language
+   *  cannot run a callback on a foreign thread). The job then resumes with
+   *  the path given, or fails as a missing file does when it is refused, not
+   *  answered within the timeout, or its patcher is destroyed first.
+   */
+  class API pathResolver {
+  public:
+    /** @brief Called on the engine's background thread, never the audio
+     *         thread. Keep it short: other file jobs wait behind it. */
+    virtual void Resolve(const pathRequest& request) = 0;
+    virtual ~pathResolver() {}
+  };
+
+  /**
    *  @brief Modular DSP / event graph (Max/MSP-style patcher).
    *
    *  Programmatically build a node graph, connect inlets to outlets, and
@@ -229,6 +278,41 @@ namespace YSE {
      */
     void SetOscHandler(oscHandler* handle);
 
+    /**
+     *  @brief Install a path resolver for this patcher's file access;
+     *         ``nullptr`` removes it (issue #1255).
+     *
+     *  See ``pathResolver``. A request not answered within @p timeoutMs
+     *  milliseconds fails, 0 meaning ``DEFAULT_RESOLVE_TIMEOUT_MS``. The
+     *  timeout is checked while the patcher renders, which is also when a
+     *  failure is delivered. Without a resolver a relative name is resolved
+     *  the way it always was.
+     *
+     *  Returns once no thread is still inside the resolver it replaced, so
+     *  that resolver may be destroyed afterwards. A request it was already
+     *  asked about can still be answered with ``ResolveReply``. The patcher
+     *  does not own the resolver. Called before ``create()``, the resolver is
+     *  kept and installed at ``create()`` time. Never call from inside
+     *  ``Resolve``'s own patcher's audio callback: it may wait.
+     */
+    void SetPathResolver(pathResolver* resolver, unsigned int timeoutMs = 0);
+
+    /**
+     *  @brief Answer the request @p requestId with the path to use, or
+     *         refuse it with ``nullptr`` (issue #1255).
+     *
+     *  Any thread, including from inside ``pathResolver::Resolve``. The path
+     *  is used exactly as given: an absolute path is what a resolver is
+     *  expected to answer. An empty path, or one of 512 bytes or more, also
+     *  refuses the request. Returns false when no patcher is waiting on
+     *  @p requestId: it was answered already, it timed out, or its patcher
+     *  is gone.
+     */
+    static bool ResolveReply(unsigned int requestId, const char* path);
+
+    /** @brief The timeout ``SetPathResolver`` applies when given 0. */
+    static constexpr unsigned int DEFAULT_RESOLVE_TIMEOUT_MS = 5000;
+
   private:
     PATCHER::patcherImplementation* pimpl;
     // Name stashed when name() is called before create(). Empty otherwise —
@@ -237,6 +321,10 @@ namespace YSE {
     std::string pendingName;
     // Handler stashed when SetOscHandler() is called before create().
     oscHandler* pendingHandler = nullptr;
+    // Resolver and timeout stashed when SetPathResolver() is called before
+    // create().
+    pathResolver* pendingResolver = nullptr;
+    unsigned int pendingResolveTimeoutMs = 0;
     friend class YSE::sound;
     // The insert adapter reaches through to pimpl to render the graph in place
     // (issue #167).

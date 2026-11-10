@@ -103,9 +103,21 @@ namespace YSE {
      *
      *  ### Shape
      *
-     *  No inlets, no outlets, no creation arguments. A subpatcher is addressed
-     *  by its handle (or its storage ID), and its contents are placed inside it
-     *  with `patcher::SetContainer`.
+     *  No inlets and no outlets. One creation argument, `name` (issue #1260):
+     *  free text the object keeps for a host to show as the subpatch's title,
+     *  the way Max reads `p gain`. The engine never reads it — the stored
+     *  parameter string is what a host gets back, verbatim, so a name of
+     *  several words survives `GetParams` and a save. A subpatcher is
+     *  addressed by its handle (or its storage ID), never by this name, and
+     *  its contents are placed inside it with `patcher::SetContainer`.
+     *
+     *  Because `name` is a string parameter, a live `SetParams` on a
+     *  subpatcher takes the #234 structural-replacement path: the object is
+     *  rebuilt and the handle swapped to the replacement.
+     *  `patcherImplementation::ReplaceObjectUnlocked` re-points every object
+     *  that named the old one as its container, so the contents stay inside
+     *  and the boundary keeps resolving. Nothing about it reaches the audio
+     *  thread, which never sees a subpatcher object at all.
      *
      *  ### Real-time behaviour
      *
@@ -116,6 +128,10 @@ namespace YSE {
     PATCHER_CLASS(gSubpatcher, YSE::OBJ::PATCHER)
     _NO_MESSAGES
     _NO_CALCULATE
+  private:
+    // The `name` creation argument. Held only so the parameter is registered
+    // and documented; nothing reads it (see "Shape" above).
+    std::string name;
   };
 
 } // namespace PATCHER

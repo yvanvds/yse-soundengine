@@ -305,7 +305,11 @@ patcherImplementation::~patcherImplementation() {
     // the retire lists; wait for both halves of the ping-pong to finish before we
     // free those lists from under them. shuttingDown_ guarantees neither re-arms.
     // These joins are a spin-wait on an atomic flag (INTERNAL::threadPoolJob), not
-    // std::thread::join, so they carry no system_error of their own.
+    // std::thread::join, so they carry no system_error of their own. This
+    // destructor is not always on a control thread: a patcher a sound owns is
+    // freed by the sound manager's delete job on the background pool's one
+    // worker, and there the joins run a still-queued pass themselves rather
+    // than wait for that worker to reach it (issue #1257).
     reclaimJobs_[0].join();
     reclaimJobs_[1].join();
     // FreeAllRetired ignores pins, so let a control thread still inside a
@@ -335,7 +339,26 @@ void patcherImplementation::EnsureFileIO() {
   // Control thread, under mtx (see the header). Idempotent: the first
   // file-capable object to join builds the table and every later one finds it.
   if (fileIO_.load(std::memory_order_acquire) != nullptr) return;
-  fileIO_.store(new fileScheduler(), std::memory_order_release);
+  auto* io = new fileScheduler();
+  // A resolver the host installed before any file-capable object joined
+  // (issue #1255). The scheduler is not published yet, so nothing can be
+  // inside a resolver on its behalf and the grace wait is immediate.
+  io->SetResolver(pathResolver_, resolveTimeoutMs_);
+  fileIO_.store(io, std::memory_order_release);
+}
+
+void patcherImplementation::SetPathResolver(pathResolver* resolver, unsigned int timeoutMs) {
+  fileScheduler* io = nullptr;
+  {
+    const std::lock_guard<std::mutex> lock(mtx);
+    pathResolver_ = resolver;
+    resolveTimeoutMs_ = timeoutMs;
+    io = fileIO_.load(std::memory_order_acquire);
+  }
+  // Outside mtx: the grace wait below waits for a Resolve call in progress on
+  // the background pool, and a resolver that calls back into this patcher
+  // would take mtx. Once built, the scheduler lives as long as the patcher.
+  if (io != nullptr) io->SetResolver(resolver, timeoutMs);
 }
 
 const char* patcherImplementation::Type() const {
@@ -1219,10 +1242,9 @@ void patcherImplementation::ReplaceObjectUnlocked(YSE::pHandle* handle, const st
   // Anything that named the old object as its container now names the
   // replacement (issue #545). `CopyStorageIdentity` already moved the object's
   // own containment across; this is the other direction, and it is what stops a
-  // re-parse of a container from orphaning everything inside it. A `patcher`
-  // object registers no parameters, so it cannot reach this path today — the
-  // loop is here so that it stays true if one ever does, rather than as a fix
-  // for something reachable now.
+  // re-parse of a container from orphaning everything inside it: a `patcher`
+  // object's `name` is a string parameter (issue #1260), so renaming a
+  // subpatcher live comes through here.
   for (auto& any : objects) {
     if (any.second->Container() == old) any.second->SetContainer(fresh);
   }

@@ -193,6 +193,76 @@ TEST_SUITE("internal") {
     CHECK(job.isQueued() == false);
   }
 
+  TEST_CASE("threadPool: a job joining a job queued behind it on the one worker returns "
+            "(issue #1257)") {
+    // The sound manager's delete job runs on the slow pool's only worker and
+    // can free a patcher, whose destructor joins its reclaim jobs. A reclaim
+    // job queued behind the delete job then waits for the one thread that is
+    // waiting for it. Staged here with plain jobs: `outer` holds the worker,
+    // `foreign` and then `inner` are queued behind it, and `outer` joins
+    // `inner`. On the old join() the worker spun forever; it must help-run
+    // `inner` instead, and must not run `foreign` nested inside `outer` (the
+    // delete job holds a lock the sound manager's other jobs take).
+    struct OuterJob : threadPoolJob {
+      threadPoolJob* target = nullptr;
+      std::atomic<bool> entered{false};
+      std::atomic<bool> go{false};
+      std::atomic<bool> joined{false};
+      void run() override {
+        entered.store(true);
+        while (!go.load())
+          std::this_thread::yield();
+        target->join();
+        joined.store(true);
+      }
+    };
+    struct ForeignJob : threadPoolJob {
+      const OuterJob* outer = nullptr;
+      std::atomic<bool> ran{false};
+      std::atomic<bool> ranAfterOuter{false};
+      void run() override {
+        ranAfterOuter.store(outer->joined.load());
+        ran.store(true);
+      }
+    };
+    auto waitFor = [](const std::atomic<bool>& v) {
+      const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(10);
+      while (!v.load()) {
+        if (std::chrono::steady_clock::now() > deadline) return false;
+        std::this_thread::yield();
+      }
+      return true;
+    };
+
+    threadPool pool(1);
+    std::atomic<int> innerRuns{0};
+    CountJob inner(&innerRuns);
+    OuterJob outer;
+    outer.target = &inner;
+    ForeignJob foreign;
+    foreign.outer = &outer;
+
+    pool.addJob(&outer);
+    REQUIRE(waitFor(outer.entered)); // the worker is inside outer.run()
+    pool.addJob(&foreign);
+    pool.addJob(&inner);
+    outer.go.store(true);
+
+    const bool returned = waitFor(outer.joined);
+    // Deadlocked: shutdown() zeroes the ring's queued counts, which lets the
+    // stuck join() return, so the failure is reported instead of hanging.
+    if (!returned) pool.shutdown();
+    REQUIRE(returned);
+    CHECK(innerRuns.load() == 1);
+
+    // The entry that was cycled past still runs, and only after outer's run().
+    REQUIRE(waitFor(foreign.ran));
+    CHECK(foreign.ranAfterOuter.load());
+    outer.join();
+    foreign.join();
+    CHECK(inner.isQueued() == false);
+  }
+
   TEST_CASE("thread: setPriority reports whether the request took effect (issue #284)") {
     // setPriority used to swallow denial silently; the render scheduler's
     // startup() logs the degraded mode, which needs an observable result.

@@ -7,6 +7,7 @@
 #include "../implementations/logImplementation.h"
 #include "../internalHeaders.h"
 #include "../internal/denormalGuard.h"
+#include "../internal/threadName.h"
 
 namespace {
   // See portaudioDeviceManager.cpp for the rationale on the time constant.
@@ -145,6 +146,8 @@ int32_t OboeImplementation::getNegotiatedOutputLatencyMs() const {
 oboe::DataCallbackResult OboeImplementation::onAudioReady(oboe::AudioStream* /*stream*/,
                                                           void* audioData, int32_t numFrames) {
   YSE::INTERNAL::enableFlushToZero();
+  // Name Oboe's callback thread, once per thread (issue #1259), as paCallback does.
+  YSE::INTERNAL::nameForeignThreadOnce(YSE::INTERNAL::AUDIO_THREAD_NAME);
   // Issue #82: our own callback wall-clock measurement, mirroring the
   // PortAudio path so system::cpuLoad() reports a consistent number
   // across backends.

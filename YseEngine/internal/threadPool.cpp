@@ -9,6 +9,7 @@
 */
 
 #include "threadPool.h"
+#include "threadName.h"
 #include <assert.h>
 #include <chrono>
 #include <thread>
@@ -31,6 +32,23 @@ namespace {
     std::this_thread::yield();
 #endif
   }
+
+  // Spin, then yield: the wait inside join(). Never sleeps, so a join returns
+  // within a scheduling quantum of the job finishing.
+  inline void joinBackoff(int& spins) {
+    constexpr int YIELD_AFTER = 8192;
+    if (spins < YIELD_AFTER) {
+      cpuRelax();
+      ++spins;
+    } else {
+      std::this_thread::yield();
+    }
+  }
+
+  // The pool whose worker this thread is, or nullptr on any other thread. Set
+  // once by threadPoolThread::run(); read by join() to tell a worker joining a
+  // job from a control thread joining one (issue #1257).
+  thread_local YSE::INTERNAL::threadPool* t_workerPool = nullptr;
 } // namespace
 
 YSE::INTERNAL::threadPoolJob::threadPoolJob() : shouldStop(false), queued(0) {}
@@ -48,20 +66,26 @@ void YSE::INTERNAL::threadPoolJob::join() {
   // zero, so join() also waits for the extra run that start() asked for
   // (issue #1190).
   //
-  // Background jobs are joined from control threads and teardown paths, never
-  // from the audio callback, so the wait may yield. (The render path's
-  // help-running join() of issue #284 left with the channel fan-out; rendering
-  // runs on the renderScheduler, issue #859.)
-  constexpr int YIELD_AFTER = 8192;
-  int spins = 0;
-  while (isQueued()) {
-    if (spins < YIELD_AFTER) {
-      cpuRelax();
-      ++spins;
-    } else {
-      std::this_thread::yield();
-    }
+  // Background jobs are usually joined from control threads and teardown
+  // paths, never from the audio callback, so the wait may yield. (The render
+  // path's help-running join() of issue #284 left with the channel fan-out;
+  // rendering runs on the renderScheduler, issue #859.)
+  //
+  // A join made on one of the pool's own workers cannot just wait (issue
+  // #1257). The slow pool has one worker, and a job it is running can destroy
+  // an object that owns background jobs: the sound manager's delete job frees a
+  // patcher a sound owned, and ~patcherImplementation joins its reclaim jobs. A
+  // reclaim job queued behind the delete job is then waiting for the very
+  // thread that is waiting for it, and the delete job holds the sound manager's
+  // implementationsMutex the whole time, so the host blocks in the next
+  // sound::create too. That worker help-runs the job's ring entry instead.
+  if (threadPool* pool = t_workerPool) {
+    pool->helpUntilIdle(*this);
+    return;
   }
+  int spins = 0;
+  while (isQueued())
+    joinBackoff(spins);
 }
 
 void YSE::INTERNAL::threadPoolJob::release(std::uint32_t n) {
@@ -97,6 +121,8 @@ void YSE::INTERNAL::threadPoolJob::activate() {
 YSE::INTERNAL::threadPoolThread::threadPoolThread(threadPool* pool) : pool(pool) {}
 
 void YSE::INTERNAL::threadPoolThread::run() {
+  setCurrentThreadName("YSE background"); // issue #1259
+  t_workerPool = pool;
   while (!threadShouldExit()) {
     threadPoolJob* job = pool->getJob();
     if (job == nullptr) return;
@@ -130,10 +156,7 @@ void YSE::INTERNAL::threadPool::shutdown() {
   // forever. Zeroing the queued count is enough (join() exits on zero); we do
   // not run them. getJob() stops popping once active is false. The store is the
   // last one this drain makes into the job (issue #239).
-  threadPoolJob* job = nullptr;
-  while (jobs.try_pop(job)) {
-    job->queued.store(0);
-  }
+  drainRing();
 
   for (auto i = threads.begin(); i != threads.end(); ++i) {
     i->stop();
@@ -180,4 +203,51 @@ YSE::INTERNAL::threadPoolJob* YSE::INTERNAL::threadPool::getJob() {
     }
   }
   return nullptr;
+}
+
+void YSE::INTERNAL::threadPool::drainRing() {
+  threadPoolJob* job = nullptr;
+  while (jobs.try_pop(job)) {
+    job->queued.store(0);
+  }
+}
+
+void YSE::INTERNAL::threadPool::helpUntilIdle(threadPoolJob& job) {
+  // `job` is queued, so it is in the ring or running on another worker. Every
+  // ring entry popped here is either one of `job`'s, which this worker runs
+  // through activate() exactly as getJob()'s caller would, or someone else's,
+  // which goes straight back. Running a foreign job here would nest it inside
+  // the caller's run(), under whatever locks that holds. The order of the
+  // foreign entries changes only by the ones that cycle past `job`'s; nothing
+  // relies on ring order beyond "every pushed job runs", which still holds.
+  int spins = 0;
+  while (job.isQueued()) {
+    threadPoolJob* next = nullptr;
+    if (jobs.try_pop(next)) {
+      if (next == &job) {
+        next->activate();
+        continue;
+      }
+      requeue(next);
+    }
+    joinBackoff(spins);
+  }
+}
+
+void YSE::INTERNAL::threadPool::requeue(threadPoolJob* job) {
+  // The entry keeps the queued count addJob() gave it; it only changes place.
+  if (active && jobs.try_push(job)) {
+    // A shutdown() that drained the ring before this push has left it behind
+    // with a live count; drain again so its join() still returns.
+    if (!active) drainRing();
+    return;
+  }
+  // Inactive pool: drop it as shutdown() does. Full ring (effectively
+  // unreachable; this worker just popped a slot): drop this entry as addJob()
+  // does, and let the self-healing schedulers re-enqueue it.
+  if (active) {
+    job->release(1);
+  } else {
+    job->queued.store(0);
+  }
 }

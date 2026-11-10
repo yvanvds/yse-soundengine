@@ -16,6 +16,7 @@
 
 #include "RtMidi.h"
 #include "implementations/logImplementation.h"
+#include "internal/threadName.h"
 #include "midiDeviceManager.h"
 
 namespace {
@@ -136,6 +137,7 @@ void YSE::MIDI::outSender::drainImmediate() {
 }
 
 void YSE::MIDI::outSender::run() {
+  INTERNAL::setCurrentThreadName("YSE MIDI out"); // issue #1259
   // System::init raises the Windows timer resolution to 1 ms (timeBeginPeriod)
   // for the whole process, so the sleeps below wake with ~1 ms granularity.
   while (running.load(std::memory_order_acquire)) {

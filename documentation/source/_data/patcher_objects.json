@@ -14500,7 +14500,14 @@
     "is_dsp": false,
     "name": "patcher",
     "outlets": [],
-    "params": [],
+    "params": [
+      {
+        "default": "",
+        "doc": "The subpatch's name, for a host to show as its title. Any text, spaces included; the object keeps it as given and does nothing else with it.",
+        "name": "name",
+        "range": "any text"
+      }
+    ],
     "requires_midi_device": false
   },
   "~!-": {

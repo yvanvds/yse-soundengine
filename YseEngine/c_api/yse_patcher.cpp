@@ -106,10 +106,80 @@ namespace {
     }
   };
 
-  // What a YsePatcher* points at: the engine patcher plus its bridge.
+  // ── Path-resolver bridge (issue #1255) ──────────────────────────────
+  //
+  // The engine asks a C++ pathResolver where a file the patch names lives.
+  // This is that resolver for a C host: it copies the request into one
+  // malloc'd block the receiver owns and calls the host's function pointer.
+  // The answer comes back through yse_patcher_resolve_reply, which needs no
+  // bridge at all — the engine matches it by request id.
+  //
+  // It runs on the background file thread while the host may install on
+  // another, so the (cb, user_data) pair is one immutable node behind one
+  // atomic pointer, reclaimed with SendBridge's reader-count handshake: no
+  // user code is inside that window, so a callback that re-installs from
+  // inside itself does not wait on itself. Never on the audio thread, so the
+  // malloc per request is fine.
+  //
+  // The bridge lives exactly as long as the handle; it is installed in the
+  // engine while a callback is set. The engine's SetPathResolver grace period
+  // (no thread still inside the old resolver on return) is what lets destroy
+  // free it.
+  struct PathPair {
+    YsePatcherPathResolverCallback cb;
+    void* user_data;
+  };
+
+  class PathBridge final : public YSE::pathResolver {
+  public:
+    PathBridge() = default;
+    PathBridge(const PathBridge&) = delete;
+    PathBridge& operator=(const PathBridge&) = delete;
+    PathBridge(PathBridge&&) = delete;
+    PathBridge& operator=(PathBridge&&) = delete;
+    ~PathBridge() override {
+      delete pair.load(std::memory_order_acquire);
+    }
+
+    void Resolve(const YSE::pathRequest& request) override {
+      readers.fetch_add(1, std::memory_order_seq_cst);
+      const PathPair* current = pair.load(std::memory_order_seq_cst);
+      YsePatcherPathResolverCallback cb = current != nullptr ? current->cb : nullptr;
+      void* user = current != nullptr ? current->user_data : nullptr;
+      readers.fetch_sub(1, std::memory_order_release);
+      if (cb == nullptr) {
+        // Cleared between the engine's load and this one: refuse now rather
+        // than leave the request to its timeout.
+        YSE::patcher::ResolveReply(request.id, nullptr);
+        return;
+      }
+      // One block: the name, then the object type. Freeing the name releases
+      // both.
+      const char* type = request.objectType != nullptr ? request.objectType : "";
+      const size_t nameSize = std::strlen(request.name) + 1;
+      const size_t typeSize = std::strlen(type) + 1;
+      auto* block = static_cast<char*>(std::malloc(nameSize + typeSize));
+      if (block == nullptr) {
+        YSE::patcher::ResolveReply(request.id, nullptr);
+        return;
+      }
+      std::memcpy(block, request.name, nameSize);
+      char* objectType = block + nameSize;
+      std::memcpy(objectType, type, typeSize);
+      cb(user, self, request.id, block, static_cast<YsePathAccess>(request.access), objectType,
+         request.objectId);
+    }
+
+    std::atomic<PathPair*> pair{nullptr};
+    std::atomic<unsigned int> readers{0};
+    YsePatcher* self = nullptr;
+  };
+
+  // What a YsePatcher* points at: the engine patcher plus its bridges.
   struct YsePatcherImpl {
     YSE::patcher cpp;
     SendBridge bridge;
+    PathBridge paths;
     // Set once yse_patcher_init succeeds. The engine patcher no-ops every
     // call made before create() and has no public "created" query, so this
     // is what lets yse_patcher_parse_json report YSE_ERR_NOT_INITIALIZED
@@ -410,7 +480,9 @@ extern "C" {
 
 YSE_C_API YsePatcher* yse_patcher_create(void) {
   try {
-    return reinterpret_cast<YsePatcher*>(new YsePatcherImpl());
+    auto* impl = new YsePatcherImpl();
+    impl->paths.self = reinterpret_cast<YsePatcher*>(impl);
+    return reinterpret_cast<YsePatcher*>(impl);
   } catch (const std::exception& e) {
     yse_c::set_last_error(e.what());
     return nullptr;
@@ -428,6 +500,10 @@ YSE_C_API void yse_patcher_destroy(YsePatcher* p) {
   // engine must stop reaching the bridge before it is freed below; on return
   // no other thread is still inside it (issue #907).
   impl->cpp.SetOscHandler(nullptr);
+  // The same for the path resolver (issue #1255): on return no file job is
+  // inside the bridge. A request it already posted can still be answered,
+  // since yse_patcher_resolve_reply never touches this handle.
+  impl->cpp.SetPathResolver(nullptr);
   delete impl;
 }
 
@@ -462,6 +538,57 @@ YSE_C_API YseStatus yse_patcher_set_send_callback(YsePatcher* p, YsePatcherSendC
 
 YSE_C_API void yse_patcher_free_message(char* address) {
   std::free(address);
+}
+
+YSE_C_API YseStatus yse_patcher_set_path_resolver(YsePatcher* p, YsePatcherPathResolverCallback cb,
+                                                  void* user_data, unsigned int timeout_ms) {
+  if (!p) return YSE_ERR_INVALID_HANDLE;
+  YsePatcherImpl* impl = to_impl(p);
+  // The install allocates, so it runs inside the ABI exception barrier.
+  return yse_c::guard("yse_patcher_set_path_resolver", YSE_ERR_EXCEPTION, [&] {
+    PathBridge& bridge = impl->paths;
+    PathPair* next = cb != nullptr ? new PathPair{cb, user_data} : nullptr;
+    PathPair* old = bridge.pair.exchange(next, std::memory_order_seq_cst);
+    // The engine sees the bridge exactly while a pair is set; re-read after
+    // each install so two threads re-installing at once still leave the engine
+    // agreeing with whichever pair won.
+    YSE::pathResolver* wanted = nullptr;
+    do {
+      wanted = bridge.pair.load(std::memory_order_seq_cst) != nullptr ? &bridge : nullptr;
+      impl->cpp.SetPathResolver(wanted, timeout_ms);
+    } while ((bridge.pair.load(std::memory_order_seq_cst) != nullptr ? &bridge : nullptr) !=
+             wanted);
+    if (old != nullptr) {
+      // Quiescence: once no dispatch is between its increment and decrement of
+      // `readers`, none can still be reading `old` (see PathBridge).
+      while (bridge.readers.load(std::memory_order_seq_cst) != 0)
+        std::this_thread::yield();
+      delete old;
+    }
+    return YSE_OK;
+  });
+}
+
+YSE_C_API YseStatus yse_patcher_resolve_reply(unsigned int request_id, const char* path) {
+  return yse_c::guard("yse_patcher_resolve_reply", YSE_ERR_EXCEPTION, [&] {
+    // A path the engine cannot carry still answers the request — as a
+    // refusal, so the object fails now rather than at the timeout.
+    const bool usable = path != nullptr && path[0] != '\0' &&
+                        std::strlen(path) < YSE::PATCHER::fileScheduler::PATH_CAPACITY;
+    const bool waiting = YSE::patcher::ResolveReply(request_id, usable ? path : nullptr);
+    if (!waiting) {
+      yse_c::set_last_error("yse_patcher_resolve_reply: no request " + std::to_string(request_id) +
+                            " is waiting (answered, timed out, or its patcher is gone)");
+      return YSE_ERR_INVALID_ARGUMENT;
+    }
+    if (path != nullptr && !usable) {
+      yse_c::set_last_error("yse_patcher_resolve_reply: path is empty or longer than " +
+                            std::to_string(YSE::PATCHER::fileScheduler::PATH_CAPACITY - 1) +
+                            " bytes; request refused");
+      return YSE_ERR_INVALID_ARGUMENT;
+    }
+    return YSE_OK;
+  });
 }
 
 YSE_C_API YseStatus yse_patcher_init(YsePatcher* p, int main_outputs) {

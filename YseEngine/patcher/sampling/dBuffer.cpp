@@ -164,6 +164,8 @@ CONSTRUCT_DSP() {
 PARM_CLEAR() {
   bufferName.clear();
   rest.clear();
+  argFile.clear();
+  argChannels = -1;
 }
 
 // Control thread: a change of argument rebuilds the object (the callbacks
@@ -179,6 +181,9 @@ void dBuffer::SetParent(pObject* newParent) {
   // The scheduler every message goes through, built here so a message on the
   // audio thread finds it.
   EnableFileIO();
+  // The file argument waits until now, the first moment the object knows
+  // whether its patcher's host resolves paths (issue #1255).
+  if (newParent != nullptr) LoadArgumentFile();
 }
 
 void dBuffer::Bind() {
@@ -210,12 +215,38 @@ void dBuffer::ApplyArguments() {
     buffer->setSizeMs(duration >= 0.f ? duration : buffer->lengthMs(),
                       channels > 0 ? channels : -1);
   }
+  // The file's channel count wins unless a channel argument was given.
+  argFile = file != nullptr ? *file : std::string();
+  argChannels = channels > 0 ? channels : 0;
+}
+
+void dBuffer::LoadArgumentFile() {
+  if (argFile.empty()) return;
+  const std::string file = std::move(argFile);
+  argFile.clear();
+
+  // While the host resolves paths (issue #1255), the name is the host's to
+  // place, and its answer may come later: read it the way a `read` message
+  // does. The file outlet bangs when it has loaded.
+  fileScheduler* io = FileIO();
+  if (io != nullptr && io->HasResolver()) {
+    bufferTask task;
+    if (file.size() >= sizeof(task.text)) {
+      failed.fetch_add(1, std::memory_order_relaxed);
+      return;
+    }
+    std::memcpy(task.text, file.c_str(), file.size() + 1);
+    task.op = TASK_OP::READ;
+    task.channels = argChannels;
+    if (!Submit(task)) failed.fetch_add(1, std::memory_order_relaxed);
+    return;
+  }
+
   // Synchronous: this is the control thread, and a patch that has just been
-  // loaded should have its samples. The file's channel count wins unless a
-  // channel argument was given.
-  if (file != nullptr && !buffer->read(file->c_str(), 0.f, -1.f, channels > 0 ? channels : 0)) {
+  // loaded should have its samples.
+  if (!buffer->read(file.c_str(), 0.f, -1.f, argChannels)) {
     failed.fetch_add(1, std::memory_order_relaxed);
-    YSE::INTERNAL::LogImpl().emit(YSE::E_ERROR, "~buffer: cannot read \"" + *file + "\"");
+    YSE::INTERNAL::LogImpl().emit(YSE::E_ERROR, "~buffer: cannot read \"" + file + "\"");
   }
 }
 
@@ -225,6 +256,12 @@ bool dBuffer::Submit(bufferTask& task) {
   fileScheduler* io = FileIO();
   if (io == nullptr) return false;
   task.id = bufferId;
+  // A read or a write names a file, which the host's path resolver gets to
+  // place (issue #1255). Every other task carries a buffer name or nothing.
+  if (task.op == TASK_OP::READ || task.op == TASK_OP::WRITE) {
+    return io->RequestPathTask(this, 0, task.op == TASK_OP::WRITE ? PA_WRITE : PA_READ, task.text,
+                               std::strlen(task.text), &dBuffer::RunPathTask, &task, sizeof(task));
+  }
   return io->RequestTask(this, 0, &dBuffer::RunTask, &task, sizeof(task));
 }
 
@@ -362,11 +399,17 @@ MESSAGES() {
 // ─── the background half ──────────────────────────────────────────────────────
 
 bool dBuffer::RunTask(char* args, std::size_t argBytes) {
+  return RunPathTask(args, argBytes, nullptr);
+}
+
+bool dBuffer::RunPathTask(char* args, std::size_t argBytes, const char* path) {
   static_assert(std::is_trivially_copyable<bufferTask>::value,
                 "a bufferTask is copied into a scheduler slot with memcpy");
   if (argBytes != sizeof(bufferTask)) return false;
   bufferTask task;
   std::memcpy(&task, args, sizeof(task));
+  // The file to open: the host resolver's answer, or the name as sent.
+  const char* file = path != nullptr ? path : task.text;
 
   // By id, not through the object: it may have been deleted since.
   std::shared_ptr<DSP::sampleBuffer> buf = DSP::sampleBufferRegistry::findById(task.id);
@@ -375,11 +418,10 @@ bool dBuffer::RunTask(char* args, std::size_t argBytes) {
   bool ok = true;
   switch (task.op) {
   case TASK_OP::READ:
-    ok = task.flag != 0 ? buf->replace(task.text)
-                        : buf->read(task.text, task.a, task.b, task.channels);
+    ok = task.flag != 0 ? buf->replace(file) : buf->read(file, task.a, task.b, task.channels);
     break;
   case TASK_OP::WRITE:
-    ok = buf->write(task.text, static_cast<DSP::SAMPLE_FILE>(task.which));
+    ok = buf->write(file, static_cast<DSP::SAMPLE_FILE>(task.which));
     break;
   case TASK_OP::FILL:
     buf->fill(task.a);

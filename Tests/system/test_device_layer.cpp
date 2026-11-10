@@ -68,6 +68,7 @@
 #include <thread>
 #include <vector>
 
+#include "support/thread_names.hpp"
 #include "support/timer_pacing.hpp"
 
 #include "yse.hpp"
@@ -81,6 +82,7 @@
 #include "device/deviceInterface.hpp"
 #include "device/deviceSetup.hpp"
 #include "headers/constants.hpp"
+#include "internal/threadName.h"
 #include "log.hpp"
 #include "patcher/pObjectList.hpp"
 #include "patcher/patcher.hpp"
@@ -943,6 +945,60 @@ TEST_SUITE("devicelayer") {
     // Leave the singleton as the other cases expect to find it.
     YSE::System().closeCurrentDevice();
     CHECK(YSE::System().getActiveBufferSize() == 0);
+  }
+
+  // Issue #1259: the audio callback runs on a thread PortAudio creates, which
+  // carries no name of its own (on Linux it shows as the process, on Windows
+  // as a bare thread id), so a host attributing CPU per thread cannot find it.
+  // paCallback names the thread it runs on "YSE audio" — on its first entry
+  // only, so the steady-state callback makes no system call. Driven here on a
+  // thread of the test's own, standing in for PortAudio's, and read back the
+  // way a host does (Tests/support/thread_names.hpp).
+  TEST_CASE("device manager: the audio callback names its thread YSE audio, once (#1259)") {
+    if (!TestHelpers::threadNamesSupported()) {
+      MESSAGE("no thread-name API on this platform; skipped");
+      return;
+    }
+    if (!ensureOffline()) return;
+
+    auto& mgr = YSE::DEVICE::Manager();
+    const size_t channels = mgr.getMaster().GetBuffers().size();
+    REQUIRE(channels > 0);
+    mgr.setStreamChannels((int)channels);
+    std::vector<std::vector<float>> storage(channels, std::vector<float>(YSE::STANDARD_BUFFERSIZE));
+    std::vector<float*> planes;
+    planes.reserve(channels);
+    for (auto& plane : storage)
+      planes.push_back(plane.data());
+    void* const output = static_cast<void*>(planes.data());
+    const unsigned long kFrames = YSE::STANDARD_BUFFERSIZE;
+
+    std::string before, afterFirst, afterRename;
+    std::size_t listedWhileAlive = 0;
+    bool listed = false;
+    std::thread callbackThread([&] {
+      // A Linux thread starts with its creator's name, and earlier cases ran
+      // paCallback on the test runner's thread: start from a known one.
+      YSE::INTERNAL::setCurrentThreadName("callback test");
+      before = TestHelpers::currentThreadName();
+      (void)YSE::DEVICE::managerObject::paCallback(nullptr, output, kFrames, nullptr, 0, &mgr);
+      afterFirst = TestHelpers::currentThreadName();
+      listedWhileAlive = TestHelpers::countThreadsNamed(TestHelpers::processThreadNames(listed),
+                                                        YSE::INTERNAL::AUDIO_THREAD_NAME);
+      // A later callback leaves the name alone: rename the thread as a host
+      // might, and the next callback must not put "YSE audio" back.
+      YSE::INTERNAL::setCurrentThreadName("host renamed");
+      (void)YSE::DEVICE::managerObject::paCallback(nullptr, output, kFrames, nullptr, 0, &mgr);
+      afterRename = TestHelpers::currentThreadName();
+    });
+    callbackThread.join();
+
+    CHECK(before == "callback test");
+    CHECK(afterFirst == "YSE audio");
+    if (listed) CHECK(listedWhileAlive >= 1);
+    CHECK(afterRename == "host renamed");
+
+    YSE::System().closeCurrentDevice();
   }
 
   // The other half of that stitching contract: closing the device has to drop

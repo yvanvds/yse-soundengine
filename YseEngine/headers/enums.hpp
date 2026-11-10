@@ -210,6 +210,15 @@ namespace YSE {
   };
   /// @endcond
 
+  /** @brief What a patch wants to do with a file whose name a host path
+   *         resolver is asked to resolve (see ``patcher::SetPathResolver``,
+   *         issue #1255). */
+  enum PATH_ACCESS {
+    PA_READ, ///< The file is read: a ``read`` message or a file argument.
+    PA_WRITE, ///< The file is written: a ``write`` message.
+    PATH_ACCESS_COUNT_, ///< Sentinel: the number of modes, not a valid value.
+  };
+
   /** @brief Seek origin for custom file I/O callbacks (see ``io.hpp``). */
   enum FILEPOINT {
     FP_CURRENT, ///< From the current position.
