@@ -1,6 +1,7 @@
 
 #include "TimerThread.h"
 #include <cassert>
+#include "internal/threadName.h"
 
 using namespace YSE::PATCHER;
 
@@ -10,6 +11,7 @@ timerThread& YSE::PATCHER::TimerThread() {
 }
 
 void timerThread::timerThreadWorker() {
+  YSE::INTERNAL::setCurrentThreadName("YSE timer"); // issue #1259
   ScopedLock lock(sync);
 
   while (!done) {

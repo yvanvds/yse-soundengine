@@ -8,6 +8,7 @@ set(YSE_TEST_SOURCES
   support/alloc_probe.cpp
   support/test_alloc_probe.cpp
   support/test_tsan_runtime.cpp
+  support/thread_names.cpp
   dsp/test_buffer.cpp
   dsp/test_file_buffer.cpp
   dsp/test_ramp.cpp
@@ -82,6 +83,7 @@ set(YSE_TEST_SOURCES
   utils/test_file_functions.cpp
   internal/test_threadpool.cpp
   internal/test_render_scheduler.cpp
+  internal/test_thread_name.cpp
   internal/test_cpu_topology.cpp
   internal/test_log_nothrow.cpp
   internal/test_log_sink_concurrency.cpp

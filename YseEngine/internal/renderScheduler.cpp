@@ -9,11 +9,13 @@
 
 #include "renderScheduler.h"
 #include <chrono>
+#include <cstdio>
 #include <thread>
 #include <string>
 #include <vector>
 #include "cpuTopology.h"
 #include "thread.h"
+#include "threadName.h"
 #include "denormalGuard.h"
 #include "../implementations/logImplementation.h"
 
@@ -164,6 +166,12 @@ public:
   worker(renderScheduler& owner, Int index, const cpuTopology::core* place)
     : place(place), owner(owner), index(index) {}
   void run() override {
+    // "YSE worker N", N the list index (issue #1259). At most 15 characters
+    // for any index a worker count can reach; setCurrentThreadName() cuts the
+    // rest.
+    char name[32];
+    std::snprintf(name, sizeof(name), "YSE worker %d", static_cast<int>(index));
+    setCurrentThreadName(name);
     // Soft placement (issue #862), once, before the first block: an ideal
     // processor / performance-cluster hint, never a hard pin. Best-effort —
     // a declined hint leaves the OS to place the thread, as before.

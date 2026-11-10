@@ -178,6 +178,8 @@ set(YSE_SRCS
   internal/reverbDSP.cpp
   internal/settings.cpp
   internal/thread.cpp
+  # OS-visible thread names (issue #1259).
+  internal/threadName.cpp
   internal/threadPool.cpp
   internal/time.cpp
   internal/underWaterEffect.cpp

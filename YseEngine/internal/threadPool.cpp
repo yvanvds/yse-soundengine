@@ -9,6 +9,7 @@
 */
 
 #include "threadPool.h"
+#include "threadName.h"
 #include <assert.h>
 #include <chrono>
 #include <thread>
@@ -120,6 +121,7 @@ void YSE::INTERNAL::threadPoolJob::activate() {
 YSE::INTERNAL::threadPoolThread::threadPoolThread(threadPool* pool) : pool(pool) {}
 
 void YSE::INTERNAL::threadPoolThread::run() {
+  setCurrentThreadName("YSE background"); // issue #1259
   t_workerPool = pool;
   while (!threadShouldExit()) {
     threadPoolJob* job = pool->getJob();

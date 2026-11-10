@@ -31,6 +31,7 @@
 #include "scriptRuntime.h"
 #include "py_traceback.h"
 #include "dsl_runtime.h"
+#include "../internal/threadName.h"
 
 namespace YSE {
   namespace INTERNAL {
@@ -172,6 +173,7 @@ namespace YSE {
     }
 
     void ScriptRuntime::run() {
+      setCurrentThreadName("YSE python"); // issue #1259
       for (;;) {
         {
           std::unique_lock<std::mutex> lock(mutex_);
