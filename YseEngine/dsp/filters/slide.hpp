@@ -95,6 +95,14 @@ namespace YSE {
        *         below 1 or not a number. */
       static Flt Effective(Flt amount);
 
+      /** @brief One step from @p current towards @p in with slide-up and
+       *         slide-down amounts @p up and @p down (used as ``Effective``
+       *         reads them): the equation ``process()`` runs, snap included.
+       *         Returns the new output; a non-finite @p in returns
+       *         @p current. Public so a class that smooths many values at
+       *         once (``vectral``) keeps one running value per value. */
+      static Dbl Advance(Dbl current, Flt in, Flt up, Flt down);
+
       /** @brief One sample. */
       Flt process(Flt in);
 

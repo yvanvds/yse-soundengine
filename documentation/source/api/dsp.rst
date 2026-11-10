@@ -366,6 +366,16 @@ Named signal buses: audio sent and received by name, without a cord, what
 .. doxygenfile:: dsp/routing/signalBus.hpp
    :project: libYSE
 
+Spectral
+--------
+
+Successive frames, such as spectra, smoothed index by index with a linear
+ramp, a logarithmic slide or a limited change per frame: what ``~vectral``
+wraps.
+
+.. doxygenfile:: dsp/spectral/vectral.hpp
+   :project: libYSE
+
 Filter primitives
 -----------------
 

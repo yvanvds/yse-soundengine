@@ -186,6 +186,7 @@
 #include "routing/dTypeRoute.h"
 #include "routing/dSend.h"
 #include "routing/dReceive.h"
+#include "spectral/dVectral.h"
 
 #include "guiObjects/gInt.h"
 #include "guiObjects/gFloat.h"
@@ -498,6 +499,7 @@ pRegistry::pRegistry() {
   Add(OBJ::D_TYPEROUTE, dTypeRoute::Create);
   Add(OBJ::D_SEND, dSend::Create);
   Add(OBJ::D_RECEIVE, dReceive::Create);
+  Add(OBJ::D_VECTRAL, dVectral::Create);
 
   Add(OBJ::G_SWITCH, gSwitch::Create);
   Add(OBJ::G_GATE, gGate::Create);

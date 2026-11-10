@@ -40,10 +40,7 @@ namespace YSE {
     }
 
     rampSmooth& rampSmooth::reset() {
-      current = 0.0;
-      increment = 0.0;
-      target = 0.f;
-      remaining = 0;
+      now = state{};
       return *this;
     }
 
@@ -54,21 +51,26 @@ namespace YSE {
       return static_cast<UInt>(samples);
     }
 
-    Flt rampSmooth::Step(Flt in) {
-      if (std::isfinite(in) && in != target) {
+    Flt rampSmooth::Advance(state& ramp, Flt in, Flt up, Flt down) {
+      if (std::isfinite(in) && in != ramp.target) {
         // A new value: a ramp from where the output is now.
-        target = in;
+        ramp.target = in;
         const Dbl goal = static_cast<Dbl>(in);
-        const UInt length = Samples(goal > current ? rampUp : rampDown);
-        increment = (goal - current) / static_cast<Dbl>(length);
-        remaining = length;
+        const UInt length = Samples(goal > ramp.current ? up : down);
+        ramp.increment = (goal - ramp.current) / static_cast<Dbl>(length);
+        ramp.remaining = length;
       }
-      if (remaining > 0) {
-        remaining--;
+      if (ramp.remaining > 0) {
+        ramp.remaining--;
         // The last sample is the target itself: no rounding left over.
-        current = remaining == 0 ? static_cast<Dbl>(target) : current + increment;
+        ramp.current =
+            ramp.remaining == 0 ? static_cast<Dbl>(ramp.target) : ramp.current + ramp.increment;
       }
-      return static_cast<Flt>(current);
+      return static_cast<Flt>(ramp.current);
+    }
+
+    Flt rampSmooth::Step(Flt in) {
+      return Advance(now, in, rampUp, rampDown);
     }
 
     Flt rampSmooth::process(Flt in) {

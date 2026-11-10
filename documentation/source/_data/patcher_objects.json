@@ -22866,6 +22866,65 @@
     ],
     "requires_midi_device": false
   },
+  "~vectral": {
+    "category": "SPECTRAL",
+    "description": "Smooths a stream of frames, such as spectra, index by index: each value against the value at the same index in the frames before it, with a linear ramp (rampsmooth), a logarithmic slide or a limited change per frame (deltaclip).",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The output index: which stored value each output sample reads, usually a frame's bin index. A signal; unconnected, the last number sent here (0). Also takes 'rampsmooth <up> [down]', 'slide <up> [down]', 'deltaclip <lowest> <highest>', 'size <n>' and 'clear'.",
+        "index": 0,
+        "label": "outIndex",
+        "range": "0 to size - 1"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The input index: where each input sample is smoothed and stored. Equal to the output index, frames come out smoothed in the frame they arrive in; ahead of it by d, shifted by d places. A signal; unconnected, the last number sent here (0). Takes the same words as the left inlet.",
+        "index": 1,
+        "label": "inIndex",
+        "range": "0 to size - 1"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The frame values to smooth, one per sample. A signal; unconnected, the last number sent here (0). Takes the same words as the left inlet.",
+        "index": 2,
+        "label": "in",
+        "range": ""
+      }
+    ],
+    "is_dsp": true,
+    "name": "~vectral",
+    "outlets": [
+      {
+        "doc": "The stored value at the output index, after this sample's input was smoothed in; 0 when the index is outside the frame.",
+        "index": 0,
+        "label": "out",
+        "range": "",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "512",
+        "doc": "The frame size: indexes 0 to size - 1 are used. Also the largest size the 'size' message can set. Changing it rebuilds the object.",
+        "name": "size",
+        "range": "1-65536"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~what": {
     "category": "ANALYSIS",
     "description": "Sends an impulse, a 1 for one sample, each time a 0-1 ramp such as a ~phasor passes one of a list of phase values: rhythmic triggers on a phasor clock.",

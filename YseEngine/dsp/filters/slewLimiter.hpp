@@ -91,6 +91,13 @@ namespace YSE {
         return current;
       }
 
+      /** @brief One step from @p current towards @p in with the limits
+       *         @p lowest and @p highest: the equation ``process()`` runs.
+       *         Returns the new output; a non-finite @p in returns
+       *         @p current. Public so a class that limits many values at
+       *         once (``vectral``) keeps one running value per value. */
+      static Flt Advance(Flt current, Flt in, Flt lowest, Flt highest);
+
       /** @brief One sample. */
       Flt process(Flt in);
 
