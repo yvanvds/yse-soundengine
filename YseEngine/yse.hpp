@@ -157,6 +157,7 @@
 #include "dsp/sampling/groovePlayer.hpp"
 #include "dsp/routing/signalSelector.hpp"
 #include "dsp/routing/mixMatrix.hpp"
+#include "dsp/routing/signalBus.hpp"
 #include "dsp/ramp.hpp"
 #include "dsp/envelope.hpp"
 #include "dsp/ADSRenvelope.hpp"

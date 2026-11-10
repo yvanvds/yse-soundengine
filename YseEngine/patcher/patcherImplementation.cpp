@@ -11,6 +11,8 @@
 #include "genericObjects/dOutlet.h"
 #include "genericObjects/gInlet.h"
 #include "genericObjects/gOutlet.h"
+#include "routing/dSend.h"
+#include "routing/dReceive.h"
 #include "pHandle.hpp"
 #include "../utils/json.hpp"
 #include <algorithm>
@@ -48,6 +50,19 @@ namespace {
   // kinds (Bang/Int/Float), so those paths pass a std::string& without building
   // a temporary. Never read for those kinds.
   const std::string kEmptyList;
+
+  // An object leaving the patch (deleted, replaced by a structural SetParams,
+  // cleared) leaves its named signal bus at once (issue #1136). It is retired,
+  // not freed, so without this a ~send would stay on the bus until the
+  // reclaimer frees it, and a ~receive in this patcher would go on hearing its
+  // last block. Caller holds mtx, as every bind of these objects does.
+  void LeaveSignalBus(pObject* object) {
+    if (strcmp(object->Type(), YSE::OBJ::D_SEND) == 0) {
+      static_cast<dSend*>(object)->Leave();
+    } else if (strcmp(object->Type(), YSE::OBJ::D_RECEIVE) == 0) {
+      static_cast<dReceive*>(object)->Leave();
+    }
+  }
 
   // The patcher whose Calculate() this thread is currently inside, or null
   // (issue #690). This is the thread-identity half of what THREAD used to be
@@ -238,6 +253,7 @@ patcherImplementation::patcherImplementation(int mainOutputs, YSE::patcher* head
   reclaimJobs_[0].sibling = &reclaimJobs_[1];
   reclaimJobs_[1].owner = this;
   reclaimJobs_[1].sibling = &reclaimJobs_[0];
+  signalBusJob_.owner = this;
 }
 
 // The whole scoped address — not just its slot — has to fit the bus's fixed
@@ -312,6 +328,9 @@ patcherImplementation::~patcherImplementation() {
     // than wait for that worker to reach it (issue #1257).
     reclaimJobs_[0].join();
     reclaimJobs_[1].join();
+    // A signal-bus sync (issue #1136) takes mtx and walks the objects; it saw
+    // shuttingDown_ or ran before Clear(), and nothing queues another now.
+    signalBusJob_.join();
     // FreeAllRetired ignores pins, so let a control thread still inside a
     // pinned use (issue #961) — one that looked an object up before Clear()
     // removed it — finish first. Every object's Teardown has run, so nothing
@@ -1040,6 +1059,7 @@ void patcherImplementation::DeleteObject(YSE::pHandle* handle) {
     // not free it yet — an in-flight audio block may still walk the retired
     // snapshot that references it. The free is deferred to the reclaimer.
     object->UnwireFromPeers();
+    LeaveSignalBus(object);
     doomed.push_back(object);
   }
   // Capture the id generation these objects' ids belong to *before* a possible
@@ -1234,6 +1254,7 @@ void patcherImplementation::ReplaceObjectUnlocked(YSE::pHandle* handle, const st
   // once the audio thread has provably advanced past every snapshot that
   // could still reference it — exactly like DeleteObject.
   old->UnwireFromPeers();
+  LeaveSignalBus(old);
   objects[handle] = fresh;
   // seq_cst, before the retirement below: a pHandle getter pins and then
   // loads without mtx, and this ordering is what makes the pin cover the old
@@ -1370,6 +1391,7 @@ void patcherImplementation::DiscardLoadedUnlocked(const std::vector<YSE::pHandle
     pObject* object = it->second;
     objects.erase(it);
     object->UnwireFromPeers();
+    LeaveSignalBus(object);
     doomed.push_back(object);
     delete h; // handle: never referenced by a GraphState
   }
@@ -1452,6 +1474,7 @@ void patcherImplementation::Clear() {
   doomed.reserve(objects.size());
   for (auto it = objects.begin(); it != objects.end(); ++it) {
     it->second->UnwireFromPeers();
+    LeaveSignalBus(it->second);
     doomed.push_back(it->second);
     delete it->first; // handle: not referenced by a GraphState
   }
@@ -2229,6 +2252,58 @@ YSE::PATCHER::GraphState* patcherImplementation::BuildGraph() {
   return g;
 }
 
+namespace {
+  // A sample-carrying cord: what SetBuffer counts and a loop check follows.
+  bool SignalCord(const YSE::PATCHER::outlet* out) {
+    return out != nullptr && out->Type() == YSE::OUT_TYPE::BUFFER && !out->IsLink();
+  }
+
+  // The name a ~send or ~receive uses now, or null for any other object or
+  // an empty name. Control thread, under mtx (the names are control-side).
+  const std::string* SignalBusName(pObject* object, bool& sends) {
+    const std::string* name = nullptr;
+    if (strcmp(object->Type(), YSE::OBJ::D_SEND) == 0) {
+      sends = true;
+      name = &static_cast<dSend*>(object)->BusName();
+    } else if (strcmp(object->Type(), YSE::OBJ::D_RECEIVE) == 0) {
+      sends = false;
+      name = &static_cast<dReceive*>(object)->BusName();
+    }
+    return name != nullptr && !name->empty() ? name : nullptr;
+  }
+
+  using softEdges = std::unordered_map<const pObject*, std::vector<pObject*>>;
+
+  // Whether `to` can be reached from `from` along signal cords and the soft
+  // edges accepted so far. Breadth-first; the visited set is only looked up,
+  // so address order cannot leak into the answer.
+  bool Reaches(pObject* from, const pObject* to, const softEdges& soft) {
+    std::unordered_map<const pObject*, bool> seen;
+    std::vector<pObject*> frontier{from};
+    seen[from] = true;
+    for (std::size_t next = 0; next < frontier.size(); next++) {
+      pObject* object = frontier[next];
+      if (object == to) return true;
+      const auto visit = [&](pObject* successor) {
+        if (seen.emplace(successor, true).second) frontier.push_back(successor);
+      };
+      for (int i = 0; i < object->NumOutputs(); i++) {
+        const YSE::PATCHER::outlet* out = object->GetOutlet(i);
+        if (!SignalCord(out)) continue;
+        for (YSE::PATCHER::inlet* in : out->Targets()) {
+          if (in->AcceptsDSP()) visit(in->Owner());
+        }
+      }
+      auto it = soft.find(object);
+      if (it != soft.end()) {
+        for (pObject* successor : it->second)
+          visit(successor);
+      }
+    }
+    return false;
+  }
+} // namespace
+
 void patcherImplementation::BuildRenderOrder(GraphState& g) {
   // Compile the signal traversal (issue #1185). Control thread, under mtx, like
   // the rest of BuildGraph: the allocations here never reach the audio thread.
@@ -2242,22 +2317,29 @@ void patcherImplementation::BuildRenderOrder(GraphState& g) {
   // SetBuffer counts are counted: a buffer outlet's, not a link's (#1038), to
   // an inlet that takes a signal. An object a start point never completes is
   // never emitted, as the push never reached it either.
-  std::unordered_map<const pObject*, unsigned int> waiting;
-  waiting.reserve(g.objects.size());
+  //
+  // Named pairs (issue #1136) add *soft* edges on top: a ~send before every
+  // ~receive of its name, so the receive hears this block. A soft edge holds
+  // the receive back like a cord, but carries nothing: the receive is still a
+  // start point, emitted once its senders are. Pairs are taken in storage-ID
+  // order, and one that would close a loop with the cords and the soft edges
+  // already taken is cut: that receive runs first and hears the previous
+  // block (the rule decided in #1038). Storage IDs and reachability do not
+  // depend on handle addresses, so the cut is the same every time the patch
+  // is loaded.
+  std::unordered_map<const pObject*, unsigned int> cords;
+  cords.reserve(g.objects.size());
   for (pObject* object : g.objects) {
-    waiting.emplace(object, 0U);
+    cords.emplace(object, 0U);
   }
-  const auto signalCord = [](const PATCHER::outlet* out) {
-    return out != nullptr && out->Type() == YSE::OUT_TYPE::BUFFER && !out->IsLink();
-  };
   for (pObject* object : g.objects) {
     for (int i = 0; i < object->NumOutputs(); i++) {
       const PATCHER::outlet* out = object->GetOutlet(i);
-      if (!signalCord(out)) continue;
+      if (!SignalCord(out)) continue;
       for (const PATCHER::inlet* in : out->Targets()) {
         if (!in->AcceptsDSP()) continue;
-        auto it = waiting.find(in->Owner());
-        if (it != waiting.end()) it->second++;
+        auto it = cords.find(in->Owner());
+        if (it != cords.end()) it->second++;
       }
     }
   }
@@ -2266,35 +2348,124 @@ void patcherImplementation::BuildRenderOrder(GraphState& g) {
     pObject* object;
     int outlet;
     std::size_t cord;
+    std::size_t soft;
   };
-  std::vector<frame> stack;
-  g.renderOrder.reserve(g.objects.size());
-  for (pObject* start : g.startPoints) {
-    g.renderOrder.push_back({start, true});
-    stack.push_back({start, 0, 0});
-    while (!stack.empty()) {
-      frame& top = stack.back();
-      if (top.outlet >= top.object->NumOutputs()) {
-        stack.pop_back();
-        continue;
-      }
-      const PATCHER::outlet* out = top.object->GetOutlet(top.outlet);
-      if (!signalCord(out) || top.cord >= out->Targets().size()) {
-        top.outlet++;
-        top.cord = 0;
-        continue;
-      }
-      const PATCHER::inlet* in = out->Targets()[top.cord++];
-      if (!in->AcceptsDSP()) continue;
-      auto it = waiting.find(in->Owner());
-      if (it == waiting.end() || it->second == 0) continue;
-      if (--it->second == 0) {
-        pObject* next = in->Owner();
-        g.renderOrder.push_back({next, false});
-        stack.push_back({next, 0, 0}); // invalidates `top`; not read again
+  const auto walk = [&g, &cords](const softEdges& soft,
+                                 std::vector<GraphState::renderStep>& order) {
+    std::unordered_map<const pObject*, unsigned int> waiting = cords;
+    for (const auto& edges : soft) {
+      for (pObject* receiver : edges.second)
+        waiting[receiver]++;
+    }
+    std::vector<frame> stack;
+    order.reserve(g.objects.size());
+    const auto emit = [&](pObject* next) {
+      order.push_back({next, cords[next] == 0});
+      stack.push_back({next, 0, 0, 0});
+    };
+    for (pObject* start : g.startPoints) {
+      // A start point held back by a soft edge comes when its senders have.
+      if (waiting[start] != 0) continue;
+      emit(start);
+      while (!stack.empty()) {
+        frame& top = stack.back();
+        pObject* next = nullptr;
+        if (top.outlet < top.object->NumOutputs()) {
+          const PATCHER::outlet* out = top.object->GetOutlet(top.outlet);
+          if (!SignalCord(out) || top.cord >= out->Targets().size()) {
+            top.outlet++;
+            top.cord = 0;
+            continue;
+          }
+          const PATCHER::inlet* in = out->Targets()[top.cord++];
+          if (!in->AcceptsDSP()) continue;
+          next = in->Owner();
+        } else {
+          auto edges = soft.find(top.object);
+          if (edges == soft.end() || top.soft >= edges->second.size()) {
+            stack.pop_back();
+            continue;
+          }
+          next = edges->second[top.soft++];
+        }
+        auto it = waiting.find(next);
+        if (it == waiting.end() || it->second == 0) continue;
+        if (--it->second == 0) emit(next); // invalidates `top`; not read again
       }
     }
+  };
+
+  // The order without soft edges, which also says which objects run at all.
+  walk(softEdges{}, g.renderOrder);
+
+  // The named pairs among the objects that run. A ~send that never runs has
+  // nothing to order a receive after.
+  struct pair {
+    pObject* sender;
+    pObject* receiver;
+  };
+  std::vector<pObject*> senders;
+  std::vector<pObject*> receivers;
+  for (const GraphState::renderStep& step : g.renderOrder) {
+    bool sends = false;
+    if (SignalBusName(step.object, sends) != nullptr) {
+      (sends ? senders : receivers).push_back(step.object);
+    }
   }
+  std::vector<pair> pairs;
+  for (pObject* sender : senders) {
+    bool sends = true;
+    const std::string* name = SignalBusName(sender, sends);
+    for (pObject* receiver : receivers) {
+      if (*SignalBusName(receiver, sends) == *name) pairs.push_back({sender, receiver});
+    }
+  }
+  if (pairs.empty()) return;
+  std::sort(pairs.begin(), pairs.end(), [](const pair& a, const pair& b) {
+    if (a.sender->GetID() != b.sender->GetID()) return a.sender->GetID() < b.sender->GetID();
+    return a.receiver->GetID() < b.receiver->GetID();
+  });
+  softEdges soft;
+  for (const pair& p : pairs) {
+    if (!Reaches(p.receiver, p.sender, soft)) soft[p.sender].push_back(p.receiver);
+  }
+  if (soft.empty()) return;
+  g.renderOrder.clear();
+  walk(soft, g.renderOrder);
+}
+
+void patcherImplementation::RequestSignalBusSync() {
+  // Any thread, the audio callback included: two atomic operations and a
+  // wait-free push onto the background ring.
+  if (shuttingDown_.load(std::memory_order_acquire)) return;
+  if (signalBusSyncRequested_.exchange(true, std::memory_order_acq_rel)) return;
+  INTERNAL::Global().addSlowJob(&signalBusJob_);
+  // An inactive pool drops the job (after System::close()): let the next
+  // request try again rather than wait forever on a flag nothing clears.
+  if (!signalBusJob_.isQueued()) signalBusSyncRequested_.store(false, std::memory_order_release);
+}
+
+void patcherImplementation::SettleSignalBus() {
+  signalBusJob_.join();
+}
+
+void patcherImplementation::RunSignalBusSync() {
+  // Background pool. Cleared first: a request from here on queues the job
+  // again, so a `set` stored after the walk below is never lost.
+  signalBusSyncRequested_.store(false, std::memory_order_release);
+  if (shuttingDown_.load(std::memory_order_acquire)) return;
+  const std::scoped_lock lk(mtx);
+  bool changed = false;
+  for (const auto& any : objects) {
+    pObject* object = any.second;
+    if (strcmp(object->Type(), YSE::OBJ::D_SEND) == 0) {
+      changed = static_cast<dSend*>(object)->ApplySet() || changed;
+    } else if (strcmp(object->Type(), YSE::OBJ::D_RECEIVE) == 0) {
+      changed = static_cast<dReceive*>(object)->ApplySet() || changed;
+    }
+  }
+  // A new name pairs other objects: order them (BuildRenderOrder).
+  if (changed) RebuildAndPublish();
 }
 
 void patcherImplementation::RebuildAndPublish() {

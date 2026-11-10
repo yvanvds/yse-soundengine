@@ -369,6 +369,42 @@ store the output of ``dumpconnections`` to keep a routing.
    1 1 0.5            =>  input 1 to output 1 at half gain
    disconnect 0 1     =>  input 0 fades out of output 1 in 50 ms
 
+.. patcher-object:: ~receive
+
+Outputs the sum of every ``~send`` with the same name, without a cord. With
+no sender of its name, or no name, it outputs silence.
+
+Names are scoped to the patcher name, as for ``.s`` and ``.r``: a
+``~receive`` hears the ``~send`` objects of its own patcher, subpatchers
+included, and those of other patchers with the same name. Patchers with an
+automatic name stay apart. Renaming a patcher moves its objects to the new
+scope.
+
+**When a block is heard**
+
+- A ``~send`` in the same patcher is heard in the same block. The patcher
+  runs every ``~send`` before the ``~receive`` objects of its name, wherever
+  they are in the patch.
+- When that order would close a signal loop (the ``~receive`` feeds, through
+  cords, the ``~send`` it listens to), that pair is the exception: the
+  ``~receive`` runs first and hears the previous block. This is how a
+  feedback loop is built without a delay line, with one block of delay.
+  Which pair gives way is decided when the patch changes, the same way each
+  time, so the sound does not change between runs.
+- A ``~send`` in another patcher is heard one block late, always, whichever
+  of the two patchers the engine renders first.
+
+**Messages**
+
+- ``set <name>``: listen to another name, from a later block. ``set`` with
+  no name listens to nothing. The change is not saved: the patch keeps the
+  name it was created with.
+
+.. code-block:: text
+
+   [~receive fb] -> [~* 0.5] -> [~+ 1] -> [~send fb]
+   a loop with one block of delay: the [~+ 1] outputs 1, 1.5, 1.75, ...
+
 .. patcher-object:: ~selector
 
 Passes one of its input signals to the outlet, or silence. The creation
@@ -392,6 +428,26 @@ An input with nothing connected is silent.
    [~rect 110] -> inlet 2
    [~tri 110]  -> inlet 3
    send 1, 2 or 3 to change the waveform with a 50 ms crossfade
+
+.. patcher-object:: ~send
+
+Sends the signal in its inlet to every ``~receive`` with the same name,
+without a cord. Several ``~send`` objects with one name are summed, and so
+are several cords into one ``~send``. With nothing connected, it sends the
+last number it was sent as a constant. Names are scoped as for
+``~receive``, which also says in which block the signal is heard.
+
+**Messages**
+
+- ``set <name>``: send to another name, from a later block. ``set`` with no
+  name sends nowhere. The change is not saved.
+- ``clear``: send silence for one block. In a feedback loop through the
+  name, that empties the loop.
+
+.. code-block:: text
+
+   subpatcher A:  [~cycle 220] -> [~send tone]
+   subpatcher B:  [~receive tone] -> [~dac]
 
 .. patcher-object:: ~typeroute
 

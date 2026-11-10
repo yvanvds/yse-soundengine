@@ -20248,6 +20248,41 @@
     ],
     "requires_midi_device": false
   },
+  "~receive": {
+    "category": "ROUTING",
+    "description": "Outputs the sum of every ~send with the same name, without a cord. A ~send in this patcher is heard in the same block, or one block later when that closes a feedback loop; one in another patcher is heard one block later.",
+    "inlets": [
+      {
+        "accepts": [
+          "LIST"
+        ],
+        "doc": "'set <name>' receives another name from a later block; no name receives silence.",
+        "index": 0,
+        "label": "set",
+        "range": ""
+      }
+    ],
+    "is_dsp": true,
+    "name": "~receive",
+    "outlets": [
+      {
+        "doc": "The sum of every ~send of the name, or silence when there is none.",
+        "index": 0,
+        "label": "out",
+        "range": "",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The name to receive, at most 63 characters; a longer one is refused and logged. A 'set' message does not change what is saved.",
+        "name": "name",
+        "range": "any name, at most 63 characters"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~record": {
     "category": "SAMPLING",
     "description": "Records signals into a named sample buffer, between a start and an end point, once or in a loop, with a sync signal that ramps from 0 to 1 over the recording: live looping and sampling.",
@@ -20878,6 +20913,36 @@
         "doc": "The number of signal inputs (1-128) and the input open at the start (0 closes them all), with 'ramptime <ms>' and 'stepmode <0|1>' among them ('~selector 4 1 ramptime 10'). Later messages do not change what is saved.",
         "name": "arguments",
         "range": "a count, then an input, then the keywords"
+      }
+    ],
+    "requires_midi_device": false
+  },
+  "~send": {
+    "category": "ROUTING",
+    "description": "Sends a signal to every ~receive with the same name, without a cord. Several ~send objects with one name are summed.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "The signal to send (several cords sum). Unconnected, the last number sent here is sent as a constant. 'set <name>' sends to another name from a later block (no name sends nowhere); 'clear' sends silence for one block, which empties a feedback loop.",
+        "index": 0,
+        "label": "in",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~send",
+    "outlets": [],
+    "params": [
+      {
+        "default": "",
+        "doc": "The name to send to, at most 63 characters; a longer one is refused and logged. A 'set' message does not change what is saved.",
+        "name": "name",
+        "range": "any name, at most 63 characters"
       }
     ],
     "requires_midi_device": false

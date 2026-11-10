@@ -11,6 +11,7 @@ Author:  yvan
 #include "internalHeaders.h"
 #include "patcher/time/TimerThread.h"
 #include "dsp/sampling/sampleBuffer.hpp"
+#include "dsp/routing/signalBus.hpp"
 #include "device/portaudioDeviceManager.h"
 
 #include <chrono>
@@ -196,6 +197,9 @@ void YSE::system::update() {
   // the tick that catches what the change itself could not. Cheap when no
   // buffer has any waiting: one lock and an empty check.
   DSP::sampleBufferRegistry::collect();
+  // Free what a named signal bus endpoint let go when it was rebound (issue
+  // #1136), once two blocks have passed. One lock and a scan of a short list.
+  DSP::signalBus::collect();
   // Wake the script thread once per tick so future scheduled work can advance
   // (issue #124 establishes the wake; #126/#127 add the scheduling). No-op
   // unless built with YSE_ENABLE_PYTHON.

@@ -81,6 +81,18 @@ namespace YSE {
         return busOrigin_;
       }
 
+      // Named signal buses (issue #1136). A `set` on a ~send / ~receive may
+      // arrive on the audio thread, but rebinding looks a bus up (it allocates)
+      // and the new name changes which objects the graph must order. So the
+      // object stores the name and asks for a sync: a background job that takes
+      // mtx, applies every waiting `set` (dSend / dReceive::ApplySet) and, when
+      // a name changed, rebuilds and publishes the graph. Any thread, wait-free;
+      // coalesced, so a burst of sets costs one job.
+      void RequestSignalBusSync();
+      // Wait until no requested sync is still queued or running. Control
+      // thread; tests, and anything that must see a `set` applied.
+      void SettleSignalBus();
+
       const char* Type() const override;
       void ResetDSP() override;
       void Calculate(THREAD thread) override;
@@ -752,6 +764,20 @@ namespace YSE {
       // Two-element ping-pong so a reclaim pass that still has work can re-arm
       // without re-enqueuing itself (see reclaimJob). Wired up in the ctor.
       reclaimJob reclaimJobs_[2];
+
+      // The signal-bus sync (issue #1136, see RequestSignalBusSync). The flag is
+      // set by a request and cleared by the job before it takes mtx, so a
+      // request that lands while the job runs queues it again rather than being
+      // lost; joined by the destructor with the reclaim jobs.
+      struct signalBusJob : INTERNAL::threadPoolJob {
+        patcherImplementation* owner = nullptr;
+        void run() override {
+          owner->RunSignalBusSync();
+        }
+      };
+      void RunSignalBusSync();
+      signalBusJob signalBusJob_;
+      std::atomic<bool> signalBusSyncRequested_{false};
       // Epoch observed by the previous reclaim pass; a pass re-arms only when the
       // epoch has moved since, so a stalled audio thread can't spin the pool.
       // Guarded by reclaimMtx_.

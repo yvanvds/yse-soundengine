@@ -360,6 +360,12 @@ wraps.
 .. doxygenfile:: dsp/routing/mixMatrix.hpp
    :project: libYSE
 
+Named signal buses: audio sent and received by name, without a cord, what
+``~send`` and ``~receive`` wrap.
+
+.. doxygenfile:: dsp/routing/signalBus.hpp
+   :project: libYSE
+
 Filter primitives
 -----------------
 
