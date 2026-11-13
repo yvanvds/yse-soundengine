@@ -74,6 +74,10 @@ namespace YSE {
       // ``startPoints`` is — ``Calculate`` never scans for them.
       std::vector<pObject*> pollers;
 
+      // Whether the patch holds a ~dspstress (issue #1172): only then does
+      // Calculate time the block for patcherImplementation::RenderLoad.
+      bool measureLoad = false;
+
       // Signal objects with at least one control outlet, sorted by storage
       // ID (issue #1037). After the DSP traversal the patcher sends what each
       // armed in its CALC(); see pObject::FlushArmedOutlets. Sorted because

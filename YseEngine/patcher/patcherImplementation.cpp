@@ -393,6 +393,12 @@ void patcherImplementation::Calculate(YSE::THREAD thread) {
   // of the published GraphState, pinned for the whole block so every send and
   // readiness query the traversal makes resolves against a coherent snapshot.
   const GraphState* g = active_.load(std::memory_order_acquire);
+  // The render load (issue #1172), timed only while a ~dspstress asks for it:
+  // two steady_clock reads per block, the clock the render scheduler and the
+  // device callbacks already read on this thread. No syscall that can block.
+  const bool timed = g != nullptr && g->measureLoad;
+  std::chrono::steady_clock::time_point blockStart;
+  if (timed) blockStart = std::chrono::steady_clock::now();
   audioBlock_.fetch_add(1, std::memory_order_acq_rel);
   currentBlockGraph_.store(g, std::memory_order_release);
   // The DSP switch (issue #1043), read once after the drains below so a
@@ -448,6 +454,10 @@ void patcherImplementation::Calculate(YSE::THREAD thread) {
       g->pollers[i]->Calculate(YSE::T_GUI);
     }
     dspOn = DspOn();
+    // ~dsptime counts from the first block after the switch comes back on
+    // (issue #1172).
+    if (dspOn && !dspWasOn_) dspTimeMs_.store(0.0, std::memory_order_release);
+    dspWasOn_ = dspOn;
 
     // While the patcher's DSP is off (issue #1043), the drains above still
     // run, so a `start` can arrive, but no signal object computes and the
@@ -480,6 +490,12 @@ void patcherImplementation::Calculate(YSE::THREAD thread) {
           }
         }
       }
+      // This block's length at the live sample rate (issue #1172). Single
+      // writer, so a load and a store do.
+      const double blockMs = static_cast<double>(YSE::STANDARD_BUFFERSIZE) * 1000.0 /
+                             static_cast<double>(YSE::SAMPLERATE);
+      dspTimeMs_.store(dspTimeMs_.load(std::memory_order_relaxed) + blockMs,
+                       std::memory_order_release);
     } // dspOn
 
     // Then the control messages the signal objects armed while rendering
@@ -525,6 +541,16 @@ void patcherImplementation::Calculate(YSE::THREAD thread) {
         }
       }
     }
+  }
+
+  if (timed) {
+    const double elapsedNs =
+        static_cast<double>(std::chrono::duration_cast<std::chrono::nanoseconds>(
+                                std::chrono::steady_clock::now() - blockStart)
+                                .count());
+    const double blockNs = static_cast<double>(YSE::STANDARD_BUFFERSIZE) * 1.0e9 /
+                           static_cast<double>(YSE::SAMPLERATE);
+    renderLoad_.store(static_cast<float>(elapsedNs / blockNs), std::memory_order_relaxed);
   }
 
   // Unpin: nothing on this thread may read this block's snapshot once the
@@ -2270,6 +2296,7 @@ YSE::PATCHER::GraphState* patcherImplementation::BuildGraph() {
       g->dacs.push_back(object);
     if (strcmp(type, YSE::OBJ::D_ADC) == 0 || strcmp(type, YSE::OBJ::D_EZADC) == 0)
       g->adcs.push_back(object);
+    if (strcmp(type, YSE::OBJ::D_DSPSTRESS) == 0) g->measureLoad = true;
 
     for (int i = 0; i < object->NumOutputs(); i++) {
       PATCHER::outlet* out = object->GetOutlet(i);

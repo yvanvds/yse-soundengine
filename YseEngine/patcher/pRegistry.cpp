@@ -83,6 +83,7 @@
 #include "genericObjects/dInlet.h"
 #include "genericObjects/dOutlet.h"
 #include "genericObjects/pMute.h"
+#include "genericObjects/pDspStatus.h"
 #include "genericObjects/pPass.h"
 #include "genericObjects/pBegin.h"
 #include "genericObjects/gFunbuff.h"
@@ -435,6 +436,11 @@ pRegistry::pRegistry() {
   // patcherImplementation::NewObjectUnlocked, like the two above.
   Add(OBJ::D_EZDAC, pEzdac::Create);
   Add(OBJ::D_EZADC, pEzadc::Create);
+
+  // DSP status reports (issue #1172).
+  Add(OBJ::D_DSPSTATE, pDspstate::Create);
+  Add(OBJ::D_DSPTIME, pDsptime::Create);
+  Add(OBJ::D_DSPSTRESS, pDspstress::Create);
 
   Add(OBJ::D_SINE, pSine::Create);
   Add(OBJ::D_SAW, dSaw::Create);

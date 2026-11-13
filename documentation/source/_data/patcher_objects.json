@@ -17549,6 +17549,119 @@
     ],
     "requires_midi_device": false
   },
+  "~dspstate": {
+    "category": "IO",
+    "description": "Reports whether the patcher's DSP is on, the sample rate and the block size: on a bang, and by itself whenever the DSP is turned on or off.",
+    "inlets": [
+      {
+        "accepts": [
+          "BANG"
+        ],
+        "doc": "Reports the DSP state, sample rate and block size.",
+        "index": 0,
+        "label": "bang",
+        "range": ""
+      }
+    ],
+    "is_dsp": false,
+    "name": "~dspstate",
+    "outlets": [
+      {
+        "doc": "1 when the patcher's DSP is on, 0 when it is off. Sent last, after the other outlets.",
+        "index": 0,
+        "label": "DSP on/off",
+        "range": "0 or 1",
+        "type": "INT"
+      },
+      {
+        "doc": "The sample rate.",
+        "index": 1,
+        "label": "sample rate",
+        "range": "Hz",
+        "type": "FLOAT"
+      },
+      {
+        "doc": "The number of samples the patcher renders per block.",
+        "index": 2,
+        "label": "signal block size",
+        "range": "samples",
+        "type": "INT"
+      },
+      {
+        "doc": "The number of samples the patcher takes in and hands out per block.",
+        "index": 3,
+        "label": "I/O block size",
+        "range": "samples",
+        "type": "INT"
+      }
+    ],
+    "params": [],
+    "requires_midi_device": false
+  },
+  "~dspstress": {
+    "category": "IO",
+    "description": "Reports how much of the available time the patcher takes to process its audio, in percent, at a regular interval and only when it changes.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Sets the reporting interval in ms; 0 stops reporting.",
+        "index": 0,
+        "label": "interval",
+        "range": "ms"
+      }
+    ],
+    "is_dsp": false,
+    "name": "~dspstress",
+    "outlets": [
+      {
+        "doc": "The mean processing time over the interval, as a percentage of the audio's duration. Above 100 the patch cannot keep up.",
+        "index": 0,
+        "label": "load",
+        "range": "percent",
+        "type": "FLOAT"
+      }
+    ],
+    "params": [
+      {
+        "default": "250",
+        "doc": "The reporting interval in ms; 0 stops reporting.",
+        "name": "interval",
+        "range": "ms"
+      }
+    ],
+    "requires_midi_device": false
+  },
+  "~dsptime": {
+    "category": "IO",
+    "description": "Reports the milliseconds of audio the patcher has processed since its DSP was last turned on. Counts processed samples, not the wall clock.",
+    "inlets": [
+      {
+        "accepts": [
+          "BANG"
+        ],
+        "doc": "Reports the time processed.",
+        "index": 0,
+        "label": "bang",
+        "range": ""
+      }
+    ],
+    "is_dsp": false,
+    "name": "~dsptime",
+    "outlets": [
+      {
+        "doc": "Milliseconds of audio processed since the patcher's DSP was last turned on.",
+        "index": 0,
+        "label": "time",
+        "range": "ms",
+        "type": "FLOAT"
+      }
+    ],
+    "params": [],
+    "requires_midi_device": false
+  },
   "~edge": {
     "category": "ANALYSIS",
     "description": "Bangs when a signal goes from zero to non-zero (left outlet) and when it goes from non-zero to zero (right outlet).",

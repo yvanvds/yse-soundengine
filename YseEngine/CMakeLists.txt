@@ -435,6 +435,7 @@ set(YSE_SRCS
   patcher/genericObjects/pAudioIO.cpp
   patcher/genericObjects/pBegin.cpp
   patcher/genericObjects/pDac.cpp
+  patcher/genericObjects/pDspStatus.cpp
   patcher/genericObjects/pLine.cpp
   patcher/genericObjects/pMute.cpp
   patcher/genericObjects/pPass.cpp
@@ -931,6 +932,7 @@ set_source_files_properties(
   patcher/genericObjects/pAudioIO.cpp
   patcher/genericObjects/pBegin.cpp
   patcher/genericObjects/pDac.cpp
+  patcher/genericObjects/pDspStatus.cpp
   patcher/genericObjects/pLine.cpp
   patcher/genericObjects/pMute.cpp
   patcher/genericObjects/pPass.cpp

@@ -20,7 +20,7 @@ The first character of an object's type name tells you which kind it is.
 
 ``~`` **signal objects** (``~sine``, ``~lp``, ``~*``, ``~dac`` …)
    Signal objects run once per audio block and pass whole buffers of samples
-   along their cords. There are 175 of them. Many of their inlets also accept a
+   along their cords. There are 178 of them. Many of their inlets also accept a
    plain number: the inlet of ``~sine`` takes either an audio buffer (for FM)
    or a float frequency.
 
@@ -78,7 +78,10 @@ silences the patcher, and ``start`` (or any other number) turns it back on.
 While it is off, messages are still handled, but no signal object computes
 and the patcher outputs silence. A patcher starts with its audio on.
 ``~ezdac`` and ``~ezadc`` are the same objects as an on/off button: their
-GUI value is ``on`` or ``off``.
+GUI value is ``on`` or ``off``. ``~dspstate`` reports the switch, the sample
+rate and the block size, ``~dsptime`` the milliseconds of audio processed
+since the audio was turned on, and ``~dspstress`` how much of the available
+time the patcher takes to process its audio.
 
 Hosting a patcher
 -----------------

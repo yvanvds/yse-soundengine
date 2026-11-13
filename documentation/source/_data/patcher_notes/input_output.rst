@@ -169,3 +169,50 @@ are left to the host that draws it.
 ``~adc`` as an on/off button: the same outlets, arguments and messages (see
 ``~adc``). Its GUI value is ``on`` or ``off``, the patcher's audio switch,
 as on ``~ezdac``.
+
+.. patcher-object:: ~dspstate
+
+A ``bang`` sends four numbers, right to left: the I/O block size, the signal
+block size, the sample rate in Hz and the patcher's audio switch (1 on, 0
+off). Both block sizes are the 128 samples a patcher renders and exchanges
+per block, whatever buffer size the audio device uses.
+
+The same report goes out by itself at the top of the first block after the
+audio switch changes, so ``~dspstate`` shows a ``stop`` or ``start`` sent to
+any ``~dac`` or ``~adc`` in the patcher. Joining a patcher reports nothing:
+send a bang, for instance from a ``.loadbang``, for the first report.
+
+.. code-block:: text
+
+   [.loadbang] -> [~dspstate] outlet 1: the sample rate, to scale a frequency
+   [.m stop]   -> [~dac]      [~dspstate] outlet 0 sends 0 on the next block
+
+.. patcher-object:: ~dsptime
+
+A ``bang`` sends how many milliseconds of audio the patcher has processed
+since its audio was last turned on (or since it was built). The count
+follows the samples processed, not the wall clock, so it keeps time in
+offline rendering too, and every block adds its own length at the sample
+rate it was rendered at. It stands still while the audio switch is off and
+starts again from 0 when the audio comes back on.
+
+The milliseconds are a float, so after a few hours the value is no longer
+exact to the millisecond.
+
+.. patcher-object:: ~dspstress
+
+Reports how much of the available time the patcher takes to process its
+audio, in percent: the time a block takes (its messages, timers, signal
+objects and output mix) over the duration of the audio in it. 100 means the
+patch takes as long as the audio lasts; above 100 it cannot keep up. Patches
+that hold no ``~dspstress`` are not timed.
+
+The report is the mean over an interval, 250 ms by default or the argument,
+and goes out only when it differs from the one before. A number sets the
+interval; 0 stops the reports. The interval counts processed audio, like
+``~dsptime``, and the reports go on while the audio switch is off, showing
+the cost of the messages and timers alone. The value differs from run to
+run and from machine to machine. For the load of the whole engine, the host
+can read ``System().cpuLoad()``.
+
+The argument is saved with the patch; a number sent to the inlet is not.

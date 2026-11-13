@@ -116,6 +116,27 @@ namespace YSE {
         return dspOn_.load(std::memory_order_acquire);
       }
 
+      // Milliseconds of audio this patcher has rendered since its DSP was last
+      // turned on, or since it was built (issue #1172, ~dsptime). Each block
+      // rendered with the DSP on adds its length at the sample rate of that
+      // block; the count restarts at the first block after the switch goes
+      // from off to on. Any thread: one atomic load. The audio thread is the
+      // only writer.
+      double DspTimeMs() const {
+        return dspTimeMs_.load(std::memory_order_acquire);
+      }
+
+      // The time the last measured block took to process, as a fraction of
+      // that block's duration at the sample rate (1 is 100%; more means the
+      // patch cannot keep up), or 0 before any measurement (issue #1172,
+      // ~dspstress). The whole Calculate is timed: the drains, the polls, the
+      // render and the ~dac mix. Measured only while the patch holds a
+      // ~dspstress (GraphState::measureLoad), so a patch without one pays
+      // nothing. Any thread: one atomic load.
+      float RenderLoad() const {
+        return renderLoad_.load(std::memory_order_relaxed);
+      }
+
       // Inlets and outlets resolve topology through a graphReadScope
       // (graphState.h): the block's pinned snapshot on the thread rendering
       // it (issues #226, #962), the pinned published snapshot on any other
@@ -735,6 +756,12 @@ namespace YSE {
       std::atomic<const GraphState*> active_{nullptr};
       // See SetDspOn().
       std::atomic<bool> dspOn_{true};
+      // The switch as the previous block read it; the audio thread only.
+      // DspTimeMs restarts when it goes from off to on (issue #1172).
+      bool dspWasOn_ = true;
+      // See DspTimeMs() and RenderLoad(). The audio thread writes both.
+      std::atomic<double> dspTimeMs_{0.0};
+      std::atomic<float> renderLoad_{0.f};
       // Snapshot pinned for the duration of the block being rendered. Written
       // by the audio thread at the start/end of Calculate, and read only from
       // inside that frame (graphReadScope and the T_DSP dispatch in

@@ -456,6 +456,7 @@ set(YSE_TEST_SOURCES
   patcher/test_patcher_adc.cpp
   patcher/test_patcher_audio_io.cpp
   patcher/test_patcher_subpatch_mute.cpp
+  patcher/test_patcher_dsp_status.cpp
   patcher/test_timerthread.cpp
   channel/test_channel.cpp
   channel/test_channel_concurrency.cpp
@@ -1664,6 +1665,7 @@ set_source_files_properties(
   patcher/test_patcher_adc.cpp
   patcher/test_patcher_audio_io.cpp
   patcher/test_patcher_subpatch_mute.cpp
+  patcher/test_patcher_dsp_status.cpp
   patcher/test_timerthread.cpp
   PROPERTIES COMPILE_FLAGS "${_patcher_test_suppress}"
 )

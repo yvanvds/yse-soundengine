@@ -135,6 +135,8 @@ namespace YSE {
    *    editor, sent as coefficients), ``D_ZPLANE`` (sections as poles and
    *    zeroes on the z plane).
    *  - I/O: ``D_DAC``, ``D_ADC``, ``D_EZDAC``, ``D_EZADC``, ``D_LINE``.
+   *  - DSP status: ``D_DSPSTATE`` (DSP on/off, sample rate, block size),
+   *    ``D_DSPTIME`` (ms of audio rendered), ``D_DSPSTRESS`` (render load).
    *  - Control: ``G_INT``, ``G_FLOAT``, ``G_SLIDER``, ``G_RSLIDER``,
    *    ``G_XYSLIDER``, ``G_MULTISLIDER``, ``G_MATRIXCTRL``, ``G_FUNCTION``,
    *    ``G_KSLIDER``, ``G_NSLIDER``, ``G_DIAL``, ``G_INCDEC``, ``G_RANDOM``.
@@ -256,6 +258,12 @@ namespace YSE {
     DEFOBJ(D_ADC, "~adc");
     DEFOBJ(D_EZDAC, "~ezdac");
     DEFOBJ(D_EZADC, "~ezadc");
+    // DSP status reports (issue #1172): the patcher's DSP switch, sample rate
+    // and block size; ms rendered; the render load. See
+    // genericObjects/pDspStatus.h.
+    DEFOBJ(D_DSPSTATE, "~dspstate");
+    DEFOBJ(D_DSPTIME, "~dsptime");
+    DEFOBJ(D_DSPSTRESS, "~dspstress");
     DEFOBJ(G_RECEIVE, ".r");
     DEFOBJ(G_SEND, ".s");
 
