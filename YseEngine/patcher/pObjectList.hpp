@@ -46,7 +46,8 @@ namespace YSE {
    *    (the running average over the last N samples), ``D_AVG`` (the
    *    average absolute value since the last report), ``D_MINMAX`` (the
    *    running minimum and maximum), ``D_CAPTURE`` (signal samples stored
-   *    and dumped as lists), ``D_LOUDNESS`` (EBU R 128 loudness in LUFS).
+   *    and dumped as lists), ``D_LOUDNESS`` (EBU R 128 loudness in LUFS),
+   *    ``D_FZERO`` (the fundamental frequency, peak amplitude and onsets).
    *  - DSP delay: `D_TAPIN`, `D_TAPOUT`, `D_COMB`, `D_TEETH`, `D_DELAY`.
    *  - DSP dynamics: ``D_NORMALIZE`` (scaling by the running peak).
    *  - DSP sampling: ``D_BUFFER``, ``D_INFO`` (a buffer's details),
@@ -54,12 +55,19 @@ namespace YSE {
    *    signal written at signal-rate indexes), ``D_INDEX`` (a buffer read
    *    at signal-rate indexes, without interpolation), ``D_TABLE`` (a
    *    buffer read as a table of values: lookup, stepping, random draws),
+   *    ``D_LOOKUP`` (a buffer used as a transfer function: -1 to 1 in, the
+   *    table's value out, for waveshaping),
    *    ``D_RECORD`` (signals recorded into a buffer, once or in a loop),
    *    ``D_PLAY`` (a buffer played from a start to an end point, or at
    *    signal-rate positions), ``D_GROOVE`` (a buffer played at a
    *    signal-rate speed between loop points, with a sync output),
    *    ``D_PHASEGROOVE`` (a buffer's loop read where a 0 to 1 ramp says),
-   *    ``D_SFINFO`` (a sound file's channels, rate, length and format).
+   *    ``D_SFINFO`` (a sound file's channels, rate, length and format),
+   *    ``D_WAVE`` (a buffer region read as one cycle at a 0 to 1 phase: a
+   *    wavetable), ``D_WAVE2D`` (the same, crossfaded across rows),
+   *    ``D_BUFFIR`` (a FIR filter whose taps are part of a buffer),
+   *    ``D_STUTTER`` (the latest input copied on a trigger and replayed
+   *    by phase).
    *  - DSP routing: ``D_GATE`` (a signal sent to one of several outlets),
    *    ``D_SELECTOR`` (one of several signals passed to the outlet),
    *    ``D_MATRIX`` (every input to every output at a ramped gain),
@@ -292,6 +300,7 @@ namespace YSE {
     DEFOBJ(D_AVG, "~avg");
     DEFOBJ(D_MINMAX, "~minmax");
     DEFOBJ(D_LOUDNESS, "~loudness");
+    DEFOBJ(D_FZERO, "~fzero");
     DEFOBJ(D_CAPTURE, "~capture");
 
     DEFOBJ(D_TAPIN, "~tapin");
@@ -312,11 +321,16 @@ namespace YSE {
     DEFOBJ(D_POKE, "~poke");
     DEFOBJ(D_INDEX, "~index");
     DEFOBJ(D_TABLE, "~table");
+    DEFOBJ(D_LOOKUP, "~lookup");
     DEFOBJ(D_RECORD, "~record");
     DEFOBJ(D_PLAY, "~play");
     DEFOBJ(D_GROOVE, "~groove");
     DEFOBJ(D_PHASEGROOVE, "~phasegroove");
     DEFOBJ(D_SFINFO, "~sfinfo");
+    DEFOBJ(D_WAVE, "~wave");
+    DEFOBJ(D_WAVE2D, "~2d.wave");
+    DEFOBJ(D_BUFFIR, "~buffir");
+    DEFOBJ(D_STUTTER, "~stutter");
 
     DEFOBJ(D_GATE, "~gate");
     DEFOBJ(D_SELECTOR, "~selector");

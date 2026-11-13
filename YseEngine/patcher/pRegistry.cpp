@@ -158,6 +158,7 @@
 #include "analysis/dAvg.h"
 #include "analysis/dMinmax.h"
 #include "analysis/dLoudness.h"
+#include "analysis/dFzero.h"
 #include "analysis/dCapture.h"
 #include "delay/dTapin.h"
 #include "delay/dTapout.h"
@@ -175,6 +176,10 @@
 #include "sampling/dPoke.h"
 #include "sampling/dIndex.h"
 #include "sampling/dTable.h"
+#include "sampling/dLookup.h"
+#include "sampling/dWave.h"
+#include "sampling/dBuffir.h"
+#include "sampling/dStutter.h"
 #include "sampling/dRecord.h"
 #include "sampling/dPlay.h"
 #include "sampling/dGroove.h"
@@ -471,6 +476,7 @@ pRegistry::pRegistry() {
   Add(OBJ::D_AVG, dAvg::Create);
   Add(OBJ::D_MINMAX, dMinmax::Create);
   Add(OBJ::D_LOUDNESS, dLoudness::Create);
+  Add(OBJ::D_FZERO, dFzero::Create);
   Add(OBJ::D_CAPTURE, dCapture::Create);
   Add(OBJ::D_TAPIN, dTapin::Create);
   Add(OBJ::D_TAPOUT, dTapout::Create);
@@ -488,11 +494,16 @@ pRegistry::pRegistry() {
   Add(OBJ::D_POKE, dPoke::Create);
   Add(OBJ::D_INDEX, dIndex::Create);
   Add(OBJ::D_TABLE, dTable::Create);
+  Add(OBJ::D_LOOKUP, dLookup::Create);
   Add(OBJ::D_RECORD, dRecord::Create);
   Add(OBJ::D_PLAY, dPlay::Create);
   Add(OBJ::D_GROOVE, dGroove::Create);
   Add(OBJ::D_PHASEGROOVE, dPhaseGroove::Create);
   Add(OBJ::D_SFINFO, dSfinfo::Create);
+  Add(OBJ::D_WAVE, dWave::Create);
+  Add(OBJ::D_WAVE2D, dWave2d::Create);
+  Add(OBJ::D_BUFFIR, dBuffir::Create);
+  Add(OBJ::D_STUTTER, dStutter::Create);
   Add(OBJ::D_GATE, dGate::Create);
   Add(OBJ::D_SELECTOR, dSelector::Create);
   Add(OBJ::D_MATRIX, dMatrix::Create);

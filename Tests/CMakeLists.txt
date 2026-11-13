@@ -58,6 +58,7 @@ set(YSE_TEST_SOURCES
   dsp/test_moving_average.cpp
   dsp/test_min_max.cpp
   dsp/test_loudness_meter.cpp
+  dsp/test_pitch_tracker.cpp
   dsp/test_sample_capture.cpp
   dsp/test_compare.cpp
   dsp/test_trig.cpp
@@ -69,6 +70,10 @@ set(YSE_TEST_SOURCES
   dsp/test_sampleBuffer.cpp
   dsp/test_sample_access.cpp
   dsp/test_table_lookup.cpp
+  dsp/test_transfer_lookup.cpp
+  dsp/test_wave_reader.cpp
+  dsp/test_fir_filter.cpp
+  dsp/test_stutter.cpp
   dsp/test_buffer_recorder.cpp
   dsp/test_buffer_player.cpp
   dsp/test_groove_player.cpp
@@ -328,6 +333,7 @@ set(YSE_TEST_SOURCES
   patcher/test_patcher_signal_avg.cpp
   patcher/test_patcher_signal_minmax.cpp
   patcher/test_patcher_signal_loudness.cpp
+  patcher/test_patcher_signal_fzero.cpp
   patcher/test_patcher_signal_capture.cpp
   patcher/test_patcher_signal_compare.cpp
   patcher/test_patcher_signal_trig.cpp
@@ -345,6 +351,10 @@ set(YSE_TEST_SOURCES
   patcher/test_patcher_peek_poke.cpp
   patcher/test_patcher_index.cpp
   patcher/test_patcher_signal_table.cpp
+  patcher/test_patcher_lookup.cpp
+  patcher/test_patcher_wave.cpp
+  patcher/test_patcher_buffir.cpp
+  patcher/test_patcher_stutter.cpp
   patcher/test_patcher_record.cpp
   patcher/test_patcher_play.cpp
   patcher/test_patcher_groove.cpp
@@ -1528,6 +1538,7 @@ set_source_files_properties(
   patcher/test_patcher_signal_avg.cpp
   patcher/test_patcher_signal_minmax.cpp
   patcher/test_patcher_signal_loudness.cpp
+  patcher/test_patcher_signal_fzero.cpp
   patcher/test_patcher_signal_capture.cpp
   patcher/test_patcher_signal_compare.cpp
   patcher/test_patcher_signal_trig.cpp
@@ -1545,6 +1556,10 @@ set_source_files_properties(
   patcher/test_patcher_peek_poke.cpp
   patcher/test_patcher_index.cpp
   patcher/test_patcher_signal_table.cpp
+  patcher/test_patcher_lookup.cpp
+  patcher/test_patcher_wave.cpp
+  patcher/test_patcher_buffir.cpp
+  patcher/test_patcher_stutter.cpp
   patcher/test_patcher_record.cpp
   patcher/test_patcher_play.cpp
   patcher/test_patcher_groove.cpp

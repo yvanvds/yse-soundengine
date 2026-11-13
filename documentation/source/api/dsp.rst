@@ -190,6 +190,12 @@ Analysis
 .. doxygenfile:: dsp/analysis/loudnessMeter.hpp
    :project: libYSE
 
+The fundamental frequency of a monophonic signal after the YIN method, with
+its peak amplitude and the onsets of new notes: what ``~fzero`` does.
+
+.. doxygenfile:: dsp/analysis/pitchTracker.hpp
+   :project: libYSE
+
 Filters
 -------
 
@@ -307,6 +313,34 @@ interpolation, out-of-range rules, input and output scaling, stepping and
 weighted random draws: what ``~table`` does.
 
 .. doxygenfile:: dsp/sampling/tableLookup.hpp
+   :project: libYSE
+
+Part of a sample buffer used as a transfer function: a signal from -1 to 1
+looks up a value in it, for waveshaping with a drawn curve: what
+``~lookup`` does.
+
+.. doxygenfile:: dsp/sampling/transferLookup.hpp
+   :project: libYSE
+
+A region of a sample buffer read as one cycle of a waveform at a phase from 0
+to 1, with seven interpolation modes, and optionally cut into rows that a
+second phase crossfades between: what ``~wave`` and ``~2d.wave`` do.
+
+.. doxygenfile:: dsp/sampling/waveReader.hpp
+   :project: libYSE
+
+A FIR filter whose taps are part of a sample buffer: the input convolved with
+up to 4096 of its samples, for custom filters and short impulse responses:
+what ``~buffir`` does.
+
+.. doxygenfile:: dsp/sampling/firFilter.hpp
+   :project: libYSE
+
+A capture buffer that records its input all the time and, on a trigger,
+copies the most recent samples into a fragment one or more phases replay,
+with chances to repeat, drop out and vary the gain: what ``~stutter`` does.
+
+.. doxygenfile:: dsp/sampling/stutter.hpp
    :project: libYSE
 
 Signals recorded into a sample buffer between loop points, once or in a loop,

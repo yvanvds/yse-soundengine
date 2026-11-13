@@ -14947,6 +14947,101 @@
     ],
     "requires_midi_device": false
   },
+  "~2d.wave": {
+    "category": "SAMPLING",
+    "description": "Reads a region of a named sample buffer cut into rows, each one cycle of a waveform: one phase from 0 to 1 scans a row, a second picks the row and crossfades between two, so a slow ramp morphs from the first cycle to the last (a two-dimensional wavetable).",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "The phase within a row, 0 to 1: a signal, or a number used while no signal is connected. The region is one cycle: the phase wraps, so 1 reads where 0 does. A list of two numbers sets the start and end in milliseconds. Also takes 'rows <n>' and 'set <name> [start] [end]' (another buffer from a later block, and its region or the whole buffer). None of them is saved.",
+        "index": 0,
+        "label": "phase",
+        "range": "0 to 1"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Which row plays, 0 the first and 1 the last; between two rows both are crossfaded. A signal, or a number used while no signal is connected. Below 0 is 0, above 1 is 1.",
+        "index": 1,
+        "label": "row",
+        "range": "0 to 1"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The start of the region, in milliseconds into the buffer. A connected signal sets it once per block, from the block's first sample.",
+        "index": 2,
+        "label": "start",
+        "range": "0 or higher"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The end of the region, in milliseconds into the buffer; 0 is its end. A connected signal sets it once per block, from the block's first sample.",
+        "index": 3,
+        "label": "end",
+        "range": "0 or higher"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~2d.wave",
+    "outlets": [
+      {
+        "doc": "Buffer channel 1 read at the phase, in the row the row phase picks. Silence without a region, and for a channel the buffer lacks.",
+        "index": 0,
+        "label": "out",
+        "range": "any float",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The buffer read. A set message does not change what is saved.",
+        "name": "name",
+        "range": "buffer name"
+      },
+      {
+        "default": "0",
+        "doc": "The start of the region, in milliseconds into the buffer.",
+        "name": "start",
+        "range": "0 or higher"
+      },
+      {
+        "default": "0",
+        "doc": "The end of the region, in milliseconds into the buffer; 0 is its end.",
+        "name": "end",
+        "range": "0 or higher"
+      },
+      {
+        "default": "1",
+        "doc": "The number of outlets, each reading the buffer channel of its number. Buffer channels past the last outlet are not read.",
+        "name": "channels",
+        "range": "1 to 64"
+      },
+      {
+        "default": "1",
+        "doc": "The number of rows the region is cut into, of equal length; 0 and 1 are one row.",
+        "name": "rows",
+        "range": "0 or higher"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~<": {
     "category": "MATH",
     "description": "Outputs 1 where the left signal is less than the right one, otherwise 0. Turns a signal into a gate below a threshold.",
@@ -16242,6 +16337,83 @@
         "doc": "Optional: an audio file to load when the object is created, then the size in ms and the number of channels. A number in the file's place is the size.",
         "name": "file",
         "range": "file, ms, count"
+      }
+    ],
+    "requires_midi_device": false
+  },
+  "~buffir": {
+    "category": "SAMPLING",
+    "description": "A FIR filter whose taps are part of a named sample buffer: the signal convolved with up to 4096 of its samples, for custom filters and short impulse responses.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The signal filtered, or a number used while no signal is connected. 'clear' sets the filter's input history to 0. 'chan <n>', 'offset <n>' and 'size <n>' change the channel and the taps; 'set <name> [offset] [size]' switches to another buffer from a later block (none of them saved with the patch).",
+        "index": 0,
+        "label": "input",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The frame of the first tap: a number, or a signal read at the first sample of each block. A number is not saved with the patch.",
+        "index": 1,
+        "label": "offset",
+        "range": "0 or higher"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The number of taps, at most 4096: a number, or a signal read at the first sample of each block. A number is not saved with the patch.",
+        "index": 2,
+        "label": "size",
+        "range": "0 to 4096"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~buffir",
+    "outlets": [
+      {
+        "doc": "The input convolved with the taps: an impulse gives the taps back in buffer order. Silence without a buffer, or when there are no taps.",
+        "index": 0,
+        "label": "out",
+        "range": "any float",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The buffer the taps are read from. A set message does not change what is saved.",
+        "name": "name",
+        "range": "buffer name"
+      },
+      {
+        "default": "0",
+        "doc": "The frame of the first tap.",
+        "name": "offset",
+        "range": "0 or higher"
+      },
+      {
+        "default": "0",
+        "doc": "The number of taps, at most 4096; past the end of the buffer they stop at its last frame. 0 is silence.",
+        "name": "size",
+        "range": "0 to 4096"
+      },
+      {
+        "default": "1",
+        "doc": "The buffer channel read, from 1.",
+        "name": "chan",
+        "range": "1 or higher"
       }
     ],
     "requires_midi_device": false
@@ -17760,6 +17932,109 @@
     ],
     "requires_midi_device": false
   },
+  "~fzero": {
+    "category": "ANALYSIS",
+    "description": "Estimates the fundamental frequency of a monophonic signal with the YIN method, every period samples over the last size samples, and reports the pitch in Hz, the peak amplitude and the onsets of new notes.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER"
+        ],
+        "doc": "The signal to analyse; unconnected it reads as silence. Takes 'size <n>', 'period <n>', 'freqmin <hz>', 'freqmax <hz>', 'threshold <x>', 'onsetamp <x>', 'onsetpitch <semitones>', 'onsetperiod <n>', 'onsetlist <0/1>' and 'tolerance <x>' (not saved).",
+        "index": 0,
+        "label": "signal",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~fzero",
+    "outlets": [
+      {
+        "doc": "The estimated fundamental frequency in Hz, after each analysis that found one within freqmin to freqmax and above the threshold.",
+        "index": 0,
+        "label": "pitch",
+        "range": "freqmin to freqmax Hz",
+        "type": "FLOAT"
+      },
+      {
+        "doc": "The peak amplitude of the analysis buffer, after each analysis at or above the threshold.",
+        "index": 1,
+        "label": "amplitude",
+        "range": "threshold or more",
+        "type": "FLOAT"
+      },
+      {
+        "doc": "A bang when a new note starts: the peak amplitude rises to onsetamp, or the pitch moves onsetpitch semitones from the note's. With onsetlist 1, a list of the pitch in Hz (0 when none was found yet) and the peak amplitude instead.",
+        "index": 2,
+        "label": "onset",
+        "range": "bang, or a list of two floats",
+        "type": "ANY"
+      }
+    ],
+    "params": [
+      {
+        "default": "2048",
+        "doc": "Samples in each analysis, rounded down to a power of two from 128 to 4096. The lowest pitch it finds is the sample rate divided by half of it, less one.",
+        "name": "size",
+        "range": "128 to 4096"
+      },
+      {
+        "default": "512",
+        "doc": "Samples between two analyses.",
+        "name": "period",
+        "range": "16 to 4096"
+      },
+      {
+        "default": "40",
+        "doc": "The lowest pitch reported, in Hz.",
+        "name": "freqmin",
+        "range": "above 0"
+      },
+      {
+        "default": "4000",
+        "doc": "The highest pitch reported, in Hz.",
+        "name": "freqmax",
+        "range": "above 0"
+      },
+      {
+        "default": "0.01",
+        "doc": "An analysis whose peak amplitude is below this reports nothing.",
+        "name": "threshold",
+        "range": "0 or more"
+      },
+      {
+        "default": "0.1",
+        "doc": "A rise of the peak amplitude to this or above is an onset; 0 turns it off.",
+        "name": "onsetamp",
+        "range": "0 or more"
+      },
+      {
+        "default": "1",
+        "doc": "A pitch this many semitones from the current note's is an onset; 0 turns it off.",
+        "name": "onsetpitch",
+        "range": "0 or more semitones"
+      },
+      {
+        "default": "2048",
+        "doc": "The fewest samples between two onsets.",
+        "name": "onsetperiod",
+        "range": "0 or more"
+      },
+      {
+        "default": "0",
+        "doc": "1 sends a list of the pitch and amplitude on an onset, 0 a bang.",
+        "name": "onsetlist",
+        "range": "0 or 1"
+      },
+      {
+        "default": "0.15",
+        "doc": "How far from perfectly periodic a signal may be and still have a pitch: lower is stricter.",
+        "name": "tolerance",
+        "range": "0 to 1"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~gate": {
     "category": "ROUTING",
     "description": "Sends a signal to one of several outlets, chosen by a number or a signal, or to none; the other outlets carry silence. Switches hard, or crossfades over a ramp time to avoid clicks.",
@@ -18435,6 +18710,83 @@
         "doc": "Base used while no signal is connected to the right inlet.",
         "name": "base",
         "range": "> 0, not 1"
+      }
+    ],
+    "requires_midi_device": false
+  },
+  "~lookup": {
+    "category": "SAMPLING",
+    "description": "Uses part of a named sample buffer as a transfer function: a signal from -1 to 1 reads the table from its first entry to its last, so a curve drawn into the buffer shapes the signal (waveshaping).",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The signal looked up, -1 to 1, or a number used while no signal is connected. Beyond -1 or 1 outputs 0. 'chan <n>', 'offset <n>' and 'size <n>' change the channel and the table; 'set <name>' switches to another buffer from a later block (none of them saved with the patch).",
+        "index": 0,
+        "label": "input",
+        "range": "-1 to 1"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The first frame of the table, the one -1 reads: a number, or a signal read at the first sample of each block. A number is not saved with the patch.",
+        "index": 1,
+        "label": "offset",
+        "range": "0 or higher"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The frame the table ends before, counted from the start of the buffer: a number, or a signal read at the first sample of each block. A number is not saved with the patch.",
+        "index": 2,
+        "label": "size",
+        "range": "0 or higher"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~lookup",
+    "outlets": [
+      {
+        "doc": "The table's value at each input, a straight line between two entries. Silence without a buffer, or when the table has no entries.",
+        "index": 0,
+        "label": "out",
+        "range": "any float",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The buffer used as the table. A set message does not change what is saved.",
+        "name": "name",
+        "range": "buffer name"
+      },
+      {
+        "default": "0",
+        "doc": "The first frame of the table, the one -1 reads.",
+        "name": "offset",
+        "range": "0 or higher"
+      },
+      {
+        "default": "512",
+        "doc": "The frame the table ends before, counted from the start of the buffer: the table holds size minus offset entries. Past the end of the buffer it stops at the last frame.",
+        "name": "size",
+        "range": "0 or higher"
+      },
+      {
+        "default": "1",
+        "doc": "The buffer channel read, from 1.",
+        "name": "chan",
+        "range": "1 or higher"
       }
     ],
     "requires_midi_device": false
@@ -21718,6 +22070,66 @@
     ],
     "requires_midi_device": false
   },
+  "~stutter": {
+    "category": "SAMPLING",
+    "description": "Records its input all the time and, on a trigger, copies the most recent samples into a fragment that one or more phases replay: stutter and glitch effects.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT",
+          "BANG"
+        ],
+        "doc": "The signal recorded, all the time; unconnected it records silence. A bang copies the most recent samples into the fragment at the next block; a number sets how many a trigger copies. 'clear' sets the recording and the fragment to 0; 'maxsize <n>' holds the size to n (within the first argument); 'polarity <0|1>' picks negative or positive triggers; 'ampvar <0-1>' varies each trigger's gain at random; 'dropout <%>' and 'repeat <%>' are the chances that a trigger silences the outputs or keeps the old fragment; 'setbuf <name> [offset] [chan]' writes the fragment into a buffer. None of them is saved with the patch.",
+        "index": 0,
+        "label": "input",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The trigger: a positive trigger is the signal going from 0 or below to above 0, a negative one from 0 or above to below 0. Each copies the most recent samples into the fragment. A number is used while no signal is connected.",
+        "index": 1,
+        "label": "trigger",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Where the output reads the fragment: 0 to 1 across it, wrapping, so a ~phasor loops it. A number is used while no signal is connected.",
+        "index": 2,
+        "label": "phase",
+        "range": "0 to 1"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~stutter",
+    "outlets": [
+      {
+        "doc": "The fragment read at the phase, interpolated. Silence before the first trigger and after a dropout.",
+        "index": 0,
+        "label": "out",
+        "range": "any float",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "88200 4410 1 0 1",
+        "doc": "The record buffer in samples (at most 4194304), the samples a trigger copies, the trigger polarity (above 0 positive, else negative), the samples copied per block (0 all at once) and the number of outputs (1-30): '~stutter 44100 2205 1 0 2'. Later numbers and messages do not change what is saved.",
+        "name": "stutter",
+        "range": "five numbers"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~subdiv": {
     "category": "OSC",
     "description": "Splits each cycle of a 0-1 ramp such as a ~phasor into a whole number of shorter ramps, in phase with it: tuplets and ratchets. Duration and probability patterns make uneven and skipped steps.",
@@ -22921,6 +23333,102 @@
         "doc": "The frame size: indexes 0 to size - 1 are used. Also the largest size the 'size' message can set. Changing it rebuilds the object.",
         "name": "size",
         "range": "1-65536"
+      }
+    ],
+    "requires_midi_device": false
+  },
+  "~wave": {
+    "category": "SAMPLING",
+    "description": "Reads a region of a named sample buffer as one cycle of a waveform: a phase from 0 to 1, such as a ~phasor, scans it from start to end, so any sample becomes a wavetable oscillator.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "The phase, 0 to 1: a signal, or a number used while no signal is connected. The region is one cycle: the phase wraps, so 1 reads where 0 does. A list of two numbers sets the start and end in milliseconds. Also takes 'interp <0-6>', 'interp_bias <f>', 'interp_tension <f>' and 'set <name> [start] [end]' (another buffer from a later block, and its region or the whole buffer). None of them is saved.",
+        "index": 0,
+        "label": "phase",
+        "range": "0 to 1"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The start of the region, in milliseconds into the buffer. A connected signal sets it once per block, from the block's first sample.",
+        "index": 1,
+        "label": "start",
+        "range": "0 or higher"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The end of the region, in milliseconds into the buffer; 0 is its end. A connected signal sets it once per block, from the block's first sample.",
+        "index": 2,
+        "label": "end",
+        "range": "0 or higher"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~wave",
+    "outlets": [
+      {
+        "doc": "Buffer channel 1 read at the phase. Silence without a region, and for a channel the buffer lacks.",
+        "index": 0,
+        "label": "out",
+        "range": "any float",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The buffer read. A set message does not change what is saved.",
+        "name": "name",
+        "range": "buffer name"
+      },
+      {
+        "default": "0",
+        "doc": "The start of the region, in milliseconds into the buffer.",
+        "name": "start",
+        "range": "0 or higher"
+      },
+      {
+        "default": "0",
+        "doc": "The end of the region, in milliseconds into the buffer; 0 is its end.",
+        "name": "end",
+        "range": "0 or higher"
+      },
+      {
+        "default": "1",
+        "doc": "The number of outlets, each reading the buffer channel of its number. Buffer channels past the last outlet are not read.",
+        "name": "channels",
+        "range": "1 to 64"
+      },
+      {
+        "default": "1",
+        "doc": "How a position between two samples is read: 0 the sample before it, 1 and 2 a straight line, 3 a half cosine, 4 a cubic curve, 5 a Catmull-Rom spline, 6 a Hermite curve shaped by interp_bias and interp_tension.",
+        "name": "interp",
+        "range": "0 to 6"
+      },
+      {
+        "default": "0",
+        "doc": "The Hermite curve's bias (interp 6): 0 even, above 0 leaning to the sample before, below 0 to the sample after.",
+        "name": "interp_bias",
+        "range": "any float"
+      },
+      {
+        "default": "0",
+        "doc": "The Hermite curve's tension (interp 6): 0 normal, 1 high (straight lines), -1 low (rounder).",
+        "name": "interp_tension",
+        "range": "any float"
       }
     ],
     "requires_midi_device": false
