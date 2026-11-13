@@ -396,12 +396,9 @@ TEST_SUITE("patcher") {
       CAPTURE(name);
       YSE::pHandle* h = p.CreateObject(name, "5");
       REQUIRE(h != nullptr);
-      // ~dac / ~adc are built channel-matched and never see SetParams at all
-      // (patcherImplementation::CreateObjectUnlocked), so they keep an empty
-      // param string; every other type stores what it was handed.
-      if (name != YSE::OBJ::D_DAC && name != YSE::OBJ::D_ADC) {
-        CHECK(h->GetParams() == "5");
-      }
+      // Every type stores what it was handed, ~dac and ~adc included since
+      // they take channel arguments (#1043).
+      CHECK(h->GetParams() == "5");
     }
   }
 

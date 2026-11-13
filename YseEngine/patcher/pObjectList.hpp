@@ -134,7 +134,7 @@ namespace YSE {
    *    of a filter given as sections), `D_FILTERGRAPH` (the bands of a filter
    *    editor, sent as coefficients), ``D_ZPLANE`` (sections as poles and
    *    zeroes on the z plane).
-   *  - I/O: ``D_DAC``, ``D_ADC``, ``D_LINE``.
+   *  - I/O: ``D_DAC``, ``D_ADC``, ``D_EZDAC``, ``D_EZADC``, ``D_LINE``.
    *  - Control: ``G_INT``, ``G_FLOAT``, ``G_SLIDER``, ``G_RSLIDER``,
    *    ``G_XYSLIDER``, ``G_MULTISLIDER``, ``G_MATRIXCTRL``, ``G_FUNCTION``,
    *    ``G_KSLIDER``, ``G_NSLIDER``, ``G_DIAL``, ``G_INCDEC``, ``G_RANDOM``.
@@ -247,6 +247,8 @@ namespace YSE {
 
     DEFOBJ(D_DAC, "~dac");
     DEFOBJ(D_ADC, "~adc");
+    DEFOBJ(D_EZDAC, "~ezdac");
+    DEFOBJ(D_EZADC, "~ezadc");
     DEFOBJ(G_RECEIVE, ".r");
     DEFOBJ(G_SEND, ".s");
 

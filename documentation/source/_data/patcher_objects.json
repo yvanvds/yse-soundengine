@@ -15392,8 +15392,20 @@
   },
   "~adc": {
     "category": "IO",
-    "description": "The patch's audio input. When the patcher runs as an insert effect, each outlet carries one channel of the audio it processes.",
-    "inlets": [],
+    "description": "The patch's audio input. When the patcher runs as an insert effect, each outlet carries one channel of the audio it processes. Also turns the patcher's audio on and off.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "A number turns the patcher's audio off (0) or on; also 'start' and 'stop'. 'set <outlet> <channel>' routes one outlet, a list of channels the outlets from the first.",
+        "index": 0,
+        "label": "control",
+        "range": "0 or 1, or a message"
+      }
+    ],
     "is_dsp": true,
     "name": "~adc",
     "outlets": [
@@ -15412,7 +15424,14 @@
         "type": "BUFFER"
       }
     ],
-    "params": [],
+    "params": [
+      {
+        "default": "",
+        "doc": "The input channel of each outlet, from 1, one outlet per number; one number N alone is channels 1 to N. Without them, one outlet per patcher channel.",
+        "name": "channels",
+        "range": "1 to 1024, one or more"
+      }
+    ],
     "requires_midi_device": false
   },
   "~adsr": {
@@ -17200,22 +17219,28 @@
   },
   "~dac": {
     "category": "IO",
-    "description": "The patch's audio output. Each inlet is one output channel, passed on to the sound or insert that hosts the patcher. A patch is silent until a signal reaches this object.",
+    "description": "The patch's audio output. Each inlet goes to one output channel, passed on to the sound or insert that hosts the patcher. Also turns the patcher's audio on and off.",
     "inlets": [
       {
         "accepts": [
-          "BUFFER"
+          "BUFFER",
+          "FLOAT",
+          "INT",
+          "LIST"
         ],
-        "doc": "One channel of the patch's audio output.",
+        "doc": "One channel of the patch's audio output. A number turns the patcher's audio off (0) or on; also 'start', 'stop', 'set <channel>' for this inlet, or a list of channels for the inlets from the first.",
         "index": 0,
         "label": "in",
         "range": "-1.0 to 1.0"
       },
       {
         "accepts": [
-          "BUFFER"
+          "BUFFER",
+          "FLOAT",
+          "INT",
+          "LIST"
         ],
-        "doc": "One channel of the patch's audio output.",
+        "doc": "One channel of the patch's audio output. A number turns the patcher's audio off (0) or on; also 'start', 'stop', 'set <channel>' for this inlet, or a list of channels for the inlets from the first.",
         "index": 1,
         "label": "in",
         "range": "-1.0 to 1.0"
@@ -17224,7 +17249,14 @@
     "is_dsp": true,
     "name": "~dac",
     "outlets": [],
-    "params": [],
+    "params": [
+      {
+        "default": "",
+        "doc": "The output channel of each inlet, from 1, one inlet per number. Without them, one inlet per patcher channel. A channel the patcher does not have is silent.",
+        "name": "channels",
+        "range": "1 to 1024, one or more"
+      }
+    ],
     "requires_midi_device": false
   },
   "~dbtoa": {
@@ -17534,6 +17566,92 @@
       }
     ],
     "params": [],
+    "requires_midi_device": false
+  },
+  "~ezadc": {
+    "category": "IO",
+    "description": "The patch's audio input as an on/off button: ~adc, plus a GUI value that shows whether the patcher's audio is on.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "A number turns the patcher's audio off (0) or on; also 'start' and 'stop'. 'set <outlet> <channel>' routes one outlet, a list of channels the outlets from the first.",
+        "index": 0,
+        "label": "control",
+        "range": "0 or 1, or a message"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~ezadc",
+    "outlets": [
+      {
+        "doc": "One channel of the host's incoming audio.",
+        "index": 0,
+        "label": "out",
+        "range": "-1.0 to 1.0",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "One channel of the host's incoming audio.",
+        "index": 1,
+        "label": "out",
+        "range": "-1.0 to 1.0",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The input channel of each outlet, from 1, one outlet per number; one number N alone is channels 1 to N. Without them, one outlet per patcher channel.",
+        "name": "channels",
+        "range": "1 to 1024, one or more"
+      }
+    ],
+    "requires_midi_device": false
+  },
+  "~ezdac": {
+    "category": "IO",
+    "description": "The patch's audio output as an on/off button: ~dac, plus a GUI value that shows whether the patcher's audio is on.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "One channel of the patch's audio output. A number turns the patcher's audio off (0) or on; also 'start', 'stop', 'set <channel>' for this inlet, or a list of channels for the inlets from the first.",
+        "index": 0,
+        "label": "in",
+        "range": "-1.0 to 1.0"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "One channel of the patch's audio output. A number turns the patcher's audio off (0) or on; also 'start', 'stop', 'set <channel>' for this inlet, or a list of channels for the inlets from the first.",
+        "index": 1,
+        "label": "in",
+        "range": "-1.0 to 1.0"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~ezdac",
+    "outlets": [],
+    "params": [
+      {
+        "default": "",
+        "doc": "The output channel of each inlet, from 1, one inlet per number. Without them, one inlet per patcher channel. A channel the patcher does not have is silent.",
+        "name": "channels",
+        "range": "1 to 1024, one or more"
+      }
+    ],
     "requires_midi_device": false
   },
   "~fffb": {

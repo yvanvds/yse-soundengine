@@ -432,6 +432,7 @@ set(YSE_SRCS
   patcher/genericObjects/gIter.cpp
   patcher/genericObjects/gListFunnel.cpp
   patcher/genericObjects/pAdc.cpp
+  patcher/genericObjects/pAudioIO.cpp
   patcher/genericObjects/pDac.cpp
   patcher/genericObjects/pLine.cpp
   patcher/guiObjects/gButton.cpp
@@ -924,6 +925,7 @@ set_source_files_properties(
   patcher/genericObjects/gIter.cpp
   patcher/genericObjects/gListFunnel.cpp
   patcher/genericObjects/pAdc.cpp
+  patcher/genericObjects/pAudioIO.cpp
   patcher/genericObjects/pDac.cpp
   patcher/genericObjects/pLine.cpp
   patcher/guiObjects/gButton.cpp

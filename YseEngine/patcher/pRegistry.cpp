@@ -428,6 +428,11 @@ pRegistry::pRegistry() {
   // patcherImplementation::CreateObjectUnlocked rather than via this Create().
   Add(OBJ::D_ADC, pAdc::Create);
 
+  // ~dac / ~adc as on/off buttons (issue #1043): built channel-matched by
+  // patcherImplementation::NewObjectUnlocked, like the two above.
+  Add(OBJ::D_EZDAC, pEzdac::Create);
+  Add(OBJ::D_EZADC, pEzadc::Create);
+
   Add(OBJ::D_SINE, pSine::Create);
   Add(OBJ::D_SAW, dSaw::Create);
   Add(OBJ::D_RECT, dRect::Create);

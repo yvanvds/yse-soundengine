@@ -394,6 +394,10 @@ void patcherImplementation::Calculate(YSE::THREAD thread) {
   const GraphState* g = active_.load(std::memory_order_acquire);
   audioBlock_.fetch_add(1, std::memory_order_acq_rel);
   currentBlockGraph_.store(g, std::memory_order_release);
+  // The DSP switch (issue #1043), read once after the drains below so a
+  // `start` or `stop` they deliver applies to this block, and a `stop` sent
+  // during the render cannot silence half of it.
+  bool dspOn = false;
 
   // Mark the frame, after the pin so "inside this patcher's Calculate" always
   // implies "this patcher has a snapshot pinned". This is what lets a handler
@@ -442,30 +446,36 @@ void patcherImplementation::Calculate(YSE::THREAD thread) {
     for (unsigned int i = 0; i < g->pollers.size(); i++) {
       g->pollers[i]->Calculate(YSE::T_GUI);
     }
+    dspOn = DspOn();
 
-    // invalidate all dsp buffers
-    for (unsigned int i = 0; i < g->objects.size(); i++) {
-      g->objects[i]->ResetDSP();
-    }
+    // While the patcher's DSP is off (issue #1043), the drains above still
+    // run, so a `start` can arrive, but no signal object computes and the
+    // output below stays silent.
+    if (dspOn) {
+      // invalidate all dsp buffers
+      for (unsigned int i = 0; i < g->objects.size(); i++) {
+        g->objects[i]->ResetDSP();
+      }
 
-    // Render the signal graph in the order compiled at publish time (issue
-    // #1185): each start point, then everything it completes, depth-first, as
-    // the recursive push used to visit them. A buffer arriving during the walk
-    // is stored without computing its object; the walk reaches that object
-    // itself. CalculateIfReady still checks every input, so an object whose
-    // source sent nothing this block is skipped, as it was. A DSP object is
-    // never computed from a T_GUI delivery (inlet::SetBuffer), and the walk
-    // keeps that.
-    {
-      renderOrderScope order;
-      for (const GraphState::renderStep& step : g->renderOrder) {
-        if (step.startPoint) {
-          step.object->Calculate(thread);
-        } else if (thread != YSE::T_GUI || !step.object->IsDSPObject()) {
-          step.object->CalculateIfReady(thread);
+      // Render the signal graph in the order compiled at publish time (issue
+      // #1185): each start point, then everything it completes, depth-first, as
+      // the recursive push used to visit them. A buffer arriving during the walk
+      // is stored without computing its object; the walk reaches that object
+      // itself. CalculateIfReady still checks every input, so an object whose
+      // source sent nothing this block is skipped, as it was. A DSP object is
+      // never computed from a T_GUI delivery (inlet::SetBuffer), and the walk
+      // keeps that.
+      {
+        renderOrderScope order;
+        for (const GraphState::renderStep& step : g->renderOrder) {
+          if (step.startPoint) {
+            step.object->Calculate(thread);
+          } else if (thread != YSE::T_GUI || !step.object->IsDSPObject()) {
+            step.object->CalculateIfReady(thread);
+          }
         }
       }
-    }
+    } // dspOn
 
     // Then the control messages the signal objects armed while rendering
     // (issue #1037), now that no signal object is waiting on an input. T_GUI,
@@ -488,13 +498,22 @@ void patcherImplementation::Calculate(YSE::THREAD thread) {
   // place. Accumulating into the cleared, pre-sized output buffers neither
   // allocates nor depends on ~dac creation order. There is no normalisation:
   // levels add, and keeping them in range is the patch's job.
-  if (g != nullptr) {
+  //
+  // Each inlet goes to the channel its route names (issue #1043): inlet n on
+  // channel n unless arguments or `set` said otherwise. Two inlets on one
+  // channel add too; a route the patcher has no channel for is silent. The
+  // route is one relaxed atomic load.
+  if (g != nullptr && dspOn) {
+    const unsigned int outs = static_cast<unsigned int>(output.size());
     for (unsigned int d = 0; d < g->dacs.size(); d++) {
       pDac* dac = static_cast<pDac*>(g->dacs[d]);
-      for (unsigned int i = 0; i < output.size(); i++) {
+      const unsigned int inlets = dac->NumRoutes();
+      for (unsigned int i = 0; i < inlets; i++) {
         YSE::DSP::buffer* ptr = dac->GetBuffer(i);
-        if (ptr != nullptr) {
-          output[i] += *ptr;
+        if (ptr == nullptr) continue;
+        const int channel = dac->Route(i);
+        if (channel >= 0 && static_cast<unsigned int>(channel) < outs) {
+          output[static_cast<unsigned int>(channel)] += *ptr;
         }
       }
     }
@@ -518,9 +537,10 @@ void patcherImplementation::ProcessAsInsert(MULTICHANNELBUFFER& io) {
   // render, then copy the summed ~dac output back over `io`.
   //
   // Channel-count contract between the host buffer and the graph I/O:
-  //   - Input:  ADC channel `ch` is fed io[ch] when ch < io.size(), else it is
-  //             left silent (null) — the graph simply gets no input on that
-  //             channel.
+  //   - Input:  ADC outlet `n` is fed io[ch], ch being the channel its route
+  //             names (n unless arguments or `set` said otherwise, issue
+  //             #1043), when ch < io.size(); else it is left silent (null) —
+  //             the graph simply gets no input on that outlet.
   //   - Output: only the channels the graph produces are written back
   //             (min(io.size(), output.size())). Host channels beyond the
   //             graph's output count pass through unchanged (dry).
@@ -530,11 +550,14 @@ void patcherImplementation::ProcessAsInsert(MULTICHANNELBUFFER& io) {
     for (pObject* obj : g->adcs) {
       pAdc* adc = static_cast<pAdc*>(obj);
       const unsigned int n = adc->NumChannels();
-      for (unsigned int ch = 0; ch < n; ch++) {
+      for (unsigned int out = 0; out < n; out++) {
         // The ADC pointers survive Calculate()'s ResetDSP pass (the ADC has no
-        // inlets to clear), so setting them here — just before the render — is
-        // exactly the ordering the graph traversal expects.
-        adc->SetChannelBuffer(ch, ch < hostChannels ? &io[ch] : nullptr);
+        // signal inlets to clear), so setting them here — just before the
+        // render — is exactly the ordering the graph traversal expects.
+        const int ch = adc->Route(out);
+        adc->SetChannelBuffer(out, ch >= 0 && static_cast<unsigned int>(ch) < hostChannels
+                                       ? &io[static_cast<unsigned int>(ch)]
+                                       : nullptr);
       }
     }
   }
@@ -930,26 +953,31 @@ void patcherImplementation::Disconnect(YSE::pHandle* from, int outlet, YSE::pHan
   RebuildAndPublish();
 }
 
+pObject* patcherImplementation::NewObjectUnlocked(const std::string& type) const {
+  // The audio I/O objects are built with the patcher's real channel count
+  // rather than the registry's default-channel Create() (issues #167, #1043):
+  // without arguments they have one pin per channel. The registry entries
+  // exist so the types are valid and documented.
+  const int channels = static_cast<int>(output.size());
+  if (type == OBJ::D_DAC) return new pDac(channels);
+  if (type == OBJ::D_ADC) return new pAdc(channels);
+  if (type == OBJ::D_EZDAC) return new pEzdac(channels);
+  if (type == OBJ::D_EZADC) return new pEzadc(channels);
+  return Register().Get(type);
+}
+
 YSE::pHandle* patcherImplementation::CreateObjectUnlocked(const std::string& type,
                                                           const std::string& args) {
   pObject* object = nullptr;
   INTERNAL::LogImpl().emit(E_DEBUG, "Patcher: Trying to create " + type);
 
-  if (type == OBJ::D_DAC) {
-    object = new pDac((int)output.size());
-  } else if (type == OBJ::D_ADC) {
-    // Like the DAC, the ADC is built with the patcher's real channel count
-    // rather than the registry's default-channel Create() (issue #167). The
-    // registry entry exists only so ~adc is a valid, documented type; the
-    // rendered graph always uses this channel-matched instance.
-    object = new pAdc((int)output.size());
-  } else {
+  {
     // SetParams is the step that can throw (std::stoi/std::stof on a malformed
     // token), so the new object stays owned until it has succeeded: a throw
     // frees it (issue #919). Nothing shared has been touched yet — no storage
     // ID, no parent, no handle, no graph ids — so the delete is a complete
     // undo and a failed create leaves the patcher exactly as it was.
-    std::unique_ptr<pObject> staged(Register().Get(type));
+    std::unique_ptr<pObject> staged(NewObjectUnlocked(type));
     if (staged != nullptr) staged->SetParams(args);
     object = staged.release();
   }
@@ -1183,10 +1211,11 @@ void patcherImplementation::ApplyParamOps(const ParamOp* ops, int count) {
 
 void patcherImplementation::ReplaceObjectUnlocked(YSE::pHandle* handle, const std::string& args) {
   pObject* old = handle->ObjectUnderLock();
-  std::unique_ptr<pObject> staged(Register().Get(old->Type()));
+  std::unique_ptr<pObject> staged(NewObjectUnlocked(old->Type()));
   if (staged == nullptr) {
-    // Not registry-built (the DAC) — but the DAC registers no params, so a
-    // re-parse can never legitimately land here. Leave the object untouched.
+    // Every live type is either registered or one of the audio I/O objects,
+    // so a re-parse can never legitimately land here. Leave the object
+    // untouched.
     INTERNAL::LogImpl().emit(E_ERROR, "Patcher: cannot rebuild " + std::string(old->Type()) +
                                           " for a live SetParams; params unchanged");
     return;
@@ -1491,6 +1520,9 @@ void patcherImplementation::Clear() {
   // recompact it before the empty graph is built so later rebuilds restart from
   // a small id range instead of extending it every Clear (issue #355).
   CompactGraphIdsIfEmpty();
+  // An empty patcher plays: a `stop` from the patch that was here does not
+  // silence the next one loaded into it (issue #1043).
+  SetDspOn(true);
   RebuildAndPublish();
   // Tag the removed objects only after their covering graph has been retired by
   // RebuildAndPublish, so each object's epoch is >= that graph's (see the
@@ -2217,8 +2249,12 @@ YSE::PATCHER::GraphState* patcherImplementation::BuildGraph() {
         }
       }
     }
-    if (strcmp(object->Type(), YSE::OBJ::D_DAC) == 0) g->dacs.push_back(object);
-    if (strcmp(object->Type(), YSE::OBJ::D_ADC) == 0) g->adcs.push_back(object);
+    // ~ezdac / ~ezadc are a pDac / pAdc with a GUI value (issue #1043).
+    const char* type = object->Type();
+    if (strcmp(type, YSE::OBJ::D_DAC) == 0 || strcmp(type, YSE::OBJ::D_EZDAC) == 0)
+      g->dacs.push_back(object);
+    if (strcmp(type, YSE::OBJ::D_ADC) == 0 || strcmp(type, YSE::OBJ::D_EZADC) == 0)
+      g->adcs.push_back(object);
 
     for (int i = 0; i < object->NumOutputs(); i++) {
       PATCHER::outlet* out = object->GetOutlet(i);

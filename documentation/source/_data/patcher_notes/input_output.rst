@@ -93,15 +93,79 @@ host.
 
 .. patcher-object:: ~adc
 
-There is one outlet per channel of the patcher, as set by
-``patcher::create``. The outlets only carry audio when the patcher runs as an
-insert effect. When it is a sound source there is no incoming audio and they
-stay silent; outlets beyond the host's channel count also stay silent. See
-:doc:`/patcher/index`.
+Each outlet carries one channel of the host's incoming audio. Without
+arguments there is one outlet per channel of the patcher, as set by
+``patcher::create``, outlet 1 on channel 1 and so on. Arguments pick the
+channels, counted from 1:
+
+- several numbers are one outlet each: ``~adc 3 4`` has two outlets carrying
+  channels 3 and 4;
+- one number N alone is N outlets on channels 1 to N: ``~adc 4`` has four.
+
+The outlets only carry audio when the patcher runs as an insert effect. When
+it is a sound source there is no incoming audio and they stay silent. An
+outlet whose channel the host buffer does not have, or that is set to
+channel 0, sends nothing. See :doc:`/patcher/index`.
+
+The inlet takes messages only:
+
+- ``set <outlet> <channel>`` routes one outlet, both counted from 1.
+  ``set 2 1`` makes the second outlet carry channel 1.
+- A list of numbers routes the outlets from the first: ``3 4``.
+- ``start`` or any number but 0 turns the patcher's audio on; ``stop`` or 0
+  turns it off (see ``~dac``). ``startwindow`` is the same as ``start``.
+
+The arguments are saved with the patch; ``set`` and lists are not.
 
 .. patcher-object:: ~dac
 
-There is one inlet per channel of the patcher, as set by ``patcher::create``.
-A patch can hold several ``~dac`` objects. Their channels are added together
-without scaling, so keep the combined level in range. See
-:doc:`/patcher/index` for running a patch as a sound or as an insert.
+Each inlet sends its signal to one output channel. Without arguments there
+is one inlet per channel of the patcher, as set by ``patcher::create``,
+inlet 1 on channel 1 and so on. Arguments pick the channels, counted from 1,
+one inlet per number: ``~dac 3 4`` has two inlets that go to channels 3 and
+4. A channel the patcher does not have is silent, and so is channel 0.
+
+A patch can hold several ``~dac`` objects, and two inlets can go to the same
+channel. All of them are added together without scaling, so keep the
+combined level in range. See :doc:`/patcher/index` for running a patch as a
+sound or as an insert.
+
+Every inlet also takes messages:
+
+- ``set <channel>`` routes the inlet it arrives on. More numbers route the
+  inlets after it: ``set 1 2`` on the first inlet.
+- A list of numbers routes the inlets from the first: ``2 1`` swaps a
+  stereo pair.
+- ``start`` or any number but 0 turns the patcher's audio on; ``stop`` or 0
+  turns it off. ``startwindow`` is the same as ``start``.
+
+The switch belongs to the patcher, subpatchers included: every ``~dac``,
+``~adc``, ``~ezdac`` and ``~ezadc`` in it turns the same audio on and off.
+While it is off, messages, timers and incoming MIDI are still handled, but no
+signal object computes, so oscillators and delays keep their state and go
+on from there when the audio comes back on. The patcher outputs silence, and
+so does an insert running it. A patcher starts with its audio on, and
+``Clear()`` turns it back on; the switch is not saved with the patch.
+
+.. code-block:: text
+
+   [~cycle 440] -> [~dac 1 2] both inlets: a tone on channels 1 and 2
+   [.m stop]    -> [~dac 1 2] any inlet: the patcher falls silent
+   [.m start]   -> [~dac 1 2] any inlet: the tone goes on
+
+The arguments are saved with the patch; ``set`` and lists are not.
+
+.. patcher-object:: ~ezdac
+
+``~dac`` as an on/off button: the same inlets, arguments and messages (see
+``~dac``). Its GUI value is ``on`` or ``off``, the patcher's audio switch,
+so it also shows a ``stop`` sent to any other ``~dac`` or ``~adc``. The GUI
+value is read-only: to make a click work, send the opposite as a number
+(``0`` when it shows ``on``, ``1`` when it shows ``off``). Colours and style
+are left to the host that draws it.
+
+.. patcher-object:: ~ezadc
+
+``~adc`` as an on/off button: the same outlets, arguments and messages (see
+``~adc``). Its GUI value is ``on`` or ``off``, the patcher's audio switch,
+as on ``~ezdac``.

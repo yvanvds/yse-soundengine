@@ -61,8 +61,9 @@ rules:
   both mean ``0 10``, and leading or trailing whitespace is ignored. An
   argument string that is only whitespace is the same as ``""``. The string
   itself is still stored as you passed it.
-- ``~dac`` and ``~adc`` ignore their arguments. Their channel count is
-  always the one passed to ``patcher::create``.
+- ``~dac``, ``~adc``, ``~ezdac`` and ``~ezadc`` take channel numbers as
+  arguments. Without them, they have one pin per channel passed to
+  ``patcher::create``.
 
 ``GetParams()`` returns the current argument string, and ``Type()`` returns
 the type name.

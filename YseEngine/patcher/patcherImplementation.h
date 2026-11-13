@@ -103,6 +103,19 @@ namespace YSE {
       // See the definition for the host/graph channel-count contract.
       void ProcessAsInsert(MULTICHANNELBUFFER& io);
 
+      // The patcher's DSP switch (issue #1043): `start` / `stop` on a ~dac,
+      // ~adc, ~ezdac or ~ezadc. While it is off, Calculate still delivers
+      // messages, polls and deferred work but renders no signal object, and
+      // the output is silence. On by default, and again after Clear(); not
+      // saved. Any thread: one atomic store / load, read by the audio thread
+      // at the top of each block.
+      void SetDspOn(bool on) {
+        dspOn_.store(on, std::memory_order_release);
+      }
+      bool DspOn() const {
+        return dspOn_.load(std::memory_order_acquire);
+      }
+
       // Inlets and outlets resolve topology through a graphReadScope
       // (graphState.h): the block's pinned snapshot on the thread rendering
       // it (issues #226, #962), the pinned published snapshot on any other
@@ -528,6 +541,12 @@ namespace YSE {
       // parsed graph is built under one lock and swapped in with a single
       // publish (this is why no per-op re-entrancy flag is needed — issue #228).
       pHandle* CreateObjectUnlocked(const std::string& type, const std::string& args);
+      // A new, unparented object of `type`, or null for an unknown type. The
+      // audio I/O objects (~dac, ~adc, ~ezdac, ~ezadc) are built with the
+      // patcher's channel count; every other type comes from the registry.
+      // Shared by CreateObjectUnlocked and ReplaceObjectUnlocked, so a live
+      // re-parse of a ~dac keeps that count (issue #1043). Caller holds mtx.
+      pObject* NewObjectUnlocked(const std::string& type) const;
       void ConnectUnlocked(pHandle* from, int outlet, pHandle* to, int inlet);
 
       // The signal-loop check (issue #1038), caller holds mtx. Fills `path`
@@ -711,6 +730,8 @@ namespace YSE {
       // control-thread sends read under a pin (issue #963). Only the control
       // thread writes it, under mtx.
       std::atomic<const GraphState*> active_{nullptr};
+      // See SetDspOn().
+      std::atomic<bool> dspOn_{true};
       // Snapshot pinned for the duration of the block being rendered. Written
       // by the audio thread at the start/end of Calculate, and read only from
       // inside that frame (graphReadScope and the T_DSP dispatch in

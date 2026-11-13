@@ -68,7 +68,7 @@ TEST_SUITE("patcher") {
       names.insert(yse_patcher_get_type_name(i));
     }
 
-    for (const char* io : {"~dac", "~adc"}) {
+    for (const char* io : {"~dac", "~adc", "~ezdac", "~ezadc"}) {
       CAPTURE(io);
       CHECK(names.count(io) == 1);
       CHECK(yse_patcher_is_valid_object(io) == 1);
@@ -80,11 +80,12 @@ TEST_SUITE("patcher") {
     }
 
     // ~dac is the graph's sink — audio channels in, nothing out. ~adc mirrors
-    // it. Their documented ports must be readable through the palette API too,
-    // not just their names.
+    // it, with one message-only inlet for start / stop / set (#1043). Their
+    // documented ports must be readable through the palette API too, not just
+    // their names.
     CHECK(yse_patcher_get_inlet_count("~dac") > 0);
     CHECK(yse_patcher_get_outlet_count("~dac") == 0);
-    CHECK(yse_patcher_get_inlet_count("~adc") == 0);
+    CHECK(yse_patcher_get_inlet_count("~adc") == 1);
     CHECK(yse_patcher_get_outlet_count("~adc") > 0);
 
     const char* label = nullptr;

@@ -532,9 +532,10 @@ each record, plus ``outputs`` where there are cords:
 Load it into a patcher created with two channels, and it plays a 220 Hz sine
 on both. Check the pin numbers against :doc:`objects/index`. Keep in mind:
 
-- Pass ``~dac`` and ``~adc`` an empty argument string. They take their
-  channel count from ``patcher::create``, not from the file, so a patch
-  saved from a stereo patcher and loaded into a mono one loses its cords to
-  inlet 1.
+- With an empty argument string, ``~dac`` and ``~adc`` take their channel
+  count from ``patcher::create``, not from the file, so a patch saved from a
+  stereo patcher and loaded into a mono one loses its cords to inlet 1.
+  Channel arguments (``"parms": "1 2"``) fix the pins whatever the patcher's
+  channel count.
 - Load and save once to get the canonical form, with keys sorted and IDs
   counted from 0.
