@@ -15392,8 +15392,20 @@
   },
   "~adc": {
     "category": "IO",
-    "description": "The patch's audio input. When the patcher runs as an insert effect, each outlet carries one channel of the audio it processes.",
-    "inlets": [],
+    "description": "The patch's audio input. When the patcher runs as an insert effect, each outlet carries one channel of the audio it processes. Also turns the patcher's audio on and off.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "A number turns the patcher's audio off (0) or on; also 'start' and 'stop'. 'set <outlet> <channel>' routes one outlet, a list of channels the outlets from the first.",
+        "index": 0,
+        "label": "control",
+        "range": "0 or 1, or a message"
+      }
+    ],
     "is_dsp": true,
     "name": "~adc",
     "outlets": [
@@ -15412,7 +15424,14 @@
         "type": "BUFFER"
       }
     ],
-    "params": [],
+    "params": [
+      {
+        "default": "",
+        "doc": "The input channel of each outlet, from 1, one outlet per number; one number N alone is channels 1 to N. Without them, one outlet per patcher channel.",
+        "name": "channels",
+        "range": "1 to 1024, one or more"
+      }
+    ],
     "requires_midi_device": false
   },
   "~adsr": {
@@ -15869,6 +15888,24 @@
         "label": "average",
         "range": "0 or more",
         "type": "FLOAT"
+      }
+    ],
+    "params": [],
+    "requires_midi_device": false
+  },
+  "~begin": {
+    "category": "ENCAPSULATION",
+    "description": "Outputs a constant signal of 0, to mark the start of a chain. Connected to a signal inlet it adds nothing. To switch a chain off, use ~mute on a subpatcher.",
+    "inlets": [],
+    "is_dsp": true,
+    "name": "~begin",
+    "outlets": [
+      {
+        "doc": "A constant 0.",
+        "index": 0,
+        "label": "out",
+        "range": "0",
+        "type": "BUFFER"
       }
     ],
     "params": [],
@@ -17200,22 +17237,28 @@
   },
   "~dac": {
     "category": "IO",
-    "description": "The patch's audio output. Each inlet is one output channel, passed on to the sound or insert that hosts the patcher. A patch is silent until a signal reaches this object.",
+    "description": "The patch's audio output. Each inlet goes to one output channel, passed on to the sound or insert that hosts the patcher. Also turns the patcher's audio on and off.",
     "inlets": [
       {
         "accepts": [
-          "BUFFER"
+          "BUFFER",
+          "FLOAT",
+          "INT",
+          "LIST"
         ],
-        "doc": "One channel of the patch's audio output.",
+        "doc": "One channel of the patch's audio output. A number turns the patcher's audio off (0) or on; also 'start', 'stop', 'set <channel>' for this inlet, or a list of channels for the inlets from the first.",
         "index": 0,
         "label": "in",
         "range": "-1.0 to 1.0"
       },
       {
         "accepts": [
-          "BUFFER"
+          "BUFFER",
+          "FLOAT",
+          "INT",
+          "LIST"
         ],
-        "doc": "One channel of the patch's audio output.",
+        "doc": "One channel of the patch's audio output. A number turns the patcher's audio off (0) or on; also 'start', 'stop', 'set <channel>' for this inlet, or a list of channels for the inlets from the first.",
         "index": 1,
         "label": "in",
         "range": "-1.0 to 1.0"
@@ -17224,7 +17267,14 @@
     "is_dsp": true,
     "name": "~dac",
     "outlets": [],
-    "params": [],
+    "params": [
+      {
+        "default": "",
+        "doc": "The output channel of each inlet, from 1, one inlet per number. Without them, one inlet per patcher channel. A channel the patcher does not have is silent.",
+        "name": "channels",
+        "range": "1 to 1024, one or more"
+      }
+    ],
     "requires_midi_device": false
   },
   "~dbtoa": {
@@ -17499,6 +17549,119 @@
     ],
     "requires_midi_device": false
   },
+  "~dspstate": {
+    "category": "IO",
+    "description": "Reports whether the patcher's DSP is on, the sample rate and the block size: on a bang, and by itself whenever the DSP is turned on or off.",
+    "inlets": [
+      {
+        "accepts": [
+          "BANG"
+        ],
+        "doc": "Reports the DSP state, sample rate and block size.",
+        "index": 0,
+        "label": "bang",
+        "range": ""
+      }
+    ],
+    "is_dsp": false,
+    "name": "~dspstate",
+    "outlets": [
+      {
+        "doc": "1 when the patcher's DSP is on, 0 when it is off. Sent last, after the other outlets.",
+        "index": 0,
+        "label": "DSP on/off",
+        "range": "0 or 1",
+        "type": "INT"
+      },
+      {
+        "doc": "The sample rate.",
+        "index": 1,
+        "label": "sample rate",
+        "range": "Hz",
+        "type": "FLOAT"
+      },
+      {
+        "doc": "The number of samples the patcher renders per block.",
+        "index": 2,
+        "label": "signal block size",
+        "range": "samples",
+        "type": "INT"
+      },
+      {
+        "doc": "The number of samples the patcher takes in and hands out per block.",
+        "index": 3,
+        "label": "I/O block size",
+        "range": "samples",
+        "type": "INT"
+      }
+    ],
+    "params": [],
+    "requires_midi_device": false
+  },
+  "~dspstress": {
+    "category": "IO",
+    "description": "Reports how much of the available time the patcher takes to process its audio, in percent, at a regular interval and only when it changes.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Sets the reporting interval in ms; 0 stops reporting.",
+        "index": 0,
+        "label": "interval",
+        "range": "ms"
+      }
+    ],
+    "is_dsp": false,
+    "name": "~dspstress",
+    "outlets": [
+      {
+        "doc": "The mean processing time over the interval, as a percentage of the audio's duration. Above 100 the patch cannot keep up.",
+        "index": 0,
+        "label": "load",
+        "range": "percent",
+        "type": "FLOAT"
+      }
+    ],
+    "params": [
+      {
+        "default": "250",
+        "doc": "The reporting interval in ms; 0 stops reporting.",
+        "name": "interval",
+        "range": "ms"
+      }
+    ],
+    "requires_midi_device": false
+  },
+  "~dsptime": {
+    "category": "IO",
+    "description": "Reports the milliseconds of audio the patcher has processed since its DSP was last turned on. Counts processed samples, not the wall clock.",
+    "inlets": [
+      {
+        "accepts": [
+          "BANG"
+        ],
+        "doc": "Reports the time processed.",
+        "index": 0,
+        "label": "bang",
+        "range": ""
+      }
+    ],
+    "is_dsp": false,
+    "name": "~dsptime",
+    "outlets": [
+      {
+        "doc": "Milliseconds of audio processed since the patcher's DSP was last turned on.",
+        "index": 0,
+        "label": "time",
+        "range": "ms",
+        "type": "FLOAT"
+      }
+    ],
+    "params": [],
+    "requires_midi_device": false
+  },
   "~edge": {
     "category": "ANALYSIS",
     "description": "Bangs when a signal goes from zero to non-zero (left outlet) and when it goes from non-zero to zero (right outlet).",
@@ -17534,6 +17697,92 @@
       }
     ],
     "params": [],
+    "requires_midi_device": false
+  },
+  "~ezadc": {
+    "category": "IO",
+    "description": "The patch's audio input as an on/off button: ~adc, plus a GUI value that shows whether the patcher's audio is on.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "A number turns the patcher's audio off (0) or on; also 'start' and 'stop'. 'set <outlet> <channel>' routes one outlet, a list of channels the outlets from the first.",
+        "index": 0,
+        "label": "control",
+        "range": "0 or 1, or a message"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~ezadc",
+    "outlets": [
+      {
+        "doc": "One channel of the host's incoming audio.",
+        "index": 0,
+        "label": "out",
+        "range": "-1.0 to 1.0",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "One channel of the host's incoming audio.",
+        "index": 1,
+        "label": "out",
+        "range": "-1.0 to 1.0",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The input channel of each outlet, from 1, one outlet per number; one number N alone is channels 1 to N. Without them, one outlet per patcher channel.",
+        "name": "channels",
+        "range": "1 to 1024, one or more"
+      }
+    ],
+    "requires_midi_device": false
+  },
+  "~ezdac": {
+    "category": "IO",
+    "description": "The patch's audio output as an on/off button: ~dac, plus a GUI value that shows whether the patcher's audio is on.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "One channel of the patch's audio output. A number turns the patcher's audio off (0) or on; also 'start', 'stop', 'set <channel>' for this inlet, or a list of channels for the inlets from the first.",
+        "index": 0,
+        "label": "in",
+        "range": "-1.0 to 1.0"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "One channel of the patch's audio output. A number turns the patcher's audio off (0) or on; also 'start', 'stop', 'set <channel>' for this inlet, or a list of channels for the inlets from the first.",
+        "index": 1,
+        "label": "in",
+        "range": "-1.0 to 1.0"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~ezdac",
+    "outlets": [],
+    "params": [
+      {
+        "default": "",
+        "doc": "The output channel of each inlet, from 1, one inlet per number. Without them, one inlet per patcher channel. A channel the patcher does not have is silent.",
+        "name": "channels",
+        "range": "1 to 1024, one or more"
+      }
+    ],
     "requires_midi_device": false
   },
   "~fffb": {
@@ -18618,22 +18867,25 @@
   },
   "~line": {
     "category": "OSC",
-    "description": "Linear-ramp generator. Ramps an audio-rate value toward a target over a given time in ms.",
+    "description": "Linear ramp generator: ramps toward a target over a time in milliseconds, or plays a list of target-time pairs back to back for envelopes and glides. Bangs when the list is done.",
     "inlets": [
       {
         "accepts": [
-          "FLOAT"
+          "FLOAT",
+          "INT",
+          "LIST"
         ],
-        "doc": "Target value to ramp toward. Also takes 'stop'.",
+        "doc": "A number is a target, reached over the right inlet's time, or jumped to when that time is 0. A list is 'target time' pairs played back to back (a last single number is a jump); 'value, target time ...' jumps to the value first. Also 'stop', 'pause' and 'resume'.",
         "index": 0,
         "label": "target",
         "range": "any float"
       },
       {
         "accepts": [
-          "FLOAT"
+          "FLOAT",
+          "INT"
         ],
-        "doc": "Ramp duration in milliseconds, used from the next new target.",
+        "doc": "Ramp time in milliseconds for numbers at the left inlet; kept.",
         "index": 1,
         "label": "time",
         "range": "0+ ms"
@@ -18648,20 +18900,40 @@
         "label": "out",
         "range": "any float",
         "type": "BUFFER"
+      },
+      {
+        "doc": "A bang after the block in which a list or a jump arrived.",
+        "index": 1,
+        "label": "done",
+        "range": "bang",
+        "type": "BANG"
+      },
+      {
+        "doc": "A signal: 1 while a list is heading for a target, 0 when it is done, stopped or paused.",
+        "index": 2,
+        "label": "active",
+        "range": "0 or 1",
+        "type": "BUFFER"
       }
     ],
     "params": [
       {
         "default": "0",
-        "doc": "Initial target value.",
-        "name": "target",
+        "doc": "The value before the first target.",
+        "name": "initial",
         "range": "any float"
       },
       {
         "default": "0",
-        "doc": "Initial ramp time in milliseconds.",
+        "doc": "Ramp time in milliseconds until one arrives at the right inlet.",
         "name": "time",
         "range": "0+ ms"
+      },
+      {
+        "default": "129",
+        "doc": "The most segments a list keeps, an initial value included; a longer list is cut and logged.",
+        "name": "maxpoints",
+        "range": "1 to 1024"
       }
     ],
     "requires_midi_device": false
@@ -19331,6 +19603,36 @@
     ],
     "requires_midi_device": false
   },
+  "~mute": {
+    "category": "ENCAPSULATION",
+    "description": "Switches signal processing in subpatchers off and on. Connect the outlet to any inlet of a subpatcher: 1 mutes the signal objects inside it, 0 unmutes them.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "A number: non-zero mutes, 0 unmutes. A list <mute> <nested>: with nested non-zero, the subpatchers nested inside are muted or unmuted too.",
+        "index": 0,
+        "label": "mute",
+        "range": "0 or 1"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~mute",
+    "outlets": [
+      {
+        "doc": "Connect to any inlet of a subpatcher to control it. Carries no messages: nothing arrives at the subpatcher's inlet.",
+        "index": 0,
+        "label": "to subpatcher",
+        "range": "",
+        "type": "ANY"
+      }
+    ],
+    "params": [],
+    "requires_midi_device": false
+  },
   "~noise": {
     "category": "OSC",
     "description": "White-noise generator. Sends a new block of random samples on every audio block.",
@@ -19610,6 +19912,34 @@
         "range": "any float, usually 1 to 10"
       }
     ],
+    "requires_midi_device": false
+  },
+  "~pass": {
+    "category": "ENCAPSULATION",
+    "description": "Passes a signal on unchanged, and outputs silence while the subpatcher it is in is muted by ~mute.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER"
+        ],
+        "doc": "The signal to pass on. Unconnected, it reads 0.",
+        "index": 0,
+        "label": "in",
+        "range": "-1.0 to 1.0"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~pass",
+    "outlets": [
+      {
+        "doc": "The input, or silence while the enclosing subpatcher is muted.",
+        "index": 0,
+        "label": "out",
+        "range": "-1.0 to 1.0",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [],
     "requires_midi_device": false
   },
   "~peakamp": {
@@ -19978,12 +20308,13 @@
         "accepts": [
           "BUFFER",
           "FLOAT",
-          "INT"
+          "INT",
+          "BANG"
         ],
-        "doc": "Frequency in Hz: a signal, or a number used while no signal is connected. Also takes 'reset' (jump to phaseoffset) and 'phaseoffset <0-1>'.",
+        "doc": "Frequency in Hz: a signal, or a number used while no signal is connected. A note value such as '4n' or '8nt', or '<n> ticks', sets an interval on the transport clock instead; a number sets it back to 0. Also takes 'reset' (jump to phaseoffset), 'phaseoffset <0-1>', 'lock <0/1>', 'syncupdate <0/1>' and bang (take a held frequency now).",
         "index": 0,
         "label": "freq",
-        "range": "any float"
+        "range": "any float, note value"
       },
       {
         "accepts": [
@@ -20016,9 +20347,33 @@
       },
       {
         "default": "0",
-        "doc": "The phase the ramp starts at, and returns to on 'reset'.",
+        "doc": "The phase the ramp starts at, and returns to on 'reset'. With lock on it shifts the ramp against the clock.",
         "name": "phaseoffset",
         "range": "0-1"
+      },
+      {
+        "default": "0",
+        "doc": "One cycle every this many beats of the transport clock (1 is a quarter note). 0 uses the frequency in Hz instead.",
+        "name": "periodbeats",
+        "range": "0+ beats"
+      },
+      {
+        "default": "0",
+        "doc": "1 locks the ramp to the transport clock's position, so it starts each cycle on the clock's grid; 0 only follows its tempo. Needs periodbeats above 0.",
+        "name": "lock",
+        "range": "0 or 1"
+      },
+      {
+        "default": "0",
+        "doc": "1 holds a new frequency or interval until the ramp wraps to 0, so a change never lands mid-cycle. Not for a frequency signal, nor while locked.",
+        "name": "syncupdate",
+        "range": "0 or 1"
+      },
+      {
+        "default": "",
+        "doc": "The domain clock an interval in beats follows, by name (a .transport, a .setclock or the host's). Empty follows none, and the ramp then holds.",
+        "name": "transport",
+        "range": ""
       }
     ],
     "requires_midi_device": false
@@ -22309,6 +22664,88 @@
         "doc": "0: a new swing applies at once; 1: it waits for the input to wrap, so no ramp changes length halfway.",
         "name": "syncupdate",
         "range": "0-1"
+      }
+    ],
+    "requires_midi_device": false
+  },
+  "~sync": {
+    "category": "OSC",
+    "description": "A ramp from 0 to 1 once per beat, at a tempo set by a number, by tapping, by MIDI beat clock, by a click track or by a domain clock, with the tempo reported and a MIDI beat clock out that follows the ramp.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT",
+          "BANG"
+        ],
+        "doc": "A click track (a signal with a peak above 0.1 on every beat); a bang is a tap; an int is a MIDI byte (248 tick, 250 start, 251 continue, 252 stop); a float sets the tempo. Takes 'bpm <x>', 'offset <0-1>', 'midioffset <0-1>', 'ppq <n>', 'start' and 'stop' (not saved).",
+        "index": 0,
+        "label": "in",
+        "range": "signal, bang, 248-252, BPM"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~sync",
+    "outlets": [
+      {
+        "doc": "Rises from 0 to 1 once per beat.",
+        "index": 0,
+        "label": "ramp",
+        "range": "0-1",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "After a block: 'midi', 'click' and 'tap' when one or more of each arrived, then 'bpm <x>' when the tempo changed.",
+        "index": 1,
+        "label": "report",
+        "range": "midi, click, tap, bpm <x>",
+        "type": "ANY"
+      },
+      {
+        "doc": "MIDI beat clock that follows the ramp, one byte at a time: 248 ppq times a beat while running, 250 on a start, 251 on a continue, 252 on a stop.",
+        "index": 2,
+        "label": "clock",
+        "range": "248-252",
+        "type": "INT"
+      }
+    ],
+    "params": [
+      {
+        "default": "120",
+        "doc": "The tempo at the start, in beats per minute.",
+        "name": "bpm",
+        "range": "1 to 1000"
+      },
+      {
+        "default": "0",
+        "doc": "Shifts the ramp by this much of a beat.",
+        "name": "offset",
+        "range": "0-1"
+      },
+      {
+        "default": "0",
+        "doc": "Shifts the MIDI clock out by this much of a beat.",
+        "name": "midioffset",
+        "range": "0-1"
+      },
+      {
+        "default": "24",
+        "doc": "MIDI clock ticks per beat, in and out.",
+        "name": "ppq",
+        "range": "1 to 192"
+      },
+      {
+        "default": "-1",
+        "doc": "A MIDI input port, counted from 0, whose clock bytes are read directly, as if from .rtin; -1 reads none.",
+        "name": "rtport",
+        "range": "-1 to 7"
+      },
+      {
+        "default": "",
+        "doc": "A domain clock to follow, by name (a .transport, a .setclock or the host's): the ramp is its beat and the tempo its tempo, and taps, MIDI, clicks, tempos, start and stop are ignored. Empty follows none.",
+        "name": "transport",
+        "range": ""
       }
     ],
     "requires_midi_device": false

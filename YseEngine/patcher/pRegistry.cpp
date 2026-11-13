@@ -82,6 +82,10 @@
 #include "genericObjects/gOutlet.h"
 #include "genericObjects/dInlet.h"
 #include "genericObjects/dOutlet.h"
+#include "genericObjects/pMute.h"
+#include "genericObjects/pDspStatus.h"
+#include "genericObjects/pPass.h"
+#include "genericObjects/pBegin.h"
 #include "genericObjects/gFunbuff.h"
 #include "genericObjects/gTable.h"
 #include "genericObjects/gMtr.h"
@@ -137,6 +141,7 @@
 #include "generatorObjects/dCurve.h"
 #include "generatorObjects/dZigzag.h"
 #include "generatorObjects/dSeq.h"
+#include "generatorObjects/dSync.h"
 #include "generatorObjects/dPhasor.h"
 #include "generatorObjects/dCycle.h"
 #include "generatorObjects/dNoise.h"
@@ -428,6 +433,16 @@ pRegistry::pRegistry() {
   // patcherImplementation::CreateObjectUnlocked rather than via this Create().
   Add(OBJ::D_ADC, pAdc::Create);
 
+  // ~dac / ~adc as on/off buttons (issue #1043): built channel-matched by
+  // patcherImplementation::NewObjectUnlocked, like the two above.
+  Add(OBJ::D_EZDAC, pEzdac::Create);
+  Add(OBJ::D_EZADC, pEzadc::Create);
+
+  // DSP status reports (issue #1172).
+  Add(OBJ::D_DSPSTATE, pDspstate::Create);
+  Add(OBJ::D_DSPTIME, pDsptime::Create);
+  Add(OBJ::D_DSPSTRESS, pDspstress::Create);
+
   Add(OBJ::D_SINE, pSine::Create);
   Add(OBJ::D_SAW, dSaw::Create);
   Add(OBJ::D_RECT, dRect::Create);
@@ -460,6 +475,7 @@ pRegistry::pRegistry() {
   Add(OBJ::D_CURVE, dCurve::Create);
   Add(OBJ::D_ZIGZAG, dZigzag::Create);
   Add(OBJ::D_SEQ, dSeq::Create);
+  Add(OBJ::D_SYNC, dSync::Create);
   Add(OBJ::D_SIG, dSig::Create);
 
   Add(OBJ::D_SNAPSHOT, dSnapshot::Create);
@@ -1052,6 +1068,10 @@ pRegistry::pRegistry() {
   Add(OBJ::G_OUTLET, gOutlet::Create);
   Add(OBJ::D_INLET, dInlet::Create);
   Add(OBJ::D_OUTLET, dOutlet::Create);
+  // Subpatch DSP enable (issue #1137).
+  Add(OBJ::D_MUTE, pMute::Create);
+  Add(OBJ::D_PASS, pPass::Create);
+  Add(OBJ::D_BEGIN, pBegin::Create);
 
   // A sparse function: x,y pairs kept sorted by x, with a floor lookup and
   // linear interpolation between the stored points — the store behind every

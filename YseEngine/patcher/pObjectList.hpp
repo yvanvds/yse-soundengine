@@ -33,7 +33,8 @@ namespace YSE {
    * gate- or number-triggered ADSR envelope), ``D_CURVE`` (curved ramp segments
    * played back to back), ``D_ZIGZAG`` (an editable breakpoint function played
    * at any speed), ``D_SEQ`` (events stored at phase positions and sent when
-   * a 0..1 ramp crosses them).
+   * a 0..1 ramp crosses them), ``D_SYNC`` (a 0..1 ramp once per beat of a
+   * tempo, tap tempo, MIDI beat clock or a click track).
    *  - DSP analysis: ``D_SNAPSHOT``, ``D_WHERE`` (elapsed and remaining time
    *    of a 0..1 ramp's cycle), ``D_WHAT`` (an impulse each time a 0..1 ramp
    *    passes one of a list of values), ``D_STEPCOUNTER`` (the jumps of a
@@ -134,7 +135,9 @@ namespace YSE {
    *    of a filter given as sections), `D_FILTERGRAPH` (the bands of a filter
    *    editor, sent as coefficients), ``D_ZPLANE`` (sections as poles and
    *    zeroes on the z plane).
-   *  - I/O: ``D_DAC``, ``D_ADC``, ``D_LINE``.
+   *  - I/O: ``D_DAC``, ``D_ADC``, ``D_EZDAC``, ``D_EZADC``, ``D_LINE``.
+   *  - DSP status: ``D_DSPSTATE`` (DSP on/off, sample rate, block size),
+   *    ``D_DSPTIME`` (ms of audio rendered), ``D_DSPSTRESS`` (render load).
    *  - Control: ``G_INT``, ``G_FLOAT``, ``G_SLIDER``, ``G_RSLIDER``,
    *    ``G_XYSLIDER``, ``G_MULTISLIDER``, ``G_MATRIXCTRL``, ``G_FUNCTION``,
    *    ``G_KSLIDER``, ``G_NSLIDER``, ``G_DIAL``, ``G_INCDEC``, ``G_RANDOM``.
@@ -182,7 +185,7 @@ namespace YSE {
    *  - Debugging: ``G_PRINT``, ``G_DICT_PRINT``.
    *  - Initialisation: ``G_LOADBANG``, ``G_LOADMESS``.
    *  - Encapsulation: ``PATCHER``, ``G_INLET``, ``G_OUTLET``, ``D_INLET``,
-   *    ``D_OUTLET``.
+   *    ``D_OUTLET``, ``D_MUTE``, ``D_PASS``, ``D_BEGIN``.
    *  - Messaging: ``G_SEND``, ``G_RECEIVE``, ``G_FORWARD``, ``G_ROUTE``,
    *    ``G_ROUTEPASS``,
    *    ``G_SEL``, ``G_TRIGGER``, ``G_BANGBANG``, ``G_ONEBANG``, ``G_NEXT``,
@@ -244,9 +247,24 @@ namespace YSE {
     DEFOBJ(G_OUTLET, ".outlet");
     DEFOBJ(D_INLET, "~inlet");
     DEFOBJ(D_OUTLET, "~outlet");
+    // Subpatch DSP enable (issue #1137): ``~mute`` mutes the subpatchers its
+    // cords reach, ``~pass`` forwards its input (silence while muted, like
+    // every muted object) and ``~begin`` is a constant 0. See
+    // genericObjects/pMute.h.
+    DEFOBJ(D_MUTE, "~mute");
+    DEFOBJ(D_PASS, "~pass");
+    DEFOBJ(D_BEGIN, "~begin");
 
     DEFOBJ(D_DAC, "~dac");
     DEFOBJ(D_ADC, "~adc");
+    DEFOBJ(D_EZDAC, "~ezdac");
+    DEFOBJ(D_EZADC, "~ezadc");
+    // DSP status reports (issue #1172): the patcher's DSP switch, sample rate
+    // and block size; ms rendered; the render load. See
+    // genericObjects/pDspStatus.h.
+    DEFOBJ(D_DSPSTATE, "~dspstate");
+    DEFOBJ(D_DSPTIME, "~dsptime");
+    DEFOBJ(D_DSPSTRESS, "~dspstress");
     DEFOBJ(G_RECEIVE, ".r");
     DEFOBJ(G_SEND, ".s");
 
@@ -285,6 +303,7 @@ namespace YSE {
     DEFOBJ(D_CURVE, "~curve");
     DEFOBJ(D_ZIGZAG, "~zigzag");
     DEFOBJ(D_SEQ, "~seq");
+    DEFOBJ(D_SYNC, "~sync");
 
     DEFOBJ(D_SNAPSHOT, "~snapshot");
     DEFOBJ(D_WHERE, "~where");

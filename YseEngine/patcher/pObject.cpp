@@ -123,6 +123,12 @@ void pObject::CalculateIfReady(YSE::THREAD thread) {
   Calculate(thread);
 }
 
+void pObject::SendSilence(YSE::THREAD thread) {
+  for (unsigned int i = 0; i < outputs.size(); i++) {
+    outputs[i].SendSilence(thread);
+  }
+}
+
 void pObject::FlushArmedOutlets(YSE::THREAD thread) {
   if (!outletArmed) return;
   outletArmed = false;

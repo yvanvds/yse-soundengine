@@ -1,10 +1,13 @@
 #pragma once
+#include <atomic>
+#include <cstdint>
 #include <vector>
 
 namespace YSE {
   namespace PATCHER {
 
     class pObject;
+    class gSubpatcher;
     class patcherImplementation;
     struct inlet;
     struct outlet;
@@ -39,9 +42,15 @@ namespace YSE {
       // whether it is a start point (computed unconditionally) or a node fed
       // by signal cords (computed only once every buffer it waits for has
       // arrived, by pObject::CalculateIfReady).
+      //
+      // ``muteBegin`` / ``muteEnd`` (issue #1137) bound the step's slice of
+      // ``muteChain``: the mute words of the subpatchers around the object,
+      // innermost first. Equal for an object at the top level.
       struct renderStep {
         pObject* object;
         bool startPoint;
+        std::uint32_t muteBegin = 0;
+        std::uint32_t muteEnd = 0;
       };
 
       // The signal traversal, compiled at publish time (issue #1185). It is
@@ -65,6 +74,10 @@ namespace YSE {
       // ``startPoints`` is — ``Calculate`` never scans for them.
       std::vector<pObject*> pollers;
 
+      // Whether the patch holds a ~dspstress (issue #1172): only then does
+      // Calculate time the block for patcherImplementation::RenderLoad.
+      bool measureLoad = false;
+
       // Signal objects with at least one control outlet, sorted by storage
       // ID (issue #1037). After the DSP traversal the patcher sends what each
       // armed in its CALC(); see pObject::FlushArmedOutlets. Sorted because
@@ -73,6 +86,25 @@ namespace YSE {
 
       // DAC sinks whose channel buffers are summed into the patcher output.
       std::vector<pObject*> dacs;
+      // dacMutes[d] = the muteChain slice of dacs[d] (issue #1137): a ~dac in
+      // a muted subpatcher adds nothing to the output.
+      struct muteSlice {
+        std::uint32_t begin = 0;
+        std::uint32_t end = 0;
+      };
+      std::vector<muteSlice> dacMutes;
+
+      // The mute words (gSubpatcher::MuteWord) of the subpatchers around each
+      // render step and ~dac, one slice per object, innermost first (issue
+      // #1137). Pointers into subpatcher objects this snapshot holds, so they
+      // live as long as it does. The audio thread only loads them.
+      std::vector<const std::atomic<std::uint8_t>*> muteChain;
+
+      // inletSubpatcher[inlet.graphId] = for an inlet of a subpatcher's
+      // boundary object (.inlet / ~inlet), that subpatcher, else null (issue
+      // #1137). What a ~mute's cord reaches: the cord ends on the boundary
+      // object, and this says which subpatcher it stands for.
+      std::vector<gSubpatcher*> inletSubpatcher;
 
       // ADC sources fed by an external host buffer when the patcher runs as an
       // insert (issue #167). The host adapter points each ADC's channels at the
@@ -109,6 +141,20 @@ namespace YSE {
       // graphReadScope's business, below.
       std::vector<const outlet*> outletOwner;
       std::vector<const inlet*> inletOwner;
+
+      // Whether the object owning the muteChain slice [begin, end) is muted
+      // (issue #1137): its innermost subpatcher mutes its contents, or an
+      // outer one mutes its nested subpatchers. Bit values are
+      // gSubpatcher::MUTE_CONTENTS (1) and MUTE_NESTED (2). Audio thread;
+      // one load per enclosing subpatcher, none at the top level.
+      bool Muted(std::uint32_t begin, std::uint32_t end) const {
+        if (begin == end) return false;
+        if ((muteChain[begin]->load(std::memory_order_acquire) & 1U) != 0U) return true;
+        for (std::uint32_t k = begin + 1; k < end; k++) {
+          if ((muteChain[k]->load(std::memory_order_acquire) & 2U) != 0U) return true;
+        }
+        return false;
+      }
     };
 
     // The GraphState an inlet / outlet resolves its topology against on this

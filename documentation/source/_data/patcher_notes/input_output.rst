@@ -93,15 +93,126 @@ host.
 
 .. patcher-object:: ~adc
 
-There is one outlet per channel of the patcher, as set by
-``patcher::create``. The outlets only carry audio when the patcher runs as an
-insert effect. When it is a sound source there is no incoming audio and they
-stay silent; outlets beyond the host's channel count also stay silent. See
-:doc:`/patcher/index`.
+Each outlet carries one channel of the host's incoming audio. Without
+arguments there is one outlet per channel of the patcher, as set by
+``patcher::create``, outlet 1 on channel 1 and so on. Arguments pick the
+channels, counted from 1:
+
+- several numbers are one outlet each: ``~adc 3 4`` has two outlets carrying
+  channels 3 and 4;
+- one number N alone is N outlets on channels 1 to N: ``~adc 4`` has four.
+
+The outlets only carry audio when the patcher runs as an insert effect. When
+it is a sound source there is no incoming audio and they stay silent. An
+outlet whose channel the host buffer does not have, or that is set to
+channel 0, sends nothing. See :doc:`/patcher/index`.
+
+The inlet takes messages only:
+
+- ``set <outlet> <channel>`` routes one outlet, both counted from 1.
+  ``set 2 1`` makes the second outlet carry channel 1.
+- A list of numbers routes the outlets from the first: ``3 4``.
+- ``start`` or any number but 0 turns the patcher's audio on; ``stop`` or 0
+  turns it off (see ``~dac``). ``startwindow`` is the same as ``start``.
+
+The arguments are saved with the patch; ``set`` and lists are not.
 
 .. patcher-object:: ~dac
 
-There is one inlet per channel of the patcher, as set by ``patcher::create``.
-A patch can hold several ``~dac`` objects. Their channels are added together
-without scaling, so keep the combined level in range. See
-:doc:`/patcher/index` for running a patch as a sound or as an insert.
+Each inlet sends its signal to one output channel. Without arguments there
+is one inlet per channel of the patcher, as set by ``patcher::create``,
+inlet 1 on channel 1 and so on. Arguments pick the channels, counted from 1,
+one inlet per number: ``~dac 3 4`` has two inlets that go to channels 3 and
+4. A channel the patcher does not have is silent, and so is channel 0.
+
+A patch can hold several ``~dac`` objects, and two inlets can go to the same
+channel. All of them are added together without scaling, so keep the
+combined level in range. See :doc:`/patcher/index` for running a patch as a
+sound or as an insert.
+
+Every inlet also takes messages:
+
+- ``set <channel>`` routes the inlet it arrives on. More numbers route the
+  inlets after it: ``set 1 2`` on the first inlet.
+- A list of numbers routes the inlets from the first: ``2 1`` swaps a
+  stereo pair.
+- ``start`` or any number but 0 turns the patcher's audio on; ``stop`` or 0
+  turns it off. ``startwindow`` is the same as ``start``.
+
+The switch belongs to the patcher, subpatchers included: every ``~dac``,
+``~adc``, ``~ezdac`` and ``~ezadc`` in it turns the same audio on and off.
+While it is off, messages, timers and incoming MIDI are still handled, but no
+signal object computes, so oscillators and delays keep their state and go
+on from there when the audio comes back on. The patcher outputs silence, and
+so does an insert running it. A patcher starts with its audio on, and
+``Clear()`` turns it back on; the switch is not saved with the patch.
+
+.. code-block:: text
+
+   [~cycle 440] -> [~dac 1 2] both inlets: a tone on channels 1 and 2
+   [.m stop]    -> [~dac 1 2] any inlet: the patcher falls silent
+   [.m start]   -> [~dac 1 2] any inlet: the tone goes on
+
+The arguments are saved with the patch; ``set`` and lists are not.
+
+.. patcher-object:: ~ezdac
+
+``~dac`` as an on/off button: the same inlets, arguments and messages (see
+``~dac``). Its GUI value is ``on`` or ``off``, the patcher's audio switch,
+so it also shows a ``stop`` sent to any other ``~dac`` or ``~adc``. The GUI
+value is read-only: to make a click work, send the opposite as a number
+(``0`` when it shows ``on``, ``1`` when it shows ``off``). Colours and style
+are left to the host that draws it.
+
+.. patcher-object:: ~ezadc
+
+``~adc`` as an on/off button: the same outlets, arguments and messages (see
+``~adc``). Its GUI value is ``on`` or ``off``, the patcher's audio switch,
+as on ``~ezdac``.
+
+.. patcher-object:: ~dspstate
+
+A ``bang`` sends four numbers, right to left: the I/O block size, the signal
+block size, the sample rate in Hz and the patcher's audio switch (1 on, 0
+off). Both block sizes are the 128 samples a patcher renders and exchanges
+per block, whatever buffer size the audio device uses.
+
+The same report goes out by itself at the top of the first block after the
+audio switch changes, so ``~dspstate`` shows a ``stop`` or ``start`` sent to
+any ``~dac`` or ``~adc`` in the patcher. Joining a patcher reports nothing:
+send a bang, for instance from a ``.loadbang``, for the first report.
+
+.. code-block:: text
+
+   [.loadbang] -> [~dspstate] outlet 1: the sample rate, to scale a frequency
+   [.m stop]   -> [~dac]      [~dspstate] outlet 0 sends 0 on the next block
+
+.. patcher-object:: ~dsptime
+
+A ``bang`` sends how many milliseconds of audio the patcher has processed
+since its audio was last turned on (or since it was built). The count
+follows the samples processed, not the wall clock, so it keeps time in
+offline rendering too, and every block adds its own length at the sample
+rate it was rendered at. It stands still while the audio switch is off and
+starts again from 0 when the audio comes back on.
+
+The milliseconds are a float, so after a few hours the value is no longer
+exact to the millisecond.
+
+.. patcher-object:: ~dspstress
+
+Reports how much of the available time the patcher takes to process its
+audio, in percent: the time a block takes (its messages, timers, signal
+objects and output mix) over the duration of the audio in it. 100 means the
+patch takes as long as the audio lasts; above 100 it cannot keep up. Patches
+that hold no ``~dspstress`` are not timed.
+
+The report is the mean over an interval, 250 ms by default or the argument,
+and goes out only when it differs from the one before. A number sets the
+interval; 0 stops the reports. The interval counts processed audio, like
+``~dsptime``, and the reports go on while the audio switch is off, showing
+the cost of the messages and timers alone. The value differs from run to
+run and from machine to machine. For the load of the whole engine, the host
+can read ``System().cpuLoad()``.
+
+The argument is saved with the patch; a number sent to the inlet is not.

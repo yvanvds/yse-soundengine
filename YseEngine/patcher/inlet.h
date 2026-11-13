@@ -162,6 +162,10 @@ namespace YSE {
       void SetFloat(float value, THREAD thread);
       void SetList(const std::string& value, THREAD thread);
       void SetBuffer(DSP::buffer* value, THREAD thread);
+      // A block of silence from a source in a muted subpatcher (issue #1137):
+      // counts as that source's buffer, and the object reads zeros from the
+      // inlet's scratch buffer. Audio thread; allocation-free.
+      void SetSilence(THREAD thread);
 
       void SetMessage(const std::string& message, THREAD thread, float value = 0.f);
 
@@ -266,6 +270,9 @@ namespace YSE {
       unsigned int GetAcceptedTypes() const;
 
     private:
+      // SetBuffer's and SetSilence's shared body; a null buffer is silence.
+      void Arrive(DSP::buffer* buffer, THREAD thread);
+
       // How many signal sources this inlet has in the snapshot the calling
       // thread reads (see WaitingForDSP), or in the live wiring for a
       // standalone object.

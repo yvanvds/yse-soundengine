@@ -119,8 +119,11 @@ set(YSE_SRCS
   dsp/generators/pulseTrain.cpp
   dsp/generators/adsr.cpp
   dsp/generators/curveSegments.cpp
+  dsp/generators/lineSegments.cpp
   dsp/generators/zigzag.cpp
   dsp/generators/eventSequencer.cpp
+  dsp/generators/clockFollower.cpp
+  dsp/generators/beatSpan.cpp
   dsp/operators/arithmetic.cpp
   dsp/operators/accumulator.cpp
   dsp/operators/delta.cpp
@@ -312,6 +315,7 @@ set(YSE_SRCS
   patcher/generatorObjects/dCurve.cpp
   patcher/generatorObjects/dZigzag.cpp
   patcher/generatorObjects/dSeq.cpp
+  patcher/generatorObjects/dSync.cpp
   patcher/generatorObjects/dPhasor.cpp
   patcher/generatorObjects/dCycle.cpp
   patcher/generatorObjects/pSine.cpp
@@ -431,8 +435,13 @@ set(YSE_SRCS
   patcher/genericObjects/gIter.cpp
   patcher/genericObjects/gListFunnel.cpp
   patcher/genericObjects/pAdc.cpp
+  patcher/genericObjects/pAudioIO.cpp
+  patcher/genericObjects/pBegin.cpp
   patcher/genericObjects/pDac.cpp
+  patcher/genericObjects/pDspStatus.cpp
   patcher/genericObjects/pLine.cpp
+  patcher/genericObjects/pMute.cpp
+  patcher/genericObjects/pPass.cpp
   patcher/guiObjects/gButton.cpp
   patcher/guiObjects/gDial.cpp
   patcher/guiObjects/gFloat.cpp
@@ -529,6 +538,7 @@ set(YSE_SRCS
   patcher/pRegistry.cpp
   patcher/io/fileScheduler.cpp
   patcher/time/clockBridge.cpp
+  patcher/time/signalClock.cpp
   patcher/time/gClocker.cpp
   patcher/time/gDelay.cpp
   patcher/time/gLine.cpp
@@ -816,6 +826,7 @@ set_source_files_properties(
   patcher/generatorObjects/dCurve.cpp
   patcher/generatorObjects/dZigzag.cpp
   patcher/generatorObjects/dSeq.cpp
+  patcher/generatorObjects/dSync.cpp
   patcher/generatorObjects/dPhasor.cpp
   patcher/generatorObjects/dCycle.cpp
   patcher/generatorObjects/pSine.cpp
@@ -923,8 +934,13 @@ set_source_files_properties(
   patcher/genericObjects/gIter.cpp
   patcher/genericObjects/gListFunnel.cpp
   patcher/genericObjects/pAdc.cpp
+  patcher/genericObjects/pAudioIO.cpp
+  patcher/genericObjects/pBegin.cpp
   patcher/genericObjects/pDac.cpp
+  patcher/genericObjects/pDspStatus.cpp
   patcher/genericObjects/pLine.cpp
+  patcher/genericObjects/pMute.cpp
+  patcher/genericObjects/pPass.cpp
   patcher/guiObjects/gButton.cpp
   patcher/guiObjects/gDial.cpp
   patcher/guiObjects/gFloat.cpp
@@ -1039,6 +1055,7 @@ set_source_files_properties(
   patcher/midi/midiPortScanner.cpp
   patcher/io/fileScheduler.cpp
   patcher/time/clockBridge.cpp
+  patcher/time/signalClock.cpp
   patcher/time/gClocker.cpp
   patcher/time/gDelay.cpp
   patcher/time/gLine.cpp

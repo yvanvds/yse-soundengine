@@ -2,24 +2,47 @@
 
 .. patcher-object:: ~line
 
-A float at the left inlet starts a ramp from the current value to that
-target. The ramp takes the time last set at the right inlet, so set the time
-first. A new time does not change a ramp that is already running, and
-sending the target the ramp already has does nothing. With a time of 0 the
-output jumps to the target.
+Plays straight ramp segments back to back, each a target and a time in
+milliseconds, for envelopes, fades and glides. Each segment starts from
+wherever the output is, and the output holds the last target when the list
+is done. Ramps are timed to the sample.
 
-The time is counted in whole milliseconds and then rounded to whole audio
-blocks; a ramp always lasts at least one block. Within a block the ramp is
-smooth, sample by sample.
+- A number at the left inlet starts a ramp from the current value to that
+  target, over the time set at the right inlet (or by the second argument).
+  The time is kept for every later number until a new one arrives, and a
+  new time does not change a ramp that is already running. With a time of 0
+  the output jumps to the target. Sending a target again starts a new ramp
+  from wherever the output is, taking the full time.
+- A list at the left inlet is ``target time`` pairs, played one after the
+  other; the kept time is not used. A number left over at the end is a jump
+  once the pairs are done, and a list of one number is a jump. A new list,
+  or a number, replaces whatever is still playing.
+- ``value, target time ...`` (a number with a comma after it, then pairs)
+  jumps to ``value`` first and plays the pairs from there.
+- A jump and a list sent in the same block both happen, in the order they
+  were sent, so a jump to 0 followed by ``1 500`` rises from 0.
+- ``stop`` holds the current value and drops the rest of the list. A new
+  time on its own does not restart it; the next target or list does.
+  ``pause`` holds the value but keeps the place in the list, and ``resume``
+  carries on from there. A new target or list also ends a pause.
+- The middle outlet bangs after the block in which the last segment of a
+  list arrived, or in which a jump happened. A stop does not count.
+- The right outlet is a signal: 1 while a list is still heading for a
+  target, 0 from the sample that reaches its last target, while paused or
+  stopped, and for a jump.
+- The arguments are the initial value (the output before the first target,
+  without a ramp), the time for numbers, and ``maxpoints``: the most
+  segments a list keeps, 129 by default and at most 1024, with the leading
+  ``value,`` counting as one. A longer list is cut to that and a line is
+  written to the log. The arguments are saved with the patch; numbers,
+  lists and messages are not.
 
 .. code-block:: text
 
    [~line 0 20]   left <- 1.   =>   rises from 0 to 1 over 20 ms
 
-``stop`` halts the ramp and holds the output at its current value until the
-next target arrives. A new time on its own does not restart it. Any target
-after a ``stop``, even the one the ramp was heading for, starts a new ramp
-from the held value, taking the full ramp time.
+   [.m 0, 1 10 0.3 200 0 500] -> [~line] -> [~*] <- [~saw 220]
+                 a 10 ms attack, a fall to 0.3, then a half-second fade
 
 .. patcher-object:: ~phasor
 
@@ -36,10 +59,41 @@ frequency runs the ramp from 1 down to 0.
 - ``phaseoffset <x>`` sets the phase the ramp starts at when the patch
   starts, and ``reset`` jumps back to it. A jump from the right inlet does not
   change ``phaseoffset``.
+- ``syncupdate 1`` holds a new frequency until the ramp next wraps to 0, so a
+  wavetable read from it changes pitch at the start of a cycle and never in
+  the middle of one. A ``bang`` takes the new frequency at once. A frequency
+  signal is not held.
+
+**Following a clock.** With ``transport`` naming a domain clock (one made by a
+``.transport``, a ``.setclock`` or the host), the speed can be an interval on
+that clock instead of a frequency: a note value such as ``4n`` (a quarter
+note, one beat), ``8nt`` or ``1nd``, or ``<n> ticks`` (480 a beat), sent to
+the left inlet or saved as ``periodbeats`` (in beats, so ``4n`` is 1 and
+``1n`` is 4). The ramp then speeds up and slows down with the clock's tempo
+and stands still while the clock is stopped. A plain number at the left inlet
+goes back to a frequency in Hz.
+
+- ``lock 1`` locks the phase to the clock: the ramp is at 0 on every beat
+  that is a whole number of intervals, so a ``1n`` ramp starts its cycle every
+  fourth beat, and every locked ramp on the same clock agrees. ``phaseoffset``
+  then shifts the ramp against the clock, and the right inlet and ``reset``
+  have nothing to change. Without ``lock`` the ramp only takes its speed from
+  the clock and keeps its own phase.
+- Without a clock of that name, or with ``transport`` empty, a ramp with an
+  interval holds where it is. A clock the host creates after the patch is
+  picked up within a fraction of a second. There is no default clock: name
+  one.
+- The arguments are ``frequency``, ``phaseoffset``, ``periodbeats``, ``lock``,
+  ``syncupdate`` and ``transport``. Changing them on a running object makes it
+  anew, so the ramp starts again from ``phaseoffset``.
 
 .. code-block:: text
 
    [~phasor 2 0.25]   ramps twice a second, starting a quarter of the way up
+
+   [.transport main] <- start
+   [~phasor 0 0 4 1 0 main] -> [~wave buf]   a bar-long wavetable sweep,
+                                              always on the clock's downbeat
 
 .. patcher-object:: ~saw
 
@@ -731,3 +785,77 @@ speed, looped, and edited while it plays.
    [.m 0 0 1 20 0.2 300] -> [~zigzag 0 1] -> [~*] <- [~saw 110]
                             a looping attack and decay; [.m append 0 400]
                             stretches it while it plays
+
+.. patcher-object:: ~sync
+
+The output rises from 0 to 1 once per beat (a quarter note) and wraps, like a
+``~phasor`` whose frequency is a tempo. The tempo comes from whichever source
+spoke last:
+
+- **A number.** A float, or ``bpm <x>``, sets it in beats per minute, held to
+  1-1000. An int is not a tempo (see below), so send ``bpm 100`` rather than a
+  plain ``100`` from a message box.
+- **Tapping.** Each ``bang`` is a beat. Three taps whose two gaps agree within
+  20 % set the tempo from their mean gap, and every further tap that agrees
+  with the one before updates it. A gap longer than 2 seconds or shorter than
+  a quarter of a second (outside 30-240 BPM) starts the count again.
+- **A click track.** A signal at the inlet is read the same way, to the
+  sample: a click is the signal rising to 0.1 or more (either polarity) after
+  it was below, at least an eighth of a second after the click before.
+- **MIDI beat clock.** An int is a MIDI byte, so ``.rtin`` connects straight
+  in. 248 is a clock tick, ``ppq`` of them a beat (24 by default). The tempo
+  is read from the last two beats of ticks, first after a sixteenth of a
+  beat, and then follows the clock, ignoring changes under 0.1 % so the
+  ramp does not wobble with the timing of the ticks. 250 (start) puts the ramp
+  at 0 and holds it there until the next tick, which is the first beat; 251
+  (continue) and 252 (stop) resume and halt it. Ticks that stop for more than
+  2 seconds are forgotten, so a new clock is read on its own. Any other
+  number is ignored.
+- **A MIDI port.** With ``rtport`` set to a MIDI input port (counted from 0;
+  ``.midiinfo`` lists them) the object reads that port's clock bytes itself,
+  as if from a ``.rtin``. -1, the default, reads none.
+
+Taps, clicks and ticks also say where the beat is. When the ramp is near it
+(within a quarter of a beat for a tap or a click, a quarter of a tick for
+MIDI) it speeds up or slows down slightly until it is on it again, so the
+output never jumps; further off, it jumps there. Ticks without a 250 before
+them lock to the nearest tick of the ramp.
+
+- ``start`` restarts the ramp from 0, ``stop`` holds it where it is. It runs
+  from the moment the object is made. While stopped, taps, clicks and ticks
+  still set the tempo.
+- ``offset <0-1>`` shifts the output by that much of a beat.
+- The middle outlet reports, after each block: ``midi``, ``click`` and ``tap``
+  when one or more of each arrived, then ``bpm <x>`` when the tempo changed.
+  Send it into ``.route bpm`` for the number.
+- The right outlet is a MIDI beat clock that follows the ramp, one byte at a
+  time for a ``.midiout``: 248 ``ppq`` times a beat while running, and 250,
+  251 or 252 when the ramp starts, continues or stops. ``midioffset <0-1>``
+  shifts these ticks by that much of a beat, to make up for the latency of
+  the device that follows them. ``ppq`` sets the ticks per beat both ways,
+  1-192: 12 makes the clock out half as fast, 48 twice as fast.
+- The arguments ``bpm``, ``offset``, ``midioffset``, ``ppq``, ``rtport`` and
+  ``transport`` are saved with the patch (``~sync 100 0 0 24 -1``); the
+  messages are not.
+
+**Following a domain clock.** With ``transport`` naming a domain clock (one
+made by a ``.transport``, a ``.setclock`` or the host), the ramp is that
+clock's beat: it rises once per beat of the clock, bends with its tempo and
+stands still while the clock is stopped. The tempo reported is the clock's,
+and the MIDI clock out follows it as ever, with 252 when the clock stops and
+251 when it moves again (a domain clock carries on from where it stopped, so
+it continues rather than starts). Taps, MIDI bytes, a click track, a tempo,
+``start`` and ``stop`` are ignored, since the clock decides all of them.
+Without a clock of that name the ramp holds and nothing is sent.
+
+.. code-block:: text
+
+   [.rtin 0] -> [~sync] -> [~subdiv 2] -> [~techno]
+                eighth-note steps locked to an external sequencer's clock
+
+   [.transport main] <- start, stop, tempo 100
+   [~sync 120 0 0 24 -1 main] (right outlet) -> [.midiout 0]
+                send the patch's clock to a drum machine
+
+   [.b] -> [~sync] -> [.route bpm] -> [.f]
+           tap three times to set the tempo, and read it back

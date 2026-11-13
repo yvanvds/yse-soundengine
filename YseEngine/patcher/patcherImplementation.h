@@ -103,6 +103,40 @@ namespace YSE {
       // See the definition for the host/graph channel-count contract.
       void ProcessAsInsert(MULTICHANNELBUFFER& io);
 
+      // The patcher's DSP switch (issue #1043): `start` / `stop` on a ~dac,
+      // ~adc, ~ezdac or ~ezadc. While it is off, Calculate still delivers
+      // messages, polls and deferred work but renders no signal object, and
+      // the output is silence. On by default, and again after Clear(); not
+      // saved. Any thread: one atomic store / load, read by the audio thread
+      // at the top of each block.
+      void SetDspOn(bool on) {
+        dspOn_.store(on, std::memory_order_release);
+      }
+      bool DspOn() const {
+        return dspOn_.load(std::memory_order_acquire);
+      }
+
+      // Milliseconds of audio this patcher has rendered since its DSP was last
+      // turned on, or since it was built (issue #1172, ~dsptime). Each block
+      // rendered with the DSP on adds its length at the sample rate of that
+      // block; the count restarts at the first block after the switch goes
+      // from off to on. Any thread: one atomic load. The audio thread is the
+      // only writer.
+      double DspTimeMs() const {
+        return dspTimeMs_.load(std::memory_order_acquire);
+      }
+
+      // The time the last measured block took to process, as a fraction of
+      // that block's duration at the sample rate (1 is 100%; more means the
+      // patch cannot keep up), or 0 before any measurement (issue #1172,
+      // ~dspstress). The whole Calculate is timed: the drains, the polls, the
+      // render and the ~dac mix. Measured only while the patch holds a
+      // ~dspstress (GraphState::measureLoad), so a patch without one pays
+      // nothing. Any thread: one atomic load.
+      float RenderLoad() const {
+        return renderLoad_.load(std::memory_order_relaxed);
+      }
+
       // Inlets and outlets resolve topology through a graphReadScope
       // (graphState.h): the block's pinned snapshot on the thread rendering
       // it (issues #226, #962), the pinned published snapshot on any other
@@ -528,6 +562,12 @@ namespace YSE {
       // parsed graph is built under one lock and swapped in with a single
       // publish (this is why no per-op re-entrancy flag is needed — issue #228).
       pHandle* CreateObjectUnlocked(const std::string& type, const std::string& args);
+      // A new, unparented object of `type`, or null for an unknown type. The
+      // audio I/O objects (~dac, ~adc, ~ezdac, ~ezadc) are built with the
+      // patcher's channel count; every other type comes from the registry.
+      // Shared by CreateObjectUnlocked and ReplaceObjectUnlocked, so a live
+      // re-parse of a ~dac keeps that count (issue #1043). Caller holds mtx.
+      pObject* NewObjectUnlocked(const std::string& type) const;
       void ConnectUnlocked(pHandle* from, int outlet, pHandle* to, int inlet);
 
       // The signal-loop check (issue #1038), caller holds mtx. Fills `path`
@@ -607,6 +647,9 @@ namespace YSE {
       // Fill g.renderOrder from g.startPoints and the live signal wiring
       // (issue #1185). Part of BuildGraph; control-thread only (allocates).
       static void BuildRenderOrder(GraphState& g);
+      // Fill the render steps' and ~dacs' slices of GraphState::muteChain
+      // (issue #1137). Under mtx.
+      static void BuildMuteChains(GraphState& g);
       // Stamp lifetime-stable graph ids on a newly added object's inlets/outlets.
       // Pulls a recycled id from the free-list before bumping the counter so a
       // continuously edited patcher reuses the ids of its deleted objects (issue
@@ -711,6 +754,14 @@ namespace YSE {
       // control-thread sends read under a pin (issue #963). Only the control
       // thread writes it, under mtx.
       std::atomic<const GraphState*> active_{nullptr};
+      // See SetDspOn().
+      std::atomic<bool> dspOn_{true};
+      // The switch as the previous block read it; the audio thread only.
+      // DspTimeMs restarts when it goes from off to on (issue #1172).
+      bool dspWasOn_ = true;
+      // See DspTimeMs() and RenderLoad(). The audio thread writes both.
+      std::atomic<double> dspTimeMs_{0.0};
+      std::atomic<float> renderLoad_{0.f};
       // Snapshot pinned for the duration of the block being rendered. Written
       // by the audio thread at the start/end of Calculate, and read only from
       // inside that frame (graphReadScope and the T_DSP dispatch in

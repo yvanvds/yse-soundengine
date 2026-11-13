@@ -111,7 +111,8 @@ TEST_SUITE("patcher") {
     REQUIRE(h != nullptr);
     CHECK(std::string(h->Type()) == "~line");
     CHECK(h->GetInputs() == 2);
-    CHECK(h->GetOutputs() == 1);
+    // The ramp, the done bang and the active signal (#1042).
+    CHECK(h->GetOutputs() == 3);
     CHECK(h->OutputDataType(0) == YSE::OUT_TYPE::BUFFER);
   }
 

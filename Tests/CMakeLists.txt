@@ -101,6 +101,9 @@ set(YSE_TEST_SOURCES
   dsp/test_pulse_train.cpp
   dsp/test_adsr.cpp
   dsp/test_curve_segments.cpp
+  dsp/test_line_segments.cpp
+  dsp/test_clock_follower.cpp
+  dsp/test_beat_span.cpp
   dsp/test_zigzag.cpp
   dsp/test_event_sequencer.cpp
   dsp/test_one_pole.cpp
@@ -283,6 +286,7 @@ set(YSE_TEST_SOURCES
   patcher/test_patcher_signal_train.cpp
   patcher/test_patcher_signal_adsr.cpp
   patcher/test_patcher_signal_curve.cpp
+  patcher/test_patcher_signal_line.cpp
   patcher/test_patcher_signal_zigzag.cpp
   patcher/test_patcher_signal_seq.cpp
   patcher/test_patcher_signal_onepole.cpp
@@ -382,6 +386,7 @@ set(YSE_TEST_SOURCES
   patcher/test_patcher_value.cpp
   patcher/test_message_scheduler.cpp
   patcher/test_patcher_clock_bridge.cpp
+  patcher/test_patcher_signal_clock.cpp
   patcher/test_patcher_transport.cpp
   patcher/test_patcher_setclock.cpp
   patcher/test_patcher_host_owned_clock.cpp
@@ -452,6 +457,10 @@ set(YSE_TEST_SOURCES
   patcher/test_patcher_object_races.cpp
   patcher/test_patcher_feedback_loop.cpp
   patcher/test_patcher_adc.cpp
+  patcher/test_patcher_audio_io.cpp
+  patcher/test_patcher_subpatch_mute.cpp
+  patcher/test_patcher_dsp_status.cpp
+  patcher/test_patcher_sync.cpp
   patcher/test_timerthread.cpp
   channel/test_channel.cpp
   channel/test_channel_concurrency.cpp
@@ -1488,6 +1497,7 @@ set_source_files_properties(
   patcher/test_patcher_signal_train.cpp
   patcher/test_patcher_signal_adsr.cpp
   patcher/test_patcher_signal_curve.cpp
+  patcher/test_patcher_signal_line.cpp
   patcher/test_patcher_signal_zigzag.cpp
   patcher/test_patcher_signal_seq.cpp
   patcher/test_patcher_signal_onepole.cpp
@@ -1587,6 +1597,7 @@ set_source_files_properties(
   patcher/test_patcher_value.cpp
   patcher/test_message_scheduler.cpp
   patcher/test_patcher_clock_bridge.cpp
+  patcher/test_patcher_signal_clock.cpp
   patcher/test_patcher_transport.cpp
   patcher/test_patcher_setclock.cpp
   patcher/test_patcher_host_owned_clock.cpp
@@ -1657,6 +1668,10 @@ set_source_files_properties(
   patcher/test_patcher_object_races.cpp
   patcher/test_patcher_feedback_loop.cpp
   patcher/test_patcher_adc.cpp
+  patcher/test_patcher_audio_io.cpp
+  patcher/test_patcher_subpatch_mute.cpp
+  patcher/test_patcher_dsp_status.cpp
+  patcher/test_patcher_sync.cpp
   patcher/test_timerthread.cpp
   PROPERTIES COMPILE_FLAGS "${_patcher_test_suppress}"
 )

@@ -42,7 +42,7 @@ same single atomic `GraphState` swap as a top-level one
 ([#226](https://github.com/yvanvds/yse-soundengine/issues/226) /
 [#227](https://github.com/yvanvds/yse-soundengine/issues/227) /
 [#228](https://github.com/yvanvds/yse-soundengine/issues/228)); and nothing about nesting is read on
-the audio thread at all. The façade owns **no pins** — `Connect`/`Disconnect` resolve "inlet *N* of
+the audio thread except the mute words below, through pointers the snapshot holds. The façade owns **no pins** — `Connect`/`Disconnect` resolve "inlet *N* of
 a subpatcher" to the boundary object inside it whose index is *N* and record an ordinary cord
 straight to it, so the compiled graph contains no subpatchers and every downstream mechanism (graph
 compiler, reclaimer, serialiser, `UnwireFromPeers`) needs to know nothing about them. That is a
@@ -79,3 +79,25 @@ is a single pin whose rate is a property of what sits behind it, and
 `patcherImplementation::BoundarySide` is what makes the two lookups (`BoundaryChild`,
 `BoundaryPinCount`) count both rates as one boundary — so `SubpatcherInlets` on a subpatcher holding
 a `.inlet 0` beside a `~inlet 1` answers 2.
+
+**Muting a subpatcher.** `~mute` (issue [#1137](https://github.com/yvanvds/yse-soundengine/issues/1137))
+switches a subpatcher's signal objects off and on, and is the mechanism `~poly` voice muting is meant
+to reuse ([#1040](https://github.com/yvanvds/yse-soundengine/issues/1040)). The state is a mute word
+on the `gSubpatcher` — an `std::atomic<uint8_t>` with two bits, `MUTE_CONTENTS` (the objects directly
+inside) and `MUTE_NESTED` (the objects in its nested subpatchers, any depth) — set with
+`fetch_or`/`fetch_and` from whichever thread runs the `~mute`. A `~mute` cord resolves like any cord to
+a subpatcher, to the boundary object behind the pin; `BuildGraph` records, per inlet graph id, which
+subpatcher a boundary inlet stands for (`GraphState::inletSubpatcher`), and `outlet::SendSubpatchMute`
+walks the outlet's targets in the snapshot the calling thread pins and sets the bits, delivering
+nothing to the inlet. The render never walks the containment tree: `BuildGraph` gives every render
+step (and every `~dac`) a slice of `GraphState::muteChain`, the mute words of the subpatchers around
+it, innermost first, and the step is muted when the innermost has `MUTE_CONTENTS` or any outer one has
+`MUTE_NESTED` — no load at all at the top level, one per enclosing subpatcher otherwise. A muted
+step does not compute; `pObject::SendSilence` sends silence on its signal outlets instead, which each
+target inlet writes into its own scratch buffer (`inlet::SetSilence`, counted like any arrival, so
+readiness and fan-in sums are unchanged). That keeps what the subpatcher feeds outside running, and
+makes a muted subpatcher output zeros rather than a stale block, so `~pass` needs no logic of its
+own. Because the snapshot now carries containment, `SetContainer` publishes. The mute is runtime
+state like the patcher's DSP switch (#1043): not saved, and a `SetParams` rebuild of the subpatcher
+starts unmuted. `~begin` is a constant 0; the old "switch off the chain before a gate" behaviour is
+not implemented, since a subpatcher and `~mute` cover it.

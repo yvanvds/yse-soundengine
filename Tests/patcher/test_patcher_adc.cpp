@@ -59,13 +59,14 @@ TEST_SUITE("patcher") {
 
   // ─── pAdc node ──────────────────────────────────────────────────────────────
 
-  TEST_CASE("pAdc: type name, no inlets, N buffer outlets") {
+  TEST_CASE("pAdc: type name, one message inlet, N buffer outlets") {
     YSE::patcher p;
     p.create(2);
     YSE::pHandle* h = p.CreateObject(YSE::OBJ::D_ADC);
     REQUIRE(h != nullptr);
     CHECK(std::string(h->Type()) == "~adc");
-    CHECK(h->GetInputs() == 0);
+    // One control inlet for start / stop / set (#1043); no signal comes in.
+    CHECK(h->GetInputs() == 1);
     CHECK(h->GetOutputs() == 2);
     CHECK(h->OutputDataType(0) == YSE::OUT_TYPE::BUFFER);
     CHECK(h->OutputDataType(1) == YSE::OUT_TYPE::BUFFER);
@@ -74,7 +75,7 @@ TEST_SUITE("patcher") {
   TEST_CASE("pAdc: is a DSP start point (no active DSP input)") {
     YSE::PATCHER::pAdc adc(2);
     CHECK(adc.NumChannels() == 2);
-    CHECK(adc.NumInputs() == 0);
+    CHECK(adc.NumInputs() == 1); // messages only (#1043)
     CHECK(adc.IsDSPStartPoint());
   }
 

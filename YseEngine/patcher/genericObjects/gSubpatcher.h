@@ -1,6 +1,9 @@
 #pragma once
 #include "../pObject.h"
 
+#include <atomic>
+#include <cstdint>
+
 namespace YSE {
   namespace PATCHER {
 
@@ -44,11 +47,12 @@ namespace YSE {
      *    the same single atomic `GraphState` swap as one at the top level
      *    (issues #226 / #227 / #228). There is no second publish, no per-level
      *    lock, and nothing about nesting the audio thread has to be told.
-     *  - **Nothing about a subpatcher is read on the audio thread at all.**
+     *  - **The audio thread reads nothing about a subpatcher but its mute
+     *    word** (see Muting, below), through pointers the snapshot holds.
      *    Membership and boundary resolution are used by `Connect`, `Disconnect`,
-     *    `DeleteObject` and `DumpJSON` — all control thread, all under the
-     *    patcher's mutex. That is why this object has no `Calculate()` worth
-     *    the name and no pins.
+     *    `DeleteObject`, `DumpJSON` and the graph build — all control thread,
+     *    all under the patcher's mutex. That is why this object has no
+     *    `Calculate()` worth the name and no pins.
      *
      *  ### The boundary, and why this object has no inlets or outlets
      *
@@ -116,19 +120,63 @@ namespace YSE {
      *  rebuilt and the handle swapped to the replacement.
      *  `patcherImplementation::ReplaceObjectUnlocked` re-points every object
      *  that named the old one as its container, so the contents stay inside
-     *  and the boundary keeps resolving. Nothing about it reaches the audio
-     *  thread, which never sees a subpatcher object at all.
+     *  and the boundary keeps resolving. The replacement is unmuted (see
+     *  Muting): the mute is runtime state and is not carried over.
+     *
+     *  ### Muting (issue #1137)
+     *
+     *  The one piece of subpatcher state the audio thread does read: a mute
+     *  word, set by a `~mute` whose outlet is connected to one of this
+     *  subpatcher's inlets. Two bits: `MUTE_CONTENTS` switches off the signal
+     *  objects directly inside, `MUTE_NESTED` the ones inside its nested
+     *  subpatchers, at any depth. The render does not walk the containment
+     *  tree: `BuildGraph` gives each render step the mute words of the
+     *  subpatchers around it (GraphState::muteChain), and the step is muted
+     *  when its innermost one has `MUTE_CONTENTS` set or any outer one has
+     *  `MUTE_NESTED`. A muted object does not compute; its signal outlets
+     *  deliver silence (pObject::SendSilence).
+     *
+     *  The word is an atomic set with `fetch_or` / `fetch_and` from whichever
+     *  thread runs the `~mute` (the control thread, or the audio thread's
+     *  drains) and loaded once per render step. It is runtime state, like the
+     *  patcher's DSP switch: not saved, 0 on a new object, so a `SetParams`
+     *  rename (which builds a new object) starts unmuted.
      *
      *  ### Real-time behaviour
      *
      *  `Calculate()` does nothing and is never called: with no pins the object
      *  is not a DSP start point, is not a poller and is the target of no edge,
-     *  so it is not reachable from the render traversal at all.
+     *  so it is not reachable from the render traversal at all. The mute word
+     *  is lock-free and allocation-free on every thread.
      */
     PATCHER_CLASS(gSubpatcher, YSE::OBJ::PATCHER)
     _NO_MESSAGES
     _NO_CALCULATE
+
+    /** @brief Mute bit: the signal objects directly inside. */
+    static constexpr std::uint8_t MUTE_CONTENTS = 1;
+    /** @brief Mute bit: the signal objects in nested subpatchers, any depth. */
+    static constexpr std::uint8_t MUTE_NESTED = 2;
+
+    /** @brief Set (@p on) or clear the bits in @p mask. Any thread; RT-safe. */
+    void SetMute(std::uint8_t mask, bool on) {
+      if (on) {
+        mute_.fetch_or(mask, std::memory_order_acq_rel);
+      } else {
+        mute_.fetch_and(static_cast<std::uint8_t>(~mask), std::memory_order_acq_rel);
+      }
+    }
+    /** @brief The current mute bits. Any thread. */
+    std::uint8_t Mute() const {
+      return mute_.load(std::memory_order_acquire);
+    }
+    /** @brief The mute word itself, for GraphState to point at. */
+    std::atomic<std::uint8_t>* MuteWord() {
+      return &mute_;
+    }
+
   private:
+    std::atomic<std::uint8_t> mute_{0};
     // The `name` creation argument. Held only so the parameter is registered
     // and documented; nothing reads it (see "Shape" above).
     std::string name;
