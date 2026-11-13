@@ -591,6 +591,46 @@ than the region has frames reads silence.
 messages, lists and numbers are not saved, and a reloaded ``~2d.wave`` uses
 its arguments.
 
+.. patcher-object:: ~buffir
+
+A FIR filter whose coefficients, its taps, are samples of the buffer of its
+name: every output sample is the last few input samples, each multiplied by
+one tap and added up. Put an impulse response or a filter kernel into the
+buffer, and a signal through ``~buffir`` is filtered by it: a custom low or
+high pass, an equaliser curve, the short response of a speaker cabinet or an
+instrument body. A single click through it plays the taps back in order.
+
+.. code-block:: text
+
+   [~adc 1]
+    |
+   [~buffir cab 0 512]   the input through 512 taps of cab
+
+The arguments are ``name [offset] [size] [chan]``. The taps start at frame
+``offset`` (default 0) and there are ``size`` of them, at most 4096. The
+default size is 0, which is silence, so give a size as an argument, a number
+or a message. Taps past the end of the buffer are left out. ``chan`` is the
+buffer channel, from 1.
+
+- Left inlet: the signal filtered, or a number used while no signal is
+  connected.
+- Middle inlet: the offset. Right inlet: the size. Both take a number, or a
+  signal read at the first sample of each block.
+
+The filter remembers the last 4096 input samples, so a longer kernel takes
+in the past at once. ``clear`` forgets them, from the next block on: a sound
+that stops then stops at once instead of ringing through the taps.
+``chan <n>``, ``offset <n>`` and ``size <n>`` in the left inlet change the
+channel and the taps while the patch runs. ``set <name> [offset] [size]``
+switches to another buffer, looked up in the background and read from a
+later block on; the numbers after the name set the offset and the size, and
+one left out keeps its value. ``set`` alone reads silence. The taps are read
+again at every block, so changes to the buffer, from a ``~buffer`` message, a
+``~poke`` or the host, are heard from the next block. Each output sample
+takes one multiplication per tap: keep long kernels for the places that need
+them. Messages and numbers are not saved with the patch: a reloaded
+``~buffir`` uses its arguments.
+
 .. patcher-object:: ~sfinfo
 
 Reports what a sound file holds, without loading it: only the file's header is

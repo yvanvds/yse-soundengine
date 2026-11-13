@@ -323,6 +323,13 @@ second phase crossfades between: what ``~wave`` and ``~2d.wave`` do.
 .. doxygenfile:: dsp/sampling/waveReader.hpp
    :project: libYSE
 
+A FIR filter whose taps are part of a sample buffer: the input convolved with
+up to 4096 of its samples, for custom filters and short impulse responses:
+what ``~buffir`` does.
+
+.. doxygenfile:: dsp/sampling/firFilter.hpp
+   :project: libYSE
+
 Signals recorded into a sample buffer between loop points, once or in a loop,
 with append and a sync output: what ``~record`` does. The loop points are a
 ``sampleRegion``, a span in frames made from milliseconds for each block,

@@ -289,7 +289,10 @@ and applied after the take, so they too stay on the audio thread, and Max's `nam
 message is a second spelling of `set`. `~lookup` (#1147) takes the same way as `~index`: its
 numbers and messages only store atomics that `CALC()` hands to `DSP::transferLookup`. `~wave` and
 `~2d.wave` (#1146) take the same way and hand theirs to `DSP::waveReader`; their `set` also
-stores the region after the name at once. `~cycle` keeps its own copy: its record also carries an offset and a size that
+stores the region after the name at once. `~buffir` (#1149) takes the same way and hands
+its offset and size to `DSP::firFilter`; its `set` stores the numbers after the name at once,
+and `clear` raises a flag the next block acts on, so the filter history stays on the audio
+thread. `~cycle` keeps its own copy: its record also carries an offset and a size that
 are merged across superseded requests, which the generic mailbox does not have.
 
 A rebind is not saved: `DumpJSON` writes the creation argument, as for `~cycle`.

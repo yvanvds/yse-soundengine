@@ -16341,6 +16341,83 @@
     ],
     "requires_midi_device": false
   },
+  "~buffir": {
+    "category": "SAMPLING",
+    "description": "A FIR filter whose taps are part of a named sample buffer: the signal convolved with up to 4096 of its samples, for custom filters and short impulse responses.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The signal filtered, or a number used while no signal is connected. 'clear' sets the filter's input history to 0. 'chan <n>', 'offset <n>' and 'size <n>' change the channel and the taps; 'set <name> [offset] [size]' switches to another buffer from a later block (none of them saved with the patch).",
+        "index": 0,
+        "label": "input",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The frame of the first tap: a number, or a signal read at the first sample of each block. A number is not saved with the patch.",
+        "index": 1,
+        "label": "offset",
+        "range": "0 or higher"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The number of taps, at most 4096: a number, or a signal read at the first sample of each block. A number is not saved with the patch.",
+        "index": 2,
+        "label": "size",
+        "range": "0 to 4096"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~buffir",
+    "outlets": [
+      {
+        "doc": "The input convolved with the taps: an impulse gives the taps back in buffer order. Silence without a buffer, or when there are no taps.",
+        "index": 0,
+        "label": "out",
+        "range": "any float",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The buffer the taps are read from. A set message does not change what is saved.",
+        "name": "name",
+        "range": "buffer name"
+      },
+      {
+        "default": "0",
+        "doc": "The frame of the first tap.",
+        "name": "offset",
+        "range": "0 or higher"
+      },
+      {
+        "default": "0",
+        "doc": "The number of taps, at most 4096; past the end of the buffer they stop at its last frame. 0 is silence.",
+        "name": "size",
+        "range": "0 to 4096"
+      },
+      {
+        "default": "1",
+        "doc": "The buffer channel read, from 1.",
+        "name": "chan",
+        "range": "1 or higher"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~capture": {
     "category": "ANALYSIS",
     "description": "Stores the most recent (or the first) samples of a signal and sends them out as lists of numbers on a dump, or writes them to a text file. For debugging and test patches.",
