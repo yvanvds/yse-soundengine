@@ -328,6 +328,7 @@ class dspSourceObject {    // audio generator (replaces file)
 | FM | difference (FM pair); 6-operator DX7-class engine under `dsp/fm/` (`fmVoice`, `fmPatch`, `dx7Sysex`, MSFA core) |
 | Mix / channel-strip | parametric EQ, compressor, chorus/flanger, plate reverb (Dattorro), feedback delay — N-channel `dspObject` modules for channel inserts and return buses |
 | Fourier | fft.cpp + mayer.cpp (real-input FFT) |
+| Analysis | `dsp/analysis/` — level, edge, zero-crossing and loudness meters; `pitchTracker` (YIN fundamental frequency, peak amplitude and onsets over a preallocated history, own FFT for the difference function; `~fzero`, #1130, and the planned `~retune`, #1154) |
 
 `dspObject` carries an N-channel processing contract (issue #158): `process(std::vector<DSP::buffer>&)` handles the full device layout, so inserts and return effects work at any output width.
 

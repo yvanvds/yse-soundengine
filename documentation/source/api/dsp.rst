@@ -190,6 +190,12 @@ Analysis
 .. doxygenfile:: dsp/analysis/loudnessMeter.hpp
    :project: libYSE
 
+The fundamental frequency of a monophonic signal after the YIN method, with
+its peak amplitude and the onsets of new notes: what ``~fzero`` does.
+
+.. doxygenfile:: dsp/analysis/pitchTracker.hpp
+   :project: libYSE
+
 Filters
 -------
 

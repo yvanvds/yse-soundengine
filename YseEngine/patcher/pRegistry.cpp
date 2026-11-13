@@ -158,6 +158,7 @@
 #include "analysis/dAvg.h"
 #include "analysis/dMinmax.h"
 #include "analysis/dLoudness.h"
+#include "analysis/dFzero.h"
 #include "analysis/dCapture.h"
 #include "delay/dTapin.h"
 #include "delay/dTapout.h"
@@ -475,6 +476,7 @@ pRegistry::pRegistry() {
   Add(OBJ::D_AVG, dAvg::Create);
   Add(OBJ::D_MINMAX, dMinmax::Create);
   Add(OBJ::D_LOUDNESS, dLoudness::Create);
+  Add(OBJ::D_FZERO, dFzero::Create);
   Add(OBJ::D_CAPTURE, dCapture::Create);
   Add(OBJ::D_TAPIN, dTapin::Create);
   Add(OBJ::D_TAPOUT, dTapout::Create);

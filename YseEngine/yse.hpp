@@ -135,6 +135,7 @@
 #include "dsp/analysis/movingAverage.hpp"
 #include "dsp/analysis/minMax.hpp"
 #include "dsp/analysis/loudnessMeter.hpp"
+#include "dsp/analysis/pitchTracker.hpp"
 #include "dsp/analysis/sampleCapture.hpp"
 #include "dsp/operators/compare.hpp"
 #include "dsp/operators/trig.hpp"

@@ -312,3 +312,37 @@ range and the peaks over.
 .. code-block:: text
 
    [~cycle 1000] -> [~* 0.1] -> [~loudness 1 100]   about -23 LUFS
+
+.. patcher-object:: ~fzero
+
+Estimates the pitch of a single voice or instrument and sends it in Hz from
+the left outlet, with the peak amplitude from the middle outlet. Every
+``period`` samples it looks at the last ``size`` samples and searches them
+for the shortest lag at which the signal repeats itself (the YIN method). A
+signal that does not repeat clearly enough, such as noise or a chord, gives
+no pitch; ``tolerance`` sets how strict that is, lower being stricter. The
+lowest pitch it can find is the sample rate divided by half the size, less
+one: 47 Hz for the default 2048 samples at 48 kHz. A pitch outside
+``freqmin`` to ``freqmax`` is not sent, and an analysis whose peak is below
+``threshold`` sends nothing at all.
+
+The estimate describes the whole analysis buffer, so it lags the input by
+about half the size, and right after an attack or a change of note, while
+the buffer holds both sounds, it can land an octave off before it settles.
+
+The right outlet bangs on an onset: the peak rising to ``onsetamp`` from
+below, or the pitch moving ``onsetpitch`` semitones or more from the note's
+for two analyses in a row. A note's pitch settles for ``size`` samples after
+it starts. Onsets closer together than ``onsetperiod`` samples are dropped.
+With ``onsetlist 1`` the onset is a list of the pitch at the onset (0 when
+none was found yet) and its amplitude instead of a bang.
+
+The settings are also the arguments, in this order: ``size``, ``period``,
+``freqmin``, ``freqmax``, ``threshold``, ``onsetamp``, ``onsetpitch``,
+``onsetperiod``, ``onsetlist`` and ``tolerance`` (``~fzero 1024 256``).
+Arguments are saved with the patch; messages are not. ``quiet`` is accepted
+and does nothing.
+
+.. code-block:: text
+
+   [~cycle 220] -> [~fzero] -> [.f]   about 220

@@ -46,7 +46,8 @@ namespace YSE {
    *    (the running average over the last N samples), ``D_AVG`` (the
    *    average absolute value since the last report), ``D_MINMAX`` (the
    *    running minimum and maximum), ``D_CAPTURE`` (signal samples stored
-   *    and dumped as lists), ``D_LOUDNESS`` (EBU R 128 loudness in LUFS).
+   *    and dumped as lists), ``D_LOUDNESS`` (EBU R 128 loudness in LUFS),
+   *    ``D_FZERO`` (the fundamental frequency, peak amplitude and onsets).
    *  - DSP delay: `D_TAPIN`, `D_TAPOUT`, `D_COMB`, `D_TEETH`, `D_DELAY`.
    *  - DSP dynamics: ``D_NORMALIZE`` (scaling by the running peak).
    *  - DSP sampling: ``D_BUFFER``, ``D_INFO`` (a buffer's details),
@@ -299,6 +300,7 @@ namespace YSE {
     DEFOBJ(D_AVG, "~avg");
     DEFOBJ(D_MINMAX, "~minmax");
     DEFOBJ(D_LOUDNESS, "~loudness");
+    DEFOBJ(D_FZERO, "~fzero");
     DEFOBJ(D_CAPTURE, "~capture");
 
     DEFOBJ(D_TAPIN, "~tapin");

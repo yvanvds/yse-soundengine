@@ -17932,6 +17932,109 @@
     ],
     "requires_midi_device": false
   },
+  "~fzero": {
+    "category": "ANALYSIS",
+    "description": "Estimates the fundamental frequency of a monophonic signal with the YIN method, every period samples over the last size samples, and reports the pitch in Hz, the peak amplitude and the onsets of new notes.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER"
+        ],
+        "doc": "The signal to analyse; unconnected it reads as silence. Takes 'size <n>', 'period <n>', 'freqmin <hz>', 'freqmax <hz>', 'threshold <x>', 'onsetamp <x>', 'onsetpitch <semitones>', 'onsetperiod <n>', 'onsetlist <0/1>' and 'tolerance <x>' (not saved).",
+        "index": 0,
+        "label": "signal",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~fzero",
+    "outlets": [
+      {
+        "doc": "The estimated fundamental frequency in Hz, after each analysis that found one within freqmin to freqmax and above the threshold.",
+        "index": 0,
+        "label": "pitch",
+        "range": "freqmin to freqmax Hz",
+        "type": "FLOAT"
+      },
+      {
+        "doc": "The peak amplitude of the analysis buffer, after each analysis at or above the threshold.",
+        "index": 1,
+        "label": "amplitude",
+        "range": "threshold or more",
+        "type": "FLOAT"
+      },
+      {
+        "doc": "A bang when a new note starts: the peak amplitude rises to onsetamp, or the pitch moves onsetpitch semitones from the note's. With onsetlist 1, a list of the pitch in Hz (0 when none was found yet) and the peak amplitude instead.",
+        "index": 2,
+        "label": "onset",
+        "range": "bang, or a list of two floats",
+        "type": "ANY"
+      }
+    ],
+    "params": [
+      {
+        "default": "2048",
+        "doc": "Samples in each analysis, rounded down to a power of two from 128 to 4096. The lowest pitch it finds is the sample rate divided by half of it, less one.",
+        "name": "size",
+        "range": "128 to 4096"
+      },
+      {
+        "default": "512",
+        "doc": "Samples between two analyses.",
+        "name": "period",
+        "range": "16 to 4096"
+      },
+      {
+        "default": "40",
+        "doc": "The lowest pitch reported, in Hz.",
+        "name": "freqmin",
+        "range": "above 0"
+      },
+      {
+        "default": "4000",
+        "doc": "The highest pitch reported, in Hz.",
+        "name": "freqmax",
+        "range": "above 0"
+      },
+      {
+        "default": "0.01",
+        "doc": "An analysis whose peak amplitude is below this reports nothing.",
+        "name": "threshold",
+        "range": "0 or more"
+      },
+      {
+        "default": "0.1",
+        "doc": "A rise of the peak amplitude to this or above is an onset; 0 turns it off.",
+        "name": "onsetamp",
+        "range": "0 or more"
+      },
+      {
+        "default": "1",
+        "doc": "A pitch this many semitones from the current note's is an onset; 0 turns it off.",
+        "name": "onsetpitch",
+        "range": "0 or more semitones"
+      },
+      {
+        "default": "2048",
+        "doc": "The fewest samples between two onsets.",
+        "name": "onsetperiod",
+        "range": "0 or more"
+      },
+      {
+        "default": "0",
+        "doc": "1 sends a list of the pitch and amplitude on an onset, 0 a bang.",
+        "name": "onsetlist",
+        "range": "0 or 1"
+      },
+      {
+        "default": "0.15",
+        "doc": "How far from perfectly periodic a signal may be and still have a pitch: lower is stricter.",
+        "name": "tolerance",
+        "range": "0 to 1"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~gate": {
     "category": "ROUTING",
     "description": "Sends a signal to one of several outlets, chosen by a number or a signal, or to none; the other outlets carry silence. Switches hard, or crossfades over a ramp time to avoid clicks.",

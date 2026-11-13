@@ -138,6 +138,7 @@ set(YSE_SRCS
   dsp/analysis/movingAverage.cpp
   dsp/analysis/minMax.cpp
   dsp/analysis/loudnessMeter.cpp
+  dsp/analysis/pitchTracker.cpp
   dsp/analysis/sampleCapture.cpp
   dsp/operators/compare.cpp
   dsp/operators/trig.cpp
@@ -216,6 +217,7 @@ set(YSE_SRCS
   patcher/analysis/dAvg.cpp
   patcher/analysis/dMinmax.cpp
   patcher/analysis/dLoudness.cpp
+  patcher/analysis/dFzero.cpp
   patcher/analysis/dCapture.cpp
   patcher/analysis/dWhat.cpp
   patcher/analysis/dWhere.cpp
@@ -719,6 +721,7 @@ set_source_files_properties(
   patcher/analysis/dAvg.cpp
   patcher/analysis/dMinmax.cpp
   patcher/analysis/dLoudness.cpp
+  patcher/analysis/dFzero.cpp
   patcher/analysis/dCapture.cpp
   patcher/analysis/dWhat.cpp
   patcher/analysis/dWhere.cpp
