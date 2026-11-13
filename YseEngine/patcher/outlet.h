@@ -45,6 +45,17 @@ namespace YSE {
       void SendList(const std::string& value, THREAD thread);
       void SendMessage(const std::string& value, THREAD thread);
       void SendBuffer(DSP::buffer* value, THREAD thread);
+      // A block of silence on a signal outlet whose owner is muted (issue
+      // #1137): every target inlet counts it as this outlet's buffer and reads
+      // zeros (inlet::SetSilence). Nothing on a link or a control outlet.
+      void SendSilence(THREAD thread);
+      // ~mute's send (issue #1137): set (@p on) or clear the bits in @p mask
+      // on the mute word of every subpatcher whose boundary object a cord of
+      // this outlet ends on (GraphState::inletSubpatcher). Cords to anything
+      // else are ignored, and nothing is delivered to any inlet. Read from the
+      // snapshot the calling thread pins; a standalone object, with none,
+      // reaches nothing. Any thread; lock-free and allocation-free.
+      void SendSubpatchMute(unsigned int mask, bool on);
 
       // ─── Armed control output (issue #1037) ─────────────────────────────
       //

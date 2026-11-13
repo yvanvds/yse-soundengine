@@ -3,6 +3,7 @@
 #include "inlet.h"
 #include "pObject.h"
 #include "graphState.h"
+#include "genericObjects/gSubpatcher.h"
 #include "../dsp/buffer.hpp"
 
 using namespace YSE::PATCHER;
@@ -152,6 +153,39 @@ void outlet::SendBuffer(YSE::DSP::buffer* value, YSE::THREAD thread) {
   const auto& targets = resolveTargets(scope);
   for (unsigned int i = 0; i < targets.size(); i++) {
     targets[i]->SetBuffer(value, thread);
+  }
+}
+
+void outlet::SendSilence(YSE::THREAD thread) {
+  if (link || type != OUT_TYPE::BUFFER) return;
+  SendDepthGuard guard;
+  if (!guard.allowed) return;
+  const graphReadScope scope(owner);
+  const auto& targets = resolveTargets(scope);
+  for (unsigned int i = 0; i < targets.size(); i++) {
+    targets[i]->SetSilence(thread);
+  }
+}
+
+void outlet::SendSubpatchMute(unsigned int mask, bool on) {
+  // Only a snapshot knows which subpatcher a boundary object stands for: the
+  // containment annotation is control-side and may be rewritten under mtx
+  // while this runs on the audio thread (issue #1137).
+  const graphReadScope scope(owner);
+  const GraphState* graph = scope.Graph();
+  if (!OwnedBy(graph)) {
+    graph = (graph != nullptr && graphId >= 0) ? scope.Latest() : nullptr;
+    if (!OwnedBy(graph)) return;
+  }
+  const auto bits = static_cast<std::uint8_t>(mask);
+  for (const inlet* in : graph->outletTargets[graphId]) {
+    const int id = in->GraphId();
+    if (id < 0 || static_cast<size_t>(id) >= graph->inletSubpatcher.size() ||
+        graph->inletOwner[id] != in) {
+      continue;
+    }
+    gSubpatcher* subpatcher = graph->inletSubpatcher[id];
+    if (subpatcher != nullptr) subpatcher->SetMute(bits, on);
   }
 }
 

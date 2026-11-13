@@ -626,6 +626,9 @@ namespace YSE {
       // Fill g.renderOrder from g.startPoints and the live signal wiring
       // (issue #1185). Part of BuildGraph; control-thread only (allocates).
       static void BuildRenderOrder(GraphState& g);
+      // Fill the render steps' and ~dacs' slices of GraphState::muteChain
+      // (issue #1137). Under mtx.
+      static void BuildMuteChains(GraphState& g);
       // Stamp lifetime-stable graph ids on a newly added object's inlets/outlets.
       // Pulls a recycled id from the free-list before bumping the counter so a
       // continuously edited patcher reuses the ids of its deleted objects (issue

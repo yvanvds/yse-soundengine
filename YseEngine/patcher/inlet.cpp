@@ -256,22 +256,46 @@ void inlet::SetBuffer(YSE::DSP::buffer* buffer, YSE::THREAD thread) {
   // own event through the setters above, which is the honest answer for a
   // stimulus this patcher has no scheduler tick to attribute it to.
   if (!signal || buffer == nullptr) return;
+  Arrive(buffer, thread);
+}
 
+void inlet::SetSilence(YSE::THREAD thread) {
+  // A source in a muted subpatcher (issue #1137): a block of zeros, counted
+  // like any arrival so the object still runs.
+  if (!signal) return;
+  Arrive(nullptr, thread);
+}
+
+void inlet::Arrive(YSE::DSP::buffer* buffer, YSE::THREAD thread) {
   // Fan-in (issue #1036). With one source -- or a direct delivery to an inlet
   // with none, as a standalone test rig does -- the buffer is passed on as it
   // is. With several, the first is copied into scratch and the rest added to
   // it; the object hears nothing until the last one is in. A source that sends
   // again after the sum was complete (a recalculation inside the block) starts
   // a new sum. Copy and add stay within scratch's capacity: no allocation.
+  //
+  // A null buffer is silence (issue #1137). It is written into scratch, the
+  // inlet's own buffer, never into a shared one an object downstream might
+  // write; as a later term of a sum it adds nothing. The resize only restores
+  // a length within capacity, as in Signal().
+  const auto silence = [this]() {
+    if (scratch->getLength() != YSE::STANDARD_BUFFERSIZE) scratch->resize(YSE::STANDARD_BUFFERSIZE);
+    *scratch = 0.f;
+    return scratch.get();
+  };
   const unsigned int expected = DspSourceCount();
   if (expected <= 1) {
     dspArrived++;
-    current = buffer;
+    current = buffer != nullptr ? buffer : silence();
   } else {
     if (dspArrived >= expected) dspArrived = 0;
     if (dspArrived == 0) {
-      *scratch = *buffer;
-    } else {
+      if (buffer == nullptr) {
+        silence();
+      } else {
+        *scratch = *buffer;
+      }
+    } else if (buffer != nullptr) {
       *scratch += *buffer;
     }
     if (++dspArrived < expected) return;

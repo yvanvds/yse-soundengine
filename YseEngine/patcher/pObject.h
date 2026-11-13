@@ -284,8 +284,10 @@ namespace YSE {
       // nested. So this is a control-thread annotation and nothing more — it is
       // read by `Connect`/`Disconnect` (to resolve a subpatcher façade to the
       // `.inlet` / `.outlet` object that carries the pin), by `DeleteObject`
-      // (to collect the containment subtree), and by `DumpJson` / `ParseJSON`.
-      // The audio thread never reads it, which is why it needs no
+      // (to collect the containment subtree), by `DumpJson` / `ParseJSON`, and
+      // by `BuildGraph`, which copies the enclosing subpatchers' mute words
+      // into the snapshot (issue #1137). The audio thread never reads it,
+      // which is why it needs no
       // synchronisation of its own beyond the patcher's mutex.
       //
       // Written only by `patcherImplementation::SetObjectContainer`, which
@@ -347,6 +349,10 @@ namespace YSE {
 
       virtual void ResetDSP();
       void CalculateIfReady(THREAD thread);
+      // What the render does instead of computing an object in a muted
+      // subpatcher (issue #1137): silence on every signal outlet, so what it
+      // feeds still runs and hears zeros. Audio thread; allocation-free.
+      void SendSilence(THREAD thread);
 
       // ─── Signal-to-control output (issue #1037) ─────────────────────────
       //

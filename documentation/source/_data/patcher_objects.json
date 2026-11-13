@@ -15893,6 +15893,24 @@
     "params": [],
     "requires_midi_device": false
   },
+  "~begin": {
+    "category": "ENCAPSULATION",
+    "description": "Outputs a constant signal of 0, to mark the start of a chain. Connected to a signal inlet it adds nothing. To switch a chain off, use ~mute on a subpatcher.",
+    "inlets": [],
+    "is_dsp": true,
+    "name": "~begin",
+    "outlets": [
+      {
+        "doc": "A constant 0.",
+        "index": 0,
+        "label": "out",
+        "range": "0",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [],
+    "requires_midi_device": false
+  },
   "~biquad": {
     "category": "FILTER",
     "description": "Two-pole, two-zero filter driven directly by five coefficients, y(n) = a0 x(n) + a1 x(n-1) + a2 x(n-2) - b1 y(n-1) - b2 y(n-2), each a number or a signal read per sample: any biquad design, or a ringing oscillator.",
@@ -19472,6 +19490,36 @@
     ],
     "requires_midi_device": false
   },
+  "~mute": {
+    "category": "ENCAPSULATION",
+    "description": "Switches signal processing in subpatchers off and on. Connect the outlet to any inlet of a subpatcher: 1 mutes the signal objects inside it, 0 unmutes them.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "A number: non-zero mutes, 0 unmutes. A list <mute> <nested>: with nested non-zero, the subpatchers nested inside are muted or unmuted too.",
+        "index": 0,
+        "label": "mute",
+        "range": "0 or 1"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~mute",
+    "outlets": [
+      {
+        "doc": "Connect to any inlet of a subpatcher to control it. Carries no messages: nothing arrives at the subpatcher's inlet.",
+        "index": 0,
+        "label": "to subpatcher",
+        "range": "",
+        "type": "ANY"
+      }
+    ],
+    "params": [],
+    "requires_midi_device": false
+  },
   "~noise": {
     "category": "OSC",
     "description": "White-noise generator. Sends a new block of random samples on every audio block.",
@@ -19751,6 +19799,34 @@
         "range": "any float, usually 1 to 10"
       }
     ],
+    "requires_midi_device": false
+  },
+  "~pass": {
+    "category": "ENCAPSULATION",
+    "description": "Passes a signal on unchanged, and outputs silence while the subpatcher it is in is muted by ~mute.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER"
+        ],
+        "doc": "The signal to pass on. Unconnected, it reads 0.",
+        "index": 0,
+        "label": "in",
+        "range": "-1.0 to 1.0"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~pass",
+    "outlets": [
+      {
+        "doc": "The input, or silence while the enclosing subpatcher is muted.",
+        "index": 0,
+        "label": "out",
+        "range": "-1.0 to 1.0",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [],
     "requires_midi_device": false
   },
   "~peakamp": {

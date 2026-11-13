@@ -82,6 +82,9 @@
 #include "genericObjects/gOutlet.h"
 #include "genericObjects/dInlet.h"
 #include "genericObjects/dOutlet.h"
+#include "genericObjects/pMute.h"
+#include "genericObjects/pPass.h"
+#include "genericObjects/pBegin.h"
 #include "genericObjects/gFunbuff.h"
 #include "genericObjects/gTable.h"
 #include "genericObjects/gMtr.h"
@@ -1057,6 +1060,10 @@ pRegistry::pRegistry() {
   Add(OBJ::G_OUTLET, gOutlet::Create);
   Add(OBJ::D_INLET, dInlet::Create);
   Add(OBJ::D_OUTLET, dOutlet::Create);
+  // Subpatch DSP enable (issue #1137).
+  Add(OBJ::D_MUTE, pMute::Create);
+  Add(OBJ::D_PASS, pPass::Create);
+  Add(OBJ::D_BEGIN, pBegin::Create);
 
   // A sparse function: x,y pairs kept sorted by x, with a floor lookup and
   // linear interpolation between the stored points — the store behind every

@@ -170,7 +170,9 @@ namespace YSE {
      *
      *  Containment is addressing, not storage: a nested object is still an
      *  ordinary object in this patcher's one flat graph, and this call
-     *  publishes nothing because it changes no edge and no pin. What it changes
+     *  changes no edge and no pin. It does publish a new graph, because the
+     *  render reads which subpatchers an object is in to mute it (``~mute``,
+     *  issue #1137). Otherwise, what it changes
      *  is what ``Connect``/``Disconnect`` mean when handed the subpatcher —
      *  inlet *N* of a subpatcher is the boundary object inside it whose index
      *  is *N*, a ``".inlet"`` for a message pin or a ``"~inlet"`` for a signal

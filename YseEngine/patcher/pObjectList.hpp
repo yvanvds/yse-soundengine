@@ -182,7 +182,7 @@ namespace YSE {
    *  - Debugging: ``G_PRINT``, ``G_DICT_PRINT``.
    *  - Initialisation: ``G_LOADBANG``, ``G_LOADMESS``.
    *  - Encapsulation: ``PATCHER``, ``G_INLET``, ``G_OUTLET``, ``D_INLET``,
-   *    ``D_OUTLET``.
+   *    ``D_OUTLET``, ``D_MUTE``, ``D_PASS``, ``D_BEGIN``.
    *  - Messaging: ``G_SEND``, ``G_RECEIVE``, ``G_FORWARD``, ``G_ROUTE``,
    *    ``G_ROUTEPASS``,
    *    ``G_SEL``, ``G_TRIGGER``, ``G_BANGBANG``, ``G_ONEBANG``, ``G_NEXT``,
@@ -244,6 +244,13 @@ namespace YSE {
     DEFOBJ(G_OUTLET, ".outlet");
     DEFOBJ(D_INLET, "~inlet");
     DEFOBJ(D_OUTLET, "~outlet");
+    // Subpatch DSP enable (issue #1137): ``~mute`` mutes the subpatchers its
+    // cords reach, ``~pass`` forwards its input (silence while muted, like
+    // every muted object) and ``~begin`` is a constant 0. See
+    // genericObjects/pMute.h.
+    DEFOBJ(D_MUTE, "~mute");
+    DEFOBJ(D_PASS, "~pass");
+    DEFOBJ(D_BEGIN, "~begin");
 
     DEFOBJ(D_DAC, "~dac");
     DEFOBJ(D_ADC, "~adc");

@@ -54,3 +54,34 @@ inlet, nothing comes out.
 
 The index and numbering rules are those of ``.inlet``, and the signal is
 passed on as by ``~inlet``.
+
+.. patcher-object:: ~mute
+
+Connect the outlet to any inlet of a subpatcher, by pin number. One
+``~mute`` can control several subpatchers.
+
+- A number: non-zero mutes the signal objects directly inside the
+  subpatcher, 0 unmutes them. Nested subpatchers keep running.
+- A list ``<mute> <nested>``: the same, and with ``<nested>`` non-zero the
+  signal objects in nested subpatchers too, at any depth. ``1 1`` mutes
+  everything inside, ``0 1`` unmutes everything inside. The two settings are
+  separate, so after ``1 1`` a plain ``0`` leaves the nested ones muted.
+
+A muted signal object does not compute, and its signal outlets carry silence,
+so the subpatcher outputs silence and whatever it feeds keeps running. A
+``~dac`` inside adds nothing. Messages and control objects inside keep
+working. Nothing is delivered down the cord: the boundary object behind the
+pin never sees the mute, and a cord to anything that is not a subpatcher's
+inlet does nothing. The mute is not saved. See :doc:`/patcher/subpatchers`.
+
+.. patcher-object:: ~pass
+
+Put it before a ``~outlet``. Unmuted, the input passes through without a
+copy. Inside a muted subpatcher it outputs silence, as every muted object
+does, so a muted subpatcher is already silent without it.
+
+.. patcher-object:: ~begin
+
+Connected to a signal inlet, it adds 0 and changes nothing. It does not
+switch anything off; to stop a part of a patch computing, put that part in a
+subpatcher and use ``~mute``.

@@ -11,6 +11,7 @@
 #include "genericObjects/dOutlet.h"
 #include "genericObjects/gInlet.h"
 #include "genericObjects/gOutlet.h"
+#include "genericObjects/gSubpatcher.h"
 #include "routing/dSend.h"
 #include "routing/dReceive.h"
 #include "pHandle.hpp"
@@ -468,7 +469,11 @@ void patcherImplementation::Calculate(YSE::THREAD thread) {
       {
         renderOrderScope order;
         for (const GraphState::renderStep& step : g->renderOrder) {
-          if (step.startPoint) {
+          // In a muted subpatcher (issue #1137): no computing, and silence
+          // on its signal outlets so what it feeds still runs.
+          if (g->Muted(step.muteBegin, step.muteEnd)) {
+            step.object->SendSilence(thread);
+          } else if (step.startPoint) {
             step.object->Calculate(thread);
           } else if (thread != YSE::T_GUI || !step.object->IsDSPObject()) {
             step.object->CalculateIfReady(thread);
@@ -506,6 +511,9 @@ void patcherImplementation::Calculate(YSE::THREAD thread) {
   if (g != nullptr && dspOn) {
     const unsigned int outs = static_cast<unsigned int>(output.size());
     for (unsigned int d = 0; d < g->dacs.size(); d++) {
+      // A ~dac in a muted subpatcher adds nothing (issue #1137), even one
+      // fed straight from outside it.
+      if (g->Muted(g->dacMutes[d].begin, g->dacMutes[d].end)) continue;
       pDac* dac = static_cast<pDac*>(g->dacs[d]);
       const unsigned int inlets = dac->NumRoutes();
       for (unsigned int i = 0; i < inlets; i++) {
@@ -687,6 +695,8 @@ void patcherImplementation::SetObjectContainer(YSE::pHandle* obj, YSE::pHandle* 
   }
   if (container == nullptr) {
     obj->ObjectUnderLock()->SetContainer(nullptr);
+    // The snapshot holds each object's enclosing mute words (issue #1137).
+    RebuildAndPublish();
     return;
   }
   if (objects.find(container) == objects.end()) {
@@ -705,6 +715,10 @@ void patcherImplementation::SetObjectContainer(YSE::pHandle* obj, YSE::pHandle* 
     return;
   }
   obj->ObjectUnderLock()->SetContainer(container->ObjectUnderLock());
+  // Containment used to be control-side only. The render now reads which
+  // subpatchers enclose each object from the snapshot, for muting (issue
+  // #1137), so a move publishes like any other structural edit.
+  RebuildAndPublish();
 }
 
 YSE::pHandle* patcherImplementation::GetObjectContainer(YSE::pHandle* obj) {
@@ -2233,6 +2247,7 @@ YSE::PATCHER::GraphState* patcherImplementation::BuildGraph() {
   g->inletLinkSources.assign(nextInletId_, nullptr);
   g->outletOwner.assign(nextOutletId_, nullptr);
   g->inletOwner.assign(nextInletId_, nullptr);
+  g->inletSubpatcher.assign(nextInletId_, nullptr);
 
   for (const auto& any : objects) {
     pObject* object = any.second;
@@ -2277,8 +2292,20 @@ YSE::PATCHER::GraphState* patcherImplementation::BuildGraph() {
         g->inletOwner[id] = in;
       }
     }
+    // A boundary inlet stands for its subpatcher's pin: what a ~mute cord
+    // ending on it mutes (issue #1137).
+    if (BoundaryIndexOf(object, BoundarySide::INLETS) >= 0 && IsSubpatcher(object->Container())) {
+      for (int i = 0; i < object->NumInputs(); i++) {
+        PATCHER::inlet* in = object->GetInlet(i);
+        const int id = in != nullptr ? in->GraphId() : -1;
+        if (id >= 0 && id < nextInletId_) {
+          g->inletSubpatcher[id] = static_cast<gSubpatcher*>(object->Container());
+        }
+      }
+    }
   }
   BuildRenderOrder(*g);
+  BuildMuteChains(*g);
   // Flush order (issue #1037): storage IDs are fixed for a given patch, the
   // handle addresses `objects` is keyed by are not. The check below fires on
   // any sort of pointers; this one compares IDs, never addresses.
@@ -2468,6 +2495,27 @@ void patcherImplementation::BuildRenderOrder(GraphState& g) {
   if (soft.empty()) return;
   g.renderOrder.clear();
   walk(soft, g.renderOrder);
+}
+
+void patcherImplementation::BuildMuteChains(GraphState& g) {
+  // Each render step and ~dac gets the mute words of the subpatchers around
+  // it, innermost first (issue #1137), so the render tests a few atomics
+  // instead of walking the control-side containment. Control thread, under
+  // mtx; a top-level object gets an empty slice and costs the render nothing.
+  const auto chain = [&g](const pObject* object, std::uint32_t& begin, std::uint32_t& end) {
+    begin = static_cast<std::uint32_t>(g.muteChain.size());
+    for (pObject* c = object->Container(); c != nullptr; c = c->Container()) {
+      if (IsSubpatcher(c)) g.muteChain.push_back(static_cast<gSubpatcher*>(c)->MuteWord());
+    }
+    end = static_cast<std::uint32_t>(g.muteChain.size());
+  };
+  for (GraphState::renderStep& step : g.renderOrder) {
+    chain(step.object, step.muteBegin, step.muteEnd);
+  }
+  g.dacMutes.resize(g.dacs.size());
+  for (std::size_t d = 0; d < g.dacs.size(); d++) {
+    chain(g.dacs[d], g.dacMutes[d].begin, g.dacMutes[d].end);
+  }
 }
 
 void patcherImplementation::RequestSignalBusSync() {

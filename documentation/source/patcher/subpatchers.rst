@@ -119,8 +119,8 @@ objects. That has some consequences:
 Crossing a boundary costs one pass-through object per boundary. A signal is
 passed on by pointer, without a copy. The patcher stores every object in one
 flat graph, whatever the nesting depth, so the audio thread's work does not
-grow with nesting depth. Nothing about subpatchers is read on the audio
-thread.
+grow with nesting depth. The only subpatcher state the audio thread reads is
+whether it is muted (see `Muting a subpatcher`_).
 
 Reading a subpatcher's shape
 ----------------------------
@@ -230,6 +230,48 @@ nested subpatchers and their contents. Every object in the group gets the
 same last chance to clean up that a single deleted object gets
 (:doc:`building`).
 
+Muting a subpatcher
+-------------------
+
+``~mute`` switches a subpatcher's signal processing off to save CPU, and on
+again. Connect its outlet to any inlet of the subpatcher, by pin number as
+for any other cord. One ``~mute`` can control as many subpatchers as it is
+connected to.
+
+- A number: non-zero mutes the signal objects directly inside the
+  subpatcher, 0 unmutes them. Nested subpatchers keep running.
+- A list ``<mute> <nested>``: the same, and with ``<nested>`` non-zero the
+  signal objects in its nested subpatchers too, at any depth. ``1 1`` mutes
+  everything inside and ``0 1`` unmutes everything inside. The two settings
+  are separate: after ``1 1``, a plain ``0`` unmutes the direct contents and
+  leaves the nested ones muted.
+
+A muted signal object does not compute, and its signal outlets carry
+silence, so the subpatcher's ``~outlet`` objects output silence rather than
+its last block, and whatever the subpatcher feeds outside keeps running. An
+oscillator inside resumes from where it stopped when it is unmuted. A
+``~dac`` inside a muted subpatcher adds nothing to the output. Messages,
+control objects and MIDI input inside keep working.
+
+Nothing travels down the ``~mute`` cord, so the boundary object behind that
+pin never sees the mute. A nested subpatcher can have a ``~mute`` of its own;
+the two do not undo each other.
+
+The mute is not saved: a loaded patch starts unmuted, and so does a
+subpatcher rebuilt by ``SetParams``.
+
+.. code-block:: cpp
+
+   YSE::pHandle* mute = patch.CreateObject("~mute");
+   patch.Connect(mute, 0, voice, 0);  // any inlet of the voice
+   mute->SetIntData(0, 1);            // the voice goes silent and stops computing
+   mute->SetIntData(0, 0);            // and plays again
+
+``~pass`` and ``~begin`` exist so patches that use them keep working.
+``~pass`` passes its input on and, inside a muted subpatcher, outputs
+silence like every other muted object. ``~begin`` outputs a constant 0. See
+:doc:`objects/subpatchers`.
+
 Editing a subpatcher while it plays
 -----------------------------------
 
@@ -237,7 +279,8 @@ An edit inside a subpatcher is an ordinary edit. ``CreateObject``,
 ``Connect``, ``Disconnect``, ``DeleteObject`` and ``SetParams`` on objects
 inside a subpatcher publish a new graph snapshot exactly as they do at the
 top level, and the rules in :doc:`building` apply unchanged.
-``SetContainer`` itself changes no cord, so it publishes nothing.
+``SetContainer`` changes no cord, but it publishes too, because the render
+needs to know which subpatcher an object is in to mute it (see below).
 
 Adding a boundary object is also an ordinary edit. Create a ``.inlet 2``
 inside a subpatcher and the subpatcher has an inlet 2 from then on. The
@@ -313,6 +356,6 @@ Where to go next
   are published.
 - :doc:`file_format`: how subpatchers are saved.
 - :doc:`objects/subpatchers`: the reference for ``patcher``, ``.inlet``,
-  ``.outlet``, ``~inlet`` and ``~outlet``.
+  ``.outlet``, ``~inlet``, ``~outlet``, ``~mute``, ``~pass`` and ``~begin``.
 - :doc:`host_io`: send/receive and the named bus, and how names are scoped.
 - :doc:`realtime`: how the flat graph reaches the audio thread.
