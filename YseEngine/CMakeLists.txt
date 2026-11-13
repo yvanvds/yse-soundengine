@@ -123,6 +123,7 @@ set(YSE_SRCS
   dsp/generators/zigzag.cpp
   dsp/generators/eventSequencer.cpp
   dsp/generators/clockFollower.cpp
+  dsp/generators/beatSpan.cpp
   dsp/operators/arithmetic.cpp
   dsp/operators/accumulator.cpp
   dsp/operators/delta.cpp
@@ -537,6 +538,7 @@ set(YSE_SRCS
   patcher/pRegistry.cpp
   patcher/io/fileScheduler.cpp
   patcher/time/clockBridge.cpp
+  patcher/time/signalClock.cpp
   patcher/time/gClocker.cpp
   patcher/time/gDelay.cpp
   patcher/time/gLine.cpp
@@ -1053,6 +1055,7 @@ set_source_files_properties(
   patcher/midi/midiPortScanner.cpp
   patcher/io/fileScheduler.cpp
   patcher/time/clockBridge.cpp
+  patcher/time/signalClock.cpp
   patcher/time/gClocker.cpp
   patcher/time/gDelay.cpp
   patcher/time/gLine.cpp

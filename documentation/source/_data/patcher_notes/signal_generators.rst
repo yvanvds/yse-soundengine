@@ -59,10 +59,41 @@ frequency runs the ramp from 1 down to 0.
 - ``phaseoffset <x>`` sets the phase the ramp starts at when the patch
   starts, and ``reset`` jumps back to it. A jump from the right inlet does not
   change ``phaseoffset``.
+- ``syncupdate 1`` holds a new frequency until the ramp next wraps to 0, so a
+  wavetable read from it changes pitch at the start of a cycle and never in
+  the middle of one. A ``bang`` takes the new frequency at once. A frequency
+  signal is not held.
+
+**Following a clock.** With ``transport`` naming a domain clock (one made by a
+``.transport``, a ``.setclock`` or the host), the speed can be an interval on
+that clock instead of a frequency: a note value such as ``4n`` (a quarter
+note, one beat), ``8nt`` or ``1nd``, or ``<n> ticks`` (480 a beat), sent to
+the left inlet or saved as ``periodbeats`` (in beats, so ``4n`` is 1 and
+``1n`` is 4). The ramp then speeds up and slows down with the clock's tempo
+and stands still while the clock is stopped. A plain number at the left inlet
+goes back to a frequency in Hz.
+
+- ``lock 1`` locks the phase to the clock: the ramp is at 0 on every beat
+  that is a whole number of intervals, so a ``1n`` ramp starts its cycle every
+  fourth beat, and every locked ramp on the same clock agrees. ``phaseoffset``
+  then shifts the ramp against the clock, and the right inlet and ``reset``
+  have nothing to change. Without ``lock`` the ramp only takes its speed from
+  the clock and keeps its own phase.
+- Without a clock of that name, or with ``transport`` empty, a ramp with an
+  interval holds where it is. A clock the host creates after the patch is
+  picked up within a fraction of a second. There is no default clock: name
+  one.
+- The arguments are ``frequency``, ``phaseoffset``, ``periodbeats``, ``lock``,
+  ``syncupdate`` and ``transport``. Changing them on a running object makes it
+  anew, so the ramp starts again from ``phaseoffset``.
 
 .. code-block:: text
 
    [~phasor 2 0.25]   ramps twice a second, starting a quarter of the way up
+
+   [.transport main] <- start
+   [~phasor 0 0 4 1 0 main] -> [~wave buf]   a bar-long wavetable sweep,
+                                              always on the clock's downbeat
 
 .. patcher-object:: ~saw
 
@@ -803,13 +834,28 @@ them lock to the nearest tick of the ramp.
   shifts these ticks by that much of a beat, to make up for the latency of
   the device that follows them. ``ppq`` sets the ticks per beat both ways,
   1-192: 12 makes the clock out half as fast, 48 twice as fast.
-- The arguments ``bpm``, ``offset``, ``midioffset``, ``ppq`` and ``rtport``
-  are saved with the patch (``~sync 100 0 0 24 -1``); the messages are not.
+- The arguments ``bpm``, ``offset``, ``midioffset``, ``ppq``, ``rtport`` and
+  ``transport`` are saved with the patch (``~sync 100 0 0 24 -1``); the
+  messages are not.
+
+**Following a domain clock.** With ``transport`` naming a domain clock (one
+made by a ``.transport``, a ``.setclock`` or the host), the ramp is that
+clock's beat: it rises once per beat of the clock, bends with its tempo and
+stands still while the clock is stopped. The tempo reported is the clock's,
+and the MIDI clock out follows it as ever, with 252 when the clock stops and
+251 when it moves again (a domain clock carries on from where it stopped, so
+it continues rather than starts). Taps, MIDI bytes, a click track, a tempo,
+``start`` and ``stop`` are ignored, since the clock decides all of them.
+Without a clock of that name the ramp holds and nothing is sent.
 
 .. code-block:: text
 
    [.rtin 0] -> [~sync] -> [~subdiv 2] -> [~techno]
                 eighth-note steps locked to an external sequencer's clock
+
+   [.transport main] <- start, stop, tempo 100
+   [~sync 120 0 0 24 -1 main] (right outlet) -> [.midiout 0]
+                send the patch's clock to a drum machine
 
    [.b] -> [~sync] -> [.route bpm] -> [.f]
            tap three times to set the tempo, and read it back

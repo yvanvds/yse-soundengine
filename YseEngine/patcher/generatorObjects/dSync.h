@@ -3,6 +3,7 @@
 #include <atomic>
 #include <string>
 #include "../pObject.h"
+#include "../time/signalClock.h"
 #include "../../dsp/generators/clockFollower.hpp"
 #include "../../utils/mpmcQueue.hpp"
 
@@ -28,11 +29,12 @@ namespace YSE {
      *  - Right outlet: the MIDI beat clock that follows the ramp, one int per
      *    byte, in order (for ``.midiout``).
      *  - Parameters: ``bpm``, ``offset``, ``midioffset``, ``ppq`` (Max's
-     *    ``sync~`` takes no arguments; these are YSE's) and ``rtport``, Max's
+     *    ``sync~`` takes no arguments; these are YSE's), ``rtport``, Max's
      *    attribute: a MIDI input port index whose real-time bytes the object
      *    reads itself, through ``MIDI::inHub`` as the ``.rtin`` family does,
-     *    or -1 for none. A port name and ``All`` are not taken: ``.midiinfo``
-     *    lists the indices. A later message is not saved.
+     *    or -1 for none (a port name and ``All`` are not taken: ``.midiinfo``
+     *    lists the indices), and ``transport`` (YSE's, issue #1278). A later
+     *    message is not saved.
      *
      *  Bangs, ints, floats and ``start``/``stop`` may arrive on any thread.
      *  They go through a lock-free queue, in order, and the class applies them
@@ -41,10 +43,13 @@ namespace YSE {
      *  the patcher after the block's traversal (issue #1037), right outlet
      *  first.
      *
-     *  Not ported: following the patcher's transport (a named domain clock).
-     *  ``sync~`` has no such mode, and a ramp locked to a domain clock is what
-     *  ``~phasor``'s ``lock``/``transport`` attributes are for, which still
-     *  need the clock bridge wired to signal objects (issue #1278).
+     *  **Transport mode** (issue #1278, not in Max's ``sync~``). With
+     *  ``transport`` naming a domain clock, the ramp follows that clock's beat
+     *  through ``signalClock`` and ``DSP::clockFollower``'s clock mode: the
+     *  tempo reported is the clock's, the MIDI clock out follows it, and the
+     *  clock stopping and moving again report 252 and 251. Taps, MIDI bytes,
+     *  a click track, a tempo and ``start``/``stop`` are then ignored. The
+     *  clock is bound in ``SetParent``; ``CALC()`` reads it wait-free.
      */
     PATCHER_CLASS(dSync, YSE::OBJ::D_SYNC)
     _DO_MESSAGES
@@ -72,6 +77,11 @@ namespace YSE {
       return subscription.load(std::memory_order_acquire);
     }
 
+    /** @brief Whether a ``transport`` clock name was bound. Test surface. */
+    bool ClockBound() const {
+      return clock.Bound();
+    }
+
     /** @brief Events the queue had no room for. Test surface. */
     unsigned int Dropped() const {
       return dropped.load(std::memory_order_relaxed);
@@ -89,12 +99,14 @@ namespace YSE {
     void Unsubscribe();
 
     DSP::clockFollower fn;
+    signalClock clock;
 
     aFlt bpm{DSP::clockFollower::DEFAULT_TEMPO};
     aFlt offset{0.f};
     aFlt midioffset{0.f};
     aInt ppq{static_cast<Int>(DSP::clockFollower::DEFAULT_PPQ)};
     aInt rtport{-1};
+    std::string transport;
 
     YSE::mpmcQueue<event> events{EVENT_CAPACITY};
     std::atomic<unsigned int> dropped{0};

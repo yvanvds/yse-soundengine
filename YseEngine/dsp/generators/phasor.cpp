@@ -37,17 +37,44 @@ namespace YSE {
       return ToSample(current);
     }
 
+    phasor& phasor::syncUpdate(bool on) {
+      syncOn = on;
+      return *this;
+    }
+
+    phasor& phasor::update() {
+      takeNow = true;
+      return *this;
+    }
+
+    Dbl phasor::Take(Dbl& held, Dbl wanted, bool& known) {
+      if (!syncOn || !known || takeNow) {
+        held = wanted;
+        known = true;
+      }
+      return held;
+    }
+
     buffer& phasor::operator()(Flt frequency, UInt length) {
       length = Clamp(length);
       // Within the capacity set in the constructor: no allocation.
       if (output.getLength() != length) output.resize(length);
 
-      const Dbl increment = static_cast<Dbl>(frequency) / static_cast<Dbl>(SAMPLERATE);
+      const Dbl wanted = static_cast<Dbl>(frequency);
+      const Dbl toIncrement = 1.0 / static_cast<Dbl>(SAMPLERATE);
+      Dbl increment = Take(heldFrequency, wanted, haveFrequency) * toIncrement;
+      takeNow = false;
       Flt* out = output.getPtr();
       Dbl p = current;
       for (UInt i = 0; i < length; ++i) {
         out[i] = ToSample(p);
-        p = Wrap(p + increment);
+        const Dbl next = p + increment;
+        p = Wrap(next);
+        // Sync update: a held frequency is taken as the ramp wraps.
+        if (syncOn && (next >= 1.0 || next < 0.0)) {
+          heldFrequency = wanted;
+          increment = wanted * toIncrement;
+        }
       }
       current = p;
       return output;
@@ -64,6 +91,53 @@ namespace YSE {
       for (UInt i = 0; i < length; ++i) {
         out[i] = ToSample(p);
         p = Wrap(p + static_cast<Dbl>(in[i]) * toIncrement);
+      }
+      current = p;
+      return output;
+    }
+
+    buffer& phasor::operator()(const beatSpan& clock, Dbl periodBeats, bool lock, Flt offset) {
+      const UInt length = Clamp(clock.length() > 0 ? clock.length() : STANDARD_BUFFERSIZE);
+      if (output.getLength() != length) output.resize(length);
+      Flt* out = output.getPtr();
+
+      const bool usable = clock.valid() && std::isfinite(periodBeats) && periodBeats > 0.0;
+      if (!usable) {
+        // No clock to follow, or no period: hold.
+        const Flt held = ToSample(current);
+        for (UInt i = 0; i < length; ++i)
+          out[i] = held;
+        takeNow = false;
+        return output;
+      }
+
+      if (lock) {
+        // The phase is the clock's position: nothing of the ramp's own is
+        // kept, so every locked ramp on one clock agrees. A new period is
+        // taken at once, since a locked ramp has no cycle of its own to finish.
+        heldPeriod = periodBeats;
+        havePeriod = true;
+        takeNow = false;
+        const Dbl shift = std::isfinite(offset) ? static_cast<Dbl>(offset) : 0.0;
+        const Dbl perBeat = 1.0 / periodBeats;
+        for (UInt i = 0; i < length; ++i)
+          out[i] = ToSample(Wrap(clock.at(i) * perBeat + shift));
+        current = Wrap(clock.end() * perBeat + shift);
+        return output;
+      }
+
+      // Unlocked: the ramp's own phase, moved by the beats the clock moves.
+      Dbl increment = clock.step() / Take(heldPeriod, periodBeats, havePeriod);
+      takeNow = false;
+      Dbl p = current;
+      for (UInt i = 0; i < length; ++i) {
+        out[i] = ToSample(p);
+        const Dbl next = p + increment;
+        p = Wrap(next);
+        if (syncOn && (next >= 1.0 || next < 0.0)) {
+          heldPeriod = periodBeats;
+          increment = clock.step() / periodBeats;
+        }
       }
       current = p;
       return output;

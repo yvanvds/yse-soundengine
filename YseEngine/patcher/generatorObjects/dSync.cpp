@@ -77,6 +77,7 @@ CONSTRUCT_DSP() {
   ADD_PARAM(midioffset);
   ADD_PARAM(ppq);
   ADD_PARAM(rtport);
+  ADD_PARAM(transport);
   // A live re-parse rebuilds the object, so a new rtport is subscribed by the
   // replacement's SetParent.
   REG_PARM_PARSE;
@@ -85,8 +86,8 @@ CONSTRUCT_DSP() {
   scratch.reserve(kExprValueTextMax + 8);
 
   ADD_DESCRIPTION("A ramp from 0 to 1 once per beat, at a tempo set by a number, by tapping, by "
-                  "MIDI beat clock or by a click track, with the tempo reported and a MIDI beat "
-                  "clock out that follows the ramp.");
+                  "MIDI beat clock, by a click track or by a domain clock, with the tempo "
+                  "reported and a MIDI beat clock out that follows the ramp.");
   ADD_CATEGORY(pCategory::OSC);
   INLET_DOC(0, "in",
             "A click track (a signal with a peak above 0.1 on every beat); a bang is a tap; an "
@@ -111,6 +112,11 @@ CONSTRUCT_DSP() {
             "A MIDI input port, counted from 0, whose clock bytes are read directly, as if from "
             ".rtin; -1 reads none.",
             "-1 to 7");
+  PARAM_DOC("transport", "",
+            "A domain clock to follow, by name (a .transport, a .setclock or the host's): the ramp "
+            "is its beat and the tempo its tempo, and taps, MIDI, clicks, tempos, start and stop "
+            "are ignored. Empty follows none.",
+            "");
 }
 
 dSync::~dSync() {
@@ -138,6 +144,9 @@ void dSync::Unsubscribe() {
 
 void dSync::SetParent(pObject* newParent) {
   pObject::SetParent(newParent);
+  // Control thread: the transport clock is bound here and only here (a live
+  // re-parse rebuilds the object), so CALC() only ever reads it.
+  clock.Bind(Clocks(), transport.c_str(), transport.size());
   // As the .rtin family does: re-take the subscription whenever the parent
   // changes, and hold none outside a patcher.
   Unsubscribe();
@@ -234,8 +243,11 @@ CALC() {
   }
 #endif
 
-  // Unconnected, the inlet has no click track (#1036).
-  DSP::buffer& out = inputs[0].IsConstant() ? fn() : fn(inputs[0].Signal(0.f));
+  // With a transport the clock is the beat (issue #1278), and the class
+  // ignores the events above. Unconnected, the inlet has no click track
+  // (#1036).
+  DSP::buffer& out = clock.Bound() ? fn(clock.Read(Clocks(), STANDARD_BUFFERSIZE))
+                                   : (inputs[0].IsConstant() ? fn() : fn(inputs[0].Signal(0.f)));
   outputs[0].SendBuffer(&out, thread);
 
   // Never Send* from CALC(): the patcher calls FlushArmedMessages after the

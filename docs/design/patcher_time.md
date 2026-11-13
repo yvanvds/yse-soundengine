@@ -79,6 +79,23 @@ and `outlet::Send*`'s send-depth ceiling
 ([#236](https://github.com/yvanvds/yse-soundengine/issues/236)) already bounds the
 outlet-into-own-inlet cycle a `bang` method makes drawable.
 
+**Signal objects on a clock.** [patcher/time/signalClock.h](../../YseEngine/patcher/time/signalClock.h)
+/ [.cpp](../../YseEngine/patcher/time/signalClock.cpp) is the bridge's per-block reader for
+signal objects (issue [#1278](https://github.com/yvanvds/yse-soundengine/issues/1278)): `~phasor`'s
+`periodbeats` / `lock` / `transport` and `~sync`'s `transport` read a clock every block rather than
+when a message asks. Binding happens in the owner's `SetParent`, on the control thread: the clock
+is named by a string parameter, and a string parameter makes a live re-parse a rebuild, so the name
+never changes under a rendering object. `CALC()` then reads `Beat` and `Tempo` (four acquire loads)
+and hands them to [DSP::beatSpan](../../YseEngine/dsp/generators/beatSpan.hpp), which settles the
+one question the bridge leaves open: which end of the block a reading is. `deviceManager` advances
+the domain clocks *before* it renders a block (`renderOneBlock`, and `renderOffline` in the same
+order), so the beat a renderer reads is the **end** of the block it is rendering, and the block
+starts where the previous reading ended. Interpolating straight between the two keeps a locked ramp
+continuous across blocks and exact at every boundary; a reading that does not continue the last one
+(the first, one after a lost clock, or one after blocks went by unrendered) starts a block's worth
+of the tempo back instead, so the ramp jumps once rather than racing through missed beats. A name
+with no clock gives no reading and the ramps hold, which is the bridge's answer for waits too.
+
 **Patcher timers.** [patcher/time/timerBridge.h](../../YseEngine/patcher/time/timerBridge.h) /
 [.cpp](../../YseEngine/patcher/time/timerBridge.cpp) is `.metro`'s side of `timerThread`, and it
 exists for the reason the file scheduler and the clock bridge above do (issue

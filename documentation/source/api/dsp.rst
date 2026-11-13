@@ -148,6 +148,9 @@ Generators
 .. doxygenfile:: dsp/generators/clockFollower.hpp
    :project: libYSE
 
+.. doxygenfile:: dsp/generators/beatSpan.hpp
+   :project: libYSE
+
 .. doxygenfile:: dsp/lfo.hpp
    :project: libYSE
 

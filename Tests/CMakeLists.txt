@@ -103,6 +103,7 @@ set(YSE_TEST_SOURCES
   dsp/test_curve_segments.cpp
   dsp/test_line_segments.cpp
   dsp/test_clock_follower.cpp
+  dsp/test_beat_span.cpp
   dsp/test_zigzag.cpp
   dsp/test_event_sequencer.cpp
   dsp/test_one_pole.cpp
@@ -385,6 +386,7 @@ set(YSE_TEST_SOURCES
   patcher/test_patcher_value.cpp
   patcher/test_message_scheduler.cpp
   patcher/test_patcher_clock_bridge.cpp
+  patcher/test_patcher_signal_clock.cpp
   patcher/test_patcher_transport.cpp
   patcher/test_patcher_setclock.cpp
   patcher/test_patcher_host_owned_clock.cpp
@@ -1595,6 +1597,7 @@ set_source_files_properties(
   patcher/test_patcher_value.cpp
   patcher/test_message_scheduler.cpp
   patcher/test_patcher_clock_bridge.cpp
+  patcher/test_patcher_signal_clock.cpp
   patcher/test_patcher_transport.cpp
   patcher/test_patcher_setclock.cpp
   patcher/test_patcher_host_owned_clock.cpp

@@ -20308,12 +20308,13 @@
         "accepts": [
           "BUFFER",
           "FLOAT",
-          "INT"
+          "INT",
+          "BANG"
         ],
-        "doc": "Frequency in Hz: a signal, or a number used while no signal is connected. Also takes 'reset' (jump to phaseoffset) and 'phaseoffset <0-1>'.",
+        "doc": "Frequency in Hz: a signal, or a number used while no signal is connected. A note value such as '4n' or '8nt', or '<n> ticks', sets an interval on the transport clock instead; a number sets it back to 0. Also takes 'reset' (jump to phaseoffset), 'phaseoffset <0-1>', 'lock <0/1>', 'syncupdate <0/1>' and bang (take a held frequency now).",
         "index": 0,
         "label": "freq",
-        "range": "any float"
+        "range": "any float, note value"
       },
       {
         "accepts": [
@@ -20346,9 +20347,33 @@
       },
       {
         "default": "0",
-        "doc": "The phase the ramp starts at, and returns to on 'reset'.",
+        "doc": "The phase the ramp starts at, and returns to on 'reset'. With lock on it shifts the ramp against the clock.",
         "name": "phaseoffset",
         "range": "0-1"
+      },
+      {
+        "default": "0",
+        "doc": "One cycle every this many beats of the transport clock (1 is a quarter note). 0 uses the frequency in Hz instead.",
+        "name": "periodbeats",
+        "range": "0+ beats"
+      },
+      {
+        "default": "0",
+        "doc": "1 locks the ramp to the transport clock's position, so it starts each cycle on the clock's grid; 0 only follows its tempo. Needs periodbeats above 0.",
+        "name": "lock",
+        "range": "0 or 1"
+      },
+      {
+        "default": "0",
+        "doc": "1 holds a new frequency or interval until the ramp wraps to 0, so a change never lands mid-cycle. Not for a frequency signal, nor while locked.",
+        "name": "syncupdate",
+        "range": "0 or 1"
+      },
+      {
+        "default": "",
+        "doc": "The domain clock an interval in beats follows, by name (a .transport, a .setclock or the host's). Empty follows none, and the ramp then holds.",
+        "name": "transport",
+        "range": ""
       }
     ],
     "requires_midi_device": false
@@ -22645,7 +22670,7 @@
   },
   "~sync": {
     "category": "OSC",
-    "description": "A ramp from 0 to 1 once per beat, at a tempo set by a number, by tapping, by MIDI beat clock or by a click track, with the tempo reported and a MIDI beat clock out that follows the ramp.",
+    "description": "A ramp from 0 to 1 once per beat, at a tempo set by a number, by tapping, by MIDI beat clock, by a click track or by a domain clock, with the tempo reported and a MIDI beat clock out that follows the ramp.",
     "inlets": [
       {
         "accepts": [
@@ -22715,6 +22740,12 @@
         "doc": "A MIDI input port, counted from 0, whose clock bytes are read directly, as if from .rtin; -1 reads none.",
         "name": "rtport",
         "range": "-1 to 7"
+      },
+      {
+        "default": "",
+        "doc": "A domain clock to follow, by name (a .transport, a .setclock or the host's): the ramp is its beat and the tempo its tempo, and taps, MIDI, clicks, tempos, start and stop are ignored. Empty follows none.",
+        "name": "transport",
+        "range": ""
       }
     ],
     "requires_midi_device": false

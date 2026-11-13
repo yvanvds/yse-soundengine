@@ -34,6 +34,7 @@ namespace YSE {
       if (!std::isnan(value)) adoptTempo(static_cast<Dbl>(value));
       phaseNow = 0.0;
       isRunning = true;
+      isFollowing = false;
       waitForTick = false;
       correctionLeft = 0;
       tapCount = 0;
@@ -50,7 +51,7 @@ namespace YSE {
     }
 
     clockFollower& clockFollower::tempo(Flt value) {
-      if (std::isnan(value)) return *this;
+      if (std::isnan(value) || isFollowing) return *this;
       openReport();
       adoptTempo(static_cast<Dbl>(value));
       return *this;
@@ -102,6 +103,7 @@ namespace YSE {
     }
 
     clockFollower& clockFollower::start() {
+      if (isFollowing) return *this;
       openReport();
       isRunning = true;
       waitForTick = false;
@@ -114,6 +116,7 @@ namespace YSE {
     }
 
     clockFollower& clockFollower::stop() {
+      if (isFollowing) return *this;
       openReport();
       isRunning = false;
       waitForTick = false;
@@ -127,6 +130,7 @@ namespace YSE {
     }
 
     clockFollower& clockFollower::tap() {
+      if (isFollowing) return *this;
       openReport();
       reportTaps++;
       beat(tapTimes, tapCount, now);
@@ -134,6 +138,7 @@ namespace YSE {
     }
 
     clockFollower& clockFollower::midi(Int status) {
+      if (isFollowing) return *this;
       switch (status) {
       case MIDI_TICK:
         openReport();
@@ -179,7 +184,77 @@ namespace YSE {
     }
 
     buffer& clockFollower::operator()(buffer& click) {
+      // A click track says nothing to an object that follows a clock.
+      if (isFollowing) return process(nullptr, Clamp(click.getLength()));
       return process(click.getPtr(), Clamp(click.getLength()));
+    }
+
+    buffer& clockFollower::operator()(const beatSpan& clock) {
+      openReport();
+      const UInt length = Clamp(clock.length() > 0 ? clock.length() : STANDARD_BUFFERSIZE);
+      if (output.getLength() != length) output.resize(length);
+      Flt* out = output.getPtr();
+      const Dbl dt = 1.0 / static_cast<Dbl>(SAMPLERATE);
+
+      if (!isFollowing) {
+        // Entering clock mode. Whatever the ramp was doing is the clock's now,
+        // and nothing is reported for the switch: the first tick goes out with
+        // the first sample, as after a start.
+        isFollowing = true;
+        waitForTick = false;
+        correctionLeft = 0;
+        tapCount = 0;
+        clickCount = 0;
+        tickFill = 0;
+        tickLocked = false;
+        tickTempo = false;
+        isRunning = clock.moving();
+        lastClockTick = -1;
+      }
+
+      if (!clock.valid()) {
+        // Nothing to follow: hold, and send no clock.
+        const Flt held = ToSample(Wrap(phaseNow + outputOffset));
+        for (UInt i = 0; i < length; ++i)
+          out[i] = held;
+        now += static_cast<Dbl>(length) * dt;
+        reportDone = true;
+        return output;
+      }
+
+      const bool moving = clock.moving();
+      if (moving) {
+        // The clock's tempo, by size: a clock running backwards still has
+        // one. Only while it moves, so a stopped clock keeps the last tempo.
+        adoptTempo(std::fabs(static_cast<Dbl>(clock.tempo())));
+        if (!isRunning) {
+          // A domain clock resumes where it stopped: continue, and the grid
+          // goes on from where the ramp stands, so resuming is not a tick.
+          isRunning = true;
+          phaseNow = Wrap(clock.start());
+          lastClockTick = clockIndex();
+          pushClockByte(MIDI_CONTINUE);
+        }
+      } else if (isRunning) {
+        isRunning = false;
+        pushClockByte(MIDI_STOP);
+      }
+
+      for (UInt i = 0; i < length; ++i) {
+        phaseNow = Wrap(clock.at(i));
+        out[i] = ToSample(Wrap(phaseNow + outputOffset));
+        if (isRunning) {
+          const Int index = clockIndex();
+          if (index != lastClockTick) {
+            pushClockByte(MIDI_TICK);
+            lastClockTick = index;
+          }
+        }
+      }
+      phaseNow = Wrap(clock.end());
+      now += static_cast<Dbl>(length) * dt;
+      reportDone = true;
+      return output;
     }
 
     // ─── private ──────────────────────────────────────────────────────────

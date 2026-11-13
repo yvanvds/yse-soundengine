@@ -15,6 +15,7 @@
 #include "../../headers/types.hpp"
 #include "../../headers/constants.hpp"
 #include "../buffer.hpp"
+#include "beatSpan.hpp"
 
 #include <cstdint>
 
@@ -68,6 +69,21 @@ namespace YSE {
      *  stop, from a call or from MIDI, reports 250, 251 or 252 first. The
      *  first tick after a start is reported with the ramp's first sample.
      *
+     *  **Following a beat clock** (issue #1278). ``operator()(const
+     *  beatSpan&)`` takes the beat from a domain clock instead: the ramp is
+     *  the clock's beat position, wrapped (a ramp on beat 3.25 is at 0.25),
+     *  so it rises once per beat of the clock, bends with its tempo and
+     *  stands still while it is stopped. The tempo is the clock's, held to
+     *  ``MIN_TEMPO``..``MAX_TEMPO`` (its size, for a clock running
+     *  backwards) and taken only while the clock moves, so a stopped clock
+     *  keeps the tempo it stopped at. The clock out follows the ramp as
+     *  ever; the clock stopping reports 252 and moving again 251 (continue:
+     *  a domain clock resumes where it stopped). Once a block has followed a
+     *  clock the object keeps doing so until ``reset()``: ``tap()``,
+     *  ``midi()``, a click track, ``tempo()``, ``start()`` and ``stop()``
+     *  are ignored, since the clock decides both the beat and the tempo. A
+     *  span without a reading holds the ramp and sends no clock.
+     *
      *  **Reports.** After ``operator()``, ``taps()``, ``clicks()``,
      *  ``ticks()``, ``tempoChanged()`` and the clock bytes cover that block
      *  and the calls made since the block before it.
@@ -119,9 +135,20 @@ namespace YSE {
       /** @brief One block of the ramp, reading @p click as a click track. */
       buffer& operator()(buffer& click);
 
+      /** @brief One block following a beat clock: the ramp is the clock's
+       *         beat, wrapped, for ``clock.length()`` samples (issue #1278). */
+      buffer& operator()(const beatSpan& clock);
+
+      /** @brief Whether the object follows a beat clock (it has been given a
+       *         ``beatSpan`` since the last ``reset()``). */
+      bool following() const {
+        return isFollowing;
+      }
+
       /** @brief Start over at @p bpm: the ramp at 0 and running, no taps,
-       *         clicks or ticks remembered, nothing to report. ``offset()``,
-       *         ``clockOffset()`` and ``ppq()`` are kept. */
+       *         clicks or ticks remembered, not following a clock, nothing to
+       *         report. ``offset()``, ``clockOffset()`` and ``ppq()`` are
+       *         kept. */
       clockFollower& reset(Flt bpm = DEFAULT_TEMPO);
 
       /** @brief Set the tempo in BPM, held to MIN_TEMPO..MAX_TEMPO. A NaN
@@ -201,6 +228,9 @@ namespace YSE {
       Dbl midiOffset = 0.0;
       UInt ticksPerBeat = DEFAULT_PPQ;
       bool isRunning = true;
+      // Following a beat clock (issue #1278): taps, ticks and the rest are
+      // ignored until reset().
+      bool isFollowing = false;
       // After a MIDI start: the ramp holds at 0 until the next tick.
       bool waitForTick = false;
 

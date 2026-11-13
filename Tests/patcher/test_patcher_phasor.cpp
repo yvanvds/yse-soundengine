@@ -14,6 +14,7 @@
 #include "patcher/generatorObjects/dPhasor.h"
 #include "headers/constants.hpp"
 #include "support/alloc_probe.hpp"
+#include "support/audio_helpers.hpp"
 #include "sinks.hpp"
 
 using TestHelpers::BufferSink;
@@ -125,6 +126,39 @@ TEST_SUITE("patcher") {
     CHECK(ramp->GetConnections(0) == 1);
   }
 
+  TEST_CASE("phasor: syncupdate holds a new frequency until the wrap, a bang takes it now; an "
+            "interval without a clock holds (#1278)") {
+    TestHelpers::ScopedSampleRate rate(48000);
+    dPhasor ramp;
+    BufferSink sink;
+    Wire(ramp, sink);
+    // 375 Hz is 1/128 of a cycle a sample at 48 kHz, 750 Hz 1/64: exact.
+    ramp.SetParams("375 0.5 0 0 1"); // frequency, phaseoffset, periodbeats, lock, syncupdate
+    ramp.Calculate(YSE::T_DSP);
+    REQUIRE(sink.received != nullptr);
+    CHECK(sink.received->getPtr()[64] == 0.f); // wraps half way, ends at 0.5
+
+    ramp.GetInlet(0)->SetFloat(750.f, YSE::T_GUI);
+    ramp.Calculate(YSE::T_DSP);
+    CHECK(sink.received->getPtr()[1] - sink.received->getPtr()[0] ==
+          doctest::Approx(1.f / 128.f)); // still 375 Hz
+    CHECK(sink.received->getPtr()[65] == doctest::Approx(1.f / 64.f)); // 750 from the wrap
+
+    ramp.GetInlet(0)->SetFloat(375.f, YSE::T_GUI);
+    ramp.GetInlet(0)->SetBang(YSE::T_GUI); // take it now
+    ramp.Calculate(YSE::T_DSP);
+    CHECK(sink.received->getPtr()[1] - sink.received->getPtr()[0] == doctest::Approx(1.f / 128.f));
+
+    // A note value with no transport: nothing to follow, so the ramp holds.
+    ramp.GetInlet(0)->SetMessage("4n", YSE::T_GUI);
+    ramp.Calculate(YSE::T_DSP);
+    CHECK(sink.received->getPtr()[0] == sink.received->getPtr()[YSE::STANDARD_BUFFERSIZE - 1]);
+    // A number is Hz again.
+    ramp.GetInlet(0)->SetFloat(375.f, YSE::T_GUI);
+    ramp.Calculate(YSE::T_DSP);
+    CHECK(sink.received->getPtr()[1] - sink.received->getPtr()[0] == doctest::Approx(1.f / 128.f));
+  }
+
   TEST_CASE("phasor: messages and blocks on the audio thread allocate nothing (#1045)") {
     dPhasor ramp;
     BufferSink sink;
@@ -135,6 +169,11 @@ TEST_SUITE("patcher") {
       ramp.GetInlet(0)->SetFloat(440.f, YSE::T_DSP);
       ramp.GetInlet(1)->SetFloat(0.5f, YSE::T_DSP);
       ramp.GetInlet(0)->SetMessage("reset", YSE::T_DSP);
+      ramp.GetInlet(0)->SetMessage("8nt", YSE::T_DSP);
+      ramp.GetInlet(0)->SetMessage("960 ticks", YSE::T_DSP);
+      ramp.GetInlet(0)->SetMessage("lock 1", YSE::T_DSP);
+      ramp.GetInlet(0)->SetMessage("syncupdate 1", YSE::T_DSP);
+      ramp.GetInlet(0)->SetBang(YSE::T_DSP);
       ramp.Calculate(YSE::T_DSP);
       CHECK(TestHelpers::g_alloc_count.load() == 0);
     }

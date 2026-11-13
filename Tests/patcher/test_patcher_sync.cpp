@@ -165,7 +165,7 @@ TEST_SUITE("patcher") {
     REQUIRE(o != nullptr);
     CHECK(o->GetCategory() == YSE::PATCHER::pCategory::OSC);
     CHECK(o->IsDSPObject());
-    CHECK(o->GetParamCount() == 5);
+    CHECK(o->GetParamCount() == 6); // + transport (#1278)
   }
 
   TEST_CASE("~sync: the ramp is DSP::clockFollower's; tempo and transport reports go out right "
