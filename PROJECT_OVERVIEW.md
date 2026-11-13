@@ -318,7 +318,7 @@ class dspSourceObject {    // audio generator (replaces file)
 
 | Category | Modules |
 |----------|---------|
-| Oscillators | sine, cosine, saw, noise, VCF, wavetable |
+| Oscillators | sine, cosine, saw, noise, VCF, wavetable; `dsp/generators/clockFollower` (a 0..1 beat ramp at a tempo set by number, taps, a click track or MIDI beat clock — least-squares tick tempo, phase locked by absorbing the error over the next tick or beat — with a MIDI clock out; `~sync`, #1131, whose `rtport` drains a `MIDI::inHub` subscription in `CALC()` like the `.rtin` family) |
 | Filters | lowPass, highPass, bandPass, biQuad, sampleHold, sweep, phaser, ladderFilter (Moog-style ZDF ladder), raw filters |
 | Envelopes | envelope, ADSRenvelope, ramp; `dsp/generators/lineSegments` (sample-accurate straight segment lists with stop/pause/resume, a busy signal and a finished flag over preallocated storage; `~line`, #1042) and `curveSegments` (`~curve`) |
 | Modulators | LFO, delay, basicDelay, highpassDelay, lowpassDelay |

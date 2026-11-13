@@ -145,6 +145,9 @@ Generators
 .. doxygenfile:: dsp/generators/eventSequencer.hpp
    :project: libYSE
 
+.. doxygenfile:: dsp/generators/clockFollower.hpp
+   :project: libYSE
+
 .. doxygenfile:: dsp/lfo.hpp
    :project: libYSE
 

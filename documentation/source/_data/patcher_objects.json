@@ -22643,6 +22643,82 @@
     ],
     "requires_midi_device": false
   },
+  "~sync": {
+    "category": "OSC",
+    "description": "A ramp from 0 to 1 once per beat, at a tempo set by a number, by tapping, by MIDI beat clock or by a click track, with the tempo reported and a MIDI beat clock out that follows the ramp.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT",
+          "BANG"
+        ],
+        "doc": "A click track (a signal with a peak above 0.1 on every beat); a bang is a tap; an int is a MIDI byte (248 tick, 250 start, 251 continue, 252 stop); a float sets the tempo. Takes 'bpm <x>', 'offset <0-1>', 'midioffset <0-1>', 'ppq <n>', 'start' and 'stop' (not saved).",
+        "index": 0,
+        "label": "in",
+        "range": "signal, bang, 248-252, BPM"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~sync",
+    "outlets": [
+      {
+        "doc": "Rises from 0 to 1 once per beat.",
+        "index": 0,
+        "label": "ramp",
+        "range": "0-1",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "After a block: 'midi', 'click' and 'tap' when one or more of each arrived, then 'bpm <x>' when the tempo changed.",
+        "index": 1,
+        "label": "report",
+        "range": "midi, click, tap, bpm <x>",
+        "type": "ANY"
+      },
+      {
+        "doc": "MIDI beat clock that follows the ramp, one byte at a time: 248 ppq times a beat while running, 250 on a start, 251 on a continue, 252 on a stop.",
+        "index": 2,
+        "label": "clock",
+        "range": "248-252",
+        "type": "INT"
+      }
+    ],
+    "params": [
+      {
+        "default": "120",
+        "doc": "The tempo at the start, in beats per minute.",
+        "name": "bpm",
+        "range": "1 to 1000"
+      },
+      {
+        "default": "0",
+        "doc": "Shifts the ramp by this much of a beat.",
+        "name": "offset",
+        "range": "0-1"
+      },
+      {
+        "default": "0",
+        "doc": "Shifts the MIDI clock out by this much of a beat.",
+        "name": "midioffset",
+        "range": "0-1"
+      },
+      {
+        "default": "24",
+        "doc": "MIDI clock ticks per beat, in and out.",
+        "name": "ppq",
+        "range": "1 to 192"
+      },
+      {
+        "default": "-1",
+        "doc": "A MIDI input port, counted from 0, whose clock bytes are read directly, as if from .rtin; -1 reads none.",
+        "name": "rtport",
+        "range": "-1 to 7"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~table": {
     "category": "SAMPLING",
     "description": "Reads a named sample buffer as a table of values at signal rate: looked up at an index, stepped through on triggers, or drawn from at random with each entry's value as its weight.",

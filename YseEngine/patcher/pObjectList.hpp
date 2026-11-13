@@ -33,7 +33,8 @@ namespace YSE {
    * gate- or number-triggered ADSR envelope), ``D_CURVE`` (curved ramp segments
    * played back to back), ``D_ZIGZAG`` (an editable breakpoint function played
    * at any speed), ``D_SEQ`` (events stored at phase positions and sent when
-   * a 0..1 ramp crosses them).
+   * a 0..1 ramp crosses them), ``D_SYNC`` (a 0..1 ramp once per beat of a
+   * tempo, tap tempo, MIDI beat clock or a click track).
    *  - DSP analysis: ``D_SNAPSHOT``, ``D_WHERE`` (elapsed and remaining time
    *    of a 0..1 ramp's cycle), ``D_WHAT`` (an impulse each time a 0..1 ramp
    *    passes one of a list of values), ``D_STEPCOUNTER`` (the jumps of a
@@ -302,6 +303,7 @@ namespace YSE {
     DEFOBJ(D_CURVE, "~curve");
     DEFOBJ(D_ZIGZAG, "~zigzag");
     DEFOBJ(D_SEQ, "~seq");
+    DEFOBJ(D_SYNC, "~sync");
 
     DEFOBJ(D_SNAPSHOT, "~snapshot");
     DEFOBJ(D_WHERE, "~where");

@@ -754,3 +754,62 @@ speed, looped, and edited while it plays.
    [.m 0 0 1 20 0.2 300] -> [~zigzag 0 1] -> [~*] <- [~saw 110]
                             a looping attack and decay; [.m append 0 400]
                             stretches it while it plays
+
+.. patcher-object:: ~sync
+
+The output rises from 0 to 1 once per beat (a quarter note) and wraps, like a
+``~phasor`` whose frequency is a tempo. The tempo comes from whichever source
+spoke last:
+
+- **A number.** A float, or ``bpm <x>``, sets it in beats per minute, held to
+  1-1000. An int is not a tempo (see below), so send ``bpm 100`` rather than a
+  plain ``100`` from a message box.
+- **Tapping.** Each ``bang`` is a beat. Three taps whose two gaps agree within
+  20 % set the tempo from their mean gap, and every further tap that agrees
+  with the one before updates it. A gap longer than 2 seconds or shorter than
+  a quarter of a second (outside 30-240 BPM) starts the count again.
+- **A click track.** A signal at the inlet is read the same way, to the
+  sample: a click is the signal rising to 0.1 or more (either polarity) after
+  it was below, at least an eighth of a second after the click before.
+- **MIDI beat clock.** An int is a MIDI byte, so ``.rtin`` connects straight
+  in. 248 is a clock tick, ``ppq`` of them a beat (24 by default). The tempo
+  is read from the last two beats of ticks, first after a sixteenth of a
+  beat, and then follows the clock, ignoring changes under 0.1 % so the
+  ramp does not wobble with the timing of the ticks. 250 (start) puts the ramp
+  at 0 and holds it there until the next tick, which is the first beat; 251
+  (continue) and 252 (stop) resume and halt it. Ticks that stop for more than
+  2 seconds are forgotten, so a new clock is read on its own. Any other
+  number is ignored.
+- **A MIDI port.** With ``rtport`` set to a MIDI input port (counted from 0;
+  ``.midiinfo`` lists them) the object reads that port's clock bytes itself,
+  as if from a ``.rtin``. -1, the default, reads none.
+
+Taps, clicks and ticks also say where the beat is. When the ramp is near it
+(within a quarter of a beat for a tap or a click, a quarter of a tick for
+MIDI) it speeds up or slows down slightly until it is on it again, so the
+output never jumps; further off, it jumps there. Ticks without a 250 before
+them lock to the nearest tick of the ramp.
+
+- ``start`` restarts the ramp from 0, ``stop`` holds it where it is. It runs
+  from the moment the object is made. While stopped, taps, clicks and ticks
+  still set the tempo.
+- ``offset <0-1>`` shifts the output by that much of a beat.
+- The middle outlet reports, after each block: ``midi``, ``click`` and ``tap``
+  when one or more of each arrived, then ``bpm <x>`` when the tempo changed.
+  Send it into ``.route bpm`` for the number.
+- The right outlet is a MIDI beat clock that follows the ramp, one byte at a
+  time for a ``.midiout``: 248 ``ppq`` times a beat while running, and 250,
+  251 or 252 when the ramp starts, continues or stops. ``midioffset <0-1>``
+  shifts these ticks by that much of a beat, to make up for the latency of
+  the device that follows them. ``ppq`` sets the ticks per beat both ways,
+  1-192: 12 makes the clock out half as fast, 48 twice as fast.
+- The arguments ``bpm``, ``offset``, ``midioffset``, ``ppq`` and ``rtport``
+  are saved with the patch (``~sync 100 0 0 24 -1``); the messages are not.
+
+.. code-block:: text
+
+   [.rtin 0] -> [~sync] -> [~subdiv 2] -> [~techno]
+                eighth-note steps locked to an external sequencer's clock
+
+   [.b] -> [~sync] -> [.route bpm] -> [.f]
+           tap three times to set the tempo, and read it back
