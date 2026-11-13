@@ -175,6 +175,7 @@
 #include "sampling/dPoke.h"
 #include "sampling/dIndex.h"
 #include "sampling/dTable.h"
+#include "sampling/dLookup.h"
 #include "sampling/dRecord.h"
 #include "sampling/dPlay.h"
 #include "sampling/dGroove.h"
@@ -488,6 +489,7 @@ pRegistry::pRegistry() {
   Add(OBJ::D_POKE, dPoke::Create);
   Add(OBJ::D_INDEX, dIndex::Create);
   Add(OBJ::D_TABLE, dTable::Create);
+  Add(OBJ::D_LOOKUP, dLookup::Create);
   Add(OBJ::D_RECORD, dRecord::Create);
   Add(OBJ::D_PLAY, dPlay::Create);
   Add(OBJ::D_GROOVE, dGroove::Create);

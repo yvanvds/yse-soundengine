@@ -18439,6 +18439,83 @@
     ],
     "requires_midi_device": false
   },
+  "~lookup": {
+    "category": "SAMPLING",
+    "description": "Uses part of a named sample buffer as a transfer function: a signal from -1 to 1 reads the table from its first entry to its last, so a curve drawn into the buffer shapes the signal (waveshaping).",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The signal looked up, -1 to 1, or a number used while no signal is connected. Beyond -1 or 1 outputs 0. 'chan <n>', 'offset <n>' and 'size <n>' change the channel and the table; 'set <name>' switches to another buffer from a later block (none of them saved with the patch).",
+        "index": 0,
+        "label": "input",
+        "range": "-1 to 1"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The first frame of the table, the one -1 reads: a number, or a signal read at the first sample of each block. A number is not saved with the patch.",
+        "index": 1,
+        "label": "offset",
+        "range": "0 or higher"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The frame the table ends before, counted from the start of the buffer: a number, or a signal read at the first sample of each block. A number is not saved with the patch.",
+        "index": 2,
+        "label": "size",
+        "range": "0 or higher"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~lookup",
+    "outlets": [
+      {
+        "doc": "The table's value at each input, a straight line between two entries. Silence without a buffer, or when the table has no entries.",
+        "index": 0,
+        "label": "out",
+        "range": "any float",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The buffer used as the table. A set message does not change what is saved.",
+        "name": "name",
+        "range": "buffer name"
+      },
+      {
+        "default": "0",
+        "doc": "The first frame of the table, the one -1 reads.",
+        "name": "offset",
+        "range": "0 or higher"
+      },
+      {
+        "default": "512",
+        "doc": "The frame the table ends before, counted from the start of the buffer: the table holds size minus offset entries. Past the end of the buffer it stops at the last frame.",
+        "name": "size",
+        "range": "0 or higher"
+      },
+      {
+        "default": "1",
+        "doc": "The buffer channel read, from 1.",
+        "name": "chan",
+        "range": "1 or higher"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~lores": {
     "category": "FILTER",
     "description": "Two-pole resonant lowpass filter, 12 dB per octave, with a cutoff in Hz and a resonance from 0 to 1: the classic synth filter, from a flat roll-off to a ringing peak at the cutoff.",

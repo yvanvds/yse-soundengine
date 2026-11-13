@@ -149,6 +149,7 @@
 #include "dsp/sampling/sampleBuffer.hpp"
 #include "dsp/sampling/sampleAccess.hpp"
 #include "dsp/sampling/tableLookup.hpp"
+#include "dsp/sampling/transferLookup.hpp"
 #include "dsp/sampling/sampleRegion.hpp"
 #include "dsp/sampling/bufferRecorder.hpp"
 #include "dsp/sampling/loopCrossfade.hpp"

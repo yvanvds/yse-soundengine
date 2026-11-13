@@ -240,6 +240,44 @@ the background and read from a later block on; ``set`` alone reads
 silence. Messages are not saved with the patch: a reloaded ``~table`` reads
 the buffer and uses the settings of its arguments.
 
+.. patcher-object:: ~lookup
+
+Uses part of the buffer of its name as a transfer function: a signal from
+-1 to 1 reads the table from its first entry to its last, and the value
+found there comes out. Draw a curve into the buffer and every signal sent
+through is bent by it, which is waveshaping distortion. A straight line from
+-1 to 1 lets the signal through unchanged; a curve that flattens towards the
+ends softens the peaks; a squaring curve doubles a sine's pitch.
+
+.. code-block:: text
+
+   [~cycle 220]
+    |
+   [~lookup curve]   the sine, bent by the curve drawn into curve
+
+The arguments are ``name [offset] [size] [chan]``. The table starts at
+frame ``offset`` (default 0), which -1 reads, and ends before frame
+``size`` (default 512), counted from the start of the buffer, so it holds
+``size - offset`` entries: a larger offset makes the table shorter. A size
+past the end of the buffer stops at its last frame, so a buffer shorter
+than 512 samples is used whole. ``chan`` is the buffer channel, from 1.
+
+- Left inlet: the signal looked up, or a number used while no signal is
+  connected. 0 reads the middle of the table, and a position between two
+  entries reads the straight line between them. Beyond -1 or 1 the output
+  is 0, so keep the input in range (a ``~clip -1 1`` before it, for
+  instance).
+- Middle inlet: the offset. Right inlet: the size. Both take a number, or a
+  signal read at the first sample of each block.
+
+``chan <n>``, ``offset <n>`` and ``size <n>`` in the left inlet change the
+channel and the table while the patch runs. ``set <name>`` switches to
+another buffer, looked up in the background and read from a later block on;
+``set`` alone reads silence, as does a table without entries. Changes to the
+buffer, from a ``~buffer`` message, a ``~poke`` or the host, are heard from
+the next block. Messages and numbers are not saved with the patch: a
+reloaded ``~lookup`` uses its arguments.
+
 .. patcher-object:: ~record
 
 Records signals into the buffer of its name. The arguments, all after the

@@ -155,6 +155,7 @@ set(YSE_SRCS
   dsp/sampling/sampleBuffer.cpp
   dsp/sampling/sampleAccess.cpp
   dsp/sampling/tableLookup.cpp
+  dsp/sampling/transferLookup.cpp
   dsp/sampling/bufferRecorder.cpp
   dsp/sampling/playerOutputs.cpp
   dsp/sampling/bufferPlayer.cpp
@@ -232,6 +233,7 @@ set(YSE_SRCS
   patcher/sampling/dPoke.cpp
   patcher/sampling/dIndex.cpp
   patcher/sampling/dTable.cpp
+  patcher/sampling/dLookup.cpp
   patcher/sampling/dRecord.cpp
   patcher/sampling/dPlay.cpp
   patcher/sampling/dGroove.cpp
@@ -731,6 +733,7 @@ set_source_files_properties(
   patcher/sampling/dPoke.cpp
   patcher/sampling/dIndex.cpp
   patcher/sampling/dTable.cpp
+  patcher/sampling/dLookup.cpp
   patcher/sampling/dRecord.cpp
   patcher/sampling/dPlay.cpp
   patcher/sampling/dGroove.cpp

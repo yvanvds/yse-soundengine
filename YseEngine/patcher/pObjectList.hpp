@@ -54,6 +54,8 @@ namespace YSE {
    *    signal written at signal-rate indexes), ``D_INDEX`` (a buffer read
    *    at signal-rate indexes, without interpolation), ``D_TABLE`` (a
    *    buffer read as a table of values: lookup, stepping, random draws),
+   *    ``D_LOOKUP`` (a buffer used as a transfer function: -1 to 1 in, the
+   *    table's value out, for waveshaping),
    *    ``D_RECORD`` (signals recorded into a buffer, once or in a loop),
    *    ``D_PLAY`` (a buffer played from a start to an end point, or at
    *    signal-rate positions), ``D_GROOVE`` (a buffer played at a
@@ -312,6 +314,7 @@ namespace YSE {
     DEFOBJ(D_POKE, "~poke");
     DEFOBJ(D_INDEX, "~index");
     DEFOBJ(D_TABLE, "~table");
+    DEFOBJ(D_LOOKUP, "~lookup");
     DEFOBJ(D_RECORD, "~record");
     DEFOBJ(D_PLAY, "~play");
     DEFOBJ(D_GROOVE, "~groove");
