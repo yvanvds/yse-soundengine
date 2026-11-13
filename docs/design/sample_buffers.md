@@ -287,7 +287,9 @@ its reads the buffer, so its reader belongs to the audio thread alone. `~table` 
 messages that need the table (a number, `bang`, `goto`, `next`, `prev`) are queued as commands
 and applied after the take, so they too stay on the audio thread, and Max's `name` attribute
 message is a second spelling of `set`. `~lookup` (#1147) takes the same way as `~index`: its
-numbers and messages only store atomics that `CALC()` hands to `DSP::transferLookup`. `~cycle` keeps its own copy: its record also carries an offset and a size that
+numbers and messages only store atomics that `CALC()` hands to `DSP::transferLookup`. `~wave` and
+`~2d.wave` (#1146) take the same way and hand theirs to `DSP::waveReader`; their `set` also
+stores the region after the name at once. `~cycle` keeps its own copy: its record also carries an offset and a size that
 are merged across superseded requests, which the generic mailbox does not have.
 
 A rebind is not saved: `DumpJSON` writes the creation argument, as for `~cycle`.

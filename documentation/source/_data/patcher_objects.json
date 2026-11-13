@@ -14947,6 +14947,101 @@
     ],
     "requires_midi_device": false
   },
+  "~2d.wave": {
+    "category": "SAMPLING",
+    "description": "Reads a region of a named sample buffer cut into rows, each one cycle of a waveform: one phase from 0 to 1 scans a row, a second picks the row and crossfades between two, so a slow ramp morphs from the first cycle to the last (a two-dimensional wavetable).",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "The phase within a row, 0 to 1: a signal, or a number used while no signal is connected. The region is one cycle: the phase wraps, so 1 reads where 0 does. A list of two numbers sets the start and end in milliseconds. Also takes 'rows <n>' and 'set <name> [start] [end]' (another buffer from a later block, and its region or the whole buffer). None of them is saved.",
+        "index": 0,
+        "label": "phase",
+        "range": "0 to 1"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Which row plays, 0 the first and 1 the last; between two rows both are crossfaded. A signal, or a number used while no signal is connected. Below 0 is 0, above 1 is 1.",
+        "index": 1,
+        "label": "row",
+        "range": "0 to 1"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The start of the region, in milliseconds into the buffer. A connected signal sets it once per block, from the block's first sample.",
+        "index": 2,
+        "label": "start",
+        "range": "0 or higher"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The end of the region, in milliseconds into the buffer; 0 is its end. A connected signal sets it once per block, from the block's first sample.",
+        "index": 3,
+        "label": "end",
+        "range": "0 or higher"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~2d.wave",
+    "outlets": [
+      {
+        "doc": "Buffer channel 1 read at the phase, in the row the row phase picks. Silence without a region, and for a channel the buffer lacks.",
+        "index": 0,
+        "label": "out",
+        "range": "any float",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The buffer read. A set message does not change what is saved.",
+        "name": "name",
+        "range": "buffer name"
+      },
+      {
+        "default": "0",
+        "doc": "The start of the region, in milliseconds into the buffer.",
+        "name": "start",
+        "range": "0 or higher"
+      },
+      {
+        "default": "0",
+        "doc": "The end of the region, in milliseconds into the buffer; 0 is its end.",
+        "name": "end",
+        "range": "0 or higher"
+      },
+      {
+        "default": "1",
+        "doc": "The number of outlets, each reading the buffer channel of its number. Buffer channels past the last outlet are not read.",
+        "name": "channels",
+        "range": "1 to 64"
+      },
+      {
+        "default": "1",
+        "doc": "The number of rows the region is cut into, of equal length; 0 and 1 are one row.",
+        "name": "rows",
+        "range": "0 or higher"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~<": {
     "category": "MATH",
     "description": "Outputs 1 where the left signal is less than the right one, otherwise 0. Turns a signal into a gate below a threshold.",
@@ -22998,6 +23093,102 @@
         "doc": "The frame size: indexes 0 to size - 1 are used. Also the largest size the 'size' message can set. Changing it rebuilds the object.",
         "name": "size",
         "range": "1-65536"
+      }
+    ],
+    "requires_midi_device": false
+  },
+  "~wave": {
+    "category": "SAMPLING",
+    "description": "Reads a region of a named sample buffer as one cycle of a waveform: a phase from 0 to 1, such as a ~phasor, scans it from start to end, so any sample becomes a wavetable oscillator.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "The phase, 0 to 1: a signal, or a number used while no signal is connected. The region is one cycle: the phase wraps, so 1 reads where 0 does. A list of two numbers sets the start and end in milliseconds. Also takes 'interp <0-6>', 'interp_bias <f>', 'interp_tension <f>' and 'set <name> [start] [end]' (another buffer from a later block, and its region or the whole buffer). None of them is saved.",
+        "index": 0,
+        "label": "phase",
+        "range": "0 to 1"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The start of the region, in milliseconds into the buffer. A connected signal sets it once per block, from the block's first sample.",
+        "index": 1,
+        "label": "start",
+        "range": "0 or higher"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The end of the region, in milliseconds into the buffer; 0 is its end. A connected signal sets it once per block, from the block's first sample.",
+        "index": 2,
+        "label": "end",
+        "range": "0 or higher"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~wave",
+    "outlets": [
+      {
+        "doc": "Buffer channel 1 read at the phase. Silence without a region, and for a channel the buffer lacks.",
+        "index": 0,
+        "label": "out",
+        "range": "any float",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The buffer read. A set message does not change what is saved.",
+        "name": "name",
+        "range": "buffer name"
+      },
+      {
+        "default": "0",
+        "doc": "The start of the region, in milliseconds into the buffer.",
+        "name": "start",
+        "range": "0 or higher"
+      },
+      {
+        "default": "0",
+        "doc": "The end of the region, in milliseconds into the buffer; 0 is its end.",
+        "name": "end",
+        "range": "0 or higher"
+      },
+      {
+        "default": "1",
+        "doc": "The number of outlets, each reading the buffer channel of its number. Buffer channels past the last outlet are not read.",
+        "name": "channels",
+        "range": "1 to 64"
+      },
+      {
+        "default": "1",
+        "doc": "How a position between two samples is read: 0 the sample before it, 1 and 2 a straight line, 3 a half cosine, 4 a cubic curve, 5 a Catmull-Rom spline, 6 a Hermite curve shaped by interp_bias and interp_tension.",
+        "name": "interp",
+        "range": "0 to 6"
+      },
+      {
+        "default": "0",
+        "doc": "The Hermite curve's bias (interp 6): 0 even, above 0 leaning to the sample before, below 0 to the sample after.",
+        "name": "interp_bias",
+        "range": "any float"
+      },
+      {
+        "default": "0",
+        "doc": "The Hermite curve's tension (interp 6): 0 normal, 1 high (straight lines), -1 low (rounder).",
+        "name": "interp_tension",
+        "range": "any float"
       }
     ],
     "requires_midi_device": false

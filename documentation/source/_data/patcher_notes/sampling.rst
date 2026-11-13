@@ -506,6 +506,91 @@ background and played from a later block on; ``set`` alone plays silence.
 Messages and numbers are not saved with the patch: a reloaded ``~phasegroove``
 uses the buffer and the settings of its arguments.
 
+.. patcher-object:: ~wave
+
+Reads a region of the buffer of its name as one cycle of a waveform: a phase
+from 0 to 1 in the left inlet scans the region from its start to its end. Fed
+by a ``~phasor``, it repeats the region at the phasor's frequency, which makes
+any sample a wavetable oscillator. A falling ramp plays the region backward.
+
+.. code-block:: text
+
+   [~phasor 110]
+    |
+   [~wave voice 200 210]   10 ms of the voice, 110 times a second
+
+The arguments, all after the name optional, are
+``name start end channels interp interp_bias interp_tension``.
+
+- **Region.** ``start`` and ``end`` are milliseconds into the buffer; an end
+  of 0 (the default) is the end of the buffer, so the region is the whole
+  buffer until it is set. The middle inlet sets the start and the right inlet
+  the end; a signal connected there sets its point once per block, from the
+  block's first sample. A list of two numbers in the left inlet sets both,
+  and a list of one sets the start. A region whose end is not after its start
+  reads silence. Points past the buffer are held at its end and follow it when
+  it is resized or a file is read into it.
+- **Phase.** The region is a cycle, so the phase wraps: 1 reads where 0
+  does, 1.25 where 0.25 does, -0.25 where 0.75 does. With nothing connected
+  the phase is the last number sent to the left inlet, else 0.
+- **Channels.** ``channels`` (1 to 64, default 1) sets how many outlets
+  there are: the first reads buffer channel 1, and so on. Outlets the buffer
+  has no channel for are silent, and buffer channels past the last outlet are
+  not read.
+- **Interpolation.** ``interp`` sets how a position between two samples is
+  read: 0 the sample before it, 1 (the default) and 2 a straight line, 3 a
+  half cosine, 4 a cubic curve through four samples, 5 a Catmull-Rom spline,
+  6 a Hermite curve. ``interp_tension`` (0 normal, 1 straight, -1 rounder) and
+  ``interp_bias`` (0 even, above 0 leaning to the sample before, below 0 to
+  the sample after) shape the Hermite curve; at 0 and 0 it is the spline. The
+  samples next to the region's ends wrap round it, so the last sample leads
+  back into the first and the cycle loops without a seam. ``interp <n>``,
+  ``interp_tension <n>`` and ``interp_bias <n>`` in the left inlet change
+  them while the patch runs.
+
+The region is milliseconds of the buffer at the buffer's own sample rate; the
+engine's rate plays no part. ``set <name> [start] [end]`` in the left inlet
+switches to another buffer, looked up in the background and read from a later
+block on, with the region after the name, or the whole buffer without one;
+``set`` alone reads silence, as does an empty buffer. Changes to the buffer,
+from a ``~buffer`` message, a ``~poke`` or the host, are heard from the next
+block. Messages, lists and numbers are not saved with the patch: a reloaded
+``~wave`` uses its arguments.
+
+.. patcher-object:: ~2d.wave
+
+A two-dimensional wavetable. Like ``~wave``, it reads a region of the buffer
+of its name at a phase from 0 to 1, but the region is cut into ``rows`` rows
+of equal length, each one cycle. The left inlet's phase scans a row, and the
+second inlet's row phase picks the row: 0 the first, 1 the last. Between two
+rows their outputs are crossfaded, so a slow ramp in the second inlet morphs
+the sound from the first cycle to the last while a fast one in the first sets
+the pitch.
+
+.. code-block:: text
+
+   [~phasor 220]  [~phasor 0.25]
+    |              |
+   [~2d.wave cycles 0 0 1 16]   16 single cycles, morphed once every 4 s
+
+The arguments, all after the name optional, are
+``name start end channels rows``. ``start``, ``end`` and ``channels`` work as
+on ``~wave``, through the third and fourth inlets and a list in the left
+inlet. ``rows`` is the number of rows, 1 by default; 0 and 1 are one row, and
+``rows <n>`` in the left inlet changes it. The frames left over when the
+region does not divide evenly are at its end and are not read, and more rows
+than the region has frames reads silence.
+
+- **Phase.** Wraps as on ``~wave``, round each row: a row's last sample leads
+  back into its first. Between two samples it reads a straight line.
+- **Row phase.** A signal, sample by sample, or the last number sent to the
+  second inlet while nothing is connected, else 0. Below 0 reads the first
+  row and above 1 the last.
+
+``set <name> [start] [end]``, an empty buffer and saving work as on ``~wave``:
+messages, lists and numbers are not saved, and a reloaded ``~2d.wave`` uses
+its arguments.
+
 .. patcher-object:: ~sfinfo
 
 Reports what a sound file holds, without loading it: only the file's header is

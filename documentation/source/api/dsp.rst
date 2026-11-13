@@ -316,6 +316,13 @@ looks up a value in it, for waveshaping with a drawn curve: what
 .. doxygenfile:: dsp/sampling/transferLookup.hpp
    :project: libYSE
 
+A region of a sample buffer read as one cycle of a waveform at a phase from 0
+to 1, with seven interpolation modes, and optionally cut into rows that a
+second phase crossfades between: what ``~wave`` and ``~2d.wave`` do.
+
+.. doxygenfile:: dsp/sampling/waveReader.hpp
+   :project: libYSE
+
 Signals recorded into a sample buffer between loop points, once or in a loop,
 with append and a sync output: what ``~record`` does. The loop points are a
 ``sampleRegion``, a span in frames made from milliseconds for each block,

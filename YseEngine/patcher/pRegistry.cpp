@@ -176,6 +176,7 @@
 #include "sampling/dIndex.h"
 #include "sampling/dTable.h"
 #include "sampling/dLookup.h"
+#include "sampling/dWave.h"
 #include "sampling/dRecord.h"
 #include "sampling/dPlay.h"
 #include "sampling/dGroove.h"
@@ -495,6 +496,8 @@ pRegistry::pRegistry() {
   Add(OBJ::D_GROOVE, dGroove::Create);
   Add(OBJ::D_PHASEGROOVE, dPhaseGroove::Create);
   Add(OBJ::D_SFINFO, dSfinfo::Create);
+  Add(OBJ::D_WAVE, dWave::Create);
+  Add(OBJ::D_WAVE2D, dWave2d::Create);
   Add(OBJ::D_GATE, dGate::Create);
   Add(OBJ::D_SELECTOR, dSelector::Create);
   Add(OBJ::D_MATRIX, dMatrix::Create);
