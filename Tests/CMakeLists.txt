@@ -72,6 +72,7 @@ set(YSE_TEST_SOURCES
   dsp/test_transfer_lookup.cpp
   dsp/test_wave_reader.cpp
   dsp/test_fir_filter.cpp
+  dsp/test_stutter.cpp
   dsp/test_buffer_recorder.cpp
   dsp/test_buffer_player.cpp
   dsp/test_groove_player.cpp
@@ -351,6 +352,7 @@ set(YSE_TEST_SOURCES
   patcher/test_patcher_lookup.cpp
   patcher/test_patcher_wave.cpp
   patcher/test_patcher_buffir.cpp
+  patcher/test_patcher_stutter.cpp
   patcher/test_patcher_record.cpp
   patcher/test_patcher_play.cpp
   patcher/test_patcher_groove.cpp
@@ -1554,6 +1556,7 @@ set_source_files_properties(
   patcher/test_patcher_lookup.cpp
   patcher/test_patcher_wave.cpp
   patcher/test_patcher_buffir.cpp
+  patcher/test_patcher_stutter.cpp
   patcher/test_patcher_record.cpp
   patcher/test_patcher_play.cpp
   patcher/test_patcher_groove.cpp

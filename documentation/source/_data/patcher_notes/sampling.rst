@@ -631,6 +631,62 @@ takes one multiplication per tap: keep long kernels for the places that need
 them. Messages and numbers are not saved with the patch: a reloaded
 ``~buffir`` uses its arguments.
 
+.. patcher-object:: ~stutter
+
+Records its input all the time and, on a trigger, copies the most recent
+samples into a fragment that plays on until the next trigger: the stuck,
+repeating sound of a skipping record, a buffer glitch or a beat repeat.
+Each output reads the fragment at its own phase, 0 to 1 across it, so a
+``~phasor`` in the phase inlet loops it, at its own pitch when the
+``~phasor`` runs once per fragment, and higher or lower when it runs faster
+or slower.
+
+.. code-block:: text
+
+   [~adc 1]   [~click]   [~phasor 20]
+    |          |          |
+   [~stutter 88200 2205]               the last 2205 samples, looped 20 times a second
+
+The arguments are ``[record] [size] [polarity] [rate] [outputs]``, all in
+samples but the last two. ``record`` (default 88200) is how much input is
+kept, and the most ``size`` can be. ``size`` (default 4410) is how many of
+the most recent samples a trigger copies. ``polarity`` (default 1) picks
+the triggers: above 0, the trigger signal going from 0 or below to above 0;
+0 or below, the signal going from 0 or above to below 0. ``rate`` (default
+0) spreads a long copy over blocks, that many samples per block, to even
+out the processing load; 0 copies at once. ``outputs`` (1 to 30, default 1)
+gives that many phase inlets and outlets.
+
+- Left inlet: the signal recorded. A bang copies at the next block; a number
+  sets the size for the next copy.
+- Second inlet: the trigger signal, or a number used while no signal is
+  connected (going from 0 to 1 is a trigger).
+- The inlets after it: one phase per output, a signal or a number.
+
+A trigger copies the samples that end with the one it arrives at, and the
+outputs read the new fragment from that sample on. Before the first trigger
+the outputs are silent.
+
+**Messages**
+
+- ``clear``: forget the recording and the fragment.
+- ``maxsize <n>``: hold the size to ``n``, within the record length.
+- ``polarity <0|1>``: negative or positive triggers.
+- ``ampvar <0-1>``: draw each trigger's gain at random, as low as one minus
+  this.
+- ``dropout <percent>``: the chance that a trigger silences the outputs
+  until the next one.
+- ``repeat <percent>``: the chance that a trigger keeps the fragment it has.
+- ``setbuf <name> [offset] [chan]``: write the fragment into the buffer of
+  that name, from frame ``offset`` (default 0) of channel ``chan`` (from 1),
+  so another object can use it. The buffer is looked up in the background
+  and written at a later block.
+
+With a ``rate``, keep ``record`` larger than ``size`` by the samples that
+come in while the copy runs, or the copy reads input recorded after the
+trigger. Messages and numbers are not saved with the patch: a reloaded
+``~stutter`` uses its arguments.
+
 .. patcher-object:: ~sfinfo
 
 Reports what a sound file holds, without loading it: only the file's header is

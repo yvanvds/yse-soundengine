@@ -158,6 +158,7 @@ set(YSE_SRCS
   dsp/sampling/transferLookup.cpp
   dsp/sampling/waveReader.cpp
   dsp/sampling/firFilter.cpp
+  dsp/sampling/stutter.cpp
   dsp/sampling/bufferRecorder.cpp
   dsp/sampling/playerOutputs.cpp
   dsp/sampling/bufferPlayer.cpp
@@ -238,6 +239,7 @@ set(YSE_SRCS
   patcher/sampling/dLookup.cpp
   patcher/sampling/dWave.cpp
   patcher/sampling/dBuffir.cpp
+  patcher/sampling/dStutter.cpp
   patcher/sampling/dRecord.cpp
   patcher/sampling/dPlay.cpp
   patcher/sampling/dGroove.cpp
@@ -740,6 +742,7 @@ set_source_files_properties(
   patcher/sampling/dLookup.cpp
   patcher/sampling/dWave.cpp
   patcher/sampling/dBuffir.cpp
+  patcher/sampling/dStutter.cpp
   patcher/sampling/dRecord.cpp
   patcher/sampling/dPlay.cpp
   patcher/sampling/dGroove.cpp

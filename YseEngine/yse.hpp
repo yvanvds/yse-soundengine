@@ -152,6 +152,7 @@
 #include "dsp/sampling/transferLookup.hpp"
 #include "dsp/sampling/waveReader.hpp"
 #include "dsp/sampling/firFilter.hpp"
+#include "dsp/sampling/stutter.hpp"
 #include "dsp/sampling/sampleRegion.hpp"
 #include "dsp/sampling/bufferRecorder.hpp"
 #include "dsp/sampling/loopCrossfade.hpp"

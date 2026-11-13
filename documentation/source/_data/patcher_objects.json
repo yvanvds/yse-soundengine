@@ -21967,6 +21967,66 @@
     ],
     "requires_midi_device": false
   },
+  "~stutter": {
+    "category": "SAMPLING",
+    "description": "Records its input all the time and, on a trigger, copies the most recent samples into a fragment that one or more phases replay: stutter and glitch effects.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT",
+          "BANG"
+        ],
+        "doc": "The signal recorded, all the time; unconnected it records silence. A bang copies the most recent samples into the fragment at the next block; a number sets how many a trigger copies. 'clear' sets the recording and the fragment to 0; 'maxsize <n>' holds the size to n (within the first argument); 'polarity <0|1>' picks negative or positive triggers; 'ampvar <0-1>' varies each trigger's gain at random; 'dropout <%>' and 'repeat <%>' are the chances that a trigger silences the outputs or keeps the old fragment; 'setbuf <name> [offset] [chan]' writes the fragment into a buffer. None of them is saved with the patch.",
+        "index": 0,
+        "label": "input",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The trigger: a positive trigger is the signal going from 0 or below to above 0, a negative one from 0 or above to below 0. Each copies the most recent samples into the fragment. A number is used while no signal is connected.",
+        "index": 1,
+        "label": "trigger",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Where the output reads the fragment: 0 to 1 across it, wrapping, so a ~phasor loops it. A number is used while no signal is connected.",
+        "index": 2,
+        "label": "phase",
+        "range": "0 to 1"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~stutter",
+    "outlets": [
+      {
+        "doc": "The fragment read at the phase, interpolated. Silence before the first trigger and after a dropout.",
+        "index": 0,
+        "label": "out",
+        "range": "any float",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "88200 4410 1 0 1",
+        "doc": "The record buffer in samples (at most 4194304), the samples a trigger copies, the trigger polarity (above 0 positive, else negative), the samples copied per block (0 all at once) and the number of outputs (1-30): '~stutter 44100 2205 1 0 2'. Later numbers and messages do not change what is saved.",
+        "name": "stutter",
+        "range": "five numbers"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~subdiv": {
     "category": "OSC",
     "description": "Splits each cycle of a 0-1 ramp such as a ~phasor into a whole number of shorter ramps, in phase with it: tuplets and ratchets. Duration and probability patterns make uneven and skipped steps.",

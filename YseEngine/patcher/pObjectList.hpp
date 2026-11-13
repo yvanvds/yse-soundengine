@@ -64,7 +64,9 @@ namespace YSE {
    *    ``D_SFINFO`` (a sound file's channels, rate, length and format),
    *    ``D_WAVE`` (a buffer region read as one cycle at a 0 to 1 phase: a
    *    wavetable), ``D_WAVE2D`` (the same, crossfaded across rows),
-   *    ``D_BUFFIR`` (a FIR filter whose taps are part of a buffer).
+   *    ``D_BUFFIR`` (a FIR filter whose taps are part of a buffer),
+   *    ``D_STUTTER`` (the latest input copied on a trigger and replayed
+   *    by phase).
    *  - DSP routing: ``D_GATE`` (a signal sent to one of several outlets),
    *    ``D_SELECTOR`` (one of several signals passed to the outlet),
    *    ``D_MATRIX`` (every input to every output at a ramped gain),
@@ -326,6 +328,7 @@ namespace YSE {
     DEFOBJ(D_WAVE, "~wave");
     DEFOBJ(D_WAVE2D, "~2d.wave");
     DEFOBJ(D_BUFFIR, "~buffir");
+    DEFOBJ(D_STUTTER, "~stutter");
 
     DEFOBJ(D_GATE, "~gate");
     DEFOBJ(D_SELECTOR, "~selector");

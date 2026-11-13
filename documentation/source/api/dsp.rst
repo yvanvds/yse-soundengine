@@ -330,6 +330,13 @@ what ``~buffir`` does.
 .. doxygenfile:: dsp/sampling/firFilter.hpp
    :project: libYSE
 
+A capture buffer that records its input all the time and, on a trigger,
+copies the most recent samples into a fragment one or more phases replay,
+with chances to repeat, drop out and vary the gain: what ``~stutter`` does.
+
+.. doxygenfile:: dsp/sampling/stutter.hpp
+   :project: libYSE
+
 Signals recorded into a sample buffer between loop points, once or in a loop,
 with append and a sync output: what ``~record`` does. The loop points are a
 ``sampleRegion``, a span in frames made from milliseconds for each block,
