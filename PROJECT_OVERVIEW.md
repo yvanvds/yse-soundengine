@@ -320,7 +320,7 @@ class dspSourceObject {    // audio generator (replaces file)
 |----------|---------|
 | Oscillators | sine, cosine, saw, noise, VCF, wavetable |
 | Filters | lowPass, highPass, bandPass, biQuad, sampleHold, sweep, phaser, ladderFilter (Moog-style ZDF ladder), raw filters |
-| Envelopes | envelope, ADSRenvelope, ramp |
+| Envelopes | envelope, ADSRenvelope, ramp; `dsp/generators/lineSegments` (sample-accurate straight segment lists with stop/pause/resume, a busy signal and a finished flag over preallocated storage; `~line`, #1042) and `curveSegments` (`~curve`) |
 | Modulators | LFO, delay, basicDelay, highpassDelay, lowpassDelay |
 | Math | clip, sqrt, rSqrt, wrap, midiToFreq, freqToMidi, dbToRms, rmsToDb |
 | Spectral | Hilbert transformer, ring modulator |

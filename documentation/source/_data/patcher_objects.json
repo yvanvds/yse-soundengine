@@ -18618,22 +18618,25 @@
   },
   "~line": {
     "category": "OSC",
-    "description": "Linear-ramp generator. Ramps an audio-rate value toward a target over a given time in ms.",
+    "description": "Linear ramp generator: ramps toward a target over a time in milliseconds, or plays a list of target-time pairs back to back for envelopes and glides. Bangs when the list is done.",
     "inlets": [
       {
         "accepts": [
-          "FLOAT"
+          "FLOAT",
+          "INT",
+          "LIST"
         ],
-        "doc": "Target value to ramp toward. Also takes 'stop'.",
+        "doc": "A number is a target, reached over the right inlet's time, or jumped to when that time is 0. A list is 'target time' pairs played back to back (a last single number is a jump); 'value, target time ...' jumps to the value first. Also 'stop', 'pause' and 'resume'.",
         "index": 0,
         "label": "target",
         "range": "any float"
       },
       {
         "accepts": [
-          "FLOAT"
+          "FLOAT",
+          "INT"
         ],
-        "doc": "Ramp duration in milliseconds, used from the next new target.",
+        "doc": "Ramp time in milliseconds for numbers at the left inlet; kept.",
         "index": 1,
         "label": "time",
         "range": "0+ ms"
@@ -18648,20 +18651,40 @@
         "label": "out",
         "range": "any float",
         "type": "BUFFER"
+      },
+      {
+        "doc": "A bang after the block in which a list or a jump arrived.",
+        "index": 1,
+        "label": "done",
+        "range": "bang",
+        "type": "BANG"
+      },
+      {
+        "doc": "A signal: 1 while a list is heading for a target, 0 when it is done, stopped or paused.",
+        "index": 2,
+        "label": "active",
+        "range": "0 or 1",
+        "type": "BUFFER"
       }
     ],
     "params": [
       {
         "default": "0",
-        "doc": "Initial target value.",
-        "name": "target",
+        "doc": "The value before the first target.",
+        "name": "initial",
         "range": "any float"
       },
       {
         "default": "0",
-        "doc": "Initial ramp time in milliseconds.",
+        "doc": "Ramp time in milliseconds until one arrives at the right inlet.",
         "name": "time",
         "range": "0+ ms"
+      },
+      {
+        "default": "129",
+        "doc": "The most segments a list keeps, an initial value included; a longer list is cut and logged.",
+        "name": "maxpoints",
+        "range": "1 to 1024"
       }
     ],
     "requires_midi_device": false

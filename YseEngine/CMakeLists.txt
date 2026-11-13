@@ -119,6 +119,7 @@ set(YSE_SRCS
   dsp/generators/pulseTrain.cpp
   dsp/generators/adsr.cpp
   dsp/generators/curveSegments.cpp
+  dsp/generators/lineSegments.cpp
   dsp/generators/zigzag.cpp
   dsp/generators/eventSequencer.cpp
   dsp/operators/arithmetic.cpp

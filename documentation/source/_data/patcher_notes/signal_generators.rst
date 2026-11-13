@@ -2,24 +2,47 @@
 
 .. patcher-object:: ~line
 
-A float at the left inlet starts a ramp from the current value to that
-target. The ramp takes the time last set at the right inlet, so set the time
-first. A new time does not change a ramp that is already running, and
-sending the target the ramp already has does nothing. With a time of 0 the
-output jumps to the target.
+Plays straight ramp segments back to back, each a target and a time in
+milliseconds, for envelopes, fades and glides. Each segment starts from
+wherever the output is, and the output holds the last target when the list
+is done. Ramps are timed to the sample.
 
-The time is counted in whole milliseconds and then rounded to whole audio
-blocks; a ramp always lasts at least one block. Within a block the ramp is
-smooth, sample by sample.
+- A number at the left inlet starts a ramp from the current value to that
+  target, over the time set at the right inlet (or by the second argument).
+  The time is kept for every later number until a new one arrives, and a
+  new time does not change a ramp that is already running. With a time of 0
+  the output jumps to the target. Sending a target again starts a new ramp
+  from wherever the output is, taking the full time.
+- A list at the left inlet is ``target time`` pairs, played one after the
+  other; the kept time is not used. A number left over at the end is a jump
+  once the pairs are done, and a list of one number is a jump. A new list,
+  or a number, replaces whatever is still playing.
+- ``value, target time ...`` (a number with a comma after it, then pairs)
+  jumps to ``value`` first and plays the pairs from there.
+- A jump and a list sent in the same block both happen, in the order they
+  were sent, so a jump to 0 followed by ``1 500`` rises from 0.
+- ``stop`` holds the current value and drops the rest of the list. A new
+  time on its own does not restart it; the next target or list does.
+  ``pause`` holds the value but keeps the place in the list, and ``resume``
+  carries on from there. A new target or list also ends a pause.
+- The middle outlet bangs after the block in which the last segment of a
+  list arrived, or in which a jump happened. A stop does not count.
+- The right outlet is a signal: 1 while a list is still heading for a
+  target, 0 from the sample that reaches its last target, while paused or
+  stopped, and for a jump.
+- The arguments are the initial value (the output before the first target,
+  without a ramp), the time for numbers, and ``maxpoints``: the most
+  segments a list keeps, 129 by default and at most 1024, with the leading
+  ``value,`` counting as one. A longer list is cut to that and a line is
+  written to the log. The arguments are saved with the patch; numbers,
+  lists and messages are not.
 
 .. code-block:: text
 
    [~line 0 20]   left <- 1.   =>   rises from 0 to 1 over 20 ms
 
-``stop`` halts the ramp and holds the output at its current value until the
-next target arrives. A new time on its own does not restart it. Any target
-after a ``stop``, even the one the ramp was heading for, starts a new ramp
-from the held value, taking the full ramp time.
+   [.m 0, 1 10 0.3 200 0 500] -> [~line] -> [~*] <- [~saw 220]
+                 a 10 ms attack, a fall to 0.3, then a half-second fade
 
 .. patcher-object:: ~phasor
 

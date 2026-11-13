@@ -101,6 +101,7 @@ set(YSE_TEST_SOURCES
   dsp/test_pulse_train.cpp
   dsp/test_adsr.cpp
   dsp/test_curve_segments.cpp
+  dsp/test_line_segments.cpp
   dsp/test_zigzag.cpp
   dsp/test_event_sequencer.cpp
   dsp/test_one_pole.cpp
@@ -283,6 +284,7 @@ set(YSE_TEST_SOURCES
   patcher/test_patcher_signal_train.cpp
   patcher/test_patcher_signal_adsr.cpp
   patcher/test_patcher_signal_curve.cpp
+  patcher/test_patcher_signal_line.cpp
   patcher/test_patcher_signal_zigzag.cpp
   patcher/test_patcher_signal_seq.cpp
   patcher/test_patcher_signal_onepole.cpp
@@ -1488,6 +1490,7 @@ set_source_files_properties(
   patcher/test_patcher_signal_train.cpp
   patcher/test_patcher_signal_adsr.cpp
   patcher/test_patcher_signal_curve.cpp
+  patcher/test_patcher_signal_line.cpp
   patcher/test_patcher_signal_zigzag.cpp
   patcher/test_patcher_signal_seq.cpp
   patcher/test_patcher_signal_onepole.cpp

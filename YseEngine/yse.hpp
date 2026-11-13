@@ -100,6 +100,7 @@
 #include "dsp/generators/pulseTrain.hpp"
 #include "dsp/generators/adsr.hpp"
 #include "dsp/generators/curveSegments.hpp"
+#include "dsp/generators/lineSegments.hpp"
 #include "dsp/generators/zigzag.hpp"
 #include "dsp/generators/eventSequencer.hpp"
 #include "dsp/generators/updown.hpp"

@@ -136,6 +136,9 @@ Generators
 .. doxygenfile:: dsp/generators/curveSegments.hpp
    :project: libYSE
 
+.. doxygenfile:: dsp/generators/lineSegments.hpp
+   :project: libYSE
+
 .. doxygenfile:: dsp/generators/zigzag.hpp
    :project: libYSE
 
