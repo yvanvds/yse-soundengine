@@ -14,6 +14,7 @@
 #include "genericObjects/gSubpatcher.h"
 #include "routing/dSend.h"
 #include "routing/dReceive.h"
+#include "spectral/dPfft.h"
 #include "pHandle.hpp"
 #include "../utils/json.hpp"
 #include <algorithm>
@@ -2600,6 +2601,7 @@ void patcherImplementation::BuildRenderOrder(
     const auto byId = [](pObject* a, pObject* b) { return a->GetID() < b->GetID(); };
     std::sort(d.inputs.begin(), d.inputs.end(), byId);
     std::sort(d.outputs.begin(), d.outputs.end(), byId);
+    BuildSpectralStages(g, d, follows);
     g.spectral.push_back(std::move(d));
   }
 
@@ -2640,6 +2642,107 @@ void patcherImplementation::BuildRenderOrder(
   if (soft.empty()) return;
   g.renderOrder.clear();
   walk(top, soft, g.renderOrder);
+}
+
+void patcherImplementation::BuildSpectralStages(
+    GraphState& g, GraphState::spectralDomain& d,
+    const std::function<bool(const pObject*, const PATCHER::inlet*)>& follows) {
+  // Cut a ~pfft subpatch's render into stages (issue #1280); see
+  // GraphState::spectralDomain. Control thread, under mtx.
+  //
+  // The walk's order is topological: every object comes after all its
+  // sources. So one pass over it settles each object's stage (a start point
+  // 0, else the largest stage its sources put out in), and the steps of each
+  // stage keep the walk's order: first the emit steps of the frame-wide
+  // objects of the stage before, which are start points, then the stage's
+  // own objects. A cord whose source puts out in an earlier stage than its
+  // target runs in is carried (spectralCarry).
+  const auto wide = [](const pObject* object) { return object->SpectralFrameWide(); };
+  std::unordered_map<const pObject*, std::uint32_t> stage;
+  stage.reserve(d.renderOrder.size());
+  for (const GraphState::renderStep& step : d.renderOrder) {
+    stage.emplace(step.object, 0U);
+  }
+  // The stage an object's cords deliver in.
+  const auto putsOut = [&](const pObject* object) {
+    return stage[object] + (wide(object) ? 1U : 0U);
+  };
+  std::uint32_t last = 0;
+  for (const GraphState::renderStep& step : d.renderOrder) {
+    pObject* object = step.object;
+    last = std::max(last, putsOut(object));
+    for (int i = 0; i < object->NumOutputs(); i++) {
+      const PATCHER::outlet* out = object->GetOutlet(i);
+      if (!SignalCord(out)) continue;
+      for (const PATCHER::inlet* in : out->Targets()) {
+        if (!follows(object, in)) continue;
+        auto it = stage.find(in->Owner());
+        if (it != stage.end()) it->second = std::max(it->second, putsOut(object));
+      }
+    }
+  }
+  if (last == 0) {
+    // No frame-wide object: one stage, the walk as it is.
+    d.stageEnds.assign(1, static_cast<std::uint32_t>(d.renderOrder.size()));
+    d.outputStages.assign(d.outputs.size(), 0U);
+    return;
+  }
+
+  std::vector<GraphState::renderStep> staged;
+  staged.reserve(d.renderOrder.size() * 2);
+  for (std::uint32_t s = 0; s <= last; s++) {
+    for (const GraphState::renderStep& step : d.renderOrder) {
+      if (s > 0 && wide(step.object) && stage[step.object] == s - 1) {
+        GraphState::renderStep emit = step;
+        emit.startPoint = true;
+        emit.emit = true;
+        staged.push_back(emit);
+      }
+    }
+    for (const GraphState::renderStep& step : d.renderOrder) {
+      if (stage[step.object] == s) staged.push_back(step);
+    }
+    d.stageEnds.push_back(static_cast<std::uint32_t>(staged.size()));
+  }
+  d.renderOrder = std::move(staged);
+
+  d.outputStages.reserve(d.outputs.size());
+  for (pObject* object : d.outputs) {
+    auto it = stage.find(object);
+    d.outputStages.push_back(it == stage.end() ? 0U : it->second);
+  }
+
+  // The cords into a later stage than their source delivers in, in walk
+  // order of the source, outlet by outlet, cord by cord.
+  const UInt bins = static_cast<dPfft*>(d.host)->Bins();
+  for (std::size_t k = 0; k < d.renderOrder.size(); k++) {
+    const GraphState::renderStep& step = d.renderOrder[k];
+    // One look per object: at its own step (the consume step of a
+    // frame-wide one), not its emit step.
+    if (step.emit) continue;
+    pObject* object = step.object;
+    const std::uint32_t from = putsOut(object);
+    for (int i = 0; i < object->NumOutputs(); i++) {
+      const PATCHER::outlet* out = object->GetOutlet(i);
+      if (!SignalCord(out)) continue;
+      const int id = out->GraphId();
+      if (id < 0 || id >= static_cast<int>(g.outletTargets.size())) continue;
+      for (PATCHER::inlet* in : out->Targets()) {
+        if (!follows(object, in)) continue;
+        auto it = stage.find(in->Owner());
+        if (it == stage.end() || it->second <= from) continue;
+        auto carry = std::make_shared<spectralCarry>(d.host, in, bins, it->second);
+        auto& targets = g.outletTargets[id];
+        auto at = std::find(targets.begin(), targets.end(), in);
+        if (at == targets.end()) continue;
+        *at = &carry->tap;
+        d.carries.push_back(std::move(carry));
+      }
+    }
+  }
+  std::stable_sort(d.carries.begin(), d.carries.end(),
+                   [](const std::shared_ptr<spectralCarry>& a,
+                      const std::shared_ptr<spectralCarry>& b) { return a->stage < b->stage; });
 }
 
 void patcherImplementation::BuildMuteChains(GraphState& g) {

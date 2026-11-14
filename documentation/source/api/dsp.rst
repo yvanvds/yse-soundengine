@@ -448,8 +448,9 @@ same object serves a ``DSP::stft`` callback and a ``~pfft`` pass.
 .. doxygenfile:: dsp/spectral/frameDelta.hpp
    :project: libYSE
 
-The running average of every bin over the last frames, and a trailing
-average along each frame that never reaches into the next: what
+The running average of every bin over the last frames, and an average
+along each frame that never reaches into the next, centred on each value for
+a whole frame or trailing it for a frame that streams in: what
 ``~frameaverage`` and ``~framesmooth`` wrap. They work on a ``stftFrame``
 run of bins as well, or cut a stream into frames of a given size.
 

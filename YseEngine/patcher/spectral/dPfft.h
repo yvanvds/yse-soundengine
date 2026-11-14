@@ -5,12 +5,45 @@
 #include <string>
 #include <vector>
 #include "../pObject.h"
+#include "../inlet.h"
 #include "../graphState.h"
 #include "../../dsp/spectral/stft.hpp"
 #include "spectralPass.h"
 
 namespace YSE {
   namespace PATCHER {
+
+    /**
+     *  @brief A signal cord of a ``~pfft`` subpatch carried into a later
+     *         stage than its source puts out in (issue #1280; see
+     *         GraphState::spectralDomain::carries).
+     *
+     *  Built by the patcher's BuildRenderOrder on the control thread, which
+     *  puts ``tap`` in the source outlet's compiled targets in place of
+     *  ``target``. While the source's stage renders, what it sends lands in
+     *  the tap, which stores the pass's bins in ``frame``; while the
+     *  target's ``stage`` renders, Replay hands the pass's bins of the frame
+     *  to ``target`` as that cord's buffer. Allocation-free on the render
+     *  thread; ``frame`` is as long as the ~pfft's spectral frame.
+     */
+    struct spectralCarry {
+      spectralCarry(pObject* host, inlet* target, UInt bins, std::uint32_t stage);
+      spectralCarry(const spectralCarry&) = delete;
+      spectralCarry& operator=(const spectralCarry&) = delete;
+      spectralCarry(spectralCarry&&) = delete;
+      spectralCarry& operator=(spectralCarry&&) = delete;
+      ~spectralCarry() = default;
+
+      /** @brief Sends the current pass's bins of the frame to ``target``.
+       *         Render thread, inside a pass. */
+      void Replay(THREAD thread);
+
+      inlet tap;
+      inlet* target;
+      std::vector<Flt> frame;
+      DSP::buffer slice;
+      std::uint32_t stage;
+    };
 
     /**
      *  @brief ``~pfft``: a subpatch run once per short-time spectral frame,
@@ -47,6 +80,11 @@ namespace YSE {
      *    modulo the hop), ``full`` (0: frames of size / 2 bins; 1: the whole
      *    spectrum), ``inlets`` (1..16) and ``outlets`` (0..16). Changing one
      *    rebuilds the object, so storage is allocated control side.
+     *
+     *  A frame-wide object inside (pObject::SpectralFrameWide, issue
+     *  #1280) splits the subpatch into stages, each rendered as every pass
+     *  of the frame before the next begins; see
+     *  GraphState::spectralDomain.
      *
      *  Latency: ``size`` samples, whatever the block size.
      */

@@ -281,23 +281,32 @@ not saved.
 
 .. patcher-object:: ~framesmooth
 
-Puts out a running average along every frame: each value's mean with the
-values just before it in the same frame. Fed the magnitudes of a spectrum,
-that is a smoothing across frequency, which turns the peaks of single
-partials into a broad spectral envelope. The average never reaches across
-the start of a frame: the first bin of each frame comes out as it went in,
-the second as the mean of the first two, and so on until the window is full.
+Puts out a running average along every frame: each value's mean with its
+neighbours in the same frame. Fed the magnitudes of a spectrum, that is a
+smoothing across frequency, which turns the peaks of single partials into a
+broad spectral envelope. The average never reaches across the edges of a
+frame: near them it takes in only the values the frame has.
 
 The first argument is the smoothness, how many values are averaged with the
-current one included: 3 by default, up to 1024. The window trails the value
-(the value and the ones before it, never the ones after), so it can work
-through a ``~pfft``'s frame pass by pass; a peak therefore moves up by
-(smoothness - 1) / 2 bins.
+current one included: 3 by default, up to 1024.
 
-Frames, the second argument (the frame size outside a ``~pfft``) and
-non-finite values work as for ``~frameaverage``. ``clear`` forgets the
-values before, so the next value starts a new window; inside a ``~pfft``
-every frame starts one anyway.
+Inside a ``~pfft`` the window is centred on each bin: smoothness / 2 bins
+below it and the rest above, so with an odd smoothness a peak stays on its
+bin and spreads evenly to both sides. To do that ``~framesmooth`` takes in a
+whole frame before it puts out any of it, so the objects after it run in a
+later stage of the frame (see :doc:`../subpatchers`). The second argument is
+the largest frame it keeps, in bins: 4096 by default, enough for a
+``~pfft`` of size 8192; bins past it put out 0. Every frame is smoothed on
+its own, so ``clear`` has nothing to do there.
+
+Outside a ``~pfft`` its input is a stream of frames, a sample at a time, and
+the window trails the value (the value and the ones before it, never the
+ones after, which have not arrived yet): the first value of each frame comes
+out as it went in, the second as the mean of the first two, and so on until
+the window is full, and a peak moves up by (smoothness - 1) / 2 bins. The
+third argument is the frame size there, as for ``~frameaverage`` (0, every
+block a frame). ``clear`` forgets the values before, so the next value starts
+a new window. Non-finite values count as 0.
 
 .. code-block:: text
 

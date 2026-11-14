@@ -12,6 +12,7 @@
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <map>
 #include <mutex>
 #include <unordered_map>
@@ -661,6 +662,13 @@ namespace YSE {
       // (allocates).
       static void BuildRenderOrder(GraphState& g,
                                    const std::unordered_map<const pObject*, pObject*>& domains);
+      // Cut a ~pfft subpatch's compiled render into stages around its
+      // frame-wide objects and carry the cords that skip a stage (issue
+      // #1280); see GraphState::spectralDomain. `follows` is the walk's cord
+      // test. Part of BuildRenderOrder; control-thread only (allocates).
+      static void BuildSpectralStages(
+          GraphState& g, GraphState::spectralDomain& d,
+          const std::function<bool(const pObject*, const PATCHER::inlet*)>& follows);
       // Fill the render steps' and ~dacs' slices of GraphState::muteChain
       // (issue #1137). Under mtx.
       static void BuildMuteChains(GraphState& g);

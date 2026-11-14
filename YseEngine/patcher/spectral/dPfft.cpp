@@ -69,6 +69,41 @@ spectralPassScope::~spectralPassScope() {
   tPass = previous_;
 }
 
+// ─── carried cords (#1280) ───────────────────────────────────────────────────
+
+spectralCarry::spectralCarry(pObject* host, inlet* to, UInt bins, std::uint32_t at)
+  : tap(host, false, 0), target(to), frame(bins, 0.f), slice(STANDARD_BUFFERSIZE), stage(at) {
+  slice = 0.f;
+  // What the source sends, a pass at a time, into the frame. The tap has no
+  // graph id and no wiring, so it takes each buffer as a single source's; it
+  // belongs to the ~pfft, which a buffer arriving inside the render never
+  // computes (renderOrderScope).
+  tap.RegisterBuffer([this](YSE::DSP::buffer* buffer, int, YSE::THREAD) {
+    const spectralPass* pass = CurrentSpectralPass();
+    if (pass == nullptr || buffer == nullptr || pass->firstBin >= frame.size()) return;
+    const auto room = static_cast<UInt>(frame.size()) - pass->firstBin;
+    const UInt n = std::min(pass->count, room);
+    const UInt have = std::min(n, buffer->getLength());
+    Flt* to = frame.data() + pass->firstBin;
+    std::copy(buffer->getPtr(), buffer->getPtr() + have, to);
+    std::fill(to + have, to + n, 0.f);
+  });
+}
+
+void spectralCarry::Replay(YSE::THREAD thread) {
+  const spectralPass* pass = CurrentSpectralPass();
+  if (pass == nullptr) return;
+  const UInt count = std::min(pass->count, STANDARD_BUFFERSIZE);
+  // Within the capacity set in the constructor: no allocation.
+  if (slice.getLength() != count) slice.resize(count);
+  Flt* to = slice.getPtr();
+  const auto size = static_cast<UInt>(frame.size());
+  const UInt n = pass->firstBin < size ? std::min(count, size - pass->firstBin) : 0;
+  std::copy(frame.data() + pass->firstBin, frame.data() + pass->firstBin + n, to);
+  std::fill(to + n, to + count, 0.f);
+  target->SetBuffer(&slice, thread);
+}
+
 // ─── ~pfft ────────────────────────────────────────────────────────────────────
 
 #define className dPfft
@@ -229,8 +264,10 @@ void dPfft::Windows(const GraphState::spectralDomain& domain) {
   }
 }
 
-// One spectral frame of the subpatch, in passes of at most
-// STANDARD_BUFFERSIZE bins, bin order, all at the sample the frame completes.
+// One spectral frame of the subpatch, all at the sample the frame completes:
+// stage by stage (issue #1280), each stage in passes of at most
+// STANDARD_BUFFERSIZE bins in bin order. A subpatch without frame-wide
+// objects is one stage.
 void dPfft::Render(const GraphState::spectralDomain& domain, YSE::THREAD thread) {
   spectralPass pass;
   pass.fftSize = clock.size();
@@ -241,44 +278,65 @@ void dPfft::Render(const GraphState::spectralDomain& domain, YSE::THREAD thread)
   pass.count = std::min(pass.bins, STANDARD_BUFFERSIZE);
   pass.passes = pass.bins / pass.count;
   pass.frame = frames;
+  pass.stages = static_cast<UInt>(domain.stageEnds.size());
 
   const spectralPassScope current(&pass);
   // Arrivals store and wait for the walk below, as in the patcher's own
   // render (issue #1185); normally already open around the ~pfft's step.
   const renderOrderScope order;
-  for (UInt p = 0; p < pass.passes; p++) {
-    pass.pass = p;
-    pass.firstBin = p * pass.count;
-    for (pObject* object : domain.inputs) {
-      auto* in = static_cast<dFftin*>(object);
-      const int k = in->Inlet();
-      if (k >= 0 && k < static_cast<int>(analyses.size())) {
-        DSP::stftAnalysis& a = *analyses[static_cast<std::size_t>(k)];
-        in->Load(a.real() + pass.firstBin, a.imaginary() + pass.firstBin, pass.firstBin,
-                 pass.count);
-      } else {
-        in->Load(nullptr, nullptr, pass.firstBin, pass.count);
+  std::size_t carry = 0;
+  std::uint32_t begin = 0;
+  for (UInt s = 0; s < pass.stages; s++) {
+    const std::uint32_t end = domain.stageEnds[s];
+    const std::size_t carries = carry;
+    pass.stage = s;
+    for (UInt p = 0; p < pass.passes; p++) {
+      pass.pass = p;
+      pass.firstBin = p * pass.count;
+      // ~fftin objects are start points: always in stage 0.
+      if (s == 0) {
+        for (pObject* object : domain.inputs) {
+          auto* in = static_cast<dFftin*>(object);
+          const int k = in->Inlet();
+          if (k >= 0 && k < static_cast<int>(analyses.size())) {
+            DSP::stftAnalysis& a = *analyses[static_cast<std::size_t>(k)];
+            in->Load(a.real() + pass.firstBin, a.imaginary() + pass.firstBin, pass.firstBin,
+                     pass.count);
+          } else {
+            in->Load(nullptr, nullptr, pass.firstBin, pass.count);
+          }
+        }
+      }
+      for (pObject* object : domain.objects) {
+        object->ResetDSP();
+      }
+      // The cords carried into this stage, before anything of it runs.
+      for (carry = carries; carry < domain.carries.size() && domain.carries[carry]->stage == s;
+           carry++) {
+        domain.carries[carry]->Replay(thread);
+      }
+      for (std::uint32_t k = begin; k < end; k++) {
+        const GraphState::renderStep& step = domain.renderOrder[k];
+        pass.emitting = step.emit;
+        if (graph_->Muted(step.muteBegin, step.muteEnd)) {
+          step.object->SendSilence(thread);
+        } else if (step.startPoint) {
+          step.object->Calculate(thread);
+        } else if (thread != YSE::T_GUI || !step.object->IsDSPObject()) {
+          step.object->CalculateIfReady(thread);
+        }
+      }
+      pass.emitting = false;
+      for (std::size_t j = 0; j < domain.outputs.size(); j++) {
+        if (domain.outputStages[j] != s) continue;
+        const auto* out = static_cast<const dFftout*>(domain.outputs[j]);
+        const int o = out->Outlet();
+        if (o < 0 || o >= static_cast<int>(syntheses.size())) continue;
+        DSP::stftSynthesis& syn = *syntheses[static_cast<std::size_t>(o)];
+        out->AddTo(syn.real() + pass.firstBin, syn.imaginary() + pass.firstBin, pass.count);
       }
     }
-    for (pObject* object : domain.objects) {
-      object->ResetDSP();
-    }
-    for (const GraphState::renderStep& step : domain.renderOrder) {
-      if (graph_->Muted(step.muteBegin, step.muteEnd)) {
-        step.object->SendSilence(thread);
-      } else if (step.startPoint) {
-        step.object->Calculate(thread);
-      } else if (thread != YSE::T_GUI || !step.object->IsDSPObject()) {
-        step.object->CalculateIfReady(thread);
-      }
-    }
-    for (pObject* object : domain.outputs) {
-      const auto* out = static_cast<const dFftout*>(object);
-      const int j = out->Outlet();
-      if (j < 0 || j >= static_cast<int>(syntheses.size())) continue;
-      DSP::stftSynthesis& s = *syntheses[static_cast<std::size_t>(j)];
-      out->AddTo(s.real() + pass.firstBin, s.imaginary() + pass.firstBin, pass.count);
-    }
+    begin = end;
   }
 }
 

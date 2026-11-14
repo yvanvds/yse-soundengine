@@ -167,6 +167,7 @@ namespace YSE {
     frameSmooth::frameSmooth(UInt values)
       : output(STANDARD_BUFFERSIZE),
         recent(MAXIMUM_SMOOTHNESS, 0.f),
+        window(MAXIMUM_SMOOTHNESS, 0.f),
         size(Between(values, 1, MAXIMUM_SMOOTHNESS)) {}
 
     // The window over the last `size` values of this frame, from the ring.
@@ -216,6 +217,36 @@ namespace YSE {
         if (taken < MAXIMUM_SMOOTHNESS) taken++;
         out[i] = static_cast<Flt>(sum / static_cast<double>(held));
       }
+    }
+
+    void frameSmooth::centred(const stftFrame& frame, const Flt* in, Flt* out) {
+      // The window [k - before, k + after], cut to the frame. Values leave
+      // before new ones come in, so the ring never holds more than `size`:
+      // the ones still to leave are read from it, not from `in`, which `out`
+      // may already have overwritten.
+      const UInt n = frame.count;
+      const UInt before = size / 2;
+      const UInt after = size - 1 - before;
+      double total = 0.0;
+      UInt lo = 0;
+      UInt hi = 0;
+      for (UInt k = 0; k < n; ++k) {
+        const UInt from = k > before ? k - before : 0;
+        for (; lo < from; ++lo)
+          total -= static_cast<double>(window[lo & RING_MASK]);
+        const UInt to = std::min(n, k + after + 1);
+        for (; hi < to; ++hi) {
+          const Flt x = Finite(in[hi]);
+          window[hi & RING_MASK] = x;
+          total += static_cast<double>(x);
+        }
+        out[k] = static_cast<Flt>(total / static_cast<double>(hi - lo));
+      }
+    }
+
+    buffer& frameSmooth::centred(const stftFrame& frame, buffer& in) {
+      return Block(output, frame, in,
+                   [this](const stftFrame& run, const Flt* a, Flt* b) { centred(run, a, b); });
     }
 
     buffer& frameSmooth::operator()(const stftFrame& frame, buffer& in) {

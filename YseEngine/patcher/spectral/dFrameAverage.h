@@ -3,6 +3,7 @@
 #include <atomic>
 #include "../pObject.h"
 #include "../../dsp/spectral/frameAverage.hpp"
+#include "spectralFrameStore.h"
 
 namespace YSE {
   namespace PATCHER {
@@ -57,15 +58,23 @@ namespace YSE {
   /**
    *  @brief ``~framesmooth``: a running average along every frame that
    *         never reaches into the next, wrapping ``DSP::frameSmooth``
-   *         (issue #1162).
+   *         (issues #1162, #1280).
    *
-   *  Ported from MSP's ``framesmooth~``. Frames, the inlet, ``clear`` and
+   *  Ported from MSP's ``framesmooth~``. Frames, the inlet and
    *  ``framesize`` as ``~frameaverage``.
    *
-   *  - Outlet: each value's mean with the ``smoothness - 1`` values before
-   *    it in the same frame (fewer at the start of a frame).
-   *  - Parameters: ``smoothness`` (MSP's attribute, default 3, 1-1024) and
-   *    ``framesize``. Changing one rebuilds the object.
+   *  - Inside a ``~pfft`` it is frame-wide (SpectralFrameWide): it takes
+   *    the whole frame before it puts out any of it, and smooths it with a
+   *    window centred on each bin (``DSP::frameSmooth::centred``), so a
+   *    peak stays on its bin. What follows it runs in the next stage of the
+   *    ~pfft's frame. ``clear`` has nothing to clear there.
+   *  - Outside a ``~pfft`` its input is a stream, and the window trails:
+   *    each value's mean with the ``smoothness - 1`` values before it in
+   *    the same frame (fewer at the start of a frame). ``clear`` forgets the
+   *    values before.
+   *  - Parameters: ``smoothness`` (MSP's attribute, default 3, 1-1024),
+   *    ``bins`` (inside a ``~pfft``, the largest frame kept, default 4096)
+   *    and ``framesize``. Changing one rebuilds the object.
    */
   PATCHER_CLASS(dFramesmooth, YSE::OBJ::D_FRAMESMOOTH)
   _DO_MESSAGES
@@ -77,10 +86,16 @@ namespace YSE {
   _FLOAT_IN(SetFloat)
   _INT_IN(SetInt)
 
+  bool SpectralFrameWide() const override {
+    return true;
+  }
+
 private:
   DSP::frameSmooth fn;
+  spectralFrameStore store;
 
   int smoothness = static_cast<int>(DSP::frameSmooth::DEFAULT_SMOOTHNESS);
+  int bins = static_cast<int>(spectralFrameStore::DEFAULT_CAPACITY);
   int framesize = 0;
 
   std::atomic<float> number{0.f};

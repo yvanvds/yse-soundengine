@@ -171,9 +171,17 @@ namespace YSE {
      *  bin 1 as the mean of bins 0 and 1, and so on. Nothing of one frame
      *  reaches into the next.
      *
-     *  The window trails the bin, so that a frame can come in runs, a pass
-     *  of a ``~pfft`` after the other: it needs no bin of a later run. A
-     *  feature of the spectrum moves up by ``(smoothness() - 1) / 2`` bins.
+     *  Two windows. ``centred()`` takes a whole frame and centres the
+     *  window on each value: ``smoothness() / 2`` values before it and the
+     *  rest after (as many as the frame has at its ends), so a feature of
+     *  the spectrum stays where it is and an odd smoothness is symmetric.
+     *  This is what ``~framesmooth`` does inside a ``~pfft`` (issue #1280),
+     *  and what a ``DSP::stft`` callback, which gets whole frames, wants.
+     *  The run overloads (``operator()``) take a frame as it streams in, in
+     *  runs of bins, and let the window *trail* the value, so that no value
+     *  waits for one that has not arrived: a feature moves up by
+     *  ``(smoothness() - 1) / 2`` bins. ``~framesmooth`` does this outside a
+     *  ``~pfft``, on a stream of samples (issue #1162).
      *
      *  A run continues the frame when it has the same ``index`` and
      *  ``bins`` as the run before and starts at the bin after its last;
@@ -182,8 +190,8 @@ namespace YSE {
      *  ``frameSize()``, non-finite input (counts as 0) and in-place
      *  processing as ``frameAverage``.
      *
-     *  The last ``MAXIMUM_SMOOTHNESS`` values are kept in storage allocated
-     *  in the constructor: processing, ``smoothness()`` and ``clear()``
+     *  The last ``MAXIMUM_SMOOTHNESS`` values (and a centred window) are
+     *  kept in storage allocated in the constructor: processing, ``smoothness()`` and ``clear()``
      *  allocate nothing, take no lock, and nothing depends on the sample
      *  rate. One thread at a time.
      */
@@ -226,7 +234,18 @@ namespace YSE {
        *         window. The block overload's place in its frame is kept. */
       frameSmooth& clear();
 
-      /** @brief One run of bins, as ``frameAverage``. */
+      /** @brief A whole frame with the centred window: ``frame.count``
+       *         values from @p in to @p out (may be the same array), the
+       *         window cut to them. Keeps nothing between calls and leaves
+       *         the runs' window alone; ``frame.firstBin`` is not used. */
+      void centred(const stftFrame& frame, const Flt* in, Flt* out);
+
+      /** @brief A whole frame from a block, centred, into the class's own
+       *         output (as long as @p in, at most ``STANDARD_BUFFERSIZE``;
+       *         samples past ``frame.count`` are 0). */
+      buffer& centred(const stftFrame& frame, buffer& in);
+
+      /** @brief One run of bins, as ``frameAverage``: the trailing window. */
       void operator()(const stftFrame& frame, const Flt* in, Flt* out);
 
       /** @brief One run of bins from a block, into the class's own output. */
@@ -240,6 +259,7 @@ namespace YSE {
 
       buffer output;
       std::vector<Flt> recent; // ring of the last MAXIMUM_SMOOTHNESS values
+      std::vector<Flt> window; // centred(): the values in its window, as a ring
       double sum = 0.0; // of the last `held` values
       UInt size;
       UInt head = 0; // where the next value goes

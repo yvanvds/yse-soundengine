@@ -29,8 +29,12 @@ namespace YSE {
      *  audio thread; a pass beyond it is the class's to ignore.
      *
      *  An object that needs bins of a *later* pass to compute an earlier
-     *  one (a bin shift down, a pitch shift down) cannot work pass by pass;
-     *  that case is #1280's.
+     *  one (a centred smoothing, a bin shift down, a pitch shift down) is
+     *  *frame-wide* (pObject::SpectralFrameWide, issue #1280): the ~pfft
+     *  runs it in two steps, ``emitting`` false while every pass of its
+     *  stage hands it its input, ``emitting`` true while every pass of the
+     *  next stage takes its output, and spectralFrameStore keeps the frame
+     *  in between.
      */
     struct spectralPass {
       UInt fftSize = 0; ///< the FFT size, in samples
@@ -43,6 +47,9 @@ namespace YSE {
       UInt pass = 0; ///< this pass, 0 to passes - 1
       UInt passes = 0; ///< passes per frame: bins / count
       U64 frame = 0; ///< frames completed before this one since the ~pfft started
+      UInt stage = 0; ///< the stage being rendered, 0 to stages - 1 (issue #1280)
+      UInt stages = 1; ///< stages of the subpatch: 1 + the frame-wide objects in a row
+      bool emitting = false; ///< a frame-wide object's emit step is running (issue #1280)
 
       /** @brief This pass as a run of bins over @p real / @p imaginary
        *         (the pass's own buffers, ``count`` samples). */

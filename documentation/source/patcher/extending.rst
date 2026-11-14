@@ -971,9 +971,24 @@ above changes. What it needs besides is to know which bins a block holds:
   largest frame it serves), never on the audio thread. A pass with bins
   past the capacity is ignored by the class.
 
-An object whose output bin needs an input bin of a later pass (a bin shift
-or pitch shift downwards) cannot work pass by pass. Issue #1280 adds the
-frame-wide stages such objects need.
+An object whose output bin needs an input bin of a later pass (a centred
+smoothing, a bin shift or pitch shift downwards) cannot work pass by pass. It
+is *frame-wide* instead (issue #1280), as ``~framesmooth`` is:
+
+- It answers ``SpectralFrameWide()`` true (a ``pObject`` virtual, false by
+  default). The ``~pfft`` then cuts its subpatch into stages (see
+  :doc:`subpatchers`) and runs the object twice per pass: a *consume* step in
+  its own stage and an *emit* step in the next, told apart by
+  ``CurrentSpectralPass()->emitting``.
+- It keeps a ``PATCHER::spectralFrameStore``
+  (``patcher/spectral/spectralFrameStore.h``), sized from an argument when
+  the object is built. On a consume step it calls ``consume(*pass, channel,
+  buffer)`` for each signal input and sends nothing. On an emit step,
+  ``if (store.due())`` (the first emit of the frame) it runs its DSP class
+  once on the whole frame, ``frame(*pass, ...)`` over ``input(c)`` into
+  ``output(c)``, and then sends ``slice(*pass, c)`` on each signal outlet.
+- The DSP class works on whole frames (``firstBin`` 0, ``count`` = the
+  frame's bins, up to the capacity), as a ``DSP::stft`` callback hands them.
 
 Patcher names
 ~~~~~~~~~~~~~

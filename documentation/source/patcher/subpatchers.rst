@@ -414,6 +414,28 @@ from sample to sample, such as a filter, runs across the bins of a frame in
 order. Frame-domain objects read which bins a pass holds directly (see
 :doc:`extending`).
 
+Stages
+~~~~~~
+
+Some objects need the whole frame before they can put out any of it: a
+smoothing centred on each bin (``~framesmooth``) reads bins above the one it
+puts out, which arrive in a later pass. Such a *frame-wide* object splits
+the subpatch into *stages*. Everything that feeds it, and the object itself
+taking in the frame, is in one stage; what it feeds is in the next. The
+``~pfft`` renders every pass of the first stage, then every pass of the
+second, and so on, all at the sample the frame completes. Without a
+frame-wide object a subpatch is one stage and nothing changes.
+
+Each object is in the stage after the latest frame-wide object upstream of
+it, so a chain of two frame-wide objects makes three stages. A ``~fftout``
+is collected after each pass of its own stage. A cord that reaches over a
+stage, such as the phase of a ``~cartopol`` going around a ``~framesmooth``
+on the magnitudes straight into a ``~poltocar``, is carried: the ``~pfft``
+keeps what the cord brought in the earlier stage, a frame of it, and hands
+the ``~poltocar`` each pass's bins in its own stage. That costs one frame of
+memory per such cord and nothing else, so a patch can be drawn as if every
+object saw the whole frame at once.
+
 Inside a ``~pfft``, a ``~dac`` or ``~adc`` does nothing, and ``~send`` /
 ``~receive`` pairs are not ordered.
 

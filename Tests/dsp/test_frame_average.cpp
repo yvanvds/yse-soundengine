@@ -1,7 +1,7 @@
 // Tests for YSE::DSP::frameAverage and YSE::DSP::frameSmooth
 // (YseEngine/dsp/spectral/frameAverage.hpp), the per-bin running average
-// across frames and the trailing average along a frame behind ~frameaverage
-// and ~framesmooth (issue #1162): both in closed form; a frame handed over
+// across frames and the trailing and centred averages along a frame behind
+// ~frameaverage and ~framesmooth (issues #1162, #1280): all in closed form; a frame handed over
 // whole and as runs of bins in bin order give the same output; frame count,
 // smoothness, capacity, frame-size change, clear, non-finite input, in place;
 // the block overload as a frame and as a stream of frames across blocks;
@@ -87,6 +87,18 @@ namespace {
       sum += frame[j];
     return sum / static_cast<double>(k + 1 - from);
   }
+
+  // The mean of x[k] over the window centred on it, s / 2 values before and
+  // s - 1 - s / 2 after, cut to the frame.
+  double Centred(const std::vector<float>& frame, std::size_t k, std::size_t s) {
+    const std::size_t before = s / 2;
+    const std::size_t from = k > before ? k - before : 0;
+    const std::size_t to = std::min(frame.size(), k + s - before);
+    double sum = 0.0;
+    for (std::size_t j = from; j < to; ++j)
+      sum += frame[j];
+    return sum / static_cast<double>(to - from);
+  }
 } // namespace
 
 TEST_SUITE("dsp") {
@@ -137,6 +149,75 @@ TEST_SUITE("dsp") {
     CHECK(plain.smoothness() == frameSmooth::DEFAULT_SMOOTHNESS);
     CHECK(frameSmooth(0).smoothness() == 1);
     CHECK(frameSmooth(5000).smoothness() == frameSmooth::MAXIMUM_SMOOTHNESS);
+  }
+
+  TEST_CASE("frameSmooth: centred() averages each value with its neighbours on both sides, cut "
+            "to the frame (#1280)") {
+    const Frames in = Noise(3, 300, 12);
+    for (const UInt s : {1u, 2u, 3u, 4u, 5u, 41u, 400u, 1024u}) {
+      CAPTURE(s);
+      frameSmooth fn(s);
+      for (const auto& frame : in) {
+        std::vector<float> out(frame.size());
+        fn.centred(Run(0, 300, 300), frame.data(), out.data());
+        for (std::size_t k = 0; k < frame.size(); ++k)
+          REQUIRE(out[k] == doctest::Approx(Centred(frame, k, s)).epsilon(1e-6));
+      }
+    }
+    // A single bin, odd smoothness: symmetric around it, exactly 1 / s.
+    std::vector<float> spike(256, 0.f);
+    spike[100] = 1.f;
+    std::vector<float> out(256);
+    frameSmooth five(5);
+    five.centred(Run(0, 256, 256), spike.data(), out.data());
+    for (std::size_t k = 0; k < 256; ++k) {
+      const bool inside = k >= 98 && k <= 102;
+      REQUIRE(out[k] == (inside ? static_cast<float>(1.0 / 5) : 0.f));
+    }
+    // Next to the edge the window is cut: bin 1 of a spike at bin 0 takes in
+    // bins 0..3.
+    std::vector<float> edge(16, 0.f);
+    edge[0] = 4.f;
+    std::vector<float> cut(16);
+    five.centred(Run(0, 16, 16), edge.data(), cut.data());
+    CHECK(cut[0] == doctest::Approx(4.0 / 3));
+    CHECK(cut[1] == 1.f);
+    CHECK(cut[2] == doctest::Approx(0.8));
+    CHECK(cut[3] == 0.f);
+    // Even smoothness: one more before than after (4: k-2 .. k+1).
+    frameSmooth four(4);
+    four.centred(Run(0, 256, 256), spike.data(), out.data());
+    for (std::size_t k = 0; k < 256; ++k) {
+      const bool inside = k >= 99 && k <= 102;
+      REQUIRE(out[k] == (inside ? 0.25f : 0.f));
+    }
+    // In place, non-finite input as 0, and only frame.count values.
+    std::vector<float> y = {1.f, std::numeric_limits<float>::quiet_NaN(), 5.f, 7.f, 99.f};
+    frameSmooth three(3);
+    three.centred(Run(0, 4, 4), y.data(), y.data());
+    CHECK(y == std::vector<float>{0.5f, 2.f, 4.f, 6.f, 99.f});
+    // It keeps nothing, and leaves the runs' trailing window alone.
+    std::vector<float> ramp(20);
+    for (std::size_t i = 0; i < ramp.size(); ++i)
+      ramp[i] = static_cast<float>(i);
+    std::vector<float> trail(20);
+    frameSmooth both(4);
+    both(Run(0, 10, 20), ramp.data(), trail.data());
+    std::vector<float> scratch(20);
+    both.centred(Run(0, 20, 20), spike.data(), scratch.data());
+    both(Run(10, 10, 20), ramp.data() + 10, trail.data() + 10);
+    for (std::size_t k = 0; k < 20; ++k)
+      REQUIRE(trail[k] == doctest::Approx(Trailing(ramp, k, 4)).epsilon(1e-6));
+    // From a block: the frame's values, the rest of the block 0.
+    buffer b(N);
+    for (unsigned int i = 0; i < N; ++i)
+      b.getPtr()[i] = static_cast<float>(i);
+    buffer& o = three.centred(Run(0, 10, 10), b);
+    REQUIRE(o.getLength() == N);
+    CHECK(o.getPtr()[0] == 0.5f);
+    CHECK(o.getPtr()[5] == 5.f);
+    CHECK(o.getPtr()[9] == 8.5f);
+    CHECK(o.getPtr()[10] == 0.f);
   }
 
   TEST_CASE("frameAverage / frameSmooth: runs of bins in bin order equal the whole frame "
@@ -434,6 +515,24 @@ TEST_SUITE("dsp") {
     }
     CHECK(seen >= 8);
     CHECK(worst < 1e-3);
+
+    // A callback gets whole frames: centred() smooths them in place.
+    stft centred(SIZE, 4);
+    double off = 0.0;
+    unsigned int frames = 0;
+    auto centre = [&](stftFrame& f) {
+      const std::vector<float> was(f.real, f.real + f.count);
+      flat.centred(f, f.real, f.real);
+      for (UInt k = 0; k < f.count; ++k)
+        off = std::max(off, std::abs(f.real[k] - Centred(was, k, 5)));
+      frames++;
+    };
+    for (unsigned int block = 0; block < 8; ++block) {
+      std::copy(x[0].begin() + block * N, x[0].begin() + (block + 1) * N, b.getPtr());
+      centred(b, centre);
+    }
+    CHECK(frames >= 8);
+    CHECK(off < 1e-3);
   }
 
   TEST_CASE("frameAverage / frameSmooth: the output does not depend on the sample rate "
@@ -473,6 +572,8 @@ TEST_SUITE("dsp") {
         s(Run(256, N, 2048, static_cast<U64>(m)), run.data(), run.data());
         a(Run(0, N, 2048), x);
         s(Run(0, N, 2048), x);
+        s.centred(Run(0, N, N), run.data(), run.data());
+        s.centred(Run(0, N, N), x);
       }
       a.frameCount(2);
       a.frameSize(300);

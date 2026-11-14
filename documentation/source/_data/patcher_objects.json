@@ -18477,7 +18477,7 @@
   },
   "~framesmooth": {
     "category": "SPECTRAL",
-    "description": "A running average along every frame that never reaches into the next: each value's mean with the values just before it in the same frame. On a ~pfft's magnitudes, a spectrum smoothed across frequency.",
+    "description": "A running average along every frame that never reaches into the next: each value's mean with its neighbours in the same frame. On a ~pfft's magnitudes, a spectrum smoothed across frequency.",
     "inlets": [
       {
         "accepts": [
@@ -18485,7 +18485,7 @@
           "FLOAT",
           "INT"
         ],
-        "doc": "The frames, one value per bin: inside a ~pfft its spectral frames, elsewhere frames of framesize samples, or every block with framesize 0. A signal; unconnected, the last number sent here (0). 'clear' forgets the values before, so the next starts a new window.",
+        "doc": "The frames, one value per bin: inside a ~pfft its spectral frames, elsewhere frames of framesize samples, or every block with framesize 0. A signal; unconnected, the last number sent here (0). 'clear' forgets the values before, so the next starts a new window (outside a ~pfft; inside, every frame is smoothed on its own).",
         "index": 0,
         "label": "in",
         "range": ""
@@ -18495,7 +18495,7 @@
     "name": "~framesmooth",
     "outlets": [
       {
-        "doc": "Each value's mean with the smoothness - 1 values before it in its frame; at the start of a frame, with as many as there are, so the first comes out as it goes in.",
+        "doc": "Inside a ~pfft, each bin's mean with the smoothness / 2 bins below it and the rest above, as many as the frame has at its ends: a centred window, so a peak stays on its bin. Elsewhere, each value's mean with the smoothness - 1 values before it in its frame, the first coming out as it goes in.",
         "index": 0,
         "label": "out",
         "range": "",
@@ -18505,9 +18505,15 @@
     "params": [
       {
         "default": "3",
-        "doc": "How many values are averaged, the current one included. The window trails the value, so a peak moves up by (smoothness - 1) / 2 bins. Changing it rebuilds the object.",
+        "doc": "How many values are averaged, the current one included. Inside a ~pfft the window is centred on the bin; outside, where the frames stream in, it trails the value, so a peak moves up by (smoothness - 1) / 2 bins. Changing it rebuilds the object.",
         "name": "smoothness",
         "range": "1-1024"
+      },
+      {
+        "default": "4096",
+        "doc": "Inside a ~pfft, the largest frame kept, in bins: half the FFT size of the ~pfft, or the FFT size with the full spectrum. Bins past it put out 0. Changing it rebuilds the object.",
+        "name": "bins",
+        "range": "1-65536"
       },
       {
         "default": "0",

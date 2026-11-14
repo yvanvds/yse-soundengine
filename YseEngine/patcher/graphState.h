@@ -1,6 +1,7 @@
 #pragma once
 #include <atomic>
 #include <cstdint>
+#include <memory>
 #include <vector>
 
 namespace YSE {
@@ -11,6 +12,7 @@ namespace YSE {
     class patcherImplementation;
     struct inlet;
     struct outlet;
+    struct spectralCarry;
 
     // Immutable, compiled snapshot of a patcher's topology (issue #226).
     //
@@ -46,11 +48,17 @@ namespace YSE {
       // ``muteBegin`` / ``muteEnd`` (issue #1137) bound the step's slice of
       // ``muteChain``: the mute words of the subpatchers around the object,
       // innermost first. Equal for an object at the top level.
+      //
+      // ``emit`` (issue #1280) marks the second step of a frame-wide object
+      // in a ~pfft subpatch (pObject::SpectralFrameWide): the one that sends
+      // the frame it consumed in the stage before. Always a start point:
+      // nothing it waits for arrives in its stage.
       struct renderStep {
         pObject* object;
         bool startPoint;
         std::uint32_t muteBegin = 0;
         std::uint32_t muteEnd = 0;
+        bool emit = false;
       };
 
       // The signal traversal, compiled at publish time (issue #1185). It is
@@ -113,8 +121,31 @@ namespace YSE {
         pObject* host = nullptr;
         // The domain's own compiled signal render, built as ``renderOrder``
         // is (start points within the domain, cords within the domain), with
-        // mute slices like it.
+        // mute slices like it, cut into *stages* (issue #1280).
+        //
+        // A frame-wide object (pObject::SpectralFrameWide) needs every bin of
+        // a frame before it can put out any, so what follows it cannot run
+        // in the same passes. Each object has a stage: a start point 0, any
+        // other the largest of its sources' stages, one more for a frame-wide
+        // source. A frame-wide object has two steps: its own (it *consumes*
+        // each pass's input) in its stage, and an ``emit`` step at the start
+        // of the next stage (it computes the frame at the first and sends
+        // each pass's bins). The ~pfft renders every pass of stage 0, then
+        // every pass of stage 1, and so on; a domain without frame-wide
+        // objects is one stage, the passes as before.
         std::vector<renderStep> renderOrder;
+        // stageEnds[s] = the end of stage s's steps in ``renderOrder`` (stage
+        // s runs from stageEnds[s - 1], or 0). At least one stage.
+        std::vector<std::uint32_t> stageEnds;
+        // A signal cord into a later stage than its source puts out in (from
+        // a stage-0 object past a frame-wide one into a stage-1 object) is
+        // carried: the compiled graph sends what the source puts out into a
+        // frame-long store (the carry's tap, in ``outletTargets`` in place of
+        // the target inlet), and the ~pfft hands each pass's bins of it to
+        // the target at the start of the target's stage. Sorted by that
+        // stage. Shared only so this header needs no complete type; built on
+        // the control thread and freed with the snapshot.
+        std::vector<std::shared_ptr<spectralCarry>> carries;
         // Every object of the domain: the ~pfft resets their inlets before
         // each pass.
         std::vector<pObject*> objects;
@@ -122,6 +153,9 @@ namespace YSE {
         // sorted by storage ID.
         std::vector<pObject*> inputs;
         std::vector<pObject*> outputs;
+        // outputStages[j] = the stage of outputs[j]: a ~fftout is collected
+        // after each pass of its own stage (issue #1280).
+        std::vector<std::uint32_t> outputStages;
       };
       std::vector<spectralDomain> spectral;
 

@@ -209,6 +209,20 @@ namespace YSE {
         return false;
       }
 
+      // Whether, inside a ~pfft, this object needs every bin of a spectral
+      // frame before it can put out any (issue #1280): a centred smoothing
+      // along the frame, a bin or pitch shift down. The ~pfft then renders
+      // what follows it in a later stage (GraphState::spectralDomain) and
+      // runs the object twice per pass: once to consume the pass's input
+      // (CurrentSpectralPass()->emitting false; it stores the bins and sends
+      // nothing), once in the next stage to emit (emitting true; at the first
+      // emit of a frame it computes the frame, then it sends the pass's
+      // bins). spectralFrameStore (patcher/spectral) does the storing.
+      // Outside a ~pfft it means nothing. A property of the type: constant.
+      virtual bool SpectralFrameWide() const {
+        return false;
+      }
+
       virtual void SetMessage(const std::string& message, float value) = 0;
 
       // Whether SetMessage above does anything (issue #933). A message box's

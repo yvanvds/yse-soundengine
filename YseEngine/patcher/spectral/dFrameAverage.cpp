@@ -157,41 +157,55 @@ CONSTRUCT_DSP() {
   REG_PARM_CLEAR;
   REG_PARM_PARSE;
   ADD_PARAM(smoothness);
+  ADD_PARAM(bins);
   ADD_PARAM(framesize);
 
   ADD_DESCRIPTION("A running average along every frame that never reaches into the next: each "
-                  "value's mean with the values just before it in the same frame. On a ~pfft's "
-                  "magnitudes, a spectrum smoothed across frequency.");
+                  "value's mean with its neighbours in the same frame. On a ~pfft's magnitudes, "
+                  "a spectrum smoothed across frequency.");
   ADD_CATEGORY(pCategory::SPECTRAL);
   INLET_DOC(0, "in",
             std::string(FRAMES_IN) + " 'clear' forgets the values before, so the next starts a "
-                                     "new window.",
+                                     "new window (outside a ~pfft; inside, every frame is "
+                                     "smoothed on its own).",
             "");
   OUTLET_DOC(0, "out",
-             "Each value's mean with the smoothness - 1 values before it in its frame; at the "
-             "start of a frame, with as many as there are, so the first comes out as it goes in.",
+             "Inside a ~pfft, each bin's mean with the smoothness / 2 bins below it and the rest "
+             "above, as many as the frame has at its ends: a centred window, so a peak stays on "
+             "its bin. Elsewhere, each value's mean with the smoothness - 1 values before it in "
+             "its frame, the first coming out as it goes in.",
              "");
   PARAM_DOC("smoothness", "3",
-            "How many values are averaged, the current one included. The window trails the "
-            "value, so a peak moves up by (smoothness - 1) / 2 bins. Changing it rebuilds the "
-            "object.",
+            "How many values are averaged, the current one included. Inside a ~pfft the window "
+            "is centred on the bin; outside, where the frames stream in, it trails the value, so "
+            "a peak moves up by (smoothness - 1) / 2 bins. Changing it rebuilds the object.",
             "1-1024");
+  PARAM_DOC("bins", "4096",
+            "Inside a ~pfft, the largest frame kept, in bins: half the FFT size of the ~pfft, or "
+            "the FFT size with the full spectrum. Bins past it put out 0. Changing it rebuilds "
+            "the object.",
+            "1-65536");
   PARAM_DOC("framesize", "0", FRAMESIZE_DOC, "0-65536");
 }
 
 PARM_CLEAR() {
   smoothness = static_cast<int>(frameSmooth::DEFAULT_SMOOTHNESS);
+  bins = static_cast<int>(spectralFrameStore::DEFAULT_CAPACITY);
   framesize = 0;
   fn.smoothness(frameSmooth::DEFAULT_SMOOTHNESS);
   fn.frameSize(0);
+  if (store.capacity() != spectralFrameStore::DEFAULT_CAPACITY) store = spectralFrameStore();
 }
 
 PARM_PARSE() {
   const UInt values = Between(smoothness, 1, frameSmooth::MAXIMUM_SMOOTHNESS);
+  const UInt capacity = Between(bins, 1, spectralFrameStore::MAXIMUM_CAPACITY);
   const UInt size = Between(framesize, 0, frameSmooth::MAXIMUM_FRAME_SIZE);
   fn.smoothness(values);
   fn.frameSize(size);
+  if (store.capacity() != capacity) store = spectralFrameStore(1, 1, capacity);
   smoothness = static_cast<int>(values);
+  bins = static_cast<int>(capacity);
   framesize = static_cast<int>(size);
 }
 
@@ -209,8 +223,23 @@ MESSAGES() {
   if (IsClear(message)) clearPending = true;
 }
 
+// Outside a ~pfft: the stream, trailing window. Inside: frame-wide (#1280),
+// the pass's bins stored on the consume step, the frame smoothed with the
+// centred window at its first emit step and handed out a pass at a time.
 CALC() {
-  Block(fn, number, clearPending, inputs, outputs, thread);
+  const spectralPass* pass = CurrentSpectralPass();
+  if (pass == nullptr) {
+    Block(fn, number, clearPending, inputs, outputs, thread);
+    return;
+  }
+  // Nothing outlives a frame here, so a clear has nothing to do.
+  if (pass->pass == 0) clearPending = false;
+  if (!pass->emitting) {
+    store.consume(*pass, 0, inputs[0].Signal(number.load()));
+    return;
+  }
+  if (store.due()) fn.centred(store.frame(*pass), store.input(0), store.output(0));
+  outputs[0].SendBuffer(&store.slice(*pass, 0), thread);
 }
 
 #undef className

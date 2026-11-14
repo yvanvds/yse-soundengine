@@ -11,7 +11,12 @@
 //  - inlets and outlets are routed by index, unconnected inlets read their
 //    numbers, ~fftinfo reports the frame, mute and clear work;
 //  - a signal cord across the boundary is refused, the patch survives a JSON
-//    round trip, and rendering allocates nothing.
+//    round trip, and rendering allocates nothing;
+//  - with a frame-wide object inside (issue #1280, ~framesmooth's centred
+//    window) the subpatch renders in stages: a centred smooth of a
+//    single-bin spectrum is symmetric around the bin at one pass and across
+//    pass boundaries, a cord that skips a stage is carried, and each
+//    ~fftout is collected in its own stage, against DSP::stft.
 
 #include <doctest/doctest.h>
 #include <cmath>
@@ -197,6 +202,30 @@ namespace {
     return differ;
   }
 
+  // ~framesmooth's centred window in closed form (issue #1280): the mean of
+  // x[k] and the values s / 2 below and s - 1 - s / 2 above it, cut to the
+  // frame.
+  std::vector<double> CentredSmooth(const std::vector<double>& x, UInt s) {
+    std::vector<double> out(x.size());
+    const std::size_t before = s / 2;
+    for (std::size_t k = 0; k < x.size(); ++k) {
+      const std::size_t from = k > before ? k - before : 0;
+      const std::size_t to = std::min(x.size(), k + s - before);
+      double sum = 0.0;
+      for (std::size_t j = from; j < to; ++j)
+        sum += x[j];
+      out[k] = sum / static_cast<double>(to - from);
+    }
+    return out;
+  }
+
+  float WorstOf(const std::vector<float>& a, const std::vector<float>& b, std::size_t from = 0) {
+    REQUIRE(a.size() == b.size());
+    float worst = 0.f;
+    for (std::size_t n = from; n < a.size(); ++n)
+      worst = std::max(worst, std::abs(a[n] - b[n]));
+    return worst;
+  }
 } // namespace
 
 TEST_SUITE("patcher") {
@@ -515,6 +544,189 @@ TEST_SUITE("patcher") {
     {
       TestHelpers::ProbeScope probe;
       for (int i = 0; i < 64; ++i)
+        p.ProcessAsInsert(io);
+      CHECK(TestHelpers::g_alloc_count.load() == 0);
+    }
+  }
+
+  TEST_CASE("~pfft: a frame-wide ~framesmooth gets a stage of its own; its centred smooth of a "
+            "single-bin spectrum is symmetric in one pass and across passes (#1280)") {
+    struct setting {
+      UInt size;
+      int bin;
+      UInt smoothness;
+    };
+    // 256: 128 bins, one pass. 2048: 1024 bins, eight passes; bins 127 and
+    // 128 have their windows straddle the boundary of passes 0 and 1, bin
+    // 511 a 41-bin window across that of passes 3 and 4; bins 2 and 1021 are
+    // cut by the ends of the frame.
+    const setting settings[] = {{256, 60, 5},    {256, 60, 41}, {2048, 127, 5}, {2048, 128, 5},
+                                {2048, 511, 41}, {2048, 2, 5},  {2048, 1021, 9}};
+    for (const setting& s : settings) {
+      CAPTURE(s.size);
+      CAPTURE(s.bin);
+      CAPTURE(s.smoothness);
+      // [~fftin] bin index -> [~== bin] -> [~framesmooth s] -> [~fftout]
+      // real: a spectrum of 1 at one bin, smoothed, the imaginary part 0.
+      patcherImplementation p(1, nullptr);
+      YSE::pHandle* adc = p.CreateObject(YSE::OBJ::D_ADC, "");
+      YSE::pHandle* pfft = p.CreateObject(YSE::OBJ::D_PFFT, "fx " + std::to_string(s.size) + " 4");
+      YSE::pHandle* dac = p.CreateObject(YSE::OBJ::D_DAC, "");
+      YSE::pHandle* in = p.CreateObject(YSE::OBJ::D_FFTIN, "0");
+      YSE::pHandle* one = p.CreateObject(YSE::OBJ::D_EQUAL, std::to_string(s.bin));
+      YSE::pHandle* smooth = p.CreateObject(YSE::OBJ::D_FRAMESMOOTH, std::to_string(s.smoothness));
+      YSE::pHandle* out = p.CreateObject(YSE::OBJ::D_FFTOUT, "0");
+      for (YSE::pHandle* h : {adc, pfft, dac, in, one, smooth, out})
+        REQUIRE(h != nullptr);
+      for (YSE::pHandle* h : {in, one, smooth, out})
+        p.SetObjectContainer(h, pfft);
+      p.Connect(adc, 0, pfft, 0);
+      p.Connect(in, 2, one, 0);
+      p.Connect(one, 0, smooth, 0);
+      p.Connect(smooth, 0, out, 0);
+      p.Connect(pfft, 0, dac, 0);
+      std::size_t at = 0;
+      const auto rendered = Render(p, 1, 48, RichIn, at);
+
+      // The spectrum, in closed form: 1 / (window) on the bins whose window
+      // holds `bin`, symmetric around it where the frame does not cut it.
+      const UInt half = s.size / 2;
+      std::vector<double> spike(half, 0.0);
+      spike[static_cast<std::size_t>(s.bin)] = 1.0;
+      const std::vector<double> smoothed = CentredSmooth(spike, s.smoothness);
+      const std::size_t reach = s.smoothness / 2;
+      const auto b = static_cast<std::size_t>(s.bin);
+      if (b > reach && b + reach + 1 < half && s.smoothness % 2 == 1) {
+        for (std::size_t d = 0; d <= reach + 1; ++d)
+          REQUIRE(smoothed[b - d] == smoothed[b + d]);
+      }
+      stft fx(s.size, 4);
+      auto spectrum = [&](stftFrame& frame) {
+        for (UInt k = 0; k < frame.count; ++k) {
+          frame.real[k] = k < half ? static_cast<float>(smoothed[k]) : 0.f;
+          frame.imaginary[k] = 0.f;
+        }
+      };
+      const std::vector<float> expected = Reference(fx, spectrum, RichIn, rendered[0].size());
+      // A quiet sound (one bin, divided by the size), so measured against
+      // its own peak.
+      float peak = 0.f;
+      for (const float v : expected)
+        peak = std::max(peak, std::abs(v));
+      CHECK(peak > 1e-6f);
+      CAPTURE(peak);
+      CHECK(WorstOf(rendered[0], expected) <= 1e-4f * peak);
+    }
+  }
+
+  TEST_CASE("~pfft: cords that skip a stage are carried, and every ~fftout is collected in "
+            "its own stage (#1280)") {
+    // Three outlets, after a JSON round trip:
+    //  0: a magnitude smoother, ~cartopol -> ~framesmooth 9 -> ~poltocar,
+    //     the phase from ~cartopol (stage 0) carried into ~poltocar's stage 1;
+    //  1: an identity, ~fftin -> ~fftout 1, collected in stage 0;
+    //  2: two frame-wide objects in a row, the real part through
+    //     ~framesmooth 5 -> ~framesmooth 3 (stage 2), the imaginary part
+    //     from ~fftin carried from stage 0 into stage 2.
+    constexpr UInt SIZE = 1024;
+    std::string dump;
+    {
+      patcherImplementation src(3, nullptr);
+      YSE::pHandle* adc = src.CreateObject(YSE::OBJ::D_ADC, "");
+      YSE::pHandle* pfft = src.CreateObject(YSE::OBJ::D_PFFT, "fx 1024 4 0 0 1 3");
+      YSE::pHandle* dac = src.CreateObject(YSE::OBJ::D_DAC, "");
+      YSE::pHandle* in = src.CreateObject(YSE::OBJ::D_FFTIN, "0");
+      YSE::pHandle* polar = src.CreateObject(YSE::OBJ::D_CARTOPOL, "");
+      YSE::pHandle* smooth = src.CreateObject(YSE::OBJ::D_FRAMESMOOTH, "9");
+      YSE::pHandle* cart = src.CreateObject(YSE::OBJ::D_POLTOCAR, "");
+      YSE::pHandle* out0 = src.CreateObject(YSE::OBJ::D_FFTOUT, "0");
+      YSE::pHandle* out1 = src.CreateObject(YSE::OBJ::D_FFTOUT, "1");
+      YSE::pHandle* first = src.CreateObject(YSE::OBJ::D_FRAMESMOOTH, "5");
+      YSE::pHandle* second = src.CreateObject(YSE::OBJ::D_FRAMESMOOTH, "3");
+      YSE::pHandle* out2 = src.CreateObject(YSE::OBJ::D_FFTOUT, "2");
+      for (YSE::pHandle* h :
+           {adc, pfft, dac, in, polar, smooth, cart, out0, out1, first, second, out2})
+        REQUIRE(h != nullptr);
+      for (YSE::pHandle* h : {in, polar, smooth, cart, out0, out1, first, second, out2})
+        src.SetObjectContainer(h, pfft);
+      src.Connect(adc, 0, pfft, 0);
+      src.Connect(in, 0, polar, 0);
+      src.Connect(in, 1, polar, 1);
+      src.Connect(polar, 0, smooth, 0);
+      src.Connect(smooth, 0, cart, 0);
+      src.Connect(polar, 1, cart, 1);
+      src.Connect(cart, 0, out0, 0);
+      src.Connect(cart, 1, out0, 1);
+      src.Connect(in, 0, out1, 0);
+      src.Connect(in, 1, out1, 1);
+      src.Connect(in, 0, first, 0);
+      src.Connect(first, 0, second, 0);
+      src.Connect(second, 0, out2, 0);
+      src.Connect(in, 1, out2, 1);
+      for (int o = 0; o < 3; ++o)
+        src.Connect(pfft, o, dac, o);
+      dump = src.DumpJSON();
+    }
+    patcherImplementation p(3, nullptr);
+    p.ParseJSON(dump);
+    CHECK(p.DumpJSON() == dump);
+    std::size_t at = 0;
+    const auto in3 = [](std::size_t n, unsigned int) { return Rich(n); };
+    const auto rendered = Render(p, 3, 48, in3, at);
+    const std::size_t length = rendered[0].size();
+
+    const UInt half = SIZE / 2;
+    stft polarFx(SIZE, 4);
+    auto magnitudes = [&](stftFrame& frame) {
+      std::vector<double> mag(half);
+      std::vector<double> phase(half);
+      for (UInt k = 0; k < half; ++k) {
+        mag[k] = std::hypot(static_cast<double>(frame.real[k]), frame.imaginary[k]);
+        phase[k] = std::atan2(static_cast<double>(frame.imaginary[k]), frame.real[k]);
+      }
+      const std::vector<double> smoothed = CentredSmooth(mag, 9);
+      for (UInt k = 0; k < frame.count; ++k) {
+        frame.real[k] = k < half ? static_cast<float>(smoothed[k] * std::cos(phase[k])) : 0.f;
+        frame.imaginary[k] = k < half ? static_cast<float>(smoothed[k] * std::sin(phase[k])) : 0.f;
+      }
+    };
+    stft identityFx(SIZE, 4);
+    auto identity = [&](stftFrame& frame) {
+      for (UInt k = half; k < frame.count; ++k) {
+        frame.real[k] = 0.f;
+        frame.imaginary[k] = 0.f;
+      }
+    };
+    stft twiceFx(SIZE, 4);
+    auto twice = [&](stftFrame& frame) {
+      std::vector<double> re(frame.real, frame.real + half);
+      const std::vector<double> smoothed = CentredSmooth(CentredSmooth(re, 5), 3);
+      for (UInt k = 0; k < frame.count; ++k) {
+        frame.real[k] = k < half ? static_cast<float>(smoothed[k]) : 0.f;
+        if (k >= half) frame.imaginary[k] = 0.f;
+      }
+    };
+    const std::vector<float> expected0 = Reference(polarFx, magnitudes, RichIn, length);
+    const std::vector<float> expected1 = Reference(identityFx, identity, RichIn, length);
+    const std::vector<float> expected2 = Reference(twiceFx, twice, RichIn, length);
+    CHECK(WorstOf(rendered[0], expected0) < 1e-4f);
+    CHECK(Differences(rendered[1], expected1) == 0);
+    CHECK(WorstOf(rendered[2], expected2) < 1e-5f);
+    // None of them is the identity but outlet 1: the smoothing changed the
+    // sound, the carried phase kept it a sound (with phases of 0 instead,
+    // the magnitude smoother puts out something else entirely).
+    CHECK(WorstOf(rendered[0], expected1, SIZE) > 0.01f);
+    CHECK(WorstOf(rendered[2], expected1, SIZE) > 0.01f);
+
+    // Rendering the staged patch allocates nothing.
+    MULTICHANNELBUFFER io(3);
+    for (auto& b : io) {
+      b.resize(BLOCK);
+      b = 0.1f;
+    }
+    {
+      TestHelpers::ProbeScope probe;
+      for (int i = 0; i < 32; ++i)
         p.ProcessAsInsert(io);
       CHECK(TestHelpers::g_alloc_count.load() == 0);
     }

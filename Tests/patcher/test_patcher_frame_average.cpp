@@ -1,5 +1,5 @@
 // Tests for ~frameaverage and ~framesmooth (patcher/spectral/dFrameAverage),
-// issue #1162. The per-bin math is DSP::frameAverage / DSP::frameSmooth's
+// issues #1162 and #1280. The per-bin math is DSP::frameAverage / DSP::frameSmooth's
 // and is tested in Tests/dsp/test_frame_average.cpp; these show:
 //  - outside a ~pfft a block is a frame, or with framesize a stream of
 //    frames across blocks, bit-exact against the classes, with numbers on
@@ -7,8 +7,10 @@
 //  - inside a rendered ~pfft the objects see the spectral frame bin by bin
 //    across passes: a ~fftin -> ~frameaverage / ~framesmooth -> ~fftout
 //    patch matches DSP::stft with the closed-form average over frames and
-//    trailing mean along the frame, at a frame of four passes, at a hop
-//    below the block, with a capacity below the frame and across a clear;
+//    centred mean along the frame (~framesmooth is frame-wide there, #1280),
+//    at a frame of four passes, at a hop below the block, with capacities
+//    below the frame and across a clear;
+//  - inside a ~pfft ~framesmooth consumes every pass before it emits any;
 //  - a magnitude smoother of ~cartopol -> ~frameaverage -> ~poltocar after
 //    a JSON round trip leaves a steady tone alone;
 //  - a clear waits for the start of a frame, the arguments survive a JSON
@@ -126,11 +128,12 @@ namespace {
 
   // What that patch must put out: DSP::stft, its callback replacing the real
   // parts by their mean over the last `frames` frames (0 before the first
-  // and after a clear) and the imaginary parts by their mean with the
-  // `smoothness - 1` bins before them in the frame, in closed form, for the
-  // bins of the half-spectrum frame (size / 2; the Nyquist bin, which a
-  // ~pfft frame does not hold, zeroed), bins at or past `averageBins` of the
-  // average at 0.
+  // and after a clear) and the imaginary parts by their mean over the
+  // window centred on them (smoothness / 2 bins below, the rest above, cut
+  // to the frame), in closed form, for the bins of the half-spectrum frame
+  // (size / 2; the Nyquist bin, which a ~pfft frame does not hold, zeroed),
+  // bins at or past `averageBins` of the average and `smoothBins` of the
+  // smoothing at 0.
   struct reference {
     stft fx;
     std::vector<std::vector<float>> history;
@@ -138,15 +141,17 @@ namespace {
     UInt frames;
     UInt averageBins;
     UInt smoothness;
+    UInt smoothBins;
     std::size_t made = 0;
 
-    reference(UInt size, UInt overlap, UInt count, UInt bins, UInt values)
+    reference(UInt size, UInt overlap, UInt count, UInt bins, UInt values, UInt kept = 1u << 16)
       : fx(size, overlap),
         history(count, std::vector<float>(size, 0.f)),
         imaginary(size),
         frames(count),
         averageBins(bins),
-        smoothness(values) {}
+        smoothness(values),
+        smoothBins(kept) {}
 
     void clear() {
       for (auto& f : history)
@@ -160,6 +165,7 @@ namespace {
         b.getPtr()[i] = Rich(at + i);
       auto callback = [this](stftFrame& f) {
         const UInt half = f.size / 2;
+        const UInt kept = std::min(half, smoothBins);
         std::vector<float>& now = history[made % frames];
         made++;
         std::copy(f.imaginary, f.imaginary + f.count, imaginary.begin());
@@ -174,11 +180,17 @@ namespace {
           for (const auto& h : history)
             sum += h[k];
           f.real[k] = k < averageBins ? static_cast<float>(sum / frames) : 0.f;
-          const UInt from = k + 1 >= smoothness ? k + 1 - smoothness : 0;
+          if (k >= kept) {
+            f.imaginary[k] = 0.f;
+            continue;
+          }
+          const UInt before = smoothness / 2;
+          const UInt from = k > before ? k - before : 0;
+          const UInt to = std::min(kept, k + smoothness - before);
           double window = 0.0;
-          for (UInt j = from; j <= k; ++j)
+          for (UInt j = from; j < to; ++j)
             window += imaginary[j];
-          f.imaginary[k] = static_cast<float>(window / (k + 1 - from));
+          f.imaginary[k] = static_cast<float>(window / (to - from));
         }
       };
       buffer& o = fx(b, callback);
@@ -220,7 +232,10 @@ TEST_SUITE("patcher") {
         YSE::PATCHER::Register().Get(YSE::OBJ::D_FRAMEAVERAGE));
     std::unique_ptr<YSE::PATCHER::pObject> s(YSE::PATCHER::Register().Get(YSE::OBJ::D_FRAMESMOOTH));
     CHECK(a->GetParamCount() == 3);
-    CHECK(s->GetParamCount() == 2);
+    CHECK(s->GetParamCount() == 3);
+    // Frame-wide inside a ~pfft (#1280); ~frameaverage works pass by pass.
+    CHECK(s->SpectralFrameWide());
+    CHECK_FALSE(a->SpectralFrameWide());
   }
 
   TEST_CASE("~frameaverage / ~framesmooth: outside a ~pfft a block is a frame, against the "
@@ -282,8 +297,8 @@ TEST_SUITE("patcher") {
       before = in;
     }
 
-    // ~frameaverage 3 4096 200 and ~framesmooth 5 200: frames of 200 samples
-    // across blocks.
+    // ~frameaverage 3 4096 200 and ~framesmooth 5 4096 200: frames of 200
+    // samples across blocks.
     BufferSink out2;
     BufferSink out3;
     dFrameaverage streamed;
@@ -291,9 +306,9 @@ TEST_SUITE("patcher") {
     Wire(streamed, out2);
     Wire(smooth, out3);
     streamed.SetParams("3 4096 200");
-    smooth.SetParams("5 200");
+    smooth.SetParams("5 4096 200");
     CHECK(streamed.GetParams() == "3 4096 200");
-    CHECK(smooth.GetParams() == "5 200");
+    CHECK(smooth.GetParams() == "5 4096 200");
     frameAverage sa(3);
     frameSmooth ss(5);
     sa.frameSize(200);
@@ -307,7 +322,7 @@ TEST_SUITE("patcher") {
     // Frame 0 is samples 0..199: sample 200 (block 1, sample 72) starts
     // frame 1, so ~framesmooth puts it out as it went in.
     Fill(in, 0);
-    smooth.SetParams("5 200");
+    smooth.SetParams("5 4096 200");
     Step(smooth, out3, &in);
     Fill(in, 1);
     buffer& next = Step(smooth, out3, &in);
@@ -365,30 +380,55 @@ TEST_SUITE("patcher") {
     CHECK(run(0, 3) == 1.f);
     CHECK(YSE::PATCHER::CurrentSpectralPass() == nullptr);
 
-    // ~framesmooth carries its window from pass to pass of a frame.
+    // ~framesmooth is frame-wide (#1280): while the passes consume it sends
+    // nothing; at the first emit it smooths the whole frame with the centred
+    // window, so bin 127, the last of pass 0, takes in bins 128 and 129 of
+    // pass 1.
     BufferSink out2;
     dFramesmooth smooth;
     Wire(smooth, out2);
-    smooth.SetParams("4");
-    for (unsigned int i = 0; i < N; ++i)
-      in.getPtr()[i] = static_cast<float>(i);
-    pass.pass = 0;
-    pass.firstBin = 0;
-    {
+    smooth.SetParams("5");
+    const auto consume = [&](UInt p) {
+      pass.pass = p;
+      pass.firstBin = p * N;
+      pass.emitting = false;
+      for (unsigned int i = 0; i < N; ++i)
+        in.getPtr()[i] = static_cast<float>(pass.firstBin + i);
       const YSE::PATCHER::spectralPassScope scope(&pass);
-      CHECK(Step(smooth, out2, &in).getPtr()[0] == 0.f);
-    }
-    pass.pass = 1;
-    pass.firstBin = N;
-    {
+      smooth.ResetDSP();
+      smooth.GetInlet(0)->SetBuffer(&in, YSE::T_GUI);
+      smooth.Calculate(YSE::T_DSP);
+    };
+    const auto emit = [&](UInt p) -> buffer& {
+      pass.pass = p;
+      pass.firstBin = p * N;
+      pass.emitting = true;
       const YSE::PATCHER::spectralPassScope scope(&pass);
-      // Bin 128 (0 again in this pass's block) with bins 125..127.
-      CHECK(Step(smooth, out2, &in).getPtr()[0] == doctest::Approx((125.0 + 126 + 127 + 0) / 4));
-    }
+      smooth.ResetDSP();
+      smooth.Calculate(YSE::T_DSP);
+      REQUIRE(out2.received != nullptr);
+      return *out2.received;
+    };
+    consume(0);
+    consume(1);
+    CHECK(out2.received == nullptr);
+    buffer& first = emit(0);
+    REQUIRE(first.getLength() == N);
+    // Bins 0 and 1: the window cut to the frame (0..2, 0..3).
+    CHECK(first.getPtr()[0] == doctest::Approx(1.0));
+    CHECK(first.getPtr()[1] == doctest::Approx(1.5));
+    CHECK(first.getPtr()[2] == doctest::Approx(2.0));
+    CHECK(first.getPtr()[127] == doctest::Approx(127.0));
+    buffer& second = emit(1);
+    CHECK(second.getPtr()[0] == doctest::Approx(128.0));
+    // Bins 254, 255: the top of the frame (252..255, 253..255).
+    CHECK(second.getPtr()[126] == doctest::Approx(253.5));
+    CHECK(second.getPtr()[127] == doctest::Approx(254.0));
+    CHECK(YSE::PATCHER::CurrentSpectralPass() == nullptr);
   }
 
   TEST_CASE("~frameaverage / ~framesmooth: in a rendered ~pfft, bin by bin across passes, "
-            "against DSP::stft in closed form (#1162)") {
+            "against DSP::stft in closed form (#1162, #1280)") {
     struct setting {
       UInt size;
       UInt overlap;
@@ -397,14 +437,18 @@ TEST_SUITE("patcher") {
       UInt averageBins;
       std::string smoothArgs;
       UInt smoothness;
+      UInt smoothBins;
     };
     // 1024 at overlap 4: 512 bins in four passes, a frame every two blocks.
     // 64 at overlap 4: 32 bins in one pass, eight frames a block. 1024 with a
     // capacity of 300: the average stops in the third pass. 256 at 2.
-    const setting settings[] = {{1024, 4, "", 4, 4096, "", 3},
-                                {64, 4, "3", 3, 4096, "6", 6},
-                                {1024, 4, "5 300", 5, 300, "40", 40},
-                                {256, 2, "1", 1, 4096, "1", 1}};
+    // 1024 with ~framesmooth 41 bins 200: the smoothing stops in the second
+    // pass, and its window there is cut at bin 200.
+    const setting settings[] = {{1024, 4, "", 4, 4096, "", 3, 4096},
+                                {64, 4, "3", 3, 4096, "6", 6, 4096},
+                                {1024, 4, "5 300", 5, 300, "40", 40, 4096},
+                                {1024, 4, "2", 2, 4096, "41 200", 41, 200},
+                                {256, 2, "1", 1, 4096, "1", 1, 4096}};
     for (const setting& s : settings) {
       CAPTURE(s.size);
       CAPTURE(s.overlap);
@@ -412,7 +456,7 @@ TEST_SUITE("patcher") {
       CAPTURE(s.smoothArgs);
       patcherImplementation p(1, nullptr);
       const spectral patch = BuildSpectral(p, s.size, s.overlap, s.averageArgs, s.smoothArgs);
-      reference ref(s.size, s.overlap, s.frames, s.averageBins, s.smoothness);
+      reference ref(s.size, s.overlap, s.frames, s.averageBins, s.smoothness, s.smoothBins);
       std::size_t at = 0;
       std::vector<float> out;
       std::vector<float> expected;
@@ -508,7 +552,7 @@ TEST_SUITE("patcher") {
     {
       patcherImplementation src(1, nullptr);
       REQUIRE(src.CreateObject(YSE::OBJ::D_FRAMEAVERAGE, "6 2048 512") != nullptr);
-      REQUIRE(src.CreateObject(YSE::OBJ::D_FRAMESMOOTH, "9 64") != nullptr);
+      REQUIRE(src.CreateObject(YSE::OBJ::D_FRAMESMOOTH, "9 64 512") != nullptr);
       REQUIRE(src.CreateObject(YSE::OBJ::D_FRAMEAVERAGE, "") != nullptr);
       dump = src.DumpJSON();
     }
@@ -523,7 +567,7 @@ TEST_SUITE("patcher") {
     CHECK(std::string(a->Type()) == "~frameaverage");
     CHECK(a->GetParams() == "6 2048 512");
     CHECK(std::string(b->Type()) == "~framesmooth");
-    CHECK(b->GetParams() == "9 64");
+    CHECK(b->GetParams() == "9 64 512");
     CHECK(c->GetParams() == "");
   }
 
@@ -543,7 +587,7 @@ TEST_SUITE("patcher") {
     dFramesmooth smooth;
     Wire(average, out);
     Wire(smooth, out2);
-    smooth.SetParams("5 200");
+    smooth.SetParams("5 4096 200");
     buffer in(N);
     Step(average, out, &in);
     Step(smooth, out2, &in);
