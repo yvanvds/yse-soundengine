@@ -295,6 +295,14 @@ every mode and what each one costs in quality.
 .. doxygenfile:: dsp/delay/pitchShifter.hpp
    :project: libYSE
 
+Pitch correction toward a scale or a set of notes, built from
+``DSP::pitchTracker`` and ``DSP::pitchShifter``: what ``~retune`` wraps.
+``DSP::tuning`` holds the scale (degrees in cents on a base note, any
+subset enabled), and can be filled from a ``YSE::scale``.
+
+.. doxygenfile:: dsp/delay/retune.hpp
+   :project: libYSE
+
 Dynamics
 --------
 

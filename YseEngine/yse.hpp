@@ -151,6 +151,7 @@
 #include "dsp/delay/comb.hpp"
 #include "dsp/delay/sampleDelay.hpp"
 #include "dsp/delay/pitchShifter.hpp"
+#include "dsp/delay/retune.hpp"
 #include "dsp/sampling/sampleBuffer.hpp"
 #include "dsp/sampling/sampleAccess.hpp"
 #include "dsp/sampling/tableLookup.hpp"

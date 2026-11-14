@@ -22054,6 +22054,80 @@
     ],
     "requires_midi_device": false
   },
+  "~retune": {
+    "category": "DELAY",
+    "description": "Detects the pitch of a voice or instrument and corrects it toward the nearest enabled note of a scale, or toward a pitch you give it: autotune. The scale is a note list in cents or ratios on a base note, with any subset enabled.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "The signal to correct (unconnected, the last number sent here, else 0). A list of MIDI notes and velocities enables or disables the scale degrees they fall on. Every inlet takes the attribute messages.",
+        "index": 0,
+        "label": "signal",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "A pitch in Hz to correct toward instead of the scale, a signal or a number; 0 follows the scale.",
+        "index": 1,
+        "label": "lock",
+        "range": "0 or a frequency in Hz"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "A detune in cents added to the correction, a signal or a number.",
+        "index": 2,
+        "label": "detune",
+        "range": "cents"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~retune",
+    "outlets": [
+      {
+        "doc": "The corrected signal, the latency in samples late.",
+        "index": 0,
+        "label": "signal",
+        "range": "any float",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "With pitchdetection 1, the detected pitch in Hz per sample (0 when there is none); else zeros.",
+        "index": 1,
+        "label": "pitch",
+        "range": "0 or a frequency in Hz",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "The latency in samples: when reportlatency is turned on, whenever it changes while it is on, and on getlatency.",
+        "index": 2,
+        "label": "latency",
+        "range": "0 or more",
+        "type": "INT"
+      }
+    ],
+    "params": [
+      {
+        "default": "440",
+        "doc": "The standard pitch (the A in Hz, default 440), then any of 'correction_amount <0-100>' (100), 'correction_threshold <cents>' (0), 'correction_ambience_threshold <0-1>' (0.3), 'correction_bypass <percent>' (100), 'notelist <cents or a/b>...' (chromatic), 'notebase <0-11>' (0), 'enablednotes all|<degree>...' (all), 'quality <basic|good|better|best>' (basic), 'retune <0|1>' (1), 'pitchdetection <0|1>' (0), 'windowsize <samples>' (256), 'reportlatency <0|1>' (0) and 'use_16bit <0|1>' (ignored).",
+        "name": "settings",
+        "range": "a number, then words and values"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~round": {
     "category": "MATH",
     "description": "Rounds the input to a multiple of the step: a step of 1, the default, rounds to whole numbers. Rounds to the nearest multiple (halfway values away from zero), or down with 'nearest 0'. A step of 0 passes the input through.",

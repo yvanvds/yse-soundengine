@@ -202,3 +202,65 @@ move with the pitch, so a voice shifted up sounds smaller.
 
    [~adc] -> [~pitchshift 1 pitchshiftcent -1200] -> [~dac]
    an octave down
+
+.. patcher-object:: ~retune
+
+Listens to the pitch of a single voice or instrument and pulls it onto the
+nearest note of a scale: the familiar autotune effect, or, with a little
+correction, a gentle intonation fix. It also works as a pitch detector.
+
+- The first argument is the standard pitch, the A in Hz (``440``). Any of
+  the words below may follow with their values, and are saved with the
+  patch: ``[~retune 440 notelist 200 400 500 700 900 1100 notebase 9]`` is
+  A major. Every word also works as a message in any inlet.
+- **The scale.** ``notelist`` gives the notes of one octave above the base
+  note, in cents (``100`` a semitone) or as ratios (``9/8``, ``3/2``), as a
+  Scala file lists them; the base note itself is always the first note, and
+  a ``1200`` or ``2/1`` at the end (the octave) is left out. ``notebase``
+  picks the base note, ``0`` for C up to ``11`` for B. The scale repeats at
+  every octave. ``defaulttuning`` goes back to the twelve semitones.
+- **Which notes.** ``enablednotes`` lists the notes of the scale to correct
+  toward, counted from ``0`` (the base note): ``enablednotes 0 2 4`` in a
+  major scale is its first, third and fifth. ``enablednotes all`` and
+  ``flush`` turn every note back on. A list of MIDI notes and velocities in
+  the left inlet turns notes on (a velocity above 0) or off (0): the note
+  number counts from the base note, wrapping round the scale, so with the
+  twelve semitones on C, ``69 0`` turns A off.
+- **How much.** ``correction_amount`` is how far a note is pulled, in
+  percent: ``100`` (the default) right onto the note, ``0`` not at all.
+  ``correction_threshold`` leaves a note alone while it is within that many
+  cents of its target, so a singer's small drifts stay.
+- **When not to.** Sound that has no clear pitch passes through
+  uncorrected. ``correction_ambience_threshold`` (``0.3``) is how clear it
+  has to be: higher also corrects noisier or more reverberant sound, lower
+  leaves more of it alone. ``correction_bypass`` leaves hissing sounds such
+  as an "s" alone: it is the share of samples, in percent, on which the
+  signal changes sign (about 2 for a sung A, 20 to 40 for an "s") above
+  which nothing is corrected. The default, ``100``, never bypasses.
+- The middle inlet takes a pitch in Hz to pull every note toward instead
+  of the scale, as a signal or a number; ``0`` goes back to the scale. The
+  right inlet adds a detune in cents, as a signal or a number.
+- ``retune 0`` passes the input straight through, without delay; ``retune
+  1`` corrects again. With ``pitchdetection 1`` the middle outlet carries
+  the detected pitch in Hz as a signal, ``0`` where there is none, also
+  while ``retune`` is off. ``windowsize`` is how often, in samples, the
+  pitch is measured (256 by default).
+- ``quality`` (``basic``, ``good``, ``better`` or ``best``) picks the pitch
+  shifter, exactly as for ``~pitchshift``, and with it the latency. In the
+  grain modes the latency follows the correction: about 130 to 145 samples
+  for a correction within 40 cents at ``basic``, and 2 when nothing is
+  corrected. ``better`` and ``best`` are 2048 and 4096 samples whatever
+  the correction. The right outlet reports the latency, with
+  ``reportlatency`` and ``getlatency`` as for ``~pitchshift``.
+- ``use_16bit`` is accepted and changes nothing.
+
+A note is measured over about 2048 samples, so the start of a new note is
+still pulled toward the previous one's target for a moment, about 20 ms at
+48 kHz. The lowest pitch it hears is about 47 Hz at 48 kHz. It follows a
+single voice: in a chord it finds one pitch at best, and corrects the whole
+chord by it.
+
+.. code-block:: text
+
+   [~adc] -> [~retune 440 notelist 200 400 500 700 900 1100 notebase 9] -> [~dac]
+   a voice pulled onto A major

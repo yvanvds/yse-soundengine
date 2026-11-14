@@ -170,6 +170,7 @@
 #include "delay/dComb.h"
 #include "delay/dTeeth.h"
 #include "delay/dPitchshift.h"
+#include "delay/dRetune.h"
 #include "dynamics/dNormalize.h"
 #include "dynamics/dLimi.h"
 #include "dynamics/dPeaklim.h"
@@ -508,6 +509,7 @@ pRegistry::pRegistry() {
   Add(OBJ::D_TEETH, dTeeth::Create);
   Add(OBJ::D_DELAY, dDelay::Create);
   Add(OBJ::D_PITCHSHIFT, dPitchshift::Create);
+  Add(OBJ::D_RETUNE, dRetune::Create);
   Add(OBJ::D_NORMALIZE, dNormalize::Create);
   Add(OBJ::D_LIMI, dLimi::Create);
   Add(OBJ::D_PEAKLIM, dPeaklim::Create);

@@ -19,6 +19,12 @@
 
 namespace YSE {
 
+  /// @cond INTERNAL
+  namespace DSP {
+    class tuning;
+  }
+  /// @endcond
+
   /**
    *  @brief A set of allowed pitches.
    *
@@ -76,6 +82,7 @@ namespace YSE {
     friend class SCALE::implementationObject;
     friend class player;
     friend class motif;
+    friend class DSP::tuning; // reads the pitches without copying (#1154)
   };
 
 } // namespace YSE

@@ -154,6 +154,7 @@ set(YSE_SRCS
   dsp/delay/comb.cpp
   dsp/delay/sampleDelay.cpp
   dsp/delay/pitchShifter.cpp
+  dsp/delay/retune.cpp
   dsp/ramp.cpp
   dsp/rawFilters.cpp
   dsp/sample_functions.cpp
@@ -238,6 +239,7 @@ set(YSE_SRCS
   patcher/delay/dDelay.cpp
   patcher/delay/dTeeth.cpp
   patcher/delay/dPitchshift.cpp
+  patcher/delay/dRetune.cpp
   patcher/dynamics/dNormalize.cpp
   patcher/dynamics/dLimi.cpp
   patcher/dynamics/dPeaklim.cpp
@@ -757,6 +759,7 @@ set_source_files_properties(
   patcher/delay/dDelay.cpp
   patcher/delay/dTeeth.cpp
   patcher/delay/dPitchshift.cpp
+  patcher/delay/dRetune.cpp
   patcher/dynamics/dNormalize.cpp
   patcher/dynamics/dLimi.cpp
   patcher/dynamics/dPeaklim.cpp
