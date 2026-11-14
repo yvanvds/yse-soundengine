@@ -443,7 +443,10 @@ TEST_SUITE("offlinesession") {
 
     CHECK(ok == (active > 0.0));
     if (!ok) {
-      CHECK(log.contains("no audio output device could be opened"));
+      // Either failure branch: no device to open (#973), or the backend
+      // itself failing to initialise — Pa_Initialize on a headless
+      // ubuntu-26.04 runner (issue #1282). Both must leave nothing behind.
+      CHECK(log.contains("YSE System object failed to initialize"));
       // Torn down, not left as an active session with no stream.
       CHECK_FALSE(channelsUp);
       CHECK(sessionRate == 0.0);
