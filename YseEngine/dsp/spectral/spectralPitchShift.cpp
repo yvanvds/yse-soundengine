@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 #include "../../headers/constants.hpp"
+#include "spectralBins.hpp"
 
 namespace {
   constexpr double PI = 3.14159265358979323846;
@@ -11,10 +12,6 @@ namespace {
   // How far (in bins) a peak may have moved since the frame before and
   // still be the same partial, for its angle.
   constexpr UInt MATCH_DISTANCE = 2;
-
-  inline Flt Finite(Flt value) {
-    return std::isfinite(value) ? value : 0.f;
-  }
 
   // An angle wrapped to -pi .. pi.
   inline double Wrap(double angle) {
@@ -28,6 +25,8 @@ namespace {
 
 namespace YSE {
   namespace DSP {
+
+    using spectralBins::Finite;
 
     spectralPitchShift::spectralPitchShift(Flt value, UInt capacity) : scale(1.f) {
       const UInt bins = Between(capacity, 1, MAXIMUM_CAPACITY);
@@ -75,24 +74,17 @@ namespace YSE {
                                         const Flt* inImaginary, Flt* outReal, Flt* outImaginary) {
       const UInt count = frame.count;
       const UInt size = frame.size;
-      const UInt half = size / 2;
 
       // Not a whole frame: passed through, and the next frame is a first.
       if (frame.firstBin != 0 || size < 2) {
-        for (UInt k = 0; k < count; ++k) {
-          const Flt re = inReal != nullptr ? Finite(inReal[k]) : 0.f;
-          const Flt im = inImaginary != nullptr ? Finite(inImaginary[k]) : 0.f;
-          outReal[k] = re;
-          outImaginary[k] = im;
-        }
+        spectralBins::PassThrough(count, inReal, inImaginary, outReal, outImaginary);
         reset();
         return;
       }
 
       // The bins processed: the lower half the frame holds, DC to Nyquist,
       // within the capacity.
-      UInt top = frame.fullSpectrum ? std::min(count, half + 1) : std::min(count, frame.bins);
-      top = std::min(std::min(top, half + 1), capacity());
+      const UInt top = spectralBins::Top(frame, capacity());
 
       const bool continues = started && frame.index == lastIndex + 1 && size == lastSize &&
                              frame.hop == lastHop && top == lastTop;
@@ -126,7 +118,6 @@ namespace YSE {
       // Far enough that every bin of every region folds or clips, near
       // enough that rounding stays exact.
       const double reach = 4.0 * static_cast<double>(size);
-      const auto n = static_cast<long long>(size);
 
       UInt match = 0; // the first previous peak not below p - MATCH_DISTANCE
       UInt from = 0; // where this peak's region starts
@@ -185,21 +176,13 @@ namespace YSE {
           const double re = inReal != nullptr ? Finite(inReal[k]) : 0.f;
           const double im = inImaginary != nullptr ? Finite(inImaginary[k]) : 0.f;
           if (re == 0.0 && im == 0.0) continue;
-          long long j = static_cast<long long>(k) + d;
+          std::size_t at = 0;
           bool mirrored = false;
-          if (j < 0 || j > static_cast<long long>(half)) {
-            if (clipping) continue;
-            j %= n;
-            if (j < 0) j += n;
-            if (j > static_cast<long long>(half)) {
-              j = n - j;
-              mirrored = true;
-            }
-          }
-          if (j >= static_cast<long long>(top)) continue;
+          if (!spectralBins::Place(static_cast<long long>(k) + d, size, top, clipping, at,
+                                   mirrored))
+            continue;
           const double yr = re * c - im * s;
           const double yi = re * s + im * c;
-          const auto at = static_cast<std::size_t>(j);
           real[at] += static_cast<Flt>(yr);
           imaginary[at] += static_cast<Flt>(mirrored ? -yi : yi);
         }
@@ -208,19 +191,7 @@ namespace YSE {
 
       // Out: the lower half, the upper as its mirror in a full spectrum,
       // the rest 0.
-      for (UInt k = 0; k < top; ++k) {
-        outReal[k] = real[k];
-        outImaginary[k] = imaginary[k];
-      }
-      for (UInt k = top; k < count; ++k) {
-        if (frame.fullSpectrum && k > half && size - k < top) {
-          outReal[k] = real[size - k];
-          outImaginary[k] = -imaginary[size - k];
-        } else {
-          outReal[k] = 0.f;
-          outImaginary[k] = 0.f;
-        }
-      }
+      spectralBins::Write(frame, top, real.data(), imaginary.data(), outReal, outImaginary);
 
       std::swap(phase, lastPhase);
       std::swap(peaks, lastPeaks);

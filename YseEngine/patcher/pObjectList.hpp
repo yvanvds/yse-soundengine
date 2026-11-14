@@ -84,7 +84,8 @@ namespace YSE {
    *    across frames), ``D_FRAMEAVERAGE`` / ``D_FRAMESMOOTH`` (every bin
    *    averaged over the last frames, and along its own frame), ``D_FRAME`` /
    *    ``D_FRAMESNAP`` (a list as a frame, and a frame as lists),
-   *    ``D_GIZMO`` (a spectral pitch shifter that moves the peaks).
+   *    ``D_GIZMO`` (a spectral pitch shifter that moves the peaks),
+   *    ``D_FBINSHIFT`` (a spectral frequency shifter).
    *  - DSP math: ``D_ADD``, ``D_MULTIPLY``, ``D_CLIP``, ``D_REVERSESUBSTRACT``,
    *    ``D_REVERSEDIVIDE``, ``D_MODULO``, ``D_PLUSEQUALS``,
    *    ``D_DELTA`` (difference between successive samples), ``D_DEGRADE``
@@ -381,6 +382,7 @@ namespace YSE {
     DEFOBJ(D_FRAME, "~frame");
     DEFOBJ(D_FRAMESNAP, "~framesnap");
     DEFOBJ(D_GIZMO, "~gizmo");
+    DEFOBJ(D_FBINSHIFT, "~fbinshift");
 
     DEFOBJ(G_INT, ".i");
     DEFOBJ(G_FLOAT, ".f");

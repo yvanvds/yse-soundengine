@@ -973,7 +973,7 @@ above changes. What it needs besides is to know which bins a block holds:
 
 An object whose output bin needs an input bin of a later pass (a centred
 smoothing, a bin shift or pitch shift downwards) cannot work pass by pass. It
-is *frame-wide* instead (issue #1280), as ``~framesmooth`` and ``~gizmo`` are:
+is *frame-wide* instead (issue #1280), as ``~framesmooth``, ``~gizmo`` and ``~fbinshift`` are:
 
 - It answers ``SpectralFrameWide()`` true (a ``pObject`` virtual, false by
   default). The ``~pfft`` then cuts its subpatch into stages (see

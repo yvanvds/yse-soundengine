@@ -474,6 +474,15 @@ stream without a patcher.
 .. doxygenfile:: dsp/spectral/spectralPitchShift.hpp
    :project: libYSE
 
+A frequency shifter for whole spectral frames: every bin moved by the same
+number of Hz, and the frame's phase turned so the moved partials stay
+continuous from frame to frame. What ``~fbinshift`` wraps; like
+``spectralPitchShift`` it takes the whole frame a ``DSP::stft`` callback
+gets, so it shifts a stream without a patcher.
+
+.. doxygenfile:: dsp/spectral/spectralFreqShift.hpp
+   :project: libYSE
+
 Filter primitives
 -----------------
 

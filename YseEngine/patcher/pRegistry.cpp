@@ -203,6 +203,7 @@
 #include "spectral/dFrameAverage.h"
 #include "spectral/dFrame.h"
 #include "spectral/dGizmo.h"
+#include "spectral/dFbinshift.h"
 
 #include "guiObjects/gInt.h"
 #include "guiObjects/gFloat.h"
@@ -546,6 +547,7 @@ pRegistry::pRegistry() {
   Add(OBJ::D_FRAME, dFrame::Create);
   Add(OBJ::D_FRAMESNAP, dFramesnap::Create);
   Add(OBJ::D_GIZMO, dGizmo::Create);
+  Add(OBJ::D_FBINSHIFT, dFbinshift::Create);
 
   Add(OBJ::G_SWITCH, gSwitch::Create);
   Add(OBJ::G_GATE, gGate::Create);

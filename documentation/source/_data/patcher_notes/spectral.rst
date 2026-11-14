@@ -416,3 +416,39 @@ the real and imaginary inputs pass through unchanged.
    inside [~pfft fifth 2048 4]:
    [~fftin 0] real, imaginary -> left, middle inlets of [~gizmo 1.5]
    [~gizmo] real, imaginary -> [~fftout 0]
+
+.. patcher-object:: ~fbinshift
+
+Shifts every frequency of a ``~pfft``'s spectral frames by the same number
+of Hz. Where ``~gizmo`` multiplies frequencies, which keeps a harmonic sound
+harmonic, ``~fbinshift`` adds to them: 100, 200 and 300 Hz shifted by 50 Hz
+become 150, 250 and 350 Hz, which no longer make one pitch. Small shifts
+give a beating, phasing sound, larger ones a metallic, bell-like one.
+
+Wire the real and imaginary outlets of a ``~fftin`` into the left and middle
+inlets, and the two outlets into a ``~fftout``. The right inlet is the shift
+in Hz, above 0 up and below 0 down. It takes a number, or a signal that is
+read at the first bin of each frame. The argument is the shift until
+something reaches that inlet, 0 by default. Every bin moves by the nearest
+whole number of bins, and the phase of the whole frame is turned a little
+further each frame, so a shift that falls between bins is still heard at
+the right frequency. Use an overlap of 4 or more for such shifts.
+
+A frequency moved below 0 Hz or above Nyquist (half the sample rate) folds
+back, as it would alias in a time-domain frequency shifter. After ``clip 1``
+it is dropped instead, and ``clip 0`` (the default) folds again. The
+message is not saved with the patch.
+
+``~fbinshift`` takes in a whole frame before it puts out any of it, since a
+shift down needs bins above the ones it lands on, so the objects after it
+run in a later stage of the frame (see :doc:`../subpatchers`). The second
+argument is the largest frame it keeps, in bins: 4096 by default, enough
+for a ``~pfft`` of size 8192; bins past it put out 0. Non-finite values
+count as 0. Outside a ``~pfft`` there are no spectral frames to shift, and
+the real and imaginary inputs pass through unchanged.
+
+.. code-block:: text
+
+   inside [~pfft ring 2048 4]:
+   [~fftin 0] real, imaginary -> left, middle inlets of [~fbinshift 75]
+   [~fbinshift] real, imaginary -> [~fftout 0]

@@ -17785,6 +17785,78 @@
     ],
     "requires_midi_device": false
   },
+  "~fbinshift": {
+    "category": "SPECTRAL",
+    "description": "A frequency shifter for a ~pfft's spectral frames: every bin of the spectrum moved by the same number of Hz, the frame's phase turned so the moved partials stay continuous from frame to frame.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The real parts of the frames, from ~fftin's outlet 0. A signal; unconnected, the last number sent here (0). 'clip 1' drops the bins moved below 0 Hz or above Nyquist, 'clip 0' (the default) folds them back as they would alias. Not saved.",
+        "index": 0,
+        "label": "real",
+        "range": "clip"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The imaginary parts of the frames, from ~fftin's outlet 1. A signal; unconnected, the last number sent here (0).",
+        "index": 1,
+        "label": "imaginary",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The frequency shift in Hz, either sign: added to every frequency. A signal, read at the first bin of each frame, or a number while unconnected (the shift argument).",
+        "index": 2,
+        "label": "shift",
+        "range": "Hz"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~fbinshift",
+    "outlets": [
+      {
+        "doc": "The real parts of the shifted frames, for ~fftout. Outside a ~pfft, the real input unchanged.",
+        "index": 0,
+        "label": "real",
+        "range": "",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "The imaginary parts of the shifted frames, for ~fftout. Outside a ~pfft, the imaginary input unchanged.",
+        "index": 1,
+        "label": "imaginary",
+        "range": "",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "The frequency shift in Hz until a number or a signal reaches the shift inlet: above 0 up, below 0 down.",
+        "name": "shift",
+        "range": "Hz"
+      },
+      {
+        "default": "4096",
+        "doc": "The largest frame kept, in bins: half the FFT size of the ~pfft it runs in, or the FFT size with the full spectrum. Bins past it put out 0. Changing it rebuilds the object.",
+        "name": "bins",
+        "range": "1-65536"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~fffb": {
     "category": "FILTER",
     "description": "Bank of bandpass filters in parallel on one input, each with its own center frequency, Q, gain and outlet: vocoders, spectral shaping, resonator banks.",
