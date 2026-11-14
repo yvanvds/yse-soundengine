@@ -138,3 +138,67 @@ refused. For echoes that repeat, use ``~tapin`` and ``~tapout`` or
 
    [~adc] -> [~delay 4800 96] -> [~dac]
    the input, two milliseconds late at 48 kHz
+
+.. patcher-object:: ~pitchshift
+
+Shifts the pitch of a signal up or down without changing its speed. The
+shift is a ratio (``2`` an octave up, ``0.5`` an octave down, ``1``
+unchanged) or, with ``usecents 1``, cents (``100`` a semitone up,
+``-1200`` an octave down), from two octaves down to two octaves up.
+
+- The first argument is the number of channels: ``[~pitchshift 2]`` has two
+  signal inlets and outlets, shifted alike, and the shift inlet after them.
+  Any of the words below may follow with a value, and are saved with the
+  patch: ``[~pitchshift 1 pitchshiftcent 700 quality good]``.
+- The last inlet takes the shift as a number or a signal. A number is read
+  as a ratio or as cents by what ``usecents`` was when it arrived. A signal
+  is read per sample, as ``usecents`` says now, and wins over the number.
+- ``pitchshift <ratio>`` and ``pitchshiftcent <cents>`` set the shift in
+  either unit. ``enabled 0`` passes the input straight through, with no
+  delay; ``enabled 1`` starts shifting again. All words work in any inlet.
+- A pitch shifter needs some of the past to work with, so its output comes
+  late. The last outlet reports that latency in samples: ``reportlatency 1``
+  sends it now and every time it changes, and ``getlatency`` sends it once.
+  ``getlatency 1`` and ``getlatency 0`` are the same as ``reportlatency``.
+
+``quality`` picks how the shifting is done, and with it the latency:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 14 46 40
+
+   * - quality
+     - how
+     - latency at 48 kHz
+   * - ``basic`` (default)
+     - Two overlapping grains of 1024 samples read a delay line, each
+       aligned with the other so a tone stays in phase.
+     - 2 samples unshifted, about 160 a semitone away, 642 an octave up
+       (13 ms)
+   * - ``good``
+     - The same with grains of 2048 samples: aligns lower notes (down to
+       about 94 Hz instead of 187), and its level wavers more slowly.
+     - about twice ``basic``'s
+   * - ``better``
+     - A phase vocoder: the spectrum, 2048 samples at a time, with its
+       peaks moved to their new pitch.
+     - 2048 samples (43 ms)
+   * - ``best``
+     - The phase vocoder with 4096 samples and more overlap.
+     - 4096 samples (85 ms)
+
+The grain modes are quick and suit live playing and small corrections, but
+where the grains cross a chord or noise partly cancels, so its level wavers
+about 94 times a second (``basic``), and an attack can be heard twice. The
+phase vocoder keeps a steady tone at its level, at the price of more delay
+and smeared attacks. In the grain modes the latency depends on the shift;
+``constantlatency 1`` holds it at its largest (1666 samples for ``basic``,
+3330 for ``good``) whatever the shift, which keeps a shifted copy in time
+with itself while the shift moves. Changing ``quality`` starts the shifter
+again: the output is silent for the new latency. In every mode the formants
+move with the pitch, so a voice shifted up sounds smaller.
+
+.. code-block:: text
+
+   [~adc] -> [~pitchshift 1 pitchshiftcent -1200] -> [~dac]
+   an octave down

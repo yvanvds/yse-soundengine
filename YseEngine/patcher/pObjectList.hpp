@@ -49,7 +49,8 @@ namespace YSE {
    *    running minimum and maximum), ``D_CAPTURE`` (signal samples stored
    *    and dumped as lists), ``D_LOUDNESS`` (EBU R 128 loudness in LUFS),
    *    ``D_FZERO`` (the fundamental frequency, peak amplitude and onsets).
-   *  - DSP delay: `D_TAPIN`, `D_TAPOUT`, `D_COMB`, `D_TEETH`, `D_DELAY`.
+   *  - DSP delay: `D_TAPIN`, `D_TAPOUT`, `D_COMB`, `D_TEETH`, `D_DELAY`,
+   *    ``D_PITCHSHIFT`` (a real-time pitch shifter).
    *  - DSP dynamics: ``D_NORMALIZE`` (scaling by the running peak).
    *  - DSP sampling: ``D_BUFFER``, ``D_INFO`` (a buffer's details),
    *    ``D_PEEK`` (one sample read or written by message), ``D_POKE`` (a
@@ -337,6 +338,7 @@ namespace YSE {
     DEFOBJ(D_COMB, "~comb");
     DEFOBJ(D_TEETH, "~teeth");
     DEFOBJ(D_DELAY, "~delay");
+    DEFOBJ(D_PITCHSHIFT, "~pitchshift");
 
     DEFOBJ(D_NORMALIZE, "~normalize");
     DEFOBJ(D_LIMI, "~limi");

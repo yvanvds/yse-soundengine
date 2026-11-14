@@ -286,6 +286,15 @@ Delay
 .. doxygenfile:: dsp/delay/sampleDelay.hpp
    :project: libYSE
 
+A real-time pitch shifter: a granular dual delay line whose grains are
+aligned in phase, for low latency, or a phase vocoder built from
+``DSP::stft`` and ``DSP::spectralPitchShift``, for a steadier tone at more
+latency. What ``~pitchshift`` wraps; the class notes give the latency of
+every mode and what each one costs in quality.
+
+.. doxygenfile:: dsp/delay/pitchShifter.hpp
+   :project: libYSE
+
 Dynamics
 --------
 

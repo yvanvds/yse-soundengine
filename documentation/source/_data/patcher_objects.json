@@ -21187,6 +21187,61 @@
     "params": [],
     "requires_midi_device": false
   },
+  "~pitchshift": {
+    "category": "DELAY",
+    "description": "Shifts the pitch of one or more channels by a ratio or in cents, keeping their duration: a low-latency granular dual delay line, or a phase vocoder for steadier tone at more latency. The last outlet reports the latency.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The signal of channel 1 (unconnected, the last number sent here, else 0). Takes the attribute messages, as every inlet does.",
+        "index": 0,
+        "label": "channel 1",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The shift, a ratio (2 an octave up) or, with usecents 1, cents (100 a semitone up): a number or a signal read per sample. Takes pitchshift <ratio>, pitchshiftcent <cents>, quality <basic|good|better|best>, constantlatency, enabled, reportlatency and usecents <0|1>, and getlatency.",
+        "index": 1,
+        "label": "shift",
+        "range": "0.25 to 4, or -2400 to 2400 cents"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~pitchshift",
+    "outlets": [
+      {
+        "doc": "Channel 1 shifted, the latency in samples late.",
+        "index": 0,
+        "label": "channel 1",
+        "range": "any float",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "The latency in samples: when reportlatency is turned on, whenever it changes while it is on, and on getlatency.",
+        "index": 1,
+        "label": "latency",
+        "range": "0 or more",
+        "type": "INT"
+      }
+    ],
+    "params": [
+      {
+        "default": "1",
+        "doc": "The channel count (1-16, default 1), then any of 'pitchshift <ratio>' (1), 'pitchshiftcent <cents>', 'quality <basic|good|better|best>' (basic), 'constantlatency <0|1>' (0), 'enabled <0|1>' (1), 'reportlatency <0|1>' (0) and 'usecents <0|1>' (0).",
+        "name": "settings",
+        "range": "a number, then words and values"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~play": {
     "category": "SAMPLING",
     "description": "Plays a named sample buffer from a start to an end point at normal speed or over a given time, forward or backward, once or in a loop, or at the positions a signal gives; bangs when playback reaches its end.",
