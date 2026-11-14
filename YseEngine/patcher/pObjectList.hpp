@@ -79,7 +79,9 @@ namespace YSE {
    *    and its inverse, frame by frame), ``D_PFFT`` (a subpatch run once per
    *    short-time spectral frame) with ``D_FFTIN`` / ``D_FFTOUT`` /
    *    ``D_FFTINFO`` (its inputs, outputs and frame report), ``D_VECTRAL``
-   *    (frames smoothed index by index).
+   *    (frames smoothed index by index), ``D_FRAMEDELTA`` /
+   *    ``D_FRAMEACCUM`` (the change and the running sum of every bin
+   *    across frames).
    *  - DSP math: ``D_ADD``, ``D_MULTIPLY``, ``D_CLIP``, ``D_REVERSESUBSTRACT``,
    *    ``D_REVERSEDIVIDE``, ``D_MODULO``, ``D_PLUSEQUALS``,
    *    ``D_DELTA`` (difference between successive samples), ``D_DEGRADE``
@@ -369,6 +371,8 @@ namespace YSE {
     DEFOBJ(D_FFTOUT, "~fftout");
     DEFOBJ(D_FFTINFO, "~fftinfo");
     DEFOBJ(D_VECTRAL, "~vectral");
+    DEFOBJ(D_FRAMEDELTA, "~framedelta");
+    DEFOBJ(D_FRAMEACCUM, "~frameaccum");
 
     DEFOBJ(G_INT, ".i");
     DEFOBJ(G_FLOAT, ".f");

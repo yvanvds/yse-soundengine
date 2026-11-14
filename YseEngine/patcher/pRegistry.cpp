@@ -199,6 +199,7 @@
 #include "spectral/dFft.h"
 #include "spectral/dPfft.h"
 #include "spectral/dVectral.h"
+#include "spectral/dFrameDelta.h"
 
 #include "guiObjects/gInt.h"
 #include "guiObjects/gFloat.h"
@@ -535,6 +536,8 @@ pRegistry::pRegistry() {
   Add(OBJ::D_FFTOUT, dFftout::Create);
   Add(OBJ::D_FFTINFO, dFftinfo::Create);
   Add(OBJ::D_VECTRAL, dVectral::Create);
+  Add(OBJ::D_FRAMEDELTA, dFramedelta::Create);
+  Add(OBJ::D_FRAMEACCUM, dFrameaccum::Create);
 
   Add(OBJ::G_SWITCH, gSwitch::Create);
   Add(OBJ::G_GATE, gGate::Create);

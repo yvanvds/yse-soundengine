@@ -193,3 +193,51 @@ the message can choose. Messages are not saved with the patch.
    [~count 0 512 1] -> left and middle inlets of [~vectral 512]
    [spectrum magnitudes] -> right inlet
    then "slide 1 20": peaks rise at once and fall away over about 20 frames
+
+.. patcher-object:: ~framedelta
+
+Puts out the change of every bin since the previous frame: each value minus
+the value at the same place in the frame before. Fed the phases of a
+spectrum (the right outlet of ``~cartopol``), that is the phase deviation of
+each bin from one frame to the next, the starting point of a phase vocoder:
+a bin's phase deviation tells how far its frequency lies from the bin's
+centre.
+
+Inside a ``~pfft`` a frame is the ``~pfft``'s spectral frame, bin by bin,
+however many passes it takes. Anywhere else every block counts as a frame,
+so sample k of a block is compared with sample k of the block before. The
+first frame, and the first after ``clear``, comes out as it goes in. A frame
+of another size than the one before (another ``~pfft`` size) starts again
+from 0 as well. A value that is not a finite number counts as 0.
+
+The argument is the largest frame it keeps, in bins: 4096 by default, which
+serves a ``~pfft`` up to an FFT size of 8192 (half spectrum). Bins past it
+put out 0, so give a larger ``~pfft`` a larger argument. ``clear`` sets the
+stored frame to 0 from the start of the next frame; it is not saved.
+
+.. patcher-object:: ~frameaccum
+
+Puts out a running sum of every bin over successive frames: each value plus
+the sum of the values at the same place in the frames before. After a
+``~framedelta`` on the phases of a spectrum it gives the running phase of a
+phase vocoder: change the phase deviations between the two (scaled, they
+move every bin's frequency, a simple spectral pitch shift), and
+``~frameaccum`` builds up the new phases.
+``~framedelta`` followed by ``~frameaccum`` with nothing in between gives
+the frames back.
+
+Frames, the first frame, a change of frame size, non-finite values and
+``clear`` work as for ``~framedelta``. The first argument switches on phase
+wrapping: nonzero wraps the sums into -pi to pi and keeps them there, as a
+``~phasewrap`` after the object would (pi itself becomes -pi), but without
+the sums growing into the thousands and losing their precision. The second
+argument is the largest frame kept, in bins, 4096 by default.
+
+.. code-block:: text
+
+   inside [~pfft pv 2048 4]:
+   [~fftin 0] real, imaginary -> [~cartopol]
+   [~cartopol] magnitude -> left inlet of [~poltocar]
+   [~cartopol] phase -> [~framedelta] -> [~* 1.5] -> [~frameaccum 1]
+   [~frameaccum 1] -> right inlet of [~poltocar]
+   [~poltocar] real, imaginary -> [~fftout 0]

@@ -170,6 +170,7 @@
 #include "dsp/spectral/streamingFft.hpp"
 #include "dsp/spectral/stft.hpp"
 #include "dsp/spectral/vectral.hpp"
+#include "dsp/spectral/frameDelta.hpp"
 #include "dsp/ramp.hpp"
 #include "dsp/envelope.hpp"
 #include "dsp/ADSRenvelope.hpp"

@@ -18299,6 +18299,86 @@
     ],
     "requires_midi_device": false
   },
+  "~frameaccum": {
+    "category": "SPECTRAL",
+    "description": "A running sum of every bin over successive frames: each value plus the sum at the same place over the frames before, optionally wrapped into -pi to pi. On a ~framedelta's phase deviations, the running phase of a phase vocoder.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The frames, one value per bin: inside a ~pfft its spectral frames, elsewhere every block counts as a frame. A signal; unconnected, the last number sent here (0). 'clear' sets every sum to 0.",
+        "index": 0,
+        "label": "in",
+        "range": ""
+      }
+    ],
+    "is_dsp": true,
+    "name": "~frameaccum",
+    "outlets": [
+      {
+        "doc": "Each value plus the sum of the same bin over the frames before; with wrap on, wrapped into -pi to pi. 0 for bins past the bins parameter.",
+        "index": 0,
+        "label": "out",
+        "range": "",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Nonzero wraps the sums into -pi to pi and keeps them there, as a ~phasewrap after the object would without the sums growing and losing precision. Changing it rebuilds the object.",
+        "name": "wrap",
+        "range": "0 or 1"
+      },
+      {
+        "default": "4096",
+        "doc": "The largest frame kept, in bins: half the FFT size of the ~pfft it runs in, or the FFT size with the full spectrum. Bins past it put out 0. Changing it rebuilds the object.",
+        "name": "bins",
+        "range": "1-65536"
+      }
+    ],
+    "requires_midi_device": false
+  },
+  "~framedelta": {
+    "category": "SPECTRAL",
+    "description": "The change of every bin since the previous frame: each value minus the value at the same place in the frame before. On the phases of a ~pfft's frames, the phase deviation of a phase vocoder.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The frames, one value per bin: inside a ~pfft its spectral frames, elsewhere every block counts as a frame. A signal; unconnected, the last number sent here (0). 'clear' sets the stored frame to 0.",
+        "index": 0,
+        "label": "in",
+        "range": ""
+      }
+    ],
+    "is_dsp": true,
+    "name": "~framedelta",
+    "outlets": [
+      {
+        "doc": "Each value minus the same bin of the frame before; the first frame, and the first after a clear, as it comes in. 0 for bins past the bins parameter.",
+        "index": 0,
+        "label": "out",
+        "range": "",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "4096",
+        "doc": "The largest frame kept, in bins: half the FFT size of the ~pfft it runs in, or the FFT size with the full spectrum. Bins past it put out 0. Changing it rebuilds the object.",
+        "name": "bins",
+        "range": "1-65536"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~freqshift": {
     "category": "FILTER",
     "description": "Frequency shifter: moves every frequency of a signal up and down by the same number of Hz (not a pitch shift), for inharmonic, metallic sounds and barber-pole phasing.",

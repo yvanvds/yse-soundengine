@@ -440,6 +440,14 @@ wraps.
 .. doxygenfile:: dsp/spectral/vectral.hpp
    :project: libYSE
 
+The change and the running sum of every bin across successive frames, the
+phase deviation and running phase of a phase vocoder: what ``~framedelta``
+and ``~frameaccum`` wrap. They work on a ``stftFrame`` run of bins, so the
+same object serves a ``DSP::stft`` callback and a ``~pfft`` pass.
+
+.. doxygenfile:: dsp/spectral/frameDelta.hpp
+   :project: libYSE
+
 Filter primitives
 -----------------
 
