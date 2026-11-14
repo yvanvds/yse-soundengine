@@ -376,3 +376,43 @@ default; bins past it are not reported.
    [~framesnap] values -> left inlet of [~frame]
    [~framesnap] offset -> right inlet of [~frame]
    [~frame] -> left inlet of [~fftout 0]
+
+.. patcher-object:: ~gizmo
+
+Shifts the pitch of a ``~pfft``'s spectral frames. It finds the peaks of
+each frame's spectrum and moves every peak, together with the bins around
+it, to the bin nearest its frequency times the pitch ratio. It then turns the
+peak's phase so the moved partial keeps going smoothly from one frame to the
+next. The spectral envelope moves with the partials, as it does when a sound
+is played faster.
+
+Wire the real and imaginary outlets of a ``~fftin`` into the left and middle
+inlets, and the two outlets into a ``~fftout``. The right inlet is the pitch
+ratio: 2 is an octave up, 0.5 an octave down and 1 leaves the sound alone.
+It takes a number, or a signal that is read at the first bin of each frame.
+The first argument is the ratio until something reaches that inlet, 1 by
+default, from 0 to 16. Each peak's frequency is measured from how its phase
+moved since the frame before, so a partial between two bins still lands on
+the right one. Use an overlap of 4 or more: at 2 the frames disagree audibly
+where they overlap.
+
+``freqshift`` followed by a number of Hz, of either sign, adds a fixed
+frequency shift to every moved peak, as a frequency shifter does, which
+makes harmonic sounds inharmonic. A peak moved below 0 Hz or above Nyquist
+(half the sample rate) folds back, as it would alias in a time-domain
+transposer. After ``clip 1`` it is dropped instead, and ``clip 0`` (the
+default) folds again. Neither message is saved with the patch.
+
+``~gizmo`` takes in a whole frame before it puts out any of it, since a peak
+moved down needs bins above the ones it lands on, so the objects after it
+run in a later stage of the frame (see :doc:`../subpatchers`). The second
+argument is the largest frame it keeps, in bins: 4096 by default, enough
+for a ``~pfft`` of size 8192; bins past it put out 0. Non-finite values
+count as 0. Outside a ``~pfft`` there are no spectral frames to shift, and
+the real and imaginary inputs pass through unchanged.
+
+.. code-block:: text
+
+   inside [~pfft fifth 2048 4]:
+   [~fftin 0] real, imaginary -> left, middle inlets of [~gizmo 1.5]
+   [~gizmo] real, imaginary -> [~fftout 0]

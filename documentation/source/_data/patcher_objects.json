@@ -18831,6 +18831,78 @@
     ],
     "requires_midi_device": false
   },
+  "~gizmo": {
+    "category": "SPECTRAL",
+    "description": "A pitch shifter for a ~pfft's spectral frames: every peak of the spectrum, with the bins around it, moved to its transposed frequency, its phase turned so the partial stays continuous from frame to frame.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The real parts of the frames, from ~fftin's outlet 0. A signal; unconnected, the last number sent here (0). 'clip 1' drops the bins moved below 0 Hz or above Nyquist, 'clip 0' (the default) folds them back as they would alias. 'freqshift <Hz>' adds a frequency shift, either sign, to every transposed peak (0). Neither is saved.",
+        "index": 0,
+        "label": "real",
+        "range": "clip, freqshift"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The imaginary parts of the frames, from ~fftin's outlet 1. A signal; unconnected, the last number sent here (0).",
+        "index": 1,
+        "label": "imaginary",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The pitch ratio: 2 an octave up, 0.5 an octave down, 1 unchanged. A signal, read at the first bin of each frame, or a number while unconnected (the ratio argument).",
+        "index": 2,
+        "label": "ratio",
+        "range": "0-16"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~gizmo",
+    "outlets": [
+      {
+        "doc": "The real parts of the shifted frames, for ~fftout. Outside a ~pfft, the real input unchanged.",
+        "index": 0,
+        "label": "real",
+        "range": "",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "The imaginary parts of the shifted frames, for ~fftout. Outside a ~pfft, the imaginary input unchanged.",
+        "index": 1,
+        "label": "imaginary",
+        "range": "",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "1",
+        "doc": "The pitch ratio until a number or a signal reaches the ratio inlet: 2 an octave up, 0.5 an octave down, 1 unchanged.",
+        "name": "ratio",
+        "range": "0-16"
+      },
+      {
+        "default": "4096",
+        "doc": "The largest frame kept, in bins: half the FFT size of the ~pfft it runs in, or the FFT size with the full spectrum. Bins past it put out 0. Changing it rebuilds the object.",
+        "name": "bins",
+        "range": "1-65536"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~groove": {
     "category": "SAMPLING",
     "description": "Plays a named sample buffer at the speed of a signal, forward or backward, between loop points it can loop or swing back and forth over, with a sync signal that ramps from 0 to 1 over the loop: a sampler voice.",

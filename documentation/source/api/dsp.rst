@@ -465,6 +465,15 @@ or take a block as a frame.
 .. doxygenfile:: dsp/spectral/frameList.hpp
    :project: libYSE
 
+A pitch shifter for whole spectral frames: every peak moved, with the bins
+around it, to its transposed frequency, and its phase turned so the partial
+stays continuous from frame to frame. What ``~gizmo`` wraps; it takes the
+whole frame a ``DSP::stft`` callback gets, so it shifts the pitch of a
+stream without a patcher.
+
+.. doxygenfile:: dsp/spectral/spectralPitchShift.hpp
+   :project: libYSE
+
 Filter primitives
 -----------------
 
