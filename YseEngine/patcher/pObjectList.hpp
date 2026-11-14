@@ -70,7 +70,8 @@ namespace YSE {
    *    wavetable), ``D_WAVE2D`` (the same, crossfaded across rows),
    *    ``D_BUFFIR`` (a FIR filter whose taps are part of a buffer),
    *    ``D_STUTTER`` (the latest input copied on a trigger and replayed
-   *    by phase).
+   *    by phase), ``D_STRETCH`` (a buffer's length and pitch changed in
+   *    the background).
    *  - DSP routing: ``D_GATE`` (a signal sent to one of several outlets),
    *    ``D_SELECTOR`` (one of several signals passed to the outlet),
    *    ``D_MATRIX`` (every input to every output at a ramped gain),
@@ -364,6 +365,7 @@ namespace YSE {
     DEFOBJ(D_WAVE2D, "~2d.wave");
     DEFOBJ(D_BUFFIR, "~buffir");
     DEFOBJ(D_STUTTER, "~stutter");
+    DEFOBJ(D_STRETCH, "~stretch");
 
     DEFOBJ(D_GATE, "~gate");
     DEFOBJ(D_SELECTOR, "~selector");

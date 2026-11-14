@@ -23345,6 +23345,54 @@
     ],
     "requires_midi_device": false
   },
+  "~stretch": {
+    "category": "SAMPLING",
+    "description": "Changes the length and the pitch of a named buffer's contents independently, in the background: twice as long at the same pitch, or an octave up at the same length. Reports its progress and bangs when done.",
+    "inlets": [
+      {
+        "accepts": [
+          "BANG"
+        ],
+        "doc": "bang or apply processes the buffer; cancel stops it; set <name> picks another buffer. Also the attribute messages: stretch, pitchshift, pitchshiftcent, quality, mode, readagain, pitchcorrection, basictuning, followglobaltempo, originaltempo, originallength, transport and progress_enable.",
+        "index": 0,
+        "label": "messages",
+        "range": ""
+      }
+    ],
+    "is_dsp": false,
+    "name": "~stretch",
+    "outlets": [
+      {
+        "doc": "A bang when the buffer holds the result.",
+        "index": 0,
+        "label": "done",
+        "range": "bang",
+        "type": "BANG"
+      },
+      {
+        "doc": "How far the job has got, 0 to 1, while it runs, and 1 just before the bang. Only with progress_enable 1.",
+        "index": 1,
+        "label": "progress",
+        "range": "0-1",
+        "type": "FLOAT"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The buffer to process.",
+        "name": "name",
+        "range": "any symbol"
+      },
+      {
+        "default": "",
+        "doc": "Any of 'stretch <factor>' (1), 'pitchshift <factor>' (1), 'pitchshiftcent <cents>' (0), 'quality <basic|good|better|best>' (better), 'mode <basic|monophonic|rhythmic|general|polyphonic|pads|extremestretch|efficient>' (basic), 'readagain <0|1>' (1), 'pitchcorrection <0|1>' (0), 'basictuning <Hz>' (440), 'followglobaltempo <0|1>' (0), 'originaltempo <bpm>' (120), 'originallength <beats>' (0), 'transport <clock>' and 'progress_enable <0|1>' (1).",
+        "name": "settings",
+        "range": "words and values"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~stutter": {
     "category": "SAMPLING",
     "description": "Records its input all the time and, on a trigger, copies the most recent samples into a fragment that one or more phases replay: stutter and glitch effects.",

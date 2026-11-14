@@ -405,6 +405,17 @@ Its outputs, and the read that mixes the buffer's channels into them, are a
 .. doxygenfile:: dsp/sampling/playerOutputs.hpp
    :project: libYSE
 
+A whole sample buffer made longer or shorter and higher or lower, each on its
+own, offline on a worker thread: what ``~stretch`` does. A phase vocoder with
+identity phase locking on ``stftAnalysis`` / ``stftSynthesis``, onsets copied
+rather than stretched in the rhythmic modes, the pitch shifted by resampling,
+and an optional pitch correction through ``retune``. The result is written
+back with ``sampleBuffer::setContents``, one change that readers never see
+half made.
+
+.. doxygenfile:: dsp/sampling/timeStretch.hpp
+   :project: libYSE
+
 Routing
 -------
 

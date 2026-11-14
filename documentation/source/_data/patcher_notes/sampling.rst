@@ -718,3 +718,83 @@ bang.
    [open drums/kick.wav(
     |
    [~sfinfo]          channels, sample size, rate, length, type and name
+
+.. patcher-object:: ~stretch
+
+Changes the length and the pitch of what the buffer of its name holds, each
+on its own: a loop made twice as long at the same pitch, a phrase moved up a
+fifth at the same length, or both at once. The result replaces the buffer's
+contents, so every object playing the buffer plays the result.
+
+.. code-block:: text
+
+   [bang(
+    |
+   [~stretch loop stretch 2]       twice as long, same pitch
+    |              \
+   [1(              [.f]           progress, 0 to 1
+    |
+   [~play loop]
+
+The argument is the buffer's name, then any of the attributes below with
+their values. A bang (or ``apply``) starts the work. It runs in the
+background, so the audio goes on while it runs; a long buffer can take a
+while. While it runs, the right outlet sends how far it has got, from 0 to
+1, and the buffer still holds its old samples. When the result is in the
+buffer, the right outlet sends 1 and the left outlet bangs. Players switch
+from the old samples to the new ones at the start of a block.
+
+**Messages**
+
+- ``bang``, ``apply``: process the buffer with the current settings.
+- ``cancel``: stop the work that is running, and any that is waiting. The
+  buffer is left as it was and nothing bangs. Bangs after a ``cancel`` run.
+- ``set <name>``: work on another buffer from the next bang on; ``set``
+  alone names none.
+
+**Attributes** (messages, and words in the argument)
+
+- ``stretch <factor>``: the new length, as a factor of the old: 2 doubles
+  it, 0.5 halves it (1/16 to 16, default 1).
+- ``pitchshift <factor>``: the new pitch, as a factor: 2 is an octave up,
+  0.5 an octave down (1/4 to 4, default 1). ``pitchshiftcent <cents>`` sets
+  the same in cents (100 a semitone; -1200 an octave down). The last one
+  sent counts.
+- ``quality basic|good|better|best`` (or 0 to 3, default ``better``):
+  higher qualities separate close notes better and take longer.
+- ``mode <name>`` (or 0 to 7) suits the processing to the material:
+  ``basic`` (the default, for anything), ``monophonic`` (one voice or
+  instrument), ``rhythmic`` (drums: hits stay sharp and keep their place in
+  the rhythm), ``general`` (mixed material, hits kept), ``polyphonic``
+  (piano, guitar: chords kept clear, hits kept), ``pads`` (sustained
+  sounds), ``extremestretch`` (stretches far beyond 2, as an effect) and
+  ``efficient`` (the least work).
+- ``readagain <0|1>`` (default 1): with 1, every bang processes the buffer
+  as the first bang found it, so trying another ``stretch`` does not stretch
+  the stretched result. When the buffer changes in between (a new file is
+  read into it, it is filled), the next bang starts from the new contents.
+  With 0, every bang processes what the buffer holds, so the changes add up.
+- ``pitchcorrection <0|1>`` (default 0): pull the result onto the nearest
+  semitone, as ``~retune`` does: for a single voice or instrument.
+  ``basictuning <Hz>`` is the A the semitones are tuned to (400 to 500,
+  default 440).
+- ``followglobaltempo <0|1>`` (default 0), ``transport <clock>``,
+  ``originaltempo <bpm>`` (default 120), ``originallength <beats>``: with
+  ``followglobaltempo 1``, the length follows the tempo of the clock named
+  by ``transport`` when the bang runs: a loop recorded at the original tempo
+  is made to fit the clock's. ``originallength`` gives the loop's length in
+  beats instead (a number, a note value such as ``1n``, or ``1920 ticks``),
+  and the original tempo is worked out from the buffer's length. Of the two,
+  the last one sent counts. Without a clock of that name, ``stretch`` is
+  used.
+- ``progress_enable <0|1>`` (default 1): with 0, the right outlet sends
+  nothing.
+
+``formant``, ``formantcorrection`` and ``slurtime`` are accepted and do
+nothing: the pitch is shifted with the formants, so a voice moved up sounds
+smaller, and the pitch correction acts at once. Messages are not saved with
+the patch: a reloaded ``~stretch`` uses its argument.
+
+The work for one patcher waits in a queue of four, with the buffer objects'
+loading and editing: a bang sent while four are waiting is ignored. A
+``~stretch`` deleted while working stops.
