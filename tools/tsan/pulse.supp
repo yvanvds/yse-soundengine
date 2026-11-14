@@ -1,0 +1,22 @@
+# ThreadSanitizer suppressions for CI's tests-tsan and tests-tsan-full presets
+# (issue #1283).
+#
+# ubuntu-latest moved to ubuntu-26.04. Its PortAudio, 19.7.0+git20260206, links
+# libpulse and brings up a PulseAudio host API. Pa_Initialize then starts
+# pulse's threaded mainloop ('threaded-ml') even on a runner with no server.
+# libpulsecommon is not built with -fsanitize=thread. TSan can't see the
+# ordering pulse puts between a pa_mutex it pa_xmalloc()s on the caller's thread
+# and the first pa_mutex_lock() on its own thread, so it reports a race inside
+# the library. 24.04's PortAudio 19.6.0 had no PulseAudio host API, so this
+# never happened there.
+#
+# Rules (same as tools/tsan/host-audio.supp, which repeats this entry for the
+# local presets):
+#   - Name a library function, never a YSE frame.
+#   - No called_from_lib: for libpulsecommon. That would also hide its
+#     malloc/free from TSan, and with them any YSE heap bug that lands in a
+#     block pulse allocated.
+
+# A pa_mutex created by pa_xmalloc on one thread and locked on pulse's
+# mainloop thread. Both stacks are entirely inside libpulsecommon.
+race:pa_mutex_lock
