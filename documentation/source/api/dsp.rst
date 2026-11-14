@@ -425,6 +425,14 @@ for other frame-based processes.
 .. doxygenfile:: dsp/spectral/frameClock.hpp
    :project: libYSE
 
+The short-time Fourier transform: a stream cut into overlapping windowed
+frames, each handed to a callback that may change its bins, transformed back
+and overlap-added, ``size`` samples later. The analysis and synthesis halves
+can also be driven on their own. What ``~pfft`` runs its subpatch on.
+
+.. doxygenfile:: dsp/spectral/stft.hpp
+   :project: libYSE
+
 Successive frames, such as spectra, smoothed index by index with a linear
 ramp, a logarithmic slide or a limited change per frame: what ``~vectral``
 wraps.

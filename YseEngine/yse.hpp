@@ -168,6 +168,7 @@
 #include "dsp/routing/signalBus.hpp"
 #include "dsp/spectral/frameClock.hpp"
 #include "dsp/spectral/streamingFft.hpp"
+#include "dsp/spectral/stft.hpp"
 #include "dsp/spectral/vectral.hpp"
 #include "dsp/ramp.hpp"
 #include "dsp/envelope.hpp"

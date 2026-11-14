@@ -61,6 +61,96 @@ two frames (2 * size samples) later. Change the bins in between, through
    [~fft 512] -> left and middle outlets -> [~ifft 512] -> [~* 0.001953125]
    the input again, 1024 samples later
 
+.. patcher-object:: ~pfft
+
+Runs the objects placed inside it once per spectral frame. Each signal inlet
+is cut into frames of *size* samples, one every *size* / *overlap* samples,
+windowed and transformed; the objects inside work on the bins, from
+``~fftin`` to ``~fftout``; and the result is transformed back, windowed and
+overlap-added to the outlets. Put objects inside with ``SetContainer``, as
+for a ``patcher``. :doc:`/patcher/subpatchers` explains the model in full.
+
+The arguments are a name (free text for a host to show; the engine does not
+read it), the FFT size (a power of two from 16 to 65536, 512 by default;
+other values are rounded up), the overlap (a power of two, 2 by default; 4
+suits most processing), an offset (how many samples into the stream the
+first frame starts, modulo the hop), the full-spectrum flag, and how many
+signal inlets (1 to 16, 1 by default) and outlets (0 to 16, 1 by default)
+it has. The pins come from these arguments, not from the objects inside.
+
+The objects inside see a frame of *size* / 2 bins, DC up to the bin below
+Nyquist, or *size* bins with the full-spectrum flag. The upper half of a
+real signal's spectrum is filled in as the mirror of the lower half; the
+Nyquist bin of a half spectrum is resynthesised as 0. A frame of more than
+128 bins is rendered in passes of 128 bins, in bin order, at the sample the
+frame completes, so every object inside works on ordinary 128-sample blocks;
+``~fftin``'s bin-index outlet says which bin each sample is.
+
+Frames are handled at the exact sample they complete, so the output is the
+same whatever the block size, and the ``~pfft`` delays its input by exactly
+*size* samples. With an unchanged spectrum the output is the input, *size*
+samples later (without its Nyquist-frequency part in a half spectrum): the
+overlap-add is divided, sample by sample, by the sum of the overlapping
+analysis and synthesis windows, which holds for any window pair at an
+overlap of 2 or more. With an overlap of 1 the average of that sum is used.
+
+Inlet 0 also takes ``clear``, which empties every frame and the output, and
+``mute 1`` / ``mute 0``, which stop and restart the objects inside: the
+frames already being overlap-added play out, then the outlets are silent.
+Neither is saved. A number sent to an unconnected inlet is used as a
+constant signal. A signal cord cannot cross the ``~pfft``'s boundary; use
+its inlets and outlets. Inside, ``~dac``, ``~adc`` and ``~send`` /
+``~receive`` timing do not apply.
+
+.. code-block:: text
+
+   [~adc] -> [~pfft fx 1024 4] -> [~dac]
+   inside:  [~fftin 0] real, imaginary -> [~* 0.5] -> [~fftout 0]
+   the input at half its level, 1024 samples later
+
+.. patcher-object:: ~fftin
+
+Inside a ``~pfft``, puts out the spectrum of one of the ``~pfft``'s signal
+inlets, chosen by the first argument (0 is the left inlet). The left outlet
+is the real part of each bin, the middle one the imaginary part and the
+right one the bin's index, from 0 to the frame size - 1: bin k is the
+frequency k * samplerate / FFT size. In a frame of more than 128 bins the
+outlets carry one pass of 128 bins at a time, and the index says where each
+sample is. The values are not divided by the size: a sine of amplitude 1
+centred on a bin has a magnitude of about size / 4 there under the Hann
+window.
+
+The second argument is the analysis window of that inlet: ``hanning`` (the
+default), ``hamming``, ``blackman``, ``triangle`` or ``square`` (no window).
+When two ``~fftin`` read the same inlet, the one created first sets its
+window. Outside a ``~pfft`` it puts out silence.
+
+.. patcher-object:: ~fftout
+
+Inside a ``~pfft``, takes the spectrum one of the ``~pfft``'s signal outlets
+is resynthesised from, chosen by the first argument (0 is the left outlet):
+the real part of each bin on the left inlet, the imaginary part on the
+right, timed as ``~fftin`` puts them out. Bins that nothing reaches are 0,
+so an outlet without a ``~fftout`` is silent; several ``~fftout`` with the
+same index add up. An unconnected inlet reads the last number sent to it,
+else 0.
+
+The second argument is the synthesis window of that outlet: ``hanning``
+(the default), ``hamming``, ``blackman``, ``triangle`` or ``square``. The
+overlap-add gain is computed for it together with the analysis window of the
+inlet with the same index (inlet 0 when there is none), so an unchanged
+spectrum comes back at the input's level. Outside a ``~pfft`` it does
+nothing.
+
+.. patcher-object:: ~fftinfo
+
+Inside a ``~pfft``, reports the FFT size, the spectral frame size (the bins
+the objects inside see: half the FFT size, or the FFT size with the full
+spectrum), the hop (samples from one frame to the next) and the
+full-spectrum flag, on its four outlets from left to right. It reports by
+itself when the ``~pfft`` first runs its contents and whenever the figures
+change, and again on a bang. Outside a ``~pfft`` it reports nothing.
+
 .. patcher-object:: ~vectral
 
 Smooths a stream of frames index by index. A frame is a run of values, one

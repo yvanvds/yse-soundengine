@@ -100,6 +100,39 @@ namespace YSE {
       // live as long as it does. The audio thread only loads them.
       std::vector<const std::atomic<std::uint8_t>*> muteChain;
 
+      // The subpatch of one ~pfft (issue #1041): the objects whose nearest
+      // enclosing ~pfft it is. They are rendered by the ~pfft, once per pass
+      // of every spectral frame, not by Calculate's walk: none of them is in
+      // ``renderOrder``. A signal cord between two domains (the top level, or
+      // two ~pfft subpatches) is not compiled at all — not in
+      // ``outletTargets``, not counted in ``inletDspSources`` — so it is
+      // neither pushed nor waited for; Connect refuses one, and this is what
+      // keeps one made by a later SetContainer inert.
+      struct spectralDomain {
+        // The ~pfft (a dPfft).
+        pObject* host = nullptr;
+        // The domain's own compiled signal render, built as ``renderOrder``
+        // is (start points within the domain, cords within the domain), with
+        // mute slices like it.
+        std::vector<renderStep> renderOrder;
+        // Every object of the domain: the ~pfft resets their inlets before
+        // each pass.
+        std::vector<pObject*> objects;
+        // The ~fftin (dFftin) and ~fftout (dFftout) objects of the domain,
+        // sorted by storage ID.
+        std::vector<pObject*> inputs;
+        std::vector<pObject*> outputs;
+      };
+      std::vector<spectralDomain> spectral;
+
+      // The domain @p host renders, or null. Audio thread; linear over the
+      // patch's ~pfft objects, no allocation.
+      const spectralDomain* Spectral(const pObject* host) const {
+        for (const spectralDomain& d : spectral)
+          if (d.host == host) return &d;
+        return nullptr;
+      }
+
       // inletSubpatcher[inlet.graphId] = for an inlet of a subpatcher's
       // boundary object (.inlet / ~inlet), that subpatcher, else null (issue
       // #1137). What a ~mute's cord reaches: the cord ends on the boundary

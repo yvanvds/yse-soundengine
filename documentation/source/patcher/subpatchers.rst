@@ -77,7 +77,8 @@ inside with ``SetContainer(object, subpatcher)``:
   other object.
 
 ``SetContainer`` refuses the call, writes a log line and changes nothing when
-the container is not a ``patcher`` object of this patcher, when the object
+the container is not a ``patcher`` (or ``~pfft``, see below) object of this
+patcher, when the object
 belongs to another patcher, or when the move would put a subpatcher inside
 itself or inside one of its own subpatchers.
 
@@ -349,6 +350,107 @@ borrowed from the patcher, as elsewhere:
 back to the top level. ``yse_phandle_get_inputs`` returns 0 for a subpatcher,
 as in C++. :doc:`c_api` covers embedding a patcher through the C API.
 
+Spectral subpatchers: ``~pfft``
+-------------------------------
+
+A ``~pfft`` is a container like ``patcher``, but its contents run on
+short-time spectra instead of blocks of samples. Each of its signal inlets is
+cut into overlapping frames, windowed and Fourier transformed; the objects
+inside work on the bins; and what they put out is transformed back, windowed
+and overlap-added to the ``~pfft``'s outlets. Inside, ``~fftin N`` puts out
+the spectrum of inlet N (real part, imaginary part, bin index) and
+``~fftout N`` takes the spectrum outlet N is made from. ``~fftinfo`` reports
+the frame. Objects go in with ``SetContainer``, as for ``patcher``:
+
+.. code-block:: cpp
+
+   YSE::pHandle* fx  = patch.CreateObject("~pfft", "fx 1024 4");  // name size overlap
+   YSE::pHandle* in  = patch.CreateObject("~fftin", "0");
+   YSE::pHandle* out = patch.CreateObject("~fftout", "0");
+   YSE::pHandle* re  = patch.CreateObject("~*", "0.5");
+   YSE::pHandle* im  = patch.CreateObject("~*", "0.5");
+   for (YSE::pHandle* h : {in, out, re, im}) patch.SetContainer(h, fx);
+   patch.Connect(in, 0, re, 0);
+   patch.Connect(in, 1, im, 0);
+   patch.Connect(re, 0, out, 0);
+   patch.Connect(im, 0, out, 1);
+   patch.Connect(source, 0, fx, 0);   // the ~pfft's own signal pins
+   patch.Connect(fx, 0, dac, 0);
+
+The arguments are a name (free text, for a host to show), the FFT size (512),
+the overlap (2), an offset in samples (0), the full-spectrum flag (0) and the
+number of signal inlets (1) and outlets (1). The pins are the ``~pfft``'s
+own: unlike a ``patcher``, it does not take its pins from the objects inside.
+
+How the frames are scheduled
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+A frame of *size* samples starts every *hop* = size / overlap samples. A
+frame completes at a sample, not at a block boundary: with 128-sample blocks,
+a hop of 32 completes four frames in every block and a hop of 512 one frame
+every four blocks. The ``~pfft`` handles each frame at the exact sample it
+completes, inside the block, so the output does not depend on the block size,
+and the objects inside run once per frame, never once per block. A
+``~pfft`` whose hop is larger than a block leaves its contents idle in the
+blocks where no frame completes.
+
+What the objects inside see
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+A frame holds size / 2 bins, DC up to the one below Nyquist, or all *size*
+bins with the full-spectrum flag. The upper half of a real signal's spectrum
+mirrors the lower half and is filled in on the way back. The Nyquist bin is
+not part of a half-spectrum frame and is resynthesised as 0, so an unchanged
+half spectrum gives back the input without its Nyquist-frequency component;
+with the full spectrum it gives back the input exactly.
+
+The objects inside are ordinary signal objects working on blocks of at most
+128 samples. A frame of more than 128 bins is rendered as several *passes*
+of 128 bins each, in bin order, all at the sample the frame completes:
+sample i of a pass is bin *first* + i, and ``~fftin``'s right outlet gives
+the bin index, which is how an object treats bins differently (``~<`` on
+the index and ``~*`` make a brick-wall filter). An object that keeps state
+from sample to sample, such as a filter, runs across the bins of a frame in
+order. Frame-domain objects read which bins a pass holds directly (see
+:doc:`extending`).
+
+Inside a ``~pfft``, a ``~dac`` or ``~adc`` does nothing, and ``~send`` /
+``~receive`` pairs are not ordered.
+
+Latency, windows and gain
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The output starts the sample after a frame's last input sample, so a
+``~pfft`` delays its input by exactly *size* samples, whatever the block
+size and the overlap. That is the least any frame-based process that is
+exact to the sample can have, and the timing ``~fft`` and ``~ifft`` use.
+
+``~fftin`` sets the analysis window of its inlet and ``~fftout`` the
+synthesis window of its outlet: ``hanning`` (the default), ``hamming``,
+``blackman``, ``triangle`` or ``square`` (no window). The overlap-add is
+scaled so that an unchanged spectrum comes back at the input's level: each
+output sample is divided by the sum of analysis window times synthesis
+window over the frames that overlap there, and by the size. This holds for
+any window pair at an overlap of 2 or more, including Hann on both sides at
+the default overlap of 2. With no overlap (1) and a window that falls to 0 at
+its edges, the sum reaches 0, and the average gain is used instead: the edges
+of each frame come out quieter. An overlap of 4 is the usual choice for
+processing that changes the spectrum.
+
+Signal cords and the boundary
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+A signal cord cannot cross a ``~pfft`` boundary: ``Connect`` refuses one with
+a log line, and a cord that a later ``SetContainer`` puts across the
+boundary carries nothing. Signals go in through the ``~pfft``'s inlets and
+``~fftin``, and out through ``~fftout`` and the ``~pfft``'s outlets. Message
+cords cross freely. A ``patcher`` inside a ``~pfft`` groups as usual: its
+contents still run in the ``~pfft``'s frames.
+
+The C++ engine underneath is ``YSE::DSP::stft`` (``dsp/spectral/stft.hpp``),
+usable without a patcher: a frame callback gets each spectrum and may change
+it in place.
+
 Where to go next
 ----------------
 
@@ -357,5 +459,7 @@ Where to go next
 - :doc:`file_format`: how subpatchers are saved.
 - :doc:`objects/subpatchers`: the reference for ``patcher``, ``.inlet``,
   ``.outlet``, ``~inlet``, ``~outlet``, ``~mute``, ``~pass`` and ``~begin``.
+- :doc:`objects/spectral`: the reference for ``~pfft``, ``~fftin``,
+  ``~fftout`` and ``~fftinfo``.
 - :doc:`host_io`: send/receive and the named bus, and how names are scoped.
 - :doc:`realtime`: how the flat graph reaches the audio thread.

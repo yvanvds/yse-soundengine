@@ -197,6 +197,7 @@
 #include "routing/dSend.h"
 #include "routing/dReceive.h"
 #include "spectral/dFft.h"
+#include "spectral/dPfft.h"
 #include "spectral/dVectral.h"
 
 #include "guiObjects/gInt.h"
@@ -529,6 +530,10 @@ pRegistry::pRegistry() {
   Add(OBJ::D_RECEIVE, dReceive::Create);
   Add(OBJ::D_FFT, dFft::Create);
   Add(OBJ::D_IFFT, dIfft::Create);
+  Add(OBJ::D_PFFT, dPfft::Create);
+  Add(OBJ::D_FFTIN, dFftin::Create);
+  Add(OBJ::D_FFTOUT, dFftout::Create);
+  Add(OBJ::D_FFTINFO, dFftinfo::Create);
   Add(OBJ::D_VECTRAL, dVectral::Create);
 
   Add(OBJ::G_SWITCH, gSwitch::Create);

@@ -14,6 +14,7 @@
 #include <cstdint>
 #include <map>
 #include <mutex>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -599,6 +600,15 @@ namespace YSE {
       // traversal with no help, and BuildGraph needed no change at all.
 
       static bool IsSubpatcher(pObject* obj);
+      // A `~pfft` (issue #1041): a container whose contents it renders itself,
+      // once per spectral frame, on buffers of bins.
+      static bool IsSpectralHost(const pObject* obj);
+      // What SetContainer accepts as a container: a `patcher` or a `~pfft`.
+      static bool IsContainer(pObject* obj);
+      // The nearest `~pfft` enclosing `obj`, or null when it runs in the top
+      // level's blocks (issue #1041). Control thread, under mtx (it walks the
+      // containment annotation).
+      static pObject* SpectralDomainOf(const pObject* obj);
       // Whether putting `obj` inside `container` would make the containment
       // graph cyclic — i.e. whether `obj` is `container` or one of its
       // ancestors. Both the live edit and the loader ask, because both can be
@@ -645,8 +655,12 @@ namespace YSE {
       // Control-thread only (allocates). See graphState.h.
       GraphState* BuildGraph();
       // Fill g.renderOrder from g.startPoints and the live signal wiring
-      // (issue #1185). Part of BuildGraph; control-thread only (allocates).
-      static void BuildRenderOrder(GraphState& g);
+      // (issue #1185), and each ~pfft's g.spectral render from the start
+      // points and cords of its subpatch (issue #1041). `domains` maps every
+      // object to SpectralDomainOf(). Part of BuildGraph; control-thread only
+      // (allocates).
+      static void BuildRenderOrder(GraphState& g,
+                                   const std::unordered_map<const pObject*, pObject*>& domains);
       // Fill the render steps' and ~dacs' slices of GraphState::muteChain
       // (issue #1137). Under mtx.
       static void BuildMuteChains(GraphState& g);

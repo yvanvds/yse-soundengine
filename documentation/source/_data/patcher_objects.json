@@ -17915,6 +17915,146 @@
     ],
     "requires_midi_device": false
   },
+  "~fftin": {
+    "category": "SPECTRAL",
+    "description": "Inside a ~pfft: the spectrum of one of its signal inlets, the real and imaginary parts of each bin and the bin's index, a spectral frame at a time.",
+    "inlets": [],
+    "is_dsp": true,
+    "name": "~fftin",
+    "outlets": [
+      {
+        "doc": "The real part of the bins: sample i of each pass is bin first + i, with the bin index on the right outlet. Not divided by the size.",
+        "index": 0,
+        "label": "real",
+        "range": "",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "The imaginary part of the bins, timed as the real part.",
+        "index": 1,
+        "label": "imaginary",
+        "range": "",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "The index of each bin, 0 to the spectral frame size - 1: bin k is k * samplerate / size Hz.",
+        "index": 2,
+        "label": "bin",
+        "range": "0 to frame size - 1",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Which signal inlet of the ~pfft this reads, from 0.",
+        "name": "inlet",
+        "range": "0-15"
+      },
+      {
+        "default": "hanning",
+        "doc": "The analysis window of that inlet: square, triangle, hanning, hamming or blackman.",
+        "name": "window",
+        "range": ""
+      }
+    ],
+    "requires_midi_device": false
+  },
+  "~fftinfo": {
+    "category": "SPECTRAL",
+    "description": "Inside a ~pfft: reports its FFT size, spectral frame size, hop and full-spectrum flag, when the subpatch first runs and on a bang.",
+    "inlets": [
+      {
+        "accepts": [
+          "BANG"
+        ],
+        "doc": "Reports the figures again.",
+        "index": 0,
+        "label": "bang",
+        "range": ""
+      }
+    ],
+    "is_dsp": true,
+    "name": "~fftinfo",
+    "outlets": [
+      {
+        "doc": "The ~pfft's FFT size.",
+        "index": 0,
+        "label": "FFT size",
+        "range": "samples",
+        "type": "INT"
+      },
+      {
+        "doc": "The bins of a spectral frame inside: half the FFT size, or the FFT size with the full spectrum.",
+        "index": 1,
+        "label": "frame size",
+        "range": "bins",
+        "type": "INT"
+      },
+      {
+        "doc": "Samples from one frame to the next: the FFT size / the overlap.",
+        "index": 2,
+        "label": "hop",
+        "range": "samples",
+        "type": "INT"
+      },
+      {
+        "doc": "1 when the subpatch processes the whole spectrum, else 0.",
+        "index": 3,
+        "label": "full spectrum",
+        "range": "0 or 1",
+        "type": "INT"
+      }
+    ],
+    "params": [],
+    "requires_midi_device": false
+  },
+  "~fftout": {
+    "category": "SPECTRAL",
+    "description": "Inside a ~pfft: the spectrum one of its signal outlets is resynthesised from, real and imaginary parts of each bin, a spectral frame at a time.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The real part of the bins, sample i of each pass being bin first + i as ~fftin puts them out. A signal; unconnected, the last number sent here (0).",
+        "index": 0,
+        "label": "real",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The imaginary part of the bins, likewise.",
+        "index": 1,
+        "label": "imaginary",
+        "range": ""
+      }
+    ],
+    "is_dsp": true,
+    "name": "~fftout",
+    "outlets": [],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Which signal outlet of the ~pfft this writes, from 0.",
+        "name": "outlet",
+        "range": "0-15"
+      },
+      {
+        "default": "hanning",
+        "doc": "The synthesis window of that outlet: square, triangle, hanning, hamming or blackman.",
+        "name": "window",
+        "range": ""
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~filtercoeff": {
     "category": "FILTER",
     "description": "Biquad filter coefficients from a frequency, a gain and a Q, computed per sample for the usual filter types: connect the five outlets to ~biquad for filter sweeps at audio rate.",
@@ -20261,6 +20401,79 @@
         "doc": "1 limits written values to -1 to 1, 0 writes them as they are.",
         "name": "clip",
         "range": "0 or 1"
+      }
+    ],
+    "requires_midi_device": false
+  },
+  "~pfft": {
+    "category": "SPECTRAL",
+    "description": "A subpatch run once per spectral frame: each signal inlet is cut into overlapping windowed frames and transformed, the objects inside process the bins (~fftin to ~fftout), and the result is transformed back and overlap-added to the outlets.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "A signal, analysed frame by frame for the ~fftin objects with this index inside; unconnected, the last number sent here (0). Also 'clear' (clears every frame) and 'mute 1' / 'mute 0' (stops and restarts the subpatch); not saved.",
+        "index": 0,
+        "label": "in 0",
+        "range": ""
+      }
+    ],
+    "is_dsp": true,
+    "name": "~pfft",
+    "outlets": [
+      {
+        "doc": "What the ~fftout objects with this index inside resynthesise, overlap-added: the subpatch's output, size samples after its input.",
+        "index": 0,
+        "label": "out",
+        "range": "",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "A name for the subpatch, for a host to show. The engine does not read it; the contents are placed inside with SetContainer.",
+        "name": "name",
+        "range": ""
+      },
+      {
+        "default": "512",
+        "doc": "The FFT size in samples, rounded up to a power of two. The subpatch sees frames of size / 2 bins (size with full). Changing it rebuilds the object.",
+        "name": "size",
+        "range": "16-65536"
+      },
+      {
+        "default": "2",
+        "doc": "How many frames overlap: a frame every size / overlap samples (the hop), rounded up to a power of two. 4 is a good choice for most processing.",
+        "name": "overlap",
+        "range": "1 to size"
+      },
+      {
+        "default": "0",
+        "doc": "Samples into the stream that the first frame starts, taken modulo the hop.",
+        "name": "offset",
+        "range": "0 to hop - 1"
+      },
+      {
+        "default": "0",
+        "doc": "0: the subpatch processes bins 0 to size / 2 - 1 and the rest is mirrored; 1: the whole spectrum, size bins.",
+        "name": "full",
+        "range": "0 or 1"
+      },
+      {
+        "default": "1",
+        "doc": "How many signal inlets, read inside by ~fftin 0, ~fftin 1 ...",
+        "name": "inlets",
+        "range": "1-16"
+      },
+      {
+        "default": "1",
+        "doc": "How many signal outlets, written inside by ~fftout 0, ~fftout 1 ...",
+        "name": "outlets",
+        "range": "0-16"
       }
     ],
     "requires_midi_device": false

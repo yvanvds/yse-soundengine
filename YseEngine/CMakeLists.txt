@@ -171,6 +171,7 @@ set(YSE_SRCS
   dsp/routing/mixMatrix.cpp
   dsp/routing/signalBus.cpp
   dsp/spectral/streamingFft.cpp
+  dsp/spectral/stft.cpp
   dsp/spectral/vectral.cpp
   dsp/sfzModel.cpp
   dsp/wavetable.cpp
@@ -259,6 +260,7 @@ set(YSE_SRCS
   patcher/routing/dTypeRoute.cpp
   patcher/routing/signalBusPort.cpp
   patcher/spectral/dFft.cpp
+  patcher/spectral/dPfft.cpp
   patcher/spectral/dVectral.cpp
   patcher/routing/dSend.cpp
   patcher/routing/dReceive.cpp
@@ -771,6 +773,7 @@ set_source_files_properties(
   patcher/routing/dTypeRoute.cpp
   patcher/routing/signalBusPort.cpp
   patcher/spectral/dFft.cpp
+  patcher/spectral/dPfft.cpp
   patcher/spectral/dVectral.cpp
   patcher/routing/dSend.cpp
   patcher/routing/dReceive.cpp
