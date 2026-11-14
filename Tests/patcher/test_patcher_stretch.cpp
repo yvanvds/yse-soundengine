@@ -791,8 +791,7 @@ TEST_SUITE("patcher") {
     // 500 ms -> 1000 ms.
     Dict(r.p, "warp_1285_d",
          {"marker02::sourcetimesample 36000", "marker02::desttimesample 60000",
-          "marker02::pitchshiftcent 1200", "marker01::sourcetime 500",
-          "marker01::desttime 1000"});
+          "marker02::pitchshiftcent 1200", "marker01::sourcetime 500", "marker01::desttime 1000"});
     r.Message("dictionary warp_1285_d");
     r.p.Calculate(YSE::T_DSP);
     r.Bang();
@@ -811,8 +810,8 @@ TEST_SUITE("patcher") {
     CHECK(Samples(*buffer) == Samples(*expected));
     // The pitch of each part: 440 Hz, and 880 Hz from 1250 ms on.
     const std::vector<float> result = Samples(*buffer);
-    CHECK(std::abs(Loudest(std::vector<float>(result.begin() + 8000, result.begin() + 40000),
-                           300.0, 1000.0) -
+    CHECK(std::abs(Loudest(std::vector<float>(result.begin() + 8000, result.begin() + 40000), 300.0,
+                           1000.0) -
                    440.0) < 0.002 * 440.0);
     CHECK(std::abs(Loudest(std::vector<float>(result.begin() + 62000, result.begin() + 70000),
                            300.0, 1000.0) -
@@ -841,9 +840,8 @@ TEST_SUITE("patcher") {
     // marker01: 500 ms to 1000 ms, a semitone down until marker02; marker02:
     // the end, at twice its time.
     Dict(r.p, "msp_1285_d",
-         {"marker01::sourcetime 500", "marker01::desttime 1000",
-          "marker01::pitchshiftcent -100", "marker02::sourcetime end",
-          "marker02::desttime *2"});
+         {"marker01::sourcetime 500", "marker01::desttime 1000", "marker01::pitchshiftcent -100",
+          "marker02::sourcetime end", "marker02::desttime *2"});
     r.p.Calculate(YSE::T_DSP);
     r.Bang();
     r.Settle();
@@ -893,13 +891,13 @@ TEST_SUITE("patcher") {
             "bars.beats.units");
     refused({"marker01::sourcetime 500", "marker01::desttime 1.2.0"}, "marker01",
             "is not a number");
-    refused({"marker01::sourcetime 500", "marker01::desttime 600", "marker01::speed 2"},
-            "marker01", "is not a marker key");
+    refused({"marker01::sourcetime 500", "marker01::desttime 600", "marker01::speed 2"}, "marker01",
+            "is not a marker key");
     refused({"marker01::sourcetime 500"}, "marker01", "has no destination time");
     refused({"marker01::desttime 500"}, "marker01", "has no source time");
-    refused({"marker01::sourcetime 500", "marker01::sourcetimesample 100",
-             "marker01::desttime 600"},
-            "marker01", "more than one source time");
+    refused(
+        {"marker01::sourcetime 500", "marker01::sourcetimesample 100", "marker01::desttime 600"},
+        "marker01", "more than one source time");
     refused({"marker01::sourcetime 10", "marker01::desttime 1000"}, "marker01",
             "beyond 1/16 .. 16");
     refused({"marker01::sourcetime 500", "marker01::desttime 600", "marker01::pitchshift 0"},

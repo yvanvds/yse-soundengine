@@ -292,8 +292,8 @@ namespace {
   // onset whose copy would leave the stretch between it and its neighbours
   // beyond a quarter of the segment's either way, or reach over the
   // segment's ends, is not copied.
-  timeMap MakeMap(const std::vector<segment>& segments, double frames,
-                  double vocodedEnd, UInt n, const std::vector<double>& onsets) {
+  timeMap MakeMap(const std::vector<segment>& segments, double frames, double vocodedEnd, UInt n,
+                  const std::vector<double>& onsets) {
     timeMap map;
     const double reach = static_cast<double>(n) / 2.0; // n is a power of two
     for (std::size_t s = 0; s < segments.size(); ++s) {

@@ -562,8 +562,8 @@ TEST_SUITE("dsp") {
     const double nan = std::numeric_limits<double>::quiet_NaN();
     refused({{1000.0, 1000.0, 0.f}, {500.0, 2000.0, 0.f}}, timeStretch::MARKER_SOURCE_ORDER, 1);
     refused({{1000.0, 1000.0, 0.f}, {1000.0, 2000.0, 0.f}}, timeStretch::MARKER_SOURCE_ORDER, 1);
-    refused({{1000.0, 2000.0, 0.f}, {2000.0, 1500.0, 0.f}},
-            timeStretch::MARKER_DESTINATION_ORDER, 1);
+    refused({{1000.0, 2000.0, 0.f}, {2000.0, 1500.0, 0.f}}, timeStretch::MARKER_DESTINATION_ORDER,
+            1);
     refused({{1000.0, nan, 0.f}}, timeStretch::MARKER_NOT_FINITE, 0);
     refused({{-1.0, 10.0, 0.f}}, timeStretch::MARKER_NEGATIVE, 0);
     refused({{1000.0, 1000.0, -1.f}}, timeStretch::MARKER_PITCH, 0);
@@ -644,8 +644,7 @@ TEST_SUITE("dsp") {
       CHECK(loudest(out, hit - 1500, hit - 64) < 0.1f);
     }
     // The tone keeps its pitch through every segment.
-    for (const auto& span : {std::pair<std::size_t, std::size_t>{14000, 23000},
-                             {50000, 64000}}) {
+    for (const auto& span : {std::pair<std::size_t, std::size_t>{14000, 23000}, {50000, 64000}}) {
       const std::vector<float> w(out.begin() + static_cast<std::ptrdiff_t>(span.first),
                                  out.begin() + static_cast<std::ptrdiff_t>(span.second));
       CHECK(std::abs(Loudest(w, 250.0, 350.0) - 300.0) < 0.005 * 300.0);

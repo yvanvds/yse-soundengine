@@ -141,8 +141,8 @@ namespace YSE {
      *  shifts the formants with it.
      *
      *  Settings are plain values (the markers a list of them); a
-     *  ``timeStretch`` is cheap to make and to copy. ``process`` is one thread's at a time per object; it reads only
-     *  its own settings.
+     *  ``timeStretch`` is cheap to make and to copy. ``process`` is one thread's at a time per
+     * object; it reads only its own settings.
      */
     class API timeStretch {
     public:
