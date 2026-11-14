@@ -18299,6 +18299,53 @@
     ],
     "requires_midi_device": false
   },
+  "~frame": {
+    "category": "SPECTRAL",
+    "description": "Puts out a list as a frame: value k as bin k of every spectral frame inside a ~pfft, or as sample k of every block elsewhere. A spectrum drawn from data, or frozen from a ~framesnap.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "A list sets the values from the offset on; the bins after the list put out the fill value. A number is a list of one. 'fill <value>' sets the fill value (0); 'mirror 1' makes the bins above Nyquist of a full-spectrum ~pfft mirror the ones below instead of putting out 0. Not saved.",
+        "index": 0,
+        "label": "values",
+        "range": "list, number, fill, mirror"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The bin the next lists start at; the bins before keep their values. ~framesnap's right outlet sends it before each list.",
+        "index": 1,
+        "label": "offset",
+        "range": "0 or more"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~frame",
+    "outlets": [
+      {
+        "doc": "The frame: bin k (inside a ~pfft) or sample k (elsewhere) is value k, or the fill value.",
+        "index": 0,
+        "label": "out",
+        "range": "",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "4096",
+        "doc": "The most values kept; bins past it put out the fill value. Half the FFT size of the ~pfft it runs in, or the FFT size with the full spectrum. Changing it rebuilds the object.",
+        "name": "bins",
+        "range": "1-65536"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~frameaccum": {
     "category": "SPECTRAL",
     "description": "A running sum of every bin over successive frames: each value plus the sum at the same place over the frames before, optionally wrapped into -pi to pi. On a ~framedelta's phase deviations, the running phase of a phase vocoder.",
@@ -18467,6 +18514,67 @@
         "doc": "Outside a ~pfft, the frame length in samples: sample k of a frame is bin k, the frames running on across blocks (as a ~fft puts out its frames). 0 makes every block a frame. Inside a ~pfft the frames are the ~pfft's and this is not used. Changing it rebuilds the object.",
         "name": "framesize",
         "range": "0-65536"
+      }
+    ],
+    "requires_midi_device": false
+  },
+  "~framesnap": {
+    "category": "SPECTRAL",
+    "description": "Reports a frame as lists of numbers: a ~pfft's spectral frame bin by bin, or a block elsewhere, on a bang or every interval while reporting is on.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT",
+          "BANG"
+        ],
+        "doc": "The frames, a signal: inside a ~pfft its spectral frames, elsewhere every block. A bang reports the last whole frame; a non-zero number starts interval reporting and 0 stops it. Also takes 'start' (a bang when there is no interval), 'stop', 'active <0|1>', 'interval <ms>' and 'sampleinterval <samples>'.",
+        "index": 0,
+        "label": "in",
+        "range": "signal, bang, number, messages"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Reporting interval in milliseconds. 0 stops interval reporting.",
+        "index": 1,
+        "label": "interval",
+        "range": "0 or more ms"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~framesnap",
+    "outlets": [
+      {
+        "doc": "A report: the frame's values from bin 0 on, as lists of at most 256 values. A frame of more than 4096 bins goes out over several blocks.",
+        "index": 0,
+        "label": "values",
+        "range": "list",
+        "type": "LIST"
+      },
+      {
+        "doc": "Before each list, the bin it starts at: 0 for the first. Into the right inlet of a ~frame, it puts a large frame back together.",
+        "index": 1,
+        "label": "offset",
+        "range": "0 or more",
+        "type": "INT"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Reporting interval in milliseconds, counted in the time the frames stand for (the hop inside a ~pfft). 0 reports only on a bang. Reports due within one block are one.",
+        "name": "interval",
+        "range": "0 or more ms"
+      },
+      {
+        "default": "4096",
+        "doc": "The largest frame kept, in bins; a report holds no more. Half the FFT size of the ~pfft it runs in, or the FFT size with the full spectrum. Changing it rebuilds the object.",
+        "name": "bins",
+        "range": "1-65536"
       }
     ],
     "requires_midi_device": false

@@ -82,7 +82,8 @@ namespace YSE {
    *    (frames smoothed index by index), ``D_FRAMEDELTA`` /
    *    ``D_FRAMEACCUM`` (the change and the running sum of every bin
    *    across frames), ``D_FRAMEAVERAGE`` / ``D_FRAMESMOOTH`` (every bin
-   *    averaged over the last frames, and along its own frame).
+   *    averaged over the last frames, and along its own frame), ``D_FRAME`` /
+   *    ``D_FRAMESNAP`` (a list as a frame, and a frame as lists).
    *  - DSP math: ``D_ADD``, ``D_MULTIPLY``, ``D_CLIP``, ``D_REVERSESUBSTRACT``,
    *    ``D_REVERSEDIVIDE``, ``D_MODULO``, ``D_PLUSEQUALS``,
    *    ``D_DELTA`` (difference between successive samples), ``D_DEGRADE``
@@ -376,6 +377,8 @@ namespace YSE {
     DEFOBJ(D_FRAMEACCUM, "~frameaccum");
     DEFOBJ(D_FRAMEAVERAGE, "~frameaverage");
     DEFOBJ(D_FRAMESMOOTH, "~framesmooth");
+    DEFOBJ(D_FRAME, "~frame");
+    DEFOBJ(D_FRAMESNAP, "~framesnap");
 
     DEFOBJ(G_INT, ".i");
     DEFOBJ(G_FLOAT, ".f");

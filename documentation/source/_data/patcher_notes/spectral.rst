@@ -306,3 +306,64 @@ every frame starts one anyway.
    [~cartopol] magnitude -> [~framesmooth 9] -> left inlet of [~poltocar]
    [~cartopol] phase -> right inlet of [~poltocar]
    [~poltocar] real, imaginary -> [~fftout 0]
+
+.. patcher-object:: ~frame
+
+Puts out a list of numbers as a frame. Inside a ``~pfft`` value k of the list
+is bin k of every spectral frame, so a spectrum can be drawn from data or
+frozen from a ``~framesnap``; anywhere else value k is sample k of every
+block. A number is a list of one value.
+
+The bins after the list put out the fill value, 0 until ``fill`` sets
+another. The right inlet sets the bin the next lists start at, 0 by default:
+the bins before that keep their values and the bins after the list put out
+the fill value, so lists that each start where the one before ended build up
+one frame. That is how ``~framesnap`` sends a frame larger than one list, and
+its right outlet sends each list's first bin, so wiring both outlets of a
+``~framesnap`` into both inlets of a ``~frame`` puts the frame back together.
+
+In a ``~pfft`` with the full spectrum, the bins above Nyquist (half the FFT
+size) put out 0. After ``mirror 1`` they mirror the bins below, as the
+spectrum of a real signal does; ``mirror 0`` turns that off.
+
+New values take effect at the start of the next frame, never halfway
+through one. The argument is the most values kept, 4096 by default; the
+values, the fill value and the mirror setting are not saved with the patch.
+
+.. code-block:: text
+
+   inside [~pfft draw 1024 4]:
+   [.m 0 0 0 1 0.5 0.25 0.5 1] -> [~frame]
+   [~frame] -> left inlet of [~fftout 0]
+
+.. patcher-object:: ~framesnap
+
+Reports a frame as lists of numbers: inside a ``~pfft`` its spectral frame,
+bin by bin, anywhere else a block. A bang reports the last whole frame at the
+end of the next block (inside a ``~pfft``, once the next frame is whole);
+with an interval set, a report goes out every interval while reporting is
+on.
+
+The first argument, or the right inlet, is the interval in milliseconds, 0 by
+default, which reports only on a bang. Inside a ``~pfft`` the interval counts
+the time the frames stand for, a hop per frame. Reports due within one block
+are one, and an interval shorter than a block reports every block. A number
+that is not 0 in the left inlet starts reporting and 0 stops it, as do
+``start`` and ``stop`` (``start`` with no interval is a bang); ``active`` 0
+or 1 does the same. ``interval`` sets the interval in milliseconds and
+``sampleinterval`` in samples.
+
+A report goes out as lists of at most 256 values, which any list object
+holds; its right outlet sends the bin each list starts at just before it, 0
+for the first. A frame of more than 4096 values goes out over several
+blocks. The second argument is the largest frame kept, in bins, 4096 by
+default; bins past it are not reported.
+
+.. code-block:: text
+
+   inside [~pfft freeze 1024 4]:
+   [~fftin 0] real -> [~framesnap]
+   [.r freeze] -> [~framesnap]
+   [~framesnap] values -> left inlet of [~frame]
+   [~framesnap] offset -> right inlet of [~frame]
+   [~frame] -> left inlet of [~fftout 0]

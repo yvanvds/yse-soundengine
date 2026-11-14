@@ -456,6 +456,14 @@ run of bins as well, or cut a stream into frames of a given size.
 .. doxygenfile:: dsp/spectral/frameAverage.hpp
    :project: libYSE
 
+A stored frame put out bin by bin, and the last whole frame of a stream kept
+to be read as values: what ``~frame`` and ``~framesnap`` wrap to turn lists
+into frames and frames into lists. Both work on a ``stftFrame`` run of bins,
+or take a block as a frame.
+
+.. doxygenfile:: dsp/spectral/frameList.hpp
+   :project: libYSE
+
 Filter primitives
 -----------------
 
