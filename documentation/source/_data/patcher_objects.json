@@ -17841,6 +17841,80 @@
     ],
     "requires_midi_device": false
   },
+  "~fft": {
+    "category": "SPECTRAL",
+    "description": "A Fourier transform of a signal, frame by frame: every interval samples, a frame of size samples is transformed and its spectrum put out over the next size samples, one bin per sample, as real and imaginary signals with the bin index on the sync outlet.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The signal to transform (its real part). A signal; unconnected, the last number sent here (0). Also takes 'phase <n>' or 'offset <n>': a new offset in samples, taken modulo the interval, from the next block on (not saved).",
+        "index": 0,
+        "label": "real",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The imaginary part of the input, for a complex transform. A signal; unconnected, the last number sent here (0), which transforms a real signal.",
+        "index": 1,
+        "label": "imaginary",
+        "range": ""
+      }
+    ],
+    "is_dsp": true,
+    "name": "~fft",
+    "outlets": [
+      {
+        "doc": "The real part of the spectrum: bin k at sample k of each output period, which starts the sample after a frame's last input sample. Bin k is k * samplerate / size Hz; the bins above size / 2 mirror those below for a real input. Not divided by the size; 0 outside an output period.",
+        "index": 0,
+        "label": "real",
+        "range": "",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "The imaginary part of the spectrum, timed as the real part.",
+        "index": 1,
+        "label": "imaginary",
+        "range": "",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "The index of the bin put out, 0 to size - 1, for reading other frames in step (~index); 0 outside an output period.",
+        "index": 2,
+        "label": "sync",
+        "range": "0 to size - 1",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "512",
+        "doc": "The frame size in samples, rounded up to a power of two. Changing it rebuilds the object.",
+        "name": "size",
+        "range": "16-65536"
+      },
+      {
+        "default": "0",
+        "doc": "Samples from the start of one frame to the next, rounded up to a power of two at or above the size; 0 means the size, frames back to back. With a larger interval the samples after each frame are not used. Changing it rebuilds the object.",
+        "name": "interval",
+        "range": "0, size-16777216"
+      },
+      {
+        "default": "0",
+        "doc": "Samples into the stream that the first frame starts, taken modulo the interval: staggers several ~fft objects for overlapping frames. Changing it rebuilds the object.",
+        "name": "offset",
+        "range": "0 to interval - 1"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~filtercoeff": {
     "category": "FILTER",
     "description": "Biquad filter coefficients from a frequency, a gain and a Q, computed per sample for the usual filter types: connect the five outlets to ~biquad for filter sweeps at audio rate.",
@@ -18508,6 +18582,80 @@
         "doc": "Initial cutoff frequency in Hz.",
         "name": "frequency",
         "range": "0-20000 Hz"
+      }
+    ],
+    "requires_midi_device": false
+  },
+  "~ifft": {
+    "category": "SPECTRAL",
+    "description": "An inverse Fourier transform of a stream of bins, frame by frame: every interval samples, a frame of size bins (bin k at sample k) is transformed back and put out over the next size samples, as real and imaginary signals. Resynthesises what ~fft takes apart.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The real part of the bins, bin k at sample k of a frame. A signal; unconnected, the last number sent here (0). Also takes 'phase <n>' or 'offset <n>': a new offset in samples, taken modulo the interval, from the next block on (not saved).",
+        "index": 0,
+        "label": "real",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The imaginary part of the bins. A signal; unconnected, the last number sent here (0).",
+        "index": 1,
+        "label": "imaginary",
+        "range": ""
+      }
+    ],
+    "is_dsp": true,
+    "name": "~ifft",
+    "outlets": [
+      {
+        "doc": "The real part of the result, sample k at sample k of each output period, which starts the sample after a frame's last bin. Not divided by the size: after a ~fft with the same arguments it is the input size times larger, 2 * size samples later. 0 outside an output period.",
+        "index": 0,
+        "label": "real",
+        "range": "",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "The imaginary part of the result, timed as the real part: 0 for the bins of a real signal.",
+        "index": 1,
+        "label": "imaginary",
+        "range": "",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "The index of the sample put out, 0 to size - 1; 0 outside an output period.",
+        "index": 2,
+        "label": "sync",
+        "range": "0 to size - 1",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "512",
+        "doc": "The frame size in bins, rounded up to a power of two. Changing it rebuilds the object.",
+        "name": "size",
+        "range": "16-65536"
+      },
+      {
+        "default": "0",
+        "doc": "Samples from the start of one frame to the next, rounded up to a power of two at or above the size; 0 means the size. After a ~fft with a larger interval, use an offset size samples later than the ~fft's. Changing it rebuilds the object.",
+        "name": "interval",
+        "range": "0, size-16777216"
+      },
+      {
+        "default": "0",
+        "doc": "Samples into the stream that the first frame starts, taken modulo the interval. Changing it rebuilds the object.",
+        "name": "offset",
+        "range": "0 to interval - 1"
       }
     ],
     "requires_midi_device": false

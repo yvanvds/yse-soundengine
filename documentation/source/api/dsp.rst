@@ -412,6 +412,19 @@ Named signal buses: audio sent and received by name, without a cord, what
 Spectral
 --------
 
+Fourier transforms of a stream, frame by frame: a frame of input samples
+transformed at the exact sample it completes, whatever the block, and put
+out over the next frame one bin per sample, with a sync signal giving the
+bin. What ``~fft`` and ``~ifft`` wrap. The frame schedule, the size, interval
+and offset of the frames along the stream, is a ``frameClock`` of its own,
+for other frame-based processes.
+
+.. doxygenfile:: dsp/spectral/streamingFft.hpp
+   :project: libYSE
+
+.. doxygenfile:: dsp/spectral/frameClock.hpp
+   :project: libYSE
+
 Successive frames, such as spectra, smoothed index by index with a linear
 ramp, a logarithmic slide or a limited change per frame: what ``~vectral``
 wraps.

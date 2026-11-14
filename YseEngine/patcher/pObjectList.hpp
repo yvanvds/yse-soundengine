@@ -75,7 +75,9 @@ namespace YSE {
    *    ``D_TYPEROUTE`` (a signal out one outlet, messages out the other),
    *    ``D_SEND`` / ``D_RECEIVE`` (signals sent and received by name,
    *    without a cord).
-   *  - DSP spectral: ``D_VECTRAL`` (frames smoothed index by index).
+   *  - DSP spectral: ``D_FFT`` / ``D_IFFT`` (a streaming Fourier transform
+   *    and its inverse, frame by frame), ``D_VECTRAL`` (frames smoothed index
+   *    by index).
    *  - DSP math: ``D_ADD``, ``D_MULTIPLY``, ``D_CLIP``, ``D_REVERSESUBSTRACT``,
    *    ``D_REVERSEDIVIDE``, ``D_MODULO``, ``D_PLUSEQUALS``,
    *    ``D_DELTA`` (difference between successive samples), ``D_DEGRADE``
@@ -358,6 +360,8 @@ namespace YSE {
     DEFOBJ(D_SEND, "~send");
     DEFOBJ(D_RECEIVE, "~receive");
 
+    DEFOBJ(D_FFT, "~fft");
+    DEFOBJ(D_IFFT, "~ifft");
     DEFOBJ(D_VECTRAL, "~vectral");
 
     DEFOBJ(G_INT, ".i");

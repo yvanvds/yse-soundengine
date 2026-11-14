@@ -127,6 +127,7 @@ set(YSE_TEST_SOURCES
   dsp/test_signal_selector.cpp
   dsp/test_mix_matrix.cpp
   dsp/test_signal_bus.cpp
+  dsp/test_streaming_fft.cpp
   dsp/test_vectral.cpp
   dsp/test_filter_design.cpp
   dsp/test_filter_bands.cpp
@@ -310,6 +311,7 @@ set(YSE_TEST_SOURCES
   patcher/test_patcher_signal_matrix.cpp
   patcher/test_patcher_signal_typeroute.cpp
   patcher/test_patcher_signal_send_receive.cpp
+  patcher/test_patcher_signal_fft.cpp
   patcher/test_patcher_signal_vectral.cpp
   patcher/test_patcher_signal_deltaclip.cpp
   patcher/test_patcher_filterdesign.cpp
@@ -1521,6 +1523,7 @@ set_source_files_properties(
   patcher/test_patcher_signal_matrix.cpp
   patcher/test_patcher_signal_typeroute.cpp
   patcher/test_patcher_signal_send_receive.cpp
+  patcher/test_patcher_signal_fft.cpp
   patcher/test_patcher_signal_vectral.cpp
   patcher/test_patcher_signal_deltaclip.cpp
   patcher/test_patcher_filterdesign.cpp
