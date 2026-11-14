@@ -11,6 +11,7 @@
 #ifndef YSE_DSP_SAMPLING_TIMESTRETCH_HPP
 #define YSE_DSP_SAMPLING_TIMESTRETCH_HPP
 
+#include <cstddef>
 #include <vector>
 #include "../../headers/defines.hpp"
 #include "../../headers/types.hpp"
@@ -119,11 +120,28 @@ namespace YSE {
      *  time: how long the correction takes to reach full strength
      *  (0, the default: at once).
      *
+     *  **Markers** (``markers``, issue #1285): instead of one factor, a
+     *  time map. Each marker puts a frame of the source on a frame of the
+     *  result, and the source between two markers is stretched evenly to fit
+     *  the result between them, so a loose take can be pulled onto a grid:
+     *  a marker at 500 ms to 1000 ms makes the first half second last a
+     *  second, and what was at 500 ms is heard at 1000 ms. The map starts at
+     *  frame 0 on frame 0; after the last marker the rest of the source is
+     *  stretched by ``stretch()``, so the result is as long as where the
+     *  source's end lands. A marker past the source's end shapes the last
+     *  segment and is not reached. Each marker can carry its own pitch
+     *  factor, which holds until the next marker (before the first, and for
+     *  a marker without one, ``pitch()``): the vocoder stretches each
+     *  segment by its stretch times its pitch, and the resampling follows
+     *  the pitch segment by segment. Onsets are kept within a segment, not
+     *  across a marker. ``~stretch`` reads them from a ``.dict``
+     *  (``dictionary <name>``).
+     *
      *  Formant preservation is not done (a non-goal): shifting the pitch
      *  shifts the formants with it.
      *
-     *  Settings are plain values; a ``timeStretch`` is cheap to make and to
-     *  copy. ``process`` is one thread's at a time per object; it reads only
+     *  Settings are plain values (the markers a list of them); a
+     *  ``timeStretch`` is cheap to make and to copy. ``process`` is one thread's at a time per object; it reads only
      *  its own settings.
      */
     class API timeStretch {
@@ -154,6 +172,30 @@ namespace YSE {
       static constexpr Flt MAX_PITCH = 4.f; ///< two octaves up
       static constexpr Flt MIN_STANDARD_PITCH = 400.f;
       static constexpr Flt MAX_STANDARD_PITCH = 500.f;
+
+      /**
+       *  @brief One point of the time map (see ``markers``): the frame
+       *         ``source`` of the source lands on the frame ``destination``
+       *         of the result, and from there to the next marker the pitch
+       *         is ``pitch`` times the original (0: ``pitch()``). Frames at
+       *         the buffer's own rate, fractions allowed.
+       */
+      struct marker {
+        double source = 0.0;
+        double destination = 0.0;
+        Flt pitch = 0.f;
+      };
+
+      /** @brief Why ``markers`` refused a list (``describe`` spells it). */
+      enum MARKER_ERROR {
+        MARKERS_OK, ///< accepted
+        MARKER_NOT_FINITE, ///< a time is not a finite number
+        MARKER_NEGATIVE, ///< a time is below 0
+        MARKER_SOURCE_ORDER, ///< a source time is not after the one before
+        MARKER_DESTINATION_ORDER, ///< a destination time is not after the one before
+        MARKER_STRETCH, ///< a segment's stretch is outside MIN_STRETCH .. MAX_STRETCH
+        MARKER_PITCH, ///< a pitch is below 0 or not finite
+      };
 
       /**
        *  @brief What ``process`` calls now and then, on its own thread,
@@ -221,8 +263,35 @@ namespace YSE {
         return slur;
       }
 
+      /**
+       *  @brief A time map instead of the one ``stretch()`` (class notes):
+       *         @p list in source order, the start (frame 0 on frame 0)
+       *         implied.
+       *
+       *  Both times rise strictly from marker to marker; a first marker at
+       *  source 0 must land on destination 0 (it only gives the first
+       *  segment a pitch). Each segment's stretch (destination span over
+       *  source span) is within ``MIN_STRETCH`` .. ``MAX_STRETCH``. A pitch
+       *  is 0 (``pitch()``) or above, held to ``MIN_PITCH`` .. ``MAX_PITCH``.
+       *  A list that breaks one of these is refused whole: the markers stay
+       *  as they were, the error is returned and @p at (may be null) gets
+       *  the index of the marker at fault. An empty list clears them.
+       *  Allocates; not on the audio thread.
+       */
+      MARKER_ERROR markers(const std::vector<marker>& list, std::size_t* at = nullptr);
+      const std::vector<marker>& markers() const {
+        return points;
+      }
+
+      /** @brief Back to the one ``stretch()`` factor. */
+      timeStretch& clearMarkers();
+
+      /** @brief @p error in words, for a log line. */
+      static const char* describe(MARKER_ERROR error);
+
       /** @brief How many frames the result of @p frames source frames has:
-       *         ``round(frames * stretch())``, at least 1 for a source that
+       *         ``round(frames * stretch())`` (with markers: where frame
+       *         @p frames lands on the map), at least 1 for a source that
        *         has any. */
       UInt outputFrames(UInt frames) const;
 
@@ -271,8 +340,10 @@ namespace YSE {
         bool report(Flt done) const;
       };
 
-      bool Vocode(const Flt* input, UInt frames, Flt rate, std::vector<Flt>& output,
-                  const progressSpan& span) const;
+      struct plan;
+      plan Plan(UInt frames) const;
+      bool Vocode(const Flt* input, UInt frames, Flt rate, const plan& layout,
+                  std::vector<Flt>& output, const progressSpan& span) const;
       bool Correct(std::vector<Flt>& samples, Flt rate, const progressSpan& span) const;
 
       Flt lengthFactor = 1.f;
@@ -282,6 +353,7 @@ namespace YSE {
       bool correcting = false;
       Flt standardA = 440.f;
       Flt slur = 0.f; // ms
+      std::vector<marker> points; // the time map; empty: stretch()
     };
 
   } // namespace DSP

@@ -1,15 +1,24 @@
 #include "dStretch.h"
+#include "../namedStore.h"
 #include "../pListArgs.h"
 #include "../pSelector.h"
+#include "../patcherImplementation.h"
+#include "../genericObjects/gDict.h"
 #include "../time/timeValue.h"
 #include "../../clock/clockManager.h"
 #include "../../dsp/sampling/sampleBuffer.hpp"
+#include "../../headers/constants.hpp"
+#include "../../implementations/logImplementation.h"
 
+#include <algorithm>
 #include <array>
+#include <chrono>
 #include <cmath>
+#include <cstdlib>
 #include <cstring>
 #include <limits>
 #include <mutex>
+#include <thread>
 #include <type_traits>
 #include <unordered_map>
 
@@ -45,6 +54,7 @@ namespace {
     DONE,
     CANCELLED,
     NO_BUFFER,
+    BAD_MARKERS,
   };
 
   // The process-wide states, by id. Weak: a state lives while its object or
@@ -92,10 +102,11 @@ namespace {
   // The words ~stretch takes as attributes and commands. Anything else in
   // the settings is a value.
   constexpr std::string_view WORDS[] = {
-      "basictuning", "followglobaltempo", "formant",         "formantcorrection",
-      "mode",        "originallength",    "originaltempo",   "pitchcorrection",
-      "pitchshift",  "pitchshiftcent",    "progress_enable", "quality",
-      "readagain",   "slurtime",          "stretch",         "transport",
+      "basictuning",       "dictionary", "followglobaltempo", "formant",
+      "formantcorrection", "mode",       "originallength",    "originaltempo",
+      "pitchcorrection",   "pitchshift", "pitchshiftcent",    "progress_enable",
+      "quality",           "readagain",  "slurtime",          "stretch",
+      "transport",
   };
 
   bool IsWord(std::string_view token) {
@@ -153,6 +164,207 @@ namespace {
 
   constexpr std::size_t MAX_TOKENS = 8;
 
+  // ─── dictionary markers (#1285), background pool only ──────────────────────
+
+  // How long a job waits for a writer to let go of the dictionary.
+  constexpr int SNAPSHOT_ATTEMPTS = 2000;
+  constexpr auto SNAPSHOT_PAUSE = std::chrono::microseconds(50);
+
+  enum class SNAPSHOT : std::uint8_t {
+    OK,
+    MISSING,
+    BUSY,
+  };
+
+  // The entries of the dictionary at `address`, copied out under its guard.
+  // The copy goes into strings reserved beforehand, so the guard is held for
+  // a bounded copy and nothing else: a writer on the audio thread meanwhile
+  // drops its write (the store's rule), and only for that long.
+  SNAPSHOT Snapshot(const std::string& address, std::vector<dictEntry>& out) {
+    const std::shared_ptr<dictStore> store = FindNamedStore<dictStore>(address);
+    if (store == nullptr) return SNAPSHOT::MISSING;
+    out.assign(dictStore::MAX_ENTRIES, dictEntry());
+    for (dictEntry& e : out) {
+      e.key.reserve(dictStore::KEY_CAPACITY);
+      e.value.reserve(dictStore::VALUE_CAPACITY);
+    }
+    for (int attempt = 0; attempt < SNAPSHOT_ATTEMPTS; ++attempt) {
+      {
+        const dictStoreGuard guard(store->busy);
+        if (guard.Held()) {
+          const std::size_t count = std::min(store->count, out.size());
+          for (std::size_t i = 0; i < count; ++i) {
+            out[i].key.assign(store->entries[i].key);
+            out[i].value.assign(store->entries[i].value);
+          }
+          out.resize(count);
+          return SNAPSHOT::OK;
+        }
+      }
+      std::this_thread::sleep_for(SNAPSHOT_PAUSE);
+    }
+    return SNAPSHOT::BUSY;
+  }
+
+  // One marker as the dictionary spells it.
+  struct dictMarker {
+    std::string name;
+    bool hasSource = false;
+    bool hasDestination = false;
+    bool sourceAtEnd = false;
+    bool destinationFactor = false; // "*<factor>": that many times the source
+    double source = 0.0; // frames
+    double destination = 0.0; // frames, or the factor
+    bool hasPitch = false;
+    double pitch = 0.0;
+  };
+
+  std::string_view Trim(std::string_view v) {
+    while (!v.empty() && IsSelectorSeparator(v.front()))
+      v.remove_prefix(1);
+    while (!v.empty() && IsSelectorSeparator(v.back()))
+      v.remove_suffix(1);
+    return v;
+  }
+
+  // A whole number token, as a double.
+  bool ReadDouble(std::string_view token, double& out) {
+    if (token.empty()) return false;
+    const std::string text(token);
+    char* end = nullptr;
+    out = std::strtod(text.c_str(), &end);
+    return end == text.c_str() + text.size() && std::isfinite(out);
+  }
+
+  // The markers of `entries`, in frames at `rate` for a source of `frames`,
+  // sorted by source time (stable). An empty `error` on success; else what
+  // is wrong, the marker's name first.
+  std::vector<dictMarker> ReadMarkers(const std::vector<dictEntry>& entries, double rate,
+                                      double frames, std::string& error) {
+    std::vector<dictMarker> markers;
+    error.clear();
+    const auto fail = [&](const std::string& marker, const std::string& why) {
+      error = marker.empty() ? why : marker + ": " + why;
+      return std::vector<dictMarker>();
+    };
+    if (entries.empty()) return fail("", "holds no markers");
+    const std::string_view separator(kDictPathSeparator);
+    for (const dictEntry& entry : entries) {
+      const std::string_view key(entry.key);
+      const std::size_t split = key.find(separator);
+      if (split == std::string_view::npos)
+        return fail(entry.key, "is not a marker (a marker holds sourcetime, desttime...)");
+      const std::string name(key.substr(0, split));
+      const std::string_view field = key.substr(split + separator.size());
+      auto it = std::find_if(markers.begin(), markers.end(),
+                             [&](const dictMarker& m) { return m.name == name; });
+      if (it == markers.end()) {
+        markers.push_back(dictMarker());
+        markers.back().name = name;
+        it = markers.end() - 1;
+      }
+      dictMarker& m = *it;
+      const std::string_view value = Trim(entry.value);
+      const std::string fieldName(field);
+      if (field == "sourcetimebbu" || field == "desttimebbu")
+        return fail(name, fieldName + ": bars.beats.units times are not supported (a domain "
+                                      "clock has no meter); use ms or samples");
+      const bool isSource = field == "sourcetime" || field == "sourcetimesample";
+      const bool isDestination = field == "desttime" || field == "desttimesample";
+      const bool inSamples = field == "sourcetimesample" || field == "desttimesample";
+      const double toFrames = inSamples ? 1.0 : rate / 1000.0;
+      if (isSource) {
+        if (m.hasSource) return fail(name, "has more than one source time");
+        m.hasSource = true;
+        if (value == "end") {
+          m.sourceAtEnd = true;
+        } else {
+          double t = 0.0;
+          if (!ReadDouble(value, t))
+            return fail(name, fieldName + " \"" + std::string(value) + "\" is not a number");
+          m.source = t * toFrames;
+        }
+      } else if (isDestination) {
+        if (m.hasDestination) return fail(name, "has more than one destination time");
+        m.hasDestination = true;
+        double t = 0.0;
+        if (!value.empty() && value.front() == '*') {
+          if (!ReadDouble(value.substr(1), t) || !(t > 0.0))
+            return fail(name,
+                        fieldName + " \"" + std::string(value) + "\" is not a factor above 0");
+          m.destinationFactor = true;
+          m.destination = t;
+        } else {
+          if (!ReadDouble(value, t))
+            return fail(name, fieldName + " \"" + std::string(value) + "\" is not a number");
+          m.destination = t * toFrames;
+        }
+      } else if (field == "pitchshift" || field == "pitchshiftcent") {
+        if (m.hasPitch) return fail(name, "has more than one pitch");
+        double p = 0.0;
+        if (!ReadDouble(value, p))
+          return fail(name, fieldName + " \"" + std::string(value) + "\" is not a number");
+        if (field == "pitchshiftcent") p = std::exp2(p / 1200.0);
+        if (!(p > 0.0)) return fail(name, "pitchshift is not above 0");
+        m.hasPitch = true;
+        m.pitch = p;
+      } else {
+        return fail(name, "\"" + fieldName + "\" is not a marker key");
+      }
+    }
+    for (dictMarker& m : markers) {
+      if (!m.hasSource) return fail(m.name, "has no source time (sourcetime, sourcetimesample)");
+      if (!m.hasDestination)
+        return fail(m.name, "has no destination time (desttime, desttimesample)");
+      if (m.sourceAtEnd) m.source = frames;
+      if (m.destinationFactor) m.destination *= m.source;
+    }
+    std::stable_sort(markers.begin(), markers.end(),
+                     [](const dictMarker& a, const dictMarker& b) { return a.source < b.source; });
+    return markers;
+  }
+
+  // The markers of the dictionary at `address` onto `ts`. False, with the
+  // error logged, when they cannot be used.
+  bool ApplyMarkers(timeStretch& ts, const char* address, const char* name,
+                    const YSE::DSP::sampleBuffer& source) {
+    const std::string prefix = std::string("~stretch: dictionary ") + name + ": ";
+    std::vector<dictEntry> entries;
+    switch (Snapshot(address, entries)) {
+    case SNAPSHOT::MISSING:
+      YSE::INTERNAL::LogImpl().emit(YSE::E_ERROR, prefix + "no such dictionary in this patcher");
+      return false;
+    case SNAPSHOT::BUSY:
+      YSE::INTERNAL::LogImpl().emit(YSE::E_ERROR, prefix + "busy, could not be read");
+      return false;
+    case SNAPSHOT::OK:
+      break;
+    }
+    const Flt sampleRate = source.sampleRate();
+    const double rate = std::isfinite(sampleRate) && sampleRate > 0.f
+                            ? static_cast<double>(sampleRate)
+                            : static_cast<double>(YSE::SAMPLERATE);
+    std::string error;
+    const std::vector<dictMarker> read =
+        ReadMarkers(entries, rate, static_cast<double>(source.frames()), error);
+    if (!error.empty()) {
+      YSE::INTERNAL::LogImpl().emit(YSE::E_ERROR, prefix + error);
+      return false;
+    }
+    std::vector<timeStretch::marker> list;
+    list.reserve(read.size());
+    for (const dictMarker& m : read)
+      list.push_back({m.source, m.destination, m.hasPitch ? static_cast<Flt>(m.pitch) : 0.f});
+    std::size_t at = 0;
+    const timeStretch::MARKER_ERROR result = ts.markers(list, &at);
+    if (result != timeStretch::MARKERS_OK) {
+      YSE::INTERNAL::LogImpl().emit(YSE::E_ERROR,
+                                    prefix + read[at].name + ": " + timeStretch::describe(result));
+      return false;
+    }
+    return true;
+  }
+
   // What a job reports through timeStretch's progress function.
   struct jobProgress {
     dStretch::state* shared = nullptr;
@@ -184,6 +396,7 @@ struct dStretch::stretchTask {
   std::uint8_t correction = 0;
   std::uint8_t followTempo = 0;
   std::uint8_t lengthGiven = 0;
+  std::uint16_t dictNameAt = 0; // where the dictionary's own name starts in `dict`
 
   // The outcome.
   OUTCOME outcome = OUTCOME::CANCELLED;
@@ -191,6 +404,8 @@ struct dStretch::stretchTask {
 
   char name[fileScheduler::PATH_CAPACITY] = {};
   char clock[CLOCK_CAPACITY] = {};
+  // The dictionary's scoped address, empty for none.
+  char dict[SCOPE_CAPACITY + DICT_NAME_CAPACITY] = {};
 };
 
 CONSTRUCT() {
@@ -215,7 +430,8 @@ CONSTRUCT() {
   INLET_DOC(0, "messages",
             "bang or apply processes the buffer; cancel stops it; set <name> picks another "
             "buffer. Also the attribute messages: stretch, pitchshift, pitchshiftcent, quality, "
-            "mode, readagain, pitchcorrection, basictuning, slurtime, followglobaltempo, "
+            "mode, readagain, pitchcorrection, basictuning, slurtime, dictionary <name> (a "
+            ".dict of markers mapping source times to destination times), followglobaltempo, "
             "originaltempo, originallength, transport and progress_enable.",
             "");
   OUTLET_DOC(0, "done", "A bang when the buffer holds the result.", "bang");
@@ -229,7 +445,8 @@ CONSTRUCT() {
             "<cents>' (0), 'quality <basic|good|better|best>' (better), 'mode "
             "<basic|monophonic|rhythmic|general|polyphonic|pads|extremestretch|efficient>' "
             "(basic), 'readagain <0|1>' (1), 'pitchcorrection <0|1>' (0), 'basictuning <Hz>' "
-            "(440), 'slurtime <ms>' (0), 'followglobaltempo <0|1>' (0), 'originaltempo "
+            "(440), 'slurtime <ms>' (0), 'dictionary <name>', 'followglobaltempo <0|1>' (0), "
+            "'originaltempo "
             "<bpm>' (120), 'originallength <beats>' (0), 'transport <clock>' and "
             "'progress_enable <0|1>' (1).",
             "words and values");
@@ -262,6 +479,7 @@ void dStretch::Defaults() {
   followTempo = false;
   progressOn = true;
   clock[0] = '\0';
+  dictName[0] = '\0';
 }
 
 bool dStretch::SetText(char* out, std::size_t capacity, const char* text, std::size_t length) {
@@ -284,6 +502,13 @@ timeStretch dStretch::Stretcher() const {
 }
 
 bool dStretch::ApplyWord(std::string_view word, const std::string_view* values, std::size_t count) {
+  if (word == "dictionary") {
+    if (count == 0) {
+      dictName[0] = '\0';
+      return true;
+    }
+    return SetText(dictName, sizeof(dictName), values[0].data(), values[0].size());
+  }
   if (word == "transport") {
     if (count == 0) {
       clock[0] = '\0';
@@ -382,6 +607,23 @@ void dStretch::SetParent(pObject* newParent) {
   // The scheduler every job goes through, built here so a bang on the audio
   // thread finds it.
   EnableFileIO();
+  RefreshScope();
+}
+
+void dStretch::OnPatcherRenamed() {
+  RefreshScope();
+}
+
+void dStretch::RefreshScope() {
+  static_assert(DICT_NAME_CAPACITY > patcherImplementation::MAX_SLOT_NAME_LENGTH,
+                "a dictionary name the patcher accepts fits");
+  static_assert(SCOPE_CAPACITY > patcherImplementation::SCOPED_ADDRESS_PREFIX_OVERHEAD +
+                                     patcherImplementation::MAX_PATCHER_NAME_LENGTH,
+                "the scope prefix of any patcher name fits");
+  scope[0] = '\0';
+  if (parent == nullptr) return;
+  const std::string prefix = static_cast<patcherImplementation*>(parent)->ScopedAddressPrefix();
+  SetText(scope, sizeof(scope), prefix.c_str(), prefix.size());
 }
 
 // ─── messages ─────────────────────────────────────────────────────────────────
@@ -436,6 +678,14 @@ void dStretch::Request() {
   task.lengthGiven = lengthGiven.load() ? 1 : 0;
   std::memcpy(task.name, name, sizeof(task.name));
   std::memcpy(task.clock, clock, sizeof(task.clock));
+  if (dictName[0] != '\0') {
+    // Scope and name: both bounded, so the address always fits.
+    const std::size_t scopeLength = std::strlen(scope);
+    const std::size_t nameLength = std::strlen(dictName);
+    std::memcpy(task.dict, scope, scopeLength);
+    std::memcpy(task.dict + scopeLength, dictName, nameLength + 1);
+    task.dictNameAt = static_cast<std::uint16_t>(scopeLength);
+  }
   if (!io->RequestTask(this, 0, &dStretch::RunTask, &task, sizeof(task)))
     refused.fetch_add(1, std::memory_order_relaxed);
 }
@@ -493,6 +743,11 @@ bool dStretch::RunTask(char* args, std::size_t argBytes) {
     shared->original.reset();
   }
 
+  // The markers, read from the dictionary now, against the source's length
+  // and rate.
+  if (task.dict[0] != '\0' && !ApplyMarkers(ts, task.dict, task.dict + task.dictNameAt, *source))
+    return finish(OUTCOME::BAD_MARKERS, false);
+
   if (task.followTempo != 0 && task.clock[0] != '\0') {
     const Flt tempo = CLOCK::Manager().currentTempo(task.clock);
     Flt original = task.originalTempo;
@@ -543,6 +798,8 @@ void dStretch::DeliverFileResult(const fileResult& result, YSE::THREAD thread) {
   if (!result.ok || task.outcome != OUTCOME::DONE) {
     if (task.outcome == OUTCOME::NO_BUFFER) {
       failed.fetch_add(1, std::memory_order_relaxed);
+    } else if (task.outcome == OUTCOME::BAD_MARKERS) {
+      markerErrors.fetch_add(1, std::memory_order_relaxed);
     } else {
       cancelled.fetch_add(1, std::memory_order_relaxed);
     }

@@ -135,20 +135,21 @@ namespace {
   }
 
   // Where the result's samples come from: a piecewise straight line from a
-  // time in the result to a time in the source. Pieces around an onset run at
-  // a slope of 1, so the transient is copied rather than stretched; the rest
-  // shares out the remaining length.
+  // time in the vocoder's output to a time in the source. Pieces around an
+  // onset run at a slope of 1, so the transient is copied rather than
+  // stretched; the rest of a segment shares out its remaining length.
   struct timeMap {
     struct piece {
       double source = 0.0; // where it starts in the source
-      double result = 0.0; // where it starts in the result
-      double slope = 1.0; // result samples per source sample
+      double result = 0.0; // where it starts in the vocoder's output
+      double slope = 1.0; // output samples per source sample
       bool locked = false; // a transient, copied
+      double pitch = 1.0; // the segment's pitch, which the output is resampled by
     };
     std::vector<piece> pieces;
 
-    // The source time of result time `t`; `locked` set for a transient.
-    double operator()(double t, bool& locked) const {
+    // The source time of output time `t`; `which` the piece it is on.
+    double operator()(double t, const piece*& which) const {
       std::size_t lo = 0;
       std::size_t hi = pieces.size();
       while (hi - lo > 1) {
@@ -160,7 +161,7 @@ namespace {
         }
       }
       const piece& p = pieces[lo];
-      locked = p.locked;
+      which = &p;
       return p.source + (t - p.result) / p.slope;
     }
   };
@@ -225,42 +226,112 @@ namespace {
     return onsets;
   }
 
-  // The map for a source of `frames` made `ratio` times as long. Each onset
-  // `t` keeps its place in the rhythm, at `ratio * t`, and the frames whose
-  // window holds it (centres within `n / 2` of it) are copied at a slope of
-  // 1. An onset whose copy would leave the stretch between it and its
-  // neighbours beyond a quarter of the ratio either way is not copied.
-  timeMap MakeMap(UInt frames, double ratio, UInt n, const std::vector<double>& onsets) {
-    timeMap map;
-    const double total = static_cast<double>(frames);
-    const double reach = static_cast<double>(n) / 2.0; // n is a power of two
-    const double low = 0.25 * std::min(ratio, 1.0);
-    const double high = 4.0 * std::max(ratio, 1.0);
-    auto fits = [&](double fromSource, double fromResult, double toSource, double toResult) {
-      if (toSource <= fromSource) return toResult >= fromResult && toSource == fromSource;
-      const double slope = (toResult - fromResult) / (toSource - fromSource);
-      return slope >= low && slope <= high;
-    };
-    double source = 0.0;
-    double result = 0.0;
-    if (ratio != 1.0) {
-      for (const double t : onsets) {
-        const double start = t - reach;
-        const double end = t + reach;
-        if (start < source || end > total) continue;
-        const double startResult = ratio * t - reach;
-        if (!fits(source, result, start, startResult) ||
-            !fits(end, ratio * t + reach, total, ratio * total))
-          continue;
-        if (start > source)
-          map.pieces.push_back({source, result, (startResult - result) / (start - source), false});
-        map.pieces.push_back({start, startResult, 1.0, true});
-        source = end;
-        result = ratio * t + reach;
-      }
+  // One segment of a timeStretch::plan.
+  struct segment {
+    double source = 0.0; // where it starts in the source
+    double destination = 0.0; // where it starts in the result
+    double vocoded = 0.0; // where it starts in the vocoder's output
+    double slope = 1.0; // vocoder output samples per source sample
+    double pitch = 1.0;
+  };
+
+} // namespace
+
+// The time map the vocoder and the resampling follow: one segment per
+// marker (one for the whole source without markers), each from its source
+// start to the next's, made `slope` times as long by the vocoder and then
+// resampled by `pitch`, which leaves it `slope / pitch` times as long.
+struct timeStretch::plan {
+  std::vector<segment> segments;
+  double frames = 0.0; // the source's length
+  double vocodedEnd = 0.0; // where the source's end lands in the vocoder's output
+  double destinationEnd = 0.0; // and in the result
+};
+
+timeStretch::plan timeStretch::Plan(UInt frames) const {
+  plan p;
+  p.frames = static_cast<double>(frames);
+  const auto stretchOf = static_cast<double>(lengthFactor);
+  const auto pitchOf = [&](Flt value) {
+    return static_cast<double>(value > 0.f ? value : pitchFactor);
+  };
+  double source = 0.0;
+  double destination = 0.0;
+  double vocoded = 0.0;
+  double pitch = static_cast<double>(pitchFactor);
+  std::size_t i = 0;
+  if (!points.empty() && points[0].source == 0.0) {
+    // A marker at the start only gives the first segment its pitch.
+    pitch = pitchOf(points[0].pitch);
+    i = 1;
+  }
+  for (;;) {
+    const bool last = i == points.size();
+    const double next = last ? p.frames : points[i].source;
+    const double stretch =
+        last ? stretchOf : (points[i].destination - destination) / (next - source);
+    p.segments.push_back({source, destination, vocoded, pitch * stretch, pitch});
+    if (last || next >= p.frames) {
+      p.destinationEnd = destination + stretch * (p.frames - source);
+      p.vocodedEnd = vocoded + pitch * stretch * (p.frames - source);
+      return p;
     }
-    const double slope = total > source ? (ratio * total - result) / (total - source) : ratio;
-    map.pieces.push_back({source, result, slope > 0.0 ? slope : ratio, false});
+    vocoded += pitch * (points[i].destination - destination);
+    destination = points[i].destination;
+    source = next;
+    pitch = pitchOf(points[i].pitch);
+    ++i;
+  }
+}
+
+namespace {
+
+  // The map for `plan`. Within each segment an onset `t` keeps its place in
+  // the rhythm, at the segment's stretch of it, and the frames whose window
+  // holds it (centres within `n / 2` of it) are copied at a slope of 1. An
+  // onset whose copy would leave the stretch between it and its neighbours
+  // beyond a quarter of the segment's either way, or reach over the
+  // segment's ends, is not copied.
+  timeMap MakeMap(const std::vector<segment>& segments, double frames,
+                  double vocodedEnd, UInt n, const std::vector<double>& onsets) {
+    timeMap map;
+    const double reach = static_cast<double>(n) / 2.0; // n is a power of two
+    for (std::size_t s = 0; s < segments.size(); ++s) {
+      const segment& seg = segments[s];
+      const bool last = s + 1 == segments.size();
+      const double total = last ? frames : segments[s + 1].source;
+      const double totalResult = last ? vocodedEnd : segments[s + 1].vocoded;
+      const double ratio = seg.slope;
+      const double low = 0.25 * std::min(ratio, 1.0);
+      const double high = 4.0 * std::max(ratio, 1.0);
+      auto fits = [&](double fromSource, double fromResult, double toSource, double toResult) {
+        if (toSource <= fromSource) return toResult >= fromResult && toSource == fromSource;
+        const double slope = (toResult - fromResult) / (toSource - fromSource);
+        return slope >= low && slope <= high;
+      };
+      double source = seg.source;
+      double result = seg.vocoded;
+      if (ratio != 1.0) {
+        for (const double t : onsets) {
+          const double start = t - reach;
+          const double end = t + reach;
+          if (start < source || end > total) continue;
+          const double at = seg.vocoded + ratio * (t - seg.source);
+          const double startResult = at - reach;
+          if (!fits(source, result, start, startResult) ||
+              !fits(end, at + reach, total, totalResult))
+            continue;
+          if (start > source)
+            map.pieces.push_back(
+                {source, result, (startResult - result) / (start - source), false, seg.pitch});
+          map.pieces.push_back({start, startResult, 1.0, true, seg.pitch});
+          source = end;
+          result = at + reach;
+        }
+      }
+      const double slope = total > source ? (totalResult - result) / (total - source) : ratio;
+      map.pieces.push_back({source, result, slope > 0.0 ? slope : ratio, false, seg.pitch});
+    }
     return map;
   }
 
@@ -309,9 +380,65 @@ timeStretch& timeStretch::slurTime(Flt ms) {
   return *this;
 }
 
+timeStretch::MARKER_ERROR timeStretch::markers(const std::vector<marker>& list, std::size_t* at) {
+  std::vector<marker> checked;
+  checked.reserve(list.size());
+  double source = 0.0;
+  double destination = 0.0;
+  for (std::size_t i = 0; i < list.size(); ++i) {
+    if (at != nullptr) *at = i;
+    marker m = list[i];
+    if (!std::isfinite(m.source) || !std::isfinite(m.destination)) return MARKER_NOT_FINITE;
+    if (m.source < 0.0 || m.destination < 0.0) return MARKER_NEGATIVE;
+    if (!std::isfinite(m.pitch) || m.pitch < 0.f) return MARKER_PITCH;
+    if (m.pitch > 0.f) m.pitch = std::clamp(m.pitch, MIN_PITCH, MAX_PITCH);
+    // A first marker on the start (0 on 0) only gives the first segment its
+    // pitch.
+    const bool start = i == 0 && m.source == 0.0 && m.destination == 0.0;
+    if (!start) {
+      if (!(m.source > source)) return MARKER_SOURCE_ORDER;
+      if (!(m.destination > destination)) return MARKER_DESTINATION_ORDER;
+      const double stretch = (m.destination - destination) / (m.source - source);
+      if (stretch < static_cast<double>(MIN_STRETCH) || stretch > static_cast<double>(MAX_STRETCH))
+        return MARKER_STRETCH;
+    }
+    source = m.source;
+    destination = m.destination;
+    checked.push_back(m);
+  }
+  points.swap(checked);
+  return MARKERS_OK;
+}
+
+timeStretch& timeStretch::clearMarkers() {
+  points.clear();
+  return *this;
+}
+
+const char* timeStretch::describe(MARKER_ERROR error) {
+  switch (error) {
+  case MARKERS_OK:
+    return "accepted";
+  case MARKER_NOT_FINITE:
+    return "a time is not a finite number";
+  case MARKER_NEGATIVE:
+    return "a time is below 0";
+  case MARKER_SOURCE_ORDER:
+    return "its source time is not after the previous marker's (or the start)";
+  case MARKER_DESTINATION_ORDER:
+    return "its destination time is not after the previous marker's (or the start)";
+  case MARKER_STRETCH:
+    return "the segment before it would be stretched beyond 1/16 .. 16";
+  case MARKER_PITCH:
+    return "its pitch is below 0 or not a finite number";
+  }
+  return "unknown error";
+}
+
 UInt timeStretch::outputFrames(UInt frames) const {
   if (frames == 0) return 0;
-  const double length = std::round(static_cast<double>(frames) * lengthFactor);
+  const double length = points.empty() ? std::round(static_cast<double>(frames) * lengthFactor)
+                                       : std::round(Plan(frames).destinationEnd);
   return static_cast<UInt>(std::max(1.0, length));
 }
 
@@ -331,16 +458,17 @@ bool timeStretch::progressSpan::report(Flt done) const {
 
 // ─── processing ──────────────────────────────────────────────────────────────
 
-bool timeStretch::Vocode(const Flt* input, UInt frames, Flt rate, std::vector<Flt>& output,
-                         const progressSpan& span) const {
-  const double r = static_cast<double>(lengthFactor) * static_cast<double>(pitchFactor);
+bool timeStretch::Vocode(const Flt* input, UInt frames, Flt rate, const plan& layout,
+                         std::vector<Flt>& output, const progressSpan& span) const {
   const analysisShape shape = Shape(frameQuality, material);
   const UInt n = frameSize(rate);
   const UInt half = n / 2;
   const timeMap map =
-      MakeMap(frames, r, n,
+      MakeMap(layout.segments, layout.frames, layout.vocodedEnd, n,
               shape.onset > 0.f ? Onsets(input, frames, n, shape.onset) : std::vector<double>());
-  double slowest = r;
+  double slowest = layout.segments.front().slope;
+  for (const segment& s : layout.segments)
+    slowest = std::min(slowest, s.slope);
   for (const timeMap::piece& p : map.pieces)
     slowest = std::min(slowest, p.slope);
   // The source is read every hop / slope samples; keep that within half a
@@ -351,11 +479,7 @@ bool timeStretch::Vocode(const Flt* input, UInt frames, Flt rate, std::vector<Fl
     ovs <<= 1;
   const UInt hop = n / ovs;
   const UInt probe = n / 8; // the second analysis, this much earlier
-  const auto length =
-      static_cast<std::size_t>(std::max(1.0, std::round(static_cast<double>(frames) * r)));
-  // Above Nyquist once resampled up: cleared.
-  const UInt top =
-      pitchFactor > 1.f ? static_cast<UInt>(static_cast<double>(half) / pitchFactor) : half;
+  const auto length = static_cast<std::size_t>(std::max(1.0, std::round(layout.vocodedEnd)));
 
   stftAnalysis now(n);
   stftAnalysis earlier(n);
@@ -379,8 +503,12 @@ bool timeStretch::Vocode(const Flt* input, UInt frames, Flt rate, std::vector<Fl
   const double toBin = TWO_PI / static_cast<double>(n);
 
   for (std::size_t m = 0; m < frameCount; ++m) {
-    bool locked = false;
-    const double centre = map(static_cast<double>(m * hop) - static_cast<double>(half), locked);
+    const timeMap::piece* piece = nullptr;
+    const double centre = map(static_cast<double>(m * hop) - static_cast<double>(half), piece);
+    const bool locked = piece->locked;
+    // Above Nyquist once resampled up: cleared.
+    const UInt top =
+        piece->pitch > 1.0 ? static_cast<UInt>(static_cast<double>(half) / piece->pitch) : half;
     const auto start = static_cast<long long>(std::llround(centre - static_cast<double>(half)));
 
     Load(input, frames, start, frame.data(), n);
@@ -529,19 +657,28 @@ bool timeStretch::render(const Flt* input, UInt frames, Flt rate, std::vector<Fl
 
   const UInt length = outputFrames(frames);
   std::vector<Flt> result;
-  if (lengthFactor == 1.f && pitchFactor == 1.f) {
+  if (points.empty() && lengthFactor == 1.f && pitchFactor == 1.f) {
     result.assign(input, input + frames);
   } else {
+    const plan map = Plan(frames);
     std::vector<Flt> vocoded;
-    if (!Vocode(input, frames, rate, vocoded, vocoding)) return false;
-    if (pitchFactor == 1.f) {
+    if (!Vocode(input, frames, rate, map, vocoded, vocoding)) return false;
+    const bool unshifted = std::all_of(map.segments.begin(), map.segments.end(),
+                                       [](const segment& s) { return s.pitch == 1.0; });
+    if (unshifted) {
       result.swap(vocoded);
       result.resize(length, 0.f);
     } else {
+      // The pitch curve: each segment's result read at its own speed.
       result.resize(length);
-      const auto step = static_cast<double>(pitchFactor);
-      for (UInt i = 0; i < length; ++i)
-        result[i] = ReadCubic(vocoded, static_cast<double>(i) * step);
+      std::size_t at = 0;
+      for (UInt i = 0; i < length; ++i) {
+        const auto d = static_cast<double>(i);
+        while (at + 1 < map.segments.size() && map.segments[at + 1].destination <= d)
+          ++at;
+        const segment& s = map.segments[at];
+        result[i] = ReadCubic(vocoded, s.vocoded + s.pitch * (d - s.destination));
+      }
     }
   }
   if (correcting && !Correct(result, rate, correction)) return false;

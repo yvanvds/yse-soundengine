@@ -31,7 +31,8 @@ namespace YSE {
      *    ``stretch``, ``pitchshift``, ``pitchshiftcent``, ``quality``,
      *    ``mode``, ``readagain``, ``pitchcorrection``, ``basictuning``,
      *    ``slurtime`` (ms, the correction's glide: ``DSP::retune::slur``,
-     *    #1284), ``followglobaltempo``, ``originaltempo``,
+     *    #1284), ``dictionary <name>`` (markers, below; ``dictionary``
+     *    alone, none), ``followglobaltempo``, ``originaltempo``,
      *    ``originallength``, ``transport`` (the clock ``followglobaltempo``
      *    follows) and ``progress_enable``; ``formant`` and
      *    ``formantcorrection`` are accepted and ignored.
@@ -73,14 +74,37 @@ namespace YSE {
      *  the original tempo from the buffer's length instead. Without a
      *  clock of that name, the ``stretch`` attribute is used.
      *
+     *  **dictionary <name>** (#1285) names a ``.dict`` in the same patcher
+     *  whose markers the next bangs follow, as a time map instead of the
+     *  one ``stretch`` (``DSP::timeStretch::markers``). Each top-level key
+     *  is one marker (MSP's ``marker01``, ``marker02``...), holding a source
+     *  time, ``sourcetime`` (ms) or ``sourcetimesample`` (samples), either
+     *  of which may be ``end`` (the buffer's end); a destination time,
+     *  ``desttime`` (ms) or ``desttimesample``, either of which may be
+     *  ``*<factor>`` (that many times the source time); and optionally
+     *  ``pitchshift`` (a factor) or ``pitchshiftcent``, which holds until
+     *  the next marker. Times are reckoned at the buffer's rate. The
+     *  markers are taken in source order whatever order the keys are in;
+     *  after the last one, the rest of the buffer is stretched by
+     *  ``stretch``. The job reads the dictionary on the background pool:
+     *  it finds the store by name (a lock, never the audio thread) and
+     *  copies it out under the store's own guard, waiting briefly when a
+     *  writer has it, so a ``.dict`` changing meanwhile is read whole, as
+     *  it was before or after. A dictionary it cannot use leaves the buffer
+     *  untouched and logs one error that names the marker and the reason:
+     *  no such dictionary, no markers, a key that is not a marker's, a
+     *  marker without a source or a destination time, a value that is not
+     *  a number, markers whose destinations do not rise with their sources,
+     *  a segment stretched beyond 1/16 .. 16. ``sourcetimebbu`` and
+     *  ``desttimebbu`` (bars.beats.units) are refused this way too: they
+     *  need a meter, which a domain clock does not have.
+     *
      *  Limits that come from the scheduler: at most
      *  ``fileScheduler::CAPACITY`` requests in flight per patcher, results
      *  only while the patcher renders. The background pool is shared with
      *  file loads, which wait while a long job runs.
      *
-     *  Not ported: ``dictionary`` (markers mapping source to destination
-     *  times; a time map rather than one factor, a feature of its own:
-     *  #1285), ``mouse`` (an editor window; the host draws), ``formant`` and
+     *  Not ported: ``mouse`` (an editor window; the host draws), ``formant`` and
      *  ``formantcorrection`` (formant preservation is a non-goal of
      *  ``DSP::timeStretch``). The last two are accepted and ignored, so
      *  patches that set them load.
@@ -100,6 +124,7 @@ namespace YSE {
     dStretch& operator=(dStretch&&) = delete;
 
     void SetParent(pObject* newParent) override;
+    void OnPatcherRenamed() override;
     /** @brief Control thread, as the object is deleted: its jobs are
      *         cancelled, the one running included. */
     void Teardown(YSE::THREAD thread) override;
@@ -116,6 +141,12 @@ namespace YSE {
       return name;
     }
 
+    /** @brief The ``.dict`` whose markers a bang follows, empty for none.
+     *         Tests. */
+    const char* DictionaryName() const {
+      return dictName;
+    }
+
     /** @brief The DSP settings a bang would hand the job now (before a
      *         clock's tempo is applied). Tests. */
     DSP::timeStretch Stretcher() const;
@@ -128,6 +159,12 @@ namespace YSE {
     /** @brief Jobs that were cancelled. Diagnostics, tests. */
     std::uint64_t CancelledTasks() const {
       return cancelled.load(std::memory_order_relaxed);
+    }
+
+    /** @brief Jobs whose dictionary could not be used (logged).
+     *         Diagnostics, tests. */
+    std::uint64_t MarkerErrors() const {
+      return markerErrors.load(std::memory_order_relaxed);
     }
 
     /** @brief Bangs the scheduler refused (no patcher, a full table).
@@ -148,6 +185,9 @@ namespace YSE {
     void Request();
     // Stop every job requested so far. Any thread, wait-free.
     void Cancel();
+    // The patcher's scope prefix for the dictionary's address. Control
+    // thread.
+    void RefreshScope();
     // Copy `text` (of `length`) into `out`; false, and no change, when it
     // does not fit.
     static bool SetText(char* out, std::size_t capacity, const char* text, std::size_t length);
@@ -157,6 +197,10 @@ namespace YSE {
     static bool RunTask(char* args, std::size_t argBytes);
 
     static constexpr std::size_t CLOCK_CAPACITY = 128;
+    // A dictionary's name: the patcher's slot-name bound plus the end.
+    static constexpr std::size_t DICT_NAME_CAPACITY = 64;
+    // "patcher.<patcherName>.": the patcher-name bound with its overhead.
+    static constexpr std::size_t SCOPE_CAPACITY = 72;
 
     std::string bufferName; // the argument
     std::vector<std::string> settings; // the attribute words that follow it
@@ -165,6 +209,10 @@ namespace YSE {
     // the last `set`. Written by PARM_PARSE and the message handlers.
     char name[fileScheduler::PATH_CAPACITY] = {};
     char clock[CLOCK_CAPACITY] = {};
+    // The `dictionary`, and the scope its address is made in (SetParent,
+    // OnPatcherRenamed).
+    char dictName[DICT_NAME_CAPACITY] = {};
+    char scope[SCOPE_CAPACITY] = {};
 
     aFlt stretchFactor{1.f};
     aFlt pitchFactor{1.f};
@@ -191,6 +239,7 @@ namespace YSE {
     std::atomic<std::uint64_t> failed{0};
     std::atomic<std::uint64_t> cancelled{0};
     std::atomic<std::uint64_t> refused{0};
+    std::atomic<std::uint64_t> markerErrors{0};
   };
 
 } // namespace PATCHER

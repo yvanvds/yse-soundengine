@@ -15,7 +15,11 @@
 //  - a buffer at 22.05 kHz keeps its pitch, at its own rate;
 //  - process(): every channel, the rate and file details kept, in place;
 //  - progress rises to 1 and returning false stops with the target
-//    untouched; an empty source is refused.
+//    untouched; an empty source is refused;
+//  - markers (#1285): the list's checks and the output length; a marker
+//    at 500 ms -> 1000 ms lands the source there; the segments between
+//    markers stretch evenly (hits land where each segment's stretch puts
+//    them, the tail by stretch()); each segment keeps its own pitch.
 
 #include <doctest/doctest.h>
 #include <algorithm>
@@ -23,6 +27,8 @@
 #include <cstdint>
 #include <limits>
 #include <memory>
+#include <string>
+#include <utility>
 #include <vector>
 #include "dsp/sampling/sampleBuffer.hpp"
 #include "dsp/sampling/timeStretch.hpp"
@@ -522,6 +528,169 @@ TEST_SUITE("dsp") {
     float silent[5] = {9.f, 9.f, 9.f, 9.f, 9.f};
     REQUIRE(b->getSamples(0, 0, silent, 5) == 5);
     CHECK(silent[4] == 0.f);
+  }
+
+  // ─── markers (#1285) ────────────────────────────────────────────────────────
+
+  TEST_CASE("timeStretch: markers are checked whole, and give the output length (#1285)") {
+    using M = timeStretch::marker;
+    timeStretch ts;
+    CHECK(ts.markers().empty());
+    std::size_t at = 99;
+    REQUIRE(ts.markers({{24000.0, 48000.0, 0.f}, {48000.0, 60000.0, 2.f}}, &at) ==
+            timeStretch::MARKERS_OK);
+    REQUIRE(ts.markers().size() == 2);
+    CHECK(ts.markers()[1].pitch == 2.f);
+    // 0 .. 24000 to 48000, 24000 .. 48000 to 12000 more, the rest by stretch().
+    CHECK(ts.outputFrames(48000) == 60000);
+    CHECK(ts.outputFrames(72000) == 84000);
+    ts.stretch(2.f);
+    CHECK(ts.outputFrames(72000) == 108000);
+    // A marker past the end shapes the last segment: 12000 of the first
+    // segment's stretch of 2.
+    CHECK(ts.outputFrames(12000) == 24000);
+
+    // Refused whole, the markers kept, the one at fault named.
+    const auto refused = [&](const std::vector<M>& list, timeStretch::MARKER_ERROR expected,
+                             std::size_t index) {
+      std::size_t where = 99;
+      CHECK(ts.markers(list, &where) == expected);
+      CHECK(where == index);
+      CHECK(ts.markers().size() == 2);
+      CHECK(std::string(timeStretch::describe(expected)).size() > 10);
+    };
+    const double nan = std::numeric_limits<double>::quiet_NaN();
+    refused({{1000.0, 1000.0, 0.f}, {500.0, 2000.0, 0.f}}, timeStretch::MARKER_SOURCE_ORDER, 1);
+    refused({{1000.0, 1000.0, 0.f}, {1000.0, 2000.0, 0.f}}, timeStretch::MARKER_SOURCE_ORDER, 1);
+    refused({{1000.0, 2000.0, 0.f}, {2000.0, 1500.0, 0.f}},
+            timeStretch::MARKER_DESTINATION_ORDER, 1);
+    refused({{1000.0, nan, 0.f}}, timeStretch::MARKER_NOT_FINITE, 0);
+    refused({{-1.0, 10.0, 0.f}}, timeStretch::MARKER_NEGATIVE, 0);
+    refused({{1000.0, 1000.0, -1.f}}, timeStretch::MARKER_PITCH, 0);
+    refused({{1000.0, 20000.0, 0.f}}, timeStretch::MARKER_STRETCH, 0); // 20 times
+    refused({{1000.0, 50.0, 0.f}}, timeStretch::MARKER_STRETCH, 0); // a twentieth
+    refused({{0.0, 100.0, 0.f}}, timeStretch::MARKER_SOURCE_ORDER, 0);
+
+    // A first marker on the start only sets the first pitch; pitches are
+    // held to the limits.
+    REQUIRE(ts.markers({{0.0, 0.0, 10.f}, {1000.0, 2000.0, 0.f}}) == timeStretch::MARKERS_OK);
+    CHECK(ts.markers()[0].pitch == timeStretch::MAX_PITCH);
+    // Empty clears; so does clearMarkers.
+    REQUIRE(ts.markers({}) == timeStretch::MARKERS_OK);
+    CHECK(ts.markers().empty());
+    REQUIRE(ts.markers({{1000.0, 2000.0, 0.f}}) == timeStretch::MARKERS_OK);
+    ts.clearMarkers();
+    CHECK(ts.markers().empty());
+    CHECK(ts.outputFrames(1000) == 2000);
+  }
+
+  TEST_CASE("timeStretch: a marker at 500 ms -> 1000 ms lands the source at 500 ms on 1000 ms "
+            "(#1285)") {
+    // 440 Hz for the first half second, 660 Hz after.
+    std::vector<float> in = Sine(440.0, 24000);
+    const std::vector<float> second = Sine(660.0, 24000);
+    in.insert(in.end(), second.begin(), second.end());
+    timeStretch ts;
+    REQUIRE(ts.markers({{24000.0, 48000.0, 0.f}}) == timeStretch::MARKERS_OK);
+    const std::vector<float> out = Render(ts, in);
+    REQUIRE(out.size() == 72000);
+    // Where the 660 Hz tone takes over, in windows of 2048 a 256 apart.
+    std::size_t change = 0;
+    for (std::size_t from = 0; from + 2048 <= out.size(); from += 256) {
+      const std::vector<float> w(out.begin() + static_cast<std::ptrdiff_t>(from),
+                                 out.begin() + static_cast<std::ptrdiff_t>(from + 2048));
+      if (Amplitude(w, 660.0) > Amplitude(w, 440.0)) {
+        change = from + 1024;
+        break;
+      }
+    }
+    CAPTURE(change);
+    CHECK(std::abs(static_cast<double>(change) - 48000.0) < 1024.0);
+    // Each side at its pitch: the first second 440, the rest 660.
+    const std::vector<float> first(out.begin() + 8000, out.begin() + 40000);
+    const std::vector<float> rest(out.begin() + 54000, out.begin() + 70000);
+    CHECK(std::abs(Loudest(first, 400.0, 700.0) - 440.0) < 0.002 * 440.0);
+    CHECK(std::abs(Loudest(rest, 400.0, 700.0) - 660.0) < 0.002 * 660.0);
+    CHECK(Amplitude(first, 440.0) == doctest::Approx(0.5).epsilon(0.1));
+  }
+
+  TEST_CASE("timeStretch: between markers each segment stretches evenly: hits land where each "
+            "segment's stretch puts them, the tail by stretch() (#1285)") {
+    // Hits at 6000 (stretched 2), 18000 (compressed to half) and 36000 (the
+    // tail, stretched 1.5), over a quiet 300 Hz tone.
+    std::vector<float> in = Sine(300.0, 48000, RATE, 0.05);
+    for (const std::size_t start : {6000U, 18000U, 36000U}) {
+      for (std::size_t i = 0; i < 600; ++i)
+        in[start + i] +=
+            static_cast<float>(0.8 * std::exp(-static_cast<double>(i) / 120.0) *
+                               std::sin(2.0 * PI * 2000.0 * static_cast<double>(i) / RATE));
+    }
+    const auto loudest = [](const std::vector<float>& v, std::size_t from, std::size_t to) {
+      float peak = 0.f;
+      for (std::size_t i = from; i < to; ++i)
+        peak = std::max(peak, std::abs(v[i]));
+      return peak;
+    };
+    timeStretch ts;
+    ts.mode(timeStretch::RHYTHMIC).stretch(1.5f);
+    REQUIRE(ts.markers({{12000.0, 24000.0, 0.f}, {24000.0, 30000.0, 0.f}}) ==
+            timeStretch::MARKERS_OK);
+    const std::vector<float> out = Render(ts, in);
+    REQUIRE(out.size() == 30000 + 36000);
+    for (const std::size_t hit : {12000U, 27000U, 48000U}) {
+      CAPTURE(hit);
+      // Copied, not smeared (a smeared hit stays below 0.5).
+      CHECK(loudest(out, hit, hit + 256) > 0.6f);
+      CHECK(loudest(out, hit - 1500, hit - 64) < 0.1f);
+    }
+    // The tone keeps its pitch through every segment.
+    for (const auto& span : {std::pair<std::size_t, std::size_t>{14000, 23000},
+                             {50000, 64000}}) {
+      const std::vector<float> w(out.begin() + static_cast<std::ptrdiff_t>(span.first),
+                                 out.begin() + static_cast<std::ptrdiff_t>(span.second));
+      CHECK(std::abs(Loudest(w, 250.0, 350.0) - 300.0) < 0.005 * 300.0);
+    }
+  }
+
+  TEST_CASE("timeStretch: each marker's pitch holds until the next; a marker without one takes "
+            "pitch() (#1285)") {
+    const std::vector<float> in = Sine(440.0, 48000);
+    const auto pitchOf = [](const std::vector<float>& out, std::size_t from, std::size_t to) {
+      const std::vector<float> w(out.begin() + static_cast<std::ptrdiff_t>(from),
+                                 out.begin() + static_cast<std::ptrdiff_t>(to));
+      return Loudest(w, 150.0, 1000.0);
+    };
+    {
+      // The second half an octave up, at its own length.
+      timeStretch ts;
+      REQUIRE(ts.markers({{24000.0, 24000.0, 2.f}}) == timeStretch::MARKERS_OK);
+      const std::vector<float> out = Render(ts, in);
+      REQUIRE(out.size() == 48000);
+      CHECK(std::abs(pitchOf(out, 4000, 20000) - 440.0) < 0.002 * 440.0);
+      CHECK(std::abs(pitchOf(out, 28000, 44000) - 880.0) < 0.002 * 880.0);
+      const std::vector<float> up(out.begin() + 28000, out.begin() + 44000);
+      CHECK(Amplitude(up, 880.0) == doctest::Approx(0.5).epsilon(0.1));
+      CHECK(Amplitude(up, 440.0) < 0.01);
+    }
+    {
+      // The first quarter twice as long at its pitch, the rest an octave down.
+      timeStretch ts;
+      REQUIRE(ts.markers({{12000.0, 24000.0, 0.5f}}) == timeStretch::MARKERS_OK);
+      const std::vector<float> out = Render(ts, in);
+      REQUIRE(out.size() == 24000 + 36000);
+      CHECK(std::abs(pitchOf(out, 4000, 20000) - 440.0) < 0.002 * 440.0);
+      CHECK(std::abs(pitchOf(out, 30000, 56000) - 220.0) < 0.002 * 220.0);
+    }
+    {
+      // No pitch on the marker: pitch() everywhere.
+      timeStretch ts;
+      ts.pitch(2.f);
+      REQUIRE(ts.markers({{24000.0, 48000.0, 0.f}}) == timeStretch::MARKERS_OK);
+      const std::vector<float> out = Render(ts, in);
+      REQUIRE(out.size() == 72000);
+      CHECK(std::abs(pitchOf(out, 8000, 40000) - 880.0) < 0.002 * 880.0);
+      CHECK(std::abs(pitchOf(out, 52000, 68000) - 880.0) < 0.002 * 880.0);
+    }
   }
 
 } // TEST_SUITE("dsp")

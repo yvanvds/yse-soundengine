@@ -23353,7 +23353,7 @@
         "accepts": [
           "BANG"
         ],
-        "doc": "bang or apply processes the buffer; cancel stops it; set <name> picks another buffer. Also the attribute messages: stretch, pitchshift, pitchshiftcent, quality, mode, readagain, pitchcorrection, basictuning, slurtime, followglobaltempo, originaltempo, originallength, transport and progress_enable.",
+        "doc": "bang or apply processes the buffer; cancel stops it; set <name> picks another buffer. Also the attribute messages: stretch, pitchshift, pitchshiftcent, quality, mode, readagain, pitchcorrection, basictuning, slurtime, dictionary <name> (a .dict of markers mapping source times to destination times), followglobaltempo, originaltempo, originallength, transport and progress_enable.",
         "index": 0,
         "label": "messages",
         "range": ""
@@ -23386,7 +23386,7 @@
       },
       {
         "default": "",
-        "doc": "Any of 'stretch <factor>' (1), 'pitchshift <factor>' (1), 'pitchshiftcent <cents>' (0), 'quality <basic|good|better|best>' (better), 'mode <basic|monophonic|rhythmic|general|polyphonic|pads|extremestretch|efficient>' (basic), 'readagain <0|1>' (1), 'pitchcorrection <0|1>' (0), 'basictuning <Hz>' (440), 'slurtime <ms>' (0), 'followglobaltempo <0|1>' (0), 'originaltempo <bpm>' (120), 'originallength <beats>' (0), 'transport <clock>' and 'progress_enable <0|1>' (1).",
+        "doc": "Any of 'stretch <factor>' (1), 'pitchshift <factor>' (1), 'pitchshiftcent <cents>' (0), 'quality <basic|good|better|best>' (better), 'mode <basic|monophonic|rhythmic|general|polyphonic|pads|extremestretch|efficient>' (basic), 'readagain <0|1>' (1), 'pitchcorrection <0|1>' (0), 'basictuning <Hz>' (440), 'slurtime <ms>' (0), 'dictionary <name>', 'followglobaltempo <0|1>' (0), 'originaltempo <bpm>' (120), 'originallength <beats>' (0), 'transport <clock>' and 'progress_enable <0|1>' (1).",
         "name": "settings",
         "range": "words and values"
       }

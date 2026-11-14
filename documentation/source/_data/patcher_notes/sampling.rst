@@ -792,8 +792,60 @@ from the old samples to the new ones at the start of a block.
   and the original tempo is worked out from the buffer's length. Of the two,
   the last one sent counts. Without a clock of that name, ``stretch`` is
   used.
+- ``dictionary <name>``: follow the markers in the dictionary ``<name>``
+  (a ``.dict`` in the same patcher) instead of one ``stretch``, from the
+  next bang on; ``dictionary`` alone goes back to ``stretch``. See
+  *Markers* below.
 - ``progress_enable <0|1>`` (default 1): with 0, the right outlet sends
   nothing.
+
+**Markers**
+
+A dictionary of markers warps the buffer instead of stretching it evenly:
+each marker puts a moment of the buffer on a moment of the result, and the
+audio between two markers is stretched evenly to fit between them. That is
+how a loose take is pulled onto a grid, or a phrase lined up with a beat.
+
+.. code-block:: text
+
+   [.dict warp]                    marker01::sourcetime 500
+                                   marker01::desttime 1000
+                                   marker02::sourcetime 1500
+                                   marker02::desttime 2000
+                                   marker02::pitchshiftcent -100
+
+   [~stretch loop dictionary warp]
+
+Here the first half second is made a second long, so what was at 500 ms is
+heard at 1000 ms; the next second keeps its length, and from 2000 ms on the
+result is a semitone lower. Each key at the top of the dictionary is one
+marker (its name is only a name; the markers are taken in the order of
+their source times). A marker holds:
+
+- a source time: ``sourcetime`` in milliseconds or ``sourcetimesample`` in
+  samples; ``end`` means the buffer's end;
+- a destination time: ``desttime`` in milliseconds or ``desttimesample``
+  in samples; ``*<factor>`` means that many times the source time
+  (``*2``: twice as far in);
+- optionally ``pitchshift <factor>`` or ``pitchshiftcent <cents>``: the
+  pitch from this marker to the next. Before the first marker, and for a
+  marker without one, the ``pitchshift`` attribute counts.
+
+Times are counted at the buffer's own sample rate. The result starts where
+the buffer starts; after the last marker, the rest of the buffer is
+stretched by ``stretch``, so a last marker on ``end`` sets the whole length.
+Between two markers the stretch must stay within 1/16 to 16. Hits are kept
+sharp within each stretch between markers in the modes that keep them.
+
+The dictionary is read when the work starts, in the background, so it can
+be edited while the buffer plays. A dictionary that cannot be used leaves
+the buffer as it was, nothing bangs, and one error is logged naming the
+marker and what is wrong with it: no dictionary of that name, no markers,
+a key that is not a marker's, a marker without a source or a destination
+time or with two, a value that is not a number, markers whose destination
+times do not rise with their source times, or a stretch out of range.
+``sourcetimebbu`` and ``desttimebbu`` (bars, beats and units) are refused
+the same way: a clock in YSE has a tempo but no meter to count bars by.
 
 ``formant`` and ``formantcorrection`` are accepted and do nothing: the pitch
 is shifted with the formants, so a voice moved up sounds smaller. Messages are not saved with
