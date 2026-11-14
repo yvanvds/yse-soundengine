@@ -131,6 +131,7 @@ set(YSE_TEST_SOURCES
   dsp/test_stft.cpp
   dsp/test_vectral.cpp
   dsp/test_frame_delta.cpp
+  dsp/test_frame_average.cpp
   dsp/test_filter_design.cpp
   dsp/test_filter_bands.cpp
   dsp/test_zplane.cpp
@@ -317,6 +318,7 @@ set(YSE_TEST_SOURCES
   patcher/test_patcher_pfft.cpp
   patcher/test_patcher_signal_vectral.cpp
   patcher/test_patcher_frame_delta.cpp
+  patcher/test_patcher_frame_average.cpp
   patcher/test_patcher_signal_deltaclip.cpp
   patcher/test_patcher_filterdesign.cpp
   patcher/test_patcher_filtergraph.cpp
@@ -1531,6 +1533,7 @@ set_source_files_properties(
   patcher/test_patcher_pfft.cpp
   patcher/test_patcher_signal_vectral.cpp
   patcher/test_patcher_frame_delta.cpp
+  patcher/test_patcher_frame_average.cpp
   patcher/test_patcher_signal_deltaclip.cpp
   patcher/test_patcher_filterdesign.cpp
   patcher/test_patcher_filtergraph.cpp

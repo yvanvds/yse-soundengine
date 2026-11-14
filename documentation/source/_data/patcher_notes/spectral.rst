@@ -241,3 +241,68 @@ argument is the largest frame kept, in bins, 4096 by default.
    [~cartopol] phase -> [~framedelta] -> [~* 1.5] -> [~frameaccum 1]
    [~frameaccum 1] -> right inlet of [~poltocar]
    [~poltocar] real, imaginary -> [~fftout 0]
+
+.. patcher-object:: ~frameaverage
+
+Puts out the running average of every bin over the last frames: each value's
+mean with the values at the same place in the frames before it. That is a
+smoothing in time, bin by bin: fed the magnitudes of a spectrum (the left
+outlet of ``~cartopol``), short bursts are spread over several frames and a
+steady sound comes through as it is.
+
+The first argument is the frame count, how many frames are averaged with the
+current one included: 4 by default, up to 256. The frames before the first
+count as 0, so the first frame comes out at a quarter with the default, the
+second at half, and so on until the count is full; after ``clear`` the
+average starts from 0 again in the same way.
+
+Inside a ``~pfft`` a frame is the ``~pfft``'s spectral frame, bin by bin,
+however many passes it takes. Anywhere else the third argument, the frame
+size in samples, says how the signal is cut into frames: sample k of a
+frame is bin k, and frames run on across blocks, as a ``~fft`` puts out its
+frames one bin per sample. A frame size of 0, the default, makes every block
+a frame, so sample k of a block is averaged with sample k of the blocks
+before. A frame of another size than the one before starts again from 0. A
+value that is not a finite number counts as 0.
+
+The second argument is the largest frame it keeps, in bins: 4096 by default,
+which serves a ``~pfft`` up to an FFT size of 8192 (half spectrum). Bins past
+it put out 0. The object keeps the frame count times this many values.
+``clear`` sets the stored frames to 0 from the start of the next frame; it is
+not saved.
+
+.. code-block:: text
+
+   inside [~pfft smooth 2048 4]:
+   [~fftin 0] real, imaginary -> [~cartopol]
+   [~cartopol] magnitude -> [~frameaverage 8] -> left inlet of [~poltocar]
+   [~cartopol] phase -> right inlet of [~poltocar]
+   [~poltocar] real, imaginary -> [~fftout 0]
+
+.. patcher-object:: ~framesmooth
+
+Puts out a running average along every frame: each value's mean with the
+values just before it in the same frame. Fed the magnitudes of a spectrum,
+that is a smoothing across frequency, which turns the peaks of single
+partials into a broad spectral envelope. The average never reaches across
+the start of a frame: the first bin of each frame comes out as it went in,
+the second as the mean of the first two, and so on until the window is full.
+
+The first argument is the smoothness, how many values are averaged with the
+current one included: 3 by default, up to 1024. The window trails the value
+(the value and the ones before it, never the ones after), so it can work
+through a ``~pfft``'s frame pass by pass; a peak therefore moves up by
+(smoothness - 1) / 2 bins.
+
+Frames, the second argument (the frame size outside a ``~pfft``) and
+non-finite values work as for ``~frameaverage``. ``clear`` forgets the
+values before, so the next value starts a new window; inside a ``~pfft``
+every frame starts one anyway.
+
+.. code-block:: text
+
+   inside [~pfft envelope 1024 4]:
+   [~fftin 0] real, imaginary -> [~cartopol]
+   [~cartopol] magnitude -> [~framesmooth 9] -> left inlet of [~poltocar]
+   [~cartopol] phase -> right inlet of [~poltocar]
+   [~poltocar] real, imaginary -> [~fftout 0]

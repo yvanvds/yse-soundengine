@@ -174,6 +174,7 @@ set(YSE_SRCS
   dsp/spectral/stft.cpp
   dsp/spectral/vectral.cpp
   dsp/spectral/frameDelta.cpp
+  dsp/spectral/frameAverage.cpp
   dsp/sfzModel.cpp
   dsp/wavetable.cpp
   implementations/listenerImplementation.cpp
@@ -264,6 +265,7 @@ set(YSE_SRCS
   patcher/spectral/dPfft.cpp
   patcher/spectral/dVectral.cpp
   patcher/spectral/dFrameDelta.cpp
+  patcher/spectral/dFrameAverage.cpp
   patcher/routing/dSend.cpp
   patcher/routing/dReceive.cpp
   patcher/filters/dVcf.cpp
@@ -778,6 +780,7 @@ set_source_files_properties(
   patcher/spectral/dPfft.cpp
   patcher/spectral/dVectral.cpp
   patcher/spectral/dFrameDelta.cpp
+  patcher/spectral/dFrameAverage.cpp
   patcher/routing/dSend.cpp
   patcher/routing/dReceive.cpp
   patcher/filters/dVcf.cpp

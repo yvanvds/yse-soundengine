@@ -200,6 +200,7 @@
 #include "spectral/dPfft.h"
 #include "spectral/dVectral.h"
 #include "spectral/dFrameDelta.h"
+#include "spectral/dFrameAverage.h"
 
 #include "guiObjects/gInt.h"
 #include "guiObjects/gFloat.h"
@@ -538,6 +539,8 @@ pRegistry::pRegistry() {
   Add(OBJ::D_VECTRAL, dVectral::Create);
   Add(OBJ::D_FRAMEDELTA, dFramedelta::Create);
   Add(OBJ::D_FRAMEACCUM, dFrameaccum::Create);
+  Add(OBJ::D_FRAMEAVERAGE, dFrameaverage::Create);
+  Add(OBJ::D_FRAMESMOOTH, dFramesmooth::Create);
 
   Add(OBJ::G_SWITCH, gSwitch::Create);
   Add(OBJ::G_GATE, gGate::Create);

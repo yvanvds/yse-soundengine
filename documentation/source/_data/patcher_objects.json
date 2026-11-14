@@ -18342,6 +18342,55 @@
     ],
     "requires_midi_device": false
   },
+  "~frameaverage": {
+    "category": "SPECTRAL",
+    "description": "The running average of every bin over the last frames: each value's mean with the values at the same place in the frames before. On a ~pfft's magnitudes, a spectrum smoothed in time.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The frames, one value per bin: inside a ~pfft its spectral frames, elsewhere frames of framesize samples, or every block with framesize 0. A signal; unconnected, the last number sent here (0). 'clear' sets the stored frames to 0.",
+        "index": 0,
+        "label": "in",
+        "range": ""
+      }
+    ],
+    "is_dsp": true,
+    "name": "~frameaverage",
+    "outlets": [
+      {
+        "doc": "Each bin's mean over this frame and the framecount - 1 frames before it, which count as 0 at the start and after a clear. 0 for bins past the bins parameter.",
+        "index": 0,
+        "label": "out",
+        "range": "",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "4",
+        "doc": "How many frames are averaged, the current one included. Changing it rebuilds the object.",
+        "name": "framecount",
+        "range": "1-256"
+      },
+      {
+        "default": "4096",
+        "doc": "The largest frame kept, in bins: half the FFT size of the ~pfft it runs in, or the FFT size with the full spectrum. Bins past it put out 0. Changing it rebuilds the object.",
+        "name": "bins",
+        "range": "1-65536"
+      },
+      {
+        "default": "0",
+        "doc": "Outside a ~pfft, the frame length in samples: sample k of a frame is bin k, the frames running on across blocks (as a ~fft puts out its frames). 0 makes every block a frame. Inside a ~pfft the frames are the ~pfft's and this is not used. Changing it rebuilds the object.",
+        "name": "framesize",
+        "range": "0-65536"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~framedelta": {
     "category": "SPECTRAL",
     "description": "The change of every bin since the previous frame: each value minus the value at the same place in the frame before. On the phases of a ~pfft's frames, the phase deviation of a phase vocoder.",
@@ -18375,6 +18424,49 @@
         "doc": "The largest frame kept, in bins: half the FFT size of the ~pfft it runs in, or the FFT size with the full spectrum. Bins past it put out 0. Changing it rebuilds the object.",
         "name": "bins",
         "range": "1-65536"
+      }
+    ],
+    "requires_midi_device": false
+  },
+  "~framesmooth": {
+    "category": "SPECTRAL",
+    "description": "A running average along every frame that never reaches into the next: each value's mean with the values just before it in the same frame. On a ~pfft's magnitudes, a spectrum smoothed across frequency.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The frames, one value per bin: inside a ~pfft its spectral frames, elsewhere frames of framesize samples, or every block with framesize 0. A signal; unconnected, the last number sent here (0). 'clear' forgets the values before, so the next starts a new window.",
+        "index": 0,
+        "label": "in",
+        "range": ""
+      }
+    ],
+    "is_dsp": true,
+    "name": "~framesmooth",
+    "outlets": [
+      {
+        "doc": "Each value's mean with the smoothness - 1 values before it in its frame; at the start of a frame, with as many as there are, so the first comes out as it goes in.",
+        "index": 0,
+        "label": "out",
+        "range": "",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "3",
+        "doc": "How many values are averaged, the current one included. The window trails the value, so a peak moves up by (smoothness - 1) / 2 bins. Changing it rebuilds the object.",
+        "name": "smoothness",
+        "range": "1-1024"
+      },
+      {
+        "default": "0",
+        "doc": "Outside a ~pfft, the frame length in samples: sample k of a frame is bin k, the frames running on across blocks (as a ~fft puts out its frames). 0 makes every block a frame. Inside a ~pfft the frames are the ~pfft's and this is not used. Changing it rebuilds the object.",
+        "name": "framesize",
+        "range": "0-65536"
       }
     ],
     "requires_midi_device": false
