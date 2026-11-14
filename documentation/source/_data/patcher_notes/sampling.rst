@@ -777,7 +777,12 @@ from the old samples to the new ones at the start of a block.
 - ``pitchcorrection <0|1>`` (default 0): pull the result onto the nearest
   semitone, as ``~retune`` does: for a single voice or instrument.
   ``basictuning <Hz>`` is the A the semitones are tuned to (400 to 500,
-  default 440).
+  default 440). ``slurtime <ms>`` (default 0) is how long the correction
+  takes to reach full strength: with 0 it acts at once; a longer time sounds
+  more natural, keeps more of a vibrato and lets the start of a note glide
+  onto the semitone, but follows a change of note more slowly. After
+  ``slurtime`` milliseconds about two thirds of the correction is made, after
+  three times that nearly all of it.
 - ``followglobaltempo <0|1>`` (default 0), ``transport <clock>``,
   ``originaltempo <bpm>`` (default 120), ``originallength <beats>``: with
   ``followglobaltempo 1``, the length follows the tempo of the clock named
@@ -790,9 +795,8 @@ from the old samples to the new ones at the start of a block.
 - ``progress_enable <0|1>`` (default 1): with 0, the right outlet sends
   nothing.
 
-``formant``, ``formantcorrection`` and ``slurtime`` are accepted and do
-nothing: the pitch is shifted with the formants, so a voice moved up sounds
-smaller, and the pitch correction acts at once. Messages are not saved with
+``formant`` and ``formantcorrection`` are accepted and do nothing: the pitch
+is shifted with the formants, so a voice moved up sounds smaller. Messages are not saved with
 the patch: a reloaded ``~stretch`` uses its argument.
 
 The work for one patcher waits in a queue of four, with the buffer objects'

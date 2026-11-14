@@ -9,6 +9,7 @@
 */
 
 #include "retune.hpp"
+#include "../../headers/constants.hpp"
 #include "../../music/scale/scaleInterface.hpp"
 
 #include <algorithm>
@@ -18,6 +19,8 @@ namespace {
   constexpr Dbl OCTAVE = 1200.0;
   // Two pitch classes of a YSE::scale this close, in cents, are one.
   constexpr Dbl SAME_CLASS = 0.01;
+  // A slur this close to its target, in cents, has arrived.
+  constexpr Flt SETTLED = 1e-4f;
 } // namespace
 
 namespace YSE {
@@ -187,6 +190,11 @@ namespace YSE {
       return *this;
     }
 
+    retune& retune::slur(Flt ms) {
+      if (std::isfinite(ms)) slurTime = std::max(ms, 0.f);
+      return *this;
+    }
+
     retune& retune::period(UInt samples) {
       detector.period(samples == 0 ? DEFAULT_PERIOD : samples);
       return *this;
@@ -218,6 +226,7 @@ namespace YSE {
       heard = 0.f;
       sibilant = 0.f;
       shift = 0.f;
+      glided = 0.f;
       crossings = 0;
       counted = 0;
       negative = false;
@@ -255,6 +264,15 @@ namespace YSE {
       Flt* c = cents.getPtr();
       Flt* p = detected.getPtr();
       const bool track = active || detecting;
+      // The slur's pole, at the live rate: worked out again only when the
+      // slur or the rate changed.
+      const bool sliding = slurTime > 0.f && SAMPLERATE > 0;
+      if (sliding && (slurTime != poleSlur || SAMPLERATE != poleRate)) {
+        const Dbl samples = static_cast<Dbl>(slurTime) * static_cast<Dbl>(SAMPLERATE) / 1000.0;
+        pole = static_cast<Flt>(std::exp(-1.0 / samples));
+        poleSlur = slurTime;
+        poleRate = SAMPLERATE;
+      }
       for (UInt i = 0; i < length; i += CHUNK) {
         const UInt run = std::min(CHUNK, length - i);
         if (track) {
@@ -270,8 +288,15 @@ namespace YSE {
         }
         shift = Correct(lock != nullptr ? lock[i] : 0.f);
         for (UInt n = 0; n < run; ++n) {
+          if (sliding) {
+            glided = shift + pole * (glided - shift);
+            // Settled: exactly on it, so a decay to 0 never turns denormal.
+            if (std::abs(glided - shift) < SETTLED) glided = shift;
+          } else {
+            glided = shift;
+          }
           const Flt d = detune != nullptr ? detune[i + n] : 0.f;
-          c[i + n] = shift + (std::isfinite(d) ? d : 0.f);
+          c[i + n] = glided + (std::isfinite(d) ? d : 0.f);
           p[i + n] = detecting ? heard : 0.f;
         }
       }

@@ -192,6 +192,18 @@ namespace YSE {
      *  tracker's 2048 samples later (``tracker().latency()``), so the start
      *  of a new note is corrected toward the old one's target for a moment.
      *
+     *  **Slur** (``slur()``, 0 ms by default; MSP ``stretch~``'s
+     *  ``slurtime``, issue #1284): the time the applied correction takes to
+     *  follow a change of ``correction()``. At 0 the shifter gets
+     *  ``correction()`` itself. Above 0 the applied correction
+     *  (``applied()``) moves toward it per sample in a one-pole glide in
+     *  cents with a time constant of ``slur()`` ms: a step in the target
+     *  is 63 % of the way after ``slur()`` ms and 95 % after three times
+     *  that. Longer slurs sound more natural and leave a vibrato more of
+     *  its depth (a fast wobble is barely followed), but adapt more slowly;
+     *  the start of a sound glides in from no correction. The time is
+     *  reckoned at the live sample rate.
+     *
      *  **Shifting** is a ``pitchShifter`` in ``quality()`` (MSP's
      *  ``quality``). ``latency()`` is its latency: in the granular modes
      *  ``ceil(|1 - r| G / 2) + 2 + G / 8`` samples at the latest ratio ``r``
@@ -208,7 +220,8 @@ namespace YSE {
      *  rests.
      *
      *  Nothing depends on the sample rate: the tracker reads the live rate
-     *  at every analysis, and periods, crossings and latency are in samples.
+     *  at every analysis, the slur's glide at every block, and periods,
+     *  crossings and latency are in samples.
      *  Every engine is allocated in the constructor; every setter and block
      *  call allocates nothing and takes no lock, so the setters (a new
      *  ``tuning`` included) may run between blocks on the audio thread. A
@@ -257,6 +270,16 @@ namespace YSE {
        *         MSP's ``correction_ambience_threshold``. */
       retune& ambience(Flt value);
       Flt ambience() const;
+
+      /** @brief The time in ms the applied correction takes to follow a
+       *         change in ``correction()``: the time constant of a one-pole
+       *         glide in cents (see the class notes). 0, the default, applies
+       *         it at once. Below 0: 0; not finite: ignored. MSP
+       *         ``stretch~``'s ``slurtime``. */
+      retune& slur(Flt ms);
+      Flt slur() const {
+        return slurTime;
+      }
 
       /** @brief The sibilance in percent above which the input passes
        *         uncorrected. Not finite: ignored. MSP's
@@ -339,6 +362,13 @@ namespace YSE {
         return shift;
       }
 
+      /** @brief The correction the shifter got at the last sample of the
+       *         last block call, in cents, before the detune: ``correction()``
+       *         followed through the ``slur()`` glide. */
+      Flt applied() const {
+        return glided;
+      }
+
       /** @brief The tracker, for its range, size and gate. ``ambience()``
        *         and ``period()`` set two of its settings. */
       pitchTracker& tracker() {
@@ -357,6 +387,7 @@ namespace YSE {
       Flt percentage = 100.f;
       Flt tolerance = 0.f;
       Flt sibilanceLimit = 100.f;
+      Flt slurTime = 0.f; // ms
       bool active = true;
       bool detecting = false;
 
@@ -368,6 +399,11 @@ namespace YSE {
       Flt heard = 0.f; // the last analysis's pitch, 0: none
       Flt sibilant = 0.f;
       Flt shift = 0.f;
+      Flt glided = 0.f; // the correction applied, after the slur
+      // The glide's pole, for the slur and the rate it was worked out at.
+      Flt pole = 0.f;
+      Flt poleSlur = 0.f;
+      UInt poleRate = 0;
       UInt crossings = 0;
       UInt counted = 0; // samples since the last analysis
       bool negative = false; // the sign of the last sample counted

@@ -304,6 +304,11 @@ timeStretch& timeStretch::standardPitch(Flt hz) {
   return *this;
 }
 
+timeStretch& timeStretch::slurTime(Flt ms) {
+  if (std::isfinite(ms)) slur = std::max(ms, 0.f);
+  return *this;
+}
+
 UInt timeStretch::outputFrames(UInt frames) const {
   if (frames == 0) return 0;
   const double length = std::round(static_cast<double>(frames) * lengthFactor);
@@ -484,6 +489,10 @@ bool timeStretch::Correct(std::vector<Flt>& samples, Flt rate, const progressSpa
   notes.standardPitch(static_cast<Flt>(static_cast<double>(standardA) *
                                        static_cast<double>(SAMPLERATE) / RateOf(rate)));
   corrector.notes(notes);
+  // The corrector counts its slur at the engine rate; the slur is in the
+  // buffer's time.
+  const double engine = SAMPLERATE > 0 ? static_cast<double>(SAMPLERATE) : RateOf(rate);
+  corrector.slur(static_cast<Flt>(static_cast<double>(slur) * RateOf(rate) / engine));
   const std::size_t latency = corrector.latency();
 
   const std::size_t size = samples.size();

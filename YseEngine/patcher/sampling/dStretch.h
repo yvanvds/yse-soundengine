@@ -30,10 +30,11 @@ namespace YSE {
      *    buffer (``set`` alone, none). The attributes as messages:
      *    ``stretch``, ``pitchshift``, ``pitchshiftcent``, ``quality``,
      *    ``mode``, ``readagain``, ``pitchcorrection``, ``basictuning``,
-     *    ``followglobaltempo``, ``originaltempo``, ``originallength``,
-     *    ``transport`` (the clock ``followglobaltempo`` follows) and
-     *    ``progress_enable``; ``formant``, ``formantcorrection`` and
-     *    ``slurtime`` are accepted and ignored.
+     *    ``slurtime`` (ms, the correction's glide: ``DSP::retune::slur``,
+     *    #1284), ``followglobaltempo``, ``originaltempo``,
+     *    ``originallength``, ``transport`` (the clock ``followglobaltempo``
+     *    follows) and ``progress_enable``; ``formant`` and
+     *    ``formantcorrection`` are accepted and ignored.
      *  - Outlet 0: a bang when a job has written its result.
      *  - Outlet 1: the job's progress, 0 to 1, while ``progress_enable`` is
      *    on (the default): at most once per block and per hundredth while
@@ -81,9 +82,8 @@ namespace YSE {
      *  times; a time map rather than one factor, a feature of its own:
      *  #1285), ``mouse`` (an editor window; the host draws), ``formant`` and
      *  ``formantcorrection`` (formant preservation is a non-goal of
-     *  ``DSP::timeStretch``) and ``slurtime`` (``DSP::retune``, which does
-     *  the correction, corrects at once and has no glide yet: #1284). The
-     *  last three are accepted and ignored, so patches that set them load.
+     *  ``DSP::timeStretch``). The last two are accepted and ignored, so
+     *  patches that set them load.
      */
     PATCHER_CLASS(dStretch, YSE::OBJ::D_STRETCH)
     _DO_MESSAGES
@@ -171,6 +171,7 @@ namespace YSE {
     aInt quality{DSP::timeStretch::BETTER};
     aInt mode{DSP::timeStretch::MODE_BASIC};
     aFlt basicTuning{440.f};
+    aFlt slurTime{0.f}; // ms
     aFlt originalTempo{120.f};
     aFlt originalLength{0.f}; // beats
     std::atomic<bool> lengthGiven{false}; // originallength was set last

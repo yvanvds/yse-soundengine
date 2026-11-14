@@ -12,7 +12,10 @@
 //  - a lock pitch and a detune per sample;
 //  - latency() is the shifter's, and a dip in the input comes out
 //    latency() samples later;
-//  - the pitch output; the live sample rate; nothing allocates.
+//  - the pitch output; the live sample rate; nothing allocates;
+//  - slur() (#1284): a step in the target is 63 % of the way after the slur
+//    time and 95 % after three, at 48 and 96 kHz; slur 0 applies the
+//    correction at once, bit for bit as before.
 
 #include <doctest/doctest.h>
 #include <algorithm>
@@ -303,6 +306,8 @@ TEST_SUITE("dsp") {
     CHECK(fn.latency() == 2);
     CHECK(fn.frequency() == 0.f);
     CHECK(fn.correction() == 0.f);
+    CHECK(fn.slur() == 0.f);
+    CHECK(fn.applied() == 0.f);
     CHECK(fn.notes().size() == 12);
 
     const float nan = std::numeric_limits<float>::quiet_NaN();
@@ -320,6 +325,10 @@ TEST_SUITE("dsp") {
     CHECK(fn.ambience() == 0.f);
     fn.bypass(20.f).bypass(nan);
     CHECK(fn.bypass() == 20.f);
+    fn.slur(-5.f);
+    CHECK(fn.slur() == 0.f);
+    fn.slur(75.f).slur(nan);
+    CHECK(fn.slur() == 75.f);
     fn.period(16);
     CHECK(fn.period() == 16);
     fn.period(1);
@@ -594,6 +603,92 @@ TEST_SUITE("dsp") {
     }
   }
 
+  TEST_CASE("retune: with a slur, a step in the target is 63 % of the way after the slur "
+            "time and 95 % after three, at the live sample rate (#1284)") {
+    constexpr UInt CHUNK = retune::CHUNK;
+    for (const UInt hz : {48000u, 96000u}) {
+      CAPTURE(hz);
+      buffer in(CHUNK);
+      buffer lock(CHUNK);
+      buffer detune(CHUNK);
+      detune = 0.f;
+      // Made and first run at 48 kHz, then run at `hz`: the glide follows
+      // the live rate.
+      TestHelpers::ScopedSampleRate made(48000);
+      retune fn;
+      fn.slur(50.f);
+      in = 0.f;
+      fn(in);
+      TestHelpers::ScopedSampleRate rate(hz);
+      const auto tau = static_cast<std::size_t>(50 * hz / 1000); // samples
+      const std::size_t settle = 16384; // the tracker hears the tone
+      const std::vector<float> input = Sine(settle + 3 * tau, 440.0, hz);
+      // Chunk by chunk: the lock is 0 (A, the scale) until `settle`, then B.
+      const auto play = [&](std::size_t from, std::size_t to, float lockHz) {
+        lock = lockHz;
+        for (std::size_t at = from; at < to; at += CHUNK) {
+          for (UInt n = 0; n < CHUNK; ++n)
+            in.getPtr()[n] = input[at + n];
+          fn(in, lock, detune);
+        }
+      };
+      play(0, settle, 0.f);
+      REQUIRE(fn.frequency() == doctest::Approx(440.0).epsilon(0.001));
+      const double before = fn.applied();
+      CHECK(std::abs(before) < 1.0);
+
+      play(settle, settle + tau, static_cast<float>(B4));
+      const double target = fn.correction();
+      CHECK(target == doctest::Approx(Cents(B4) - Cents(fn.frequency())).epsilon(0.01));
+      const double once = (fn.applied() - before) / (target - before);
+      CHECK(once == doctest::Approx(1.0 - std::exp(-1.0)).epsilon(0.01));
+
+      play(settle + tau, settle + 3 * tau, static_cast<float>(B4));
+      const double thrice = (fn.applied() - before) / (fn.correction() - before);
+      CHECK(thrice == doctest::Approx(1.0 - std::exp(-3.0)).epsilon(0.01));
+    }
+
+    // Without a slur the correction is applied within the chunk it changes.
+    TestHelpers::ScopedSampleRate rate(48000);
+    retune direct;
+    const std::vector<float> input = Sine(16384 + CHUNK, 440.0);
+    buffer in(CHUNK);
+    buffer lock(CHUNK);
+    buffer detune(CHUNK);
+    detune = 0.f;
+    for (std::size_t at = 0; at < input.size(); at += CHUNK) {
+      lock = at < 16384 ? 0.f : static_cast<float>(B4);
+      for (UInt n = 0; n < CHUNK; ++n)
+        in.getPtr()[n] = input[at + n];
+      direct(in, lock, detune);
+    }
+    CHECK(direct.correction() > 190.f);
+    CHECK(direct.applied() == direct.correction());
+  }
+
+  TEST_CASE("retune: a slur set back to 0 applies the correction at once, bit for bit as no "
+            "slur (#1284)") {
+    TestHelpers::ScopedSampleRate rate(48000);
+    // 450 Hz onto A, then locked to 500 Hz, then back to the scale.
+    const std::vector<float> input = Sine(256 * N, 450.0);
+    std::vector<float> lock(input.size(), 0.f);
+    std::fill(lock.begin() + 96 * N, lock.begin() + 160 * N, 500.f);
+    const std::vector<float> zero(input.size(), 0.f);
+    for (const pitchShifter::QUALITY q : {pitchShifter::BASIC, pitchShifter::BETTER}) {
+      CAPTURE(q);
+      retune plain(q);
+      retune reset(q);
+      reset.slur(40.f).slur(0.f);
+      const std::vector<float> a = Run(plain, input, &lock, &zero);
+      const std::vector<float> b = Run(reset, input, &lock, &zero);
+      CHECK(a == b);
+      // A slur changes the output: the same run glides.
+      retune slurred(q);
+      slurred.slur(40.f);
+      CHECK(Run(slurred, input, &lock, &zero) != a);
+    }
+  }
+
   TEST_CASE("retune: non-finite input stays out of the output (#1154)") {
     TestHelpers::ScopedSampleRate rate(48000);
     std::vector<float> input = Sine(256 * N, 450.0);
@@ -626,7 +721,8 @@ TEST_SUITE("dsp") {
             .period(static_cast<UInt>(16 * (k % 5)))
             .quality(static_cast<pitchShifter::QUALITY>(k % 4))
             .enabled(k % 9 != 8)
-            .pitchDetection(k % 2 == 0);
+            .pitchDetection(k % 2 == 0)
+            .slur(static_cast<float>(20 * (k % 3)));
         if (k % 10 == 0) fn.notes(major);
         fn.notes().midiNote(60 + k, k % 3).enableAll();
         (void)fn.latency();

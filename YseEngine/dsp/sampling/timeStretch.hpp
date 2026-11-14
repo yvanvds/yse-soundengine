@@ -115,6 +115,9 @@ namespace YSE {
      *  ``retune``, it suits a monophonic source. The tracker reads the
      *  engine rate, so the A is scaled by the engine rate over the
      *  buffer's: a buffer at another rate is corrected to the same notes.
+     *  ``slurTime`` is the corrector's ``slur``, in ms of the buffer's own
+     *  time: how long the correction takes to reach full strength
+     *  (0, the default: at once).
      *
      *  Formant preservation is not done (a non-goal): shifting the pitch
      *  shifts the formants with it.
@@ -209,6 +212,15 @@ namespace YSE {
         return standardA;
       }
 
+      /** @brief The time in ms the pitch correction takes to reach full
+       *         strength: ``DSP::retune::slur``, reckoned at the buffer's
+       *         rate. Below 0: 0; not finite: ignored. 0 by default. MSP's
+       *         ``slurtime``. */
+      timeStretch& slurTime(Flt ms);
+      Flt slurTime() const {
+        return slur;
+      }
+
       /** @brief How many frames the result of @p frames source frames has:
        *         ``round(frames * stretch())``, at least 1 for a source that
        *         has any. */
@@ -269,6 +281,7 @@ namespace YSE {
       MODE material = MODE_BASIC;
       bool correcting = false;
       Flt standardA = 440.f;
+      Flt slur = 0.f; // ms
     };
 
   } // namespace DSP

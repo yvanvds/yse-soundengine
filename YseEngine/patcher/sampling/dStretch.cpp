@@ -177,6 +177,7 @@ struct dStretch::stretchTask {
   float tuning = 440.f;
   float originalTempo = 120.f;
   float originalLength = 0.f;
+  float slur = 0.f;
   std::int32_t quality = timeStretch::BETTER;
   std::int32_t mode = timeStretch::MODE_BASIC;
   std::uint8_t readAgain = 1;
@@ -214,8 +215,8 @@ CONSTRUCT() {
   INLET_DOC(0, "messages",
             "bang or apply processes the buffer; cancel stops it; set <name> picks another "
             "buffer. Also the attribute messages: stretch, pitchshift, pitchshiftcent, quality, "
-            "mode, readagain, pitchcorrection, basictuning, followglobaltempo, originaltempo, "
-            "originallength, transport and progress_enable.",
+            "mode, readagain, pitchcorrection, basictuning, slurtime, followglobaltempo, "
+            "originaltempo, originallength, transport and progress_enable.",
             "");
   OUTLET_DOC(0, "done", "A bang when the buffer holds the result.", "bang");
   OUTLET_DOC(1, "progress",
@@ -228,8 +229,9 @@ CONSTRUCT() {
             "<cents>' (0), 'quality <basic|good|better|best>' (better), 'mode "
             "<basic|monophonic|rhythmic|general|polyphonic|pads|extremestretch|efficient>' "
             "(basic), 'readagain <0|1>' (1), 'pitchcorrection <0|1>' (0), 'basictuning <Hz>' "
-            "(440), 'followglobaltempo <0|1>' (0), 'originaltempo <bpm>' (120), "
-            "'originallength <beats>' (0), 'transport <clock>' and 'progress_enable <0|1>' (1).",
+            "(440), 'slurtime <ms>' (0), 'followglobaltempo <0|1>' (0), 'originaltempo "
+            "<bpm>' (120), 'originallength <beats>' (0), 'transport <clock>' and "
+            "'progress_enable <0|1>' (1).",
             "words and values");
 }
 
@@ -251,6 +253,7 @@ void dStretch::Defaults() {
   quality = timeStretch::BETTER;
   mode = timeStretch::MODE_BASIC;
   basicTuning = 440.f;
+  slurTime = 0.f;
   originalTempo = 120.f;
   originalLength = 0.f;
   lengthGiven = false;
@@ -275,7 +278,8 @@ timeStretch dStretch::Stretcher() const {
       .quality(static_cast<timeStretch::QUALITY>(quality.load()))
       .mode(static_cast<timeStretch::MODE>(mode.load()))
       .pitchCorrection(correction.load())
-      .standardPitch(basicTuning.load());
+      .standardPitch(basicTuning.load())
+      .slurTime(slurTime.load());
   return ts;
 }
 
@@ -329,6 +333,8 @@ bool dStretch::ApplyWord(std::string_view word, const std::string_view* values, 
     correction = number != 0.f;
   } else if (word == "basictuning") {
     basicTuning = number;
+  } else if (word == "slurtime") {
+    slurTime = number;
   } else if (word == "followglobaltempo") {
     followTempo = number != 0.f;
   } else if (word == "originaltempo") {
@@ -337,7 +343,7 @@ bool dStretch::ApplyWord(std::string_view word, const std::string_view* values, 
     lengthGiven = false;
   } else if (word == "progress_enable") {
     progressOn = number != 0.f;
-  } else if (word == "formant" || word == "formantcorrection" || word == "slurtime") {
+  } else if (word == "formant" || word == "formantcorrection") {
     // Not done (see the class notes); accepted for patches that set them.
   } else {
     return false;
@@ -419,6 +425,7 @@ void dStretch::Request() {
   task.stretch = stretchFactor.load();
   task.pitch = pitchFactor.load();
   task.tuning = basicTuning.load();
+  task.slur = slurTime.load();
   task.originalTempo = originalTempo.load();
   task.originalLength = originalLength.load();
   task.quality = quality.load();
@@ -466,7 +473,8 @@ bool dStretch::RunTask(char* args, std::size_t argBytes) {
       .quality(static_cast<timeStretch::QUALITY>(task.quality))
       .mode(static_cast<timeStretch::MODE>(task.mode))
       .pitchCorrection(task.correction != 0)
-      .standardPitch(task.tuning);
+      .standardPitch(task.tuning)
+      .slurTime(task.slur);
 
   const std::lock_guard<std::mutex> lock(shared->mutex);
   // readagain: the copy taken before, unless the buffer changed since the

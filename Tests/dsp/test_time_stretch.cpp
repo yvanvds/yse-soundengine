@@ -11,6 +11,7 @@
 //  - a click train keeps its clicks, twice as far apart, where onsets are
 //    kept;
 //  - pitch correction pulls 450 Hz onto 440 (and onto the A of 442);
+//  - slurTime (#1284) glides the correction in, in the buffer's own time;
 //  - a buffer at 22.05 kHz keeps its pitch, at its own rate;
 //  - process(): every channel, the rate and file details kept, in place;
 //  - progress rises to 1 and returning false stops with the target
@@ -357,6 +358,47 @@ TEST_SUITE("dsp") {
     const std::vector<float> both = Render(ts, in);
     CHECK(both.size() == 192000);
     CHECK(std::abs(Loudest(Middle(both), 400.0, 500.0) - 440.0) < 0.003 * 440.0);
+  }
+
+  TEST_CASE("timeStretch: slurTime glides the pitch correction in, in the buffer's own time; "
+            "0 corrects at once (#1284)") {
+    TestHelpers::ScopedSampleRate rate(48000);
+    timeStretch ts;
+    CHECK(ts.slurTime() == 0.f);
+    ts.slurTime(-1.f);
+    CHECK(ts.slurTime() == 0.f);
+    ts.slurTime(200.f).slurTime(std::numeric_limits<float>::quiet_NaN());
+    CHECK(ts.slurTime() == 200.f);
+
+    // From `from` to `to` seconds of `v` at `own` Hz.
+    const auto span = [](const std::vector<float>& v, double from, double to, double own) {
+      return std::vector<float>(v.begin() + static_cast<std::ptrdiff_t>(from * own),
+                                v.begin() + static_cast<std::ptrdiff_t>(to * own));
+    };
+    const std::vector<float> in = Sine(450.0, 96000);
+    timeStretch direct;
+    direct.pitchCorrection(true);
+    const std::vector<float> atOnce = Render(direct, in);
+    ts.pitchCorrection(true);
+    const std::vector<float> slurred = Render(ts, in);
+    REQUIRE(slurred.size() == 96000);
+    // 100 to 200 ms in: on A at once, still on the way with a 200 ms slur
+    // (about half of the 39 cents made).
+    CHECK(std::abs(Loudest(span(atOnce, 0.1, 0.2, RATE), 400.0, 500.0) - 440.0) < 0.003 * 440.0);
+    const double early = Loudest(span(slurred, 0.1, 0.2, RATE), 400.0, 500.0);
+    CHECK(early > 443.0);
+    CHECK(early < 449.0);
+    // Seven slur times in: there.
+    CHECK(std::abs(Loudest(span(slurred, 1.5, 2.0, RATE), 400.0, 500.0) - 440.0) < 0.003 * 440.0);
+
+    // A buffer at 24 kHz glides in the same time, counted in its own
+    // samples (counted at the engine's, it would take twice as long).
+    constexpr double OWN = 24000.0;
+    const std::vector<float> half = Render(ts, Sine(450.0, 48000, OWN), OWN);
+    const double here = Loudest(span(slurred, 0.2, 0.4, RATE), 400.0, 500.0);
+    const double there = Loudest(span(half, 0.2, 0.4, OWN), 400.0, 500.0, OWN);
+    CHECK(here < 446.0);
+    CHECK(std::abs(there - here) < 1.0);
   }
 
   TEST_CASE("timeStretch: a buffer at its own rate keeps its pitch, and corrects to the same "

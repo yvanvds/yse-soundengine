@@ -3,7 +3,8 @@
 // Tests/dsp/test_time_stretch.cpp; these run ~stretch in a patcher on a
 // named buffer: the shape, the attribute words reaching the DSP class (the
 // result bit for bit against it), the done bang and the progress outlet,
-// readagain, set, followglobaltempo on a domain clock, cancel (waiting and
+// readagain, set, slurtime gliding the pitch correction in (#1284),
+// followglobaltempo on a domain clock, cancel (waiting and
 // running, buffer untouched), the settings round trip, nothing allocating on
 // the audio thread, and, in a rendered patch after a JSON round trip, a sine
 // buffer stretched to twice its length at its pitch and then shifted an
@@ -218,9 +219,10 @@ TEST_SUITE("patcher") {
     CHECK(ts.mode() == timeStretch::MODE_BASIC);
     CHECK_FALSE(ts.pitchCorrection());
     CHECK(ts.standardPitch() == 440.f);
+    CHECK(ts.slurTime() == 0.f);
 
     obj.SetParams("named_1152 stretch 1.5 pitchshift 0.5 quality best mode rhythmic "
-                  "pitchcorrection 1 basictuning 442");
+                  "pitchcorrection 1 basictuning 442 slurtime 80");
     CHECK(std::string(obj.BufferName()) == "named_1152");
     ts = obj.Stretcher();
     CHECK(ts.stretch() == 1.5f);
@@ -229,6 +231,7 @@ TEST_SUITE("patcher") {
     CHECK(ts.mode() == timeStretch::RHYTHMIC);
     CHECK(ts.pitchCorrection());
     CHECK(ts.standardPitch() == 442.f);
+    CHECK(ts.slurTime() == 80.f);
 
     // Messages; pitchshiftcent is the same factor in cents.
     obj.GetInlet(0)->SetMessage("pitchshiftcent 700", YSE::T_GUI);
@@ -249,8 +252,12 @@ TEST_SUITE("patcher") {
     obj.GetInlet(0)->SetMessage("stretch x", YSE::T_GUI);
     obj.GetInlet(0)->SetMessage("formant 1.2", YSE::T_GUI);
     obj.GetInlet(0)->SetMessage("formantcorrection 1", YSE::T_GUI);
-    obj.GetInlet(0)->SetMessage("slurtime 50", YSE::T_GUI);
     obj.GetInlet(0)->SetMessage("dictionary markers", YSE::T_GUI);
+    // slurtime reaches DSP::timeStretch (#1284); a bad value changes nothing.
+    obj.GetInlet(0)->SetMessage("slurtime 50", YSE::T_GUI);
+    CHECK(obj.Stretcher().slurTime() == 50.f);
+    obj.GetInlet(0)->SetMessage("slurtime x", YSE::T_GUI);
+    CHECK(obj.Stretcher().slurTime() == 50.f);
     CHECK(obj.Stretcher().mode() == timeStretch::GENERAL);
     CHECK(obj.Stretcher().quality() == timeStretch::BASIC);
     CHECK(obj.Stretcher().stretch() == 1.5f);
@@ -264,6 +271,45 @@ TEST_SUITE("patcher") {
     obj.SetParams("");
     CHECK(obj.Stretcher().stretch() == 1.f);
     CHECK(obj.Stretcher().quality() == timeStretch::BETTER);
+    CHECK(obj.Stretcher().slurTime() == 0.f);
+  }
+
+  TEST_CASE("~stretch: slurtime glides the pitch correction in: a 450 Hz buffer is still on "
+            "its way to A 100 ms in with slurtime 200, on A at once with 0 (#1284)") {
+    TestHelpers::ScopedSampleRate rate(48000);
+    auto buffer = SineBuffer("slur_1284", 96000, 450.0);
+    auto expected = sampleBuffer::create();
+    expected->copyFrom(*buffer);
+    const auto span = [](const std::vector<float>& v, double from, double to) {
+      return std::vector<float>(v.begin() + static_cast<std::ptrdiff_t>(from * 48000.0),
+                                v.begin() + static_cast<std::ptrdiff_t>(to * 48000.0));
+    };
+
+    Rig r("slur_1284 pitchcorrection 1 slurtime 200");
+    r.p.Calculate(YSE::T_DSP);
+    r.Bang();
+    r.Settle();
+    REQUIRE(r.done.count == 1);
+    std::vector<float> result = Samples(*buffer);
+    REQUIRE(result.size() == 96000);
+    // Bit for bit as the DSP class with the same slur.
+    REQUIRE(r.obj->Stretcher().slurTime() == 200.f);
+    auto reference = sampleBuffer::create();
+    reference->copyFrom(*expected);
+    REQUIRE(r.obj->Stretcher().process(*reference, *reference));
+    CHECK(result == Samples(*reference));
+    const double early = Loudest(span(result, 0.1, 0.2), 400.0, 500.0);
+    CHECK(early > 443.0);
+    CHECK(early < 449.0);
+    CHECK(std::abs(Loudest(span(result, 1.5, 2.0), 400.0, 500.0) - 440.0) < 0.003 * 440.0);
+
+    // slurtime 0: readagain works from the 450 Hz original, on A at once.
+    r.Message("slurtime 0");
+    r.Bang();
+    r.Settle();
+    REQUIRE(r.done.count == 2);
+    result = Samples(*buffer);
+    CHECK(std::abs(Loudest(span(result, 0.1, 0.2), 400.0, 500.0) - 440.0) < 0.003 * 440.0);
   }
 
   TEST_CASE("~stretch: a bang stretches the buffer in the background, bit for bit as the DSP "
@@ -511,8 +557,9 @@ TEST_SUITE("patcher") {
   TEST_CASE("~stretch: the settings survive GetParams and a DumpJSON / ParseJSON round trip "
             "(#1152)") {
     const std::string args = "rt_1152 stretch 2 pitchshiftcent -500 quality best mode pads "
-                             "readagain 0 pitchcorrection 1 basictuning 441 followglobaltempo 1 "
-                             "originaltempo 96 transport rt_clock progress_enable 0";
+                             "readagain 0 pitchcorrection 1 basictuning 441 slurtime 120 "
+                             "followglobaltempo 1 originaltempo 96 transport rt_clock "
+                             "progress_enable 0";
     dStretch obj;
     obj.SetParams(args);
     CHECK(obj.GetParams() == args);
@@ -537,6 +584,7 @@ TEST_SUITE("patcher") {
     const std::string cents = "pitchshiftcent 200";
     const std::string mode = "mode rhythmic";
     const std::string quality = "quality good";
+    const std::string slur = "slurtime 30";
     const std::string set = "set rt_alloc_1152";
     const std::string transport = "transport some_clock";
     const std::string length = "originallength 1920 ticks";
@@ -550,6 +598,7 @@ TEST_SUITE("patcher") {
       r.Message(cents, YSE::T_DSP);
       r.Message(mode, YSE::T_DSP);
       r.Message(quality, YSE::T_DSP);
+      r.Message(slur, YSE::T_DSP);
       r.Message(set, YSE::T_DSP);
       r.Message(transport, YSE::T_DSP);
       r.Message(length, YSE::T_DSP);
