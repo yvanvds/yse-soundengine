@@ -17841,6 +17841,220 @@
     ],
     "requires_midi_device": false
   },
+  "~fft": {
+    "category": "SPECTRAL",
+    "description": "A Fourier transform of a signal, frame by frame: every interval samples, a frame of size samples is transformed and its spectrum put out over the next size samples, one bin per sample, as real and imaginary signals with the bin index on the sync outlet.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The signal to transform (its real part). A signal; unconnected, the last number sent here (0). Also takes 'phase <n>' or 'offset <n>': a new offset in samples, taken modulo the interval, from the next block on (not saved).",
+        "index": 0,
+        "label": "real",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The imaginary part of the input, for a complex transform. A signal; unconnected, the last number sent here (0), which transforms a real signal.",
+        "index": 1,
+        "label": "imaginary",
+        "range": ""
+      }
+    ],
+    "is_dsp": true,
+    "name": "~fft",
+    "outlets": [
+      {
+        "doc": "The real part of the spectrum: bin k at sample k of each output period, which starts the sample after a frame's last input sample. Bin k is k * samplerate / size Hz; the bins above size / 2 mirror those below for a real input. Not divided by the size; 0 outside an output period.",
+        "index": 0,
+        "label": "real",
+        "range": "",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "The imaginary part of the spectrum, timed as the real part.",
+        "index": 1,
+        "label": "imaginary",
+        "range": "",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "The index of the bin put out, 0 to size - 1, for reading other frames in step (~index); 0 outside an output period.",
+        "index": 2,
+        "label": "sync",
+        "range": "0 to size - 1",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "512",
+        "doc": "The frame size in samples, rounded up to a power of two. Changing it rebuilds the object.",
+        "name": "size",
+        "range": "16-65536"
+      },
+      {
+        "default": "0",
+        "doc": "Samples from the start of one frame to the next, rounded up to a power of two at or above the size; 0 means the size, frames back to back. With a larger interval the samples after each frame are not used. Changing it rebuilds the object.",
+        "name": "interval",
+        "range": "0, size-16777216"
+      },
+      {
+        "default": "0",
+        "doc": "Samples into the stream that the first frame starts, taken modulo the interval: staggers several ~fft objects for overlapping frames. Changing it rebuilds the object.",
+        "name": "offset",
+        "range": "0 to interval - 1"
+      }
+    ],
+    "requires_midi_device": false
+  },
+  "~fftin": {
+    "category": "SPECTRAL",
+    "description": "Inside a ~pfft: the spectrum of one of its signal inlets, the real and imaginary parts of each bin and the bin's index, a spectral frame at a time.",
+    "inlets": [],
+    "is_dsp": true,
+    "name": "~fftin",
+    "outlets": [
+      {
+        "doc": "The real part of the bins: sample i of each pass is bin first + i, with the bin index on the right outlet. Not divided by the size.",
+        "index": 0,
+        "label": "real",
+        "range": "",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "The imaginary part of the bins, timed as the real part.",
+        "index": 1,
+        "label": "imaginary",
+        "range": "",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "The index of each bin, 0 to the spectral frame size - 1: bin k is k * samplerate / size Hz.",
+        "index": 2,
+        "label": "bin",
+        "range": "0 to frame size - 1",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Which signal inlet of the ~pfft this reads, from 0.",
+        "name": "inlet",
+        "range": "0-15"
+      },
+      {
+        "default": "hanning",
+        "doc": "The analysis window of that inlet: square, triangle, hanning, hamming or blackman.",
+        "name": "window",
+        "range": ""
+      }
+    ],
+    "requires_midi_device": false
+  },
+  "~fftinfo": {
+    "category": "SPECTRAL",
+    "description": "Inside a ~pfft: reports its FFT size, spectral frame size, hop and full-spectrum flag, when the subpatch first runs and on a bang.",
+    "inlets": [
+      {
+        "accepts": [
+          "BANG"
+        ],
+        "doc": "Reports the figures again.",
+        "index": 0,
+        "label": "bang",
+        "range": ""
+      }
+    ],
+    "is_dsp": true,
+    "name": "~fftinfo",
+    "outlets": [
+      {
+        "doc": "The ~pfft's FFT size.",
+        "index": 0,
+        "label": "FFT size",
+        "range": "samples",
+        "type": "INT"
+      },
+      {
+        "doc": "The bins of a spectral frame inside: half the FFT size, or the FFT size with the full spectrum.",
+        "index": 1,
+        "label": "frame size",
+        "range": "bins",
+        "type": "INT"
+      },
+      {
+        "doc": "Samples from one frame to the next: the FFT size / the overlap.",
+        "index": 2,
+        "label": "hop",
+        "range": "samples",
+        "type": "INT"
+      },
+      {
+        "doc": "1 when the subpatch processes the whole spectrum, else 0.",
+        "index": 3,
+        "label": "full spectrum",
+        "range": "0 or 1",
+        "type": "INT"
+      }
+    ],
+    "params": [],
+    "requires_midi_device": false
+  },
+  "~fftout": {
+    "category": "SPECTRAL",
+    "description": "Inside a ~pfft: the spectrum one of its signal outlets is resynthesised from, real and imaginary parts of each bin, a spectral frame at a time.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The real part of the bins, sample i of each pass being bin first + i as ~fftin puts them out. A signal; unconnected, the last number sent here (0).",
+        "index": 0,
+        "label": "real",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The imaginary part of the bins, likewise.",
+        "index": 1,
+        "label": "imaginary",
+        "range": ""
+      }
+    ],
+    "is_dsp": true,
+    "name": "~fftout",
+    "outlets": [],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Which signal outlet of the ~pfft this writes, from 0.",
+        "name": "outlet",
+        "range": "0-15"
+      },
+      {
+        "default": "hanning",
+        "doc": "The synthesis window of that outlet: square, triangle, hanning, hamming or blackman.",
+        "name": "window",
+        "range": ""
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~filtercoeff": {
     "category": "FILTER",
     "description": "Biquad filter coefficients from a frequency, a gain and a Q, computed per sample for the usual filter types: connect the five outlets to ~biquad for filter sweeps at audio rate.",
@@ -18081,6 +18295,292 @@
         "doc": "'nfilters <n>', the number of bands (1-24, default 1), and 'autoout <0|1>', send the coefficients when the patch loads (default 0). The bands are saved with the patch.",
         "name": "settings",
         "range": "words and values"
+      }
+    ],
+    "requires_midi_device": false
+  },
+  "~frame": {
+    "category": "SPECTRAL",
+    "description": "Puts out a list as a frame: value k as bin k of every spectral frame inside a ~pfft, or as sample k of every block elsewhere. A spectrum drawn from data, or frozen from a ~framesnap.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "A list sets the values from the offset on; the bins after the list put out the fill value. A number is a list of one. 'fill <value>' sets the fill value (0); 'mirror 1' makes the bins above Nyquist of a full-spectrum ~pfft mirror the ones below instead of putting out 0. Not saved.",
+        "index": 0,
+        "label": "values",
+        "range": "list, number, fill, mirror"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The bin the next lists start at; the bins before keep their values. ~framesnap's right outlet sends it before each list.",
+        "index": 1,
+        "label": "offset",
+        "range": "0 or more"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~frame",
+    "outlets": [
+      {
+        "doc": "The frame: bin k (inside a ~pfft) or sample k (elsewhere) is value k, or the fill value.",
+        "index": 0,
+        "label": "out",
+        "range": "",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "4096",
+        "doc": "The most values kept; bins past it put out the fill value. Half the FFT size of the ~pfft it runs in, or the FFT size with the full spectrum. Changing it rebuilds the object.",
+        "name": "bins",
+        "range": "1-65536"
+      }
+    ],
+    "requires_midi_device": false
+  },
+  "~frameaccum": {
+    "category": "SPECTRAL",
+    "description": "A running sum of every bin over successive frames: each value plus the sum at the same place over the frames before, optionally wrapped into -pi to pi. On a ~framedelta's phase deviations, the running phase of a phase vocoder.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The frames, one value per bin: inside a ~pfft its spectral frames, elsewhere every block counts as a frame. A signal; unconnected, the last number sent here (0). 'clear' sets every sum to 0.",
+        "index": 0,
+        "label": "in",
+        "range": ""
+      }
+    ],
+    "is_dsp": true,
+    "name": "~frameaccum",
+    "outlets": [
+      {
+        "doc": "Each value plus the sum of the same bin over the frames before; with wrap on, wrapped into -pi to pi. 0 for bins past the bins parameter.",
+        "index": 0,
+        "label": "out",
+        "range": "",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Nonzero wraps the sums into -pi to pi and keeps them there, as a ~phasewrap after the object would without the sums growing and losing precision. Changing it rebuilds the object.",
+        "name": "wrap",
+        "range": "0 or 1"
+      },
+      {
+        "default": "4096",
+        "doc": "The largest frame kept, in bins: half the FFT size of the ~pfft it runs in, or the FFT size with the full spectrum. Bins past it put out 0. Changing it rebuilds the object.",
+        "name": "bins",
+        "range": "1-65536"
+      }
+    ],
+    "requires_midi_device": false
+  },
+  "~frameaverage": {
+    "category": "SPECTRAL",
+    "description": "The running average of every bin over the last frames: each value's mean with the values at the same place in the frames before. On a ~pfft's magnitudes, a spectrum smoothed in time.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The frames, one value per bin: inside a ~pfft its spectral frames, elsewhere frames of framesize samples, or every block with framesize 0. A signal; unconnected, the last number sent here (0). 'clear' sets the stored frames to 0.",
+        "index": 0,
+        "label": "in",
+        "range": ""
+      }
+    ],
+    "is_dsp": true,
+    "name": "~frameaverage",
+    "outlets": [
+      {
+        "doc": "Each bin's mean over this frame and the framecount - 1 frames before it, which count as 0 at the start and after a clear. 0 for bins past the bins parameter.",
+        "index": 0,
+        "label": "out",
+        "range": "",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "4",
+        "doc": "How many frames are averaged, the current one included. Changing it rebuilds the object.",
+        "name": "framecount",
+        "range": "1-256"
+      },
+      {
+        "default": "4096",
+        "doc": "The largest frame kept, in bins: half the FFT size of the ~pfft it runs in, or the FFT size with the full spectrum. Bins past it put out 0. Changing it rebuilds the object.",
+        "name": "bins",
+        "range": "1-65536"
+      },
+      {
+        "default": "0",
+        "doc": "Outside a ~pfft, the frame length in samples: sample k of a frame is bin k, the frames running on across blocks (as a ~fft puts out its frames). 0 makes every block a frame. Inside a ~pfft the frames are the ~pfft's and this is not used. Changing it rebuilds the object.",
+        "name": "framesize",
+        "range": "0-65536"
+      }
+    ],
+    "requires_midi_device": false
+  },
+  "~framedelta": {
+    "category": "SPECTRAL",
+    "description": "The change of every bin since the previous frame: each value minus the value at the same place in the frame before. On the phases of a ~pfft's frames, the phase deviation of a phase vocoder.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The frames, one value per bin: inside a ~pfft its spectral frames, elsewhere every block counts as a frame. A signal; unconnected, the last number sent here (0). 'clear' sets the stored frame to 0.",
+        "index": 0,
+        "label": "in",
+        "range": ""
+      }
+    ],
+    "is_dsp": true,
+    "name": "~framedelta",
+    "outlets": [
+      {
+        "doc": "Each value minus the same bin of the frame before; the first frame, and the first after a clear, as it comes in. 0 for bins past the bins parameter.",
+        "index": 0,
+        "label": "out",
+        "range": "",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "4096",
+        "doc": "The largest frame kept, in bins: half the FFT size of the ~pfft it runs in, or the FFT size with the full spectrum. Bins past it put out 0. Changing it rebuilds the object.",
+        "name": "bins",
+        "range": "1-65536"
+      }
+    ],
+    "requires_midi_device": false
+  },
+  "~framesmooth": {
+    "category": "SPECTRAL",
+    "description": "A running average along every frame that never reaches into the next: each value's mean with its neighbours in the same frame. On a ~pfft's magnitudes, a spectrum smoothed across frequency.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The frames, one value per bin: inside a ~pfft its spectral frames, elsewhere frames of framesize samples, or every block with framesize 0. A signal; unconnected, the last number sent here (0). 'clear' forgets the values before, so the next starts a new window (outside a ~pfft; inside, every frame is smoothed on its own).",
+        "index": 0,
+        "label": "in",
+        "range": ""
+      }
+    ],
+    "is_dsp": true,
+    "name": "~framesmooth",
+    "outlets": [
+      {
+        "doc": "Inside a ~pfft, each bin's mean with the smoothness / 2 bins below it and the rest above, as many as the frame has at its ends: a centred window, so a peak stays on its bin. Elsewhere, each value's mean with the smoothness - 1 values before it in its frame, the first coming out as it goes in.",
+        "index": 0,
+        "label": "out",
+        "range": "",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "3",
+        "doc": "How many values are averaged, the current one included. Inside a ~pfft the window is centred on the bin; outside, where the frames stream in, it trails the value, so a peak moves up by (smoothness - 1) / 2 bins. Changing it rebuilds the object.",
+        "name": "smoothness",
+        "range": "1-1024"
+      },
+      {
+        "default": "4096",
+        "doc": "Inside a ~pfft, the largest frame kept, in bins: half the FFT size of the ~pfft, or the FFT size with the full spectrum. Bins past it put out 0. Changing it rebuilds the object.",
+        "name": "bins",
+        "range": "1-65536"
+      },
+      {
+        "default": "0",
+        "doc": "Outside a ~pfft, the frame length in samples: sample k of a frame is bin k, the frames running on across blocks (as a ~fft puts out its frames). 0 makes every block a frame. Inside a ~pfft the frames are the ~pfft's and this is not used. Changing it rebuilds the object.",
+        "name": "framesize",
+        "range": "0-65536"
+      }
+    ],
+    "requires_midi_device": false
+  },
+  "~framesnap": {
+    "category": "SPECTRAL",
+    "description": "Reports a frame as lists of numbers: a ~pfft's spectral frame bin by bin, or a block elsewhere, on a bang or every interval while reporting is on.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT",
+          "BANG"
+        ],
+        "doc": "The frames, a signal: inside a ~pfft its spectral frames, elsewhere every block. A bang reports the last whole frame; a non-zero number starts interval reporting and 0 stops it. Also takes 'start' (a bang when there is no interval), 'stop', 'active <0|1>', 'interval <ms>' and 'sampleinterval <samples>'.",
+        "index": 0,
+        "label": "in",
+        "range": "signal, bang, number, messages"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Reporting interval in milliseconds. 0 stops interval reporting.",
+        "index": 1,
+        "label": "interval",
+        "range": "0 or more ms"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~framesnap",
+    "outlets": [
+      {
+        "doc": "A report: the frame's values from bin 0 on, as lists of at most 256 values. A frame of more than 4096 bins goes out over several blocks.",
+        "index": 0,
+        "label": "values",
+        "range": "list",
+        "type": "LIST"
+      },
+      {
+        "doc": "Before each list, the bin it starts at: 0 for the first. Into the right inlet of a ~frame, it puts a large frame back together.",
+        "index": 1,
+        "label": "offset",
+        "range": "0 or more",
+        "type": "INT"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Reporting interval in milliseconds, counted in the time the frames stand for (the hop inside a ~pfft). 0 reports only on a bang. Reports due within one block are one.",
+        "name": "interval",
+        "range": "0 or more ms"
+      },
+      {
+        "default": "4096",
+        "doc": "The largest frame kept, in bins; a report holds no more. Half the FFT size of the ~pfft it runs in, or the FFT size with the full spectrum. Changing it rebuilds the object.",
+        "name": "bins",
+        "range": "1-65536"
       }
     ],
     "requires_midi_device": false
@@ -18331,6 +18831,78 @@
     ],
     "requires_midi_device": false
   },
+  "~gizmo": {
+    "category": "SPECTRAL",
+    "description": "A pitch shifter for a ~pfft's spectral frames: every peak of the spectrum, with the bins around it, moved to its transposed frequency, its phase turned so the partial stays continuous from frame to frame.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The real parts of the frames, from ~fftin's outlet 0. A signal; unconnected, the last number sent here (0). 'clip 1' drops the bins moved below 0 Hz or above Nyquist, 'clip 0' (the default) folds them back as they would alias. 'freqshift <Hz>' adds a frequency shift, either sign, to every transposed peak (0). Neither is saved.",
+        "index": 0,
+        "label": "real",
+        "range": "clip, freqshift"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The imaginary parts of the frames, from ~fftin's outlet 1. A signal; unconnected, the last number sent here (0).",
+        "index": 1,
+        "label": "imaginary",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The pitch ratio: 2 an octave up, 0.5 an octave down, 1 unchanged. A signal, read at the first bin of each frame, or a number while unconnected (the ratio argument).",
+        "index": 2,
+        "label": "ratio",
+        "range": "0-16"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~gizmo",
+    "outlets": [
+      {
+        "doc": "The real parts of the shifted frames, for ~fftout. Outside a ~pfft, the real input unchanged.",
+        "index": 0,
+        "label": "real",
+        "range": "",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "The imaginary parts of the shifted frames, for ~fftout. Outside a ~pfft, the imaginary input unchanged.",
+        "index": 1,
+        "label": "imaginary",
+        "range": "",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "1",
+        "doc": "The pitch ratio until a number or a signal reaches the ratio inlet: 2 an octave up, 0.5 an octave down, 1 unchanged.",
+        "name": "ratio",
+        "range": "0-16"
+      },
+      {
+        "default": "4096",
+        "doc": "The largest frame kept, in bins: half the FFT size of the ~pfft it runs in, or the FFT size with the full spectrum. Bins past it put out 0. Changing it rebuilds the object.",
+        "name": "bins",
+        "range": "1-65536"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~groove": {
     "category": "SAMPLING",
     "description": "Plays a named sample buffer at the speed of a signal, forward or backward, between loop points it can loop or swing back and forth over, with a sync signal that ramps from 0 to 1 over the loop: a sampler voice.",
@@ -18508,6 +19080,80 @@
         "doc": "Initial cutoff frequency in Hz.",
         "name": "frequency",
         "range": "0-20000 Hz"
+      }
+    ],
+    "requires_midi_device": false
+  },
+  "~ifft": {
+    "category": "SPECTRAL",
+    "description": "An inverse Fourier transform of a stream of bins, frame by frame: every interval samples, a frame of size bins (bin k at sample k) is transformed back and put out over the next size samples, as real and imaginary signals. Resynthesises what ~fft takes apart.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The real part of the bins, bin k at sample k of a frame. A signal; unconnected, the last number sent here (0). Also takes 'phase <n>' or 'offset <n>': a new offset in samples, taken modulo the interval, from the next block on (not saved).",
+        "index": 0,
+        "label": "real",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The imaginary part of the bins. A signal; unconnected, the last number sent here (0).",
+        "index": 1,
+        "label": "imaginary",
+        "range": ""
+      }
+    ],
+    "is_dsp": true,
+    "name": "~ifft",
+    "outlets": [
+      {
+        "doc": "The real part of the result, sample k at sample k of each output period, which starts the sample after a frame's last bin. Not divided by the size: after a ~fft with the same arguments it is the input size times larger, 2 * size samples later. 0 outside an output period.",
+        "index": 0,
+        "label": "real",
+        "range": "",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "The imaginary part of the result, timed as the real part: 0 for the bins of a real signal.",
+        "index": 1,
+        "label": "imaginary",
+        "range": "",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "The index of the sample put out, 0 to size - 1; 0 outside an output period.",
+        "index": 2,
+        "label": "sync",
+        "range": "0 to size - 1",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "512",
+        "doc": "The frame size in bins, rounded up to a power of two. Changing it rebuilds the object.",
+        "name": "size",
+        "range": "16-65536"
+      },
+      {
+        "default": "0",
+        "doc": "Samples from the start of one frame to the next, rounded up to a power of two at or above the size; 0 means the size. After a ~fft with a larger interval, use an offset size samples later than the ~fft's. Changing it rebuilds the object.",
+        "name": "interval",
+        "range": "0, size-16777216"
+      },
+      {
+        "default": "0",
+        "doc": "Samples into the stream that the first frame starts, taken modulo the interval. Changing it rebuilds the object.",
+        "name": "offset",
+        "range": "0 to interval - 1"
       }
     ],
     "requires_midi_device": false
@@ -20113,6 +20759,79 @@
         "doc": "1 limits written values to -1 to 1, 0 writes them as they are.",
         "name": "clip",
         "range": "0 or 1"
+      }
+    ],
+    "requires_midi_device": false
+  },
+  "~pfft": {
+    "category": "SPECTRAL",
+    "description": "A subpatch run once per spectral frame: each signal inlet is cut into overlapping windowed frames and transformed, the objects inside process the bins (~fftin to ~fftout), and the result is transformed back and overlap-added to the outlets.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "A signal, analysed frame by frame for the ~fftin objects with this index inside; unconnected, the last number sent here (0). Also 'clear' (clears every frame) and 'mute 1' / 'mute 0' (stops and restarts the subpatch); not saved.",
+        "index": 0,
+        "label": "in 0",
+        "range": ""
+      }
+    ],
+    "is_dsp": true,
+    "name": "~pfft",
+    "outlets": [
+      {
+        "doc": "What the ~fftout objects with this index inside resynthesise, overlap-added: the subpatch's output, size samples after its input.",
+        "index": 0,
+        "label": "out",
+        "range": "",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "A name for the subpatch, for a host to show. The engine does not read it; the contents are placed inside with SetContainer.",
+        "name": "name",
+        "range": ""
+      },
+      {
+        "default": "512",
+        "doc": "The FFT size in samples, rounded up to a power of two. The subpatch sees frames of size / 2 bins (size with full). Changing it rebuilds the object.",
+        "name": "size",
+        "range": "16-65536"
+      },
+      {
+        "default": "2",
+        "doc": "How many frames overlap: a frame every size / overlap samples (the hop), rounded up to a power of two. 4 is a good choice for most processing.",
+        "name": "overlap",
+        "range": "1 to size"
+      },
+      {
+        "default": "0",
+        "doc": "Samples into the stream that the first frame starts, taken modulo the hop.",
+        "name": "offset",
+        "range": "0 to hop - 1"
+      },
+      {
+        "default": "0",
+        "doc": "0: the subpatch processes bins 0 to size / 2 - 1 and the rest is mirrored; 1: the whole spectrum, size bins.",
+        "name": "full",
+        "range": "0 or 1"
+      },
+      {
+        "default": "1",
+        "doc": "How many signal inlets, read inside by ~fftin 0, ~fftin 1 ...",
+        "name": "inlets",
+        "range": "1-16"
+      },
+      {
+        "default": "1",
+        "doc": "How many signal outlets, written inside by ~fftout 0, ~fftout 1 ...",
+        "name": "outlets",
+        "range": "0-16"
       }
     ],
     "requires_midi_device": false

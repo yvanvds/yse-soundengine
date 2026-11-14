@@ -171,6 +171,13 @@ Bool YSE::system::initShared(bool openDevice) {
     return true;
   }
   INTERNAL::LogImpl().emit(E_ERROR, "YSE System object failed to initialize");
+  // The backend itself did not come up (Pa_Initialize failed — PortAudio 19.7
+  // on a headless host reports paUnanticipatedHostError). Global().init() above
+  // already revived the pools and created the global reverbs, so undo it like
+  // the addCallback() branch does through close(), or the next init() /
+  // initOffline() re-runs it and asserts in reverb::create() (issue #1282).
+  INTERNAL::Global().close();
+  SAMPLERATE = rateBeforeInit;
   return false;
 }
 /// @endcond

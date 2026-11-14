@@ -196,7 +196,13 @@
 #include "routing/dTypeRoute.h"
 #include "routing/dSend.h"
 #include "routing/dReceive.h"
+#include "spectral/dFft.h"
+#include "spectral/dPfft.h"
 #include "spectral/dVectral.h"
+#include "spectral/dFrameDelta.h"
+#include "spectral/dFrameAverage.h"
+#include "spectral/dFrame.h"
+#include "spectral/dGizmo.h"
 
 #include "guiObjects/gInt.h"
 #include "guiObjects/gFloat.h"
@@ -526,7 +532,20 @@ pRegistry::pRegistry() {
   Add(OBJ::D_TYPEROUTE, dTypeRoute::Create);
   Add(OBJ::D_SEND, dSend::Create);
   Add(OBJ::D_RECEIVE, dReceive::Create);
+  Add(OBJ::D_FFT, dFft::Create);
+  Add(OBJ::D_IFFT, dIfft::Create);
+  Add(OBJ::D_PFFT, dPfft::Create);
+  Add(OBJ::D_FFTIN, dFftin::Create);
+  Add(OBJ::D_FFTOUT, dFftout::Create);
+  Add(OBJ::D_FFTINFO, dFftinfo::Create);
   Add(OBJ::D_VECTRAL, dVectral::Create);
+  Add(OBJ::D_FRAMEDELTA, dFramedelta::Create);
+  Add(OBJ::D_FRAMEACCUM, dFrameaccum::Create);
+  Add(OBJ::D_FRAMEAVERAGE, dFrameaverage::Create);
+  Add(OBJ::D_FRAMESMOOTH, dFramesmooth::Create);
+  Add(OBJ::D_FRAME, dFrame::Create);
+  Add(OBJ::D_FRAMESNAP, dFramesnap::Create);
+  Add(OBJ::D_GIZMO, dGizmo::Create);
 
   Add(OBJ::G_SWITCH, gSwitch::Create);
   Add(OBJ::G_GATE, gGate::Create);

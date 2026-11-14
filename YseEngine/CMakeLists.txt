@@ -170,7 +170,13 @@ set(YSE_SRCS
   dsp/routing/signalSelector.cpp
   dsp/routing/mixMatrix.cpp
   dsp/routing/signalBus.cpp
+  dsp/spectral/streamingFft.cpp
+  dsp/spectral/stft.cpp
   dsp/spectral/vectral.cpp
+  dsp/spectral/frameDelta.cpp
+  dsp/spectral/frameAverage.cpp
+  dsp/spectral/frameList.cpp
+  dsp/spectral/spectralPitchShift.cpp
   dsp/sfzModel.cpp
   dsp/wavetable.cpp
   implementations/listenerImplementation.cpp
@@ -257,7 +263,13 @@ set(YSE_SRCS
   patcher/routing/dMatrix.cpp
   patcher/routing/dTypeRoute.cpp
   patcher/routing/signalBusPort.cpp
+  patcher/spectral/dFft.cpp
+  patcher/spectral/dPfft.cpp
   patcher/spectral/dVectral.cpp
+  patcher/spectral/dFrameDelta.cpp
+  patcher/spectral/dFrameAverage.cpp
+  patcher/spectral/dFrame.cpp
+  patcher/spectral/dGizmo.cpp
   patcher/routing/dSend.cpp
   patcher/routing/dReceive.cpp
   patcher/filters/dVcf.cpp
@@ -768,7 +780,13 @@ set_source_files_properties(
   patcher/routing/dMatrix.cpp
   patcher/routing/dTypeRoute.cpp
   patcher/routing/signalBusPort.cpp
+  patcher/spectral/dFft.cpp
+  patcher/spectral/dPfft.cpp
   patcher/spectral/dVectral.cpp
+  patcher/spectral/dFrameDelta.cpp
+  patcher/spectral/dFrameAverage.cpp
+  patcher/spectral/dFrame.cpp
+  patcher/spectral/dGizmo.cpp
   patcher/routing/dSend.cpp
   patcher/routing/dReceive.cpp
   patcher/filters/dVcf.cpp

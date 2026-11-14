@@ -14,6 +14,7 @@
 #include "genericObjects/gSubpatcher.h"
 #include "routing/dSend.h"
 #include "routing/dReceive.h"
+#include "spectral/dPfft.h"
 #include "pHandle.hpp"
 #include "../utils/json.hpp"
 #include <algorithm>
@@ -611,6 +612,23 @@ bool patcherImplementation::IsSubpatcher(pObject* obj) {
   return obj != nullptr && strcmp(obj->Type(), YSE::OBJ::PATCHER) == 0;
 }
 
+bool patcherImplementation::IsSpectralHost(const pObject* obj) {
+  return obj != nullptr && strcmp(obj->Type(), YSE::OBJ::D_PFFT) == 0;
+}
+
+bool patcherImplementation::IsContainer(pObject* obj) {
+  return IsSubpatcher(obj) || IsSpectralHost(obj);
+}
+
+pObject* patcherImplementation::SpectralDomainOf(const pObject* obj) {
+  // The nearest ~pfft around the object (issue #1041). A `patcher` between
+  // the two is only grouping: its contents still run in the ~pfft's frames.
+  for (pObject* c = obj->Container(); c != nullptr; c = c->Container()) {
+    if (IsSpectralHost(c)) return c;
+  }
+  return nullptr;
+}
+
 bool patcherImplementation::ContainmentWouldCycle(pObject* obj, pObject* container) {
   // Walk up from the proposed container: reaching `obj` means the move would
   // close a loop. Terminates because the containment graph is acyclic before
@@ -703,7 +721,7 @@ void patcherImplementation::CollectSubtree(YSE::pHandle* root,
   out.push_back(root);
   for (std::size_t frontier = 0; frontier < out.size(); frontier++) {
     pObject* parentObj = out[frontier]->object;
-    if (!IsSubpatcher(parentObj)) continue;
+    if (!IsContainer(parentObj)) continue;
     for (const auto& any : objects) {
       if (any.second->Container() == parentObj) out.push_back(any.first);
     }
@@ -729,8 +747,11 @@ void patcherImplementation::SetObjectContainer(YSE::pHandle* obj, YSE::pHandle* 
     INTERNAL::LogImpl().emit(E_ERROR, "Patcher: SetContainer target is not in this patcher");
     return;
   }
-  if (!IsSubpatcher(container->ObjectUnderLock())) {
-    INTERNAL::LogImpl().emit(E_ERROR, "Patcher: SetContainer target is not a 'patcher' object");
+  // A `patcher` groups; a `~pfft` runs its contents once per spectral frame
+  // (issue #1041). Nothing else holds objects.
+  if (!IsContainer(container->ObjectUnderLock())) {
+    INTERNAL::LogImpl().emit(E_ERROR,
+                             "Patcher: SetContainer target is not a 'patcher' or '~pfft' object");
     return;
   }
   // A subpatcher may not end up inside itself or inside one of its own
@@ -850,6 +871,17 @@ void patcherImplementation::ConnectUnlocked(YSE::pHandle* from, int outlet, YSE:
   PATCHER::outlet* out = source->GetOutlet(sourcePin);
   PATCHER::inlet* in = target->GetInlet(targetPin);
   if (out != nullptr && in != nullptr) {
+    // A signal cord into or out of a ~pfft subpatch is refused (issue
+    // #1041): the subpatch runs on frames of bins, the patch around it on
+    // blocks of samples, and its inlets and outlets are what cross over
+    // (~fftin, ~fftout).
+    if (out->Type() == OUT_TYPE::BUFFER && !out->IsLink() && in->AcceptsDSP() &&
+        SpectralDomainOf(source) != SpectralDomainOf(target)) {
+      INTERNAL::LogImpl().emit(E_ERROR, "Patcher: connection refused: a signal cord cannot cross "
+                                        "a ~pfft boundary; connect to the ~pfft's inlets and "
+                                        "outlets, and use ~fftin / ~fftout inside it");
+      return;
+    }
     // A signal loop is refused here, where the user makes it (issue #1038).
     // Each object in it would wait for the others to deliver a block first,
     // so none would ever run, and neither would anything downstream. A loop
@@ -1798,8 +1830,9 @@ void patcherImplementation::BuildParsedGraph(json& j, std::vector<pObject*>& loa
       auto owner = OldIDs.find(stored->get<int>());
       if (self == OldIDs.end() || owner == OldIDs.end()) continue;
       if (self->second == nullptr || owner->second == nullptr) continue;
-      if (!IsSubpatcher(owner->second->ObjectUnderLock())) {
-        INTERNAL::LogImpl().emit(E_ERROR, "Patcher: stored container is not a 'patcher' object");
+      if (!IsContainer(owner->second->ObjectUnderLock())) {
+        INTERNAL::LogImpl().emit(E_ERROR,
+                                 "Patcher: stored container is not a 'patcher' or '~pfft' object");
         continue;
       }
       if (ContainmentWouldCycle(self->second->ObjectUnderLock(),
@@ -2275,10 +2308,23 @@ YSE::PATCHER::GraphState* patcherImplementation::BuildGraph() {
   g->inletOwner.assign(nextInletId_, nullptr);
   g->inletSubpatcher.assign(nextInletId_, nullptr);
 
+  // Which ~pfft subpatch each object runs in, null for the top level (issue
+  // #1041). A signal cord only counts within one domain: one between two is
+  // left out of the compiled graph below.
+  std::unordered_map<const pObject*, pObject*> domains;
+  domains.reserve(objects.size());
+  for (const auto& any : objects) {
+    domains.emplace(any.second, SpectralDomainOf(any.second));
+  }
+  const auto domainOf = [&domains](const pObject* object) -> pObject* {
+    auto it = domains.find(object);
+    return it == domains.end() ? nullptr : it->second;
+  };
+
   for (const auto& any : objects) {
     pObject* object = any.second;
+    pObject* domain = domainOf(object);
     g->objects.push_back(object);
-    if (object->IsDSPStartPoint()) g->startPoints.push_back(object);
     // Objects driven from outside the patch rather than by an inlet or a DSP
     // edge (issue #529). Collected here so Calculate() never scans for them.
     if (object->WantsBlockPoll()) g->pollers.push_back(object);
@@ -2292,10 +2338,14 @@ YSE::PATCHER::GraphState* patcherImplementation::BuildGraph() {
     }
     // ~ezdac / ~ezadc are a pDac / pAdc with a GUI value (issue #1043).
     const char* type = object->Type();
-    if (strcmp(type, YSE::OBJ::D_DAC) == 0 || strcmp(type, YSE::OBJ::D_EZDAC) == 0)
-      g->dacs.push_back(object);
-    if (strcmp(type, YSE::OBJ::D_ADC) == 0 || strcmp(type, YSE::OBJ::D_EZADC) == 0)
-      g->adcs.push_back(object);
+    // Only at the top level: a ~pfft subpatch renders bins, not the
+    // patcher's blocks (issue #1041).
+    if (domain == nullptr) {
+      if (strcmp(type, YSE::OBJ::D_DAC) == 0 || strcmp(type, YSE::OBJ::D_EZDAC) == 0)
+        g->dacs.push_back(object);
+      if (strcmp(type, YSE::OBJ::D_ADC) == 0 || strcmp(type, YSE::OBJ::D_EZADC) == 0)
+        g->adcs.push_back(object);
+    }
     if (strcmp(type, YSE::OBJ::D_DSPSTRESS) == 0) g->measureLoad = true;
 
     for (int i = 0; i < object->NumOutputs(); i++) {
@@ -2305,20 +2355,41 @@ YSE::PATCHER::GraphState* patcherImplementation::BuildGraph() {
       if (id >= 0 && id < nextOutletId_) {
         // A link is never pushed (issue #1038): the reader finds its source
         // through inletLinkSources instead.
-        if (!out->IsLink()) g->outletTargets[id] = out->Targets();
+        if (!out->IsLink()) {
+          g->outletTargets[id] = out->Targets();
+          // A signal cord into another domain is not compiled (#1041).
+          if (out->Type() == YSE::OUT_TYPE::BUFFER) {
+            auto& targets = g->outletTargets[id];
+            targets.erase(std::remove_if(targets.begin(), targets.end(),
+                                         [&](const PATCHER::inlet* in) {
+                                           return domainOf(in->Owner()) != domain;
+                                         }),
+                          targets.end());
+          }
+        }
         g->outletOwner[id] = out;
       }
     }
+    // A DSP object with no signal source in its own domain is where that
+    // domain's render starts (IsDSPStartPoint, minus the cords that cross a
+    // ~pfft boundary, issue #1041).
+    bool fed = false;
     for (int i = 0; i < object->NumInputs(); i++) {
       PATCHER::inlet* in = object->GetInlet(i);
       if (in == nullptr) continue;
+      unsigned int sources = 0;
+      for (const PATCHER::outlet* source : in->DspSources()) {
+        if (domainOf(source->Owner()) == domain) sources++;
+      }
+      if (sources > 0) fed = true;
       int id = in->GraphId();
       if (id >= 0 && id < nextInletId_) {
-        g->inletDspSources[id] = static_cast<unsigned int>(in->DspSources().size());
+        g->inletDspSources[id] = sources;
         if (in->LinkSource() != nullptr) g->inletLinkSources[id] = in->LinkSource()->Owner();
         g->inletOwner[id] = in;
       }
     }
+    if (object->IsDSPObject() && !fed) g->startPoints.push_back(object);
     // A boundary inlet stands for its subpatcher's pin: what a ~mute cord
     // ending on it mutes (issue #1137).
     if (BoundaryIndexOf(object, BoundarySide::INLETS) >= 0 && IsSubpatcher(object->Container())) {
@@ -2331,7 +2402,7 @@ YSE::PATCHER::GraphState* patcherImplementation::BuildGraph() {
       }
     }
   }
-  BuildRenderOrder(*g);
+  BuildRenderOrder(*g, domains);
   BuildMuteChains(*g);
   // Flush order (issue #1037): storage IDs are fixed for a given patch, the
   // handle addresses `objects` is keyed by are not. The check below fires on
@@ -2394,7 +2465,8 @@ namespace {
   }
 } // namespace
 
-void patcherImplementation::BuildRenderOrder(GraphState& g) {
+void patcherImplementation::BuildRenderOrder(
+    GraphState& g, const std::unordered_map<const pObject*, pObject*>& domains) {
   // Compile the signal traversal (issue #1185). Control thread, under mtx, like
   // the rest of BuildGraph: the allocations here never reach the audio thread.
   //
@@ -2417,6 +2489,20 @@ void patcherImplementation::BuildRenderOrder(GraphState& g) {
   // block (the rule decided in #1038). Storage IDs and reachability do not
   // depend on handle addresses, so the cut is the same every time the patch
   // is loaded.
+  //
+  // Each ~pfft subpatch (issue #1041) is a domain of its own: compiled the
+  // same way from its own start points into GraphState::spectral, never into
+  // renderOrder. Only cords within one domain are followed, as BuildGraph
+  // only compiles those.
+  const auto domainOf = [&domains](const pObject* object) -> pObject* {
+    auto it = domains.find(object);
+    return it == domains.end() ? nullptr : it->second;
+  };
+  // A cord the walk follows: one that carries samples, into a signal inlet,
+  // within one domain.
+  const auto follows = [&domainOf](const pObject* from, const PATCHER::inlet* in) {
+    return in->AcceptsDSP() && domainOf(in->Owner()) == domainOf(from);
+  };
   std::unordered_map<const pObject*, unsigned int> cords;
   cords.reserve(g.objects.size());
   for (pObject* object : g.objects) {
@@ -2427,7 +2513,7 @@ void patcherImplementation::BuildRenderOrder(GraphState& g) {
       const PATCHER::outlet* out = object->GetOutlet(i);
       if (!SignalCord(out)) continue;
       for (const PATCHER::inlet* in : out->Targets()) {
-        if (!in->AcceptsDSP()) continue;
+        if (!follows(object, in)) continue;
         auto it = cords.find(in->Owner());
         if (it != cords.end()) it->second++;
       }
@@ -2440,20 +2526,20 @@ void patcherImplementation::BuildRenderOrder(GraphState& g) {
     std::size_t cord;
     std::size_t soft;
   };
-  const auto walk = [&g, &cords](const softEdges& soft,
-                                 std::vector<GraphState::renderStep>& order) {
+  const auto walk = [&cords, &follows](const std::vector<pObject*>& starts, const softEdges& soft,
+                                       std::vector<GraphState::renderStep>& order) {
     std::unordered_map<const pObject*, unsigned int> waiting = cords;
     for (const auto& edges : soft) {
       for (pObject* receiver : edges.second)
         waiting[receiver]++;
     }
     std::vector<frame> stack;
-    order.reserve(g.objects.size());
+    order.reserve(cords.size());
     const auto emit = [&](pObject* next) {
       order.push_back({next, cords[next] == 0});
       stack.push_back({next, 0, 0, 0});
     };
-    for (pObject* start : g.startPoints) {
+    for (pObject* start : starts) {
       // A start point held back by a soft edge comes when its senders have.
       if (waiting[start] != 0) continue;
       emit(start);
@@ -2468,7 +2554,7 @@ void patcherImplementation::BuildRenderOrder(GraphState& g) {
             continue;
           }
           const PATCHER::inlet* in = out->Targets()[top.cord++];
-          if (!in->AcceptsDSP()) continue;
+          if (!follows(top.object, in)) continue;
           next = in->Owner();
         } else {
           auto edges = soft.find(top.object);
@@ -2485,8 +2571,42 @@ void patcherImplementation::BuildRenderOrder(GraphState& g) {
     }
   };
 
+  // Each ~pfft's subpatch, from its own start points (issue #1041), in
+  // storage-ID order of the ~pfft objects. Named signal pairs are not ordered
+  // inside one: a ~send there runs once per pass, not once per block.
+  std::vector<pObject*> top;
+  std::vector<pObject*> hosts;
+  for (pObject* start : g.startPoints) {
+    if (domainOf(start) == nullptr) top.push_back(start);
+  }
+  for (pObject* object : g.objects) {
+    if (IsSpectralHost(object)) hosts.push_back(object);
+  }
+  std::sort(hosts.begin(), hosts.end(),
+            [](pObject* a, pObject* b) { return a->GetID() < b->GetID(); });
+  for (pObject* host : hosts) {
+    GraphState::spectralDomain d;
+    d.host = host;
+    std::vector<pObject*> starts;
+    for (pObject* start : g.startPoints) {
+      if (domainOf(start) == host) starts.push_back(start);
+    }
+    walk(starts, softEdges{}, d.renderOrder);
+    for (pObject* object : g.objects) {
+      if (domainOf(object) != host) continue;
+      d.objects.push_back(object);
+      if (strcmp(object->Type(), YSE::OBJ::D_FFTIN) == 0) d.inputs.push_back(object);
+      if (strcmp(object->Type(), YSE::OBJ::D_FFTOUT) == 0) d.outputs.push_back(object);
+    }
+    const auto byId = [](pObject* a, pObject* b) { return a->GetID() < b->GetID(); };
+    std::sort(d.inputs.begin(), d.inputs.end(), byId);
+    std::sort(d.outputs.begin(), d.outputs.end(), byId);
+    BuildSpectralStages(g, d, follows);
+    g.spectral.push_back(std::move(d));
+  }
+
   // The order without soft edges, which also says which objects run at all.
-  walk(softEdges{}, g.renderOrder);
+  walk(top, softEdges{}, g.renderOrder);
 
   // The named pairs among the objects that run. A ~send that never runs has
   // nothing to order a receive after.
@@ -2521,7 +2641,108 @@ void patcherImplementation::BuildRenderOrder(GraphState& g) {
   }
   if (soft.empty()) return;
   g.renderOrder.clear();
-  walk(soft, g.renderOrder);
+  walk(top, soft, g.renderOrder);
+}
+
+void patcherImplementation::BuildSpectralStages(
+    GraphState& g, GraphState::spectralDomain& d,
+    const std::function<bool(const pObject*, const PATCHER::inlet*)>& follows) {
+  // Cut a ~pfft subpatch's render into stages (issue #1280); see
+  // GraphState::spectralDomain. Control thread, under mtx.
+  //
+  // The walk's order is topological: every object comes after all its
+  // sources. So one pass over it settles each object's stage (a start point
+  // 0, else the largest stage its sources put out in), and the steps of each
+  // stage keep the walk's order: first the emit steps of the frame-wide
+  // objects of the stage before, which are start points, then the stage's
+  // own objects. A cord whose source puts out in an earlier stage than its
+  // target runs in is carried (spectralCarry).
+  const auto wide = [](const pObject* object) { return object->SpectralFrameWide(); };
+  std::unordered_map<const pObject*, std::uint32_t> stage;
+  stage.reserve(d.renderOrder.size());
+  for (const GraphState::renderStep& step : d.renderOrder) {
+    stage.emplace(step.object, 0U);
+  }
+  // The stage an object's cords deliver in.
+  const auto putsOut = [&](const pObject* object) {
+    return stage[object] + (wide(object) ? 1U : 0U);
+  };
+  std::uint32_t last = 0;
+  for (const GraphState::renderStep& step : d.renderOrder) {
+    pObject* object = step.object;
+    last = std::max(last, putsOut(object));
+    for (int i = 0; i < object->NumOutputs(); i++) {
+      const PATCHER::outlet* out = object->GetOutlet(i);
+      if (!SignalCord(out)) continue;
+      for (const PATCHER::inlet* in : out->Targets()) {
+        if (!follows(object, in)) continue;
+        auto it = stage.find(in->Owner());
+        if (it != stage.end()) it->second = std::max(it->second, putsOut(object));
+      }
+    }
+  }
+  if (last == 0) {
+    // No frame-wide object: one stage, the walk as it is.
+    d.stageEnds.assign(1, static_cast<std::uint32_t>(d.renderOrder.size()));
+    d.outputStages.assign(d.outputs.size(), 0U);
+    return;
+  }
+
+  std::vector<GraphState::renderStep> staged;
+  staged.reserve(d.renderOrder.size() * 2);
+  for (std::uint32_t s = 0; s <= last; s++) {
+    for (const GraphState::renderStep& step : d.renderOrder) {
+      if (s > 0 && wide(step.object) && stage[step.object] == s - 1) {
+        GraphState::renderStep emit = step;
+        emit.startPoint = true;
+        emit.emit = true;
+        staged.push_back(emit);
+      }
+    }
+    for (const GraphState::renderStep& step : d.renderOrder) {
+      if (stage[step.object] == s) staged.push_back(step);
+    }
+    d.stageEnds.push_back(static_cast<std::uint32_t>(staged.size()));
+  }
+  d.renderOrder = std::move(staged);
+
+  d.outputStages.reserve(d.outputs.size());
+  for (pObject* object : d.outputs) {
+    auto it = stage.find(object);
+    d.outputStages.push_back(it == stage.end() ? 0U : it->second);
+  }
+
+  // The cords into a later stage than their source delivers in, in walk
+  // order of the source, outlet by outlet, cord by cord.
+  const UInt bins = static_cast<dPfft*>(d.host)->Bins();
+  for (std::size_t k = 0; k < d.renderOrder.size(); k++) {
+    const GraphState::renderStep& step = d.renderOrder[k];
+    // One look per object: at its own step (the consume step of a
+    // frame-wide one), not its emit step.
+    if (step.emit) continue;
+    pObject* object = step.object;
+    const std::uint32_t from = putsOut(object);
+    for (int i = 0; i < object->NumOutputs(); i++) {
+      const PATCHER::outlet* out = object->GetOutlet(i);
+      if (!SignalCord(out)) continue;
+      const int id = out->GraphId();
+      if (id < 0 || id >= static_cast<int>(g.outletTargets.size())) continue;
+      for (PATCHER::inlet* in : out->Targets()) {
+        if (!follows(object, in)) continue;
+        auto it = stage.find(in->Owner());
+        if (it == stage.end() || it->second <= from) continue;
+        auto carry = std::make_shared<spectralCarry>(d.host, in, bins, it->second);
+        auto& targets = g.outletTargets[id];
+        auto at = std::find(targets.begin(), targets.end(), in);
+        if (at == targets.end()) continue;
+        *at = &carry->tap;
+        d.carries.push_back(std::move(carry));
+      }
+    }
+  }
+  std::stable_sort(d.carries.begin(), d.carries.end(),
+                   [](const std::shared_ptr<spectralCarry>& a,
+                      const std::shared_ptr<spectralCarry>& b) { return a->stage < b->stage; });
 }
 
 void patcherImplementation::BuildMuteChains(GraphState& g) {
@@ -2538,6 +2759,13 @@ void patcherImplementation::BuildMuteChains(GraphState& g) {
   };
   for (GraphState::renderStep& step : g.renderOrder) {
     chain(step.object, step.muteBegin, step.muteEnd);
+  }
+  // A ~pfft subpatch's steps likewise (issue #1041): a `patcher` inside the
+  // subpatch mutes its contents in every pass.
+  for (GraphState::spectralDomain& d : g.spectral) {
+    for (GraphState::renderStep& step : d.renderOrder) {
+      chain(step.object, step.muteBegin, step.muteEnd);
+    }
   }
   g.dacMutes.resize(g.dacs.size());
   for (std::size_t d = 0; d < g.dacs.size(); d++) {

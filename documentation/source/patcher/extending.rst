@@ -944,6 +944,52 @@ Processing never allocates, locks or blocks on I/O. In practice:
   once per slice of ``STANDARD_BUFFERSIZE`` samples and copies each result
   out. The class never grows its output to fit a longer input.
 
+Frame-domain objects
+~~~~~~~~~~~~~~~~~~~~
+
+Objects that work on spectral frames (``~framedelta``, ``~frameaccum``,
+``~frameaverage``, ``~frame``, ``~framesnap`` ...) run inside a ``~pfft``.
+A ``~pfft`` renders its contents once per frame, as passes of at most
+``STANDARD_BUFFERSIZE`` bins in bin order (see :doc:`subpatchers`), so such
+an object gets ordinary signal blocks and nothing in the real-time rules
+above changes. What it needs besides is to know which bins a block holds:
+
+- The DSP class works on a ``DSP::stftFrame``, a run of bins: ``real[i]``
+  and ``imaginary[i]`` are bin ``firstBin + i``, ``count`` of them, of a
+  frame of ``bins`` bins (``dsp/spectral/stft.hpp``). Per-bin state (the
+  previous frame, a running sum) is indexed with ``firstBin + i``. The same
+  class then runs on the whole frame a ``DSP::stft`` callback gets
+  (``firstBin`` 0, ``count`` = ``bins``) and on a ``~pfft`` pass.
+- The wrapper reads ``PATCHER::CurrentSpectralPass()``
+  (``patcher/spectral/spectralPass.h``) in ``CALC()``. Inside a ``~pfft``
+  pass it describes the pass (FFT size, frame size, hop, first bin, count,
+  pass and frame number), and ``Frame(real, imaginary)`` turns it into the
+  ``stftFrame`` over the pass's buffers. Outside a ``~pfft`` it is null;
+  the object then decides what a frame is (MSP treats the signal vector as
+  the frame).
+- Per-bin state is sized when the object is built, from an argument (the
+  largest frame it serves), never on the audio thread. A pass with bins
+  past the capacity is ignored by the class.
+
+An object whose output bin needs an input bin of a later pass (a centred
+smoothing, a bin shift or pitch shift downwards) cannot work pass by pass. It
+is *frame-wide* instead (issue #1280), as ``~framesmooth`` and ``~gizmo`` are:
+
+- It answers ``SpectralFrameWide()`` true (a ``pObject`` virtual, false by
+  default). The ``~pfft`` then cuts its subpatch into stages (see
+  :doc:`subpatchers`) and runs the object twice per pass: a *consume* step in
+  its own stage and an *emit* step in the next, told apart by
+  ``CurrentSpectralPass()->emitting``.
+- It keeps a ``PATCHER::spectralFrameStore``
+  (``patcher/spectral/spectralFrameStore.h``), sized from an argument when
+  the object is built. On a consume step it calls ``consume(*pass, channel,
+  buffer)`` for each signal input and sends nothing. On an emit step,
+  ``if (store.due())`` (the first emit of the frame) it runs its DSP class
+  once on the whole frame, ``frame(*pass, ...)`` over ``input(c)`` into
+  ``output(c)``, and then sends ``slice(*pass, c)`` on each signal outlet.
+- The DSP class works on whole frames (``firstBin`` 0, ``count`` = the
+  frame's bins, up to the capacity), as a ``DSP::stft`` callback hands them.
+
 Patcher names
 ~~~~~~~~~~~~~
 

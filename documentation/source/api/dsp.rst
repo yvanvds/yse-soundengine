@@ -412,11 +412,66 @@ Named signal buses: audio sent and received by name, without a cord, what
 Spectral
 --------
 
+Fourier transforms of a stream, frame by frame: a frame of input samples
+transformed at the exact sample it completes, whatever the block, and put
+out over the next frame one bin per sample, with a sync signal giving the
+bin. What ``~fft`` and ``~ifft`` wrap. The frame schedule, the size, interval
+and offset of the frames along the stream, is a ``frameClock`` of its own,
+for other frame-based processes.
+
+.. doxygenfile:: dsp/spectral/streamingFft.hpp
+   :project: libYSE
+
+.. doxygenfile:: dsp/spectral/frameClock.hpp
+   :project: libYSE
+
+The short-time Fourier transform: a stream cut into overlapping windowed
+frames, each handed to a callback that may change its bins, transformed back
+and overlap-added, ``size`` samples later. The analysis and synthesis halves
+can also be driven on their own. What ``~pfft`` runs its subpatch on.
+
+.. doxygenfile:: dsp/spectral/stft.hpp
+   :project: libYSE
+
 Successive frames, such as spectra, smoothed index by index with a linear
 ramp, a logarithmic slide or a limited change per frame: what ``~vectral``
 wraps.
 
 .. doxygenfile:: dsp/spectral/vectral.hpp
+   :project: libYSE
+
+The change and the running sum of every bin across successive frames, the
+phase deviation and running phase of a phase vocoder: what ``~framedelta``
+and ``~frameaccum`` wrap. They work on a ``stftFrame`` run of bins, so the
+same object serves a ``DSP::stft`` callback and a ``~pfft`` pass.
+
+.. doxygenfile:: dsp/spectral/frameDelta.hpp
+   :project: libYSE
+
+The running average of every bin over the last frames, and an average
+along each frame that never reaches into the next, centred on each value for
+a whole frame or trailing it for a frame that streams in: what
+``~frameaverage`` and ``~framesmooth`` wrap. They work on a ``stftFrame``
+run of bins as well, or cut a stream into frames of a given size.
+
+.. doxygenfile:: dsp/spectral/frameAverage.hpp
+   :project: libYSE
+
+A stored frame put out bin by bin, and the last whole frame of a stream kept
+to be read as values: what ``~frame`` and ``~framesnap`` wrap to turn lists
+into frames and frames into lists. Both work on a ``stftFrame`` run of bins,
+or take a block as a frame.
+
+.. doxygenfile:: dsp/spectral/frameList.hpp
+   :project: libYSE
+
+A pitch shifter for whole spectral frames: every peak moved, with the bins
+around it, to its transposed frequency, and its phase turned so the partial
+stays continuous from frame to frame. What ``~gizmo`` wraps; it takes the
+whole frame a ``DSP::stft`` callback gets, so it shifts the pitch of a
+stream without a patcher.
+
+.. doxygenfile:: dsp/spectral/spectralPitchShift.hpp
    :project: libYSE
 
 Filter primitives

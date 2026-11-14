@@ -3,7 +3,8 @@
 # Loaded by the tests-tsan-local and tests-tsan-host ctest presets, which
 # `python yse.py test --sanitizer tsan [--host-audio]` runs. CI's tests-tsan
 # and tests-tsan-full presets don't load it. Their runners have no sound card,
-# so these libraries never open a stream there.
+# so these libraries never open a stream there. Those presets load
+# tools/tsan/pulse.supp instead (#1283).
 #
 # libasound, libpipewire and libspa are not built with -fsanitize=thread, so
 # TSan cannot see the synchronisation inside them. On a desktop whose PortAudio
@@ -20,6 +21,13 @@
 #   - Don't add a suppression for a report whose two stacks both start in YSE
 #     code. #1223 is one such report, from the live-audio run, and it is a
 #     YSE bug.
+
+# Copied from tools/tsan/pulse.supp (#1283), the file CI's presets load. This
+# file replaces it in the local presets, so the entry has to be in both. A
+# PortAudio with a PulseAudio host API (19.7 on ubuntu-26.04) creates a
+# pa_mutex on one thread and locks it on pulse's mainloop thread, all inside
+# the uninstrumented libpulsecommon.
+race:pa_mutex_lock
 
 # paCallback (PortAudio's ALSA callback thread) writes the mmap'd period
 # buffer; PipeWire's data-loop thread copies it out under a libspa mutex.
