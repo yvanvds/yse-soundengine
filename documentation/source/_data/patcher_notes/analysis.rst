@@ -412,3 +412,28 @@ the update interval in milliseconds (``~gridmeter 8 48 300 300 20``).
 .. code-block:: text
 
    [~cycle 1000] -> [~* 0.5] -> [~gridmeter 1]   a cell at about 0.9
+
+.. patcher-object:: ~number
+
+A number box for signals, for debugging a patch. It does two things at
+once. It monitors the signal in its left inlet: every update interval, 100
+ms unless the second argument says otherwise, it takes one sample of it and
+sends it out the right outlet. And it generates a signal: the left outlet is
+the last number sent to the left inlet as a constant, ramping to each new
+number over the ramp time, the first argument or the right inlet, in
+milliseconds (0 jumps). A list ``<value> <ramp>`` sets both. The output
+ignores the monitored signal.
+
+The engine keeps the state; the host draws the box. Its GUI value is three
+numbers: the value shown, the display mode and the modes allowed. In monitor
+mode (2, the default) the box shows the monitored sample, in output mode (1)
+the last number. ``mode`` switches, ``allow`` limits the modes to output (1),
+monitor (2) or both (3), and ``monitormode`` and ``sigoutmode`` turn one
+half of that on or off. ``set`` shows a number without sending it out, and a
+bang in output mode then sends it. ``min`` and ``max`` clamp the numbers; on
+their own they remove the limit. How many decimals to show, and in which
+colours, is up to the host.
+
+.. code-block:: text
+
+   [.f] -> [~number 50 100 1] -> [~number] -> [.f]   ramps in 50 ms, then shows it

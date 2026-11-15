@@ -20546,6 +20546,80 @@
     ],
     "requires_midi_device": false
   },
+  "~number": {
+    "category": "ANALYSIS",
+    "description": "A signal monitor and constant generator: shows the value of a signal and sends it out every update interval, and outputs the last number it was given as a constant signal, ramping to each new number over the ramp time. The host draws the number box.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "The signal to monitor; unconnected it reads as silence. A number is clamped to the minimum and maximum, shown, and becomes the output; a list '<value> <ramp ms>' sets the ramp time first; 'set <n>' shows a number without outputting it; a bang in output mode outputs the shown number. Also takes 'mode <1|2>' (1 output, 2 monitor), 'allow <1-3>', 'monitormode <0|1>', 'sigoutmode <0|1>', 'min [n]' and 'max [n]' (no number removes the limit), 'interval <ms>' and 'ft1 <ms>'.",
+        "index": 0,
+        "label": "signal",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The ramp time in milliseconds: how long the output takes to reach a new number. 0 jumps.",
+        "index": 1,
+        "label": "ramp",
+        "range": "0 or more ms"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~number",
+    "outlets": [
+      {
+        "doc": "The last number as a constant signal, ramped linearly to each new one. It ignores the monitored signal and the mode.",
+        "index": 0,
+        "label": "out",
+        "range": "any float",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "The monitored signal, one sample every update interval, in either mode.",
+        "index": 1,
+        "label": "monitor",
+        "range": "any float",
+        "type": "FLOAT"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "The ramp time in milliseconds ('~number 50'); the right inlet and 'ft1 <ms>' set it too. 0 jumps to each new number.",
+        "name": "ramp",
+        "range": "0 or more ms"
+      },
+      {
+        "default": "100",
+        "doc": "The update interval in milliseconds: how often the monitored signal is shown and sent ('~number 0 250'). 10 to 2000.",
+        "name": "interval",
+        "range": "10-2000 ms"
+      },
+      {
+        "default": "2",
+        "doc": "The display mode: 1 shows the output number, 2 the monitored signal ('~number 0 100 1'). A mode allow excludes gives way to the one it leaves.",
+        "name": "mode",
+        "range": "1-2"
+      },
+      {
+        "default": "3",
+        "doc": "Which display modes there are: 1 output only, 2 monitor only, 3 both ('~number 0 100 1 1').",
+        "name": "allow",
+        "range": "1-3"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~onepole": {
     "category": "FILTER",
     "description": "Single-pole lowpass filter, 6 dB per octave, with its cutoff in Hz or on a 0-1 scale: cheap smoothing of a control signal or a gentle roll-off of harsh highs.",

@@ -236,6 +236,7 @@ set(YSE_SRCS
   patcher/analysis/dMeter.cpp
   patcher/analysis/dLevelmeter.cpp
   patcher/analysis/dGridmeter.cpp
+  patcher/analysis/dNumber.cpp
   patcher/analysis/dWhat.cpp
   patcher/analysis/dWhere.cpp
   patcher/delay/dTapin.cpp
@@ -760,6 +761,7 @@ set_source_files_properties(
   patcher/analysis/dMeter.cpp
   patcher/analysis/dLevelmeter.cpp
   patcher/analysis/dGridmeter.cpp
+  patcher/analysis/dNumber.cpp
   patcher/analysis/dWhat.cpp
   patcher/analysis/dWhere.cpp
   patcher/delay/dTapin.cpp

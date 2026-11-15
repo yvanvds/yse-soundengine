@@ -51,7 +51,8 @@ namespace YSE {
    *    ``D_FZERO`` (the fundamental frequency, peak amplitude and onsets),
    *    ``D_METER`` (a peak meter), ``D_LEVELMETER`` (an RMS meter in dB with
    *    VU or PPM ballistics), ``D_GRIDMETER`` (the levels of several signals
-   *    as the brightness of a grid of cells).
+   *    as the brightness of a grid of cells), ``D_NUMBER`` (a signal monitor
+   *    and constant generator: MSP's debugging number box).
    *  - DSP delay: `D_TAPIN`, `D_TAPOUT`, `D_COMB`, `D_TEETH`, `D_DELAY`,
    *    ``D_PITCHSHIFT`` (a real-time pitch shifter), ``D_RETUNE`` (pitch
    *    detection and correction toward a scale).
@@ -339,6 +340,7 @@ namespace YSE {
     DEFOBJ(D_METER, "~meter");
     DEFOBJ(D_LEVELMETER, "~levelmeter");
     DEFOBJ(D_GRIDMETER, "~gridmeter");
+    DEFOBJ(D_NUMBER, "~number");
     DEFOBJ(D_CAPTURE, "~capture");
 
     DEFOBJ(D_TAPIN, "~tapin");

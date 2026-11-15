@@ -358,6 +358,7 @@ set(YSE_TEST_SOURCES
   patcher/test_patcher_signal_minmax.cpp
   patcher/test_patcher_signal_loudness.cpp
   patcher/test_patcher_signal_meters.cpp
+  patcher/test_patcher_signal_number.cpp
   patcher/test_patcher_signal_fzero.cpp
   patcher/test_patcher_signal_capture.cpp
   patcher/test_patcher_signal_compare.cpp
@@ -1580,6 +1581,7 @@ set_source_files_properties(
   patcher/test_patcher_signal_minmax.cpp
   patcher/test_patcher_signal_loudness.cpp
   patcher/test_patcher_signal_meters.cpp
+  patcher/test_patcher_signal_number.cpp
   patcher/test_patcher_signal_fzero.cpp
   patcher/test_patcher_signal_capture.cpp
   patcher/test_patcher_signal_compare.cpp
