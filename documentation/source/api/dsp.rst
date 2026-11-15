@@ -319,6 +319,11 @@ Dynamics
 .. doxygenfile:: dsp/dynamics/multibandCompressor.hpp
    :project: libYSE
 
+The mixer fader that ``~gain`` wraps: a slider position on a log taper, ramped.
+
+.. doxygenfile:: dsp/dynamics/gainFader.hpp
+   :project: libYSE
+
 The compressor that ``~comp`` wraps, :cpp:class:`YSE::DSP::MODULES::compressor`,
 is documented with the effects on :doc:`effects`.
 

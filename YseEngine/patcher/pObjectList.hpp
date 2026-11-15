@@ -56,7 +56,8 @@ namespace YSE {
    *  - DSP delay: `D_TAPIN`, `D_TAPOUT`, `D_COMB`, `D_TEETH`, `D_DELAY`,
    *    ``D_PITCHSHIFT`` (a real-time pitch shifter), ``D_RETUNE`` (pitch
    *    detection and correction toward a scale).
-   *  - DSP dynamics: ``D_NORMALIZE`` (scaling by the running peak).
+   *  - DSP dynamics: ``D_NORMALIZE`` (scaling by the running peak),
+   *    ``D_GAIN`` (a mixer fader with a log taper).
    *  - DSP sampling: ``D_BUFFER``, ``D_INFO`` (a buffer's details),
    *    ``D_PEEK`` (one sample read or written by message), ``D_POKE`` (a
    *    signal written at signal-rate indexes), ``D_INDEX`` (a buffer read
@@ -356,6 +357,7 @@ namespace YSE {
     DEFOBJ(D_PEAKLIM, "~peaklim");
     DEFOBJ(D_COMP, "~comp");
     DEFOBJ(D_MULTIBAND, "~multiband");
+    DEFOBJ(D_GAIN, "~gain");
 
     DEFOBJ(D_BUFFER, "~buffer");
     DEFOBJ(D_INFO, "~info");

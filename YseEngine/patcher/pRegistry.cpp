@@ -180,6 +180,7 @@
 #include "dynamics/dPeaklim.h"
 #include "dynamics/dComp.h"
 #include "dynamics/dMultiband.h"
+#include "dynamics/dGain.h"
 #include "delay/dDelay.h"
 #include "sampling/dBuffer.h"
 #include "sampling/dInfo.h"
@@ -524,6 +525,7 @@ pRegistry::pRegistry() {
   Add(OBJ::D_PEAKLIM, dPeaklim::Create);
   Add(OBJ::D_COMP, dComp::Create);
   Add(OBJ::D_MULTIBAND, dMultiband::Create);
+  Add(OBJ::D_GAIN, dGain::Create);
   Add(OBJ::D_BUFFER, dBuffer::Create);
   Add(OBJ::D_INFO, dInfo::Create);
   Add(OBJ::D_PEEK, dPeek::Create);

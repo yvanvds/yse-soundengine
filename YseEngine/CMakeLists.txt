@@ -70,6 +70,7 @@ set(YSE_SRCS
   dsp/modules/normalize.cpp
   dsp/dynamics/lookaheadLimiter.cpp
   dsp/dynamics/multibandCompressor.cpp
+  dsp/dynamics/gainFader.cpp
   dsp/modules/morphingReverb.cpp
   dsp/modules/parametricEQ.cpp
   dsp/modules/phaser.cpp
@@ -251,6 +252,7 @@ set(YSE_SRCS
   patcher/dynamics/dPeaklim.cpp
   patcher/dynamics/dComp.cpp
   patcher/dynamics/dMultiband.cpp
+  patcher/dynamics/dGain.cpp
   patcher/sampling/bufferBinding.cpp
   patcher/sampling/dBuffer.cpp
   patcher/sampling/dInfo.cpp
@@ -776,6 +778,7 @@ set_source_files_properties(
   patcher/dynamics/dPeaklim.cpp
   patcher/dynamics/dComp.cpp
   patcher/dynamics/dMultiband.cpp
+  patcher/dynamics/dGain.cpp
   patcher/sampling/bufferBinding.cpp
   patcher/sampling/dBuffer.cpp
   patcher/sampling/dInfo.cpp

@@ -18856,6 +18856,80 @@
     ],
     "requires_midi_device": false
   },
+  "~gain": {
+    "category": "DYNAMICS",
+    "description": "A mixer fader: scales a signal by the gain of a slider position on a log taper, ramping to each new gain over the interpolation time. Position 128 of 158 is unity gain. The host draws the slider.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "The signal to scale; unconnected it reads as silence. A number sets the slider position (its whole part, 0 to size - 1) and sends it out; a bang sends it; a list '<position> [<size>]' is the GUI value back; 'set <n>' sets the position without sending it, and 'set 0 <n>' / 'set 1 <size>' write one GUI cell. Also takes 'size <n>', 'scale <x>', 'inc <x>' and 'interp <ms>'.",
+        "index": 0,
+        "label": "signal",
+        "range": "0 to size - 1"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The interpolation time in milliseconds: how long the gain takes to reach a new position. 0 jumps.",
+        "index": 1,
+        "label": "interp",
+        "range": "0 or more ms"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~gain",
+    "outlets": [
+      {
+        "doc": "The signal times the gain, ramped to each new position.",
+        "index": 0,
+        "label": "out",
+        "range": "any float",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "The slider position, sent when a number, a list or a bang arrives, not on 'set'.",
+        "index": 1,
+        "label": "position",
+        "range": "0 to size - 1",
+        "type": "INT"
+      }
+    ],
+    "params": [
+      {
+        "default": "10",
+        "doc": "The interpolation time in milliseconds ('~gain 50'); the right inlet and 'interp <ms>' set it too. 0 jumps to each new gain.",
+        "name": "interp",
+        "range": "0 or more ms"
+      },
+      {
+        "default": "158",
+        "doc": "The number of slider steps ('~gain 10 128'): the positions are 0 to size - 1, and the gain at a position p above 0 is scale * inc ^ (p - size).",
+        "name": "size",
+        "range": "2 or more"
+      },
+      {
+        "default": "7.94321",
+        "doc": "The gain one step below the top of the slider times inc ('~gain 10 158 1'). The default makes position 128 unity gain.",
+        "name": "scale",
+        "range": "any float"
+      },
+      {
+        "default": "1.071519",
+        "doc": "The factor between the gains of neighbouring positions ('~gain 10 158 7.94321 1.122'). The default is 0.6 dB a step.",
+        "name": "inc",
+        "range": "greater than 0"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~gate": {
     "category": "ROUTING",
     "description": "Sends a signal to one of several outlets, chosen by a number or a signal, or to none; the other outlets carry silence. Switches hard, or crossfades over a ramp time to avoid clicks.",
