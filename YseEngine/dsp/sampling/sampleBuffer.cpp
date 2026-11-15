@@ -668,6 +668,17 @@ void sampleBuffer::setSamples(UInt channel, UInt startFrame, const Flt* values, 
   });
 }
 
+std::uint64_t sampleBuffer::setContents(UInt channelCount, UInt frameCount, const Flt* samples) {
+  // Built before the lock: only the publish needs it. The rate is the one
+  // published when the lock is held, so an edit in between keeps its rate.
+  auto next = std::make_shared<storage>(channelCount, frameCount, 0.f);
+  if (samples != nullptr) std::copy_n(samples, next->samples.size(), next->samples.begin());
+  const std::lock_guard<std::mutex> lock(mutex);
+  next->rate = owner->rate;
+  publishLocked(std::move(next));
+  return owner->version;
+}
+
 UInt sampleBuffer::getSamples(UInt channel, UInt startFrame, Flt* out, UInt count) const {
   if (out == nullptr) return 0;
   const std::shared_ptr<const storage> data = snapshot();

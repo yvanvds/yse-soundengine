@@ -143,6 +143,23 @@ namespace YSE {
     }
 
     /**
+     *  @brief The ``Store`` addressed by @p address if some object holds it,
+     *         else null. Never creates one.
+     *
+     *  Takes the registry's mutex, so never the audio thread: the control
+     *  thread, or a background task that resolves a name it was handed
+     *  (``~stretch``'s ``dictionary``, #1285). A task that finds a store
+     *  holds it for as long as it reads, so the store outlives the objects
+     *  that named it until the task lets go.
+     */
+    template <class Store> std::shared_ptr<Store> FindNamedStore(const std::string& address) {
+      NAMED_STORE::registry<Store>& reg = NAMED_STORE::Registry<Store>();
+      const std::lock_guard<std::mutex> lock(reg.mutex);
+      auto it = reg.stores.find(address);
+      return it == reg.stores.end() ? nullptr : it->second.lock();
+    }
+
+    /**
      *  @brief How many names of this store type are currently held, expired keys
      *         excluded. Diagnostics and tests; control thread only.
      */

@@ -153,6 +153,8 @@ set(YSE_SRCS
   dsp/delay/delayTap.cpp
   dsp/delay/comb.cpp
   dsp/delay/sampleDelay.cpp
+  dsp/delay/pitchShifter.cpp
+  dsp/delay/retune.cpp
   dsp/ramp.cpp
   dsp/rawFilters.cpp
   dsp/sample_functions.cpp
@@ -167,6 +169,7 @@ set(YSE_SRCS
   dsp/sampling/playerOutputs.cpp
   dsp/sampling/bufferPlayer.cpp
   dsp/sampling/groovePlayer.cpp
+  dsp/sampling/timeStretch.cpp
   dsp/routing/signalSelector.cpp
   dsp/routing/mixMatrix.cpp
   dsp/routing/signalBus.cpp
@@ -177,6 +180,7 @@ set(YSE_SRCS
   dsp/spectral/frameAverage.cpp
   dsp/spectral/frameList.cpp
   dsp/spectral/spectralPitchShift.cpp
+  dsp/spectral/spectralFreqShift.cpp
   dsp/sfzModel.cpp
   dsp/wavetable.cpp
   implementations/listenerImplementation.cpp
@@ -235,6 +239,8 @@ set(YSE_SRCS
   patcher/delay/dComb.cpp
   patcher/delay/dDelay.cpp
   patcher/delay/dTeeth.cpp
+  patcher/delay/dPitchshift.cpp
+  patcher/delay/dRetune.cpp
   patcher/dynamics/dNormalize.cpp
   patcher/dynamics/dLimi.cpp
   patcher/dynamics/dPeaklim.cpp
@@ -256,6 +262,7 @@ set(YSE_SRCS
   patcher/sampling/dGroove.cpp
   patcher/sampling/dPhaseGroove.cpp
   patcher/sampling/dSfinfo.cpp
+  patcher/sampling/dStretch.cpp
   patcher/routing/selectorControl.cpp
   patcher/routing/dGate.cpp
   patcher/routing/dSelector.cpp
@@ -270,6 +277,7 @@ set(YSE_SRCS
   patcher/spectral/dFrameAverage.cpp
   patcher/spectral/dFrame.cpp
   patcher/spectral/dGizmo.cpp
+  patcher/spectral/dFbinshift.cpp
   patcher/routing/dSend.cpp
   patcher/routing/dReceive.cpp
   patcher/filters/dVcf.cpp
@@ -752,6 +760,8 @@ set_source_files_properties(
   patcher/delay/dComb.cpp
   patcher/delay/dDelay.cpp
   patcher/delay/dTeeth.cpp
+  patcher/delay/dPitchshift.cpp
+  patcher/delay/dRetune.cpp
   patcher/dynamics/dNormalize.cpp
   patcher/dynamics/dLimi.cpp
   patcher/dynamics/dPeaklim.cpp
@@ -773,6 +783,7 @@ set_source_files_properties(
   patcher/sampling/dGroove.cpp
   patcher/sampling/dPhaseGroove.cpp
   patcher/sampling/dSfinfo.cpp
+  patcher/sampling/dStretch.cpp
   patcher/routing/selectorControl.cpp
   patcher/routing/dGate.cpp
   patcher/routing/dSelector.cpp
@@ -787,6 +798,7 @@ set_source_files_properties(
   patcher/spectral/dFrameAverage.cpp
   patcher/spectral/dFrame.cpp
   patcher/spectral/dGizmo.cpp
+  patcher/spectral/dFbinshift.cpp
   patcher/routing/dSend.cpp
   patcher/routing/dReceive.cpp
   patcher/filters/dVcf.cpp

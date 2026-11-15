@@ -17785,6 +17785,78 @@
     ],
     "requires_midi_device": false
   },
+  "~fbinshift": {
+    "category": "SPECTRAL",
+    "description": "A frequency shifter for a ~pfft's spectral frames: every bin of the spectrum moved by the same number of Hz, the frame's phase turned so the moved partials stay continuous from frame to frame.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The real parts of the frames, from ~fftin's outlet 0. A signal; unconnected, the last number sent here (0). 'clip 1' drops the bins moved below 0 Hz or above Nyquist, 'clip 0' (the default) folds them back as they would alias. Not saved.",
+        "index": 0,
+        "label": "real",
+        "range": "clip"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The imaginary parts of the frames, from ~fftin's outlet 1. A signal; unconnected, the last number sent here (0).",
+        "index": 1,
+        "label": "imaginary",
+        "range": ""
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The frequency shift in Hz, either sign: added to every frequency. A signal, read at the first bin of each frame, or a number while unconnected (the shift argument).",
+        "index": 2,
+        "label": "shift",
+        "range": "Hz"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~fbinshift",
+    "outlets": [
+      {
+        "doc": "The real parts of the shifted frames, for ~fftout. Outside a ~pfft, the real input unchanged.",
+        "index": 0,
+        "label": "real",
+        "range": "",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "The imaginary parts of the shifted frames, for ~fftout. Outside a ~pfft, the imaginary input unchanged.",
+        "index": 1,
+        "label": "imaginary",
+        "range": "",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "The frequency shift in Hz until a number or a signal reaches the shift inlet: above 0 up, below 0 down.",
+        "name": "shift",
+        "range": "Hz"
+      },
+      {
+        "default": "4096",
+        "doc": "The largest frame kept, in bins: half the FFT size of the ~pfft it runs in, or the FFT size with the full spectrum. Bins past it put out 0. Changing it rebuilds the object.",
+        "name": "bins",
+        "range": "1-65536"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~fffb": {
     "category": "FILTER",
     "description": "Bank of bandpass filters in parallel on one input, each with its own center frequency, Q, gain and outlet: vocoders, spectral shaping, resonator banks.",
@@ -21115,6 +21187,61 @@
     "params": [],
     "requires_midi_device": false
   },
+  "~pitchshift": {
+    "category": "DELAY",
+    "description": "Shifts the pitch of one or more channels by a ratio or in cents, keeping their duration: a low-latency granular dual delay line, or a phase vocoder for steadier tone at more latency. The last outlet reports the latency.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The signal of channel 1 (unconnected, the last number sent here, else 0). Takes the attribute messages, as every inlet does.",
+        "index": 0,
+        "label": "channel 1",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The shift, a ratio (2 an octave up) or, with usecents 1, cents (100 a semitone up): a number or a signal read per sample. Takes pitchshift <ratio>, pitchshiftcent <cents>, quality <basic|good|better|best>, constantlatency, enabled, reportlatency and usecents <0|1>, and getlatency.",
+        "index": 1,
+        "label": "shift",
+        "range": "0.25 to 4, or -2400 to 2400 cents"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~pitchshift",
+    "outlets": [
+      {
+        "doc": "Channel 1 shifted, the latency in samples late.",
+        "index": 0,
+        "label": "channel 1",
+        "range": "any float",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "The latency in samples: when reportlatency is turned on, whenever it changes while it is on, and on getlatency.",
+        "index": 1,
+        "label": "latency",
+        "range": "0 or more",
+        "type": "INT"
+      }
+    ],
+    "params": [
+      {
+        "default": "1",
+        "doc": "The channel count (1-16, default 1), then any of 'pitchshift <ratio>' (1), 'pitchshiftcent <cents>', 'quality <basic|good|better|best>' (basic), 'constantlatency <0|1>' (0), 'enabled <0|1>' (1), 'reportlatency <0|1>' (0) and 'usecents <0|1>' (0).",
+        "name": "settings",
+        "range": "a number, then words and values"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~play": {
     "category": "SAMPLING",
     "description": "Plays a named sample buffer from a start to an end point at normal speed or over a given time, forward or backward, once or in a loop, or at the positions a signal gives; bangs when playback reaches its end.",
@@ -21923,6 +22050,80 @@
         "doc": "The gain, the center frequency in Hz and the Q, up to three numbers ('~reson 1 800 20'; they default to 0, 0 and 0.01), or 'gain <x>', 'cf <x>' and 'q <x>'. Later numbers and messages do not change what is saved.",
         "name": "gain",
         "range": "a gain, a center frequency, then a Q"
+      }
+    ],
+    "requires_midi_device": false
+  },
+  "~retune": {
+    "category": "DELAY",
+    "description": "Detects the pitch of a voice or instrument and corrects it toward the nearest enabled note of a scale, or toward a pitch you give it: autotune. The scale is a note list in cents or ratios on a base note, with any subset enabled.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "The signal to correct (unconnected, the last number sent here, else 0). A list of MIDI notes and velocities enables or disables the scale degrees they fall on. Every inlet takes the attribute messages.",
+        "index": 0,
+        "label": "signal",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "A pitch in Hz to correct toward instead of the scale, a signal or a number; 0 follows the scale.",
+        "index": 1,
+        "label": "lock",
+        "range": "0 or a frequency in Hz"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "A detune in cents added to the correction, a signal or a number.",
+        "index": 2,
+        "label": "detune",
+        "range": "cents"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~retune",
+    "outlets": [
+      {
+        "doc": "The corrected signal, the latency in samples late.",
+        "index": 0,
+        "label": "signal",
+        "range": "any float",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "With pitchdetection 1, the detected pitch in Hz per sample (0 when there is none); else zeros.",
+        "index": 1,
+        "label": "pitch",
+        "range": "0 or a frequency in Hz",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "The latency in samples: when reportlatency is turned on, whenever it changes while it is on, and on getlatency.",
+        "index": 2,
+        "label": "latency",
+        "range": "0 or more",
+        "type": "INT"
+      }
+    ],
+    "params": [
+      {
+        "default": "440",
+        "doc": "The standard pitch (the A in Hz, default 440), then any of 'correction_amount <0-100>' (100), 'correction_threshold <cents>' (0), 'correction_ambience_threshold <0-1>' (0.3), 'correction_bypass <percent>' (100), 'notelist <cents or a/b>...' (chromatic), 'notebase <0-11>' (0), 'enablednotes all|<degree>...' (all), 'quality <basic|good|better|best>' (basic), 'retune <0|1>' (1), 'pitchdetection <0|1>' (0), 'windowsize <samples>' (256), 'reportlatency <0|1>' (0) and 'use_16bit <0|1>' (ignored).",
+        "name": "settings",
+        "range": "a number, then words and values"
       }
     ],
     "requires_midi_device": false
@@ -23140,6 +23341,54 @@
         "doc": "The values of the pattern, up to 64. 'curvepattern' makes the numbers after it the curves of the steps (-1 to 1, 0 linear) and 'pattern' makes them values again; 'curvemode <n>' (how a list is read: 0 value-time pairs, 1 value-time-curve triples, 2 auto, pairs as .function sends; default 2) and 'syncupdate <n>' (a new pattern lands 0 at once, 1 when the ramp wraps, 2 when the sequence ends; default 0) set those attributes. Messages do not change what is saved.",
         "name": "pattern",
         "range": "list of numbers"
+      }
+    ],
+    "requires_midi_device": false
+  },
+  "~stretch": {
+    "category": "SAMPLING",
+    "description": "Changes the length and the pitch of a named buffer's contents independently, in the background: twice as long at the same pitch, or an octave up at the same length. Reports its progress and bangs when done.",
+    "inlets": [
+      {
+        "accepts": [
+          "BANG"
+        ],
+        "doc": "bang or apply processes the buffer; cancel stops it; set <name> picks another buffer. Also the attribute messages: stretch, pitchshift, pitchshiftcent, quality, mode, readagain, pitchcorrection, basictuning, slurtime, dictionary <name> (a .dict of markers mapping source times to destination times), followglobaltempo, originaltempo, originallength, transport and progress_enable.",
+        "index": 0,
+        "label": "messages",
+        "range": ""
+      }
+    ],
+    "is_dsp": false,
+    "name": "~stretch",
+    "outlets": [
+      {
+        "doc": "A bang when the buffer holds the result.",
+        "index": 0,
+        "label": "done",
+        "range": "bang",
+        "type": "BANG"
+      },
+      {
+        "doc": "How far the job has got, 0 to 1, while it runs, and 1 just before the bang. Only with progress_enable 1.",
+        "index": 1,
+        "label": "progress",
+        "range": "0-1",
+        "type": "FLOAT"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The buffer to process.",
+        "name": "name",
+        "range": "any symbol"
+      },
+      {
+        "default": "",
+        "doc": "Any of 'stretch <factor>' (1), 'pitchshift <factor>' (1), 'pitchshiftcent <cents>' (0), 'quality <basic|good|better|best>' (better), 'mode <basic|monophonic|rhythmic|general|polyphonic|pads|extremestretch|efficient>' (basic), 'readagain <0|1>' (1), 'pitchcorrection <0|1>' (0), 'basictuning <Hz>' (440), 'slurtime <ms>' (0), 'dictionary <name>', 'followglobaltempo <0|1>' (0), 'originaltempo <bpm>' (120), 'originallength <beats>' (0), 'transport <clock>' and 'progress_enable <0|1>' (1).",
+        "name": "settings",
+        "range": "words and values"
       }
     ],
     "requires_midi_device": false

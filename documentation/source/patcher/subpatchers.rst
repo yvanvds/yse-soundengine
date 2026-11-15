@@ -418,8 +418,8 @@ Stages
 ~~~~~~
 
 Some objects need the whole frame before they can put out any of it: a
-smoothing centred on each bin (``~framesmooth``) or a pitch shift down
-(``~gizmo``) reads bins above the one it puts out, which arrive in a later
+smoothing centred on each bin (``~framesmooth``) or a pitch or frequency
+shift down (``~gizmo``, ``~fbinshift``) reads bins above the one it puts out, which arrive in a later
 pass. Such a *frame-wide* object splits
 the subpatch into *stages*. Everything that feeds it, and the object itself
 taking in the frame, is in one stage; what it feeds is in the next. The

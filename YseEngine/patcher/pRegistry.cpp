@@ -169,6 +169,8 @@
 #include "delay/dTapout.h"
 #include "delay/dComb.h"
 #include "delay/dTeeth.h"
+#include "delay/dPitchshift.h"
+#include "delay/dRetune.h"
 #include "dynamics/dNormalize.h"
 #include "dynamics/dLimi.h"
 #include "dynamics/dPeaklim.h"
@@ -185,6 +187,7 @@
 #include "sampling/dWave.h"
 #include "sampling/dBuffir.h"
 #include "sampling/dStutter.h"
+#include "sampling/dStretch.h"
 #include "sampling/dRecord.h"
 #include "sampling/dPlay.h"
 #include "sampling/dGroove.h"
@@ -203,6 +206,7 @@
 #include "spectral/dFrameAverage.h"
 #include "spectral/dFrame.h"
 #include "spectral/dGizmo.h"
+#include "spectral/dFbinshift.h"
 
 #include "guiObjects/gInt.h"
 #include "guiObjects/gFloat.h"
@@ -505,6 +509,8 @@ pRegistry::pRegistry() {
   Add(OBJ::D_COMB, dComb::Create);
   Add(OBJ::D_TEETH, dTeeth::Create);
   Add(OBJ::D_DELAY, dDelay::Create);
+  Add(OBJ::D_PITCHSHIFT, dPitchshift::Create);
+  Add(OBJ::D_RETUNE, dRetune::Create);
   Add(OBJ::D_NORMALIZE, dNormalize::Create);
   Add(OBJ::D_LIMI, dLimi::Create);
   Add(OBJ::D_PEAKLIM, dPeaklim::Create);
@@ -526,6 +532,7 @@ pRegistry::pRegistry() {
   Add(OBJ::D_WAVE2D, dWave2d::Create);
   Add(OBJ::D_BUFFIR, dBuffir::Create);
   Add(OBJ::D_STUTTER, dStutter::Create);
+  Add(OBJ::D_STRETCH, dStretch::Create);
   Add(OBJ::D_GATE, dGate::Create);
   Add(OBJ::D_SELECTOR, dSelector::Create);
   Add(OBJ::D_MATRIX, dMatrix::Create);
@@ -546,6 +553,7 @@ pRegistry::pRegistry() {
   Add(OBJ::D_FRAME, dFrame::Create);
   Add(OBJ::D_FRAMESNAP, dFramesnap::Create);
   Add(OBJ::D_GIZMO, dGizmo::Create);
+  Add(OBJ::D_FBINSHIFT, dFbinshift::Create);
 
   Add(OBJ::G_SWITCH, gSwitch::Create);
   Add(OBJ::G_GATE, gGate::Create);

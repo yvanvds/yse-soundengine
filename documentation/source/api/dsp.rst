@@ -286,6 +286,23 @@ Delay
 .. doxygenfile:: dsp/delay/sampleDelay.hpp
    :project: libYSE
 
+A real-time pitch shifter: a granular dual delay line whose grains are
+aligned in phase, for low latency, or a phase vocoder built from
+``DSP::stft`` and ``DSP::spectralPitchShift``, for a steadier tone at more
+latency. What ``~pitchshift`` wraps; the class notes give the latency of
+every mode and what each one costs in quality.
+
+.. doxygenfile:: dsp/delay/pitchShifter.hpp
+   :project: libYSE
+
+Pitch correction toward a scale or a set of notes, built from
+``DSP::pitchTracker`` and ``DSP::pitchShifter``: what ``~retune`` wraps.
+``DSP::tuning`` holds the scale (degrees in cents on a base note, any
+subset enabled), and can be filled from a ``YSE::scale``.
+
+.. doxygenfile:: dsp/delay/retune.hpp
+   :project: libYSE
+
 Dynamics
 --------
 
@@ -388,6 +405,17 @@ Its outputs, and the read that mixes the buffer's channels into them, are a
 .. doxygenfile:: dsp/sampling/playerOutputs.hpp
    :project: libYSE
 
+A whole sample buffer made longer or shorter and higher or lower, each on its
+own, offline on a worker thread: what ``~stretch`` does. A phase vocoder with
+identity phase locking on ``stftAnalysis`` / ``stftSynthesis``, onsets copied
+rather than stretched in the rhythmic modes, the pitch shifted by resampling,
+and an optional pitch correction through ``retune``. The result is written
+back with ``sampleBuffer::setContents``, one change that readers never see
+half made.
+
+.. doxygenfile:: dsp/sampling/timeStretch.hpp
+   :project: libYSE
+
 Routing
 -------
 
@@ -472,6 +500,15 @@ whole frame a ``DSP::stft`` callback gets, so it shifts the pitch of a
 stream without a patcher.
 
 .. doxygenfile:: dsp/spectral/spectralPitchShift.hpp
+   :project: libYSE
+
+A frequency shifter for whole spectral frames: every bin moved by the same
+number of Hz, and the frame's phase turned so the moved partials stay
+continuous from frame to frame. What ``~fbinshift`` wraps; like
+``spectralPitchShift`` it takes the whole frame a ``DSP::stft`` callback
+gets, so it shifts a stream without a patcher.
+
+.. doxygenfile:: dsp/spectral/spectralFreqShift.hpp
    :project: libYSE
 
 Filter primitives

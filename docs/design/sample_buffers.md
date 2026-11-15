@@ -300,6 +300,30 @@ are merged across superseded requests, which the generic mailbox does not have.
 
 A rebind is not saved: `DumpJSON` writes the creation argument, as for `~cycle`.
 
+## Offline processing of a whole buffer (#1152)
+
+`~stretch` ([#1152](https://github.com/yvanvds/yse-soundengine/issues/1152)) rewrites a buffer's
+contents with `DSP::timeStretch`, a job that allocates and takes as long as the audio is long, so
+it is a `fileScheduler` `TASK` like a `~buffer` edit: the bang packs a fixed record (the buffer
+**name** and the settings), the task resolves the name on the background pool, processes, and
+publishes the result with `sampleBuffer::setContents(channels, frames, planar)`: one new block,
+one `seq_cst` publish, the rate and the file details kept. Readers pinned on the old block finish
+their block on it; the next pin sees the new shape. Nothing about retirement changes.
+
+The task must not touch the object, yet `cancel` and the progress outlet need a channel between
+them while it runs. That is a small `state` the object and the running task share by id through a
+process-wide weak table (the `bufferBinding` mailbox pattern): a cancel mark (the number of the
+last job requested, one atomic store from any thread, checked before the job starts and between
+frames, so a cancelled job leaves the buffer untouched), the running job's progress (an atomic
+the block poll, `WantsBlockPoll`, turns into the progress outlet), and `readagain`'s private copy
+of the buffer as the first job found it. That copy is reused while the buffer's `version()` is
+the one the last job published, and taken again when someone else changed the buffer. `Teardown`
+cancels everything, because the object itself is freed on the background pool behind its own
+jobs.
+
+The job runs on the one background worker, so file loads queued behind a long stretch wait for
+it.
+
 ## Not ported from Max
 
 `set` / `name` (renaming from a message would look a name up on the audio thread; change the

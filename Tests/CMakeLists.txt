@@ -134,6 +134,10 @@ set(YSE_TEST_SOURCES
   dsp/test_frame_average.cpp
   dsp/test_frame_list.cpp
   dsp/test_spectral_pitch_shift.cpp
+  dsp/test_spectral_freq_shift.cpp
+  dsp/test_pitch_shifter.cpp
+  dsp/test_retune.cpp
+  dsp/test_time_stretch.cpp
   dsp/test_filter_design.cpp
   dsp/test_filter_bands.cpp
   dsp/test_zplane.cpp
@@ -323,6 +327,9 @@ set(YSE_TEST_SOURCES
   patcher/test_patcher_frame_average.cpp
   patcher/test_patcher_frame_list.cpp
   patcher/test_patcher_gizmo.cpp
+  patcher/test_patcher_fbinshift.cpp
+  patcher/test_patcher_pitchshift.cpp
+  patcher/test_patcher_retune.cpp
   patcher/test_patcher_signal_deltaclip.cpp
   patcher/test_patcher_filterdesign.cpp
   patcher/test_patcher_filtergraph.cpp
@@ -363,6 +370,7 @@ set(YSE_TEST_SOURCES
   patcher/test_patcher_tapin_tapout.cpp
   patcher/test_patcher_buffer.cpp
   patcher/test_patcher_info.cpp
+  patcher/test_patcher_stretch.cpp
   patcher/test_patcher_sfinfo.cpp
   patcher/test_patcher_peek_poke.cpp
   patcher/test_patcher_index.cpp
@@ -1540,6 +1548,9 @@ set_source_files_properties(
   patcher/test_patcher_frame_average.cpp
   patcher/test_patcher_frame_list.cpp
   patcher/test_patcher_gizmo.cpp
+  patcher/test_patcher_fbinshift.cpp
+  patcher/test_patcher_pitchshift.cpp
+  patcher/test_patcher_retune.cpp
   patcher/test_patcher_signal_deltaclip.cpp
   patcher/test_patcher_filterdesign.cpp
   patcher/test_patcher_filtergraph.cpp
@@ -1580,6 +1591,7 @@ set_source_files_properties(
   patcher/test_patcher_tapin_tapout.cpp
   patcher/test_patcher_buffer.cpp
   patcher/test_patcher_info.cpp
+  patcher/test_patcher_stretch.cpp
   patcher/test_patcher_sfinfo.cpp
   patcher/test_patcher_peek_poke.cpp
   patcher/test_patcher_index.cpp

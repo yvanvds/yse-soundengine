@@ -413,6 +413,20 @@ namespace YSE {
       void setSamples(UInt channel, UInt startFrame, const Flt* values, UInt count);
 
       /**
+       *  @brief Replace the shape and every sample in one change:
+       *         @p channels channels of @p frames samples each, read from
+       *         @p samples channel after channel (planar).
+       *
+       *  The sample rate and the file details ``info`` reports are kept.
+       *  Readers see the old samples or the new ones, never a mix: what
+       *  an offline process such as ``DSP::timeStretch`` writes back with
+       *  (issue #1152). A null @p samples with a shape gives silence.
+       *
+       *  @return The ``version`` the change was published as.
+       */
+      std::uint64_t setContents(UInt channels, UInt frames, const Flt* samples);
+
+      /**
        *  @brief Copy up to @p count samples of channel @p channel, from
        *         @p startFrame, into @p out.
        *

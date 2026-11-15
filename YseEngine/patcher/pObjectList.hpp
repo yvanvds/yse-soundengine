@@ -49,7 +49,9 @@ namespace YSE {
    *    running minimum and maximum), ``D_CAPTURE`` (signal samples stored
    *    and dumped as lists), ``D_LOUDNESS`` (EBU R 128 loudness in LUFS),
    *    ``D_FZERO`` (the fundamental frequency, peak amplitude and onsets).
-   *  - DSP delay: `D_TAPIN`, `D_TAPOUT`, `D_COMB`, `D_TEETH`, `D_DELAY`.
+   *  - DSP delay: `D_TAPIN`, `D_TAPOUT`, `D_COMB`, `D_TEETH`, `D_DELAY`,
+   *    ``D_PITCHSHIFT`` (a real-time pitch shifter), ``D_RETUNE`` (pitch
+   *    detection and correction toward a scale).
    *  - DSP dynamics: ``D_NORMALIZE`` (scaling by the running peak).
    *  - DSP sampling: ``D_BUFFER``, ``D_INFO`` (a buffer's details),
    *    ``D_PEEK`` (one sample read or written by message), ``D_POKE`` (a
@@ -68,7 +70,8 @@ namespace YSE {
    *    wavetable), ``D_WAVE2D`` (the same, crossfaded across rows),
    *    ``D_BUFFIR`` (a FIR filter whose taps are part of a buffer),
    *    ``D_STUTTER`` (the latest input copied on a trigger and replayed
-   *    by phase).
+   *    by phase), ``D_STRETCH`` (a buffer's length and pitch changed in
+   *    the background).
    *  - DSP routing: ``D_GATE`` (a signal sent to one of several outlets),
    *    ``D_SELECTOR`` (one of several signals passed to the outlet),
    *    ``D_MATRIX`` (every input to every output at a ramped gain),
@@ -84,7 +87,8 @@ namespace YSE {
    *    across frames), ``D_FRAMEAVERAGE`` / ``D_FRAMESMOOTH`` (every bin
    *    averaged over the last frames, and along its own frame), ``D_FRAME`` /
    *    ``D_FRAMESNAP`` (a list as a frame, and a frame as lists),
-   *    ``D_GIZMO`` (a spectral pitch shifter that moves the peaks).
+   *    ``D_GIZMO`` (a spectral pitch shifter that moves the peaks),
+   *    ``D_FBINSHIFT`` (a spectral frequency shifter).
    *  - DSP math: ``D_ADD``, ``D_MULTIPLY``, ``D_CLIP``, ``D_REVERSESUBSTRACT``,
    *    ``D_REVERSEDIVIDE``, ``D_MODULO``, ``D_PLUSEQUALS``,
    *    ``D_DELTA`` (difference between successive samples), ``D_DEGRADE``
@@ -336,6 +340,8 @@ namespace YSE {
     DEFOBJ(D_COMB, "~comb");
     DEFOBJ(D_TEETH, "~teeth");
     DEFOBJ(D_DELAY, "~delay");
+    DEFOBJ(D_PITCHSHIFT, "~pitchshift");
+    DEFOBJ(D_RETUNE, "~retune");
 
     DEFOBJ(D_NORMALIZE, "~normalize");
     DEFOBJ(D_LIMI, "~limi");
@@ -359,6 +365,7 @@ namespace YSE {
     DEFOBJ(D_WAVE2D, "~2d.wave");
     DEFOBJ(D_BUFFIR, "~buffir");
     DEFOBJ(D_STUTTER, "~stutter");
+    DEFOBJ(D_STRETCH, "~stretch");
 
     DEFOBJ(D_GATE, "~gate");
     DEFOBJ(D_SELECTOR, "~selector");
@@ -381,6 +388,7 @@ namespace YSE {
     DEFOBJ(D_FRAME, "~frame");
     DEFOBJ(D_FRAMESNAP, "~framesnap");
     DEFOBJ(D_GIZMO, "~gizmo");
+    DEFOBJ(D_FBINSHIFT, "~fbinshift");
 
     DEFOBJ(G_INT, ".i");
     DEFOBJ(G_FLOAT, ".f");
