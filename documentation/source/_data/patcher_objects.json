@@ -18975,6 +18975,42 @@
     ],
     "requires_midi_device": false
   },
+  "~gridmeter": {
+    "category": "ANALYSIS",
+    "description": "A grid of level meters: measures the peak level of one or more signals with attack and release ballistics and keeps each as the brightness of a cell, with a mute state per cell, for the host to draw.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "LIST"
+        ],
+        "doc": "The signal of the first cell; unconnected it reads as silence. Also takes 'mute <cell> <0|1>', 'muteall <0|1>', 'solo <cell>' (every other cell muted, 0 unmutes all), a list of mute states from cell 1, 'range <dB>', 'attack <ms>', 'release <ms>' and 'interval <ms>'. Cells count from 1.",
+        "index": 0,
+        "label": "signal",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~gridmeter",
+    "outlets": [
+      {
+        "doc": "The mute state of every cell, 1 muted and 0 active, sent after the block that follows a mute, muteall, solo or list.",
+        "index": 0,
+        "label": "mutes",
+        "range": "a list of 0 or 1",
+        "type": "LIST"
+      }
+    ],
+    "params": [
+      {
+        "default": "1 60 300 300 20",
+        "doc": "The number of cells, one signal inlet each (1-64), the range in dB that the brightness covers below 0 dB, the attack and the release in milliseconds, and the update interval in milliseconds (10-2000): '~gridmeter 8 48'. Later messages do not change what is saved.",
+        "name": "gridmeter",
+        "range": "a cell count, a range in dB, then times in ms"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~groove": {
     "category": "SAMPLING",
     "description": "Plays a named sample buffer at the speed of a signal, forward or backward, between loop points it can loop or swing back and forth over, with a sync signal that ramps from 0 to 1 over the loop: a sampler voice.",
@@ -19546,6 +19582,56 @@
     ],
     "requires_midi_device": false
   },
+  "~levelmeter": {
+    "category": "ANALYSIS",
+    "description": "An RMS level meter: measures the RMS level of a signal in dB every update interval with the ballistics of a VU meter or a peak programme meter, sends it out, and keeps the reading, a held peak and a clip indicator for the host to draw.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT",
+          "BANG"
+        ],
+        "doc": "The signal to measure; unconnected it reads as silence. A bang sends the latest reading; a number is shown as that reading in dB and sent out. Also takes 'mode <0-5>', 'attack <ms>', 'release <ms>', 'offset <dB>', 'interval <ms>', 'hold <ms>' and 'clear', which turns the clip indicator off and drops the held peak.",
+        "index": 0,
+        "label": "signal",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~levelmeter",
+    "outlets": [
+      {
+        "doc": "The RMS level in dB after the ballistics, against the offset, sent every update interval. -200 for silence.",
+        "index": 0,
+        "label": "dB",
+        "range": "-200 or more dB",
+        "type": "FLOAT"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "The ballistics: attack, release and the dBFS that reads 0. 0 fast (none), 1 VU (330 ms, 330 ms, -20 dBFS), 2 DIN (10 ms, 1500 ms, -14 dBFS), 3 BBC (10 ms, 3000 ms, -14 dBFS), 4 Nordic (5 ms, 2000 ms, -14 dBFS), 5 EBU (0 ms, 1500 ms, -14 dBFS) ('~levelmeter 1').",
+        "name": "mode",
+        "range": "0-5"
+      },
+      {
+        "default": "20",
+        "doc": "The update interval in milliseconds: the window the RMS is taken over, and how often the reading is sent ('~levelmeter 0 50'). 10 to 2000.",
+        "name": "interval",
+        "range": "10-2000 ms"
+      },
+      {
+        "default": "0",
+        "doc": "How long the held peak stays up, in milliseconds, before it drops to the reading ('~levelmeter 1 20 2000'). 0 makes the held peak the reading.",
+        "name": "hold",
+        "range": "0 or more ms"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~limi": {
     "category": "DYNAMICS",
     "description": "A brickwall lookahead peak limiter: delays the signal by the lookahead and brings the gain down before a peak arrives, so no output sample exceeds the threshold. One inlet and outlet per channel; the channels share one gain.",
@@ -20042,6 +20128,49 @@
         "doc": "Right operand used while no signal is connected to the right inlet.",
         "name": "right",
         "range": "any float"
+      }
+    ],
+    "requires_midi_device": false
+  },
+  "~meter": {
+    "category": "ANALYSIS",
+    "description": "A peak meter: measures the peak amplitude of a signal every update interval and sends it out, and keeps the level, a held peak and a clip indicator for the host to draw as LEDs.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The signal to measure; unconnected it reads as silence. A number is shown as if a signal with that peak had arrived, and is sent out. Also takes 'interval <ms>', 'hold <ms>' and 'clear', which turns the clip indicator off and drops the held peak.",
+        "index": 0,
+        "label": "signal",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~meter",
+    "outlets": [
+      {
+        "doc": "The peak amplitude of the last update interval, the largest absolute sample value in it, sent every interval.",
+        "index": 0,
+        "label": "peak",
+        "range": "0 or more",
+        "type": "FLOAT"
+      }
+    ],
+    "params": [
+      {
+        "default": "50",
+        "doc": "The update interval in milliseconds: how often the level is measured and sent ('~meter 100'). 10 to 2000.",
+        "name": "interval",
+        "range": "10-2000 ms"
+      },
+      {
+        "default": "0",
+        "doc": "How long the held peak stays up, in milliseconds, before it drops to the level ('~meter 50 1500'). 0 makes the held peak the level.",
+        "name": "hold",
+        "range": "0 or more ms"
       }
     ],
     "requires_midi_device": false

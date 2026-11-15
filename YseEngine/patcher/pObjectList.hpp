@@ -48,7 +48,10 @@ namespace YSE {
    *    average absolute value since the last report), ``D_MINMAX`` (the
    *    running minimum and maximum), ``D_CAPTURE`` (signal samples stored
    *    and dumped as lists), ``D_LOUDNESS`` (EBU R 128 loudness in LUFS),
-   *    ``D_FZERO`` (the fundamental frequency, peak amplitude and onsets).
+   *    ``D_FZERO`` (the fundamental frequency, peak amplitude and onsets),
+   *    ``D_METER`` (a peak meter), ``D_LEVELMETER`` (an RMS meter in dB with
+   *    VU or PPM ballistics), ``D_GRIDMETER`` (the levels of several signals
+   *    as the brightness of a grid of cells).
    *  - DSP delay: `D_TAPIN`, `D_TAPOUT`, `D_COMB`, `D_TEETH`, `D_DELAY`,
    *    ``D_PITCHSHIFT`` (a real-time pitch shifter), ``D_RETUNE`` (pitch
    *    detection and correction toward a scale).
@@ -333,6 +336,9 @@ namespace YSE {
     DEFOBJ(D_MINMAX, "~minmax");
     DEFOBJ(D_LOUDNESS, "~loudness");
     DEFOBJ(D_FZERO, "~fzero");
+    DEFOBJ(D_METER, "~meter");
+    DEFOBJ(D_LEVELMETER, "~levelmeter");
+    DEFOBJ(D_GRIDMETER, "~gridmeter");
     DEFOBJ(D_CAPTURE, "~capture");
 
     DEFOBJ(D_TAPIN, "~tapin");

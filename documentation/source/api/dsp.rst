@@ -199,6 +199,13 @@ Analysis
 .. doxygenfile:: dsp/analysis/loudnessMeter.hpp
    :project: libYSE
 
+The peak or RMS level of a signal for a meter, with ballistics, a peak hold
+and a clip indicator: what ``~meter``, ``~levelmeter`` and ``~gridmeter``
+measure.
+
+.. doxygenfile:: dsp/analysis/levelMeter.hpp
+   :project: libYSE
+
 The fundamental frequency of a monophonic signal after the YIN method, with
 its peak amplitude and the onsets of new notes: what ``~fzero`` does.
 

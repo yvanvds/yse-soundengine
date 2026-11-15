@@ -346,3 +346,69 @@ and does nothing.
 .. code-block:: text
 
    [~cycle 220] -> [~fzero] -> [.f]   about 220
+
+.. patcher-object:: ~meter
+
+A peak meter. Every update interval, 50 ms unless the first argument says
+otherwise, it measures the largest absolute sample value of that interval
+and sends it out. The engine only measures; the host draws. It polls the
+GUI value, three numbers: the level and the held peak as amplitudes (1 is
+0 dBFS), and the clip indicator, 1 once a sample went above 1 in magnitude.
+
+The second argument is the hold time in milliseconds: the held peak stays at
+the highest level for that long before it drops back to the level. A number
+in the inlet is shown as if a signal with that peak had arrived, and is sent
+out as well. ``clear`` turns the clip indicator off and drops the held peak.
+How many LEDs the level lights, and in which colours, is up to the host.
+
+.. code-block:: text
+
+   [~cycle 440] -> [~* 0.5] -> [~meter 100]   0.5, ten times a second
+
+.. patcher-object:: ~levelmeter
+
+An RMS level meter in dB. Every update interval, 20 ms unless the second
+argument says otherwise, it measures the root mean square of that interval,
+moves its reading toward it with attack and release ballistics, and sends
+the reading out. The GUI value holds the reading, the held peak, both in dB,
+and the clip indicator; silence reads -200.
+
+The first argument, or ``mode``, picks the ballistics of a standard meter:
+
+- 0: fast, no ballistics and no offset
+- 1: VU, 330 ms attack and release, 0 at -20 dBFS
+- 2: DIN, 10 ms attack, 1500 ms release, 0 at -14 dBFS
+- 3: BBC, 10 ms attack, 3000 ms release, 0 at -14 dBFS
+- 4: Nordic, 5 ms attack, 2000 ms release, 0 at -14 dBFS
+- 5: EBU, no attack time, 1500 ms release, 0 at -14 dBFS
+
+The offset is the reference level, the dBFS that reads 0, so a VU meter
+reads 0 for a signal at -20 dBFS RMS and +20 at full scale. ``attack``, ``release`` and ``offset`` change one of the three.
+The third argument is the hold time of the held peak. A bang sends the
+reading; a number is shown as that reading in dB and sent out. ``clear``
+turns the clip indicator off and drops the held peak.
+
+.. code-block:: text
+
+   [~cycle 1000] -> [~* 0.5] -> [~levelmeter 1]   about 11 on a VU meter
+
+.. patcher-object:: ~gridmeter
+
+Shows the levels of several signals as the brightness of a grid of cells,
+one cell per signal inlet; the first argument is how many. Each level is a
+peak level with attack and release ballistics, 300 ms each by default. The
+GUI value holds a brightness per cell, then a mute state per cell. A
+brightness is 0 at the bottom of the range, ``-range`` dB (60 by default),
+and 1 at 0 dB; above 1 the signal is louder than 0 dB, where the host shows
+the hot colour.
+
+The mute states are for the host to draw and for the patch to use: after
+``mute <cell> <0|1>``, ``muteall <0|1>``, ``solo <cell>`` or a list of 0s
+and 1s, the outlet sends every cell's state at the end of the next block, 1
+for muted. Cells count from 1, and ``solo 0`` unmutes all of them. The
+arguments are the cell count, the range in dB, the attack, the release and
+the update interval in milliseconds (``~gridmeter 8 48 300 300 20``).
+
+.. code-block:: text
+
+   [~cycle 1000] -> [~* 0.5] -> [~gridmeter 1]   a cell at about 0.9

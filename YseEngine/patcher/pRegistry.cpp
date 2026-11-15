@@ -164,6 +164,9 @@
 #include "analysis/dMinmax.h"
 #include "analysis/dLoudness.h"
 #include "analysis/dFzero.h"
+#include "analysis/dMeter.h"
+#include "analysis/dLevelmeter.h"
+#include "analysis/dGridmeter.h"
 #include "analysis/dCapture.h"
 #include "delay/dTapin.h"
 #include "delay/dTapout.h"
@@ -503,6 +506,9 @@ pRegistry::pRegistry() {
   Add(OBJ::D_MINMAX, dMinmax::Create);
   Add(OBJ::D_LOUDNESS, dLoudness::Create);
   Add(OBJ::D_FZERO, dFzero::Create);
+  Add(OBJ::D_METER, dMeter::Create);
+  Add(OBJ::D_LEVELMETER, dLevelmeter::Create);
+  Add(OBJ::D_GRIDMETER, dGridmeter::Create);
   Add(OBJ::D_CAPTURE, dCapture::Create);
   Add(OBJ::D_TAPIN, dTapin::Create);
   Add(OBJ::D_TAPOUT, dTapout::Create);
