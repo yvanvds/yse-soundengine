@@ -206,6 +206,13 @@ measure.
 .. doxygenfile:: dsp/analysis/levelMeter.hpp
    :project: libYSE
 
+An oscilloscope's traces of a signal or an X/Y pair, with samples-per-point
+decimation, a delay and a trigger, handed to a reader on another thread
+through a triple buffer: what ``~scope`` captures.
+
+.. doxygenfile:: dsp/analysis/scopeCapture.hpp
+   :project: libYSE
+
 The fundamental frequency of a monophonic signal after the YIN method, with
 its peak amplitude and the onsets of new notes: what ``~fzero`` does.
 

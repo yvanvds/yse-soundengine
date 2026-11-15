@@ -169,6 +169,7 @@
 #include "analysis/dGridmeter.h"
 #include "analysis/dNumber.h"
 #include "analysis/dCapture.h"
+#include "analysis/dScope.h"
 #include "delay/dTapin.h"
 #include "delay/dTapout.h"
 #include "delay/dComb.h"
@@ -513,6 +514,7 @@ pRegistry::pRegistry() {
   Add(OBJ::D_GRIDMETER, dGridmeter::Create);
   Add(OBJ::D_NUMBER, dNumber::Create);
   Add(OBJ::D_CAPTURE, dCapture::Create);
+  Add(OBJ::D_SCOPE, dScope::Create);
   Add(OBJ::D_TAPIN, dTapin::Create);
   Add(OBJ::D_TAPOUT, dTapout::Create);
   Add(OBJ::D_COMB, dComb::Create);

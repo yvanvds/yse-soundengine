@@ -141,6 +141,7 @@
 #include "dsp/analysis/pitchTracker.hpp"
 #include "dsp/analysis/sampleCapture.hpp"
 #include "dsp/analysis/levelMeter.hpp"
+#include "dsp/analysis/scopeCapture.hpp"
 #include "dsp/operators/compare.hpp"
 #include "dsp/operators/trig.hpp"
 #include "dsp/operators/rounding.hpp"

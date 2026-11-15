@@ -22774,6 +22774,70 @@
     ],
     "requires_midi_device": false
   },
+  "~scope": {
+    "category": "ANALYSIS",
+    "description": "An oscilloscope: captures traces of a signal, or of an X/Y pair of signals, with a number of samples per point and an optional trigger, for the host to draw.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The signal to show, or X when the right inlet has a cord; unconnected it reads as silence. An int (or the whole part of a float) sets calccount. Also takes 'calccount <n>', 'bufsize <n>', 'delay <ms>', 'trigger <0|1|2>' and 'triglevel <x>'.",
+        "index": 0,
+        "label": "signal",
+        "range": "any float"
+      },
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "Y: with a cord here the scope shows X against Y, without one a waveform. An int (or the whole part of a float) sets bufsize.",
+        "index": 1,
+        "label": "y",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~scope",
+    "outlets": [],
+    "params": [
+      {
+        "default": "256",
+        "doc": "The samples each point of a trace stands for ('~scope 64'). A waveform point is their minimum and maximum, an X/Y point the first of them.",
+        "name": "calccount",
+        "range": "2-8192"
+      },
+      {
+        "default": "128",
+        "doc": "The points of a trace ('~scope 64 256'). A trace covers calccount * bufsize samples.",
+        "name": "bufsize",
+        "range": "2-8192"
+      },
+      {
+        "default": "0",
+        "doc": "The wait in milliseconds between the end of a trace and the trigger of the next ('~scope 256 128 500').",
+        "name": "delay",
+        "range": "0 or more ms"
+      },
+      {
+        "default": "0",
+        "doc": "When a trace starts after the delay ('~scope 256 128 0 1'): 0 at once, 1 when the signal (or X) rises to triglevel, 2 when it falls to it.",
+        "name": "trigger",
+        "range": "0, 1 or 2"
+      },
+      {
+        "default": "0",
+        "doc": "The level the triggers watch for ('~scope 256 128 0 1 0.5').",
+        "name": "triglevel",
+        "range": "any float"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~selector": {
     "category": "ROUTING",
     "description": "Passes one of several input signals to its outlet, chosen by a number or a signal, or none. Switches hard, or crossfades over a ramp time to avoid clicks.",

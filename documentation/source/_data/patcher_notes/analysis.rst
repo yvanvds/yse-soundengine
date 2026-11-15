@@ -437,3 +437,31 @@ colours, is up to the host.
 .. code-block:: text
 
    [.f] -> [~number 50 100 1] -> [~number] -> [.f]   ramps in 50 ms, then shows it
+
+.. patcher-object:: ~scope
+
+An oscilloscope. The engine captures traces of a signal and the host draws
+them. A trace is ``bufsize`` points, 128 unless the second argument says
+otherwise, and each point stands for ``calccount`` samples, 256 unless the
+first argument says otherwise. With one signal, in the left inlet, a point
+holds the minimum and the maximum of its samples, so no peak goes missing.
+With a cord on the right inlet as well, the scope shows X against Y: a point
+holds the first left sample of its samples and the right one beside it.
+
+The GUI value is the newest finished trace: the mode (0 for a waveform, 1
+for X/Y), the number of points, a trace number that goes up with every new
+trace, and then two numbers per point. Before the first trace it is
+``0 0 0``.
+
+Between traces the scope waits ``delay`` milliseconds, the third argument.
+The fourth argument, ``trigger``, then decides when the next trace starts:
+0 at once, 1 when the signal (or X) rises through ``triglevel``, the fifth
+argument, and 2 when it falls through it. A trigger holds a periodic signal
+still on the screen. An int in the left inlet sets ``calccount``, in the
+right inlet ``bufsize``. Every setting also takes a message of its own name,
+such as ``trigger 1``. Colours, the vertical range and the grid are up to
+the host.
+
+.. code-block:: text
+
+   [~phasor 100] -> [~scope 2 64 0 1 0.5]   a rising ramp from 0.5, held still

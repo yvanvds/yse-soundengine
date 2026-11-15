@@ -60,6 +60,7 @@ set(YSE_TEST_SOURCES
   dsp/test_min_max.cpp
   dsp/test_loudness_meter.cpp
   dsp/test_level_meter.cpp
+  dsp/test_scope_capture.cpp
   dsp/test_pitch_tracker.cpp
   dsp/test_sample_capture.cpp
   dsp/test_compare.cpp
@@ -360,6 +361,7 @@ set(YSE_TEST_SOURCES
   patcher/test_patcher_signal_minmax.cpp
   patcher/test_patcher_signal_loudness.cpp
   patcher/test_patcher_signal_meters.cpp
+  patcher/test_patcher_signal_scope.cpp
   patcher/test_patcher_signal_number.cpp
   patcher/test_patcher_signal_fzero.cpp
   patcher/test_patcher_signal_capture.cpp
