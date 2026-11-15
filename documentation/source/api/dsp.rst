@@ -199,6 +199,27 @@ Analysis
 .. doxygenfile:: dsp/analysis/loudnessMeter.hpp
    :project: libYSE
 
+The peak or RMS level of a signal for a meter, with ballistics, a peak hold
+and a clip indicator: what ``~meter``, ``~levelmeter`` and ``~gridmeter``
+measure.
+
+.. doxygenfile:: dsp/analysis/levelMeter.hpp
+   :project: libYSE
+
+An oscilloscope's traces of a signal or an X/Y pair, with samples-per-point
+decimation, a delay and a trigger, handed to a reader on another thread
+through a triple buffer: what ``~scope`` captures.
+
+.. doxygenfile:: dsp/analysis/scopeCapture.hpp
+   :project: libYSE
+
+The amplitude or phase spectrum of a signal, or of a ``~pfft``'s spectral
+frames, every update interval, handed to a reader on another thread through
+a triple buffer: what ``~spectroscope`` measures.
+
+.. doxygenfile:: dsp/analysis/spectrumAnalyzer.hpp
+   :project: libYSE
+
 The fundamental frequency of a monophonic signal after the YIN method, with
 its peak amplitude and the onsets of new notes: what ``~fzero`` does.
 
@@ -310,6 +331,11 @@ Dynamics
    :project: libYSE
 
 .. doxygenfile:: dsp/dynamics/multibandCompressor.hpp
+   :project: libYSE
+
+The mixer fader that ``~gain`` wraps: a slider position on a log taper, ramped.
+
+.. doxygenfile:: dsp/dynamics/gainFader.hpp
    :project: libYSE
 
 The compressor that ``~comp`` wraps, :cpp:class:`YSE::DSP::MODULES::compressor`,

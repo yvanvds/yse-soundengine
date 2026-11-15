@@ -49,6 +49,7 @@ set(YSE_TEST_SOURCES
   dsp/test_normalize.cpp
   dsp/test_lookahead_limiter.cpp
   dsp/test_multiband_compressor.cpp
+  dsp/test_gain_fader.cpp
   dsp/test_direction.cpp
   dsp/test_edge_detector.cpp
   dsp/test_schmitt_trigger.cpp
@@ -58,6 +59,9 @@ set(YSE_TEST_SOURCES
   dsp/test_moving_average.cpp
   dsp/test_min_max.cpp
   dsp/test_loudness_meter.cpp
+  dsp/test_level_meter.cpp
+  dsp/test_scope_capture.cpp
+  dsp/test_spectrum_analyzer.cpp
   dsp/test_pitch_tracker.cpp
   dsp/test_sample_capture.cpp
   dsp/test_compare.cpp
@@ -346,6 +350,7 @@ set(YSE_TEST_SOURCES
   patcher/test_patcher_signal_limiters.cpp
   patcher/test_patcher_signal_comp.cpp
   patcher/test_patcher_signal_multiband.cpp
+  patcher/test_patcher_signal_gain.cpp
   patcher/test_patcher_signal_change.cpp
   patcher/test_patcher_signal_edge.cpp
   patcher/test_patcher_signal_thresh.cpp
@@ -356,6 +361,10 @@ set(YSE_TEST_SOURCES
   patcher/test_patcher_signal_avg.cpp
   patcher/test_patcher_signal_minmax.cpp
   patcher/test_patcher_signal_loudness.cpp
+  patcher/test_patcher_signal_meters.cpp
+  patcher/test_patcher_signal_scope.cpp
+  patcher/test_patcher_signal_spectroscope.cpp
+  patcher/test_patcher_signal_number.cpp
   patcher/test_patcher_signal_fzero.cpp
   patcher/test_patcher_signal_capture.cpp
   patcher/test_patcher_signal_compare.cpp
@@ -1567,6 +1576,7 @@ set_source_files_properties(
   patcher/test_patcher_signal_limiters.cpp
   patcher/test_patcher_signal_comp.cpp
   patcher/test_patcher_signal_multiband.cpp
+  patcher/test_patcher_signal_gain.cpp
   patcher/test_patcher_signal_change.cpp
   patcher/test_patcher_signal_edge.cpp
   patcher/test_patcher_signal_thresh.cpp
@@ -1577,6 +1587,8 @@ set_source_files_properties(
   patcher/test_patcher_signal_avg.cpp
   patcher/test_patcher_signal_minmax.cpp
   patcher/test_patcher_signal_loudness.cpp
+  patcher/test_patcher_signal_meters.cpp
+  patcher/test_patcher_signal_number.cpp
   patcher/test_patcher_signal_fzero.cpp
   patcher/test_patcher_signal_capture.cpp
   patcher/test_patcher_signal_compare.cpp

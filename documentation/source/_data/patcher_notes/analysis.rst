@@ -346,3 +346,151 @@ and does nothing.
 .. code-block:: text
 
    [~cycle 220] -> [~fzero] -> [.f]   about 220
+
+.. patcher-object:: ~meter
+
+A peak meter. Every update interval, 50 ms unless the first argument says
+otherwise, it measures the largest absolute sample value of that interval
+and sends it out. The engine only measures; the host draws. It polls the
+GUI value, three numbers: the level and the held peak as amplitudes (1 is
+0 dBFS), and the clip indicator, 1 once a sample went above 1 in magnitude.
+
+The second argument is the hold time in milliseconds: the held peak stays at
+the highest level for that long before it drops back to the level. A number
+in the inlet is shown as if a signal with that peak had arrived, and is sent
+out as well. ``clear`` turns the clip indicator off and drops the held peak.
+How many LEDs the level lights, and in which colours, is up to the host.
+
+.. code-block:: text
+
+   [~cycle 440] -> [~* 0.5] -> [~meter 100]   0.5, ten times a second
+
+.. patcher-object:: ~levelmeter
+
+An RMS level meter in dB. Every update interval, 20 ms unless the second
+argument says otherwise, it measures the root mean square of that interval,
+moves its reading toward it with attack and release ballistics, and sends
+the reading out. The GUI value holds the reading, the held peak, both in dB,
+and the clip indicator; silence reads -200.
+
+The first argument, or ``mode``, picks the ballistics of a standard meter:
+
+- 0: fast, no ballistics and no offset
+- 1: VU, 330 ms attack and release, 0 at -20 dBFS
+- 2: DIN, 10 ms attack, 1500 ms release, 0 at -14 dBFS
+- 3: BBC, 10 ms attack, 3000 ms release, 0 at -14 dBFS
+- 4: Nordic, 5 ms attack, 2000 ms release, 0 at -14 dBFS
+- 5: EBU, no attack time, 1500 ms release, 0 at -14 dBFS
+
+The offset is the reference level, the dBFS that reads 0, so a VU meter
+reads 0 for a signal at -20 dBFS RMS and +20 at full scale. ``attack``, ``release`` and ``offset`` change one of the three.
+The third argument is the hold time of the held peak. A bang sends the
+reading; a number is shown as that reading in dB and sent out. ``clear``
+turns the clip indicator off and drops the held peak.
+
+.. code-block:: text
+
+   [~cycle 1000] -> [~* 0.5] -> [~levelmeter 1]   about 11 on a VU meter
+
+.. patcher-object:: ~gridmeter
+
+Shows the levels of several signals as the brightness of a grid of cells,
+one cell per signal inlet; the first argument is how many. Each level is a
+peak level with attack and release ballistics, 300 ms each by default. The
+GUI value holds a brightness per cell, then a mute state per cell. A
+brightness is 0 at the bottom of the range, ``-range`` dB (60 by default),
+and 1 at 0 dB; above 1 the signal is louder than 0 dB, where the host shows
+the hot colour.
+
+The mute states are for the host to draw and for the patch to use: after
+``mute <cell> <0|1>``, ``muteall <0|1>``, ``solo <cell>`` or a list of 0s
+and 1s, the outlet sends every cell's state at the end of the next block, 1
+for muted. Cells count from 1, and ``solo 0`` unmutes all of them. The
+arguments are the cell count, the range in dB, the attack, the release and
+the update interval in milliseconds (``~gridmeter 8 48 300 300 20``).
+
+.. code-block:: text
+
+   [~cycle 1000] -> [~* 0.5] -> [~gridmeter 1]   a cell at about 0.9
+
+.. patcher-object:: ~number
+
+A number box for signals, for debugging a patch. It does two things at
+once. It monitors the signal in its left inlet: every update interval, 100
+ms unless the second argument says otherwise, it takes one sample of it and
+sends it out the right outlet. And it generates a signal: the left outlet is
+the last number sent to the left inlet as a constant, ramping to each new
+number over the ramp time, the first argument or the right inlet, in
+milliseconds (0 jumps). A list ``<value> <ramp>`` sets both. The output
+ignores the monitored signal.
+
+The engine keeps the state; the host draws the box. Its GUI value is three
+numbers: the value shown, the display mode and the modes allowed. In monitor
+mode (2, the default) the box shows the monitored sample, in output mode (1)
+the last number. ``mode`` switches, ``allow`` limits the modes to output (1),
+monitor (2) or both (3), and ``monitormode`` and ``sigoutmode`` turn one
+half of that on or off. ``set`` shows a number without sending it out, and a
+bang in output mode then sends it. ``min`` and ``max`` clamp the numbers; on
+their own they remove the limit. How many decimals to show, and in which
+colours, is up to the host.
+
+.. code-block:: text
+
+   [.f] -> [~number 50 100 1] -> [~number] -> [.f]   ramps in 50 ms, then shows it
+
+.. patcher-object:: ~scope
+
+An oscilloscope. The engine captures traces of a signal and the host draws
+them. A trace is ``bufsize`` points, 128 unless the second argument says
+otherwise, and each point stands for ``calccount`` samples, 256 unless the
+first argument says otherwise. With one signal, in the left inlet, a point
+holds the minimum and the maximum of its samples, so no peak goes missing.
+With a cord on the right inlet as well, the scope shows X against Y: a point
+holds the first left sample of its samples and the right one beside it.
+
+The GUI value is the newest finished trace: the mode (0 for a waveform, 1
+for X/Y), the number of points, a trace number that goes up with every new
+trace, and then two numbers per point. Before the first trace it is
+``0 0 0``.
+
+Between traces the scope waits ``delay`` milliseconds, the third argument.
+The fourth argument, ``trigger``, then decides when the next trace starts:
+0 at once, 1 when the signal (or X) rises through ``triglevel``, the fifth
+argument, and 2 when it falls through it. A trigger holds a periodic signal
+still on the screen. An int in the left inlet sets ``calccount``, in the
+right inlet ``bufsize``. Every setting also takes a message of its own name,
+such as ``trigger 1``. Colours, the vertical range and the grid are up to
+the host.
+
+.. code-block:: text
+
+   [~phasor 100] -> [~scope 2 64 0 1 0.5]   a rising ramp from 0.5, held still
+
+.. patcher-object:: ~spectroscope
+
+A spectrum analyser. The engine measures the spectrum of a signal and the
+host draws it. Every ``interval`` milliseconds, 20 unless the first argument
+says otherwise, it takes the latest ``size`` samples, 4096 unless the third
+argument says otherwise, weights them with a Hann window and transforms
+them. A frame holds ``size / 2 + 1`` bins, from DC to half the sample rate.
+The amplitudes are scaled so that a sine reads its own amplitude in its bin.
+With ``phasespect`` 1, the second argument, the bins hold phases in radians
+instead.
+
+The GUI value is the newest frame: the mode (0 for amplitudes, 1 for
+phases), the FFT size, the number of bins, a frame number that goes up with
+every new frame, the sample rate, and then one number per bin. Bin ``j`` is
+``j * rate / size`` Hz. Before the first frame it is ``0 0 0 0 0``. A
+spectrogram draws the newest frame. A sonogram adds one column per new
+frame, and the frame number shows how many columns a slow host missed.
+
+Inside a ``~pfft``, connect ``~fftin``'s left outlet to the left inlet and
+its second outlet to the right inlet: the ``~spectroscope`` then shows the
+``~pfft``'s own frames, one every ``interval``. Elsewhere the right inlet
+does nothing. Every setting also takes a message of its own name, such as
+``phasespect 1``. Colours, the frequency and amplitude ranges, logarithmic
+scales and the sonogram's scrolling are up to the host.
+
+.. code-block:: text
+
+   [~adc] -> [~spectroscope 50 0 2048]   a spectrum every 50 ms, 1025 bins

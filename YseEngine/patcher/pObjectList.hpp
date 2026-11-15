@@ -48,11 +48,19 @@ namespace YSE {
    *    average absolute value since the last report), ``D_MINMAX`` (the
    *    running minimum and maximum), ``D_CAPTURE`` (signal samples stored
    *    and dumped as lists), ``D_LOUDNESS`` (EBU R 128 loudness in LUFS),
-   *    ``D_FZERO`` (the fundamental frequency, peak amplitude and onsets).
+   *    ``D_FZERO`` (the fundamental frequency, peak amplitude and onsets),
+   *    ``D_METER`` (a peak meter), ``D_LEVELMETER`` (an RMS meter in dB with
+   *    VU or PPM ballistics), ``D_GRIDMETER`` (the levels of several signals
+   *    as the brightness of a grid of cells), ``D_NUMBER`` (a signal monitor
+   *    and constant generator: MSP's debugging number box), ``D_SCOPE``
+   *    (an oscilloscope's traces of a signal or an X/Y pair),
+   *    ``D_SPECTROSCOPE`` (a spectrum analyser's frames, for a spectrogram
+   *    or a sonogram).
    *  - DSP delay: `D_TAPIN`, `D_TAPOUT`, `D_COMB`, `D_TEETH`, `D_DELAY`,
    *    ``D_PITCHSHIFT`` (a real-time pitch shifter), ``D_RETUNE`` (pitch
    *    detection and correction toward a scale).
-   *  - DSP dynamics: ``D_NORMALIZE`` (scaling by the running peak).
+   *  - DSP dynamics: ``D_NORMALIZE`` (scaling by the running peak),
+   *    ``D_GAIN`` (a mixer fader with a log taper).
    *  - DSP sampling: ``D_BUFFER``, ``D_INFO`` (a buffer's details),
    *    ``D_PEEK`` (one sample read or written by message), ``D_POKE`` (a
    *    signal written at signal-rate indexes), ``D_INDEX`` (a buffer read
@@ -333,6 +341,12 @@ namespace YSE {
     DEFOBJ(D_MINMAX, "~minmax");
     DEFOBJ(D_LOUDNESS, "~loudness");
     DEFOBJ(D_FZERO, "~fzero");
+    DEFOBJ(D_METER, "~meter");
+    DEFOBJ(D_LEVELMETER, "~levelmeter");
+    DEFOBJ(D_GRIDMETER, "~gridmeter");
+    DEFOBJ(D_NUMBER, "~number");
+    DEFOBJ(D_SCOPE, "~scope");
+    DEFOBJ(D_SPECTROSCOPE, "~spectroscope");
     DEFOBJ(D_CAPTURE, "~capture");
 
     DEFOBJ(D_TAPIN, "~tapin");
@@ -348,6 +362,7 @@ namespace YSE {
     DEFOBJ(D_PEAKLIM, "~peaklim");
     DEFOBJ(D_COMP, "~comp");
     DEFOBJ(D_MULTIBAND, "~multiband");
+    DEFOBJ(D_GAIN, "~gain");
 
     DEFOBJ(D_BUFFER, "~buffer");
     DEFOBJ(D_INFO, "~info");

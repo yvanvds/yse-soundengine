@@ -164,7 +164,13 @@
 #include "analysis/dMinmax.h"
 #include "analysis/dLoudness.h"
 #include "analysis/dFzero.h"
+#include "analysis/dMeter.h"
+#include "analysis/dLevelmeter.h"
+#include "analysis/dGridmeter.h"
+#include "analysis/dNumber.h"
 #include "analysis/dCapture.h"
+#include "analysis/dScope.h"
+#include "analysis/dSpectroscope.h"
 #include "delay/dTapin.h"
 #include "delay/dTapout.h"
 #include "delay/dComb.h"
@@ -176,6 +182,7 @@
 #include "dynamics/dPeaklim.h"
 #include "dynamics/dComp.h"
 #include "dynamics/dMultiband.h"
+#include "dynamics/dGain.h"
 #include "delay/dDelay.h"
 #include "sampling/dBuffer.h"
 #include "sampling/dInfo.h"
@@ -503,7 +510,13 @@ pRegistry::pRegistry() {
   Add(OBJ::D_MINMAX, dMinmax::Create);
   Add(OBJ::D_LOUDNESS, dLoudness::Create);
   Add(OBJ::D_FZERO, dFzero::Create);
+  Add(OBJ::D_METER, dMeter::Create);
+  Add(OBJ::D_LEVELMETER, dLevelmeter::Create);
+  Add(OBJ::D_GRIDMETER, dGridmeter::Create);
+  Add(OBJ::D_NUMBER, dNumber::Create);
   Add(OBJ::D_CAPTURE, dCapture::Create);
+  Add(OBJ::D_SCOPE, dScope::Create);
+  Add(OBJ::D_SPECTROSCOPE, dSpectroscope::Create);
   Add(OBJ::D_TAPIN, dTapin::Create);
   Add(OBJ::D_TAPOUT, dTapout::Create);
   Add(OBJ::D_COMB, dComb::Create);
@@ -516,6 +529,7 @@ pRegistry::pRegistry() {
   Add(OBJ::D_PEAKLIM, dPeaklim::Create);
   Add(OBJ::D_COMP, dComp::Create);
   Add(OBJ::D_MULTIBAND, dMultiband::Create);
+  Add(OBJ::D_GAIN, dGain::Create);
   Add(OBJ::D_BUFFER, dBuffer::Create);
   Add(OBJ::D_INFO, dInfo::Create);
   Add(OBJ::D_PEEK, dPeek::Create);

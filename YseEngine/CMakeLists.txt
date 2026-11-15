@@ -70,6 +70,7 @@ set(YSE_SRCS
   dsp/modules/normalize.cpp
   dsp/dynamics/lookaheadLimiter.cpp
   dsp/dynamics/multibandCompressor.cpp
+  dsp/dynamics/gainFader.cpp
   dsp/modules/morphingReverb.cpp
   dsp/modules/parametricEQ.cpp
   dsp/modules/phaser.cpp
@@ -143,6 +144,9 @@ set(YSE_SRCS
   dsp/analysis/loudnessMeter.cpp
   dsp/analysis/pitchTracker.cpp
   dsp/analysis/sampleCapture.cpp
+  dsp/analysis/levelMeter.cpp
+  dsp/analysis/scopeCapture.cpp
+  dsp/analysis/spectrumAnalyzer.cpp
   dsp/operators/compare.cpp
   dsp/operators/trig.cpp
   dsp/operators/rounding.cpp
@@ -232,6 +236,12 @@ set(YSE_SRCS
   patcher/analysis/dLoudness.cpp
   patcher/analysis/dFzero.cpp
   patcher/analysis/dCapture.cpp
+  patcher/analysis/dScope.cpp
+  patcher/analysis/dSpectroscope.cpp
+  patcher/analysis/dMeter.cpp
+  patcher/analysis/dLevelmeter.cpp
+  patcher/analysis/dGridmeter.cpp
+  patcher/analysis/dNumber.cpp
   patcher/analysis/dWhat.cpp
   patcher/analysis/dWhere.cpp
   patcher/delay/dTapin.cpp
@@ -246,6 +256,7 @@ set(YSE_SRCS
   patcher/dynamics/dPeaklim.cpp
   patcher/dynamics/dComp.cpp
   patcher/dynamics/dMultiband.cpp
+  patcher/dynamics/dGain.cpp
   patcher/sampling/bufferBinding.cpp
   patcher/sampling/dBuffer.cpp
   patcher/sampling/dInfo.cpp
@@ -753,6 +764,12 @@ set_source_files_properties(
   patcher/analysis/dLoudness.cpp
   patcher/analysis/dFzero.cpp
   patcher/analysis/dCapture.cpp
+  patcher/analysis/dScope.cpp
+  patcher/analysis/dSpectroscope.cpp
+  patcher/analysis/dMeter.cpp
+  patcher/analysis/dLevelmeter.cpp
+  patcher/analysis/dGridmeter.cpp
+  patcher/analysis/dNumber.cpp
   patcher/analysis/dWhat.cpp
   patcher/analysis/dWhere.cpp
   patcher/delay/dTapin.cpp
@@ -767,6 +784,7 @@ set_source_files_properties(
   patcher/dynamics/dPeaklim.cpp
   patcher/dynamics/dComp.cpp
   patcher/dynamics/dMultiband.cpp
+  patcher/dynamics/dGain.cpp
   patcher/sampling/bufferBinding.cpp
   patcher/sampling/dBuffer.cpp
   patcher/sampling/dInfo.cpp

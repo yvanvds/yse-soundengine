@@ -221,3 +221,39 @@ off. An unconnected inlet reads the last number sent to it, else 0.
 
    [~multiband 5 threshold -24 ratio 3 ratio1 6 freq1 90 output 2]
    a mix held together, the lowest band held hardest, 2 dB louder overall
+
+.. patcher-object:: ~gain
+
+A mixer fader. The signal in the left inlet comes out multiplied by the gain
+of a slider position, and when the position changes the gain moves to the new
+value in a straight line over the interpolation time, 10 milliseconds unless
+the first argument or the right inlet says otherwise (0 jumps), so moving the
+fader does not click.
+
+The slider has ``size`` steps, 158 by default: positions 0 to 157. Position 0
+is silence. Above it the taper is logarithmic: the gain at position ``p`` is
+``scale * inc ^ (p - size)``, so each step multiplies the gain by ``inc``.
+With the defaults (``scale`` 7.94321, ``inc`` 1.071519) a step is 0.6 dB and
+ten steps are 6 dB, position 128 is unity gain, position 1 is 75.6 dB below
+127, and the top position, 157, is 17.4 dB above unity. The arguments are
+``interp``, ``size``, ``scale`` and ``inc``, in that order; the words
+``interp``, ``size``, ``scale`` and ``inc`` followed by a number change them
+while it plays, but are not saved. A position above a new, smaller size moves
+down to the top of the slider.
+
+A number in the left inlet sets the position (a fraction is dropped, and the
+position is held to the slider) and sends it out the right outlet; a bang
+sends it again. ``set <n>`` sets the position without sending it. The
+position is not saved with the patch, so a fader starts at silence.
+
+The engine keeps the slider; the host draws it. Its GUI value is two numbers,
+the position and the size, and it can be written back: as a list
+``<position> <size>``, which sets the size first and then the position as a
+number would, or one number at a time, with ``set 0 <position>`` and
+``set 1 <size>``. A host lets the user drag the fader by sending the position
+to the left inlet; how it looks is up to the host.
+
+.. code-block:: text
+
+   [~adc] -> [~gain 20] -> [~dac]
+   [.i 128] -> left inlet of [~gain 20]   the input at unity, faded in over 20 ms
