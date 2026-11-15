@@ -146,6 +146,7 @@ set(YSE_SRCS
   dsp/analysis/sampleCapture.cpp
   dsp/analysis/levelMeter.cpp
   dsp/analysis/scopeCapture.cpp
+  dsp/analysis/spectrumAnalyzer.cpp
   dsp/operators/compare.cpp
   dsp/operators/trig.cpp
   dsp/operators/rounding.cpp
@@ -236,6 +237,7 @@ set(YSE_SRCS
   patcher/analysis/dFzero.cpp
   patcher/analysis/dCapture.cpp
   patcher/analysis/dScope.cpp
+  patcher/analysis/dSpectroscope.cpp
   patcher/analysis/dMeter.cpp
   patcher/analysis/dLevelmeter.cpp
   patcher/analysis/dGridmeter.cpp
@@ -763,6 +765,7 @@ set_source_files_properties(
   patcher/analysis/dFzero.cpp
   patcher/analysis/dCapture.cpp
   patcher/analysis/dScope.cpp
+  patcher/analysis/dSpectroscope.cpp
   patcher/analysis/dMeter.cpp
   patcher/analysis/dLevelmeter.cpp
   patcher/analysis/dGridmeter.cpp

@@ -465,3 +465,32 @@ the host.
 .. code-block:: text
 
    [~phasor 100] -> [~scope 2 64 0 1 0.5]   a rising ramp from 0.5, held still
+
+.. patcher-object:: ~spectroscope
+
+A spectrum analyser. The engine measures the spectrum of a signal and the
+host draws it. Every ``interval`` milliseconds, 20 unless the first argument
+says otherwise, it takes the latest ``size`` samples, 4096 unless the third
+argument says otherwise, weights them with a Hann window and transforms
+them. A frame holds ``size / 2 + 1`` bins, from DC to half the sample rate.
+The amplitudes are scaled so that a sine reads its own amplitude in its bin.
+With ``phasespect`` 1, the second argument, the bins hold phases in radians
+instead.
+
+The GUI value is the newest frame: the mode (0 for amplitudes, 1 for
+phases), the FFT size, the number of bins, a frame number that goes up with
+every new frame, the sample rate, and then one number per bin. Bin ``j`` is
+``j * rate / size`` Hz. Before the first frame it is ``0 0 0 0 0``. A
+spectrogram draws the newest frame. A sonogram adds one column per new
+frame, and the frame number shows how many columns a slow host missed.
+
+Inside a ``~pfft``, connect ``~fftin``'s left outlet to the left inlet and
+its second outlet to the right inlet: the ``~spectroscope`` then shows the
+``~pfft``'s own frames, one every ``interval``. Elsewhere the right inlet
+does nothing. Every setting also takes a message of its own name, such as
+``phasespect 1``. Colours, the frequency and amplitude ranges, logarithmic
+scales and the sonogram's scrolling are up to the host.
+
+.. code-block:: text
+
+   [~adc] -> [~spectroscope 50 0 2048]   a spectrum every 50 ms, 1025 bins

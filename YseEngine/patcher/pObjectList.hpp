@@ -53,7 +53,9 @@ namespace YSE {
    *    VU or PPM ballistics), ``D_GRIDMETER`` (the levels of several signals
    *    as the brightness of a grid of cells), ``D_NUMBER`` (a signal monitor
    *    and constant generator: MSP's debugging number box), ``D_SCOPE``
-   *    (an oscilloscope's traces of a signal or an X/Y pair).
+   *    (an oscilloscope's traces of a signal or an X/Y pair),
+   *    ``D_SPECTROSCOPE`` (a spectrum analyser's frames, for a spectrogram
+   *    or a sonogram).
    *  - DSP delay: `D_TAPIN`, `D_TAPOUT`, `D_COMB`, `D_TEETH`, `D_DELAY`,
    *    ``D_PITCHSHIFT`` (a real-time pitch shifter), ``D_RETUNE`` (pitch
    *    detection and correction toward a scale).
@@ -344,6 +346,7 @@ namespace YSE {
     DEFOBJ(D_GRIDMETER, "~gridmeter");
     DEFOBJ(D_NUMBER, "~number");
     DEFOBJ(D_SCOPE, "~scope");
+    DEFOBJ(D_SPECTROSCOPE, "~spectroscope");
     DEFOBJ(D_CAPTURE, "~capture");
 
     DEFOBJ(D_TAPIN, "~tapin");
