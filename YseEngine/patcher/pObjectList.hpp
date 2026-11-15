@@ -55,7 +55,8 @@ namespace YSE {
    *    and constant generator: MSP's debugging number box), ``D_SCOPE``
    *    (an oscilloscope's traces of a signal or an X/Y pair),
    *    ``D_SPECTROSCOPE`` (a spectrum analyser's frames, for a spectrogram
-   *    or a sonogram).
+   *    or a sonogram), ``D_PLOT`` (the data and axes of a 2-D plot, from
+   *    lists, a signal or a buffer).
    *  - DSP delay: `D_TAPIN`, `D_TAPOUT`, `D_COMB`, `D_TEETH`, `D_DELAY`,
    *    ``D_PITCHSHIFT`` (a real-time pitch shifter), ``D_RETUNE`` (pitch
    *    detection and correction toward a scale).
@@ -347,6 +348,7 @@ namespace YSE {
     DEFOBJ(D_NUMBER, "~number");
     DEFOBJ(D_SCOPE, "~scope");
     DEFOBJ(D_SPECTROSCOPE, "~spectroscope");
+    DEFOBJ(D_PLOT, "~plot");
     DEFOBJ(D_CAPTURE, "~capture");
 
     DEFOBJ(D_TAPIN, "~tapin");

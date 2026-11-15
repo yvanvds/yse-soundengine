@@ -171,6 +171,7 @@
 #include "analysis/dCapture.h"
 #include "analysis/dScope.h"
 #include "analysis/dSpectroscope.h"
+#include "analysis/dPlot.h"
 #include "delay/dTapin.h"
 #include "delay/dTapout.h"
 #include "delay/dComb.h"
@@ -517,6 +518,7 @@ pRegistry::pRegistry() {
   Add(OBJ::D_CAPTURE, dCapture::Create);
   Add(OBJ::D_SCOPE, dScope::Create);
   Add(OBJ::D_SPECTROSCOPE, dSpectroscope::Create);
+  Add(OBJ::D_PLOT, dPlot::Create);
   Add(OBJ::D_TAPIN, dTapin::Create);
   Add(OBJ::D_TAPOUT, dTapout::Create);
   Add(OBJ::D_COMB, dComb::Create);

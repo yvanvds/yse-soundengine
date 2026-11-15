@@ -21587,6 +21587,54 @@
     ],
     "requires_midi_device": false
   },
+  "~plot": {
+    "category": "ANALYSIS",
+    "description": "The data and axes of a 2-D plot of one or more subplots, each set by lists, taken from a signal, or read from a ~buffer, for the host to draw.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "Subplot 1: a number sets its first value, a list its values from the first on; a signal shows frames of it. 'definedomain <start> <end> [linear|log]', 'definerange <start> <end> [linear|log]', 'definexorigin <x>', 'defineyorigin <y>', 'definefilter <none|atodb>' set its axes; 'refer <buffer> [<channel>] [<start ms>] [<end ms>]' shows part of a ~buffer ('refer' alone stops). 'numpoints <n>', 'audioframesize <n>' and 'audioframerate <fps>' set those parameters.",
+        "index": 0,
+        "label": "plot 1",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~plot",
+    "outlets": [],
+    "params": [
+      {
+        "default": "4",
+        "doc": "The values each subplot shows across its domain ('~plot 64'). Longer lists are kept up to 4096 values; the first numpoints are shown.",
+        "name": "numpoints",
+        "range": "1-4096"
+      },
+      {
+        "default": "1",
+        "doc": "The subplots, one inlet each ('~plot 64 2'). Changing it rebuilds the inlets.",
+        "name": "numplots",
+        "range": "1-16"
+      },
+      {
+        "default": "0",
+        "doc": "The samples a signal frame takes in ('~plot 64 1 1024'); its first numpoints are shown. 0, or anything up to numpoints, is numpoints.",
+        "name": "audioframesize",
+        "range": "0 or more samples"
+      },
+      {
+        "default": "15",
+        "doc": "How many frames a second a signal or a buffer is shown at ('~plot 64 1 0 30').",
+        "name": "audioframerate",
+        "range": "0.1-1000"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~poke": {
     "category": "SAMPLING",
     "description": "Writes a signal into a named sample buffer, each sample at the index a second signal gives. An index of -1 writes nothing.",

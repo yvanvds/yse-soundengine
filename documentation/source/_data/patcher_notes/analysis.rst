@@ -494,3 +494,42 @@ scales and the sonogram's scrolling are up to the host.
 .. code-block:: text
 
    [~adc] -> [~spectroscope 50 0 2048]   a spectrum every 50 ms, 1025 bins
+
+.. patcher-object:: ~plot
+
+A 2-D plot. The engine holds the data and the axes and the host draws them.
+The plot has ``numplots`` subplots, the second argument and 1 unless it says
+otherwise, each with an inlet of its own. Every subplot shows ``numpoints``
+values, the first argument and 4 unless it says otherwise, spread across its
+domain.
+
+A subplot takes its values from one of three places. A number sets its first
+value and a list sets its values from the first on. A signal cord makes it
+show frames of the signal. Each frame takes in ``audioframesize`` samples
+(the points when it is 0, the default) and shows the first of them. With
+``refer <buffer> [<channel>] [<start ms>] [<end ms>]`` it shows a region of a
+``~buffer``, the whole buffer without the times, spread over its points;
+``refer`` alone stops. A cord wins over a buffer, and both win over lists.
+Frames of a signal or a buffer come ``audioframerate`` times a second, the
+fourth argument and 15 unless it says otherwise.
+
+``definedomain <start> <end> [linear|log]`` sets the horizontal span of a
+subplot (0 to 1 at first), and ``definerange <start> <end> [linear|log]``
+the vertical one (-1 to 1). ``definexorigin`` and ``defineyorigin`` set the
+origins. With ``definefilter atodb`` the subplot shows its values in
+decibels, and ``definefilter none`` shows them as they are again. These go
+to the subplot's own inlet. ``numpoints``, ``audioframesize`` and
+``audioframerate`` set those settings from any inlet. Data and settings show
+from the next audio block. They are not saved with the patch; the arguments
+are.
+
+The GUI value is the newest frame. It starts with the number of subplots,
+the number of points and a frame number that goes up with every change.
+Then, for each subplot, come nine numbers: the domain's start, end and scale
+(0 linear, 1 log), the range's start, end and scale, the X and Y origins and
+the filter (0 none, 1 atodb). Its values follow. Colours, lines, points,
+grids, labels and fonts are up to the host.
+
+.. code-block:: text
+
+   [~cycle 100] -> [~plot 64 1 0 30]   64 samples of a sine, 30 times a second

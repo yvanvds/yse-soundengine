@@ -220,6 +220,13 @@ a triple buffer: what ``~spectroscope`` measures.
 .. doxygenfile:: dsp/analysis/spectrumAnalyzer.hpp
    :project: libYSE
 
+The values and axes of a 2-D plot of one or more subplots, set by lists or
+taken from frames of a signal or a region of a sample buffer, handed to a
+reader on another thread through a triple buffer: what ``~plot`` holds.
+
+.. doxygenfile:: dsp/analysis/plotData.hpp
+   :project: libYSE
+
 The fundamental frequency of a monophonic signal after the YIN method, with
 its peak amplitude and the onsets of new notes: what ``~fzero`` does.
 
