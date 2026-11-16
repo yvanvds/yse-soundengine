@@ -457,6 +457,13 @@ samples. What ``~waveform`` holds; the host draws the samples with
 .. doxygenfile:: dsp/sampling/waveformView.hpp
    :project: libYSE
 
+A numbered collection of sample buffers sharing a name, ``kit.1``,
+``kit.2`` and so on, filled from files or a whole folder: what
+``~polybuffer`` holds. Each buffer is an ordinary named ``sampleBuffer``.
+
+.. doxygenfile:: dsp/sampling/sampleBufferSet.hpp
+   :project: libYSE
+
 Routing
 -------
 

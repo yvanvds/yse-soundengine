@@ -164,6 +164,7 @@ set(YSE_SRCS
   dsp/rawFilters.cpp
   dsp/sample_functions.cpp
   dsp/sampling/sampleBuffer.cpp
+  dsp/sampling/sampleBufferSet.cpp
   dsp/sampling/sampleAccess.cpp
   dsp/sampling/tableLookup.cpp
   dsp/sampling/transferLookup.cpp
@@ -261,7 +262,9 @@ set(YSE_SRCS
   patcher/dynamics/dMultiband.cpp
   patcher/dynamics/dGain.cpp
   patcher/sampling/bufferBinding.cpp
+  patcher/sampling/bufferMessage.cpp
   patcher/sampling/dBuffer.cpp
+  patcher/sampling/dPolybuffer.cpp
   patcher/sampling/dInfo.cpp
   patcher/sampling/dPeek.cpp
   patcher/sampling/dPoke.cpp
@@ -791,7 +794,9 @@ set_source_files_properties(
   patcher/dynamics/dMultiband.cpp
   patcher/dynamics/dGain.cpp
   patcher/sampling/bufferBinding.cpp
+  patcher/sampling/bufferMessage.cpp
   patcher/sampling/dBuffer.cpp
+  patcher/sampling/dPolybuffer.cpp
   patcher/sampling/dInfo.cpp
   patcher/sampling/dPeek.cpp
   patcher/sampling/dPoke.cpp

@@ -56,6 +56,69 @@ four messages can be waiting at once in one patcher; more are ignored.
    [~buffer drums kit.wav]       loads kit.wav when the patch opens
    [~buffer scratch 2000 2]      two seconds of silence, in stereo
 
+.. patcher-object:: ~polybuffer
+
+Holds a numbered collection of buffers: the ``~polybuffer kit`` holds
+``kit.1``, ``kit.2``, ``kit.3`` and so on, in the order they were added.
+Each one is an ordinary named buffer, so ``~play kit.2`` or ``~groove kit.1``
+plays it. A player may name a buffer before the collection fills it. Every
+``~polybuffer`` with the same name, in any patch, shares one collection,
+and so does the host program. Without a name the collection gets one of its
+own, ``polybuffer-<n>``; ``getbufferlist`` tells it.
+
+The arguments are ``name [embed] [quiet]``.
+
+**Messages**
+
+- ``append <file>``: load a sound file into a new buffer at the end.
+- ``appendempty [ms] [channels]``: add a silent buffer that long, at the
+  engine's sample rate.
+- ``readfolder <folder>``: load every sound file in a folder, in the natural
+  order of their names (``hit2`` before ``hit10``). Hidden files, subfolders
+  and files that are not sound files are skipped.
+- ``writetofolder <folder>``: save every buffer as a WAV file in the folder,
+  under the name of the file it was loaded from, or its buffer name
+  (``kit.3.wav``) when it has none or that name is already taken. Empty
+  buffers are skipped.
+- ``clear``: empty every buffer and remove it from the collection. A player
+  still naming ``kit.1`` falls silent. The next buffer added is ``kit.1``
+  again.
+- ``send <index> <message>``: pass a ``~buffer`` message to the buffer at
+  that index, or to all of them with index 0: ``send 0 normalize``,
+  ``send 2 fill 0``. The queries are not passed on.
+- ``dump``: send ``index name file ms channels rate`` for each buffer
+  (``none`` when it was not loaded from a file).
+- ``getbufferlist``: send ``bufferlist`` and the buffer names, then ``done``.
+- ``getshortname``: send each buffer's name and the name of its file without
+  the extension (``kit.1 kick``), then ``done``.
+- ``getcount``: send ``count <n>``. ``getsize``: send ``size <bytes>``, the
+  memory the samples take.
+
+The answers come out of the left outlet. The right outlet bangs when a change
+has finished. As with ``~buffer``, every message is carried out in the
+background, in the order it was sent; a file that cannot be read sends no
+bang. An answer is limited to 16 KB; lines past that are left out.
+
+With ``embed`` 1 the patch saves the collection: the file each buffer was
+loaded from, or the length and channel count of an empty one, never the
+samples. Opening the patch loads them again, in the same order. If the
+collection is already loaded when a patch opens it, the patch keeps it as it
+is and a warning is logged; ``quiet`` 1 leaves the warning out.
+
+Windows and the mouse belong to the host program. ``append``, ``readfolder``
+and ``writetofolder`` without a name, ``open``, ``wclose`` and dropping files
+on the object do nothing. The host sends the messages instead.
+
+.. code-block:: text
+
+   [readfolder samples/drums(
+   |
+   [~polybuffer kit]             kit.1, kit.2, ... one per file
+
+   [start(
+   |
+   [~play kit.2]                 plays the second file
+
 .. patcher-object:: ~info
 
 Reports what the buffer of its name holds. The argument names the buffer;

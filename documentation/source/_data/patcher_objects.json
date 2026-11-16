@@ -21747,6 +21747,58 @@
     ],
     "requires_midi_device": false
   },
+  "~polybuffer": {
+    "category": "SAMPLING",
+    "description": "A numbered collection of buffers, name.1, name.2 and so on, that sampling objects play by name. Loads sound files one at a time or a whole folder, writes them all to a folder, and passes buffer messages to one or all.",
+    "inlets": [
+      {
+        "accepts": [],
+        "doc": "append <file>, appendempty <ms> <channels>, readfolder <folder>, writetofolder <folder>, clear, send <index> <buffer message> (index 0 is every buffer), and the queries dump, getbufferlist, getcount, getshortname, getsize. Each runs in the background, in the order sent.",
+        "index": 0,
+        "label": "messages",
+        "range": ""
+      }
+    ],
+    "is_dsp": true,
+    "name": "~polybuffer",
+    "outlets": [
+      {
+        "doc": "The answer to a query: 'index name path ms channels rate' per buffer for dump, 'bufferlist <names>' then 'done', '<name> <short name>' per buffer then 'done', 'count <n>', or 'size <bytes>'.",
+        "index": 0,
+        "label": "info",
+        "range": "list",
+        "type": "LIST"
+      },
+      {
+        "doc": "A bang when an append, appendempty, readfolder, writetofolder, clear or send has finished.",
+        "index": 1,
+        "label": "done",
+        "range": "bang",
+        "type": "BANG"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The collection's name; its buffers are name.1, name.2 and so on. Objects with the same name share the buffers. Without one the collection gets a name of its own.",
+        "name": "name",
+        "range": "any symbol"
+      },
+      {
+        "default": "0",
+        "doc": "1 saves the buffers with the patch, as the files they were read from (empty ones by length and channels), and loads them again when the patch is opened.",
+        "name": "embed",
+        "range": "0 or 1"
+      },
+      {
+        "default": "0",
+        "doc": "1 leaves out the warning when a patch opens a collection that is already loaded.",
+        "name": "quiet",
+        "range": "0 or 1"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~pong": {
     "category": "MATH",
     "description": "Keeps a signal inside the range low to high by folding it back from the limits, the default, by wrapping it around to the other side, or by clipping it: wavefolding, phase wrapping and limiting.",

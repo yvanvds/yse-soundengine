@@ -81,7 +81,8 @@ namespace YSE {
    *    ``D_STUTTER`` (the latest input copied on a trigger and replayed
    *    by phase), ``D_STRETCH`` (a buffer's length and pitch changed in
    *    the background), ``D_WAVEFORM`` (the view and edits of a waveform
-   *    display of a buffer).
+   *    display of a buffer), ``D_POLYBUFFER`` (a numbered collection of
+   *    buffers, name.1, name.2 ...).
    *  - DSP routing: ``D_GATE`` (a signal sent to one of several outlets),
    *    ``D_SELECTOR`` (one of several signals passed to the outlet),
    *    ``D_MATRIX`` (every input to every output at a ramped gain),
@@ -385,6 +386,7 @@ namespace YSE {
     DEFOBJ(D_STUTTER, "~stutter");
     DEFOBJ(D_STRETCH, "~stretch");
     DEFOBJ(D_WAVEFORM, "~waveform");
+    DEFOBJ(D_POLYBUFFER, "~polybuffer");
 
     DEFOBJ(D_GATE, "~gate");
     DEFOBJ(D_SELECTOR, "~selector");
