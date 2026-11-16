@@ -25275,6 +25275,214 @@
     ],
     "requires_midi_device": false
   },
+  "~waveform": {
+    "category": "SAMPLING",
+    "description": "The view of a waveform display of a ~buffer, for the host to draw: the part shown, the selection, and mouse gestures that select, scroll, zoom or draw into the samples. Sends the selection and links to other views.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "The display start in ms; a bang sends it. Also takes the messages: 'mouse <x> <y> <state>', 'drag <x> <y>', 'mode', 'mouseoutput', 'snap', 'unit', 'bpm', 'setbpm', 'line', 'undo', 'name' / 'set', 'crop', 'normalize', 'replacebuffercontents' and every parameter by name.",
+        "index": 0,
+        "label": "display start",
+        "range": "0 or more ms"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "The display length in ms; 0 or less shows the whole buffer. A bang sends it.",
+        "index": 1,
+        "label": "display length",
+        "range": "any ms"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "The selection start in ms; a bang sends it.",
+        "index": 2,
+        "label": "selection start",
+        "range": "0 or more ms"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "The selection end in ms; a bang sends it.",
+        "index": 3,
+        "label": "selection end",
+        "range": "0 or more ms"
+      },
+      {
+        "accepts": [
+          "LIST"
+        ],
+        "doc": "A list 'start length selection-start selection-end' from another ~waveform's link outlet sets all four.",
+        "index": 4,
+        "label": "link",
+        "range": "list of 4 floats"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~waveform",
+    "outlets": [
+      {
+        "doc": "The display start in ms, when the view moves.",
+        "index": 0,
+        "label": "display start",
+        "range": "0 or more ms",
+        "type": "FLOAT"
+      },
+      {
+        "doc": "The display length in ms, when the view moves.",
+        "index": 1,
+        "label": "display length",
+        "range": "ms",
+        "type": "FLOAT"
+      },
+      {
+        "doc": "The selection start in ms, as outmode says.",
+        "index": 2,
+        "label": "selection start",
+        "range": "0 or more ms",
+        "type": "FLOAT"
+      },
+      {
+        "doc": "The selection end in ms, as outmode says.",
+        "index": 3,
+        "label": "selection end",
+        "range": "0 or more ms",
+        "type": "FLOAT"
+      },
+      {
+        "doc": "Every mouse event: 'x amplitude state', x 0 to 1 across the display, state 1 down, 2 drag, 0 up.",
+        "index": 4,
+        "label": "mouse",
+        "range": "list",
+        "type": "LIST"
+      },
+      {
+        "doc": "'start length selection-start selection-end' whenever one changes, for another ~waveform's link inlet; 'bpm <tempo> <beats>' after a setbpm.",
+        "index": 5,
+        "label": "link",
+        "range": "list",
+        "type": "LIST"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The buffer shown. A name or set message does not change what is saved.",
+        "name": "name",
+        "range": "buffer name"
+      },
+      {
+        "default": "1",
+        "doc": "The buffer channel shown and drawn, from 1.",
+        "name": "chanoffset",
+        "range": "1 or higher"
+      },
+      {
+        "default": "1",
+        "doc": "What the mouse does: 0 nothing, 1 select, 2 move the nearer selection edge, 3 scroll and zoom, 4 draw into the buffer.",
+        "name": "setmode",
+        "range": "0-4"
+      },
+      {
+        "default": "4",
+        "doc": "When a mouse gesture sends the selection: 0 never, 1 on the click, 2 on the release, 3 both, 4 continuously.",
+        "name": "outmode",
+        "range": "0-4"
+      },
+      {
+        "default": "0",
+        "doc": "What a selection snaps to: 0 nothing, 1 the grid, 2 zero crossings.",
+        "name": "snapto",
+        "range": "0-2"
+      },
+      {
+        "default": "1000",
+        "doc": "The grid step, in the unit setunit gives.",
+        "name": "grid",
+        "range": "any float"
+      },
+      {
+        "default": "0",
+        "doc": "How many ticks divide a grid step; 0 is none.",
+        "name": "ticks",
+        "range": "0 or more"
+      },
+      {
+        "default": "0",
+        "doc": "Where the grid starts, in ms.",
+        "name": "offset",
+        "range": "any ms"
+      },
+      {
+        "default": "0",
+        "doc": "What the grid counts in: 0 ms, 1 samples, 2 a phase of the buffer, 3 bars at bpm.",
+        "name": "setunit",
+        "range": "0-3"
+      },
+      {
+        "default": "120",
+        "doc": "The tempo in beats a minute, for the bpm unit.",
+        "name": "bpm",
+        "range": "above 0"
+      },
+      {
+        "default": "4",
+        "doc": "The beats in a bar, for the bpm unit and setbpm.",
+        "name": "beats",
+        "range": "1 or more"
+      },
+      {
+        "default": "1",
+        "doc": "The vertical zoom: the amplitude at y is (y - voffset) / vzoom.",
+        "name": "vzoom",
+        "range": "above 0"
+      },
+      {
+        "default": "0",
+        "doc": "Where the zero line is drawn, -1 (bottom) to 1 (top).",
+        "name": "voffset",
+        "range": "any float"
+      },
+      {
+        "default": "0",
+        "doc": "1 holds drawn values within the amplitudes the display shows; 0 does not.",
+        "name": "clipdraw",
+        "range": "0 or 1"
+      },
+      {
+        "default": "0",
+        "doc": "1 sends nothing but the mouse while dragging, and what changed on release.",
+        "name": "quiet",
+        "range": "0 or 1"
+      },
+      {
+        "default": "0",
+        "doc": "0 zooms in when dragging up, 1 when dragging down.",
+        "name": "zoom_orientation",
+        "range": "0 or 1"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~what": {
     "category": "ANALYSIS",
     "description": "Sends an impulse, a 1 for one sample, each time a 0-1 ramp such as a ~phasor passes one of a list of phase values: rhythmic triggers on a phasor clock.",

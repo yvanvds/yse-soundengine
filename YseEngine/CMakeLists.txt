@@ -175,6 +175,7 @@ set(YSE_SRCS
   dsp/sampling/bufferPlayer.cpp
   dsp/sampling/groovePlayer.cpp
   dsp/sampling/timeStretch.cpp
+  dsp/sampling/waveformView.cpp
   dsp/routing/signalSelector.cpp
   dsp/routing/mixMatrix.cpp
   dsp/routing/signalBus.cpp
@@ -276,6 +277,7 @@ set(YSE_SRCS
   patcher/sampling/dPhaseGroove.cpp
   patcher/sampling/dSfinfo.cpp
   patcher/sampling/dStretch.cpp
+  patcher/sampling/dWaveform.cpp
   patcher/routing/selectorControl.cpp
   patcher/routing/dGate.cpp
   patcher/routing/dSelector.cpp
@@ -805,6 +807,7 @@ set_source_files_properties(
   patcher/sampling/dPhaseGroove.cpp
   patcher/sampling/dSfinfo.cpp
   patcher/sampling/dStretch.cpp
+  patcher/sampling/dWaveform.cpp
   patcher/routing/selectorControl.cpp
   patcher/routing/dGate.cpp
   patcher/routing/dSelector.cpp

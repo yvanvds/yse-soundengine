@@ -854,3 +854,93 @@ the patch: a reloaded ``~stretch`` uses its argument.
 The work for one patcher waits in a queue of four, with the buffer objects'
 loading and editing: a bang sent while four are waiting is ignored. A
 ``~stretch`` deleted while working stops.
+
+.. patcher-object:: ~waveform
+
+The state of a waveform display of the buffer of its name: the part shown,
+the selection, and what the mouse does. The host draws the display; the
+object keeps the numbers, sends them on, and edits the buffer. Every time is
+in milliseconds at the buffer's own sample rate, and everything happens as
+the message arrives, with the audio stopped too.
+
+- The first four inlets set the display start, the display length (0 or
+  less shows the whole buffer, and follows it when it changes), the
+  selection start and the selection end. A bang to one of them sends its
+  value out of the outlet below it.
+- The fifth inlet takes a list ``start length selection-start
+  selection-end``, as the right outlet of another ``~waveform`` sends it, and
+  sets all four.
+- Whenever one of the four changes, the right outlet sends them as one list.
+  Wire it into another ``~waveform``'s fifth inlet to show the same part of
+  a buffer in both. Two views wired to each other both ways settle rather
+  than send back and forth.
+
+.. rubric:: The mouse
+
+The host turns mouse actions into messages: ``mouse <x> <y> <state>``, with
+``x`` from 0 (left edge) to 1 (right edge), ``y`` from -1 (bottom) to 1
+(top), and ``state`` 1 when the button goes down, 2 while it moves, 0 when
+it comes up. ``drag <x> <y>`` is the same as state 2. Every mouse message
+sends ``x``, the amplitude under the mouse and the state out of the fifth
+outlet. What else it does depends on ``mode`` (``setmode`` as a number):
+
+- ``select`` (1, the default): the selection runs from where the button
+  went down to the mouse.
+- ``loop`` (2): the selection edge nearer the click follows the mouse.
+- ``move`` (3): dragging sideways scrolls, dragging up zooms in around the
+  click (by 2 for every half of the display's height), dragging down zooms
+  out; ``zoom_orientation 1`` swaps up and down. The display outlets send
+  the new start and length.
+- ``draw`` (4): the amplitude under the mouse is written into the buffer,
+  with a straight line from the last position, so a fast stroke leaves no
+  gaps. Every object playing the buffer hears it at once. It cannot be
+  undone.
+- ``none`` (0): nothing but the mouse outlet.
+
+The amplitude at ``y`` is ``(y - voffset) / vzoom``: ``voffset`` moves the
+zero line, ``vzoom`` magnifies. ``clipdraw 1`` keeps drawn values within
+what the display shows.
+
+``mouseoutput`` (``outmode`` as a number) says when a gesture sends the
+selection: ``none`` (0), ``down`` (1), ``up`` (2), ``downup`` (3) or
+``continuous`` (4, the default). ``quiet 1`` sends only the mouse while the
+button is held, and the rest when it comes up. ``undo`` swaps the selection
+with the one before the last change, so a second ``undo`` returns.
+
+.. rubric:: Snapping, grid and units
+
+``snap`` sets what a selection snaps to: ``none``, ``grid``, ``tick`` (the
+grid divided by ``ticks``) or ``zero`` (the nearest zero crossing of the
+channel). ``snapto`` takes 0 (none), 1 (grid) or 2 (zero). The grid starts at
+``offset`` ms, and its step ``grid`` is counted in ``unit``: ``ms``,
+``samples``, ``phase`` (a fraction of the buffer's length) or ``bpm``, where
+the step is one bar of ``beats`` beats at the tempo ``bpm <tempo>
+[beats]`` sets. ``setbpm`` makes the selection one bar: it sets the tempo,
+starts the bars on the selection, switches the unit to ``bpm``, and sends
+``bpm <tempo> <beats>`` out of the right outlet.
+
+``line <position>`` places a play-position line, counted in the line's own
+unit (``line ms``, ``line samples``, ``line phase`` or ``line bpm``, where
+the position is in beats from ``offset``); a negative position hides it.
+
+.. rubric:: The buffer
+
+``name <buffer> [channel]`` or ``set <buffer> [channel]`` shows another
+buffer from its start, whole, with an empty selection; ``name`` alone shows
+none. The buffer is looked up in the background and shown from the next
+message or audio block. ``chanoffset`` picks the channel, from 1.
+
+``crop`` keeps only the selection, ``normalize [peak]`` scales the buffer so
+its largest sample is ``peak`` (1 by default), and ``replacebuffercontents
+<file>`` reads a sound file into it. They run in the background, in the
+order sent, in the same queue of four as the buffer objects' work; the
+display then shows the whole buffer.
+
+Every parameter can also be sent as a message by its name. Messages are not
+saved with the patch: a reloaded ``~waveform`` uses its arguments.
+
+.. code-block:: text
+
+   [~buffer drums]
+   [~waveform drums 1 1]    the host draws drums; a drag selects, and the
+                            third and fourth outlets send where from and to

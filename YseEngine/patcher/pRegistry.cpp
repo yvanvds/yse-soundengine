@@ -196,6 +196,7 @@
 #include "sampling/dBuffir.h"
 #include "sampling/dStutter.h"
 #include "sampling/dStretch.h"
+#include "sampling/dWaveform.h"
 #include "sampling/dRecord.h"
 #include "sampling/dPlay.h"
 #include "sampling/dGroove.h"
@@ -549,6 +550,7 @@ pRegistry::pRegistry() {
   Add(OBJ::D_BUFFIR, dBuffir::Create);
   Add(OBJ::D_STUTTER, dStutter::Create);
   Add(OBJ::D_STRETCH, dStretch::Create);
+  Add(OBJ::D_WAVEFORM, dWaveform::Create);
   Add(OBJ::D_GATE, dGate::Create);
   Add(OBJ::D_SELECTOR, dSelector::Create);
   Add(OBJ::D_MATRIX, dMatrix::Create);

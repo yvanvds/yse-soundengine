@@ -449,6 +449,14 @@ half made.
 .. doxygenfile:: dsp/sampling/timeStretch.hpp
    :project: libYSE
 
+The view of a waveform display of a sample buffer: the part shown, the
+selection, and the mouse gestures that select, scroll, zoom or draw into the
+samples. What ``~waveform`` holds; the host draws the samples with
+``sampleBuffer::peaks``, the smallest and largest sample per pixel column.
+
+.. doxygenfile:: dsp/sampling/waveformView.hpp
+   :project: libYSE
+
 Routing
 -------
 

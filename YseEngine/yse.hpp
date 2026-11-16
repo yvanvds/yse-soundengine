@@ -170,6 +170,7 @@
 #include "dsp/sampling/bufferPlayer.hpp"
 #include "dsp/sampling/groovePlayer.hpp"
 #include "dsp/sampling/timeStretch.hpp"
+#include "dsp/sampling/waveformView.hpp"
 #include "dsp/routing/signalSelector.hpp"
 #include "dsp/routing/mixMatrix.hpp"
 #include "dsp/routing/signalBus.hpp"

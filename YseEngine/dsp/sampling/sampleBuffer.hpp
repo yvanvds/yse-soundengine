@@ -435,6 +435,52 @@ namespace YSE {
        */
       UInt getSamples(UInt channel, UInt startFrame, Flt* out, UInt count) const;
 
+      // ─── summaries ─────────────────────────────────────────────────────────
+
+      /**
+       *  @brief The smallest and largest sample of each of @p buckets equal
+       *         parts of a region: what a waveform display draws, one bucket
+       *         per pixel column (issue #1151).
+       *
+       *  The region is channel @p channel from @p startFrame for
+       *  @p frameCount frames. Bucket ``b`` covers the frames from
+       *  ``startFrame + floor(b * frameCount / buckets)`` up to (not
+       *  including) ``startFrame + floor((b + 1) * frameCount / buckets)``,
+       *  and at least the first of them, so with fewer frames than buckets
+       *  each frame fills the buckets it falls on. A bucket whose frames all
+       *  lie past the end of the buffer is 0 in both outputs.
+       *
+       *  @param channel     The channel, from 0.
+       *  @param startFrame  The region's first frame.
+       *  @param frameCount  The region's length in frames.
+       *  @param buckets     How many parts to split it into.
+       *  @param minima      ``buckets`` values: each bucket's smallest sample.
+       *  @param maxima      ``buckets`` values: each bucket's largest sample.
+       *  @return @p buckets, or 0 (nothing written) for a channel the buffer
+       *          does not have, no buckets, no frames or a null output.
+       *
+       *  Reads one snapshot of the samples, so a change made meanwhile is in
+       *  all of the buckets or in none; samples a ``sampleBufferWriter``
+       *  writes meanwhile may be in some. Takes the buffer's lock to take
+       *  the snapshot and reads outside it: a host or control thread, never
+       *  the audio thread. The cost is one read of every frame of the
+       *  region.
+       */
+      UInt peaks(UInt channel, UInt startFrame, UInt frameCount, UInt buckets, Flt* minima,
+                 Flt* maxima) const;
+
+      /**
+       *  @brief ``peaks`` over a region given in milliseconds at the
+       *         buffer's own rate: from @p startMs for @p lengthMs, or to
+       *         the end of the buffer when @p lengthMs is 0 or less.
+       *
+       *  The region starts on the frame ``floor(startMs * rate / 1000)``
+       *  and is ``ceil(lengthMs * rate / 1000)`` frames long, at least one.
+       *  A negative or NaN start is 0.
+       */
+      UInt peaksMs(UInt channel, Flt startMs, Flt lengthMs, UInt buckets, Flt* minima,
+                   Flt* maxima) const;
+
       // ─── memory ────────────────────────────────────────────────────────────
 
       /**

@@ -17,6 +17,7 @@
 #include <cctype>
 #include <cmath>
 #include <cstring>
+#include <limits>
 #include <sndfile.hh>
 #include <unordered_map>
 #include <utility>
@@ -686,6 +687,51 @@ UInt sampleBuffer::getSamples(UInt channel, UInt startFrame, Flt* out, UInt coun
   const UInt n = std::min(count, data->frames - startFrame);
   CopySamples(data->channel(channel) + startFrame, n, out);
   return n;
+}
+
+UInt sampleBuffer::peaks(UInt channel, UInt startFrame, UInt frameCount, UInt buckets, Flt* minima,
+                         Flt* maxima) const {
+  if (minima == nullptr || maxima == nullptr || buckets == 0 || frameCount == 0) return 0;
+  const std::shared_ptr<const storage> data = snapshot();
+  if (channel >= data->channels) return 0;
+  const Flt* samples = data->channel(channel);
+  const std::uint64_t total = data->frames;
+  const std::uint64_t count = frameCount;
+  for (UInt b = 0; b < buckets; ++b) {
+    const std::uint64_t first = startFrame + count * b / buckets;
+    std::uint64_t last = startFrame + count * (b + 1) / buckets;
+    if (last <= first) last = first + 1;
+    if (last > total) last = total;
+    if (first >= last) {
+      minima[b] = 0.f;
+      maxima[b] = 0.f;
+      continue;
+    }
+    Flt lo = detail::LoadSample(samples + first);
+    Flt hi = lo;
+    for (std::uint64_t f = first + 1; f < last; ++f) {
+      const Flt s = detail::LoadSample(samples + f);
+      lo = s < lo ? s : lo;
+      hi = s > hi ? s : hi;
+    }
+    minima[b] = lo;
+    maxima[b] = hi;
+  }
+  return buckets;
+}
+
+UInt sampleBuffer::peaksMs(UInt channel, Flt startMs, Flt lengthMs, UInt buckets, Flt* minima,
+                           Flt* maxima) const {
+  const double perMs = static_cast<double>(sampleRate()) / 1000.0;
+  const double total = static_cast<double>(frames());
+  double start = std::isnan(startMs) || startMs < 0.f ? 0.0 : std::floor(startMs * perMs);
+  // Past the end, every bucket is empty: peaks() writes them as 0.
+  if (start > total) start = total;
+  double length = lengthMs > 0.f ? std::ceil(lengthMs * perMs) : total - start;
+  if (length < 1.0) length = 1.0;
+  const double limit = static_cast<double>(std::numeric_limits<UInt>::max());
+  return peaks(channel, static_cast<UInt>(start),
+               static_cast<UInt>(length > limit ? limit : length), buckets, minima, maxima);
 }
 
 // ─── sampleBufferRegistry ─────────────────────────────────────────────────────
