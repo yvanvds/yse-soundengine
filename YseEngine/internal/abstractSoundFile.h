@@ -155,7 +155,8 @@ namespace YSE {
       enum swapResult { SWAP_DONE, SWAP_TERMINAL, SWAP_UNDERRUN };
       // Try to swap the prefetched back buffer in as the new front buffer. On
       // SWAP_DONE, pos/streamEnd are advanced into the new buffer. SWAP_TERMINAL
-      // means the current front buffer was the final one (EOF, no loop).
+      // means the current front buffer was the final one (EOF, no loop): with
+      // `loop` on, one read without a loop is not (issue #1289).
       // SWAP_UNDERRUN means the prefetch has not landed yet (caller emits silence).
       static swapResult streamSwap(abstractSoundFile* file, Flt& pos, Flt& streamEnd, Bool loop);
       // Arm an async re-prime from frame 0 for the next play (called on stop).
@@ -259,6 +260,10 @@ namespace YSE {
       // release store and read after the audio thread's acquire load of it.
       std::atomic<Bool> _backReady{false}; // back buffer filled, ready to swap in
       std::atomic<Bool> _backTerminal{false}; // back fill hit non-loop EOF (last buffer)
+      // The loop flag the back fill read with (issue #1289): a last buffer read
+      // without a loop ends the stream only if it still does not loop when the
+      // buffer runs out.
+      std::atomic<Bool> _backLooped{false};
       std::atomic<Bool> _refillInFlight{false}; // a refill is queued/running (dedup)
       std::atomic<Bool> _streamLoop{false}; // loop flag published to the slow pool
       std::atomic<Long> _backValidFrames{0}; // real (non-padded) frames in back buffer
@@ -274,6 +279,8 @@ namespace YSE {
       Long _frontBufferBase;
       Long _frontValidFrames;
       Bool _frontTerminal;
+      // The loop flag the front buffer's fill read with (issue #1289).
+      Bool _frontLooped = false;
 
       // for keeping track of objects using this file
       // clientList is crossed by three roles: attach (main thread, from

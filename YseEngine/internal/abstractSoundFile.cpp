@@ -152,8 +152,20 @@ void YSE::INTERNAL::abstractSoundFile::requestRefill(Bool loop) {
   // Called from the audio thread. Publishes the current loop flag and schedules
   // at most one back-buffer refill on the slow pool. Never touches the disk.
   _streamLoop.store(loop, std::memory_order_relaxed);
-  // A filled back buffer is already waiting to be swapped in — nothing to do.
-  if (_backReady.load(std::memory_order_acquire)) return;
+  // A filled back buffer is already waiting to be swapped in — nothing to do,
+  // unless it is a last buffer read without a loop that holds nothing, and the
+  // stream loops now (issue #1289): it is dropped, so a looping fill takes its
+  // place before the front buffer runs out. Its fill read nothing, so the disk
+  // position is the region's end (backward: its start), where the looping fill
+  // goes on by wrapping. The fields are read after the acquire load of
+  // _backReady, which publishes them.
+  if (_backReady.load(std::memory_order_acquire)) {
+    if (!loop || !_backTerminal.load(std::memory_order_relaxed) ||
+        _backLooped.load(std::memory_order_relaxed) ||
+        _backValidFrames.load(std::memory_order_relaxed) != 0)
+      return;
+    _backReady.store(false, std::memory_order_relaxed);
+  }
   // Self-heal a leaked claim (issue #844): threadPool::addJob drops an enqueue
   // when the pool is inactive (and on background-ring overflow), and
   // threadPool::shutdown() releases still-queued jobs without running them.
@@ -236,6 +248,7 @@ void YSE::INTERNAL::abstractSoundFile::fillBackBuffer() {
   // _backReady, so the release store below makes them visible.
   _backValidFrames.store((Long)valid, std::memory_order_relaxed);
   _backTerminal.store(valid < STREAM_BUFFERSIZE, std::memory_order_relaxed);
+  _backLooped.store(loop, std::memory_order_relaxed);
   _backGen.store(gen, std::memory_order_relaxed);
   _backReady.store(true, std::memory_order_release);
   // Release, and only after the _backReady publication above: requestRefill's
@@ -522,7 +535,16 @@ Bool YSE::INTERNAL::abstractSoundFile::readNonInterleaved(abstractSoundFile* fil
 YSE::INTERNAL::abstractSoundFile::swapResult
 YSE::INTERNAL::abstractSoundFile::streamSwap(abstractSoundFile* file, Flt& pos, Flt& streamEnd,
                                              Bool loop) {
-  if (file->_frontTerminal) return SWAP_TERMINAL;
+  if (file->_frontTerminal) {
+    // The last buffer: its fill reached the end of the region. One read with a
+    // loop that still ended found nothing more to read. One read without a
+    // loop ends the stream only while it still does not loop: with loop on
+    // now, the stream goes on, as a looping fill would have, with the next
+    // fill wrapping at the region's end (issue #1289). The end is decided by
+    // the loop flag of now, not of the fill.
+    if (!loop || file->_frontLooped) return SWAP_TERMINAL;
+    file->_frontTerminal = false;
+  }
 
   // Drop a back buffer prefetched before a stop (its stream position is stale)
   // so it is refilled from the current position instead of played on restart.
@@ -545,6 +567,7 @@ YSE::INTERNAL::abstractSoundFile::streamSwap(abstractSoundFile* file, Flt& pos, 
   file->_iBufferBack = tmp;
   file->_frontValidFrames = file->_backValidFrames.load(std::memory_order_relaxed);
   file->_frontTerminal = file->_backTerminal.load(std::memory_order_relaxed);
+  file->_frontLooped = file->_backLooped.load(std::memory_order_relaxed);
   file->_backReady.store(false, std::memory_order_relaxed);
   if (file->_streamBackward.load(std::memory_order_relaxed)) {
     // Backward (issue #1288): the new buffer holds the frames before the old
@@ -965,6 +988,7 @@ void YSE::INTERNAL::abstractSoundFile::prime(Long frame, Bool loop, Bool backwar
   _frontBufferBase = frame;
   _backValidFrames.store(static_cast<Long>(valid), std::memory_order_relaxed);
   _backTerminal.store(false, std::memory_order_relaxed);
+  _backLooped.store(loop, std::memory_order_relaxed);
   _backGen.store(_fillGen.load(std::memory_order_relaxed), std::memory_order_relaxed);
   _backReady.store(true, std::memory_order_release);
 }

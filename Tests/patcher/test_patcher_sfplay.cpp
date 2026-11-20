@@ -429,6 +429,101 @@ TEST_SUITE("patcher") {
     }
   }
 
+  TEST_CASE("~sfplay: a loop turned on after a cue ended, or while it plays its last buffer, "
+            "loops the cue, forward and backward (#1289)") {
+    // [~sfplay] -> [~dac]: cue 2 is frames 1000 to 1299, cue 3 the same span
+    // buffered from its end. A cue that plays to its end without a loop leaves
+    // its stream holding a last buffer read without one; `loop 1` or
+    // `loopone` sent then must still make the cue loop.
+    TempFolder dir("yse_sfplay_loop_after_1289");
+    WriteRamp(dir / "a.wav", 3000);
+    Rig r("");
+    r.Message("open " + (dir / "a.wav"));
+    r.Message("preload 2 1000 1300");
+    r.Message("preload 3 1000 1300 1");
+    r.Settle();
+    REQUIRE(r.sf->Player().hasCue(2));
+    REQUIRE(r.sf->Player().hasCue(3));
+
+    constexpr long span = 300;
+    // Plays `cue` to its end, without a loop.
+    auto playToEnd = [&](int cue) {
+      const int before = r.done.bangCount;
+      r.Cue(cue);
+      r.UntilDone(10);
+      REQUIRE(r.done.bangCount == before + 1);
+    };
+    // What was heard from a start of the cue on: its span around and around,
+    // forward from 1000 or backward from 1299, faded in.
+    auto checkLoops = [&](const std::vector<float>& heard, bool backward) {
+      REQUIRE(static_cast<long>(heard.size()) > 3 * span);
+      FadeIn in;
+      long wrong = 0;
+      for (std::size_t k = 0; k < heard.size(); ++k) {
+        const long into = static_cast<long>(k) % span;
+        const float expect = Ramp(backward ? 1299 - into : 1000 + into) * in.next();
+        if (heard[k] != doctest::Approx(expect)) {
+          if (wrong++ < 5) FAIL_CHECK("sample ", k, " is ", heard[k], ", not ", expect);
+        }
+      }
+      CHECK(wrong == 0);
+    };
+    auto blocks = [&](std::vector<float>& heard, int count) {
+      for (int b = 0; b < count; ++b) {
+        const std::vector<float> o = r.Block();
+        heard.insert(heard.end(), o.begin(), o.end());
+      }
+    };
+
+    // A cue that ended, then a loop, then the cue again.
+    auto loopAfterEnd = [&](int cue, const std::string& loopWord, bool backward) {
+      playToEnd(cue);
+      r.Message(loopWord);
+      r.Cue(cue);
+      std::vector<float> heard;
+      blocks(heard, 12);
+      CHECK(r.done.bangCount == 1);
+      CHECK(r.sf->Player().playing());
+      checkLoops(heard, backward);
+    };
+    // A cue that ended, played again without a loop: its stream now holds
+    // its last buffer, read without a loop, and a loop is turned on while it
+    // plays.
+    auto loopWhileLast = [&](int cue, bool backward) {
+      playToEnd(cue);
+      r.Cue(cue);
+      std::vector<float> heard;
+      blocks(heard, 1);
+      r.Message("loop 1");
+      blocks(heard, 11);
+      CHECK(r.done.bangCount == 1);
+      CHECK(r.sf->Player().playing());
+      checkLoops(heard, backward);
+    };
+
+    SUBCASE("loop 1 after the cue ended") {
+      loopAfterEnd(2, "loop 1", false);
+    }
+    SUBCASE("loopone after the cue ended") {
+      loopAfterEnd(2, "loopone 2", false);
+    }
+    SUBCASE("loop 1 while the cue plays its last buffer") {
+      loopWhileLast(2, false);
+    }
+    SUBCASE("backward, loop 1 after the cue ended") {
+      r.Message("speed -1");
+      loopAfterEnd(3, "loop 1", true);
+    }
+    SUBCASE("backward, loopone after the cue ended") {
+      r.Message("speed -1");
+      loopAfterEnd(3, "loopone 3", true);
+    }
+    SUBCASE("backward, loop 1 while the cue plays its last buffer") {
+      r.Message("speed -1");
+      loopWhileLast(3, true);
+    }
+  }
+
   TEST_CASE("~sfplay plays the cues of the ~sflist it names, and follows its changes "
             "(#1155)") {
     TempFolder dir("yse_sfplay_sflist_1155");
