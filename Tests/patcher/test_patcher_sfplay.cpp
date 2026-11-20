@@ -608,6 +608,152 @@ TEST_SUITE("patcher") {
     CHECK(dst.output[0].getPtr()[0] == Ramp(2 * N));
   }
 
+  TEST_CASE("~sfplay: in a rendered patch after a JSON round trip, speed -1 plays the embedded "
+            "cue buffered with preload's direction flag backward at once, looping, and the open "
+            "file backward across a stream refill and its loop (#1288)") {
+    // [loop 1( [speed -1( [2( [0( [1( -> [~sfplay] -> [~dac], with a.wav and
+    // cue 2 (direction 1) embedded. a.wav is longer than a stream buffer, so
+    // playing it backward reads it from disk in two fills before it wraps.
+    const long S = static_cast<long>(YSE::STREAM_BUFFERSIZE);
+    const long frames = S + 3000;
+    TempFolder dir("yse_sfplay_back_1288");
+    WriteRamp(dir / "a.wav", frames);
+    ScopedSampleRate rate(1000);
+    TestHelpers::BangSink done;
+    YSE::pHandle doneHandle(&done);
+    const char* boxes[] = {"loop 1", "speed -1", "2", "0", "1"};
+    unsigned int ids[5] = {};
+    std::string dump;
+    {
+      patcherImplementation src(1, nullptr);
+      YSE::pHandle* sf = src.CreateObject(YSE::OBJ::D_SFPLAY, "");
+      YSE::pHandle* dac = src.CreateObject(YSE::OBJ::D_DAC, "");
+      REQUIRE(sf != nullptr);
+      REQUIRE(dac != nullptr);
+      for (int i = 0; i < 5; ++i) {
+        YSE::pHandle* box = src.CreateObject(YSE::OBJ::G_MESSAGE, boxes[i]);
+        REQUIRE(box != nullptr);
+        src.Connect(box, 0, sf, 0);
+        ids[i] = box->GetID();
+      }
+      src.Connect(sf, 0, dac, 0);
+      sf->SetListData(0, "open " + (dir / "a.wav"));
+      sf->SetListData(0, "preload 2 1000 1300 1");
+      sf->SetListData(0, "embed 1");
+      Drain();
+      src.Calculate(YSE::T_DSP);
+      dump = src.DumpJSON();
+    }
+    CHECK(dump.find("\"reverse\"") != std::string::npos);
+
+    patcherImplementation dst(1, nullptr);
+    dst.ParseJSON(dump);
+    CHECK(dst.DumpJSON() == dump);
+    YSE::pHandle* sfh = FindType(dst, YSE::OBJ::D_SFPLAY);
+    REQUIRE(sfh != nullptr);
+    dst.Connect(sfh, 1, &doneHandle, 0);
+    auto* sf = static_cast<dSfplay*>(dst.GetObjectFromID(sfh->GetID()));
+    const std::vector<fileStreamCues::cue> cues = sf->Player().cueList()->cues();
+    REQUIRE(cues.size() == 1);
+    CHECK(cues[0].reverse);
+    auto bang = [&](int i) {
+      YSE::pHandle* box = dst.GetHandleFromID(ids[i]);
+      REQUIRE(box != nullptr);
+      box->SetBang(0);
+    };
+    auto block = [&]() {
+      dst.Calculate(YSE::T_DSP);
+      Drain();
+      const float* o = dst.output[0].getPtr();
+      return std::vector<float>(o, o + N);
+    };
+    dst.Calculate(YSE::T_DSP);
+
+    // Cue 2 was buffered from its end: backward it sounds from the first
+    // block, and loops from its end again without a gap.
+    bang(0);
+    bang(1);
+    bang(2);
+    std::vector<float> heard;
+    for (int b = 0; b < 8; ++b) {
+      const std::vector<float> o = block();
+      heard.insert(heard.end(), o.begin(), o.end());
+    }
+    FadeIn in;
+    for (std::size_t k = 0; k < heard.size(); ++k) {
+      CAPTURE(k);
+      CHECK(heard[k] == doctest::Approx(Ramp(1299 - static_cast<long>(k % 300)) * in.next()));
+    }
+    CHECK(done.bangCount == 0);
+
+    // Stopped, then the open file: it was buffered from its start, so it is
+    // silent until its end is read, then plays from there to its start and
+    // on from its end, read from disk twice on the way.
+    bang(3);
+    for (int b = 0; b < 4 && done.bangCount == 0; ++b)
+      block();
+    REQUIRE(done.bangCount == 1);
+    bang(4);
+    heard.clear();
+    int silent = 0;
+    const long want = frames + 2000;
+    for (int b = 0; b < 800 && static_cast<long>(heard.size()) < want; ++b) {
+      const std::vector<float> o = block();
+      if (heard.empty() && o[N - 1] == 0.f) {
+        silent++;
+        continue;
+      }
+      heard.insert(heard.end(), o.begin(), o.end());
+    }
+    CHECK(silent >= 1);
+    CHECK(silent <= 2);
+    REQUIRE(static_cast<long>(heard.size()) >= want);
+    FadeIn again;
+    long wrong = 0;
+    for (long k = 0; k < want; ++k) {
+      const long f = ((frames - 1 - k) % frames + frames) % frames;
+      const float expect = Ramp(f) * again.next();
+      if (heard[static_cast<std::size_t>(k)] != doctest::Approx(expect)) {
+        if (wrong++ < 5) FAIL_CHECK("sample ", k, " (frame ", f, ") is ", heard[k]);
+      }
+    }
+    CHECK(wrong == 0);
+    CHECK(done.bangCount == 1);
+  }
+
+  TEST_CASE("~sflist: preload's direction flag marks the cue, and embed keeps it (#1288)") {
+    TempFolder dir("yse_sflist_back_1288");
+    WriteRamp(dir / "a.wav", 3000);
+    std::string dump;
+    {
+      Bare r("");
+      YSE::pHandle* lh = r.p.CreateObject(YSE::OBJ::D_SFLIST, "back_list_1288");
+      REQUIRE(lh != nullptr);
+      lh->SetListData(0, "preload 2 " + (dir / "a.wav") + " 0 500 1");
+      lh->SetListData(0, "preload 3 " + (dir / "a.wav") + " 500 900 0 2");
+      lh->SetListData(0, "embed 1");
+      r.Settle();
+      std::shared_ptr<fileStreamCues> list = fileStreamCues::find("back_list_1288");
+      REQUIRE(list != nullptr);
+      const std::vector<fileStreamCues::cue> cues = list->cues();
+      REQUIRE(cues.size() == 2);
+      CHECK(cues[0].reverse);
+      CHECK_FALSE(cues[1].reverse);
+      CHECK(cues[1].speed == 2.f);
+      dump = r.p.DumpJSON();
+    }
+    REQUIRE(fileStreamCues::find("back_list_1288") == nullptr);
+    patcherImplementation dst(2, nullptr);
+    dst.ParseJSON(dump);
+    CHECK(dst.DumpJSON() == dump);
+    std::shared_ptr<fileStreamCues> list = fileStreamCues::find("back_list_1288");
+    REQUIRE(list != nullptr);
+    const std::vector<fileStreamCues::cue> cues = list->cues();
+    REQUIRE(cues.size() == 2);
+    CHECK(cues[0].reverse);
+    CHECK_FALSE(cues[1].reverse);
+  }
+
   TEST_CASE("~sfplay: the host places the files it opens (#1155, #1255)") {
     TempFolder dir("yse_sfplay_resolve_1155");
     WriteRamp(dir / "a.wav", 2000);

@@ -129,7 +129,7 @@ std::string fileStreamCues::file() const {
 }
 
 bool fileStreamCues::preload(Int number, const std::string& name, Flt startMs, Flt endMs, Flt speed,
-                             bool normalized) {
+                             bool normalized, bool reverse) {
   const std::string file = name.empty() ? this->file() : name;
   if (number < FIRST_CUE || number > LAST_CUE || file.empty()) return false;
   if (!std::isfinite(startMs) || !std::isfinite(endMs) || !std::isfinite(speed) || speed <= 0.f)
@@ -166,6 +166,7 @@ bool fileStreamCues::preload(Int number, const std::string& name, Flt startMs, F
   c.speed = speed;
   c.startFrame = first;
   c.endFrame = last;
+  c.reverse = reverse;
 
   const std::lock_guard<std::mutex> lock(mutex);
   auto it = std::lower_bound(table.begin(), table.end(), number,
@@ -231,6 +232,7 @@ struct fileStreamPlayer::stream {
   Long first = 0; // the cue's span, in the file's frames
   Long last = 0;
   Flt speed = 1.f;
+  bool reverse = false; // primed from its end, for playing backward
   Int fileRate = 0;
   UInt fileChannels = 0;
   // read() writes one buffer per file channel: STANDARD_BUFFERSIZE each.
@@ -244,13 +246,16 @@ struct fileStreamPlayer::stream {
   YSE::SOUND_STATUS intent = YSE::SS_STOPPED;
   Flt volume = 0.f;
 
-  // Open `path` and fill its first buffer from `startFrame`; null when it
-  // cannot be opened or the span holds nothing. Blocks on the disk.
+  // Open `path` and fill its first buffer from `startFrame`, or with
+  // `reverse` the buffer before `endFrame` (issue #1288); null when it cannot
+  // be opened or the span holds nothing. Blocks on the disk.
   static std::shared_ptr<stream> Open(const std::string& path, Int number, Long startFrame,
-                                      Long endFrame, Flt speed) {
+                                      Long endFrame, Flt speed, bool reverse) {
     auto s = std::make_shared<stream>();
     s->file = std::make_unique<YSE::INTERNAL::soundFile>(path);
     if (!s->file->loadStream()) return nullptr;
+    // A negative speed plays it backward.
+    s->file->reversible(true);
     const Int channels = s->file->channels();
     const Int rate = s->file->sampleRate();
     const auto length = static_cast<Long>(s->file->length());
@@ -265,6 +270,7 @@ struct fileStreamPlayer::stream {
     s->regionFirst = first;
     s->regionLast = last;
     s->speed = speed;
+    s->reverse = reverse;
     s->fileRate = rate;
     s->fileChannels = static_cast<UInt>(channels);
     s->scratch.reserve(s->fileChannels);
@@ -273,13 +279,15 @@ struct fileStreamPlayer::stream {
     s->file->region(first, last);
     // Filled as a loop: a cue shorter than a block loops from its first
     // block. Render() ends a cue that does not loop at its end itself.
-    s->file->prime(first, true);
+    // Backward the reader starts below the empty front buffer at the end.
+    s->file->prime(reverse ? last : first, true, reverse);
+    s->pos = reverse ? -1.f : 0.f;
     return s;
   }
 
   bool Same(const fileStreamCues::cue& c) const {
     return number == c.number && path == c.file && first == c.startFrame && last == c.endFrame &&
-           speed == c.speed;
+           speed == c.speed && reverse == c.reverse;
   }
 };
 
@@ -358,7 +366,8 @@ bool fileStreamPlayer::Rebuild() {
         break;
       }
     }
-    if (kept == nullptr) kept = stream::Open(c.file, c.number, c.startFrame, c.endFrame, c.speed);
+    if (kept == nullptr)
+      kept = stream::Open(c.file, c.number, c.startFrame, c.endFrame, c.speed, c.reverse);
     if (kept == nullptr) {
       ok = false;
       continue;
@@ -379,7 +388,7 @@ bool fileStreamPlayer::Rebuild() {
 bool fileStreamPlayer::open(const std::string& file) {
   if (file.empty()) return false;
   const std::lock_guard<std::mutex> lock(edit);
-  std::shared_ptr<stream> opened = stream::Open(file, 1, 0, 0, 1.f);
+  std::shared_ptr<stream> opened = stream::Open(file, 1, 0, 0, 1.f, false);
   if (opened == nullptr) return false;
   openStream = std::move(opened);
   // The cues are kept as they were built; only the open file changes.
@@ -405,7 +414,7 @@ std::string fileStreamPlayer::file() const {
 }
 
 bool fileStreamPlayer::preload(Int number, const std::string& file, Flt startMs, Flt endMs,
-                               Flt speed, bool normalized) {
+                               Flt speed, bool normalized, bool reverse) {
   std::shared_ptr<fileStreamCues> table;
   std::string path = file;
   {
@@ -414,7 +423,7 @@ bool fileStreamPlayer::preload(Int number, const std::string& file, Flt startMs,
     if (path.empty() && openStream != nullptr) path = openStream->path;
   }
   if (path.empty()) return false;
-  if (!table->preload(number, path, startMs, endMs, speed, normalized)) return false;
+  if (!table->preload(number, path, startMs, endMs, speed, normalized, reverse)) return false;
   return sync();
 }
 
@@ -482,9 +491,12 @@ bool fileStreamPlayer::Loops(Int number) const {
 }
 
 // Back to the start of its region, silent: what a stream not playing is.
+// At a speed below 0 the start is the region's end, read backward (issue
+// #1288).
 void fileStreamPlayer::Cut(stream* s) {
-  s->file->seek(s->regionFirst, Loops(s->number));
-  s->pos = 0.f;
+  const bool backward = rate < 0.f;
+  s->file->seek(backward ? s->regionLast : s->regionFirst, Loops(s->number), backward);
+  s->pos = backward ? -1.f : 0.f;
   s->intent = SS_STOPPED;
   s->volume = 0.f;
 }
@@ -502,14 +514,17 @@ void fileStreamPlayer::Retire(stream* s) {
 }
 
 void fileStreamPlayer::Start(stream* s, Int number) {
+  bool cut = false;
   if (s == active) {
     // The cue that plays, again: from its start once the disk has read it.
     Cut(s);
+    cut = true;
   } else {
     if (active != nullptr) Retire(active);
     if (s == fading) {
       fading = nullptr;
       Cut(s);
+      cut = true;
     }
   }
   if (number == 1 && (s->regionFirst != s->first || s->regionLast != s->last)) {
@@ -518,7 +533,12 @@ void fileStreamPlayer::Start(stream* s, Int number) {
     s->regionLast = s->last;
     s->file->region(s->first, s->last);
     Cut(s);
+    cut = true;
   }
+  // A stream waits at its start for the direction it last played or was
+  // primed in. The other way, it starts from its other end once the disk has
+  // read that (issue #1288). A speed of 0 plays neither way.
+  if (!cut && rate != 0.f && s->file->streamBackward() != (rate < 0.f)) Cut(s);
   active = s;
   activeCue = number;
   s->intent = SS_WANTSTOPLAY;
@@ -563,7 +583,7 @@ fileStreamPlayer& fileStreamPlayer::resume() {
 }
 
 fileStreamPlayer& fileStreamPlayer::speed(Flt value) {
-  rate = std::isfinite(value) && value > 0.f ? value : 0.f;
+  rate = std::isfinite(value) ? value : 0.f;
   return *this;
 }
 
@@ -625,19 +645,35 @@ void fileStreamPlayer::Render(stream* s, UInt length, bool withPosition) {
   const auto first = static_cast<Dbl>(s->regionFirst);
   const auto last = static_cast<Dbl>(s->regionLast);
   const Dbl span = last - first;
+  // The stream's count runs past the region's end forward and below its start
+  // backward (issue #1288) as the fills wrap: back into the region.
   auto fold = [&](Dbl frame) {
-    return frame >= last && span > 0.0 ? first + std::fmod(frame - first, span) : frame;
+    if (span <= 0.0 || (frame >= first && frame < last)) return frame;
+    Dbl into = std::fmod(frame - first, span);
+    if (into < 0.0) into += span;
+    return first + into;
   };
 
   // A loop turned off while the stream still holds audio the disk fill
   // wrapped (up to two stream buffers of it): the cue ends where it passes
-  // its end, not once that audio has played. A stream filled without a loop
-  // stops there by itself.
-  if (!loops && s->intent != SS_STOPPED && step > 0.0) {
-    const Dbl remaining = last - fold(from);
-    const Dbl advanced = s->file->streamPosition(s->pos) - from;
-    if (advanced >= remaining) {
-      const Dbl at = std::ceil(remaining / step);
+  // its end (backward: its start), not once that audio has played. A stream
+  // filled without a loop stops there by itself.
+  if (!loops && s->intent != SS_STOPPED && step != 0.0) {
+    const Dbl now = s->file->streamPosition(s->pos);
+    bool ends = false;
+    Dbl at = 0.0;
+    if (step > 0.0) {
+      const Dbl remaining = last - fold(from);
+      ends = now - from >= remaining;
+      at = std::ceil(remaining / step);
+    } else {
+      // Sample i reads from - i |step|, inside while that is at or above the
+      // start.
+      const Dbl remaining = fold(from) - first;
+      ends = from - now > remaining;
+      at = std::floor(remaining / -step) + 1.0;
+    }
+    if (ends) {
       const UInt endAt = at <= 0.0 ? 0 : (at >= length ? length : static_cast<UInt>(at));
       for (buffer& b : s->scratch)
         std::fill(b.getPtr() + endAt, b.getPtr() + length, 0.f);
@@ -662,11 +698,8 @@ void fileStreamPlayer::Render(stream* s, UInt length, bool withPosition) {
     // The frame the stream count gives, folded into the region it loops.
     const Dbl toMs = 1000.0 / static_cast<Dbl>(s->fileRate);
     Flt* w = where.getPtr();
-    for (UInt i = 0; i < length; ++i) {
-      Dbl frame = from + static_cast<Dbl>(i) * step;
-      if (frame >= last && span > 0.0) frame = first + std::fmod(frame - first, span);
-      w[i] = static_cast<Flt>(frame * toMs);
-    }
+    for (UInt i = 0; i < length; ++i)
+      w[i] = static_cast<Flt>(fold(from + static_cast<Dbl>(i) * step) * toMs);
   }
 }
 
@@ -781,7 +814,8 @@ YSE::DSP::buffer& fileStreamPlayer::operator()(UInt length) {
   const bool shifting = shiftRatio != 1.f || shiftCents != 0.f || stretching;
   Flt ratio = shiftRatio * pitchShifter::centsToRatio(shiftCents);
   if (stretching) {
-    const Flt v = rate * (active != nullptr ? active->speed : 1.f);
+    // Backward too: the pitch follows the speed's size.
+    const Flt v = std::fabs(rate * (active != nullptr ? active->speed : 1.f));
     if (v > 0.f) ratio /= v;
   }
   for (UInt k = 0; k < outs.channels(); ++k) {

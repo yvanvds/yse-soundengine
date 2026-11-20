@@ -54,7 +54,8 @@ namespace YSE {
 
       /** @brief One cue. ``endMs`` 0 or below is the end of the file;
        *         ``startFrame`` and ``endFrame`` are the span in the file's
-       *         frames, at its own rate. */
+       *         frames, at its own rate. ``reverse``: buffered from its end,
+       *         for playing backward. */
       struct cue {
         Int number = 0;
         std::string file;
@@ -63,6 +64,7 @@ namespace YSE {
         Flt speed = 1.f;
         Long startFrame = 0;
         Long endFrame = 0;
+        bool reverse = false;
       };
 
       /** @brief The table called @p name, made when nobody holds it; a new,
@@ -97,13 +99,16 @@ namespace YSE {
        *
        *  An end of 0 or below is the end of the file. With @p normalized,
        *  the start and end are fractions of the file (0 to 1; an end of 0 is
-       *  the end). The span is held inside the file. False, and no change,
+       *  the end). The span is held inside the file. With @p reverse the
+       *  cue is buffered from its end, so a player at a speed below 0
+       *  starts it at once (Max's direction flag); either way it plays in
+       *  the direction of the player's speed. False, and no change,
        *  when the number is outside ``FIRST_CUE .. LAST_CUE``, the file
        *  cannot be opened, the span holds nothing (an end at or before the
        *  start), or the speed is not a number above 0. Blocks on the disk.
        */
       bool preload(Int number, const std::string& file, Flt startMs = 0.f, Flt endMs = 0.f,
-                   Flt speed = 1.f, bool normalized = false);
+                   Flt speed = 1.f, bool normalized = false, bool reverse = false);
       /** @brief Remove cue @p number; false when there is none. */
       bool remove(Int number);
       /** @brief Remove every cue of @p file, and forget it as the open
@@ -146,10 +151,12 @@ namespace YSE {
      *  the slow pool fills the other from disk and hands it over without a
      *  lock. The audio thread never touches the disk. Opening a cue opens
      *  the file and fills its first buffer from the cue's start (what Max
-     *  calls preloading), so a cue starts at once. A stream reads
-     *  forward, without interpolation, and fades in over 200 samples when it
-     *  starts or resumes and out over 200 when it is stopped or paused, as a
-     *  ``YSE::sound`` does.
+     *  calls preloading), so a cue starts at once; a cue preloaded with
+     *  ``reverse`` fills it from the cue's end instead. A stream reads
+     *  forward, or backward at a speed below 0 (the disk fill then reads
+     *  the frames before the position), without interpolation, and fades in
+     *  over 200 samples when it starts or resumes and out over 200 when it
+     *  is stopped or paused, as a ``YSE::sound`` does.
      *
      *  ### Cues
      *
@@ -184,15 +191,20 @@ namespace YSE {
      *  next block, after a new set of streams is taken.
      *
      *  - **The end.** A cue that reaches its end stops, or with loop on goes
-     *    on from its start without a gap (the disk fill wraps). ``loop``
+     *    on from its start without a gap (the disk fill wraps). Backward
+     *    the start is the cue's end and the end its start. ``loop``
      *    loops every cue, ``loopOne`` only the cue of that number.
      *    ``done()`` is true for the block in which playback stopped: a cue
      *    or the last cue of a list reached its end, or ``stop`` faded it
      *    out. Not when another cue took over, and not on ``pause``.
      *  - **Speed.** ``speed`` times the cue's own speed, at the file's rate
-     *    against the live ``SAMPLERATE``, read every block. A stream does not
-     *    play backward: a speed below 0 is 0, which holds the sample it is
-     *    on.
+     *    against the live ``SAMPLERATE``, read every block. Below 0 plays
+     *    backward: a cue starts from its end, and a cue that plays turns
+     *    around where it is (the disk then reads the other way, so the
+     *    stream buffer it holds plays on while the next is read). A cue
+     *    started against the direction it was buffered for (a ``reverse``
+     *    cue forward, any other cue backward) is silent until its other end
+     *    is read from disk, a block or two. 0 holds the sample it is on.
      *  - **Channels.** Output ``k`` plays file channel ``k``. File channels
      *    past the last output are not played. Outputs past the file's
      *    channels are silent, or with ``modout`` on repeat them: output
@@ -267,7 +279,7 @@ namespace YSE {
        *         (``fileStreamCues::preload``) and ``sync``. An empty
        *         @p file is the open file. */
       bool preload(Int number, const std::string& file, Flt startMs = 0.f, Flt endMs = 0.f,
-                   Flt speed = 1.f, bool normalized = false);
+                   Flt speed = 1.f, bool normalized = false, bool reverse = false);
       /** @brief Remove every cue from the cue table, and ``sync``. The open
        *         file stays. */
       void clear();
@@ -322,8 +334,8 @@ namespace YSE {
       Int loopOne() const {
         return loopCue;
       }
-      /** @brief The playback speed, 1 normal; below 0 (or not a number) is
-       *         0. */
+      /** @brief The playback speed, 1 normal, -1 backward; not a number
+       *         is 0. */
       fileStreamPlayer& speed(Flt value);
       Flt speed() const {
         return rate;

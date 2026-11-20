@@ -813,7 +813,8 @@ defines more cues, each a span of a file:
 - ``preload <cue> [file] [start] [end] [direction] [speed]``: cue 2 or higher
   plays the file (the open one when it is left out) from ``start`` to ``end``
   milliseconds (0 or none: the end of the file), at ``speed`` times the
-  object's speed. ``direction`` is read and ignored: a stream plays forward.
+  object's speed. ``direction`` 1 reads the cue's end first, ready for
+  playing backward (see ``speed``); 0 or none reads its start.
 - ``preloadn``: the same, with ``start`` and ``end`` as fractions of the file
   from 0 to 1.
 
@@ -835,7 +836,12 @@ or two later.
 - ``loop 0/1``: every cue starts again from its start when it reaches its
   end, without a gap. ``loopone <cue>``: only that cue loops (0: none).
 - ``speed <x>``, or a number in the right inlet: the playback speed, 1
-  normal. A speed below 0 is 0, which holds the sample it is on.
+  normal. Below 0 plays backward: a cue starts from its end, ends at its
+  start, and loops from its end again. A cue that plays turns around where
+  it is when the sign changes. A cue started backward that was not
+  preloaded with ``direction`` 1 (the open file, too) is silent until its
+  end has been read, a block or two; a ``direction`` 1 cue played forward
+  waits for its start the same way. 0 holds the sample it is on.
 - ``modout 0/1``: outlets past the file's channels repeat them (a mono file
   plays out of every outlet) instead of staying silent.
 - ``pitchshift <ratio>`` and ``pitchshiftcent <cents>``: shift the pitch,

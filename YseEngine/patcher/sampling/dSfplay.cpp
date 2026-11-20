@@ -84,6 +84,7 @@ struct dSfplay::sfTask {
   std::uint64_t id = 0;
   SF_OP op = SF_OP::SYNC;
   std::uint8_t normalized = 0;
+  std::uint8_t reverse = 0;
   std::int32_t cue = 0;
   float start = 0.f;
   float end = 0.f;
@@ -174,10 +175,8 @@ void dSfplay::ShapePorts() {
   ADD_IN_1;
   REG_FLOAT_IN(SetSpeed);
   REG_INT_IN(SetSpeedInt);
-  INLET_DOC(1, "speed",
-            "The playback speed: 1 normal, 2 twice as fast. Below 0 is 0: a stream does not "
-            "play backward.",
-            "0 or higher");
+  INLET_DOC(1, "speed", "The playback speed: 1 normal, 2 twice as fast, -1 backward, 0 holds.",
+            "any float");
 
   for (int i = 0; i < channels; i++) {
     ADD_OUT_BUFFER;
@@ -361,6 +360,7 @@ MESSAGES() {
     task.start = args.start;
     task.end = args.end;
     task.speed = args.speed;
+    task.reverse = args.reverse ? 1 : 0;
     const std::size_t n = args.fileEnd - args.fileBegin;
     if (n >= sizeof(task.name)) return;
     std::memcpy(task.name, text + args.fileBegin, n);
@@ -528,7 +528,8 @@ bool dSfplay::RunPathTask(char* args, std::size_t argBytes, const char* path) {
   case SF_OP::CLOSE:
     return found->close(file);
   case SF_OP::PRELOAD:
-    return found->preload(task.cue, file, task.start, task.end, task.speed, task.normalized != 0);
+    return found->preload(task.cue, file, task.start, task.end, task.speed, task.normalized != 0,
+                          task.reverse != 0);
   case SF_OP::CLEAR:
     if (task.count == 0) {
       found->clear();
@@ -566,6 +567,7 @@ bool dSfplay::DumpState(nlohmann::json::value_type& json) {
     entry["start"] = c.startMs;
     entry["end"] = c.endMs;
     entry["speed"] = c.speed;
+    if (c.reverse) entry["reverse"] = 1;
     json["cues"].push_back(entry);
   }
   return true;
@@ -587,7 +589,7 @@ void dSfplay::RestoreState(const nlohmann::json::value_type& json) {
     if (!entry.is_object()) continue;
     if (!table->preload(entry.value("cue", 0), entry.value("file", std::string()),
                         entry.value("start", 0.f), entry.value("end", 0.f),
-                        entry.value("speed", 1.f)))
+                        entry.value("speed", 1.f), false, entry.value("reverse", 0) != 0))
       failed.fetch_add(1, std::memory_order_relaxed);
   }
   if (!player->sync()) failed.fetch_add(1, std::memory_order_relaxed);

@@ -23182,10 +23182,10 @@
           "FLOAT",
           "INT"
         ],
-        "doc": "The playback speed: 1 normal, 2 twice as fast. Below 0 is 0: a stream does not play backward.",
+        "doc": "The playback speed: 1 normal, 2 twice as fast, -1 backward, 0 holds.",
         "index": 1,
         "label": "speed",
-        "range": "0 or higher"
+        "range": "any float"
       }
     ],
     "is_dsp": true,

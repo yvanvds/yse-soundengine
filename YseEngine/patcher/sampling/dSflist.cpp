@@ -24,6 +24,7 @@ namespace {
 struct dSflist::listTask {
   LIST_OP op = LIST_OP::OPEN;
   std::uint8_t normalized = 0;
+  std::uint8_t reverse = 0;
   std::int32_t cue = 0;
   float start = 0.f;
   float end = 0.f;
@@ -135,6 +136,7 @@ MESSAGES() {
     task.start = args.start;
     task.end = args.end;
     task.speed = args.speed;
+    task.reverse = args.reverse ? 1 : 0;
     if (nameInto(task, args.fileBegin, args.fileEnd)) Submit(task, true);
   } else if (Is(text, begin, end, "clear")) {
     listTask task;
@@ -188,7 +190,8 @@ bool dSflist::RunPathTask(char* args, std::size_t argBytes, const char* path) {
   case LIST_OP::CLOSE:
     return found->close(file.empty() ? found->file() : file) > 0 || file.empty();
   case LIST_OP::PRELOAD:
-    return found->preload(task.cue, file, task.start, task.end, task.speed, task.normalized != 0);
+    return found->preload(task.cue, file, task.start, task.end, task.speed, task.normalized != 0,
+                          task.reverse != 0);
   case LIST_OP::CLEAR:
     if (task.count == 0) {
       found->clear();
@@ -215,6 +218,7 @@ bool dSflist::DumpState(nlohmann::json::value_type& json) {
     entry["start"] = c.startMs;
     entry["end"] = c.endMs;
     entry["speed"] = c.speed;
+    if (c.reverse) entry["reverse"] = 1;
     json["cues"].push_back(entry);
   }
   return true;
@@ -235,7 +239,7 @@ void dSflist::RestoreState(const nlohmann::json::value_type& json) {
     if (!entry.is_object()) continue;
     if (!table->preload(entry.value("cue", 0), entry.value("file", std::string()),
                         entry.value("start", 0.f), entry.value("end", 0.f),
-                        entry.value("speed", 1.f)))
+                        entry.value("speed", 1.f), false, entry.value("reverse", 0) != 0))
       failed.fetch_add(1, std::memory_order_relaxed);
   }
 }

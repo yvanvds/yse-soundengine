@@ -124,6 +124,33 @@ namespace {
     return std::vector<float>(o, o + p.out(channel).getLength());
   }
 
+  bool Silent(const std::vector<float>& x) {
+    for (float v : x)
+      if (v != 0.f) return false;
+    return true;
+  }
+
+  // Blocks until the player is done, draining between them, skipping the
+  // silent blocks before the first that sounds (a cue started against the
+  // direction it was buffered for waits for its other end, issue #1288): the
+  // samples of output 0 from that block on, and how many blocks were skipped.
+  std::vector<float> PlayToDoneAfterSilence(fileStreamPlayer& p, int maxBlocks, int& skipped) {
+    std::vector<float> all;
+    skipped = 0;
+    for (int b = 0; b < maxBlocks; ++b) {
+      p();
+      const std::vector<float> o = Block(p);
+      Drain();
+      if (all.empty() && Silent(o) && !p.done()) {
+        skipped++;
+        continue;
+      }
+      all.insert(all.end(), o.begin(), o.end());
+      if (p.done()) return all;
+    }
+    return all;
+  }
+
   // Blocks until the player is done, draining between them; the samples of
   // output 0, and how many blocks it took (0 when it never finished).
   std::vector<float> PlayToDone(fileStreamPlayer& p, int maxBlocks, int* blocks = nullptr) {
@@ -393,8 +420,8 @@ TEST_SUITE("dsp") {
       const std::vector<float> o = Block(p);
       for (UInt k = 0; k < N; ++k)
         CHECK(o[k] == Ramp(static_cast<long>((2 * N + k) / 2)));
-      p.speed(-1.f);
-      CHECK(p.speed() == 0.f);
+      p.speed(-1.f); // backward (#1288)
+      CHECK(p.speed() == -1.f);
       p.speed(NAN);
       CHECK(p.speed() == 0.f);
     }
@@ -682,6 +709,10 @@ TEST_SUITE("dsp") {
       p.speed(2.f).timeStretch(true);
       CHECK(measure() == doctest::Approx(100.0).epsilon(0.05));
     }
+    SUBCASE("speed -2, time stretched: backward too (#1288)") {
+      p.speed(-2.f).timeStretch(true);
+      CHECK(measure() == doctest::Approx(100.0).epsilon(0.05));
+    }
     SUBCASE("pitchshift 0.5") {
       p.pitchShift(0.5f);
       CHECK(measure() == doctest::Approx(50.0).epsilon(0.05));
@@ -778,6 +809,284 @@ TEST_SUITE("dsp") {
     p();
     CHECK(p.hasCue(1));
     CHECK_FALSE(p.hasCue(2));
+  }
+
+  // ─── backward (#1288) ─────────────────────────────────────────────────────
+
+  TEST_CASE("fileStreamPlayer: a speed below 0 plays the open file from its end to its start, "
+            "and done; again backward at once (#1288)") {
+    ScopedSampleRate rate(1000);
+    TempFolder dir("yse_fsp_back_1288");
+    WriteRamp(dir / "a.wav", 1000);
+    fileStreamPlayer p;
+    REQUIRE(p.open(dir / "a.wav"));
+    p.speed(-1.f);
+    CHECK(p.speed() == -1.f);
+    p.play(1);
+
+    // The open file was buffered from its start: a block of silence while
+    // the disk reads its end.
+    int skipped = 0;
+    const std::vector<float> heard = PlayToDoneAfterSilence(p, 40, skipped);
+    CHECK(skipped >= 1);
+    CHECK(skipped <= 2);
+    CHECK(p.done());
+    REQUIRE(heard.size() >= 1000);
+    Fade in(true);
+    for (std::size_t k = 0; k < 1000; ++k) {
+      CAPTURE(k);
+      CHECK(heard[k] == doctest::Approx(Ramp(999 - static_cast<long>(k)) * in.next()));
+    }
+    for (std::size_t k = 1000; k < heard.size(); ++k)
+      CHECK(heard[k] == 0.f);
+    // Done in the block that held the start.
+    CHECK(heard.size() == static_cast<std::size_t>(1000 / N + 1) * N);
+    CHECK_FALSE(p.playing());
+
+    // Waiting at its end now: it plays backward again from the first block,
+    // and the position runs down with it.
+    p.play(1);
+    p();
+    Fade again(true);
+    const std::vector<float> first = Block(p);
+    for (UInt k = 0; k < N; ++k) {
+      CHECK(first[k] == doctest::Approx(Ramp(999 - static_cast<long>(k)) * again.next()));
+      CHECK(p.position().getPtr()[k] == doctest::Approx(999.f - static_cast<float>(k)));
+    }
+  }
+
+  TEST_CASE("fileStreamPlayer: backward, a file longer than the stream buffers plays across "
+            "its refills without a gap (#1288)") {
+    ScopedSampleRate rate(1000);
+    TempFolder dir("yse_fsp_back_long_1288");
+    const long frames = 2 * static_cast<long>(STREAM_BUFFERSIZE) + 5000;
+    WriteRamp(dir / "long.wav", frames, 2);
+    fileStreamPlayer p(2);
+    REQUIRE(p.open(dir / "long.wav"));
+    p.speed(-1.f).play(1);
+    long n = 0;
+    int skipped = 0;
+    Fade in(true);
+    bool ended = false;
+    for (int b = 0; b < 2000 && !ended; ++b) {
+      p();
+      const std::vector<float> l = Block(p, 0);
+      const std::vector<float> r = Block(p, 1);
+      ended = p.done();
+      Drain();
+      if (n == 0 && Silent(l) && !ended) {
+        skipped++;
+        continue;
+      }
+      for (UInt k = 0; k < N; ++k, ++n) {
+        const long f = frames - 1 - n;
+        const float g = f >= 0 ? in.next() : 0.f;
+        const float wantL = f >= 0 ? Ramp(f) * g : 0.f;
+        const float wantR = f >= 0 ? Ramp(f, 1) * g : 0.f;
+        if (l[k] != doctest::Approx(wantL) || r[k] != doctest::Approx(wantR)) {
+          FAIL("sample ", n, " (frame ", f, ") is ", l[k], " / ", r[k]);
+        }
+      }
+    }
+    CHECK(ended);
+    CHECK(skipped <= 2);
+    CHECK(n >= frames);
+    CHECK(n < frames + static_cast<long>(N));
+  }
+
+  TEST_CASE("fileStreamPlayer: backward, a loop goes on from its end without a gap (#1288)") {
+    ScopedSampleRate rate(1000);
+    TempFolder dir("yse_fsp_back_loop_1288");
+    WriteRamp(dir / "a.wav", 1000);
+    fileStreamPlayer p;
+    REQUIRE(p.open(dir / "a.wav"));
+    REQUIRE(p.preload(2, "", 100.f, 300.f));
+    // Shorter than a block, and buffered for playing backward.
+    REQUIRE(p.preload(3, "", 600.f, 700.f, 1.f, false, true));
+    p();
+    p.speed(-1.f);
+
+    // `last` is the frame after the span: backward it plays last - 1 first.
+    auto loops = [&](Int cue, long last, long span, int mostSilent) {
+      p.play(cue);
+      Fade in(true);
+      long n = 0;
+      int skipped = 0;
+      for (int b = 0; b < 24; ++b) {
+        p();
+        CHECK_FALSE(p.done());
+        const std::vector<float> o = Block(p);
+        Drain();
+        if (n == 0 && Silent(o)) {
+          skipped++;
+          continue;
+        }
+        for (UInt k = 0; k < N; ++k, ++n) {
+          CAPTURE(n);
+          CHECK(o[k] == doctest::Approx(Ramp(last - 1 - n % span) * in.next()));
+        }
+      }
+      CHECK(skipped <= mostSilent);
+      CHECK(n > 2 * span); // around the loop more than once
+    };
+    SUBCASE("loop") {
+      p.loop(true);
+      loops(2, 300, 200, 2);
+    }
+    SUBCASE("loopone, a span shorter than a block buffered backward: no silence") {
+      p.loopOne(3);
+      loops(3, 700, 100, 0);
+    }
+    SUBCASE("the whole file") {
+      p.loop(true);
+      loops(1, 1000, 1000, 2);
+    }
+  }
+
+  TEST_CASE("fileStreamPlayer: preload's reverse flag buffers a cue from its end (#1288)") {
+    ScopedSampleRate rate(1000);
+    TempFolder dir("yse_fsp_back_cue_1288");
+    WriteRamp(dir / "a.wav", 1000);
+    fileStreamPlayer p;
+    REQUIRE(p.open(dir / "a.wav"));
+    REQUIRE(p.preload(2, "", 100.f, 400.f, 1.f, false, true));
+    REQUIRE(p.preload(3, "", 600.f, 700.f, 1.f, false, true));
+    REQUIRE(p.preload(4, "", 600.f, 700.f));
+    const std::vector<fileStreamCues::cue> cues = p.cueList()->cues();
+    REQUIRE(cues.size() == 3);
+    CHECK(cues[0].reverse);
+    CHECK(cues[1].reverse);
+    CHECK_FALSE(cues[2].reverse);
+    p();
+
+    SUBCASE("backward it starts at once from its end, and ends at its start") {
+      // Its buffer was filled as a loop, so it holds the span over and over;
+      // without loop the cue still ends where it passes its start.
+      p.speed(-1.f).play(3);
+      p();
+      const std::vector<float> o = Block(p);
+      const float* where = p.position().getPtr();
+      Fade in(true);
+      for (UInt k = 0; k < 100; ++k) {
+        CAPTURE(k);
+        CHECK(o[k] == doctest::Approx(Ramp(699 - static_cast<long>(k)) * in.next()));
+        CHECK(where[k] == doctest::Approx(699.f - static_cast<float>(k)));
+      }
+      for (UInt k = 100; k < N; ++k)
+        CHECK(o[k] == 0.f);
+      CHECK(p.done());
+      CHECK_FALSE(p.playing());
+    }
+    SUBCASE("the same span buffered forward waits for its end") {
+      p.speed(-1.f).play(4);
+      p();
+      CHECK(Silent(Block(p)));
+      Drain();
+      p();
+      const std::vector<float> o = Block(p);
+      Fade in(true);
+      for (UInt k = 0; k < 100; ++k)
+        CHECK(o[k] == doctest::Approx(Ramp(699 - static_cast<long>(k)) * in.next()));
+      CHECK(p.done());
+    }
+    SUBCASE("forward it waits for its start, then plays it forward") {
+      p.play(2);
+      int skipped = 0;
+      const std::vector<float> heard = PlayToDoneAfterSilence(p, 20, skipped);
+      CHECK(skipped >= 1);
+      CHECK(skipped <= 2);
+      REQUIRE(heard.size() >= 300);
+      Fade in(true);
+      for (std::size_t k = 0; k < 300; ++k)
+        CHECK(heard[k] == doctest::Approx(Ramp(100 + static_cast<long>(k)) * in.next()));
+      for (std::size_t k = 300; k < heard.size(); ++k)
+        CHECK(heard[k] == 0.f);
+    }
+  }
+
+  TEST_CASE("fileStreamPlayer: a cue that plays turns around where it is when the speed "
+            "changes sign, across the stream's refills both ways (#1288)") {
+    // Forward past the first stream buffer, back across its boundary,
+    // forward across it again, then backward to the file's start. With
+    // whole frames each sample plays the frame the position is on and then
+    // steps, so a turn plays the frame after the last one again.
+    ScopedSampleRate rate(1000);
+    TempFolder dir("yse_fsp_turn_1288");
+    const long S = static_cast<long>(STREAM_BUFFERSIZE);
+    const long frames = 2 * S + 5000;
+    WriteRamp(dir / "long.wav", frames);
+    fileStreamPlayer p;
+    REQUIRE(p.open(dir / "long.wav"));
+    p.play(1);
+
+    long x = 0; // the frame the next sample plays
+    long dir1 = 1;
+    long played = 0;
+    Fade in(true);
+    bool ended = false;
+    auto blocks = [&](long direction, int count, long until) {
+      p.speed(static_cast<Flt>(direction));
+      dir1 = direction;
+      for (int b = 0; (count < 0 || b < count) && !ended; ++b) {
+        if (until >= 0 && x >= until) break;
+        p();
+        const std::vector<float> o = Block(p);
+        ended = p.done();
+        Drain();
+        for (UInt k = 0; k < N; ++k, ++played) {
+          const bool inside = x >= 0 && x < frames;
+          const float want = inside ? Ramp(x) * in.next() : 0.f;
+          if (o[k] != doctest::Approx(want)) FAIL("sample ", played, " (frame ", x, ") is ", o[k]);
+          if (inside) x += dir1;
+        }
+      }
+    };
+    blocks(1, -1, S + 1000); // into the second stream buffer
+    REQUIRE(x > S);
+    blocks(-1, 16, -1); // back across its start
+    REQUIRE(x < S);
+    blocks(1, 16, -1); // forward across it again
+    REQUIRE(x > S);
+    blocks(-1, -1, -1); // backward to the start, and done
+    CHECK(ended);
+    CHECK(x == -1);
+  }
+
+  TEST_CASE("fileStreamPlayer: backward blocks, turns and starts allocate nothing, take no "
+            "lock, read no disk (#1288)") {
+    ScopedSampleRate rate(1000);
+    TempFolder dir("yse_fsp_back_rt_1288");
+    WriteRamp(dir / "a.wav", 3000, 2);
+    fileStreamPlayer p(2);
+    REQUIRE(p.open(dir / "a.wav"));
+    REQUIRE(p.preload(2, "", 500.f, 900.f, 1.f, false, true));
+    REQUIRE(p.preload(3, "", 100.f));
+    p();
+    {
+      TestHelpers::ProbeScope probe;
+      p.speed(-1.f).play(1);
+      for (int b = 0; b < 4; ++b)
+        p();
+      p.speed(1.f);
+      p();
+      p.speed(-1.5f);
+      p();
+      p.play(2);
+      p();
+      p.loop(true);
+      for (int b = 0; b < 6; ++b)
+        p();
+      p.seek(200.f, 400.f);
+      p();
+      p.play(3);
+      p.timeStretch(true);
+      for (int b = 0; b < 4; ++b)
+        p();
+      p.stop();
+      for (int b = 0; b < 4; ++b)
+        p();
+      CHECK(TestHelpers::g_alloc_count.load() == 0);
+    }
   }
 
   TEST_CASE("fileStreamPlayer: blocks and transport allocate nothing, take no lock, read no "

@@ -42,7 +42,8 @@ namespace YSE {
        *         [direction] [speed]``, Max's order: the file is the word
        *         after the cue when it is not a number, and the numbers after
        *         it are the start and end in ms (or 0 to 1 for ``preloadn``),
-       *         a direction flag that is read and ignored, and a speed.
+       *         a direction flag (not 0: the cue is buffered for playing
+       *         backward, issue #1288), and a speed.
        */
       struct preloadArgs {
         int cue = 0;
@@ -51,6 +52,7 @@ namespace YSE {
         float start = 0.f;
         float end = 0.f;
         float speed = 1.f;
+        bool reverse = false;
       };
 
       /** @brief Read @p text after its first word (which ends at @p pos).
@@ -80,6 +82,7 @@ namespace YSE {
         }
         out.start = values[0];
         out.end = values[1];
+        out.reverse = values[2] != 0.f;
         out.speed = values[3];
         return true;
       }
