@@ -782,6 +782,127 @@ bang.
     |
    [~sfinfo]          channels, sample size, rate, length, type and name
 
+.. patcher-object:: ~sfplay
+
+Plays sound files from disk without loading them into memory, so a file of
+any length plays as soon as its first second is read. The file is read in
+the background, a second at a time, the way the engine streams a long sound.
+
+The arguments are ``list channels buffersize position``:
+
+- ``list``: the ``~sflist`` whose cues the numbers 2 and up play. Leave it out
+  for cues of the object's own. A first argument that is a number is the
+  channel count, so ``~sfplay 2`` plays stereo.
+- ``channels``: the number of signal outlets, 1 to 64. Outlet ``k`` plays
+  channel ``k`` of the file. Channels the file has past the last outlet are
+  not played.
+- ``buffersize``: accepted and ignored. The streaming buffers have a fixed
+  size.
+- ``position``: 1 adds a signal outlet, after the channels, with where the
+  cue that plays is, in milliseconds into its file.
+
+The rightmost outlet bangs after the block in which playback stopped: the cue
+reached its end, the last cue of a list did, or ``0`` stopped it. Not when
+another cue takes over, and not on ``pause``.
+
+**Cues**
+
+``open <file>`` opens a file and makes it cue 1, played whole. ``preload``
+defines more cues, each a span of a file:
+
+- ``preload <cue> [file] [start] [end] [direction] [speed]``: cue 2 or higher
+  plays the file (the open one when it is left out) from ``start`` to ``end``
+  milliseconds (0 or none: the end of the file), at ``speed`` times the
+  object's speed. ``direction`` is read and ignored: a stream plays forward.
+- ``preloadn``: the same, with ``start`` and ``end`` as fractions of the file
+  from 0 to 1.
+
+Each cue has a stream of its own whose first second is read when the cue is
+defined, so a cue starts in the block after its number arrives. A number
+plays: ``0`` stops, ``1`` plays the open file, ``2`` and up play that cue. A
+cue that is not defined is ignored. A list of numbers plays its cues one
+after the other, skipping the ones not defined. Switching to another cue
+fades the old one out over 200 samples while the new one fades in; every
+start and stop fades the same way, so nothing clicks. Sending the number of
+the cue that plays starts it again once its start has been read back, a block
+or two later.
+
+**Messages**
+
+- ``seek <start> [end]``: play the open file from ``start`` to ``end``
+  milliseconds. It is silent until that part has been read, a block or two.
+- ``pause`` and ``resume``: hold where playback is, and go on from there.
+- ``loop 0/1``: every cue starts again from its start when it reaches its
+  end, without a gap. ``loopone <cue>``: only that cue loops (0: none).
+- ``speed <x>``, or a number in the right inlet: the playback speed, 1
+  normal. A speed below 0 is 0, which holds the sample it is on.
+- ``modout 0/1``: outlets past the file's channels repeat them (a mono file
+  plays out of every outlet) instead of staying silent.
+- ``pitchshift <ratio>`` and ``pitchshiftcent <cents>``: shift the pitch,
+  keeping the duration, through the shifter ``~pitchshift`` uses.
+  ``timestretch 1`` keeps the pitch when the speed changes, so the speed only
+  changes the tempo, up to two octaves either way. ``quality basic|good|
+  better|best`` chooses how (see ``~pitchshift``). While none of these is set
+  nothing is shifted; turning one on starts the shifter, silent for its
+  latency.
+- ``clear [cues]``: forget those cues, or every cue. The open file stays.
+- ``fclose [file]``: close that file (the open one when it is left out) and
+  forget its cues.
+- ``set [list]``: play the cues of another ``~sflist``, or of the object's
+  own again.
+- ``audiofile <file>``: the same as ``open``.
+- ``embed 0/1``: with 1 the patch saves the open file and the object's own
+  cues, and opens them again when it loads. The cues of an ``~sflist`` are
+  saved by the ``~sflist``.
+
+Files are opened in the background; names are found the way the other file
+objects find them (see :doc:`/patcher/files`), the host's path resolver
+included. A number, a list, ``seek``, ``pause`` or ``resume`` waits until the
+files sent before it are open, so ``[open song.wav, 1(`` plays the song. A file
+that cannot be opened changes nothing. Pitch correction, formants and
+tempo-following are not part of ``~sfplay``: send it into ``~retune`` to
+correct its pitch.
+
+.. code-block:: text
+
+   [open speech.wav, preload 2 1500 3000(
+   |
+   [2(    [0(
+   |      |
+   [~sfplay 2]
+   |     |    \
+   [~dac 1 2]  [done(
+
+.. patcher-object:: ~sflist
+
+Keeps cues of sound files under a name. Every ``~sfplay`` created with that
+name, or sent ``set <name>``, plays them, each through streams of its own, and
+opens them again when they change. The arguments are ``name buffersize``;
+``buffersize`` is accepted and ignored.
+
+- ``open <file>``: the file a ``preload`` without one uses.
+- ``preload <cue> [file] [start] [end] [direction] [speed]`` and ``preloadn``:
+  define a cue, as on ``~sfplay``.
+- ``clear [cues]``: forget those cues, or every cue.
+- ``fclose [file]``: forget the cues of that file (the open one when it is
+  left out).
+- ``embed 0/1``: with 1 the patch saves the cues and opens them again when it
+  loads, unless the name already has cues by then.
+
+A file is checked in the background before its cue is defined; one that
+cannot be opened defines nothing. Without a name there is nothing for an
+``~sfplay`` to find.
+
+.. code-block:: text
+
+   [preload 2 drums.wav 0 500, preload 3 drums.wav 500 1000(
+   |
+   [~sflist beats]
+
+   [2 3 2(
+   |
+   [~sfplay beats]
+
 .. patcher-object:: ~stretch
 
 Changes the length and the pitch of what the buffer of its name holds, each

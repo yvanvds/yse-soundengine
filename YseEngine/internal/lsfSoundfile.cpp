@@ -64,6 +64,7 @@ void YSE::INTERNAL::soundFile::loadStreaming() {
 
   if (*handle) {
     _sampleRateAdjustment = static_cast<Flt>(handle->samplerate()) / static_cast<Flt>(SAMPLERATE);
+    _sourceRate = handle->samplerate();
     _length = (Int)handle->frames();
     _channels = handle->channels();
 
@@ -112,6 +113,7 @@ void YSE::INTERNAL::soundFile::loadNonStreaming() {
 
   if (*handle) {
     _sampleRateAdjustment = static_cast<Flt>(handle->samplerate()) / static_cast<Flt>(SAMPLERATE);
+    _sourceRate = handle->samplerate();
     _length = (Int)handle->frames();
     _channels = handle->channels();
 
@@ -141,35 +143,48 @@ void YSE::INTERNAL::soundFile::loadNonStreaming() {
 
 UInt YSE::INTERNAL::soundFile::fillBuffer(Flt* dest, Bool loop) {
   if (_needsReset.exchange(false, std::memory_order_relaxed)) {
-    // Seek to the frame armed by the audio thread: 0 after a stop/reset, or the
-    // requested absolute frame after a setFilePos seek (issue #217).
+    // Seek to the frame armed by the audio thread: the region's start after a
+    // stop/reset, or the requested absolute frame after a setFilePos seek
+    // (issue #217).
     Long target = _seekTarget.load(std::memory_order_relaxed);
     handle->seek(target, SEEK_SET);
     _streamPos = (Int)target;
   }
+  // The frames this stream plays (issue #1155): the whole file unless
+  // region() narrowed it. Reaching `last` is what reaching the end of the file
+  // was: wrap to `first` when looping, else zero-pad and report.
+  Long first = _regionStart.load(std::memory_order_relaxed);
+  Long last = _regionEnd.load(std::memory_order_relaxed);
+  if (last < 0 || last > _length) last = _length;
+  if (first > last) first = last;
+
   Int framesToRead = STREAM_BUFFERSIZE;
   Flt* ptr = dest;
+  Bool wrapped = false;
 
   while (framesToRead > 0) {
-    U64 read = handle->readf(ptr, framesToRead);
-    _streamPos += (UInt)read;
-    framesToRead -= (UInt)read;
-    if (framesToRead > 0) {
-      ptr += (read * _channels);
-      if (loop) {
-        handle->seek(0, SEEK_SET);
-        _streamPos = 0;
-      } else {
-        // non-loop EOF: zero-pad the remainder and report the real frame count
-        UInt valid = STREAM_BUFFERSIZE - (UInt)framesToRead;
-        Int zeros = framesToRead * _channels;
-        while (zeros-- > 0)
-          *ptr++ = 0.0f;
-        _streamPos = 0;
-        return valid;
-      }
+    const Long room = last - (Long)_streamPos;
+    const Long want = room < framesToRead ? room : framesToRead;
+    sf_count_t read = want > 0 ? handle->readf(ptr, want) : 0;
+    if (read < 0) read = 0;
+    _streamPos += (Int)read;
+    framesToRead -= (Int)read;
+    ptr += (read * _channels);
+    if (framesToRead == 0) break;
+    if (read > 0) wrapped = false;
+    // At the end of the region, or of the file before it. A wrap that reads
+    // nothing at all would spin, so the second one in a row ends the fill.
+    if (loop && last > first && !wrapped) {
+      handle->seek(first, SEEK_SET);
+      _streamPos = (Int)first;
+      wrapped = true;
     } else {
-      return STREAM_BUFFERSIZE;
+      // non-loop end: zero-pad the remainder and report the real frame count
+      UInt valid = STREAM_BUFFERSIZE - (UInt)framesToRead;
+      Int zeros = framesToRead * _channels;
+      while (zeros-- > 0)
+        *ptr++ = 0.0f;
+      return valid;
     }
   }
   return STREAM_BUFFERSIZE;

@@ -81,6 +81,43 @@ namespace YSE {
       // reset()/streamReprime but with an arbitrary target frame instead of 0.
       void seek(Long frame, Bool loop);
 
+      // ── Stream access for DSP::fileStreamPlayer (issue #1155) ──────────────
+      //
+      // The player reads a stream through read(), as a streaming sound does,
+      // and opens and positions it with these. Disk work stays where it was:
+      // loadStream() and prime() block on the calling thread, which is never
+      // the audio thread; seek() and reset() only arm a refill.
+
+      // Open the file as a stream on the calling thread, now: what create(true)
+      // has the slow pool do. Only on a new object; true when it is READY.
+      Bool loadStream();
+      // The file's own sample rate in Hz, 0 before it is loaded.
+      Int sampleRate() const {
+        return _sourceRate;
+      }
+      // The speed factor read() applies, fixed when the file was loaded.
+      Flt sampleRateAdjustment() const {
+        return _sampleRateAdjustment;
+      }
+      // The frames [start, end) a stream plays: a fill stops, or with loop on
+      // goes on from `start`, at `end` instead of at the end of the file, and
+      // reset() returns to `start`. An `end` below 0 is the end of the file.
+      // The whole file until this is called. Takes effect from the next disk
+      // fill, so a caller seeks after it.
+      void region(Long start, Long end);
+      // Fill the front buffer from `frame` on the calling thread, before any
+      // read(): a stream that starts at once from there. With `loop` the fill
+      // wraps at the region's end, so a region shorter than a block loops from
+      // the first block on; a reader that does not loop then ends the stream
+      // at the region's end itself. Never the audio thread.
+      void prime(Long frame, Bool loop);
+      // Audio thread: the stream's frame for the buffer-local `pos` read()
+      // keeps, counted on from the frame the last seek, reset or prime started
+      // at (a looping stream's count runs past its region's end).
+      Dbl streamPosition(Flt pos) const {
+        return static_cast<Dbl>(_frontBufferBase) + static_cast<Dbl>(pos);
+      }
+
       // to keep track of clients
       void attach(SOUND::implementationObject* impl);
       void release(SOUND::implementationObject* impl);
@@ -120,10 +157,11 @@ namespace YSE {
       // the backend's fillBuffer().
       void fillBackBuffer();
       // Backend disk fill: write up to STREAM_BUFFERSIZE frames into `dest` from
-      // the current stream position, honoring _needsReset/_seekTarget and the
-      // loop flag, zero-padding the tail at non-loop EOF. Returns the number of
-      // real (non-padded) frames written. Does blocking disk I/O — slow pool /
-      // load only, never the audio thread (issue #185).
+      // the current stream position, honoring _needsReset/_seekTarget, the
+      // region (issue #1155) and the loop flag, zero-padding the tail at a
+      // non-loop end of the region (the file's end unless region() narrowed it). Returns the number
+      // of real (non-padded) frames written. Does blocking disk I/O — slow pool / load only, never
+      // the audio thread (issue #185).
       virtual UInt fillBuffer(Flt* dest, Bool loop) = 0;
 
       // Slow-pool job that drives fillBackBuffer() for this file. A dedicated job
@@ -169,6 +207,12 @@ namespace YSE {
       // read by the slow pool in fillBuffer(). Atomic for the cross-thread hand-
       // off. (issue #217)
       std::atomic<Long> _seekTarget{0};
+      // The frames a stream plays (issue #1155): set by region(), read by the
+      // disk fill and by reset(). End below 0: the end of the file.
+      std::atomic<Long> _regionStart{0};
+      std::atomic<Long> _regionEnd{-1};
+      // The file's sample rate, published by the loader.
+      Int _sourceRate = 0;
 
       // Double-buffer publication (issue #185). Writer = slow pool, reader = audio.
       // _backValidFrames/_backTerminal/_backGen are written before the _backReady

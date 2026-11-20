@@ -464,6 +464,13 @@ A numbered collection of sample buffers sharing a name, ``kit.1``,
 .. doxygenfile:: dsp/sampling/sampleBufferSet.hpp
    :project: libYSE
 
+Sound files played from disk without loading them, through the engine's own
+streaming, with numbered cues shared by name: what ``~sfplay`` and
+``~sflist`` do.
+
+.. doxygenfile:: dsp/sampling/fileStreamPlayer.hpp
+   :project: libYSE
+
 Routing
 -------
 

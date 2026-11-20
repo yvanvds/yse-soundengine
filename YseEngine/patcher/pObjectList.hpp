@@ -82,7 +82,9 @@ namespace YSE {
    *    by phase), ``D_STRETCH`` (a buffer's length and pitch changed in
    *    the background), ``D_WAVEFORM`` (the view and edits of a waveform
    *    display of a buffer), ``D_POLYBUFFER`` (a numbered collection of
-   *    buffers, name.1, name.2 ...).
+   *    buffers, name.1, name.2 ...), ``D_SFPLAY`` (sound files streamed
+   *    from disk, with cues), ``D_SFLIST`` (cues shared by name between
+   *    ``~sfplay`` objects).
    *  - DSP routing: ``D_GATE`` (a signal sent to one of several outlets),
    *    ``D_SELECTOR`` (one of several signals passed to the outlet),
    *    ``D_MATRIX`` (every input to every output at a ramped gain),
@@ -387,6 +389,8 @@ namespace YSE {
     DEFOBJ(D_STRETCH, "~stretch");
     DEFOBJ(D_WAVEFORM, "~waveform");
     DEFOBJ(D_POLYBUFFER, "~polybuffer");
+    DEFOBJ(D_SFPLAY, "~sfplay");
+    DEFOBJ(D_SFLIST, "~sflist");
 
     DEFOBJ(D_GATE, "~gate");
     DEFOBJ(D_SELECTOR, "~selector");

@@ -23131,6 +23131,109 @@
     ],
     "requires_midi_device": false
   },
+  "~sflist": {
+    "category": "SAMPLING",
+    "description": "Keeps cues of sound files under a name: the ~sfplay objects created with that name play them, each streaming from disk.",
+    "inlets": [
+      {
+        "accepts": [],
+        "doc": "'open <file>' (the file a preload without one uses), 'fclose [file]' (its cues removed; none: the open file), 'preload <cue> [file] [start ms] [end ms] [direction] [speed]', 'preloadn' (the same with start and end from 0 to 1), 'clear [cues]' and 'embed <0/1>'.",
+        "index": 0,
+        "label": "messages",
+        "range": ""
+      }
+    ],
+    "is_dsp": false,
+    "name": "~sflist",
+    "outlets": [],
+    "params": [
+      {
+        "default": "",
+        "doc": "The name ~sfplay objects play these cues by.",
+        "name": "name",
+        "range": "cue list name"
+      },
+      {
+        "default": "0",
+        "doc": "Read for compatibility, without effect: the engine streams through buffers of a fixed size.",
+        "name": "buffersize",
+        "range": "any"
+      }
+    ],
+    "requires_midi_device": false
+  },
+  "~sfplay": {
+    "category": "SAMPLING",
+    "description": "Plays sound files streamed from disk, without loading them into memory: cues of files, played one by one or in a list, with speed, looping, pausing, seeking, pitch shift and time stretch; bangs when playback stops.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "0 stops, 1 plays the open file, 2 and up play that cue; a list plays its cues one after the other. Also takes 'open <file>', 'fclose [file]', 'preload <cue> [file] [start ms] [end ms] [direction] [speed]', 'preloadn' (the same with start and end from 0 to 1), 'clear [cues]', 'set [list]', 'seek <start ms> [end ms]', 'pause', 'resume', 'loop <0/1>', 'loopone <cue>', 'speed <x>', 'modout <0/1>', 'pitchshift <ratio>', 'pitchshiftcent <cents>', 'timestretch <0/1>', 'quality <basic|good|better|best>', 'audiofile <file>' (as open) and 'embed <0/1>'.",
+        "index": 0,
+        "label": "cues",
+        "range": "0 or higher"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The playback speed: 1 normal, 2 twice as fast. Below 0 is 0: a stream does not play backward.",
+        "index": 1,
+        "label": "speed",
+        "range": "0 or higher"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~sfplay",
+    "outlets": [
+      {
+        "doc": "File channel 1 as it plays. Silence while stopped or paused, and for a channel the file lacks unless modout is on.",
+        "index": 0,
+        "label": "out",
+        "range": "any float",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "A bang after the block in which playback stopped: the cue, or the last cue of a list, reached its end, or 0 stopped it. Not when another cue takes over, and not on pause.",
+        "index": 1,
+        "label": "done",
+        "range": "bang",
+        "type": "BANG"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The ~sflist whose cues the numbers 2 and up play; none for cues of the object's own. May be left out: a first argument that is a number is the channel count.",
+        "name": "list",
+        "range": "cue list name"
+      },
+      {
+        "default": "1",
+        "doc": "The number of signal outlets, each playing the file channel of its number. File channels past the last outlet are not played.",
+        "name": "channels",
+        "range": "1 to 64"
+      },
+      {
+        "default": "0",
+        "doc": "Read for compatibility, without effect: the engine streams through buffers of a fixed size.",
+        "name": "buffersize",
+        "range": "any"
+      },
+      {
+        "default": "0",
+        "doc": "1 adds a signal outlet with where playback is, in milliseconds.",
+        "name": "position",
+        "range": "0 or 1"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~shape": {
     "category": "OSC",
     "description": "A breakpoint envelope played over the length of a ramp such as a ~phasor: one cycle of the ramp is one pass through the envelope, so its length follows the ramp's frequency. For envelopes whose shape is fixed and whose length follows tempo or note length.",

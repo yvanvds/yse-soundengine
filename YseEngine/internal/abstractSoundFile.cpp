@@ -831,14 +831,52 @@ YSE::INTERNAL::abstractSoundFile& YSE::INTERNAL::abstractSoundFile::reset() {
   // back to 0, and the generation is bumped so any fill that started before this
   // stop (stale position) is discarded rather than played on restart. The
   // prefetched back buffer is dropped for the same reason. (issue #185)
+  //
+  // "Frame 0" is the start of the stream's region (issue #1155), which is 0
+  // unless region() narrowed it.
+  const Long start = _regionStart.load(std::memory_order_relaxed);
   _frontValidFrames = 0;
   _frontTerminal = false;
-  _frontBufferBase = 0;
-  _seekTarget.store(0, std::memory_order_relaxed);
+  _frontBufferBase = start;
+  _seekTarget.store(start, std::memory_order_relaxed);
   _needsReset.store(true, std::memory_order_relaxed);
   _fillGen.fetch_add(1, std::memory_order_release);
   _backReady.store(false, std::memory_order_relaxed);
   return *this;
+}
+
+Bool YSE::INTERNAL::abstractSoundFile::loadStream() {
+  // create(true) without the slow-pool hop (issue #1155): the caller is a
+  // control or background thread that wants the stream ready when this
+  // returns.
+  if (state != NEW) return state == READY;
+  _streaming = true;
+  _endReached = false;
+  _needsReset = false;
+  state = LOADING;
+  loadStreaming();
+  return state == READY;
+}
+
+void YSE::INTERNAL::abstractSoundFile::region(Long start, Long end) {
+  if (start < 0) start = 0;
+  _regionStart.store(start, std::memory_order_relaxed);
+  _regionEnd.store(end, std::memory_order_relaxed);
+}
+
+void YSE::INTERNAL::abstractSoundFile::prime(Long frame, Bool loop) {
+  // Loader side, before the audio thread reads (issue #1155): the same fill
+  // the slow pool does, into the front buffer, from `frame`. Not terminal, as
+  // loadStreaming()'s first fill is not: the end is decided by the back-buffer
+  // fills, which know the loop flag at the time.
+  if (frame < 0) frame = 0;
+  _seekTarget.store(frame, std::memory_order_relaxed);
+  _needsReset.store(true, std::memory_order_relaxed);
+  _backReady.store(false, std::memory_order_relaxed);
+  const UInt valid = fillBuffer(_iBuffer, loop);
+  _frontValidFrames = static_cast<Long>(valid);
+  _frontTerminal = false;
+  _frontBufferBase = frame;
 }
 
 void YSE::INTERNAL::abstractSoundFile::seek(Long frame, Bool loop) {
