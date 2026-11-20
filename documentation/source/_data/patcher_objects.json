@@ -23234,6 +23234,98 @@
     ],
     "requires_midi_device": false
   },
+  "~sfrecord": {
+    "category": "SAMPLING",
+    "description": "Records signals to a sound file on disk as they play: until stopped, for a time, or the last stretch in a loop, in AIFF, WAV, FLAC and other types, with fades, dither and the time recorded.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The signal to record into channel 1; unconnected it records silence. A number other than 0 starts recording into the open file, 0 stops it and closes the file. Also takes 'open <file> [type]', 'start [file] [channels]', 'stop', 'record <ms>', 'loop <ms>', 'samptype <int8|int16|int24|int32|float32|float64|mulaw|alaw> [swap]', 'bitdepth <bits>', 'beginramp <ms>', 'endramp <ms>', 'dither <0-2>', 'quantization <0/1>', 'nchans <n>' and 'sortloop <0/1>'.",
+        "index": 0,
+        "label": "signal",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~sfrecord",
+    "outlets": [
+      {
+        "doc": "How long the recording has run, in milliseconds: 0 at its first sample. After a stop it holds the recording's length.",
+        "index": 0,
+        "label": "time",
+        "range": "0 or higher",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "The samples per channel of the recording that were lost because the disk fell behind, sent when the count changes. 0 when nothing was lost.",
+        "index": 1,
+        "label": "dropped",
+        "range": "0 or higher",
+        "type": "INT"
+      }
+    ],
+    "params": [
+      {
+        "default": "1",
+        "doc": "The number of signal inlets, each recorded into the file channel of its number.",
+        "name": "channels",
+        "range": "1 to 64"
+      },
+      {
+        "default": "0",
+        "doc": "How many samples per channel wait for the disk before any are lost; 0 for 65536. Below 4096 is 4096.",
+        "name": "buffersize",
+        "range": "0 or higher"
+      },
+      {
+        "default": "0",
+        "doc": "A fade-in over the start of each recording, in milliseconds.",
+        "name": "beginramp",
+        "range": "0 or higher"
+      },
+      {
+        "default": "0",
+        "doc": "A fade-out over the end of each recording, in milliseconds. A stop records on for that long while it fades.",
+        "name": "endramp",
+        "range": "0 or higher"
+      },
+      {
+        "default": "16",
+        "doc": "The bits of each integer sample of the next file opened. samptype can choose floats and the 8-bit codes instead.",
+        "name": "bitdepth",
+        "range": "8, 16, 24 or 32"
+      },
+      {
+        "default": "0",
+        "doc": "What is added before integer samples are rounded: 0 nothing, 1 triangular dither, 2 triangular dither with noise shaping.",
+        "name": "dither",
+        "range": "0 to 2"
+      },
+      {
+        "default": "0",
+        "doc": "How integer samples are rounded: 0 to the nearest step, 1 down.",
+        "name": "quantization",
+        "range": "0 or 1"
+      },
+      {
+        "default": "0",
+        "doc": "The channels of the next file opened; 0 for one per inlet. Inlets past them are not recorded; channels past the inlets are silent.",
+        "name": "nchans",
+        "range": "0 to 64"
+      },
+      {
+        "default": "0",
+        "doc": "1 puts a loop recording in order when it stops, so its file starts with the oldest sample instead of where the circle was.",
+        "name": "sortloop",
+        "range": "0 or 1"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~shape": {
     "category": "OSC",
     "description": "A breakpoint envelope played over the length of a ramp such as a ~phasor: one cycle of the ramp is one pass through the envelope, so its length follows the ramp's frequency. For envelopes whose shape is fixed and whose length follows tempo or note length.",

@@ -471,6 +471,12 @@ streaming, with numbered cues shared by name: what ``~sfplay`` and
 .. doxygenfile:: dsp/sampling/fileStreamPlayer.hpp
    :project: libYSE
 
+Signals recorded to a sound file as they play, through a lock-free ring that
+a background thread empties to disk: what ``~sfrecord`` does.
+
+.. doxygenfile:: dsp/sampling/fileRecorder.hpp
+   :project: libYSE
+
 Routing
 -------
 

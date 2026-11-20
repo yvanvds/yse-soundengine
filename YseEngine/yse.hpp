@@ -159,6 +159,7 @@
 #include "dsp/sampling/sampleBuffer.hpp"
 #include "dsp/sampling/sampleBufferSet.hpp"
 #include "dsp/sampling/fileStreamPlayer.hpp"
+#include "dsp/sampling/fileRecorder.hpp"
 #include "dsp/sampling/sampleAccess.hpp"
 #include "dsp/sampling/tableLookup.hpp"
 #include "dsp/sampling/transferLookup.hpp"

@@ -200,6 +200,7 @@
 #include "sampling/dPolybuffer.h"
 #include "sampling/dSfplay.h"
 #include "sampling/dSflist.h"
+#include "sampling/dSfrecord.h"
 #include "sampling/dRecord.h"
 #include "sampling/dPlay.h"
 #include "sampling/dGroove.h"
@@ -557,6 +558,7 @@ pRegistry::pRegistry() {
   Add(OBJ::D_POLYBUFFER, dPolybuffer::Create);
   Add(OBJ::D_SFPLAY, dSfplay::Create);
   Add(OBJ::D_SFLIST, dSflist::Create);
+  Add(OBJ::D_SFRECORD, dSfrecord::Create);
   Add(OBJ::D_GATE, dGate::Create);
   Add(OBJ::D_SELECTOR, dSelector::Create);
   Add(OBJ::D_MATRIX, dMatrix::Create);

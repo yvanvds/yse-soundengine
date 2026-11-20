@@ -84,7 +84,8 @@ namespace YSE {
    *    display of a buffer), ``D_POLYBUFFER`` (a numbered collection of
    *    buffers, name.1, name.2 ...), ``D_SFPLAY`` (sound files streamed
    *    from disk, with cues), ``D_SFLIST`` (cues shared by name between
-   *    ``~sfplay`` objects).
+   *    ``~sfplay`` objects), ``D_SFRECORD`` (signals recorded to a sound
+   *    file on disk).
    *  - DSP routing: ``D_GATE`` (a signal sent to one of several outlets),
    *    ``D_SELECTOR`` (one of several signals passed to the outlet),
    *    ``D_MATRIX`` (every input to every output at a ramped gain),
@@ -391,6 +392,7 @@ namespace YSE {
     DEFOBJ(D_POLYBUFFER, "~polybuffer");
     DEFOBJ(D_SFPLAY, "~sfplay");
     DEFOBJ(D_SFLIST, "~sflist");
+    DEFOBJ(D_SFRECORD, "~sfrecord");
 
     DEFOBJ(D_GATE, "~gate");
     DEFOBJ(D_SELECTOR, "~selector");

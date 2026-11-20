@@ -903,6 +903,77 @@ cannot be opened defines nothing. Without a name there is nothing for an
    |
    [~sfplay beats]
 
+.. patcher-object:: ~sfrecord
+
+Records signals to a sound file on disk as they play, for as long as you
+like. The samples are handed to the background, which writes them to the
+file, so recording never holds up the sound.
+
+The arguments are ``channels buffersize beginramp endramp bitdepth dither
+quantization nchans sortloop``:
+
+- ``channels``: the number of signal inlets, 1 to 64, each recorded into the
+  file channel of its number. An inlet with nothing connected records
+  silence.
+- ``buffersize``: how many samples per channel can wait for the disk before
+  any are lost. 0 is 65536, and less than 4096 is 4096.
+- ``beginramp`` and ``endramp``: fades in milliseconds at the start and the
+  end of each recording. A stop with an end fade records on while it fades.
+- ``bitdepth``: 8, 16 (the default), 24 or 32-bit integer samples.
+- ``dither``: 0 none, 1 triangular dither, 2 triangular dither with noise
+  shaping, added before integer samples are rounded.
+- ``quantization``: 0 rounds integer samples to the nearest step, 1 rounds
+  them down.
+- ``nchans``: the channels of the file; 0 for one per inlet. Inlets past them
+  are not recorded, and channels past the inlets are silent.
+- ``sortloop``: 1 puts a ``loop`` recording in order when it stops.
+
+The left outlet is a signal of how long the recording has run, in
+milliseconds, held at its length after it stops. The right outlet sends the
+number of samples per channel the recording lost because the disk fell
+behind, each time it changes; enlarge ``buffersize`` when it is not 0.
+
+**Recording**
+
+``open <file>`` makes the file, replacing one of that name. Its type comes
+from the extension: ``.wav``, ``.flac``, ``.ogg``, ``.au``, ``.caf``,
+``.w64``, ``.raw``, and AIFF for anything else. A type word before or after
+the name (``aiff``, ``wave``, ``flac``, ``ogg``, ``au``, ``caf``, ``w64``,
+``raw``) chooses it instead. A number other than 0 starts recording into the
+open file; ``0`` or ``stop`` stops and closes it, so recording again takes
+another ``open``.
+
+- ``record <ms>``: record for that long, then stop.
+- ``loop <ms>``: record until stopped, keeping only the last ``ms``. The file
+  is that long and is written over in a circle; with ``sortloop`` 1 it starts
+  with the oldest sample. Not for FLAC or OGG, which cannot be written over.
+- ``start [file] [channels]``: open the file, with that many channels, and
+  start recording into it.
+- ``samptype <type> [swap]``: the samples of the next file: ``int8``,
+  ``int16``, ``int24``, ``int32``, ``float32``, ``float64``, ``mulaw`` or
+  ``alaw``. ``swap`` 1 swaps the byte order of a raw file. FLAC takes 8, 16
+  or 24 bits and uses 24 for another type; OGG has its own.
+- ``bitdepth <bits>`` (or ``format``), ``beginramp``, ``endramp``,
+  ``dither``, ``quantization``, ``nchans`` and ``sortloop`` set what their
+  arguments set.
+
+The file is made in the background, its name found the way the other file
+objects find theirs (see :doc:`/patcher/files`), the host's path resolver
+included. A start waits until the files opened before it are made, so
+``[open take.wav, 1(`` records into take.wav. The file takes the engine's
+sample rate. A file that cannot be made, in a folder that does not exist
+for instance, leaves nothing to record into. There is no ``print`` and no
+``resample``: the right outlet reports what was lost, and the file is
+written at the engine's rate.
+
+.. code-block:: text
+
+   [open take.wav, 1(   [0(
+   |                    |
+   [~sfrecord 2         ]
+   |                    \
+   [time]               [dropped]
+
 .. patcher-object:: ~stretch
 
 Changes the length and the pitch of what the buffer of its name holds, each
