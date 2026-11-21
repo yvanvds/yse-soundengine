@@ -56,6 +56,69 @@ four messages can be waiting at once in one patcher; more are ignored.
    [~buffer drums kit.wav]       loads kit.wav when the patch opens
    [~buffer scratch 2000 2]      two seconds of silence, in stereo
 
+.. patcher-object:: ~polybuffer
+
+Holds a numbered collection of buffers: the ``~polybuffer kit`` holds
+``kit.1``, ``kit.2``, ``kit.3`` and so on, in the order they were added.
+Each one is an ordinary named buffer, so ``~play kit.2`` or ``~groove kit.1``
+plays it. A player may name a buffer before the collection fills it. Every
+``~polybuffer`` with the same name, in any patch, shares one collection,
+and so does the host program. Without a name the collection gets one of its
+own, ``polybuffer-<n>``; ``getbufferlist`` tells it.
+
+The arguments are ``name [embed] [quiet]``.
+
+**Messages**
+
+- ``append <file>``: load a sound file into a new buffer at the end.
+- ``appendempty [ms] [channels]``: add a silent buffer that long, at the
+  engine's sample rate.
+- ``readfolder <folder>``: load every sound file in a folder, in the natural
+  order of their names (``hit2`` before ``hit10``). Hidden files, subfolders
+  and files that are not sound files are skipped.
+- ``writetofolder <folder>``: save every buffer as a WAV file in the folder,
+  under the name of the file it was loaded from, or its buffer name
+  (``kit.3.wav``) when it has none or that name is already taken. Empty
+  buffers are skipped.
+- ``clear``: empty every buffer and remove it from the collection. A player
+  still naming ``kit.1`` falls silent. The next buffer added is ``kit.1``
+  again.
+- ``send <index> <message>``: pass a ``~buffer`` message to the buffer at
+  that index, or to all of them with index 0: ``send 0 normalize``,
+  ``send 2 fill 0``. The queries are not passed on.
+- ``dump``: send ``index name file ms channels rate`` for each buffer
+  (``none`` when it was not loaded from a file).
+- ``getbufferlist``: send ``bufferlist`` and the buffer names, then ``done``.
+- ``getshortname``: send each buffer's name and the name of its file without
+  the extension (``kit.1 kick``), then ``done``.
+- ``getcount``: send ``count <n>``. ``getsize``: send ``size <bytes>``, the
+  memory the samples take.
+
+The answers come out of the left outlet. The right outlet bangs when a change
+has finished. As with ``~buffer``, every message is carried out in the
+background, in the order it was sent; a file that cannot be read sends no
+bang. An answer is limited to 16 KB; lines past that are left out.
+
+With ``embed`` 1 the patch saves the collection: the file each buffer was
+loaded from, or the length and channel count of an empty one, never the
+samples. Opening the patch loads them again, in the same order. If the
+collection is already loaded when a patch opens it, the patch keeps it as it
+is and a warning is logged; ``quiet`` 1 leaves the warning out.
+
+Windows and the mouse belong to the host program. ``append``, ``readfolder``
+and ``writetofolder`` without a name, ``open``, ``wclose`` and dropping files
+on the object do nothing. The host sends the messages instead.
+
+.. code-block:: text
+
+   [readfolder samples/drums(
+   |
+   [~polybuffer kit]             kit.1, kit.2, ... one per file
+
+   [start(
+   |
+   [~play kit.2]                 plays the second file
+
 .. patcher-object:: ~info
 
 Reports what the buffer of its name holds. The argument names the buffer;
@@ -719,6 +782,204 @@ bang.
     |
    [~sfinfo]          channels, sample size, rate, length, type and name
 
+.. patcher-object:: ~sfplay
+
+Plays sound files from disk without loading them into memory, so a file of
+any length plays as soon as its first second is read. The file is read in
+the background, a second at a time, the way the engine streams a long sound.
+
+The arguments are ``list channels buffersize position``:
+
+- ``list``: the ``~sflist`` whose cues the numbers 2 and up play. Leave it out
+  for cues of the object's own. A first argument that is a number is the
+  channel count, so ``~sfplay 2`` plays stereo.
+- ``channels``: the number of signal outlets, 1 to 64. Outlet ``k`` plays
+  channel ``k`` of the file. Channels the file has past the last outlet are
+  not played.
+- ``buffersize``: accepted and ignored. The streaming buffers have a fixed
+  size.
+- ``position``: 1 adds a signal outlet, after the channels, with where the
+  cue that plays is, in milliseconds into its file.
+
+The rightmost outlet bangs after the block in which playback stopped: the cue
+reached its end, the last cue of a list did, or ``0`` stopped it. Not when
+another cue takes over, and not on ``pause``.
+
+**Cues**
+
+``open <file>`` opens a file and makes it cue 1, played whole. ``preload``
+defines more cues, each a span of a file:
+
+- ``preload <cue> [file] [start] [end] [direction] [speed]``: cue 2 or higher
+  plays the file (the open one when it is left out) from ``start`` to ``end``
+  milliseconds (0 or none: the end of the file), at ``speed`` times the
+  object's speed. ``direction`` 1 reads the cue's end first, ready for
+  playing backward (see ``speed``); 0 or none reads its start.
+- ``preloadn``: the same, with ``start`` and ``end`` as fractions of the file
+  from 0 to 1.
+
+Each cue has a stream of its own whose first second is read when the cue is
+defined, so a cue starts in the block after its number arrives. A number
+plays: ``0`` stops, ``1`` plays the open file, ``2`` and up play that cue. A
+cue that is not defined is ignored. A list of numbers plays its cues one
+after the other, skipping the ones not defined. Switching to another cue
+fades the old one out over 200 samples while the new one fades in; every
+start and stop fades the same way, so nothing clicks. Sending the number of
+the cue that plays starts it again once its start has been read back, a block
+or two later.
+
+**Messages**
+
+- ``seek <start> [end]``: play the open file from ``start`` to ``end``
+  milliseconds. It is silent until that part has been read, a block or two.
+- ``pause`` and ``resume``: hold where playback is, and go on from there.
+- ``loop 0/1``: every cue starts again from its start when it reaches its
+  end, without a gap. ``loopone <cue>``: only that cue loops (0: none).
+- ``speed <x>``, or a number in the right inlet: the playback speed, 1
+  normal. Below 0 plays backward: a cue starts from its end, ends at its
+  start, and loops from its end again. A cue that plays turns around where
+  it is when the sign changes. A cue started backward that was not
+  preloaded with ``direction`` 1 (the open file, too) is silent until its
+  end has been read, a block or two; a ``direction`` 1 cue played forward
+  waits for its start the same way. 0 holds the sample it is on.
+- ``modout 0/1``: outlets past the file's channels repeat them (a mono file
+  plays out of every outlet) instead of staying silent.
+- ``pitchshift <ratio>`` and ``pitchshiftcent <cents>``: shift the pitch,
+  keeping the duration, through the shifter ``~pitchshift`` uses.
+  ``timestretch 1`` keeps the pitch when the speed changes, so the speed only
+  changes the tempo, up to two octaves either way. ``quality basic|good|
+  better|best`` chooses how (see ``~pitchshift``). While none of these is set
+  nothing is shifted; turning one on starts the shifter, silent for its
+  latency.
+- ``clear [cues]``: forget those cues, or every cue. The open file stays.
+- ``fclose [file]``: close that file (the open one when it is left out) and
+  forget its cues.
+- ``set [list]``: play the cues of another ``~sflist``, or of the object's
+  own again.
+- ``audiofile <file>``: the same as ``open``.
+- ``embed 0/1``: with 1 the patch saves the open file and the object's own
+  cues, and opens them again when it loads. The cues of an ``~sflist`` are
+  saved by the ``~sflist``.
+
+Files are opened in the background; names are found the way the other file
+objects find them (see :doc:`/patcher/files`), the host's path resolver
+included. A number, a list, ``seek``, ``pause`` or ``resume`` waits until the
+files sent before it are open, so ``[open song.wav, 1(`` plays the song. A file
+that cannot be opened changes nothing. Pitch correction, formants and
+tempo-following are not part of ``~sfplay``: send it into ``~retune`` to
+correct its pitch.
+
+.. code-block:: text
+
+   [open speech.wav, preload 2 1500 3000(
+   |
+   [2(    [0(
+   |      |
+   [~sfplay 2]
+   |     |    \
+   [~dac 1 2]  [done(
+
+.. patcher-object:: ~sflist
+
+Keeps cues of sound files under a name. Every ``~sfplay`` created with that
+name, or sent ``set <name>``, plays them, each through streams of its own, and
+opens them again when they change. The arguments are ``name buffersize``;
+``buffersize`` is accepted and ignored.
+
+- ``open <file>``: the file a ``preload`` without one uses.
+- ``preload <cue> [file] [start] [end] [direction] [speed]`` and ``preloadn``:
+  define a cue, as on ``~sfplay``.
+- ``clear [cues]``: forget those cues, or every cue.
+- ``fclose [file]``: forget the cues of that file (the open one when it is
+  left out).
+- ``embed 0/1``: with 1 the patch saves the cues and opens them again when it
+  loads, unless the name already has cues by then.
+
+A file is checked in the background before its cue is defined; one that
+cannot be opened defines nothing. Without a name there is nothing for an
+``~sfplay`` to find.
+
+.. code-block:: text
+
+   [preload 2 drums.wav 0 500, preload 3 drums.wav 500 1000(
+   |
+   [~sflist beats]
+
+   [2 3 2(
+   |
+   [~sfplay beats]
+
+.. patcher-object:: ~sfrecord
+
+Records signals to a sound file on disk as they play, for as long as you
+like. The samples are handed to the background, which writes them to the
+file, so recording never holds up the sound.
+
+The arguments are ``channels buffersize beginramp endramp bitdepth dither
+quantization nchans sortloop``:
+
+- ``channels``: the number of signal inlets, 1 to 64, each recorded into the
+  file channel of its number. An inlet with nothing connected records
+  silence.
+- ``buffersize``: how many samples per channel can wait for the disk before
+  any are lost. 0 is 65536, and less than 4096 is 4096.
+- ``beginramp`` and ``endramp``: fades in milliseconds at the start and the
+  end of each recording. A stop with an end fade records on while it fades.
+- ``bitdepth``: 8, 16 (the default), 24 or 32-bit integer samples.
+- ``dither``: 0 none, 1 triangular dither, 2 triangular dither with noise
+  shaping, added before integer samples are rounded.
+- ``quantization``: 0 rounds integer samples to the nearest step, 1 rounds
+  them down.
+- ``nchans``: the channels of the file; 0 for one per inlet. Inlets past them
+  are not recorded, and channels past the inlets are silent.
+- ``sortloop``: 1 puts a ``loop`` recording in order when it stops.
+
+The left outlet is a signal of how long the recording has run, in
+milliseconds, held at its length after it stops. The right outlet sends the
+number of samples per channel the recording lost because the disk fell
+behind, each time it changes; enlarge ``buffersize`` when it is not 0.
+
+**Recording**
+
+``open <file>`` makes the file, replacing one of that name. Its type comes
+from the extension: ``.wav``, ``.flac``, ``.ogg``, ``.au``, ``.caf``,
+``.w64``, ``.raw``, and AIFF for anything else. A type word before or after
+the name (``aiff``, ``wave``, ``flac``, ``ogg``, ``au``, ``caf``, ``w64``,
+``raw``) chooses it instead. A number other than 0 starts recording into the
+open file; ``0`` or ``stop`` stops and closes it, so recording again takes
+another ``open``.
+
+- ``record <ms>``: record for that long, then stop.
+- ``loop <ms>``: record until stopped, keeping only the last ``ms``. The file
+  is that long and is written over in a circle; with ``sortloop`` 1 it starts
+  with the oldest sample. Not for FLAC or OGG, which cannot be written over.
+- ``start [file] [channels]``: open the file, with that many channels, and
+  start recording into it.
+- ``samptype <type> [swap]``: the samples of the next file: ``int8``,
+  ``int16``, ``int24``, ``int32``, ``float32``, ``float64``, ``mulaw`` or
+  ``alaw``. ``swap`` 1 swaps the byte order of a raw file. FLAC takes 8, 16
+  or 24 bits and uses 24 for another type; OGG has its own.
+- ``bitdepth <bits>`` (or ``format``), ``beginramp``, ``endramp``,
+  ``dither``, ``quantization``, ``nchans`` and ``sortloop`` set what their
+  arguments set.
+
+The file is made in the background, its name found the way the other file
+objects find theirs (see :doc:`/patcher/files`), the host's path resolver
+included. A start waits until the files opened before it are made, so
+``[open take.wav, 1(`` records into take.wav. The file takes the engine's
+sample rate. A file that cannot be made, in a folder that does not exist
+for instance, leaves nothing to record into. There is no ``print`` and no
+``resample``: the right outlet reports what was lost, and the file is
+written at the engine's rate.
+
+.. code-block:: text
+
+   [open take.wav, 1(   [0(
+   |                    |
+   [~sfrecord 2         ]
+   |                    \
+   [time]               [dropped]
+
 .. patcher-object:: ~stretch
 
 Changes the length and the pitch of what the buffer of its name holds, each
@@ -854,3 +1115,93 @@ the patch: a reloaded ``~stretch`` uses its argument.
 The work for one patcher waits in a queue of four, with the buffer objects'
 loading and editing: a bang sent while four are waiting is ignored. A
 ``~stretch`` deleted while working stops.
+
+.. patcher-object:: ~waveform
+
+The state of a waveform display of the buffer of its name: the part shown,
+the selection, and what the mouse does. The host draws the display; the
+object keeps the numbers, sends them on, and edits the buffer. Every time is
+in milliseconds at the buffer's own sample rate, and everything happens as
+the message arrives, with the audio stopped too.
+
+- The first four inlets set the display start, the display length (0 or
+  less shows the whole buffer, and follows it when it changes), the
+  selection start and the selection end. A bang to one of them sends its
+  value out of the outlet below it.
+- The fifth inlet takes a list ``start length selection-start
+  selection-end``, as the right outlet of another ``~waveform`` sends it, and
+  sets all four.
+- Whenever one of the four changes, the right outlet sends them as one list.
+  Wire it into another ``~waveform``'s fifth inlet to show the same part of
+  a buffer in both. Two views wired to each other both ways settle rather
+  than send back and forth.
+
+.. rubric:: The mouse
+
+The host turns mouse actions into messages: ``mouse <x> <y> <state>``, with
+``x`` from 0 (left edge) to 1 (right edge), ``y`` from -1 (bottom) to 1
+(top), and ``state`` 1 when the button goes down, 2 while it moves, 0 when
+it comes up. ``drag <x> <y>`` is the same as state 2. Every mouse message
+sends ``x``, the amplitude under the mouse and the state out of the fifth
+outlet. What else it does depends on ``mode`` (``setmode`` as a number):
+
+- ``select`` (1, the default): the selection runs from where the button
+  went down to the mouse.
+- ``loop`` (2): the selection edge nearer the click follows the mouse.
+- ``move`` (3): dragging sideways scrolls, dragging up zooms in around the
+  click (by 2 for every half of the display's height), dragging down zooms
+  out; ``zoom_orientation 1`` swaps up and down. The display outlets send
+  the new start and length.
+- ``draw`` (4): the amplitude under the mouse is written into the buffer,
+  with a straight line from the last position, so a fast stroke leaves no
+  gaps. Every object playing the buffer hears it at once. It cannot be
+  undone.
+- ``none`` (0): nothing but the mouse outlet.
+
+The amplitude at ``y`` is ``(y - voffset) / vzoom``: ``voffset`` moves the
+zero line, ``vzoom`` magnifies. ``clipdraw 1`` keeps drawn values within
+what the display shows.
+
+``mouseoutput`` (``outmode`` as a number) says when a gesture sends the
+selection: ``none`` (0), ``down`` (1), ``up`` (2), ``downup`` (3) or
+``continuous`` (4, the default). ``quiet 1`` sends only the mouse while the
+button is held, and the rest when it comes up. ``undo`` swaps the selection
+with the one before the last change, so a second ``undo`` returns.
+
+.. rubric:: Snapping, grid and units
+
+``snap`` sets what a selection snaps to: ``none``, ``grid``, ``tick`` (the
+grid divided by ``ticks``) or ``zero`` (the nearest zero crossing of the
+channel). ``snapto`` takes 0 (none), 1 (grid) or 2 (zero). The grid starts at
+``offset`` ms, and its step ``grid`` is counted in ``unit``: ``ms``,
+``samples``, ``phase`` (a fraction of the buffer's length) or ``bpm``, where
+the step is one bar of ``beats`` beats at the tempo ``bpm <tempo>
+[beats]`` sets. ``setbpm`` makes the selection one bar: it sets the tempo,
+starts the bars on the selection, switches the unit to ``bpm``, and sends
+``bpm <tempo> <beats>`` out of the right outlet.
+
+``line <position>`` places a play-position line, counted in the line's own
+unit (``line ms``, ``line samples``, ``line phase`` or ``line bpm``, where
+the position is in beats from ``offset``); a negative position hides it.
+
+.. rubric:: The buffer
+
+``name <buffer> [channel]`` or ``set <buffer> [channel]`` shows another
+buffer from its start, whole, with an empty selection; ``name`` alone shows
+none. The buffer is looked up in the background and shown from the next
+message or audio block. ``chanoffset`` picks the channel, from 1.
+
+``crop`` keeps only the selection, ``normalize [peak]`` scales the buffer so
+its largest sample is ``peak`` (1 by default), and ``replacebuffercontents
+<file>`` reads a sound file into it. They run in the background, in the
+order sent, in the same queue of four as the buffer objects' work; the
+display then shows the whole buffer.
+
+Every parameter can also be sent as a message by its name. Messages are not
+saved with the patch: a reloaded ``~waveform`` uses its arguments.
+
+.. code-block:: text
+
+   [~buffer drums]
+   [~waveform drums 1 1]    the host draws drums; a drag selects, and the
+                            third and fourth outlets send where from and to

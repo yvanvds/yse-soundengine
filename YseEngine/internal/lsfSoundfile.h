@@ -44,7 +44,9 @@ namespace YSE {
       // without looping). Does blocking disk I/O — slow pool / load only, never
       // the audio thread (issue #185). Called by the base's fillBackBuffer(),
       // which owns the generation-tagged publication (issues #185/#283).
-      UInt fillBuffer(Flt* dest, Bool loop) override;
+      UInt fillBuffer(Flt* dest, Bool loop, Bool backward) override;
+      // The backward fill (issue #1288): `first` and `last` the resolved region.
+      UInt fillBackward(Flt* dest, Bool loop, Long first, Long last);
 
       SndfileHandle* handle;
       // Custom-IO reader handle for a streaming source (issue #823). Held open

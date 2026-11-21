@@ -79,7 +79,61 @@ namespace YSE {
       // state and arms an async re-prime from `frame` on the slow pool, so the
       // next read() swaps in a buffer filled from the requested position. Mirrors
       // reset()/streamReprime but with an arbitrary target frame instead of 0.
-      void seek(Long frame, Bool loop);
+      // With `backward` (a reversible() stream, issue #1288) the fill reads the
+      // frames before `frame` instead, and the reader starts from a `pos` of -1:
+      // the first frame it plays is `frame - 1`.
+      void seek(Long frame, Bool loop, Bool backward = false);
+
+      // ── Stream access for DSP::fileStreamPlayer (issue #1155) ──────────────
+      //
+      // The player reads a stream through read(), as a streaming sound does,
+      // and opens and positions it with these. Disk work stays where it was:
+      // loadStream() and prime() block on the calling thread, which is never
+      // the audio thread; seek() and reset() only arm a refill.
+
+      // Open the file as a stream on the calling thread, now: what create(true)
+      // has the slow pool do. Only on a new object; true when it is READY.
+      Bool loadStream();
+      // The file's own sample rate in Hz, 0 before it is loaded.
+      Int sampleRate() const {
+        return _sourceRate;
+      }
+      // The speed factor read() applies, fixed when the file was loaded.
+      Flt sampleRateAdjustment() const {
+        return _sampleRateAdjustment;
+      }
+      // The frames [start, end) a stream plays: a fill stops, or with loop on
+      // goes on from `start`, at `end` instead of at the end of the file, and
+      // reset() returns to `start`. An `end` below 0 is the end of the file.
+      // The whole file until this is called. Takes effect from the next disk
+      // fill, so a caller seeks after it.
+      void region(Long start, Long end);
+      // Fill the front buffer from `frame` on the calling thread, before any
+      // read(): a stream that starts at once from there. With `loop` the fill
+      // wraps at the region's end, so a region shorter than a block loops from
+      // the first block on; a reader that does not loop then ends the stream
+      // at the region's end itself. Never the audio thread.
+      // With `backward` (issue #1288) it fills the frames before `frame`, read
+      // backward and wrapping at the region's start, as seek(frame, loop, true)
+      // has the slow pool do: the reader starts from a `pos` of -1.
+      void prime(Long frame, Bool loop, Bool backward = false);
+      // Whether a negative speed plays the stream backward (issue #1288). Off,
+      // read() holds a stream at a negative speed, as a streaming YSE::sound
+      // always has. Set before the audio thread reads.
+      void reversible(Bool on) {
+        _reversible = on;
+      }
+      // Audio thread: whether the stream reads backward now. A read() at a
+      // speed of the other sign turns it; seek() and prime() set it.
+      Bool streamBackward() const {
+        return _streamBackward.load(std::memory_order_relaxed);
+      }
+      // Audio thread: the stream's frame for the buffer-local `pos` read()
+      // keeps, counted on from the frame the last seek, reset or prime started
+      // at (a looping stream's count runs past its region's end).
+      Dbl streamPosition(Flt pos) const {
+        return static_cast<Dbl>(_frontBufferBase) + static_cast<Dbl>(pos);
+      }
 
       // to keep track of clients
       void attach(SOUND::implementationObject* impl);
@@ -101,11 +155,23 @@ namespace YSE {
       enum swapResult { SWAP_DONE, SWAP_TERMINAL, SWAP_UNDERRUN };
       // Try to swap the prefetched back buffer in as the new front buffer. On
       // SWAP_DONE, pos/streamEnd are advanced into the new buffer. SWAP_TERMINAL
-      // means the current front buffer was the final one (EOF, no loop).
+      // means the current front buffer was the final one (EOF, no loop): with
+      // `loop` on, one read without a loop is not (issue #1289).
       // SWAP_UNDERRUN means the prefetch has not landed yet (caller emits silence).
       static swapResult streamSwap(abstractSoundFile* file, Flt& pos, Flt& streamEnd, Bool loop);
       // Arm an async re-prime from frame 0 for the next play (called on stop).
       static void streamReprime(abstractSoundFile* file, Bool loop);
+      // Turn a reversible stream around (issue #1288), on the audio thread: the
+      // front buffer stays, the back buffer prefetched the old way is dropped,
+      // and the next fill reads on from the front buffer's other edge.
+      static void streamTurn(abstractSoundFile* file, Flt& pos, Bool backward, Bool loop);
+      // A frame of the stream's count (which runs past the region's end
+      // forward and below its start backward) as a frame of the file, inside
+      // the region; a frame already inside, its ends included, is kept.
+      Long streamFold(Long frame) const;
+      // The resolved region: `last` the end of the file when region() left it
+      // open.
+      void regionBounds(Long& first, Long& last) const;
 
       // Streaming refill is done off the audio callback thread (issue #185). The
       // audio thread never touches the disk: it plays the front buffer and, at a
@@ -120,11 +186,17 @@ namespace YSE {
       // the backend's fillBuffer().
       void fillBackBuffer();
       // Backend disk fill: write up to STREAM_BUFFERSIZE frames into `dest` from
-      // the current stream position, honoring _needsReset/_seekTarget and the
-      // loop flag, zero-padding the tail at non-loop EOF. Returns the number of
-      // real (non-padded) frames written. Does blocking disk I/O — slow pool /
-      // load only, never the audio thread (issue #185).
-      virtual UInt fillBuffer(Flt* dest, Bool loop) = 0;
+      // the current stream position, honoring _needsReset/_seekTarget, the
+      // region (issue #1155) and the loop flag, zero-padding the tail at a
+      // non-loop end of the region (the file's end unless region() narrowed it). Returns the number
+      // of real (non-padded) frames written. Does blocking disk I/O — slow pool / load only, never
+      // the audio thread (issue #185).
+      // With `backward` (issue #1288) the frames are the ones before the stream
+      // position, in file order, wrapping from the region's start to its end:
+      // read from its last frame down, `dest` plays on backward from the stream
+      // position. A non-loop start of the region moves the real frames to the
+      // front of `dest` and pads after them, as the forward fill does.
+      virtual UInt fillBuffer(Flt* dest, Bool loop, Bool backward) = 0;
 
       // Slow-pool job that drives fillBackBuffer() for this file. A dedicated job
       // (rather than reusing the abstractSoundFile load job) is required: the load
@@ -169,12 +241,29 @@ namespace YSE {
       // read by the slow pool in fillBuffer(). Atomic for the cross-thread hand-
       // off. (issue #217)
       std::atomic<Long> _seekTarget{0};
+      // The frames a stream plays (issue #1155): set by region(), read by the
+      // disk fill and by reset(). End below 0: the end of the file.
+      std::atomic<Long> _regionStart{0};
+      std::atomic<Long> _regionEnd{-1};
+      // The file's sample rate, published by the loader.
+      Int _sourceRate = 0;
+      // Backward streaming (issue #1288). _reversible is set before the audio
+      // thread reads. _streamBackward is written by the audio thread (read(),
+      // seek()) and by prime() before it reads, and read by the disk fill after
+      // its acquire load of _fillGen: every change of direction bumps the
+      // generation after storing it.
+      Bool _reversible = false;
+      std::atomic<Bool> _streamBackward{false};
 
       // Double-buffer publication (issue #185). Writer = slow pool, reader = audio.
       // _backValidFrames/_backTerminal/_backGen are written before the _backReady
       // release store and read after the audio thread's acquire load of it.
       std::atomic<Bool> _backReady{false}; // back buffer filled, ready to swap in
       std::atomic<Bool> _backTerminal{false}; // back fill hit non-loop EOF (last buffer)
+      // The loop flag the back fill read with (issue #1289): a last buffer read
+      // without a loop ends the stream only if it still does not loop when the
+      // buffer runs out.
+      std::atomic<Bool> _backLooped{false};
       std::atomic<Bool> _refillInFlight{false}; // a refill is queued/running (dedup)
       std::atomic<Bool> _streamLoop{false}; // loop flag published to the slow pool
       std::atomic<Long> _backValidFrames{0}; // real (non-padded) frames in back buffer
@@ -190,6 +279,8 @@ namespace YSE {
       Long _frontBufferBase;
       Long _frontValidFrames;
       Bool _frontTerminal;
+      // The loop flag the front buffer's fill read with (issue #1289).
+      Bool _frontLooped = false;
 
       // for keeping track of objects using this file
       // clientList is crossed by three roles: attach (main thread, from

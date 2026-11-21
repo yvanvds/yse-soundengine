@@ -21587,6 +21587,54 @@
     ],
     "requires_midi_device": false
   },
+  "~plot": {
+    "category": "ANALYSIS",
+    "description": "The data and axes of a 2-D plot of one or more subplots, each set by lists, taken from a signal, or read from a ~buffer, for the host to draw.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "Subplot 1: a number sets its first value, a list its values from the first on; a signal shows frames of it. 'definedomain <start> <end> [linear|log]', 'definerange <start> <end> [linear|log]', 'definexorigin <x>', 'defineyorigin <y>', 'definefilter <none|atodb>' set its axes; 'refer <buffer> [<channel>] [<start ms>] [<end ms>]' shows part of a ~buffer ('refer' alone stops). 'numpoints <n>', 'audioframesize <n>' and 'audioframerate <fps>' set those parameters.",
+        "index": 0,
+        "label": "plot 1",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~plot",
+    "outlets": [],
+    "params": [
+      {
+        "default": "4",
+        "doc": "The values each subplot shows across its domain ('~plot 64'). Longer lists are kept up to 4096 values; the first numpoints are shown.",
+        "name": "numpoints",
+        "range": "1-4096"
+      },
+      {
+        "default": "1",
+        "doc": "The subplots, one inlet each ('~plot 64 2'). Changing it rebuilds the inlets.",
+        "name": "numplots",
+        "range": "1-16"
+      },
+      {
+        "default": "0",
+        "doc": "The samples a signal frame takes in ('~plot 64 1 1024'); its first numpoints are shown. 0, or anything up to numpoints, is numpoints.",
+        "name": "audioframesize",
+        "range": "0 or more samples"
+      },
+      {
+        "default": "15",
+        "doc": "How many frames a second a signal or a buffer is shown at ('~plot 64 1 0 30').",
+        "name": "audioframerate",
+        "range": "0.1-1000"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~poke": {
     "category": "SAMPLING",
     "description": "Writes a signal into a named sample buffer, each sample at the index a second signal gives. An index of -1 writes nothing.",
@@ -21695,6 +21743,58 @@
         "doc": "Phase in radians used while no signal is connected to the right inlet.",
         "name": "phase",
         "range": "any float"
+      }
+    ],
+    "requires_midi_device": false
+  },
+  "~polybuffer": {
+    "category": "SAMPLING",
+    "description": "A numbered collection of buffers, name.1, name.2 and so on, that sampling objects play by name. Loads sound files one at a time or a whole folder, writes them all to a folder, and passes buffer messages to one or all.",
+    "inlets": [
+      {
+        "accepts": [],
+        "doc": "append <file>, appendempty <ms> <channels>, readfolder <folder>, writetofolder <folder>, clear, send <index> <buffer message> (index 0 is every buffer), and the queries dump, getbufferlist, getcount, getshortname, getsize. Each runs in the background, in the order sent.",
+        "index": 0,
+        "label": "messages",
+        "range": ""
+      }
+    ],
+    "is_dsp": true,
+    "name": "~polybuffer",
+    "outlets": [
+      {
+        "doc": "The answer to a query: 'index name path ms channels rate' per buffer for dump, 'bufferlist <names>' then 'done', '<name> <short name>' per buffer then 'done', 'count <n>', or 'size <bytes>'.",
+        "index": 0,
+        "label": "info",
+        "range": "list",
+        "type": "LIST"
+      },
+      {
+        "doc": "A bang when an append, appendempty, readfolder, writetofolder, clear or send has finished.",
+        "index": 1,
+        "label": "done",
+        "range": "bang",
+        "type": "BANG"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The collection's name; its buffers are name.1, name.2 and so on. Objects with the same name share the buffers. Without one the collection gets a name of its own.",
+        "name": "name",
+        "range": "any symbol"
+      },
+      {
+        "default": "0",
+        "doc": "1 saves the buffers with the patch, as the files they were read from (empty ones by length and channels), and loads them again when the patch is opened.",
+        "name": "embed",
+        "range": "0 or 1"
+      },
+      {
+        "default": "0",
+        "doc": "1 leaves out the warning when a patch opens a collection that is already loaded.",
+        "name": "quiet",
+        "range": "0 or 1"
       }
     ],
     "requires_midi_device": false
@@ -23027,6 +23127,201 @@
         "doc": "The sound file a bang reports on.",
         "name": "file",
         "range": "file"
+      }
+    ],
+    "requires_midi_device": false
+  },
+  "~sflist": {
+    "category": "SAMPLING",
+    "description": "Keeps cues of sound files under a name: the ~sfplay objects created with that name play them, each streaming from disk.",
+    "inlets": [
+      {
+        "accepts": [],
+        "doc": "'open <file>' (the file a preload without one uses), 'fclose [file]' (its cues removed; none: the open file), 'preload <cue> [file] [start ms] [end ms] [direction] [speed]', 'preloadn' (the same with start and end from 0 to 1), 'clear [cues]' and 'embed <0/1>'.",
+        "index": 0,
+        "label": "messages",
+        "range": ""
+      }
+    ],
+    "is_dsp": false,
+    "name": "~sflist",
+    "outlets": [],
+    "params": [
+      {
+        "default": "",
+        "doc": "The name ~sfplay objects play these cues by.",
+        "name": "name",
+        "range": "cue list name"
+      },
+      {
+        "default": "0",
+        "doc": "Read for compatibility, without effect: the engine streams through buffers of a fixed size.",
+        "name": "buffersize",
+        "range": "any"
+      }
+    ],
+    "requires_midi_device": false
+  },
+  "~sfplay": {
+    "category": "SAMPLING",
+    "description": "Plays sound files streamed from disk, without loading them into memory: cues of files, played one by one or in a list, with speed, looping, pausing, seeking, pitch shift and time stretch; bangs when playback stops.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "0 stops, 1 plays the open file, 2 and up play that cue; a list plays its cues one after the other. Also takes 'open <file>', 'fclose [file]', 'preload <cue> [file] [start ms] [end ms] [direction] [speed]', 'preloadn' (the same with start and end from 0 to 1), 'clear [cues]', 'set [list]', 'seek <start ms> [end ms]', 'pause', 'resume', 'loop <0/1>', 'loopone <cue>', 'speed <x>', 'modout <0/1>', 'pitchshift <ratio>', 'pitchshiftcent <cents>', 'timestretch <0/1>', 'quality <basic|good|better|best>', 'audiofile <file>' (as open) and 'embed <0/1>'.",
+        "index": 0,
+        "label": "cues",
+        "range": "0 or higher"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The playback speed: 1 normal, 2 twice as fast, -1 backward, 0 holds.",
+        "index": 1,
+        "label": "speed",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~sfplay",
+    "outlets": [
+      {
+        "doc": "File channel 1 as it plays. Silence while stopped or paused, and for a channel the file lacks unless modout is on.",
+        "index": 0,
+        "label": "out",
+        "range": "any float",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "A bang after the block in which playback stopped: the cue, or the last cue of a list, reached its end, or 0 stopped it. Not when another cue takes over, and not on pause.",
+        "index": 1,
+        "label": "done",
+        "range": "bang",
+        "type": "BANG"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The ~sflist whose cues the numbers 2 and up play; none for cues of the object's own. May be left out: a first argument that is a number is the channel count.",
+        "name": "list",
+        "range": "cue list name"
+      },
+      {
+        "default": "1",
+        "doc": "The number of signal outlets, each playing the file channel of its number. File channels past the last outlet are not played.",
+        "name": "channels",
+        "range": "1 to 64"
+      },
+      {
+        "default": "0",
+        "doc": "Read for compatibility, without effect: the engine streams through buffers of a fixed size.",
+        "name": "buffersize",
+        "range": "any"
+      },
+      {
+        "default": "0",
+        "doc": "1 adds a signal outlet with where playback is, in milliseconds.",
+        "name": "position",
+        "range": "0 or 1"
+      }
+    ],
+    "requires_midi_device": false
+  },
+  "~sfrecord": {
+    "category": "SAMPLING",
+    "description": "Records signals to a sound file on disk as they play: until stopped, for a time, or the last stretch in a loop, in AIFF, WAV, FLAC and other types, with fades, dither and the time recorded.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The signal to record into channel 1; unconnected it records silence. A number other than 0 starts recording into the open file, 0 stops it and closes the file. Also takes 'open <file> [type]', 'start [file] [channels]', 'stop', 'record <ms>', 'loop <ms>', 'samptype <int8|int16|int24|int32|float32|float64|mulaw|alaw> [swap]', 'bitdepth <bits>', 'beginramp <ms>', 'endramp <ms>', 'dither <0-2>', 'quantization <0/1>', 'nchans <n>' and 'sortloop <0/1>'.",
+        "index": 0,
+        "label": "signal",
+        "range": "any float"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~sfrecord",
+    "outlets": [
+      {
+        "doc": "How long the recording has run, in milliseconds: 0 at its first sample. After a stop it holds the recording's length.",
+        "index": 0,
+        "label": "time",
+        "range": "0 or higher",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "The samples per channel of the recording that were lost because the disk fell behind, sent when the count changes. 0 when nothing was lost.",
+        "index": 1,
+        "label": "dropped",
+        "range": "0 or higher",
+        "type": "INT"
+      }
+    ],
+    "params": [
+      {
+        "default": "1",
+        "doc": "The number of signal inlets, each recorded into the file channel of its number.",
+        "name": "channels",
+        "range": "1 to 64"
+      },
+      {
+        "default": "0",
+        "doc": "How many samples per channel wait for the disk before any are lost; 0 for 65536. Below 4096 is 4096.",
+        "name": "buffersize",
+        "range": "0 or higher"
+      },
+      {
+        "default": "0",
+        "doc": "A fade-in over the start of each recording, in milliseconds.",
+        "name": "beginramp",
+        "range": "0 or higher"
+      },
+      {
+        "default": "0",
+        "doc": "A fade-out over the end of each recording, in milliseconds. A stop records on for that long while it fades.",
+        "name": "endramp",
+        "range": "0 or higher"
+      },
+      {
+        "default": "16",
+        "doc": "The bits of each integer sample of the next file opened. samptype can choose floats and the 8-bit codes instead.",
+        "name": "bitdepth",
+        "range": "8, 16, 24 or 32"
+      },
+      {
+        "default": "0",
+        "doc": "What is added before integer samples are rounded: 0 nothing, 1 triangular dither, 2 triangular dither with noise shaping.",
+        "name": "dither",
+        "range": "0 to 2"
+      },
+      {
+        "default": "0",
+        "doc": "How integer samples are rounded: 0 to the nearest step, 1 down.",
+        "name": "quantization",
+        "range": "0 or 1"
+      },
+      {
+        "default": "0",
+        "doc": "The channels of the next file opened; 0 for one per inlet. Inlets past them are not recorded; channels past the inlets are silent.",
+        "name": "nchans",
+        "range": "0 to 64"
+      },
+      {
+        "default": "0",
+        "doc": "1 puts a loop recording in order when it stops, so its file starts with the oldest sample instead of where the circle was.",
+        "name": "sortloop",
+        "range": "0 or 1"
       }
     ],
     "requires_midi_device": false
@@ -25223,6 +25518,214 @@
         "doc": "The Hermite curve's tension (interp 6): 0 normal, 1 high (straight lines), -1 low (rounder).",
         "name": "interp_tension",
         "range": "any float"
+      }
+    ],
+    "requires_midi_device": false
+  },
+  "~waveform": {
+    "category": "SAMPLING",
+    "description": "The view of a waveform display of a ~buffer, for the host to draw: the part shown, the selection, and mouse gestures that select, scroll, zoom or draw into the samples. Sends the selection and links to other views.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "The display start in ms; a bang sends it. Also takes the messages: 'mouse <x> <y> <state>', 'drag <x> <y>', 'mode', 'mouseoutput', 'snap', 'unit', 'bpm', 'setbpm', 'line', 'undo', 'name' / 'set', 'crop', 'normalize', 'replacebuffercontents' and every parameter by name.",
+        "index": 0,
+        "label": "display start",
+        "range": "0 or more ms"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "The display length in ms; 0 or less shows the whole buffer. A bang sends it.",
+        "index": 1,
+        "label": "display length",
+        "range": "any ms"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "The selection start in ms; a bang sends it.",
+        "index": 2,
+        "label": "selection start",
+        "range": "0 or more ms"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "The selection end in ms; a bang sends it.",
+        "index": 3,
+        "label": "selection end",
+        "range": "0 or more ms"
+      },
+      {
+        "accepts": [
+          "LIST"
+        ],
+        "doc": "A list 'start length selection-start selection-end' from another ~waveform's link outlet sets all four.",
+        "index": 4,
+        "label": "link",
+        "range": "list of 4 floats"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~waveform",
+    "outlets": [
+      {
+        "doc": "The display start in ms, when the view moves.",
+        "index": 0,
+        "label": "display start",
+        "range": "0 or more ms",
+        "type": "FLOAT"
+      },
+      {
+        "doc": "The display length in ms, when the view moves.",
+        "index": 1,
+        "label": "display length",
+        "range": "ms",
+        "type": "FLOAT"
+      },
+      {
+        "doc": "The selection start in ms, as outmode says.",
+        "index": 2,
+        "label": "selection start",
+        "range": "0 or more ms",
+        "type": "FLOAT"
+      },
+      {
+        "doc": "The selection end in ms, as outmode says.",
+        "index": 3,
+        "label": "selection end",
+        "range": "0 or more ms",
+        "type": "FLOAT"
+      },
+      {
+        "doc": "Every mouse event: 'x amplitude state', x 0 to 1 across the display, state 1 down, 2 drag, 0 up.",
+        "index": 4,
+        "label": "mouse",
+        "range": "list",
+        "type": "LIST"
+      },
+      {
+        "doc": "'start length selection-start selection-end' whenever one changes, for another ~waveform's link inlet; 'bpm <tempo> <beats>' after a setbpm.",
+        "index": 5,
+        "label": "link",
+        "range": "list",
+        "type": "LIST"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The buffer shown. A name or set message does not change what is saved.",
+        "name": "name",
+        "range": "buffer name"
+      },
+      {
+        "default": "1",
+        "doc": "The buffer channel shown and drawn, from 1.",
+        "name": "chanoffset",
+        "range": "1 or higher"
+      },
+      {
+        "default": "1",
+        "doc": "What the mouse does: 0 nothing, 1 select, 2 move the nearer selection edge, 3 scroll and zoom, 4 draw into the buffer.",
+        "name": "setmode",
+        "range": "0-4"
+      },
+      {
+        "default": "4",
+        "doc": "When a mouse gesture sends the selection: 0 never, 1 on the click, 2 on the release, 3 both, 4 continuously.",
+        "name": "outmode",
+        "range": "0-4"
+      },
+      {
+        "default": "0",
+        "doc": "What a selection snaps to: 0 nothing, 1 the grid, 2 zero crossings.",
+        "name": "snapto",
+        "range": "0-2"
+      },
+      {
+        "default": "1000",
+        "doc": "The grid step, in the unit setunit gives.",
+        "name": "grid",
+        "range": "any float"
+      },
+      {
+        "default": "0",
+        "doc": "How many ticks divide a grid step; 0 is none.",
+        "name": "ticks",
+        "range": "0 or more"
+      },
+      {
+        "default": "0",
+        "doc": "Where the grid starts, in ms.",
+        "name": "offset",
+        "range": "any ms"
+      },
+      {
+        "default": "0",
+        "doc": "What the grid counts in: 0 ms, 1 samples, 2 a phase of the buffer, 3 bars at bpm.",
+        "name": "setunit",
+        "range": "0-3"
+      },
+      {
+        "default": "120",
+        "doc": "The tempo in beats a minute, for the bpm unit.",
+        "name": "bpm",
+        "range": "above 0"
+      },
+      {
+        "default": "4",
+        "doc": "The beats in a bar, for the bpm unit and setbpm.",
+        "name": "beats",
+        "range": "1 or more"
+      },
+      {
+        "default": "1",
+        "doc": "The vertical zoom: the amplitude at y is (y - voffset) / vzoom.",
+        "name": "vzoom",
+        "range": "above 0"
+      },
+      {
+        "default": "0",
+        "doc": "Where the zero line is drawn, -1 (bottom) to 1 (top).",
+        "name": "voffset",
+        "range": "any float"
+      },
+      {
+        "default": "0",
+        "doc": "1 holds drawn values within the amplitudes the display shows; 0 does not.",
+        "name": "clipdraw",
+        "range": "0 or 1"
+      },
+      {
+        "default": "0",
+        "doc": "1 sends nothing but the mouse while dragging, and what changed on release.",
+        "name": "quiet",
+        "range": "0 or 1"
+      },
+      {
+        "default": "0",
+        "doc": "0 zooms in when dragging up, 1 when dragging down.",
+        "name": "zoom_orientation",
+        "range": "0 or 1"
       }
     ],
     "requires_midi_device": false

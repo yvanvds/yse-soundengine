@@ -237,7 +237,7 @@ namespace {
     Long lastFillStart = -1; // where the most recent fill read from
     int seeks = 0;
 
-    UInt fillBuffer(Flt* /*dest*/, Bool /*loop*/) override {
+    UInt fillBuffer(Flt* /*dest*/, Bool /*loop*/, Bool /*backward*/) override {
       if (onFillStart) {
         auto hook = std::move(onFillStart);
         onFillStart = nullptr;
@@ -328,7 +328,7 @@ namespace {
     void loadStreaming() override {}
     void loadNonStreaming() override {}
 
-    UInt fillBuffer(Flt* dest, Bool /*loop*/) override {
+    UInt fillBuffer(Flt* dest, Bool /*loop*/, Bool /*backward*/) override {
       fillFrom(dest, _nextFill);
       _nextFill += S;
       return YSE::STREAM_BUFFERSIZE;
@@ -411,7 +411,7 @@ namespace {
       return static_cast<Flt>(1 + (n % 1000000));
     }
 
-    UInt fillBuffer(Flt* dest, Bool /*loop*/) override {
+    UInt fillBuffer(Flt* dest, Bool /*loop*/, Bool /*backward*/) override {
       if (_backReady.load(std::memory_order_acquire))
         overwrites.fetch_add(1, std::memory_order_relaxed);
       // Mirror the production backend's reset handling (lsfSoundfile.cpp);
@@ -484,7 +484,7 @@ namespace {
     // Total completed fills — the driver's progress oracle.
     std::atomic<long> fills{0};
 
-    UInt fillBuffer(Flt* dest, Bool /*loop*/) override {
+    UInt fillBuffer(Flt* dest, Bool /*loop*/, Bool /*backward*/) override {
       (void)dest;
       // Mirror the production backend's reset handling (lsfSoundfile.cpp);
       // nothing arms it in this case, but consuming it keeps the protocol real.
@@ -749,6 +749,48 @@ TEST_SUITE("sound") {
         CHECK(out[j] == doctest::Approx(src[static_cast<size_t>(frame)]).epsilon(0.0001));
       }
       breathe(b);
+    }
+  }
+
+  // A streaming YSE::sound does not play backward (issue #1288): only a stream
+  // its owner made reversible turns at a negative speed (DSP::fileStreamPlayer,
+  // tested in Tests/dsp/test_file_stream_player.cpp). Any other holds the frame
+  // it is on, its position and prefetch untouched, and plays on forward from
+  // there when the speed comes back.
+  TEST_CASE("streaming: a stream that is not reversible holds at a negative speed (#1288)") {
+    if (!TestHelpers::engineInit()) return;
+
+    std::vector<float> src;
+    std::string path = writeWav(2 * S, src);
+    soundFile f(path);
+    f.create(true);
+    REQUIRE(waitReady(f));
+
+    Flt pos = 0.f, vol = 1.f;
+    SOUND_STATUS intent = YSE::SS_PLAYING_FULL_VOLUME;
+    std::vector<float> out;
+    long frame = 0;
+    for (int b = 0; b < 4; ++b) {
+      blockResult r = readBlock(f, pos, false, intent, vol, out);
+      REQUIRE(r.valid == YSE::STANDARD_BUFFERSIZE);
+      frame += r.valid;
+    }
+    REQUIRE(pos == static_cast<Flt>(frame));
+
+    for (int b = 0; b < 3; ++b) {
+      std::vector<YSE::DSP::buffer> fb(1);
+      f.read(fb, pos, YSE::STANDARD_BUFFERSIZE, -1.0f, false, intent, vol);
+      CHECK_FALSE(f.streamBackward());
+      CHECK(pos == static_cast<Flt>(frame));
+      for (UInt j = 0; j < YSE::STANDARD_BUFFERSIZE; ++j)
+        CHECK(fb[0].getPtr()[j] == doctest::Approx(src[static_cast<size_t>(frame)]));
+    }
+
+    for (int b = 0; b < 4; ++b) {
+      blockResult r = readBlock(f, pos, false, intent, vol, out);
+      REQUIRE(r.valid > 0);
+      for (UInt j = 0; j < r.valid; ++j, ++frame)
+        CHECK(out[j] == doctest::Approx(src[static_cast<size_t>(frame)]).epsilon(0.0001));
     }
   }
 

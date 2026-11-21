@@ -220,6 +220,13 @@ a triple buffer: what ``~spectroscope`` measures.
 .. doxygenfile:: dsp/analysis/spectrumAnalyzer.hpp
    :project: libYSE
 
+The values and axes of a 2-D plot of one or more subplots, set by lists or
+taken from frames of a signal or a region of a sample buffer, handed to a
+reader on another thread through a triple buffer: what ``~plot`` holds.
+
+.. doxygenfile:: dsp/analysis/plotData.hpp
+   :project: libYSE
+
 The fundamental frequency of a monophonic signal after the YIN method, with
 its peak amplitude and the onsets of new notes: what ``~fzero`` does.
 
@@ -440,6 +447,34 @@ back with ``sampleBuffer::setContents``, one change that readers never see
 half made.
 
 .. doxygenfile:: dsp/sampling/timeStretch.hpp
+   :project: libYSE
+
+The view of a waveform display of a sample buffer: the part shown, the
+selection, and the mouse gestures that select, scroll, zoom or draw into the
+samples. What ``~waveform`` holds; the host draws the samples with
+``sampleBuffer::peaks``, the smallest and largest sample per pixel column.
+
+.. doxygenfile:: dsp/sampling/waveformView.hpp
+   :project: libYSE
+
+A numbered collection of sample buffers sharing a name, ``kit.1``,
+``kit.2`` and so on, filled from files or a whole folder: what
+``~polybuffer`` holds. Each buffer is an ordinary named ``sampleBuffer``.
+
+.. doxygenfile:: dsp/sampling/sampleBufferSet.hpp
+   :project: libYSE
+
+Sound files played from disk without loading them, through the engine's own
+streaming, with numbered cues shared by name: what ``~sfplay`` and
+``~sflist`` do.
+
+.. doxygenfile:: dsp/sampling/fileStreamPlayer.hpp
+   :project: libYSE
+
+Signals recorded to a sound file as they play, through a lock-free ring that
+a background thread empties to disk: what ``~sfrecord`` does.
+
+.. doxygenfile:: dsp/sampling/fileRecorder.hpp
    :project: libYSE
 
 Routing

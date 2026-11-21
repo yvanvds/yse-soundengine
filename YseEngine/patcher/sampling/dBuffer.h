@@ -9,6 +9,7 @@
 #include "../pObject.h"
 #include "../io/fileScheduler.h"
 #include "../../dsp/sampling/sampleBuffer.hpp"
+#include "bufferMessage.h"
 
 namespace YSE {
   namespace PATCHER {
@@ -103,9 +104,8 @@ namespace YSE {
     // is installed (issue #1255).
     void LoadArgumentFile();
 
-    // Pack `task` and hand it to the scheduler. Any thread, no allocation.
-    struct bufferTask;
-    bool Submit(bufferTask& task);
+    // Hand `task` to the scheduler. Any thread, no allocation.
+    bool Submit(bufferMessage& task);
 
     // The fileTaskFunction: background pool, never touches the object.
     static bool RunTask(char* args, std::size_t argBytes);

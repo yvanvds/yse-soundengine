@@ -171,6 +171,7 @@
 #include "analysis/dCapture.h"
 #include "analysis/dScope.h"
 #include "analysis/dSpectroscope.h"
+#include "analysis/dPlot.h"
 #include "delay/dTapin.h"
 #include "delay/dTapout.h"
 #include "delay/dComb.h"
@@ -195,6 +196,11 @@
 #include "sampling/dBuffir.h"
 #include "sampling/dStutter.h"
 #include "sampling/dStretch.h"
+#include "sampling/dWaveform.h"
+#include "sampling/dPolybuffer.h"
+#include "sampling/dSfplay.h"
+#include "sampling/dSflist.h"
+#include "sampling/dSfrecord.h"
 #include "sampling/dRecord.h"
 #include "sampling/dPlay.h"
 #include "sampling/dGroove.h"
@@ -517,6 +523,7 @@ pRegistry::pRegistry() {
   Add(OBJ::D_CAPTURE, dCapture::Create);
   Add(OBJ::D_SCOPE, dScope::Create);
   Add(OBJ::D_SPECTROSCOPE, dSpectroscope::Create);
+  Add(OBJ::D_PLOT, dPlot::Create);
   Add(OBJ::D_TAPIN, dTapin::Create);
   Add(OBJ::D_TAPOUT, dTapout::Create);
   Add(OBJ::D_COMB, dComb::Create);
@@ -547,6 +554,11 @@ pRegistry::pRegistry() {
   Add(OBJ::D_BUFFIR, dBuffir::Create);
   Add(OBJ::D_STUTTER, dStutter::Create);
   Add(OBJ::D_STRETCH, dStretch::Create);
+  Add(OBJ::D_WAVEFORM, dWaveform::Create);
+  Add(OBJ::D_POLYBUFFER, dPolybuffer::Create);
+  Add(OBJ::D_SFPLAY, dSfplay::Create);
+  Add(OBJ::D_SFLIST, dSflist::Create);
+  Add(OBJ::D_SFRECORD, dSfrecord::Create);
   Add(OBJ::D_GATE, dGate::Create);
   Add(OBJ::D_SELECTOR, dSelector::Create);
   Add(OBJ::D_MATRIX, dMatrix::Create);

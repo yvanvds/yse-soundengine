@@ -12,6 +12,8 @@
 
 #include "../internalHeaders.h"
 #include <sndfile.hh>
+#include <algorithm>
+#include <cstring>
 
 YSE::INTERNAL::soundFile::soundFile(const std::string& fileName)
   : abstractSoundFile(fileName, true), handle(nullptr) {
@@ -64,6 +66,7 @@ void YSE::INTERNAL::soundFile::loadStreaming() {
 
   if (*handle) {
     _sampleRateAdjustment = static_cast<Flt>(handle->samplerate()) / static_cast<Flt>(SAMPLERATE);
+    _sourceRate = handle->samplerate();
     _length = (Int)handle->frames();
     _channels = handle->channels();
 
@@ -76,7 +79,7 @@ void YSE::INTERNAL::soundFile::loadStreaming() {
     // by the first read() once the real loop flag is known, so we don't guess
     // it here. Mark the front buffer's real-frame count; it is never treated as
     // terminal (stop is decided by the back-buffer fills that know `loop`).
-    UInt valid = fillBuffer(_iBuffer, false);
+    UInt valid = fillBuffer(_iBuffer, false, false);
     _frontValidFrames = (Long)valid;
     _frontTerminal = false;
     _frontBufferBase = 0;
@@ -112,6 +115,7 @@ void YSE::INTERNAL::soundFile::loadNonStreaming() {
 
   if (*handle) {
     _sampleRateAdjustment = static_cast<Flt>(handle->samplerate()) / static_cast<Flt>(SAMPLERATE);
+    _sourceRate = handle->samplerate();
     _length = (Int)handle->frames();
     _channels = handle->channels();
 
@@ -139,37 +143,93 @@ void YSE::INTERNAL::soundFile::loadNonStreaming() {
   if (ptr != nullptr) INTERNAL::customFileReader::Close(ptr);
 }
 
-UInt YSE::INTERNAL::soundFile::fillBuffer(Flt* dest, Bool loop) {
+UInt YSE::INTERNAL::soundFile::fillBuffer(Flt* dest, Bool loop, Bool backward) {
   if (_needsReset.exchange(false, std::memory_order_relaxed)) {
-    // Seek to the frame armed by the audio thread: 0 after a stop/reset, or the
-    // requested absolute frame after a setFilePos seek (issue #217).
+    // Seek to the frame armed by the audio thread: the region's start after a
+    // stop/reset, or the requested absolute frame after a setFilePos seek
+    // (issue #217). A backward fill seeks for each read itself (issue #1288).
     Long target = _seekTarget.load(std::memory_order_relaxed);
-    handle->seek(target, SEEK_SET);
+    if (!backward) handle->seek(target, SEEK_SET);
     _streamPos = (Int)target;
   }
+  // The frames this stream plays (issue #1155): the whole file unless
+  // region() narrowed it. Reaching `last` is what reaching the end of the file
+  // was: wrap to `first` when looping, else zero-pad and report.
+  Long first = 0;
+  Long last = 0;
+  regionBounds(first, last);
+  if (backward) return fillBackward(dest, loop, first, last);
+
   Int framesToRead = STREAM_BUFFERSIZE;
   Flt* ptr = dest;
+  Bool wrapped = false;
 
   while (framesToRead > 0) {
-    U64 read = handle->readf(ptr, framesToRead);
-    _streamPos += (UInt)read;
-    framesToRead -= (UInt)read;
-    if (framesToRead > 0) {
-      ptr += (read * _channels);
-      if (loop) {
-        handle->seek(0, SEEK_SET);
-        _streamPos = 0;
-      } else {
-        // non-loop EOF: zero-pad the remainder and report the real frame count
-        UInt valid = STREAM_BUFFERSIZE - (UInt)framesToRead;
-        Int zeros = framesToRead * _channels;
-        while (zeros-- > 0)
-          *ptr++ = 0.0f;
-        _streamPos = 0;
-        return valid;
-      }
+    const Long room = last - (Long)_streamPos;
+    const Long want = room < framesToRead ? room : framesToRead;
+    sf_count_t read = want > 0 ? handle->readf(ptr, want) : 0;
+    if (read < 0) read = 0;
+    _streamPos += (Int)read;
+    framesToRead -= (Int)read;
+    ptr += (read * _channels);
+    if (framesToRead == 0) break;
+    if (read > 0) wrapped = false;
+    // At the end of the region, or of the file before it. A wrap that reads
+    // nothing at all would spin, so the second one in a row ends the fill.
+    if (loop && last > first && !wrapped) {
+      handle->seek(first, SEEK_SET);
+      _streamPos = (Int)first;
+      wrapped = true;
     } else {
-      return STREAM_BUFFERSIZE;
+      // non-loop end: zero-pad the remainder and report the real frame count
+      UInt valid = STREAM_BUFFERSIZE - (UInt)framesToRead;
+      Int zeros = framesToRead * _channels;
+      while (zeros-- > 0)
+        *ptr++ = 0.0f;
+      return valid;
+    }
+  }
+  return STREAM_BUFFERSIZE;
+}
+
+UInt YSE::INTERNAL::soundFile::fillBackward(Flt* dest, Bool loop, Long first, Long last) {
+  // The frames before _streamPos, placed from the end of `dest` down (issue
+  // #1288): each read is the run of frames just below the previous one, so
+  // `dest` holds them in file order and plays backward from its last frame.
+  // Reaching `first` is the backward end: wrap to `last` when looping, else
+  // move what was read to the front and zero-pad after it, as a forward fill
+  // pads at the end. Slow pool / load only (issue #185).
+  const Long channels = _channels;
+  Long need = STREAM_BUFFERSIZE;
+  Bool wrapped = false;
+  if ((Long)_streamPos > last) _streamPos = (Int)last;
+
+  while (need > 0) {
+    const Long room = (Long)_streamPos - first;
+    const Long want = room < need ? room : need;
+    if (want > 0) {
+      Flt* at = dest + (need - want) * channels;
+      handle->seek(_streamPos - want, SEEK_SET);
+      sf_count_t read = handle->readf(at, want);
+      if (read < 0) read = 0;
+      // A short read is silence, not the samples a previous fill left.
+      std::fill(at + read * channels, at + want * channels, 0.0f);
+      _streamPos -= (Int)want;
+      need -= want;
+      wrapped = false;
+    }
+    if (need == 0) break;
+    // A wrap that reads nothing at all would spin, so the second one in a
+    // row ends the fill.
+    if (loop && last > first && !wrapped) {
+      _streamPos = (Int)last;
+      wrapped = true;
+    } else {
+      const Long valid = STREAM_BUFFERSIZE - need;
+      std::memmove(dest, dest + need * channels,
+                   static_cast<std::size_t>(valid * channels) * sizeof(Flt));
+      std::fill(dest + valid * channels, dest + STREAM_BUFFERSIZE * channels, 0.0f);
+      return (UInt)valid;
     }
   }
   return STREAM_BUFFERSIZE;

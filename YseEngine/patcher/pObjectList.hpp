@@ -55,7 +55,8 @@ namespace YSE {
    *    and constant generator: MSP's debugging number box), ``D_SCOPE``
    *    (an oscilloscope's traces of a signal or an X/Y pair),
    *    ``D_SPECTROSCOPE`` (a spectrum analyser's frames, for a spectrogram
-   *    or a sonogram).
+   *    or a sonogram), ``D_PLOT`` (the data and axes of a 2-D plot, from
+   *    lists, a signal or a buffer).
    *  - DSP delay: `D_TAPIN`, `D_TAPOUT`, `D_COMB`, `D_TEETH`, `D_DELAY`,
    *    ``D_PITCHSHIFT`` (a real-time pitch shifter), ``D_RETUNE`` (pitch
    *    detection and correction toward a scale).
@@ -79,7 +80,12 @@ namespace YSE {
    *    ``D_BUFFIR`` (a FIR filter whose taps are part of a buffer),
    *    ``D_STUTTER`` (the latest input copied on a trigger and replayed
    *    by phase), ``D_STRETCH`` (a buffer's length and pitch changed in
-   *    the background).
+   *    the background), ``D_WAVEFORM`` (the view and edits of a waveform
+   *    display of a buffer), ``D_POLYBUFFER`` (a numbered collection of
+   *    buffers, name.1, name.2 ...), ``D_SFPLAY`` (sound files streamed
+   *    from disk, with cues), ``D_SFLIST`` (cues shared by name between
+   *    ``~sfplay`` objects), ``D_SFRECORD`` (signals recorded to a sound
+   *    file on disk).
    *  - DSP routing: ``D_GATE`` (a signal sent to one of several outlets),
    *    ``D_SELECTOR`` (one of several signals passed to the outlet),
    *    ``D_MATRIX`` (every input to every output at a ramped gain),
@@ -347,6 +353,7 @@ namespace YSE {
     DEFOBJ(D_NUMBER, "~number");
     DEFOBJ(D_SCOPE, "~scope");
     DEFOBJ(D_SPECTROSCOPE, "~spectroscope");
+    DEFOBJ(D_PLOT, "~plot");
     DEFOBJ(D_CAPTURE, "~capture");
 
     DEFOBJ(D_TAPIN, "~tapin");
@@ -381,6 +388,11 @@ namespace YSE {
     DEFOBJ(D_BUFFIR, "~buffir");
     DEFOBJ(D_STUTTER, "~stutter");
     DEFOBJ(D_STRETCH, "~stretch");
+    DEFOBJ(D_WAVEFORM, "~waveform");
+    DEFOBJ(D_POLYBUFFER, "~polybuffer");
+    DEFOBJ(D_SFPLAY, "~sfplay");
+    DEFOBJ(D_SFLIST, "~sflist");
+    DEFOBJ(D_SFRECORD, "~sfrecord");
 
     DEFOBJ(D_GATE, "~gate");
     DEFOBJ(D_SELECTOR, "~selector");

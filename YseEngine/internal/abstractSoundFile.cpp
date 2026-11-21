@@ -152,8 +152,20 @@ void YSE::INTERNAL::abstractSoundFile::requestRefill(Bool loop) {
   // Called from the audio thread. Publishes the current loop flag and schedules
   // at most one back-buffer refill on the slow pool. Never touches the disk.
   _streamLoop.store(loop, std::memory_order_relaxed);
-  // A filled back buffer is already waiting to be swapped in — nothing to do.
-  if (_backReady.load(std::memory_order_acquire)) return;
+  // A filled back buffer is already waiting to be swapped in — nothing to do,
+  // unless it is a last buffer read without a loop that holds nothing, and the
+  // stream loops now (issue #1289): it is dropped, so a looping fill takes its
+  // place before the front buffer runs out. Its fill read nothing, so the disk
+  // position is the region's end (backward: its start), where the looping fill
+  // goes on by wrapping. The fields are read after the acquire load of
+  // _backReady, which publishes them.
+  if (_backReady.load(std::memory_order_acquire)) {
+    if (!loop || !_backTerminal.load(std::memory_order_relaxed) ||
+        _backLooped.load(std::memory_order_relaxed) ||
+        _backValidFrames.load(std::memory_order_relaxed) != 0)
+      return;
+    _backReady.store(false, std::memory_order_relaxed);
+  }
   // Self-heal a leaked claim (issue #844): threadPool::addJob drops an enqueue
   // when the pool is inactive (and on background-ring overflow), and
   // threadPool::shutdown() releases still-queued jobs without running them.
@@ -217,7 +229,11 @@ void YSE::INTERNAL::abstractSoundFile::fillBackBuffer() {
   // and seek() bump _fillGen, so the audio thread discards a fill that began
   // before the stop/seek instead of playing its stale position (issue #185).
   uint32_t gen = _fillGen.load(std::memory_order_acquire);
-  UInt valid = fillBuffer(_iBufferBack, loop);
+  // The direction, after the generation: a turn or seek stores it before it
+  // bumps _fillGen, so a fill that sees the new generation reads the new
+  // direction, and one that sees the old one is discarded (issue #1288).
+  Bool backward = _streamBackward.load(std::memory_order_relaxed);
+  UInt valid = fillBuffer(_iBufferBack, loop, backward);
   // If a reset()/seek() landed while this fill ran, the fill may have consumed
   // the reset flag (seeked the handle and filled from the target) even though
   // its output is tagged with the old generation and will be discarded by
@@ -232,6 +248,7 @@ void YSE::INTERNAL::abstractSoundFile::fillBackBuffer() {
   // _backReady, so the release store below makes them visible.
   _backValidFrames.store((Long)valid, std::memory_order_relaxed);
   _backTerminal.store(valid < STREAM_BUFFERSIZE, std::memory_order_relaxed);
+  _backLooped.store(loop, std::memory_order_relaxed);
   _backGen.store(gen, std::memory_order_relaxed);
   _backReady.store(true, std::memory_order_release);
   // Release, and only after the _backReady publication above: requestRefill's
@@ -518,7 +535,16 @@ Bool YSE::INTERNAL::abstractSoundFile::readNonInterleaved(abstractSoundFile* fil
 YSE::INTERNAL::abstractSoundFile::swapResult
 YSE::INTERNAL::abstractSoundFile::streamSwap(abstractSoundFile* file, Flt& pos, Flt& streamEnd,
                                              Bool loop) {
-  if (file->_frontTerminal) return SWAP_TERMINAL;
+  if (file->_frontTerminal) {
+    // The last buffer: its fill reached the end of the region. One read with a
+    // loop that still ended found nothing more to read. One read without a
+    // loop ends the stream only while it still does not loop: with loop on
+    // now, the stream goes on, as a looping fill would have, with the next
+    // fill wrapping at the region's end (issue #1289). The end is decided by
+    // the loop flag of now, not of the fill.
+    if (!loop || file->_frontLooped) return SWAP_TERMINAL;
+    file->_frontTerminal = false;
+  }
 
   // Drop a back buffer prefetched before a stop (its stream position is stale)
   // so it is refilled from the current position instead of played on restart.
@@ -541,9 +567,18 @@ YSE::INTERNAL::abstractSoundFile::streamSwap(abstractSoundFile* file, Flt& pos, 
   file->_iBufferBack = tmp;
   file->_frontValidFrames = file->_backValidFrames.load(std::memory_order_relaxed);
   file->_frontTerminal = file->_backTerminal.load(std::memory_order_relaxed);
-  file->_frontBufferBase += consumed;
+  file->_frontLooped = file->_backLooped.load(std::memory_order_relaxed);
   file->_backReady.store(false, std::memory_order_relaxed);
-  pos -= (Flt)consumed;
+  if (file->_streamBackward.load(std::memory_order_relaxed)) {
+    // Backward (issue #1288): the new buffer holds the frames before the old
+    // one, so the base steps down by its length and `pos` comes in from its
+    // end.
+    file->_frontBufferBase -= file->_frontValidFrames;
+    pos += (Flt)file->_frontValidFrames;
+  } else {
+    file->_frontBufferBase += consumed;
+    pos -= (Flt)consumed;
+  }
   streamEnd = (Flt)file->_frontValidFrames;
   file->requestRefill(loop); // prefetch the next buffer
   return SWAP_DONE;
@@ -556,6 +591,47 @@ YSE::INTERNAL::abstractSoundFile::streamSwap(abstractSoundFile* file, Flt& pos, 
 void YSE::INTERNAL::abstractSoundFile::streamReprime(abstractSoundFile* file, Bool loop) {
   file->reset();
   file->requestRefill(loop);
+}
+
+// A reversible stream read at a speed of the other sign (issue #1288). Audio
+// thread; never touches the disk. The front buffer plays on in the new
+// direction. The back buffer was prefetched for the old one, so the
+// generation bump drops it (and any fill in flight), and the next fill seeks
+// to the front buffer's other edge: its first frame backward, the frame
+// after its last forward, folded into the region where the count has wrapped.
+void YSE::INTERNAL::abstractSoundFile::streamTurn(abstractSoundFile* file, Flt& pos, Bool backward,
+                                                  Bool loop) {
+  const Long base = file->_frontBufferBase;
+  const Long target = file->streamFold(backward ? base : base + file->_frontValidFrames);
+  file->_streamBackward.store(backward, std::memory_order_relaxed);
+  // The last buffer one way is not the last the other way.
+  file->_frontTerminal = false;
+  file->_seekTarget.store(target, std::memory_order_relaxed);
+  file->_needsReset.store(true, std::memory_order_relaxed);
+  file->_fillGen.fetch_add(1, std::memory_order_release);
+  file->_backReady.store(false, std::memory_order_relaxed);
+  // A backward reader waiting below the front buffer starts forward at it.
+  if (!backward && pos < 0.f) pos = 0.f;
+  file->requestRefill(loop);
+}
+
+void YSE::INTERNAL::abstractSoundFile::regionBounds(Long& first, Long& last) const {
+  first = _regionStart.load(std::memory_order_relaxed);
+  last = _regionEnd.load(std::memory_order_relaxed);
+  if (last < 0 || last > _length) last = _length;
+  if (first > last) first = last;
+}
+
+Long YSE::INTERNAL::abstractSoundFile::streamFold(Long frame) const {
+  Long first = 0;
+  Long last = 0;
+  regionBounds(first, last);
+  if (frame >= first && frame <= last) return frame;
+  const Long span = last - first;
+  if (span <= 0) return first;
+  Long into = (frame - first) % span;
+  if (into < 0) into += span;
+  return first + into;
 }
 
 //////////////////////////////////////////////////////////////////////////////////
@@ -577,8 +653,9 @@ Bool YSE::INTERNAL::abstractSoundFile::readInterleaved(
   // adjust speed for sample rate
   speed *= file->_sampleRateAdjustment;
 
-  // don't play streaming sounds backwards
-  if (file->_streaming && speed < 0) speed = 0;
+  // A stream plays backward only when its owner made it reversible (issue
+  // #1288); a streaming YSE::sound holds at a negative speed, as it always has.
+  if (file->_streaming && speed < 0 && !file->_reversible) speed = 0;
 
   // For streaming, `pos` is buffer-local in [0, streamEnd) where streamEnd is the
   // count of real frames in the current front buffer (issue #185). For other
@@ -586,11 +663,20 @@ Bool YSE::INTERNAL::abstractSoundFile::readInterleaved(
   Flt streamEnd = (Flt)file->_frontValidFrames;
 
   if (file->_streaming) {
+    // A speed of the other sign turns a reversible stream around (issue #1288).
+    if (speed != 0 && (speed < 0) != file->_streamBackward.load(std::memory_order_relaxed)) {
+      streamTurn(file, pos, speed < 0, loop);
+    }
+    const Bool backward = file->_streamBackward.load(std::memory_order_relaxed);
+    // Backward, a reader past the front buffer's end (a turn there, or a
+    // buffer still empty) starts on its last frame.
+    if (backward && pos >= streamEnd) pos = streamEnd - 1.f;
     // Keep the refill pipeline primed (schedules at most one slow-pool fill).
     file->requestRefill(loop);
     // Resolve any buffer boundary reached on a previous block *before* indexing
     // into the front buffer in the state machine below. Never blocks on disk.
-    while (pos >= streamEnd) {
+    // Forward the boundary is the front buffer's end, backward its start.
+    while (backward ? pos < 0 : pos >= streamEnd) {
       swapResult r = streamSwap(file, pos, streamEnd, loop);
       if (r == SWAP_DONE) continue;
       // Terminal (EOF) or underrun: emit a silent block and retry next callback.
@@ -601,8 +687,8 @@ Bool YSE::INTERNAL::abstractSoundFile::readInterleaved(
       }
       if (r == SWAP_TERMINAL) {
         intent = SS_STOPPED;
-        pos = 0;
         streamReprime(file, loop);
+        pos = backward ? -1.f : 0.f;
       }
       return true;
     }
@@ -738,9 +824,11 @@ Bool YSE::INTERNAL::abstractSoundFile::readInterleaved(
     if (file->_streaming) {
       // Boundary reached mid-block. Swap in prefetched buffers (never blocks on
       // disk — see issue #185). On underrun, zero-fill the rest of this block and
-      // resume next callback. On EOF, stop.
+      // resume next callback. On EOF, stop. Backward the boundary is the front
+      // buffer's start (issue #1288).
       Bool silence = false;
-      while (pos >= streamEnd) {
+      const Bool backward = file->_streamBackward.load(std::memory_order_relaxed);
+      while (backward ? pos < 0 : pos >= streamEnd) {
         swapResult r = streamSwap(file, pos, streamEnd, loop);
         if (r == SWAP_DONE) {
           in = file->_iBuffer; // the front buffer pointer changed
@@ -791,7 +879,12 @@ Bool YSE::INTERNAL::abstractSoundFile::readInterleaved(
     pos = 0;
     // For a stopped stream, arm an async re-prime from frame 0 so the next play
     // starts at the beginning. No disk I/O on the audio thread (issue #185).
-    if (file->_streaming) streamReprime(file, loop);
+    // A backward stream starts again from its end, read from a `pos` of -1
+    // (issue #1288).
+    if (file->_streaming) {
+      streamReprime(file, loop);
+      if (file->_streamBackward.load(std::memory_order_relaxed)) pos = -1.f;
+    }
   }
   return true;
 }
@@ -831,17 +924,76 @@ YSE::INTERNAL::abstractSoundFile& YSE::INTERNAL::abstractSoundFile::reset() {
   // back to 0, and the generation is bumped so any fill that started before this
   // stop (stale position) is discarded rather than played on restart. The
   // prefetched back buffer is dropped for the same reason. (issue #185)
+  //
+  // "Frame 0" is the start of the stream's region (issue #1155), which is 0
+  // unless region() narrowed it. A stream reading backward starts at the
+  // region's end instead (issue #1288), its reader at a `pos` of -1.
+  Long first = 0;
+  Long last = 0;
+  regionBounds(first, last);
+  const Long start = _streamBackward.load(std::memory_order_relaxed) ? last : first;
   _frontValidFrames = 0;
   _frontTerminal = false;
-  _frontBufferBase = 0;
-  _seekTarget.store(0, std::memory_order_relaxed);
+  _frontBufferBase = start;
+  _seekTarget.store(start, std::memory_order_relaxed);
   _needsReset.store(true, std::memory_order_relaxed);
   _fillGen.fetch_add(1, std::memory_order_release);
   _backReady.store(false, std::memory_order_relaxed);
   return *this;
 }
 
-void YSE::INTERNAL::abstractSoundFile::seek(Long frame, Bool loop) {
+Bool YSE::INTERNAL::abstractSoundFile::loadStream() {
+  // create(true) without the slow-pool hop (issue #1155): the caller is a
+  // control or background thread that wants the stream ready when this
+  // returns.
+  if (state != NEW) return state == READY;
+  _streaming = true;
+  _endReached = false;
+  _needsReset = false;
+  state = LOADING;
+  loadStreaming();
+  return state == READY;
+}
+
+void YSE::INTERNAL::abstractSoundFile::region(Long start, Long end) {
+  if (start < 0) start = 0;
+  _regionStart.store(start, std::memory_order_relaxed);
+  _regionEnd.store(end, std::memory_order_relaxed);
+}
+
+void YSE::INTERNAL::abstractSoundFile::prime(Long frame, Bool loop, Bool backward) {
+  // Loader side, before the audio thread reads (issue #1155): the same fill
+  // the slow pool does, into the front buffer, from `frame`. Not terminal, as
+  // loadStreaming()'s first fill is not: the end is decided by the back-buffer
+  // fills, which know the loop flag at the time.
+  if (frame < 0) frame = 0;
+  _streamBackward.store(backward, std::memory_order_relaxed);
+  _seekTarget.store(frame, std::memory_order_relaxed);
+  _needsReset.store(true, std::memory_order_relaxed);
+  _backReady.store(false, std::memory_order_relaxed);
+  if (!backward) {
+    const UInt valid = fillBuffer(_iBuffer, loop, false);
+    _frontValidFrames = static_cast<Long>(valid);
+    _frontTerminal = false;
+    _frontBufferBase = frame;
+    return;
+  }
+  // Backward (issue #1288): the state seek(frame, loop, true) leaves, an empty
+  // front buffer at `frame`, with the back buffer already filled and handed
+  // over for the current generation, so the reader's first swap (from a `pos`
+  // of -1) finds it. Not terminal, as above.
+  const UInt valid = fillBuffer(_iBufferBack, loop, true);
+  _frontValidFrames = 0;
+  _frontTerminal = false;
+  _frontBufferBase = frame;
+  _backValidFrames.store(static_cast<Long>(valid), std::memory_order_relaxed);
+  _backTerminal.store(false, std::memory_order_relaxed);
+  _backLooped.store(loop, std::memory_order_relaxed);
+  _backGen.store(_fillGen.load(std::memory_order_relaxed), std::memory_order_relaxed);
+  _backReady.store(true, std::memory_order_release);
+}
+
+void YSE::INTERNAL::abstractSoundFile::seek(Long frame, Bool loop, Bool backward) {
   // Audio-thread entry point for a play-position change on a streaming sound
   // (issue #217). Like reset() this empties the audio-owned front state and bumps
   // the fill generation so any refill that started before this seek (stale
@@ -850,6 +1002,9 @@ void YSE::INTERNAL::abstractSoundFile::seek(Long frame, Bool loop) {
   // fill run on the slow pool (fillBuffer via requestRefill), never here.
   if (frame < 0) frame = 0;
   if (frame > _length) frame = _length;
+  // The direction before the generation bump, so the fill reads it with the
+  // target (issue #1288).
+  _streamBackward.store(backward, std::memory_order_relaxed);
   _frontValidFrames = 0;
   _frontTerminal = false;
   _frontBufferBase = frame;

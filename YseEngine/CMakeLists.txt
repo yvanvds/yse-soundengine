@@ -147,6 +147,7 @@ set(YSE_SRCS
   dsp/analysis/levelMeter.cpp
   dsp/analysis/scopeCapture.cpp
   dsp/analysis/spectrumAnalyzer.cpp
+  dsp/analysis/plotData.cpp
   dsp/operators/compare.cpp
   dsp/operators/trig.cpp
   dsp/operators/rounding.cpp
@@ -163,6 +164,9 @@ set(YSE_SRCS
   dsp/rawFilters.cpp
   dsp/sample_functions.cpp
   dsp/sampling/sampleBuffer.cpp
+  dsp/sampling/sampleBufferSet.cpp
+  dsp/sampling/fileStreamPlayer.cpp
+  dsp/sampling/fileRecorder.cpp
   dsp/sampling/sampleAccess.cpp
   dsp/sampling/tableLookup.cpp
   dsp/sampling/transferLookup.cpp
@@ -174,6 +178,7 @@ set(YSE_SRCS
   dsp/sampling/bufferPlayer.cpp
   dsp/sampling/groovePlayer.cpp
   dsp/sampling/timeStretch.cpp
+  dsp/sampling/waveformView.cpp
   dsp/routing/signalSelector.cpp
   dsp/routing/mixMatrix.cpp
   dsp/routing/signalBus.cpp
@@ -238,6 +243,7 @@ set(YSE_SRCS
   patcher/analysis/dCapture.cpp
   patcher/analysis/dScope.cpp
   patcher/analysis/dSpectroscope.cpp
+  patcher/analysis/dPlot.cpp
   patcher/analysis/dMeter.cpp
   patcher/analysis/dLevelmeter.cpp
   patcher/analysis/dGridmeter.cpp
@@ -258,7 +264,12 @@ set(YSE_SRCS
   patcher/dynamics/dMultiband.cpp
   patcher/dynamics/dGain.cpp
   patcher/sampling/bufferBinding.cpp
+  patcher/sampling/bufferMessage.cpp
   patcher/sampling/dBuffer.cpp
+  patcher/sampling/dPolybuffer.cpp
+  patcher/sampling/dSfplay.cpp
+  patcher/sampling/dSflist.cpp
+  patcher/sampling/dSfrecord.cpp
   patcher/sampling/dInfo.cpp
   patcher/sampling/dPeek.cpp
   patcher/sampling/dPoke.cpp
@@ -274,6 +285,7 @@ set(YSE_SRCS
   patcher/sampling/dPhaseGroove.cpp
   patcher/sampling/dSfinfo.cpp
   patcher/sampling/dStretch.cpp
+  patcher/sampling/dWaveform.cpp
   patcher/routing/selectorControl.cpp
   patcher/routing/dGate.cpp
   patcher/routing/dSelector.cpp
@@ -766,6 +778,7 @@ set_source_files_properties(
   patcher/analysis/dCapture.cpp
   patcher/analysis/dScope.cpp
   patcher/analysis/dSpectroscope.cpp
+  patcher/analysis/dPlot.cpp
   patcher/analysis/dMeter.cpp
   patcher/analysis/dLevelmeter.cpp
   patcher/analysis/dGridmeter.cpp
@@ -786,7 +799,12 @@ set_source_files_properties(
   patcher/dynamics/dMultiband.cpp
   patcher/dynamics/dGain.cpp
   patcher/sampling/bufferBinding.cpp
+  patcher/sampling/bufferMessage.cpp
   patcher/sampling/dBuffer.cpp
+  patcher/sampling/dPolybuffer.cpp
+  patcher/sampling/dSfplay.cpp
+  patcher/sampling/dSflist.cpp
+  patcher/sampling/dSfrecord.cpp
   patcher/sampling/dInfo.cpp
   patcher/sampling/dPeek.cpp
   patcher/sampling/dPoke.cpp
@@ -802,6 +820,7 @@ set_source_files_properties(
   patcher/sampling/dPhaseGroove.cpp
   patcher/sampling/dSfinfo.cpp
   patcher/sampling/dStretch.cpp
+  patcher/sampling/dWaveform.cpp
   patcher/routing/selectorControl.cpp
   patcher/routing/dGate.cpp
   patcher/routing/dSelector.cpp
