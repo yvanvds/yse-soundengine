@@ -202,6 +202,7 @@
 #include "sampling/dSflist.h"
 #include "sampling/dSfrecord.h"
 #include "sampling/dPlaylist.h"
+#include "sampling/dSfizz.h"
 #include "sampling/dRecord.h"
 #include "sampling/dPlay.h"
 #include "sampling/dGroove.h"
@@ -561,6 +562,7 @@ pRegistry::pRegistry() {
   Add(OBJ::D_SFLIST, dSflist::Create);
   Add(OBJ::D_SFRECORD, dSfrecord::Create);
   Add(OBJ::D_PLAYLIST, dPlaylist::Create);
+  Add(OBJ::D_SFIZZ, dSfizz::Create);
   Add(OBJ::D_GATE, dGate::Create);
   Add(OBJ::D_SELECTOR, dSelector::Create);
   Add(OBJ::D_MATRIX, dMatrix::Create);

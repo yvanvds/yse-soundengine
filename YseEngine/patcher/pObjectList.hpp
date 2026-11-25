@@ -86,7 +86,8 @@ namespace YSE {
    *    from disk, with cues), ``D_SFLIST`` (cues shared by name between
    *    ``~sfplay`` objects), ``D_SFRECORD`` (signals recorded to a sound
    *    file on disk), ``D_PLAYLIST`` (a list of sound files with
-   *    selections, played from disk one clip at a time; the host draws).
+   *    selections, played from disk one clip at a time; the host draws),
+   *    ``D_SFIZZ`` (an SFZ sampled instrument played by keys or MIDI).
    *  - DSP routing: ``D_GATE`` (a signal sent to one of several outlets),
    *    ``D_SELECTOR`` (one of several signals passed to the outlet),
    *    ``D_MATRIX`` (every input to every output at a ramped gain),
@@ -395,6 +396,7 @@ namespace YSE {
     DEFOBJ(D_SFLIST, "~sflist");
     DEFOBJ(D_SFRECORD, "~sfrecord");
     DEFOBJ(D_PLAYLIST, "~playlist");
+    DEFOBJ(D_SFIZZ, "~sfizz");
 
     DEFOBJ(D_GATE, "~gate");
     DEFOBJ(D_SELECTOR, "~selector");

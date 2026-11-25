@@ -23244,6 +23244,90 @@
     ],
     "requires_midi_device": false
   },
+  "~sfizz": {
+    "category": "SAMPLING",
+    "description": "Plays an SFZ sampled instrument from keys and velocities or MIDI messages, in stereo: velocity layers, loops, round robin and envelopes as the file describes them, with a voice limit, volume and Scala tunings.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "A key number, 0-127, played at the velocity inlet 1 holds: 0 releases the key. A float is truncated; a list is 'key velocity'. Also takes 'read <file.sfz>', 'readagain', 'midievent <status> <data1> [data2]', 'voices <n>', 'volume <dB>', 'base <Hz>', 'ref <key>', 'mid <key>', 'scale <count> <pitches...>' and 'scalename <file.scl>'.",
+        "index": 0,
+        "label": "key",
+        "range": "0-127"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The velocity of the next key, 0-127: stored, nothing plays. 0 makes the next key a release. A float is truncated.",
+        "index": 1,
+        "label": "velocity",
+        "range": "0-127"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~sfizz",
+    "outlets": [
+      {
+        "doc": "The left channel of the instrument.",
+        "index": 0,
+        "label": "left",
+        "range": "signal",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "The right channel of the instrument.",
+        "index": 1,
+        "label": "right",
+        "range": "signal",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The .sfz file to load when the object is made. May be left out: a first argument that is a number is the voice count.",
+        "name": "filename",
+        "range": "file name"
+      },
+      {
+        "default": "64",
+        "doc": "How many notes sound at once; a further note takes over the oldest released one, else the oldest.",
+        "name": "voices",
+        "range": "1 to 1024"
+      },
+      {
+        "default": "0",
+        "doc": "The output volume in dB: 0 unchanged, -70 near silence.",
+        "name": "volume",
+        "range": "any number"
+      },
+      {
+        "default": "440",
+        "doc": "The frequency, in Hz, of the key ref.",
+        "name": "base",
+        "range": "above 0"
+      },
+      {
+        "default": "69",
+        "doc": "The key that sounds at base Hz.",
+        "name": "ref",
+        "range": "0-127"
+      },
+      {
+        "default": "60",
+        "doc": "The key a scale starts on.",
+        "name": "mid",
+        "range": "0-127"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~sflist": {
     "category": "SAMPLING",
     "description": "Keeps cues of sound files under a name: the ~sfplay objects created with that name play them, each streaming from disk.",

@@ -478,6 +478,13 @@ to draw: what ``~playlist`` does.
 .. doxygenfile:: dsp/sampling/filePlaylist.hpp
    :project: libYSE
 
+A polyphonic SFZ instrument played by keys and MIDI messages, out of a stereo
+pair, on the engine's own SFZ model and sampler voices, with Scala tunings:
+what ``~sfizz`` does.
+
+.. doxygenfile:: dsp/sampling/sfzSampler.hpp
+   :project: libYSE
+
 Signals recorded to a sound file as they play, through a lock-free ring that
 a background thread empties to disk: what ``~sfrecord`` does.
 

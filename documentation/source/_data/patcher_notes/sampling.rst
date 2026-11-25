@@ -995,6 +995,72 @@ opens them again when it loads.
    |     |
    [~dac 1 2]
 
+.. patcher-object:: ~sfizz
+
+Plays a sampled instrument described by an SFZ file: the regions it lists
+choose a sample by key and velocity, and play it pitched to the key, looped,
+in round robin, with crossfades, choke groups and an amplitude envelope, as
+the file says. Many notes sound at once, out of a left and a right outlet.
+
+The arguments are ``filename voices volume base ref mid``, all optional. A
+first argument that is a number is the voice count, so ``[~sfizz 16]`` has
+no file yet.
+
+**Playing**
+
+- An int in the left inlet plays that key (0-127) at the velocity the right
+  inlet holds. A velocity of 0 releases the key, so a ``.makenote`` or a
+  ``.stripnote`` pair drives it directly. The velocity starts at 0: send one
+  before the first key. A float is truncated.
+- A list ``key velocity`` does both at once.
+- ``midievent <status> <data1> [data2]`` takes a raw MIDI message, on any
+  channel: note on and off, the sustain pedal (controller 64), all sound off
+  (120), reset (121: the pedal up, the pitch wheel centred), all notes off
+  (123) and the pitch wheel, which bends two semitones either way. A note's
+  velocity written with a decimal point is 0 to 1 instead of 0 to 127.
+- ``voices <n>`` sets how many notes sound at once (1 to 1024, default 64).
+  A note past them takes over the oldest released note, or else the oldest.
+- ``volume <dB>``: the output volume, 0 by default, -70 near silence. It
+  moves smoothly to a new value.
+
+**Files**
+
+- ``read <file.sfz>`` loads an instrument, ``readagain`` loads the last one
+  again (after the file was edited, say). The samples are loaded into memory
+  in the background; keys sent after a ``read`` wait for it, so ``[read
+  piano.sfz, 60(`` plays the piano. Notes sounding from the old instrument
+  stop when the new one is ready. A file that cannot be read keeps the
+  instrument that plays.
+- Sample names in the file are relative to the file. The .sfz file itself is
+  found the way the other file objects find files (see
+  :doc:`/patcher/files`), the host's path resolver included.
+
+**Tuning**
+
+- ``base <Hz>`` and ``ref <key>``: key ``ref`` (69) sounds at ``base`` Hz
+  (440); the rest of the keyboard follows.
+- ``scale <count> <pitch> ...``: a scale in Scala's form, its degrees above
+  key ``mid``. A pitch with a decimal point is in cents (``386.3``), one
+  without is a ratio (``5/4``, ``2``). The last pitch is the period, usually
+  ``1200.`` or ``2/1``, after which the scale repeats. ``scale`` alone goes
+  back to equal temperament.
+- ``scalename <file.scl>``: the same, read from a Scala file.
+- ``mid <key>``: the key the scale starts on (60).
+
+The key still chooses the regions; the tuning only changes the pitch they
+play at.
+
+The patch saves the arguments, and the file a ``read`` loaded in place of
+the argument's.
+
+.. code-block:: text
+
+   [read piano.sfz(   [.makenote 100 500]
+   |                  |          |
+   [~sfizz                       ]
+   |       |
+   [~dac 1 2]
+
 .. patcher-object:: ~sfrecord
 
 Records signals to a sound file on disk as they play, for as long as you

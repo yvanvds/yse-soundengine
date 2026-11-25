@@ -108,6 +108,18 @@ namespace YSE {
       }
 
       /**
+       *  @brief Set the pitch-wheel position, in [-1, 1].
+       *
+       *  The synth's keyboard state sets it for every voice on a channel; a
+       *  class that drives voices without a ``YSE::synth`` (``DSP::sfzSampler``,
+       *  issue #1159) sets it here. Values outside [-1, 1] are clamped.
+       */
+      void pitchWheel(Flt position) {
+        position = position < -1.f ? -1.f : (position > 1.f ? 1.f : position);
+        _pitchWheel.store(position, std::memory_order_relaxed);
+      }
+
+      /**
        *  @brief Current pitch-wheel position in [-1, 1] for this voice's channel.
        *
        *  The keyboard state machine forwards the channel's pitch-wheel value to

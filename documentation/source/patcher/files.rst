@@ -111,7 +111,8 @@ the host first. That covers the ``read`` and ``write`` messages of all the
 objects on this page, ``~seq`` and ``~capture``, the sound files that
 ``~buffer`` reads and writes, its file argument included, the sound files
 ``~sfinfo`` reports on, those ``~sfplay``, ``~sflist`` and ``~playlist``
-stream, and those ``~sfrecord`` records into.
+stream, those ``~sfrecord`` records into, and the instruments and scales
+``~sfizz`` reads.
 
 Each request carries the name exactly as the patch gave it, whether the file
 is read or written, and the requesting patcher and object (type and ID). The
