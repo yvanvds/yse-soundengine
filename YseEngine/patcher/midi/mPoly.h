@@ -8,6 +8,7 @@
 // a patcher-built polyphonic instrument is made of on a platform with no MIDI
 // hardware at all.
 #include "../pObject.h"
+#include "../../dsp/routing/voiceAllocator.hpp"
 
 #include <atomic>
 #include <cstdint>
@@ -43,7 +44,9 @@ namespace YSE {
      *
      *  `SYNTH::implementationObject::allocateInGroup` is the engine's answer to
      *  this exact question, and this object gives the same one rather than
-     *  inventing a second, subtly different one (issue #542's non-goal):
+     *  inventing a second, subtly different one (issue #542's non-goal). The
+     *  policy lives in the C++ class `DSP::voiceAllocator` (issue #1040),
+     *  which `~poly` uses as well:
      *
      *  - A **free voice** is preferred, scanned in ascending voice order, so a
      *    patch with more voices than it uses always plays on the low ones and a
@@ -255,7 +258,7 @@ namespace YSE {
      *         Diagnostics and tests — a patch sees the same thing by sending
      *         `stop`. */
     int Held() const {
-      return heldCount;
+      return pool.heldCount();
     }
 
     /** @brief The pitch voice @p voice is playing, or -1 when it is free or is
@@ -270,19 +273,6 @@ namespace YSE {
     }
 
   private:
-    // One slot of the pool. Plain members under the busy guard, never atomics:
-    // a voice is only ever read and written by the one thread that got past
-    // Enter().
-    struct Voice {
-      // What it is playing. Any int at all — see the class notes on why this is
-      // not a bitmap.
-      int pitch = 0;
-      // Allocation ticket, and what "held the longest" is measured with. Never
-      // reused, so an older voice always compares lower.
-      std::uint64_t age = 0;
-      bool active = false;
-    };
-
     // The pitch half, which is the half that acts: allocate, or release.
     void Play(int pitch, YSE::THREAD thread);
 
@@ -318,12 +308,11 @@ namespace YSE {
     aInt voiceCount;
     aInt steal;
 
-    // The pool. Fixed size and allocated with the object: this is written from
-    // the audio thread, where a table that could grow has no place.
-    Voice table[MAX_VOICES];
-    int heldCount = 0;
-    // Allocation tickets. Under the guard like the table, so a plain counter.
-    std::uint64_t nextAge = 1;
+    // The pool: DSP::voiceAllocator (issue #1040), MAX_VOICES slots allocated
+    // with the object, since this is written from the audio thread, where a
+    // table that could grow has no place. Under the guard, as it is not
+    // thread-safe.
+    YSE::DSP::voiceAllocator pool{MAX_VOICES};
 
     // The overflow outlet's text, reserved at construction and refilled
     // immediately before each send — `.funnel`'s arrangement, and for its

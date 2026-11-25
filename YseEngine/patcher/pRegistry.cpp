@@ -83,6 +83,7 @@
 #include "genericObjects/dInlet.h"
 #include "genericObjects/dOutlet.h"
 #include "genericObjects/pMute.h"
+#include "genericObjects/dPoly.h"
 #include "genericObjects/pDspStatus.h"
 #include "genericObjects/pPass.h"
 #include "genericObjects/pBegin.h"
@@ -1129,6 +1130,13 @@ pRegistry::pRegistry() {
   Add(OBJ::D_MUTE, pMute::Create);
   Add(OBJ::D_PASS, pPass::Create);
   Add(OBJ::D_BEGIN, pBegin::Create);
+  // Voice instancing (issue #1040).
+  Add(OBJ::D_POLY, dPoly::Create);
+  Add(OBJ::G_VOICE_IN, gVoiceIn::Create);
+  Add(OBJ::G_VOICE_OUT, gVoiceOut::Create);
+  Add(OBJ::D_VOICE_IN, dVoiceIn::Create);
+  Add(OBJ::D_VOICE_OUT, dVoiceOut::Create);
+  Add(OBJ::D_THISPOLY, dThisPoly::Create);
 
   // A sparse function: x,y pairs kept sorted by x, with a floor lookup and
   // linear interpolation between the stored points — the store behind every

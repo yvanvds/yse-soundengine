@@ -137,6 +137,7 @@ set(YSE_TEST_SOURCES
   dsp/test_ramp_smooth.cpp
   dsp/test_signal_selector.cpp
   dsp/test_mix_matrix.cpp
+  dsp/test_voice_allocator.cpp
   dsp/test_signal_bus.cpp
   dsp/test_streaming_fft.cpp
   dsp/test_stft.cpp
@@ -502,6 +503,7 @@ set(YSE_TEST_SOURCES
   patcher/test_patcher_adc.cpp
   patcher/test_patcher_audio_io.cpp
   patcher/test_patcher_subpatch_mute.cpp
+  patcher/test_patcher_poly_voices.cpp
   patcher/test_patcher_dsp_status.cpp
   patcher/test_patcher_sync.cpp
   patcher/test_timerthread.cpp
@@ -1726,6 +1728,7 @@ set_source_files_properties(
   patcher/test_patcher_adc.cpp
   patcher/test_patcher_audio_io.cpp
   patcher/test_patcher_subpatch_mute.cpp
+  patcher/test_patcher_poly_voices.cpp
   patcher/test_patcher_dsp_status.cpp
   patcher/test_patcher_sync.cpp
   patcher/test_timerthread.cpp

@@ -101,3 +101,76 @@ own. Because the snapshot now carries containment, `SetContainer` publishes. The
 state like the patcher's DSP switch (#1043): not saved, and a `SetParams` rebuild of the subpatcher
 starts unmuted. `~begin` is a constant 0; the old "switch off the chain before a gate" behaviour is
 not implemented, since a subpatcher and `~mute` cover it.
+
+## Voices: `~poly` (issue #1040)
+
+The design gate for MSP's `poly~`, `in`, `out`, `in~`, `out~` and `thispoly~`, which became `~poly`,
+`.in`, `.out`, `~in`, `~out` and `~thispoly` (`patcher/genericObjects/dPoly`). The user guide is the
+"Voices" section of [subpatchers.rst](../../documentation/source/patcher/subpatchers.rst).
+
+**Instancing model: copies in the flat graph, not a nested graph per voice.** A `~poly` is a third
+container type beside `patcher` and `~pfft`. What the user puts inside is the *definition* of a
+voice (the template): it is saved, edited and addressed like any subpatcher's contents, but it does
+not run. The patcher makes the voices itself (`SyncPolyVoicesUnlocked`, called first in every
+`RebuildAndPublish`): per voice, a `polyVoice` root and a copy of every template object, created from
+the registry with the template's parameters and saved state, wired to each other the way the
+template is wired, and told their voice (`pObject::JoinVoice`). Copies live in
+`patcherImplementation::polyInstances_`, not in `objects`: no handle, not saved, not enumerated. They
+take graph ids from the one id space and are compiled into the one `GraphState`, each voice as a
+domain of its own (`GraphState::polyDomain`, like a `~pfft`'s `spectralDomain`), so an edit is still
+one atomic publish, a removed voice goes through the ordinary epoch reclaimer, the scheduler and file
+deliveries validate copies like any object, and nothing new had to be proved for TSan. A nested
+`GraphState` per voice was rejected: it would have needed its own publication, reclamation, id space,
+scheduler and name scope per voice, a second copy of all the machinery #226–#228 and #963 made safe,
+for nothing the flat form cannot do. The voices are rebuilt only when a fingerprint of the template
+(types, parameters, containment and inner cords) or the voice count changes; a structural `SetParams`
+on a template object always takes the rebuild path. Rebuilt voices lose their running state, like an
+object a structural `SetParams` replaces, and get no `Teardown`; `Clear` and deleting the `~poly` do
+run `Teardown` on them, and a load fires each voice's `Loadbang` (the template's never fires). A
+`~poly` cannot be nested in a `~poly` or a `~pfft` (copies of copies are not made); a `patcher` or a
+`~pfft` inside a voice is copied with it.
+
+**Render scheduler (#856).** A patcher stays one task, as #856 decided. Voices are compiled as
+separate domains whose renders touch only their own objects and their slot in the `~poly`'s sums, so
+voices are the natural unit if parallelism inside a patcher is ever wanted; nothing here does that.
+
+**Signal I/O.** The `~poly`'s pins come from its arguments (`inlets`, `outlets`, `messages`), as a
+`~pfft`'s do, because a pin count derived from the contents would be a pin-count change on a live
+object (#234). Inlet N carries a signal to every voice's `~in N` (a pointer, no copy) and messages to
+`.in N`. In its step the `~poly` loads each voice's `~in`, walks the voice's compiled render order and
+adds each `~out N` into signal outlet N. No cord crosses the boundary (`Connect` refuses it, and a
+cord a later `SetContainer` puts across is left out of `outletTargets`); a `~dac` inside does
+nothing.
+
+**Message routing.** Handled in the `~poly`'s list handler, on any inlet, against the snapshot the
+calling thread pins: `target` (0 all, N one, negative none), `note` and `midinote` (allocated),
+`allnotesoff`, `mute`, `steal`, `setvalue`, and `list` as the escape; anything else goes to the
+target. `.out N` sends the voice number on the last outlet, then the message on message outlet N.
+Allocation is `DSP::voiceAllocator` (`dsp/routing/voiceAllocator`): the free-voice / oldest-steal
+policy `.poly` had, extracted into a C++ class so `.poly`, `~poly` and C++ code share it (the issue's
+recommendation: the allocator is a C++ class, instancing stays a patcher feature). A voice is busy
+while its `~thispoly` says so (a number, or a signal such as an envelope) and from the moment it is
+given a note until the end of the next block, so a chord sent at once spreads even when busy comes
+from a signal. Allocator words take a test-and-set guard (dropped and counted on contention, as on
+`.poly`); plain data does not.
+
+**Muting.** A voice's root carries a mute word with `gSubpatcher`'s two bits; `~poly`'s `mute` and
+`~thispoly`'s `mute` set both. The root's word is in every copy's `GraphState::muteChain` (#1137's
+mechanism), and the `~poly` also skips a fully muted voice's whole render. A rebuild keeps each
+voice's mute.
+
+**Out-of-band delivery, and #756.** `pObject::VoiceEventSink` / `DeliverVoiceEvent` let a `~poly`
+reach objects in a voice without a cord: the compiled `polyVoiceDomain::sinks` list, delivered
+synchronously on the thread that runs the `~poly`'s handler. `~thispoly` is the first sink (the
+`mute` report). `.polymidiin` (#756) is a zero-inlet sink on the same path: #756 adds `MIDI` and `MPE`
+kinds to `voiceEvent` (its payload already holds `mpeevent`'s six ints) and the `midievent` /
+`mpeevent` words to the `~poly`'s router: note-on/off by key through `DSP::voiceAllocator` (as
+`midinote`), channel messages to every voice, and with an `mpemode` argument the `mpeevent` voice
+argument chosen directly (-1 every voice). `.mpeparse` keeps the channel-as-identity model; whether
+it grows an `mpeevent` outlet is #756's call.
+
+**Not done here** (Max surface left out or deferred): `voices` at run time (change the argument),
+`busymap` / `mutemap`, `exclude`, `bypass`, `~thispoly`'s `automute`, `midievent` / `mpeevent` /
+`midimode` / `mpemode` / `zone` (#756), and Max's external patch files, `args`, `up` / `down`,
+`parallel`, `threadcount`, `vs`, `open` / `wclose`, `legacynotemode`. Pin numbers are 0-based as on
+`~pfft`; voice numbers are 1-based.

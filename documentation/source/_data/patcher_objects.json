@@ -7408,6 +7408,31 @@
     ],
     "requires_midi_device": false
   },
+  ".in": {
+    "category": "ENCAPSULATION",
+    "description": "Inside a ~poly: the messages sent to one of its inlets, as the ~poly routes them to this voice.",
+    "inlets": [],
+    "is_dsp": false,
+    "name": ".in",
+    "outlets": [
+      {
+        "doc": "Whatever the ~poly passes this voice on inlet index.",
+        "index": 0,
+        "label": "message",
+        "range": "",
+        "type": "ANY"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Which inlet of the ~poly this reads, from 0.",
+        "name": "index",
+        "range": "0-15"
+      }
+    ],
+    "requires_midi_device": false
+  },
   ".incdec": {
     "category": "GUI",
     "description": "A stepper over a whole number. 'inc' and 'dec', or a signed step count on the middle inlet, move the value inside a range that clamps or wraps; a number sets it without sending and a bang sends it.",
@@ -9599,6 +9624,36 @@
         "doc": "Non-zero starts the gate armed, so the first message passes. Closed by default.",
         "name": "initial",
         "range": "0 or non-zero"
+      }
+    ],
+    "requires_midi_device": false
+  },
+  ".out": {
+    "category": "ENCAPSULATION",
+    "description": "Inside a ~poly: sends a message out of one of its message outlets, after the voice's number on its last outlet.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "Any message, sent out of the ~poly's message outlet index.",
+        "index": 0,
+        "label": "message",
+        "range": ""
+      }
+    ],
+    "is_dsp": false,
+    "name": ".out",
+    "outlets": [],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Which message outlet of the ~poly this sends from, from 0.",
+        "name": "index",
+        "range": "0-15"
       }
     ],
     "requires_midi_device": false
@@ -19340,6 +19395,31 @@
     ],
     "requires_midi_device": false
   },
+  "~in": {
+    "category": "ENCAPSULATION",
+    "description": "Inside a ~poly: the signal on one of its inlets, the same in every voice.",
+    "inlets": [],
+    "is_dsp": true,
+    "name": "~in",
+    "outlets": [
+      {
+        "doc": "The ~poly's inlet index, passed on without a copy.",
+        "index": 0,
+        "label": "signal",
+        "range": "",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Which inlet of the ~poly this reads, from 0.",
+        "name": "index",
+        "range": "0-15"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~index": {
     "category": "SAMPLING",
     "description": "Reads a named sample buffer at the sample indexes a signal gives, without interpolation: a fractional index reads the whole sample below it.",
@@ -20828,6 +20908,33 @@
     ],
     "requires_midi_device": false
   },
+  "~out": {
+    "category": "ENCAPSULATION",
+    "description": "Inside a ~poly: a signal the ~poly adds, over every voice, to one of its signal outlets.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER"
+        ],
+        "doc": "This voice's part of the ~poly's signal outlet index.",
+        "index": 0,
+        "label": "signal",
+        "range": ""
+      }
+    ],
+    "is_dsp": true,
+    "name": "~out",
+    "outlets": [],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Which signal outlet of the ~poly this adds to, from 0.",
+        "name": "index",
+        "range": "0-15"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~outlet": {
     "category": "ENCAPSULATION",
     "description": "A signal outlet of the subpatcher it is in. With index N, the signal that arrives here leaves the subpatcher through its outlet N.",
@@ -21856,6 +21963,82 @@
         "doc": "Phase in radians used while no signal is connected to the right inlet.",
         "name": "phase",
         "range": "any float"
+      }
+    ],
+    "requires_midi_device": false
+  },
+  "~poly": {
+    "category": "ENCAPSULATION",
+    "description": "Plays several copies of the subpatch inside it, voices that notes and messages are allocated to; their ~out signals are summed on the outlets.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "A signal for the ~in objects with this index inside, and messages for the .in objects with this index: to the target voice, or routed by note, midinote, setvalue. Also target, mute, steal, allnotesoff, list.",
+        "index": 0,
+        "label": "in 0",
+        "range": ""
+      }
+    ],
+    "is_dsp": true,
+    "name": "~poly",
+    "outlets": [
+      {
+        "doc": "The sum over every voice of the ~out objects with this index.",
+        "index": 0,
+        "label": "out",
+        "range": "",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "The number of the voice whose .out sends, before the message itself.",
+        "index": 1,
+        "label": "voice",
+        "range": "1-128",
+        "type": "INT"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "A name for the subpatch, for a host to show. The engine does not read it; the contents are placed inside with SetContainer.",
+        "name": "name",
+        "range": ""
+      },
+      {
+        "default": "1",
+        "doc": "How many copies of the subpatch play. Changing it rebuilds them.",
+        "name": "voices",
+        "range": "1-128"
+      },
+      {
+        "default": "1",
+        "doc": "How many inlets: inlet N is the signal of the ~in N objects and the messages of the .in N objects inside.",
+        "name": "inlets",
+        "range": "0-16"
+      },
+      {
+        "default": "1",
+        "doc": "How many signal outlets: outlet N is the sum over the voices of the ~out N objects inside.",
+        "name": "outlets",
+        "range": "0-16"
+      },
+      {
+        "default": "0",
+        "doc": "How many message outlets, after the signal outlets: what the .out objects inside send. The last outlet always sends the number of the voice that sent.",
+        "name": "messages",
+        "range": "0-16"
+      },
+      {
+        "default": "0",
+        "doc": "0: a note or midinote with no free voice is dropped. Any other value: it goes to the voice started longest ago. The steal message changes it.",
+        "name": "steal",
+        "range": "0 or non-zero"
       }
     ],
     "requires_midi_device": false
@@ -24971,6 +25154,52 @@
         "range": "a maximum delay, two delays, then the gains a, b and c"
       }
     ],
+    "requires_midi_device": false
+  },
+  "~thispoly": {
+    "category": "ENCAPSULATION",
+    "description": "Inside a ~poly: sets the voice busy or free for note allocation, mutes it, and reports its number.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "A number: non-zero busy, 0 free; a busy voice gets no note or midinote. A signal: busy while any sample is non-zero. 'mute 1' / 'mute 0' mutes and unmutes the voice. A bang reports the voice count and number.",
+        "index": 0,
+        "label": "busy",
+        "range": ""
+      }
+    ],
+    "is_dsp": true,
+    "name": "~thispoly",
+    "outlets": [
+      {
+        "doc": "The voice number on a bang, from 1; 0 outside a ~poly.",
+        "index": 0,
+        "label": "voice",
+        "range": "0-128",
+        "type": "INT"
+      },
+      {
+        "doc": "1 when the voice is muted, 0 when unmuted, as it changes.",
+        "index": 1,
+        "label": "mute",
+        "range": "0 or 1",
+        "type": "INT"
+      },
+      {
+        "doc": "The ~poly's voice count on a bang; 1 outside a ~poly.",
+        "index": 2,
+        "label": "voices",
+        "range": "1-128",
+        "type": "INT"
+      }
+    ],
+    "params": [],
     "requires_midi_device": false
   },
   "~thresh": {

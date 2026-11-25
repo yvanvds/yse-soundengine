@@ -1,0 +1,371 @@
+#pragma once
+// Voice instancing (issue #1040): `~poly`, its boundary objects `.in`, `.out`,
+// `~in`, `~out`, and `~thispoly`. The design is in
+// docs/design/patcher_lifecycle_subpatchers.md, "Voices: ~poly"; the user
+// guide in documentation/source/patcher/subpatchers.rst.
+#include "../pObject.h"
+#include "../graphState.h"
+#include "../../dsp/routing/voiceAllocator.hpp"
+
+#include <atomic>
+#include <cstdint>
+#include <memory>
+#include <string>
+#include <string_view>
+#include <vector>
+
+namespace YSE {
+  namespace PATCHER {
+
+    class dPoly;
+
+    /**
+     *  @brief An event a ``~poly`` sends one of its voices without a cord
+     *         (issue #1040), to every object in the voice that is a
+     *         pObject::VoiceEventSink.
+     *
+     *  ``MUTE``: the voice was muted (``data[0]`` 1) or unmuted (0) by the
+     *  ~poly's ``mute`` message; ``~thispoly`` reports it. The payload has
+     *  room for six ints, the widest event Max's ``poly~`` routes
+     *  (``mpeevent``): ``.polymidiin`` (#756) is meant to add the MIDI and
+     *  MPE kinds. Trivially copyable, built on the stack.
+     */
+    struct voiceEvent {
+      enum class KIND : std::uint8_t { MUTE };
+      KIND kind = KIND::MUTE;
+      int count = 0;
+      int data[6] = {};
+    };
+
+    /**
+     *  @brief The root of one voice of a ``~poly`` (issue #1040): the
+     *         container of that voice's copies, holding its number and its
+     *         mute word.
+     *
+     *  Made by the patcher with the copies; not a registered type, never
+     *  saved, never seen by a host, no pins. The mute word has
+     *  gSubpatcher's two bits and is read the way a subpatcher's is
+     *  (GraphState::muteChain, issue #1137): a muted voice is one whose root
+     *  has both set. The ~poly also skips a muted voice's whole render.
+     */
+    class polyVoice : public pObject {
+    public:
+      /** @brief The type a voice root reports; registered nowhere. */
+      static constexpr const char* TYPE = "~poly voice";
+
+      polyVoice(dPoly* host, int number) : pObject(false), host_(host), number_(number) {}
+      const char* Type() const override {
+        return TYPE;
+      }
+      void Calculate(YSE::THREAD) override {}
+      void SetMessage(const std::string&, float) override {}
+
+      /** @brief The ~poly this voice belongs to. */
+      dPoly* Host() const {
+        return host_;
+      }
+      /** @brief The voice number, from 1. */
+      int Number() const {
+        return number_;
+      }
+
+      /** @brief Mutes (both bits) or unmutes the voice. Any thread. */
+      void SetMute(bool on) {
+        mute_.store(on ? ALL : 0, std::memory_order_release);
+      }
+      bool Muted() const {
+        return mute_.load(std::memory_order_acquire) == ALL;
+      }
+      /** @brief The mute word, for GraphState::muteChain. */
+      const std::atomic<std::uint8_t>* MuteWord() const {
+        return &mute_;
+      }
+
+    private:
+      static constexpr std::uint8_t ALL = 3; // gSubpatcher MUTE_CONTENTS | MUTE_NESTED
+      dPoly* host_;
+      int number_;
+      std::atomic<std::uint8_t> mute_{0};
+    };
+
+    /**
+     *  @brief ``~poly``: plays N copies of the subpatch inside it, voices that
+     *         notes are allocated to (issue #1040). MSP's ``poly~``.
+     *
+     *  A container like ``patcher`` and ``~pfft``: objects are put inside it
+     *  with SetContainer. What is inside is the voice's *definition* (the
+     *  template) and does not run itself; the patcher makes ``voices`` copies
+     *  of it, one per voice, and the ~poly renders each copy in its step of
+     *  the block and sums what their ``~out`` objects put out. An edit inside
+     *  the ~poly rebuilds every voice.
+     *
+     *  **Pins** come from the parameters, as ~pfft's do: ``inlets`` inlets,
+     *  each a signal for the ``~in`` objects with its index and messages for
+     *  the ``.in`` objects with its index; ``outlets`` signal outlets (the
+     *  sum of every voice's ``~out`` with that index), then ``messages``
+     *  message outlets (what a voice's ``.out`` sends), then one outlet with
+     *  the number of the voice that sent it, sent first.
+     *
+     *  **Messages**, on any inlet, apply to that inlet's ``.in`` objects:
+     *
+     *  - ``target N``: where the messages that follow go: voice N (from 1),
+     *    0 every voice (the default), a negative number none.
+     *  - ``note <message>``: the message to the first voice that is not busy
+     *    (DSP::voiceAllocator: the lowest free voice; with ``steal`` the one
+     *    started longest ago). A voice is busy while its ``~thispoly`` says
+     *    so, and from the moment it is given a note until the end of the
+     *    next block, so a chord sent at once goes to different voices.
+     *  - ``midinote <pitch> <velocity>``: a velocity above 0 is a note-on
+     *    and goes where ``note`` would; the voice then holds the pitch, and
+     *    the velocity-0 note-off for it goes to that voice.
+     *  - ``allnotesoff``: ``<pitch> 0`` to every voice holding a midinote.
+     *  - ``mute <voice> <0|1>``: mutes a voice (0: every voice). A muted
+     *    voice does not compute and adds nothing to the outlets; its
+     *    ``~thispoly`` reports the change.
+     *  - ``steal <0|1>``: whether ``note`` and ``midinote`` take a busy
+     *    voice when none is free.
+     *  - ``setvalue <voice> <message>``: the message to one voice (0: all),
+     *    without changing the target.
+     *  - ``list <message>``: the message as it is, to the target, so it may
+     *    start with one of these words.
+     *  - Anything else (bang, numbers, lists, other words) goes to the target.
+     *
+     *  Parameters: ``name`` (free text), ``voices`` (1, 1..128), ``inlets``
+     *  (1, 0..16), ``outlets`` (1, 0..16), ``messages`` (0, 0..16), ``steal``
+     *  (0). Changing one rebuilds the object and its voices.
+     *
+     *  **Real time.** Rendering walks each voice's compiled order; nothing
+     *  allocates. The routing words parse in place and take a test-and-set
+     *  guard (a concurrent or re-entrant one is dropped and counted, as on
+     *  ``.poly``); plain data needs no guard. Copying and wiring voices is
+     *  control-thread work under the patcher's mutex.
+     */
+    PATCHER_CLASS(dPoly, YSE::OBJ::D_POLY)
+    _NO_MESSAGES
+    _DO_CALCULATE
+
+    _PARM_CLEAR
+    _PARM_PARSE
+
+    _BANG_IN(SetBang)
+    _INT_IN(SetInt)
+    _FLOAT_IN(SetFloat)
+    _LIST_IN(SetList)
+
+    /** @brief The most voices one ~poly can have. */
+    static constexpr int MAX_VOICES = 128;
+    /** @brief The most inlets, signal outlets or message outlets. */
+    static constexpr int MAX_PINS = 16;
+    /** @brief The longest message ``note``, ``setvalue`` and ``list`` pass on
+     *         without its leading word; a longer one is dropped. */
+    static constexpr std::size_t MAX_MESSAGE = 512;
+
+    /** @brief The number of voices (control side; fixed for the object). */
+    int Voices() const {
+      return voiceCount;
+    }
+    int Inlets() const {
+      return static_cast<int>(inputs.size());
+    }
+    int SignalOutlets() const {
+      return static_cast<int>(results.size());
+    }
+    int MessageOutlets() const {
+      return static_cast<int>(outputs.size()) - SignalOutlets() - 1;
+    }
+
+    /** @brief Whether voice @p voice (from 1) said it is busy (~thispoly). */
+    bool Busy(int voice) const;
+    /** @brief ~thispoly's busy flag for voice @p voice (from 1). Any thread. */
+    void SetBusy(int voice, bool on);
+    /** @brief Where plain messages go: 0 all voices, N voice N, -1 none. */
+    int Target() const {
+      return target.load(std::memory_order_relaxed);
+    }
+    /** @brief The pitch voice @p voice (from 1) holds after a midinote, or -1. */
+    int PitchOfVoice(int voice) const;
+    /** @brief Routing words refused: concurrent or re-entrant. Monotonic. */
+    std::uint64_t Dropped() const {
+      return dropped.load(std::memory_order_relaxed);
+    }
+
+    /** @brief A voice's ``.out`` @p index sends: the voice number on the last
+     *         outlet, then the message on message outlet @p index. Any thread. */
+    void VoiceBang(int voice, int index, YSE::THREAD thread);
+    void VoiceInt(int voice, int index, int value, YSE::THREAD thread);
+    void VoiceFloat(int voice, int index, float value, YSE::THREAD thread);
+    void VoiceList(int voice, int index, const std::string& value, YSE::THREAD thread);
+
+  private:
+    void Configure();
+    // A routing word; false when `word` is not one.
+    bool Route(std::string_view word, const std::string& text, std::size_t rest, int inlet,
+               YSE::THREAD thread);
+    // `text` from `from` to its end, to the .in objects with index `inlet` of
+    // voice `voice` (0: every voice) of `d`, sent as the typed message it
+    // spells: bang, int, float or list.
+    void DeliverPart(const GraphState::polyDomain& d, int voice, int inlet, const std::string& text,
+                     std::size_t from, YSE::THREAD thread);
+    void Mute(const GraphState::polyDomain& d, int voice, bool on, YSE::THREAD thread);
+    bool Enter();
+    void Leave();
+    bool Available(int voice) const;
+
+    std::string name;
+    int voiceCount = 1;
+    int ins = 1;
+    int outs = 1;
+    int messages = 0;
+    int stealArgument = 0;
+
+    // Under the guard: not thread-safe.
+    DSP::voiceAllocator pool{MAX_VOICES};
+    // Per voice (index voice - 1): ~thispoly's busy flag, and "given a note
+    // this block", cleared after each render.
+    std::unique_ptr<std::atomic<bool>[]> busy;
+    std::unique_ptr<std::atomic<bool>[]> pending;
+    std::vector<std::unique_ptr<DSP::buffer>> results;
+    std::atomic<int> target{0};
+    // The leading word's remainder, reserved to MAX_MESSAGE at construction.
+    // Under the guard.
+    std::string scratch;
+    std::atomic<bool> guard{false};
+    std::atomic<std::uint64_t> dropped{0};
+  };
+
+  /**
+   *  @brief ``.in``: inside a ``~poly``, the messages sent to one of its
+   *         inlets (issue #1040). MSP's ``in``.
+   *
+   *  No inlets; one outlet, everything the ~poly passes to this voice on
+   *  inlet ``index``. Elsewhere it sends nothing.
+   */
+  PATCHER_CLASS(gVoiceIn, YSE::OBJ::G_VOICE_IN)
+  _NO_MESSAGES
+  _NO_CALCULATE
+
+  int Index() const {
+    return index.load();
+  }
+  /** @brief The ~poly's delivery. */
+  void Send(const std::string& text, std::size_t from, YSE::THREAD thread);
+  void SendBang(YSE::THREAD thread);
+  void SendInt(int value, YSE::THREAD thread);
+  void SendFloat(float value, YSE::THREAD thread);
+  void SendList(const std::string& value, YSE::THREAD thread);
+
+private:
+  aInt index{0};
+  // A part of a ~poly message, reserved to dPoly::MAX_MESSAGE.
+  std::string part;
+};
+
+/**
+ *  @brief ``.out``: inside a ``~poly``, sends messages out of one of its
+ *         message outlets, after the voice's number on its last outlet
+ *         (issue #1040). MSP's ``out``.
+ */
+PATCHER_CLASS(gVoiceOut, YSE::OBJ::G_VOICE_OUT)
+_NO_MESSAGES
+_NO_CALCULATE
+
+_BANG_IN(SetBang)
+_INT_IN(SetInt)
+_FLOAT_IN(SetFloat)
+_LIST_IN(SetList)
+
+void JoinVoice(polyVoice* voice) override {
+  voice_ = voice;
+}
+
+private:
+aInt index{0};
+polyVoice* voice_ = nullptr;
+}
+;
+
+/**
+ *  @brief ``~in``: inside a ``~poly``, the signal on one of its inlets
+ *         (issue #1040). MSP's ``in~``.
+ *
+ *  The ~poly loads it with its inlet's buffer before rendering the voice;
+ *  it passes that buffer on without a copy. Elsewhere it sends silence.
+ */
+PATCHER_CLASS(dVoiceIn, YSE::OBJ::D_VOICE_IN)
+_NO_MESSAGES
+_DO_CALCULATE
+
+int Index() const {
+  return index.load();
+}
+/** @brief The ~poly's load before the voice renders; null for silence. */
+void Load(DSP::buffer* buffer) {
+  loaded = buffer;
+}
+
+private:
+aInt index{0};
+DSP::buffer* loaded = nullptr;
+DSP::buffer silence;
+}
+;
+
+/**
+ *  @brief ``~out``: inside a ``~poly``, the signal one of its signal outlets
+ *         sums over the voices (issue #1040). MSP's ``out~``.
+ */
+PATCHER_CLASS(dVoiceOut, YSE::OBJ::D_VOICE_OUT)
+_NO_MESSAGES
+_DO_CALCULATE
+_DO_RESET
+
+int Index() const {
+  return index.load();
+}
+/** @brief Adds this block's input to @p sum. Render thread. */
+void AddTo(DSP::buffer& sum) const;
+
+private:
+aInt index{0};
+DSP::buffer* in = nullptr;
+}
+;
+
+/**
+ *  @brief ``~thispoly``: inside a ``~poly``, a voice's busy and mute state
+ *         and its number (issue #1040). MSP's ``thispoly~``.
+ *
+ *  Inlet: a number sets the voice busy (non-zero) or free (0): a busy voice
+ *  gets no ``note`` / ``midinote``. A signal does the same each block
+ *  (busy while any sample is non-zero). ``mute 0|1`` unmutes / mutes the
+ *  voice. A bang sends the voice count, then the voice number.
+ *
+ *  Outlets: the voice number (from 1; 0 outside a ~poly), the mute state
+ *  (when it changes through this object or the ~poly's ``mute``), the
+ *  voice count (1 outside a ~poly).
+ */
+PATCHER_CLASS(dThisPoly, YSE::OBJ::D_THISPOLY)
+_NO_MESSAGES
+_DO_CALCULATE
+
+_BANG_IN(SetBang)
+_INT_IN(SetInt)
+_FLOAT_IN(SetFloat)
+_LIST_IN(SetList)
+
+void JoinVoice(polyVoice* voice) override {
+  voice_ = voice;
+}
+bool VoiceEventSink() const override {
+  return true;
+}
+void DeliverVoiceEvent(const voiceEvent& event, YSE::THREAD thread) override;
+
+private:
+void SetBusyFlag(bool on);
+polyVoice* voice_ = nullptr;
+}
+;
+
+} // namespace PATCHER
+} // namespace YSE

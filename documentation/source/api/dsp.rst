@@ -512,6 +512,12 @@ Named signal buses: audio sent and received by name, without a cord, what
 .. doxygenfile:: dsp/routing/signalBus.hpp
    :project: libYSE
 
+Note-to-voice allocation over a fixed pool, a free voice first and the
+oldest when stealing: what ``.poly`` and ``~poly`` allocate with.
+
+.. doxygenfile:: dsp/routing/voiceAllocator.hpp
+   :project: libYSE
+
 Spectral
 --------
 

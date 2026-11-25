@@ -604,8 +604,29 @@ namespace YSE {
       // A `~pfft` (issue #1041): a container whose contents it renders itself,
       // once per spectral frame, on buffers of bins.
       static bool IsSpectralHost(const pObject* obj);
-      // What SetContainer accepts as a container: a `patcher` or a `~pfft`.
+      // A `~poly` (issue #1040): a container whose contents are the
+      // definition of its voices. They do not run; the copies the patcher
+      // makes of them (SyncPolyVoicesUnlocked) do.
+      static bool IsPolyHost(const pObject* obj);
+      // The root of one voice of a ~poly (a polyVoice): what a copy's
+      // containment ends at.
+      static bool IsVoiceRoot(const pObject* obj);
+      // What SetContainer accepts as a container: a `patcher`, a `~pfft` or a
+      // `~poly`.
       static bool IsContainer(pObject* obj);
+      // The ~poly whose contents (at any depth) hold `obj`, or null: `obj` is
+      // part of a voice definition and does not run (issue #1040). Null for a
+      // voice's copies, whose containment ends at their voice root. Control
+      // thread, under mtx.
+      static pObject* PolyTemplateOf(const pObject* obj);
+      // The domain `obj` renders in (issues #1041, #1040): the nearest
+      // enclosing ~pfft, ~poly or voice root, or null for the top level's
+      // blocks. Under mtx.
+      static pObject* DomainOf(const pObject* obj);
+      // Whether putting `obj` inside `container` would nest a ~poly inside a
+      // ~poly or a ~pfft, which is refused: a voice is copied with
+      // everything in it, and a copy's own voices are not made. Under mtx.
+      bool PolyNestingRefused(pObject* obj, pObject* container) const;
       // The nearest `~pfft` enclosing `obj`, or null when it runs in the top
       // level's blocks (issue #1041). Control thread, under mtx (it walks the
       // containment annotation).
@@ -672,6 +693,13 @@ namespace YSE {
       // Fill the render steps' and ~dacs' slices of GraphState::muteChain
       // (issue #1137). Under mtx.
       static void BuildMuteChains(GraphState& g);
+      // Every object in `host`'s containment subtree, `host` excluded,
+      // breadth-first and in storage-ID order within each container. Under
+      // mtx.
+      void CollectTemplate(pObject* host, std::vector<pObject*>& out) const;
+      // Every voice copy of every ~poly, voice by voice, appended to `out`.
+      // Under mtx.
+      void CollectVoiceObjects(std::vector<pObject*>& out) const;
       // Stamp lifetime-stable graph ids on a newly added object's inlets/outlets.
       // Pulls a recycled id from the free-list before bumping the counter so a
       // continuously edited patcher reuses the ids of its deleted objects (issue
@@ -713,7 +741,8 @@ namespace YSE {
       // a full graph rebuild. Caller holds mtx.
       int ClaimStorageID() const;
       // Build the next GraphState, publish it with one atomic swap, retire the
-      // previous one, and schedule background reclamation.
+      // previous one, and schedule background reclamation. Brings every
+      // ~poly's voices in line with its contents first (issue #1040).
       void RebuildAndPublish();
 
       // ---- Epoch reclamation on the background pool (issue #227) ----
@@ -834,6 +863,39 @@ namespace YSE {
       std::mutex reclaimMtx_;
       std::vector<std::pair<const GraphState*, std::uint64_t>> retiredGraphs_;
       std::vector<RetiredObject> retiredObjects_;
+
+      // ---- Voices of the ~poly objects (issue #1040) ----
+      //
+      // A ~poly's voices are copies of the objects inside it: made here, owned
+      // here, in no handle and no save. They join the one id space and the one
+      // GraphState like any object, as domains of their own
+      // (GraphState::polyDomain), so an edit stays one atomic publish and a
+      // removed voice goes through the same reclaimer as a deleted object.
+      struct polyInstance {
+        // The dPoly.
+        pObject* host = nullptr;
+        // What the voices were copied from: the template's types, parameters,
+        // containment and cords, and the voice count. Rebuilt when it changes.
+        std::string fingerprint;
+        // The id generation the copies' graph ids belong to (issue #364).
+        std::uint64_t idGen = 0;
+        // Per voice: its polyVoice root, and its copies in template order.
+        std::vector<pObject*> roots;
+        std::vector<std::vector<pObject*>> copies;
+      };
+      std::vector<polyInstance> polyInstances_;
+      // The copies the last sync made, for ParseJSON's loadbang pass.
+      std::vector<pObject*> createdVoiceObjects_;
+      // Make, keep or retire voices so every ~poly has a copy of its current
+      // contents per voice. Retired copies are unwired and appended to
+      // `retiring` (epoch unset): RebuildAndPublish tags them after the
+      // publish that drops them. Caller holds mtx.
+      void SyncPolyVoicesUnlocked(std::vector<RetiredObject>& retiring);
+      // The voices of one ~poly, copied from `tmpl`. Caller holds mtx.
+      void BuildPolyInstanceUnlocked(polyInstance& inst, const std::vector<pObject*>& tmpl,
+                                     int voices);
+      static void RetirePolyInstance(polyInstance& inst, std::vector<RetiredObject>& retiring);
+
       // Two-element ping-pong so a reclaim pass that still has work can re-arm
       // without re-enqueuing itself (see reclaimJob). Wired up in the ctor.
       reclaimJob reclaimJobs_[2];

@@ -179,6 +179,7 @@
 #include "dsp/routing/signalSelector.hpp"
 #include "dsp/routing/mixMatrix.hpp"
 #include "dsp/routing/signalBus.hpp"
+#include "dsp/routing/voiceAllocator.hpp"
 #include "dsp/spectral/frameClock.hpp"
 #include "dsp/spectral/streamingFft.hpp"
 #include "dsp/spectral/stft.hpp"

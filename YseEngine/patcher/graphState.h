@@ -167,6 +167,46 @@ namespace YSE {
         return nullptr;
       }
 
+      // The voices of one ~poly (issue #1040). Each voice is a copy of the
+      // objects inside the ~poly, made by the patcher (never by the user, never
+      // saved) and contained in a polyVoice root. A voice is a domain of its
+      // own, like a ~pfft subpatch: its objects are in ``objects`` (reset at
+      // the top of each block like any other) but in no ``renderOrder`` of the
+      // patcher; the ~poly renders each voice's own order inside its step.
+      // Signal cords never cross a voice boundary: Connect refuses every cord
+      // across a ~poly's, and copies are wired only to each other. The objects
+      // inside the ~poly themselves (the template) are in none of these lists:
+      // they do not run.
+      struct polyVoiceDomain {
+        // The voice's polyVoice root: its number and mute word.
+        pObject* root = nullptr;
+        // The voice's compiled signal render, built as ``renderOrder`` is,
+        // with mute slices (the root's mute word outermost).
+        std::vector<renderStep> renderOrder;
+        // The voice's ~in, ~out and .in objects (dVoiceIn, dVoiceOut,
+        // gVoiceIn), and the objects that take its events
+        // (pObject::VoiceEventSink), each in template storage-ID order.
+        std::vector<pObject*> signalInputs;
+        std::vector<pObject*> signalOutputs;
+        std::vector<pObject*> messageInputs;
+        std::vector<pObject*> sinks;
+      };
+      struct polyDomain {
+        // The ~poly (a dPoly).
+        pObject* host = nullptr;
+        // Voice 1 first.
+        std::vector<polyVoiceDomain> voices;
+      };
+      std::vector<polyDomain> poly;
+
+      // The voices @p host renders, or null. Any thread holding the snapshot;
+      // linear over the patch's ~poly objects, no allocation.
+      const polyDomain* Poly(const pObject* host) const {
+        for (const polyDomain& d : poly)
+          if (d.host == host) return &d;
+        return nullptr;
+      }
+
       // inletSubpatcher[inlet.graphId] = for an inlet of a subpatcher's
       // boundary object (.inlet / ~inlet), that subpatcher, else null (issue
       // #1137). What a ~mute's cord reaches: the cord ends on the boundary

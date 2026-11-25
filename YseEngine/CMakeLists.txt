@@ -184,6 +184,7 @@ set(YSE_SRCS
   dsp/routing/signalSelector.cpp
   dsp/routing/mixMatrix.cpp
   dsp/routing/signalBus.cpp
+  dsp/routing/voiceAllocator.cpp
   dsp/spectral/streamingFft.cpp
   dsp/spectral/stft.cpp
   dsp/spectral/vectral.cpp
@@ -488,6 +489,7 @@ set(YSE_SRCS
   patcher/genericObjects/pDspStatus.cpp
   patcher/genericObjects/pLine.cpp
   patcher/genericObjects/pMute.cpp
+  patcher/genericObjects/dPoly.cpp
   patcher/genericObjects/pPass.cpp
   patcher/guiObjects/gButton.cpp
   patcher/guiObjects/gDial.cpp
@@ -1013,6 +1015,7 @@ set_source_files_properties(
   patcher/genericObjects/pDspStatus.cpp
   patcher/genericObjects/pLine.cpp
   patcher/genericObjects/pMute.cpp
+  patcher/genericObjects/dPoly.cpp
   patcher/genericObjects/pPass.cpp
   patcher/guiObjects/gButton.cpp
   patcher/guiObjects/gDial.cpp

@@ -85,3 +85,100 @@ does, so a muted subpatcher is already silent without it.
 Connected to a signal inlet, it adds 0 and changes nothing. It does not
 switch anything off; to stop a part of a patch computing, put that part in a
 subpatcher and use ``~mute``.
+
+.. patcher-object:: ~poly
+
+A container like ``patcher``: put objects inside it with ``SetContainer``.
+What is inside is the definition of one voice and does not run itself; the
+``~poly`` plays ``voices`` copies of it, each with its own state, and adds up
+what their ``~out`` objects put out. An edit inside (an object created,
+deleted, connected or given new arguments) rebuilds every voice from the new
+contents; a voice that was muted stays muted.
+
+The pins come from the arguments, not from the objects inside:
+
+- ``inlets`` inlets. Inlet N carries a signal to every voice's ``~in N``
+  (an unconnected inlet is silence) and messages to the ``.in N`` objects.
+- ``outlets`` signal outlets: outlet N is the sum, over the voices, of their
+  ``~out N`` objects.
+- ``messages`` message outlets after them: what the ``.out N`` objects send.
+- One last outlet: the number of the voice whose ``.out`` sends, sent just
+  before the message.
+
+Messages on any inlet are delivered to that inlet's ``.in`` objects:
+
+- ``target <voice>``: the voice the messages that follow go to, from 1. 0
+  means every voice (the default), a negative number none, a number above
+  the voice count the last voice.
+- ``note <message>``: the message to the first voice that is not busy, the
+  lowest one. A voice is busy while its ``~thispoly`` says so, and from the
+  moment it is given a note until the end of the next block, so a chord sent
+  in one go spreads over several voices. With ``steal`` on and every voice
+  busy, the voice that was started longest ago gets it; with ``steal`` off it
+  is dropped.
+- ``midinote <pitch> <velocity>``: a velocity above 0 goes where ``note``
+  would, and that voice then holds the pitch; ``<pitch> 0`` goes to the voice
+  holding it. Both arrive at the ``.in`` as the list ``pitch velocity``.
+- ``allnotesoff``: ``<pitch> 0`` to every voice holding a ``midinote``, lowest
+  voice first.
+- ``mute <voice> <0|1>``: mutes or unmutes a voice; voice 0 is every voice. A
+  muted voice does not compute and adds nothing to the outlets. Its
+  ``~thispoly`` reports the change.
+- ``steal <0|1>``: changes the ``steal`` argument.
+- ``setvalue <voice> <message>``: the message to that voice (0: every voice)
+  without changing the target.
+- ``list <message>``: the message to the target as it is, so it can start
+  with one of these words.
+
+Anything else (a bang, a number, a list, another word) goes to the target.
+Messages ``note``, ``setvalue`` and ``list`` pass on are at most 512
+characters.
+
+Cords cannot cross the boundary: ``Connect`` refuses a cord between an object
+inside and one outside, including the ``~poly`` itself. A ``~poly`` cannot be
+put inside another ``~poly`` or a ``~pfft``; a ``patcher`` or a ``~pfft``
+inside a voice is copied with it. A ``~dac`` or ``~adc`` inside does nothing.
+Names are not local: a ``.r`` inside receives in every voice. A loaded patch
+fires each voice's ``.loadbang``; voices rebuilt by an edit do not. See
+:doc:`/patcher/subpatchers`.
+
+.. patcher-object:: .in
+
+Outputs, in its voice, whatever the ``~poly`` passes that voice on inlet
+``index``: a bang, a number or a list, as it arrived. Outside a ``~poly`` it
+outputs nothing. Several ``.in`` objects may share an index.
+
+.. patcher-object:: .out
+
+Inside a ``~poly``, sends what arrives out of the ``~poly``'s message outlet
+``index``, after the voice's number on its last outlet. Outside a ``~poly``,
+or with an index the ``~poly`` has no message outlet for, it sends nothing.
+
+.. patcher-object:: ~in
+
+The ``~poly``'s signal inlet ``index``, the same buffer in every voice and
+passed on without a copy. Outside a ``~poly``, or for an inlet the ``~poly``
+does not have, it outputs silence.
+
+.. patcher-object:: ~out
+
+What arrives is added, over every voice that is not muted, to the
+``~poly``'s signal outlet ``index``. Several ``~out`` objects with one index
+add up too.
+
+.. patcher-object:: ~thispoly
+
+Says whether its voice is busy, which decides where ``note`` and
+``midinote`` go:
+
+- A number: non-zero busy, 0 free. ``busy <0|1>`` does the same.
+- A signal: busy while any sample of the block is non-zero, set each block.
+  An envelope makes a voice busy until it has faded out.
+- ``mute <0|1>``: mutes or unmutes this voice, as the ``~poly``'s ``mute``
+  does, and reports it.
+- A bang: the voice count out of the right outlet, then the voice number out
+  of the left.
+
+The middle outlet reports the voice's mute state whenever it changes through
+this object or through the ``~poly``. Outside a ``~poly`` it reports voice 0
+of 1 and changes nothing.

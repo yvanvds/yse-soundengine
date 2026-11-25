@@ -36,6 +36,8 @@ namespace YSE {
     class fileScheduler;
     struct fileResult;
     class clockBridge;
+    class polyVoice;
+    struct voiceEvent;
 
     typedef std::function<void(int, int)> intCallbackFunc;
     typedef std::function<void(int, float)> floatCallbackFunc;
@@ -221,6 +223,34 @@ namespace YSE {
       // Outside a ~pfft it means nothing. A property of the type: constant.
       virtual bool SpectralFrameWide() const {
         return false;
+      }
+
+      // ─── Voices of a ~poly (issue #1040) ────────────────────────────────
+      //
+      // A ~poly's voices are copies of the objects inside it, made by the
+      // patcher. JoinVoice tells a copy which voice it belongs to: called on
+      // the control thread, under the patcher's mtx, once, before the copy is
+      // published; never for the objects inside the ~poly themselves (the
+      // template, which does not run). Default: nothing. The boundary objects
+      // (.in, .out, ~in, ~out) and ~thispoly keep the voice to reach their
+      // ~poly through it.
+      virtual void JoinVoice(polyVoice* voice) {
+        (void)voice;
+      }
+      // Whether this object takes events its ~poly sends a voice out of band,
+      // without a cord (DeliverVoiceEvent). The patcher lists such objects
+      // per voice in GraphState::polyDomain. ~thispoly is one (it reports a
+      // voice's mute); `.polymidiin` (#756) is meant to be the next. A
+      // property of the type: constant.
+      virtual bool VoiceEventSink() const {
+        return false;
+      }
+      // An event for the voice this object is in, delivered on whichever
+      // thread runs the ~poly's message handler (the audio thread included):
+      // everything RT-applicable applies. Default: ignore.
+      virtual void DeliverVoiceEvent(const voiceEvent& event, YSE::THREAD thread) {
+        (void)event;
+        (void)thread;
       }
 
       virtual void SetMessage(const std::string& message, float value) = 0;

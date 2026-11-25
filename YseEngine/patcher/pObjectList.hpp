@@ -214,7 +214,9 @@ namespace YSE {
    *  - Debugging: ``G_PRINT``, ``G_DICT_PRINT``.
    *  - Initialisation: ``G_LOADBANG``, ``G_LOADMESS``.
    *  - Encapsulation: ``PATCHER``, ``G_INLET``, ``G_OUTLET``, ``D_INLET``,
-   *    ``D_OUTLET``, ``D_MUTE``, ``D_PASS``, ``D_BEGIN``.
+   *    ``D_OUTLET``, ``D_MUTE``, ``D_PASS``, ``D_BEGIN``, ``D_POLY``,
+   *    ``G_VOICE_IN``, ``G_VOICE_OUT``, ``D_VOICE_IN``, ``D_VOICE_OUT``,
+   *    ``D_THISPOLY``.
    *  - Messaging: ``G_SEND``, ``G_RECEIVE``, ``G_FORWARD``, ``G_ROUTE``,
    *    ``G_ROUTEPASS``,
    *    ``G_SEL``, ``G_TRIGGER``, ``G_BANGBANG``, ``G_ONEBANG``, ``G_NEXT``,
@@ -283,6 +285,18 @@ namespace YSE {
     DEFOBJ(D_MUTE, "~mute");
     DEFOBJ(D_PASS, "~pass");
     DEFOBJ(D_BEGIN, "~begin");
+    // Voice instancing (issue #1040): ``~poly`` plays N copies of the
+    // subpatch inside it; ``.in`` / ``.out`` carry messages and ``~in`` /
+    // ``~out`` signals between a voice and the ~poly's pins, and
+    // ``~thispoly`` reports a voice's busy and mute state. MSP's ``poly~``,
+    // ``in``, ``out``, ``in~``, ``out~`` and ``thispoly~``. See
+    // genericObjects/dPoly.h.
+    DEFOBJ(D_POLY, "~poly");
+    DEFOBJ(G_VOICE_IN, ".in");
+    DEFOBJ(G_VOICE_OUT, ".out");
+    DEFOBJ(D_VOICE_IN, "~in");
+    DEFOBJ(D_VOICE_OUT, "~out");
+    DEFOBJ(D_THISPOLY, "~thispoly");
 
     DEFOBJ(D_DAC, "~dac");
     DEFOBJ(D_ADC, "~adc");
