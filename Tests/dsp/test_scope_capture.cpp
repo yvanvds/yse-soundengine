@@ -456,9 +456,15 @@ TEST_SUITE("dsp") {
     std::atomic<bool> done{false};
     std::atomic<unsigned int> torn{0};
     std::atomic<unsigned int> read{0};
+    // Capturing starts once the reader reads, and the reader reads once more
+    // after capturing is done: it takes a trace at least once, however the
+    // threads are scheduled (#1292).
+    std::atomic<bool> reading{false};
     std::thread reader([&] {
       UInt last = 0;
-      while (!done.load(std::memory_order_acquire)) {
+      for (bool finished = false; !finished;) {
+        finished = done.load(std::memory_order_acquire);
+        reading.store(true, std::memory_order_release);
         const scopeCapture::trace t = scope.acquire();
         if (t.serial == 0) continue;
         if (t.serial < last) torn.fetch_add(1);
@@ -472,6 +478,8 @@ TEST_SUITE("dsp") {
       }
     });
     buffer in(N);
+    while (!reading.load(std::memory_order_acquire))
+      std::this_thread::yield();
     for (unsigned int k = 1; k <= 20000; ++k) {
       in = static_cast<float>(k);
       scope(in);

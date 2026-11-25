@@ -461,8 +461,14 @@ TEST_SUITE("dsp") {
     std::atomic<bool> done{false};
     std::atomic<unsigned int> torn{0};
     std::atomic<unsigned int> reads{0};
+    // Analysing starts once the reader reads, and the reader reads once more
+    // after analysing is done: it takes a frame at least once, however the
+    // threads are scheduled (#1292).
+    std::atomic<bool> reading{false};
     std::thread reader([&] {
-      while (!done.load(std::memory_order_acquire)) {
+      for (bool finished = false; !finished;) {
+        finished = done.load(std::memory_order_acquire);
+        reading.store(true, std::memory_order_release);
         const spectrumAnalyzer::frame f = s.acquire();
         if (f.serial == 0) continue;
         // Every bin but DC holds 2 * serial / SIZE.
@@ -474,6 +480,8 @@ TEST_SUITE("dsp") {
     });
     std::vector<Flt> re(BINS);
     std::vector<Flt> im(BINS, 0.f);
+    while (!reading.load(std::memory_order_acquire))
+      std::this_thread::yield();
     for (unsigned int k = 1; k <= 20000; ++k) {
       for (UInt b = 0; b < BINS; ++b)
         re[b] = static_cast<Flt>(k);

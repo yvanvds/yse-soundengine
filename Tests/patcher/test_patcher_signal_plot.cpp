@@ -486,7 +486,13 @@ TEST_SUITE("patcher") {
     std::atomic<bool> done{false};
     std::atomic<unsigned int> torn{0};
     std::atomic<unsigned int> reads{0};
+    // The sender starts once the poller polls, and the poller reads once more
+    // after the sender is done: it reads at least once, however the threads
+    // are scheduled (#1292).
+    std::atomic<bool> polling{false};
     std::thread sender([&] {
+      while (!polling.load(std::memory_order_acquire))
+        std::this_thread::yield();
       for (unsigned int k = 1; k <= 3000; ++k) {
         std::string list;
         for (int i = 0; i < 8; ++i)
@@ -497,7 +503,9 @@ TEST_SUITE("patcher") {
     });
     std::thread poller([&] {
       float last = 0.f;
-      while (!done.load(std::memory_order_acquire)) {
+      for (bool finished = false; !finished;) {
+        finished = done.load(std::memory_order_acquire);
+        polling.store(true, std::memory_order_release);
         const std::vector<float> cells = Cells(rig.plot.GetGuiValue());
         if (cells.size() != 3 + 9 + 8) {
           torn.fetch_add(1);

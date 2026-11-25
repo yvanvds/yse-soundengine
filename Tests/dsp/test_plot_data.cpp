@@ -514,8 +514,14 @@ TEST_SUITE("dsp") {
     std::atomic<bool> done{false};
     std::atomic<unsigned int> torn{0};
     std::atomic<unsigned int> reads{0};
+    // Publishing starts once the reader reads, and the reader reads once more
+    // after publishing is done: it reads at least once, however the threads
+    // are scheduled (#1292).
+    std::atomic<bool> reading{false};
     std::thread reader([&] {
-      while (!done.load(std::memory_order_acquire)) {
+      for (bool finished = false; !finished;) {
+        finished = done.load(std::memory_order_acquire);
+        reading.store(true, std::memory_order_release);
         const plotData::frame f = plot.acquire();
         const float first = f.subplots[0].values[0];
         for (UInt p = 0; p < f.plots; ++p)
@@ -526,6 +532,8 @@ TEST_SUITE("dsp") {
       }
     });
     std::vector<float> values(64);
+    while (!reading.load(std::memory_order_acquire))
+      std::this_thread::yield();
     for (unsigned int k = 1; k <= 5000; ++k) {
       const auto x = static_cast<float>(k);
       for (float& v : values)
