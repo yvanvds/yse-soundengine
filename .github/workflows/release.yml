@@ -146,6 +146,10 @@ jobs:
     # (lib/<abi>/libyse.so + headers + LICENSE + NOTICE + README) for upload.
     # The package step also clones libsndfile and Oboe at their CMakeLists.txt
     # pins to ship their license texts and the LGPL libsndfile source (#892).
+    # The bundle's libraries are stripped with the NDK's llvm-strip; the
+    # unstripped ones (libyse-*-android-symbols.tar.gz) and the libsndfile
+    # source (libsndfile-*-src.tar.gz) are separate release assets, so a
+    # consumer fetching the binaries doesn't download either (#1187).
     name: Package (Android multi-ABI)
     needs: build-android
     runs-on: ubuntu-latest
@@ -161,13 +165,25 @@ jobs:
           path: android-libs
           pattern: 'android-libs-*'
 
+      - name: Setup Android NDK
+        id: ndk
+        uses: nttld/setup-ndk@afb4c9964b521afb97c864b7d40b11e6911bd410 # v1.5.0
+        with:
+          ndk-version: r27
+          local-cache: true
+
       - name: Package
-        run: python3 yse.py package --platform android --android-libs android-libs
+        run: >
+          python3 yse.py package --platform android --android-libs android-libs
+          --strip-tool ${{ steps.ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: libyse-android
-          path: dist/libyse-*-android.tar.gz
+          path: |
+            dist/libyse-*-android.tar.gz
+            dist/libyse-*-android-symbols.tar.gz
+            dist/libsndfile-*-src.tar.gz
           if-no-files-found: error
 
   publish:
@@ -205,4 +221,6 @@ jobs:
             --generate-notes \
             artifacts/libyse-*-linux-x64.tar.gz \
             artifacts/libyse-*-windows-x64.zip \
-            artifacts/libyse-*-android.tar.gz
+            artifacts/libyse-*-android.tar.gz \
+            artifacts/libyse-*-android-symbols.tar.gz \
+            artifacts/libsndfile-*-src.tar.gz

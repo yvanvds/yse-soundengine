@@ -143,15 +143,21 @@ LGPL-2.1 obligations for the static link (Android)
 
 On Android, libsndfile is linked statically into libyse.so, which makes
 libyse.so a "work that uses the Library" combined with the Library (LGPL-2.1
-section 6). To let recipients modify libsndfile and relink, every Android
-archive (libyse-vX.Y.Z-android.tar.gz) ships, next to libyse.so:
+section 6). To let recipients modify libsndfile and relink:
 
-  - licenses/libsndfile-COPYING.txt
-        The full text of the GNU Lesser General Public License, version 2.1,
+  - every Android archive (libyse-vX.Y.Z-android.tar.gz, and the
+    libyse-vX.Y.Z-android-symbols.tar.gz archive of the same libraries
+    unstripped) ships, next to libyse.so, licenses/libsndfile-COPYING.txt:
+        the full text of the GNU Lesser General Public License, version 2.1,
         copied from the libsndfile source.
-  - third_party/libsndfile-1.2.2-src.tar.gz
-        The complete corresponding source of the libsndfile version that was
-        linked (the upstream 1.2.2 tag, unmodified).
+  - every GitHub release that carries an Android archive also carries, as a
+    release asset of its own, libsndfile-1.2.2-src.tar.gz:
+        the complete corresponding source of the libsndfile version that was
+        linked (the upstream 1.2.2 tag, unmodified). It is offered from the
+        same place as the archives (LGPL-2.1 section 6(d)), at
+        https://github.com/yvanvds/yse-soundengine/releases/tag/vX.Y.Z
+        It is a separate asset, not part of the archive, so that every
+        consumer downloading the binaries doesn't download it too.
 
 The rest of libyse.so is open source under the MIT License. Its complete source
 for any release is the tagged commit vX.Y.Z of
@@ -162,8 +168,8 @@ the tagged YSE source as described in the repository README.md, with the FetchCo
 declaration for "sndfile" in CMakeLists.txt pointed at your libsndfile tree
 (for example -DFETCHCONTENT_SOURCE_DIR_SNDFILE=<path>).
 
-The `yse.py package --platform android` step adds these files and refuses to
-build an Android archive without them.
+The `yse.py package --platform android` step writes these files and refuses
+to build an Android archive without them.
 
 
 ################################################################################
