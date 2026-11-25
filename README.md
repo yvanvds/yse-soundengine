@@ -195,7 +195,11 @@ The Android build is wired through Gradle in `Tests/Android/`. It produces a
 NativeActivity APK that ships `libyse_tests.so` (the full test suite) for two
 ABIs — `arm64-v8a` and `x86_64`. The release workflow at
 `.github/workflows/release.yml` builds production multi-ABI archives the same
-way and publishes them as release assets.
+way and publishes them as release assets: `libyse-vX.Y.Z-android.tar.gz` holds
+the stripped `lib/<abi>/libyse.so` files and headers,
+`libyse-vX.Y.Z-android-symbols.tar.gz` the same libraries unstripped (for
+symbolicating crashes), and `libsndfile-1.2.2-src.tar.gz` the LGPL source of the
+statically linked libsndfile (see [NOTICE](NOTICE)).
 
 ### Prerequisites
 

@@ -1335,22 +1335,29 @@ def _make_release_readme(version, platform_name, dlls):
             "Run:     ensure `<archive>/bin/` is on `PATH` or copy its contents next to your `.exe`."
         )
     elif platform_name == "android":
+        tag = f"v{version}"
+        sndfile_asset = _sndfile_src_asset(_fetchcontent_pin("sndfile")[1])
         layout = (
             "    include/                Public C++ headers (use `#include \"yse.hpp\"`)\n"
             "    include/yse_c/          Public C API headers (use `#include \"yse_c/yse_all.h\"`)\n"
-            "    lib/<abi>/libyse.so     One libyse.so per Android ABI shipped"
+            "    lib/<abi>/libyse.so     One stripped libyse.so per Android ABI shipped"
         )
         layout += (
-            "\n    licenses/               License texts of the statically linked libraries\n"
-            "    third_party/            Source of libsndfile, as linked (LGPL-2.1, see NOTICE)"
+            "\n    licenses/               License texts of the statically linked libraries"
         )
         deps_section = (
             "libYSE on Android uses Oboe for audio I/O — it is statically linked\n"
             "into `libyse.so`, so the only system requirement is `android-26` (API 26\n"
             "/ Android 8.0 Oreo) or newer.\n\n"
             "libsndfile (LGPL-2.1-or-later) is also statically linked into\n"
-            "`libyse.so`. Its complete source is in `third_party/` and `NOTICE`\n"
-            "explains how to relink `libyse.so` against a modified libsndfile."
+            "`libyse.so`. Its complete source is the release asset\n"
+            f"`{sndfile_asset}`, attached to the same GitHub release as this\n"
+            f"archive:\n<{REPO_URL}/releases/tag/{tag}>\n"
+            "`NOTICE` explains how to relink `libyse.so` against a modified\n"
+            "libsndfile.\n\n"
+            "The libraries in `lib/` are stripped. The unstripped builds, with full\n"
+            "debug info for symbolicating native crashes, are the release asset\n"
+            f"`libyse-{tag}-android-symbols.tar.gz` (same `lib/<abi>/` layout)."
         )
         link_hint = (
             "Gradle:   copy the `lib/` directory into your module's\n"
@@ -1424,6 +1431,24 @@ text. Third-party components keep their own licenses; see `NOTICE`.
 """
 
 
+def _make_android_symbols_readme(version):
+    return f"""# libYSE v{version} — Android debug symbols
+
+The unstripped `lib/<abi>/libyse.so` files of the libYSE v{version} Android
+release, with full debug info. They are the exact builds the stripped
+libraries in `libyse-v{version}-android.tar.gz` were made from (they share
+the GNU build-id), for symbolicating native crash stacks, e.g. with
+`ndk-stack -sym lib/<abi>` or as native debug symbols in the Play Console.
+
+Do not ship these in an app; use the stripped libraries instead.
+
+libYSE is MIT-licensed; see `LICENSE.md`, and `NOTICE` and `licenses/` for
+the statically linked libraries. libsndfile (LGPL-2.1-or-later) is one of
+them; its complete source is attached to the same GitHub release:
+<{REPO_URL}/releases/tag/v{version}>
+"""
+
+
 def _fetchcontent_pin(name):
     """Return (GIT_REPOSITORY, GIT_TAG) of `FetchContent_Declare(<name> ...)` in
     the top-level CMakeLists.txt, so packaging uses the exact pinned source."""
@@ -1442,8 +1467,8 @@ def _fetchcontent_pin(name):
 def _android_third_party(args, out_root):
     """Resolve the libsndfile and Oboe source trees the Android archive needs to
     meet their licenses (#892): libsndfile is LGPL-2.1 and statically linked, so
-    its full source ships in the archive; Oboe is Apache-2.0, so its license
-    text does. Trees come from --sndfile-src / --oboe-src, or are shallow-cloned
+    its full source ships next to the archive (#1187); Oboe is Apache-2.0, so
+    its license text ships in it. Trees come from --sndfile-src / --oboe-src, or are shallow-cloned
     at the CMakeLists.txt pins. Returns {name: (path, tag)}."""
     trees = {}
     for name, given in (("sndfile", args.sndfile_src), ("oboe", args.oboe_src)):
@@ -1484,8 +1509,13 @@ def _android_third_party(args, out_root):
     return trees
 
 
-def _add_android_license_files(stage, trees):
-    """Ship the Android archive's third-party license texts and the LGPL source."""
+def _add_android_license_files(stage, trees, out_root):
+    """Ship the Android archive's third-party license texts, and write the LGPL
+    libsndfile source as its own release asset next to the archive (#1187).
+    The source used to sit in the archive's third_party/, so every consumer
+    downloading the binaries paid for it; LGPL-2.1 section 6(d) is met by
+    offering it from the same place (the same GitHub release). Returns the
+    source tarball's path."""
     sndfile, sndfile_tag = trees["sndfile"]
     oboe, _ = trees["oboe"]
 
@@ -1494,16 +1524,49 @@ def _add_android_license_files(stage, trees):
     shutil.copy2(sndfile / "COPYING", licenses / "libsndfile-COPYING.txt")
     shutil.copy2(oboe / "LICENSE", licenses / "oboe-LICENSE.txt")
 
-    third_party = stage / "third_party"
-    third_party.mkdir()
-    tarball = third_party / f"libsndfile-{sndfile_tag}-src.tar.gz"
+    tarball = out_root / _sndfile_src_asset(sndfile_tag)
+    if tarball.exists():
+        tarball.unlink()
 
     def _skip_git(info):
         return None if ".git" in Path(info.name).parts else info
 
     with tarfile.open(tarball, "w:gz") as tf:
         tf.add(sndfile, arcname=f"libsndfile-{sndfile_tag}", filter=_skip_git)
-    print(f"Added licenses/ and third_party/{tarball.name}.")
+    print(f"Added licenses/; libsndfile source written to {tarball.name}.")
+    return tarball
+
+
+def _sndfile_src_asset(sndfile_tag):
+    """File name of the libsndfile source release asset (#1187)."""
+    return f"libsndfile-{sndfile_tag}-src.tar.gz"
+
+
+def _find_llvm_strip(given):
+    """Resolve the llvm-strip that strips the Android libyse.so files (#1187):
+    --strip-tool if given, else an NDK's under $ANDROID_NDK_HOME /
+    $ANDROID_NDK_ROOT / $ANDROID_NDK, else llvm-strip on PATH. Exits when none
+    is found: an Android archive never ships unstripped libraries."""
+    if given:
+        tool = Path(given)
+        if not tool.is_file():
+            print(f"error: --strip-tool {tool} not found.")
+            sys.exit(1)
+        return tool
+    exe = "llvm-strip.exe" if IS_WINDOWS else "llvm-strip"
+    for var in ("ANDROID_NDK_HOME", "ANDROID_NDK_ROOT", "ANDROID_NDK"):
+        ndk = os.environ.get(var)
+        if not ndk:
+            continue
+        hits = sorted(Path(ndk).glob(f"toolchains/llvm/prebuilt/*/bin/{exe}"))
+        if hits:
+            return hits[0]
+    on_path = shutil.which("llvm-strip")
+    if on_path:
+        return Path(on_path)
+    print("error: llvm-strip not found. Pass --strip-tool <ndk>/toolchains/llvm/"
+          "prebuilt/<host>/bin/llvm-strip or set ANDROID_NDK_HOME.")
+    sys.exit(1)
 
 
 def cmd_package(args):
@@ -1580,6 +1643,7 @@ def cmd_package(args):
             print(f"error: no per-ABI libyse.so found under {libs_root}.")
             sys.exit(1)
         print(f"Including ABIs: {', '.join(sorted(abi_libs))}")
+        strip_tool = _find_llvm_strip(args.strip_tool)
     else:
         print(f"error: unknown platform {platform_name!r}.")
         sys.exit(1)
@@ -1661,14 +1725,29 @@ def cmd_package(args):
         print(f"Bundled {len(bundled)} runtime DLL(s) into bin/.")
     elif platform_name == "android":
         # JNI-convention lib/<abi>/libyse.so layout. Apps can drop the lib
-        # tree straight into src/main/jniLibs/.
+        # tree straight into src/main/jniLibs/. The archive ships stripped
+        # libraries (--strip-unneeded, as the Android Gradle plugin strips
+        # them); the unstripped ones, with full debug info for symbolication,
+        # go into a separate -symbols archive with the same layout (#1187).
+        # Stripping keeps the GNU build-id note, so the two match by build-id.
         out_lib = stage / "lib"
         out_lib.mkdir()
+        symbols_stage = out_root / f"{pkg_name}-symbols"
+        if symbols_stage.exists():
+            shutil.rmtree(symbols_stage)
         for abi, so in abi_libs.items():
             abi_dir = out_lib / abi
             abi_dir.mkdir()
-            shutil.copy2(so, abi_dir / "libyse.so")
-            print(f"Copied lib/{abi}/libyse.so.")
+            sym_dir = symbols_stage / "lib" / abi
+            sym_dir.mkdir(parents=True)
+            shutil.copy2(so, sym_dir / "libyse.so")
+            stripped = abi_dir / "libyse.so"
+            subprocess.run(
+                [str(strip_tool), "--strip-unneeded", "-o", str(stripped), str(so)],
+                check=True,
+            )
+            print(f"Stripped lib/{abi}/libyse.so: {so.stat().st_size // 1024} KiB -> "
+                  f"{stripped.stat().st_size // 1024} KiB (unstripped copy in symbols archive).")
     else:  # linux
         out_lib = stage / "lib"
         out_lib.mkdir()
@@ -1691,14 +1770,23 @@ def cmd_package(args):
     if platform_name == "windows":
         _add_windows_license_files(stage, bundled, mingw_prefix,
                                    out_root / "_third_party" / "msys2")
+    sndfile_src = None
     if android_trees is not None:
-        _add_android_license_files(stage, android_trees)
+        sndfile_src = _add_android_license_files(stage, android_trees, out_root)
 
     # Generated README.md
     (stage / "README.md").write_text(
         _make_release_readme(version, platform_name, bundled),
         encoding="utf-8",
     )
+    if platform_name == "android":
+        # The symbols archive is a binary distribution of the same libraries,
+        # so it carries the same license texts and NOTICE.
+        shutil.copy2(stage / "LICENSE.md", symbols_stage / "LICENSE.md")
+        shutil.copy2(stage / "NOTICE", symbols_stage / "NOTICE")
+        shutil.copytree(stage / "licenses", symbols_stage / "licenses")
+        (symbols_stage / "README.md").write_text(
+            _make_android_symbols_readme(version), encoding="utf-8")
 
     # Archive — .zip on Windows, .tar.gz on Linux.
     if platform_name == "windows":
@@ -1718,6 +1806,14 @@ def cmd_package(args):
 
     print(f"\nPackage written to {archive}")
     print(f"Staging dir:       {stage}")
+    if platform_name == "android":
+        symbols_archive = out_root / f"{pkg_name}-symbols.tar.gz"
+        if symbols_archive.exists():
+            symbols_archive.unlink()
+        with tarfile.open(symbols_archive, "w:gz") as tf:
+            tf.add(symbols_stage, arcname=f"{pkg_name}-symbols")
+        print(f"Debug symbols:     {symbols_archive}")
+        print(f"LGPL source:       {sndfile_src}")
 
 
 
@@ -2021,6 +2117,10 @@ def build_parser():
             "is drop-in on any Windows machine.  Linux packages do not bundle "
             "deps — consumers install libportaudio2/libsndfile1/librtmidi6 from "
             "their distro package manager.\n\n"
+            "Android packages (multi-ABI, from --android-libs) ship stripped "
+            "libraries; next to the archive they write a -symbols archive with the "
+            "unstripped ones and the LGPL libsndfile source tarball, each its own "
+            "release asset.\n\n"
             "The version is read from YseEngine/system.hpp (`VERSION = \"X.Y.Z\"`)."
         ),
     )
@@ -2056,6 +2156,13 @@ def build_parser():
     p.add_argument(
         "--oboe-src", default=None,
         help="Oboe source tree at the pinned tag (android only; default: clone it)",
+    )
+    # The Android archive ships stripped libraries; the unstripped ones go into
+    # a separate -symbols archive (#1187).
+    p.add_argument(
+        "--strip-tool", default=None,
+        help="llvm-strip used to strip the Android libyse.so files (android only; "
+             "default: from $ANDROID_NDK_HOME/ROOT, else llvm-strip on PATH)",
     )
     p.set_defaults(func=cmd_package)
 

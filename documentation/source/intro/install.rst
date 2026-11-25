@@ -75,7 +75,12 @@ Prerequisites:
    adb logcat -s yse_tests
 
 The release workflow at ``.github/workflows/release.yml`` builds production
-multi-ABI archives the same way and publishes them as release assets.
+multi-ABI archives the same way and publishes them as release assets:
+``libyse-vX.Y.Z-android.tar.gz`` holds the stripped ``lib/<abi>/libyse.so``
+files and headers, ``libyse-vX.Y.Z-android-symbols.tar.gz`` the same
+libraries unstripped (for symbolicating crashes), and
+``libsndfile-1.2.2-src.tar.gz`` the LGPL source of the statically linked
+libsndfile.
 
 Adding libYSE to your CMake project
 -----------------------------------
