@@ -604,6 +604,10 @@ TEST_SUITE("sendstress") {
         blocks.fetch_add(1, std::memory_order_relaxed);
       }
     });
+    // The storm starts once a block has rendered: one renders at least once,
+    // however the threads are scheduled (#1293).
+    while (blocks.load(std::memory_order_relaxed) == 0)
+      std::this_thread::yield();
 
     std::thread control([&] {
       for (int t = 0; t < 6000; ++t) {
