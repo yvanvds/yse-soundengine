@@ -909,6 +909,92 @@ cannot be opened defines nothing. Without a name there is nothing for an
    |
    [~sfplay beats]
 
+.. patcher-object:: ~playlist
+
+A list of sound files, each a clip that plays a selection of its file, played
+from disk one clip at a time. The object keeps the list and the playback; the
+editor draws the clips, their selections and the playhead from them, and
+turns clicks and drags into the messages below.
+
+The argument is ``channelcount``, the number of signal outlets (1 to 64,
+default 2): outlet ``k`` plays channel ``k`` of the clip's file, and a file
+with fewer channels leaves the rest silent. The arguments after it set
+``loop``, ``speed``, ``timestretch``, ``pitchshift``, ``pitchshiftcent``,
+``quality``, ``loopreport`` and ``reportprogress``, in that order; a message
+of the same name changes one while the patch runs.
+
+After the channels come three outlets:
+
+- the playhead, a signal: the number of the clip that plays plus how far
+  into its file it is, so 2.5 is halfway through clip 2's file. 0 while
+  nothing plays.
+- notifications: ``start <clip> <name>`` when a clip starts, ``done <clip>
+  <name>`` when it reaches the end of its selection or ``0`` stops it (not
+  when another clip takes over, not on ``pause``), ``loopnotify <clip>
+  <name>`` each time it loops (with ``loopreport 1``) and ``progress <clip>
+  <fraction>``, how far through its selection, every 50 ms of play (with
+  ``reportprogress 1``). The name is the last part of the file's name.
+- the answer to ``getcontent``: ``clips <count>``, then for each clip ``clip
+  <number> <name> <file> <length> <start> <end>`` (milliseconds) followed by
+  the settings it has of its own, as name and value pairs.
+
+**Clips**
+
+- ``append <file> [place]``: add a clip, at the end or at ``place`` (from
+  1), the clips from there on moving up one.
+- ``remove <clip>``, ``clear``: take one clip, or all, out.
+- ``move <clip> <place>``: put a clip at another place. An editor sends it
+  when a clip is dragged.
+- ``selection <clip> <start> <end>``: the part of the file the clip plays,
+  as fractions from 0 to 1; an end of 0 is the end of the file. Without a
+  clip number every clip gets it; a clip number alone clears that clip's
+  selection, so it plays its whole file again.
+- ``selectionms``: the same in milliseconds.
+- ``setclip <clip> <attribute> [value]``: give one clip a ``loop``,
+  ``speed``, ``pitchshift``, ``pitchshiftcent``, ``timestretch`` or
+  ``quality`` of its own, used for that clip instead of the object's.
+  Without a value the clip follows the object's again.
+
+Files are opened in the background; names are found the way the other file
+objects find them (see :doc:`/patcher/files`), the host's path resolver
+included. A file that cannot be opened adds nothing. A clip number,
+``next``, ``pause``, ``resume`` or ``getcontent`` waits until the files sent
+before it are open, so ``[append song.wav, 1(`` plays the song.
+
+**Playing**
+
+- A number plays that clip from the start of its selection; ``0`` stops.
+- ``next``: play the clip after the one that plays or played last, or the
+  first after the last.
+- ``pause`` and ``resume``: hold where playback is, and go on from there.
+- ``loop 0/1``: clips start again from the start of their selection when
+  they reach its end, without a gap.
+- ``speed <x>``: 1 normal, 2 twice as fast, below 0 backward.
+- ``pitchshift <ratio>``, ``pitchshiftcent <cents>``, ``timestretch 0/1``
+  and ``quality basic|good|better|best``: shift the pitch, or keep it when
+  the speed changes, as on ``~sfplay``.
+
+A clip plays to the end of its selection and stops; it does not go on to the
+next clip by itself. Connect the notifications through a ``.route done`` to a
+``[next(`` to play the list through. Starting, stopping, pausing and switching
+clips fade over 200 samples, so nothing clicks. The list may change while a
+clip plays: a clip that is moved plays on under its new number, the clip that
+plays stops at once when it is removed, and plays again from the new start
+when its selection changes.
+
+The patch saves the clips with their files, selections and settings, and
+opens them again when it loads.
+
+.. code-block:: text
+
+   [append intro.wav, append theme.wav(
+   |
+   |  [1(  [next(  [0(
+   |  |    |       |
+   [~playlist 2       ]
+   |     |
+   [~dac 1 2]
+
 .. patcher-object:: ~sfrecord
 
 Records signals to a sound file on disk as they play, for as long as you

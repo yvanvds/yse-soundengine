@@ -66,6 +66,7 @@ set(YSE_TEST_SOURCES
   dsp/test_waveform_view.cpp
   dsp/test_sample_buffer_set.cpp
   dsp/test_file_stream_player.cpp
+  dsp/test_file_playlist.cpp
   dsp/test_file_recorder.cpp
   dsp/test_pitch_tracker.cpp
   dsp/test_sample_capture.cpp
@@ -373,6 +374,7 @@ set(YSE_TEST_SOURCES
   patcher/test_patcher_waveform.cpp
   patcher/test_patcher_polybuffer.cpp
   patcher/test_patcher_sfplay.cpp
+  patcher/test_patcher_playlist.cpp
   patcher/test_patcher_sfrecord.cpp
   patcher/test_patcher_signal_number.cpp
   patcher/test_patcher_signal_fzero.cpp

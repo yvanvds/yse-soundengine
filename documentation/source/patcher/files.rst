@@ -110,8 +110,8 @@ C API. While it is installed, every file access that the patch triggers asks
 the host first. That covers the ``read`` and ``write`` messages of all the
 objects on this page, ``~seq`` and ``~capture``, the sound files that
 ``~buffer`` reads and writes, its file argument included, the sound files
-``~sfinfo`` reports on, those ``~sfplay`` and ``~sflist`` stream, and those
-``~sfrecord`` records into.
+``~sfinfo`` reports on, those ``~sfplay``, ``~sflist`` and ``~playlist``
+stream, and those ``~sfrecord`` records into.
 
 Each request carries the name exactly as the patch gave it, whether the file
 is read or written, and the requesting patcher and object (type and ID). The

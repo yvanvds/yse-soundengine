@@ -21587,6 +21587,119 @@
     ],
     "requires_midi_device": false
   },
+  "~playlist": {
+    "category": "SAMPLING",
+    "description": "A list of sound files, each a clip with a selection of its own, played from disk one clip at a time, with speed, looping, pausing, pitch shift and time stretch; reports clips starting, ending and looping. The host draws the list.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "0 stops, 1 and up play that clip from the start of its selection. Also takes 'append <file> [place]', 'remove <clip>', 'clear', 'move <clip> <place>', 'selection [clip] <start> <end>' (0 to 1; without a clip every clip; a clip alone clears its selection), 'selectionms' (the same in ms), 'setclip <clip> <loop|speed|pitchshift|pitchshiftcent|timestretch|quality> [value]' (no value: follow the playlist again), 'next', 'pause', 'resume', 'getcontent', and 'loop', 'speed', 'timestretch', 'pitchshift', 'pitchshiftcent', 'quality', 'loopreport' and 'reportprogress' with a value.",
+        "index": 0,
+        "label": "clips",
+        "range": "0 or higher"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~playlist",
+    "outlets": [
+      {
+        "doc": "File channel 1 of the clip that plays. Silence while stopped or paused, and for a channel the file lacks.",
+        "index": 0,
+        "label": "out 1",
+        "range": "any float",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "File channel 2 of the clip that plays. Silence while stopped or paused, and for a channel the file lacks.",
+        "index": 1,
+        "label": "out 2",
+        "range": "any float",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "The playhead: the number of the clip that plays plus how far into its file it is, so 2.5 is halfway through clip 2. 0 while nothing plays.",
+        "index": 2,
+        "label": "position",
+        "range": "0 or higher",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "'start <clip> <name>' when a clip starts, 'done <clip> <name>' when it reaches its end or 0 stops it (not when another clip takes over, not on pause), 'loopnotify <clip> <name>' when it loops (with loopreport) and 'progress <clip> <0-1>' while it plays (with reportprogress).",
+        "index": 3,
+        "label": "notifications",
+        "range": "list",
+        "type": "LIST"
+      },
+      {
+        "doc": "getcontent's answer: 'clips <count>', then for each clip 'clip <n> <name> <file> <length ms> <start ms> <end ms>' and its own settings as name and value pairs.",
+        "index": 4,
+        "label": "content",
+        "range": "list",
+        "type": "LIST"
+      }
+    ],
+    "params": [
+      {
+        "default": "2",
+        "doc": "The number of signal outlets, each playing the file channel of its number. File channels past the last outlet are not played.",
+        "name": "channelcount",
+        "range": "1 to 64"
+      },
+      {
+        "default": "0",
+        "doc": "1 loops every clip that has no loop setting of its own.",
+        "name": "loop",
+        "range": "0 or 1"
+      },
+      {
+        "default": "1",
+        "doc": "The playback speed of every clip that has none of its own: 1 normal, 2 twice as fast, below 0 backward, 0 holds.",
+        "name": "speed",
+        "range": "any float"
+      },
+      {
+        "default": "0",
+        "doc": "1 keeps the pitch when the speed changes, so the speed only changes the tempo.",
+        "name": "timestretch",
+        "range": "0 or 1"
+      },
+      {
+        "default": "1",
+        "doc": "Shifts the pitch by this ratio, keeping the duration.",
+        "name": "pitchshift",
+        "range": "above 0"
+      },
+      {
+        "default": "0",
+        "doc": "Shifts the pitch by this many cents, on top of pitchshift.",
+        "name": "pitchshiftcent",
+        "range": "any float"
+      },
+      {
+        "default": "0",
+        "doc": "How the pitch is shifted: 0 basic, 1 good, 2 better, 3 best (see ~pitchshift).",
+        "name": "quality",
+        "range": "0 to 3"
+      },
+      {
+        "default": "0",
+        "doc": "1 sends loopnotify each time a clip loops.",
+        "name": "loopreport",
+        "range": "0 or 1"
+      },
+      {
+        "default": "0",
+        "doc": "1 sends progress, how far through its selection the clip is, every 50 ms of play.",
+        "name": "reportprogress",
+        "range": "0 or 1"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~plot": {
     "category": "ANALYSIS",
     "description": "The data and axes of a 2-D plot of one or more subplots, each set by lists, taken from a signal, or read from a ~buffer, for the host to draw.",

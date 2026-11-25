@@ -166,6 +166,7 @@ set(YSE_SRCS
   dsp/sampling/sampleBuffer.cpp
   dsp/sampling/sampleBufferSet.cpp
   dsp/sampling/fileStreamPlayer.cpp
+  dsp/sampling/filePlaylist.cpp
   dsp/sampling/fileRecorder.cpp
   dsp/sampling/sampleAccess.cpp
   dsp/sampling/tableLookup.cpp
@@ -269,6 +270,7 @@ set(YSE_SRCS
   patcher/sampling/dPolybuffer.cpp
   patcher/sampling/dSfplay.cpp
   patcher/sampling/dSflist.cpp
+  patcher/sampling/dPlaylist.cpp
   patcher/sampling/dSfrecord.cpp
   patcher/sampling/dInfo.cpp
   patcher/sampling/dPeek.cpp
@@ -804,6 +806,7 @@ set_source_files_properties(
   patcher/sampling/dPolybuffer.cpp
   patcher/sampling/dSfplay.cpp
   patcher/sampling/dSflist.cpp
+  patcher/sampling/dPlaylist.cpp
   patcher/sampling/dSfrecord.cpp
   patcher/sampling/dInfo.cpp
   patcher/sampling/dPeek.cpp

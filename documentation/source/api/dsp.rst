@@ -471,6 +471,13 @@ streaming, with numbered cues shared by name: what ``~sfplay`` and
 .. doxygenfile:: dsp/sampling/fileStreamPlayer.hpp
    :project: libYSE
 
+A list of sound files, each a clip with a selection and settings of its own,
+played from disk one clip at a time, the list and the playhead kept for a host
+to draw: what ``~playlist`` does.
+
+.. doxygenfile:: dsp/sampling/filePlaylist.hpp
+   :project: libYSE
+
 Signals recorded to a sound file as they play, through a lock-free ring that
 a background thread empties to disk: what ``~sfrecord`` does.
 
