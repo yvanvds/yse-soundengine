@@ -116,6 +116,9 @@ family, and each family has one destroy for all its members:
   (`#662 <https://github.com/yvanvds/yse-soundengine/issues/662>`_).
 - ``yse_dsp_object_destroy`` releases every effect, including a patcher
   insert. Destroying an insert never destroys the patcher it wraps.
+- ``yse_dsp_processor_destroy`` releases every ``YseDspProcessor``, the
+  standalone signal processors of the MSP port (a ``yse_dsp_one_pole_create``
+  filter, a ``yse_dsp_svf_create`` filter, …).
 
 **Lifetimes that you enforce.** Several calls keep a pointer to an object you
 own, and the library does not track it. The object must outlive its user:
@@ -193,6 +196,189 @@ for example with one wrapper class per subclass. The effect handles in
 functions accept any effect, and a module's own setters (such as
 ``yse_dsp_lowpass_set_frequency``) need a handle from that module's
 constructor.
+
+``YseDspProcessor`` is the exception: its handle remembers its class, and a
+processor function checks it
+(`#1173 <https://github.com/yvanvds/yse-soundengine/issues/1173>`_). Passing a
+``yse_dsp_lores_create`` handle to ``yse_dsp_reson_set_q`` is treated like
+passing ``NULL``: the setter does nothing, a getter returns 0 and a process
+function returns 0 samples.
+
+Signal processors
+~~~~~~~~~~~~~~~~~
+
+The ``YseDspProcessor`` headers (``yse_dsp_processor.h`` and one header per
+category, such as ``yse_dsp_filters.h``) wrap the standalone ``YSE::DSP``
+classes behind the patcher's ``~`` objects. The engine never runs a
+processor. You call it on your own sample arrays, on any thread, for
+offline rendering, for analysis, or inside your own audio callback:
+
+.. code-block:: c
+
+   YseDspProcessor* lp = yse_dsp_lores_create();
+   yse_dsp_lores_set_cutoff(lp, 800.0f);
+   yse_dsp_lores_set_resonance(lp, 0.5f);
+   yse_dsp_lores_process(lp, in, out, 512);  /* out may be in itself */
+   yse_dsp_processor_destroy(lp);
+
+- A process function takes ``length`` samples from each input array and
+  writes ``length`` to each output. It returns ``length``, or 0 when the
+  handle or a required array is ``NULL`` (nothing is written).
+- Any length is accepted. The engine classes work in blocks of 128 samples,
+  so a longer array is processed as consecutive blocks of 128.
+- Processing and setters allocate nothing and take no lock, so they are safe
+  on a real-time thread. Constructors allocate. Use one handle from one
+  thread at a time.
+
+The filter-design toolkit in ``yse_dsp_filter_design.h``
+(`#1296 <https://github.com/yvanvds/yse-soundengine/issues/1296>`_) uses the
+same handle for classes that process no samples: ``filterDesign`` designs
+Butterworth and Chebyshev filters, ``filterResponse`` computes the curves of a
+cascade, and ``filterBands`` and ``zPlane`` hold the state of a filter editor.
+Their lists of coefficients, roots and curves are copied out in the
+``snprintf`` style. A list getter returns the size of the whole list and
+writes as many whole entries as your array holds, so you can call it with
+``NULL`` and 0 first to size the array:
+
+.. code-block:: c
+
+   YseDspProcessor* d = yse_dsp_filter_design_create();
+   yse_dsp_filter_design_set_order(d, 6);
+   yse_dsp_filter_design_set_frequency(d, 800.0f);
+   yse_dsp_filter_design_design(d);
+   unsigned int n = yse_dsp_filter_design_get_coefficients(d, NULL, 0);
+   float* c = malloc(n * sizeof(float));
+   yse_dsp_filter_design_get_coefficients(d, c, n);
+   yse_dsp_biquad_cascade_set_coefficients(cascade, c, n);
+
+The oscillators, noise generators and phase shapers in
+``yse_dsp_oscillators.h``
+(`#1297 <https://github.com/yvanvds/yse-soundengine/issues/1297>`_) follow the
+same rules. A generator has no audio input, so its process function takes only
+an output array and the settings it reads as numbers. ``_process_signal``
+variants read every setting per sample from your arrays instead. The noise
+generators take a seed, so a render can be repeated exactly:
+
+.. code-block:: c
+
+   YseDspProcessor* saw = yse_dsp_bl_saw_create();
+   yse_dsp_bl_saw_process(saw, 220.0f, out, 512);
+   YseDspProcessor* pink = yse_dsp_pink_noise_create();
+   yse_dsp_pink_noise_seed(pink, 42u);
+   yse_dsp_pink_noise_process(pink, noise, 512);
+
+A few outputs that the engine keeps per 128-sample block cross as optional
+second arrays that cover the whole call. The ``pulseTrain`` onsets are 1 at
+each onset sample, and the ``sampleCounter`` carry is the wrap count. Pass
+``NULL`` when you don't need them. ``yse_dsp_cycle_set_table`` borrows your
+array instead of copying it, so the array must outlive the table.
+
+The envelopes, ramps and sequencers in ``yse_dsp_envelopes.h``
+(`#1298 <https://github.com/yvanvds/yse-soundengine/issues/1298>`_) take their
+segment and breakpoint lists as parallel arrays of targets, times and curves.
+Their events are polled, not called back. A call such as
+``yse_dsp_adsr_get_finished`` reports what happened during the whole of the
+last process call, so you check it after each one. The ``eventSequencer``
+copies the events it fires into an array of ``YseDspEventFiring`` that you
+pass in, each with its sample offset in the call and its text:
+
+.. code-block:: c
+
+   const float targets[] = {1.0f, 0.0f};
+   const float times[] = {10.0f, 200.0f};
+   YseDspProcessor* line = yse_dsp_line_segments_create(0);
+   yse_dsp_line_segments_set(line, targets, times, 2);
+   yse_dsp_line_segments_process(line, out, NULL, 512);
+   if (yse_dsp_line_segments_get_finished(line)) { /* the list ran out */ }
+
+   YseDspEventFiring fired[16];
+   YseDspProcessor* seq = yse_dsp_event_sequencer_create(0, 0);
+   yse_dsp_event_sequencer_add(seq, 0, 0.5f, "note 60", 7);
+   yse_dsp_event_sequencer_set_play(seq, 1);
+   yse_dsp_event_sequencer_process(seq, phase, fired, 16, 512);
+   unsigned int n = yse_dsp_event_sequencer_get_fired(seq);
+
+The phasor toolkit in ``yse_dsp_phasor_toolkit.h``
+(`#1299 <https://github.com/yvanvds/yse-soundengine/issues/1299>`_) reads a
+0..1 ramp, usually a phasor's output, and derives rhythm from it: swing,
+subdivisions, step ramps, impulses at listed phases, step counts, breakpoint
+functions, sample and hold memories and particles. A second output such as
+a step index or a remaining time is an optional array, and each class has a
+``_process_sample`` call for a per-sample loop. A list setter takes an array
+and a count; a count of 0 clears the list.
+
+To follow a beat clock, read a beat span once per block of at most 128
+samples with the beat and tempo your transport gives at the end of that
+block, then hand the span to ``yse_dsp_phasor_process_span`` or
+``yse_dsp_clock_follower_process_span``. The span call writes the span's
+length, so the output array needs room for it. The clock follower's taps,
+clicks, ticks and MIDI clock bytes are gathered over the whole process call.
+The clock bytes go into an array of ``YseDspClockByte`` that you pass in:
+
+.. code-block:: c
+
+   YseDspProcessor* span = yse_dsp_beat_span_create();
+   YseDspProcessor* ramp = yse_dsp_phasor_create();
+   /* Each block: the clock's beat at the end of the block, and its tempo. */
+   yse_dsp_beat_span_read(span, beat, bpm, 128);
+   yse_dsp_phasor_process_span(ramp, span, 4.0, 1, 0.0f, phase, 128);
+
+   YseDspClockByte clock[64];
+   YseDspProcessor* follower = yse_dsp_clock_follower_create();
+   yse_dsp_clock_follower_tap(follower);
+   yse_dsp_clock_follower_process(follower, out, clock, 64, 512);
+   unsigned int sent = yse_dsp_clock_follower_get_clock_bytes(follower);
+
+The signal operators in ``yse_dsp_operators.h``
+(`#1300 <https://github.com/yvanvds/yse-soundengine/issues/1300>`_) cover
+arithmetic the buffer operators leave out (reversed subtraction and division,
+remainder), bit manipulation, comparison, minimum and maximum, rounding,
+folding and scaling, trigonometry, polar conversion, unit conversion and the
+lo-fi effects (bitcrusher, downsampler, overdrive). A binary operator's
+``_process`` call takes its right operand as one number and its
+``_process_signal`` call as an array. The stateless operators also have a
+handle-free ``_value`` call that takes every setting as an argument:
+
+.. code-block:: c
+
+   YseDspProcessor* gate = yse_dsp_compare_create(YSE_DSP_COMPARE_GREATER);
+   yse_dsp_compare_process(gate, in, 0.5f, out, 512);
+
+   float db = yse_dsp_amp_to_db_value(0.5f); /* about -6 */
+   float y = yse_dsp_scale_value(x, 0.f, 1.f, 20.f, 20000.f, 3.f, YSE_DSP_SCALE_MODERN);
+
+The analysers and meters in ``yse_dsp_analysis.h``
+(`#1301 <https://github.com/yvanvds/yse-soundengine/issues/1301>`_) measure a
+signal rather than change it: direction, edges, a Schmitt trigger, spikes,
+zero crossings, peaks, moving averages, minimum and maximum, BS.1770 loudness,
+YIN pitch, a sample store, and the four classes a host draws from: a level
+meter, an oscilloscope capture, a spectrum analyser and plot data. What the
+engine reports per 128-sample block (rises, crossings, peak reports, finished
+meter windows) is gathered over the whole process call: a count getter, plus
+the positions in an optional array you pass in with its capacity.
+
+The drawing classes let one other thread read while the analysing thread
+runs. The analysing thread processes and publishes; a reader thread copies
+the newest published frame out with ``yse_dsp_level_meter_read``,
+``yse_dsp_scope_capture_acquire``, ``yse_dsp_spectrum_analyzer_acquire`` or
+``yse_dsp_plot_data_acquire`` and ``yse_dsp_plot_data_held_subplot``. A reader
+call never waits for the analysing thread, takes no lock and allocates
+nothing, and a frame it holds is never overwritten. The header says which call
+belongs to which thread:
+
+.. code-block:: c
+
+   /* The audio thread. */
+   yse_dsp_level_meter_process(meter, in, 512);
+   yse_dsp_spectrum_analyzer_process(spectrum, in, 512);
+
+   /* The UI thread, while the audio thread goes on. */
+   YseDspLevelReading level;
+   yse_dsp_level_meter_read(meter, &level);
+
+   YseDspSpectrumFrame frame;
+   float bins[YSE_DSP_SPECTRUM_DEFAULT_SIZE / 2 + 1];
+   unsigned int count = yse_dsp_spectrum_analyzer_acquire(spectrum, &frame, bins, 2049);
 
 Errors
 ~~~~~~
@@ -544,6 +730,30 @@ DSP and patcher
    :project: libYSE
 
 .. doxygenfile:: c_api/include/yse_c/yse_dsp_modules.h
+   :project: libYSE
+
+.. doxygenfile:: c_api/include/yse_c/yse_dsp_processor.h
+   :project: libYSE
+
+.. doxygenfile:: c_api/include/yse_c/yse_dsp_filters.h
+   :project: libYSE
+
+.. doxygenfile:: c_api/include/yse_c/yse_dsp_filter_design.h
+   :project: libYSE
+
+.. doxygenfile:: c_api/include/yse_c/yse_dsp_oscillators.h
+   :project: libYSE
+
+.. doxygenfile:: c_api/include/yse_c/yse_dsp_envelopes.h
+   :project: libYSE
+
+.. doxygenfile:: c_api/include/yse_c/yse_dsp_phasor_toolkit.h
+   :project: libYSE
+
+.. doxygenfile:: c_api/include/yse_c/yse_dsp_operators.h
+   :project: libYSE
+
+.. doxygenfile:: c_api/include/yse_c/yse_dsp_analysis.h
    :project: libYSE
 
 .. doxygenfile:: c_api/include/yse_c/yse_patcher.h
