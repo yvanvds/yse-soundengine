@@ -378,8 +378,14 @@ TEST_SUITE("patcher") {
     std::atomic<bool> done{false};
     std::atomic<unsigned int> torn{0};
     std::atomic<unsigned int> reads{0};
+    // The blocks start once the bulk poller polls, and it polls once more
+    // after the last block: it reads at least once, however the threads are
+    // scheduled (#1292).
+    std::atomic<bool> polling{false};
     std::thread bulk([&] {
-      while (!done.load(std::memory_order_acquire)) {
+      for (bool finished = false; !finished;) {
+        finished = done.load(std::memory_order_acquire);
+        polling.store(true, std::memory_order_release);
         const std::vector<float> cells = Cells(rig.scope.GetGuiValue());
         if (cells.size() < 3) {
           torn.fetch_add(1);
@@ -403,6 +409,8 @@ TEST_SUITE("patcher") {
       }
     });
     buffer in(N);
+    while (!polling.load(std::memory_order_acquire))
+      std::this_thread::yield();
     for (unsigned int k = 1; k <= 3000; ++k) {
       in = static_cast<float>(k);
       rig.Block(in);

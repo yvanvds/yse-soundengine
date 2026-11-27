@@ -66,6 +66,8 @@ set(YSE_TEST_SOURCES
   dsp/test_waveform_view.cpp
   dsp/test_sample_buffer_set.cpp
   dsp/test_file_stream_player.cpp
+  dsp/test_file_playlist.cpp
+  dsp/test_sfz_sampler.cpp
   dsp/test_file_recorder.cpp
   dsp/test_pitch_tracker.cpp
   dsp/test_sample_capture.cpp
@@ -135,6 +137,7 @@ set(YSE_TEST_SOURCES
   dsp/test_ramp_smooth.cpp
   dsp/test_signal_selector.cpp
   dsp/test_mix_matrix.cpp
+  dsp/test_voice_allocator.cpp
   dsp/test_signal_bus.cpp
   dsp/test_streaming_fft.cpp
   dsp/test_stft.cpp
@@ -373,6 +376,8 @@ set(YSE_TEST_SOURCES
   patcher/test_patcher_waveform.cpp
   patcher/test_patcher_polybuffer.cpp
   patcher/test_patcher_sfplay.cpp
+  patcher/test_patcher_playlist.cpp
+  patcher/test_patcher_sfizz.cpp
   patcher/test_patcher_sfrecord.cpp
   patcher/test_patcher_signal_number.cpp
   patcher/test_patcher_signal_fzero.cpp
@@ -498,6 +503,9 @@ set(YSE_TEST_SOURCES
   patcher/test_patcher_adc.cpp
   patcher/test_patcher_audio_io.cpp
   patcher/test_patcher_subpatch_mute.cpp
+  patcher/test_patcher_poly_voices.cpp
+  patcher/test_patcher_polymidiin.cpp
+  patcher/test_patcher_poly_surface.cpp
   patcher/test_patcher_dsp_status.cpp
   patcher/test_patcher_sync.cpp
   patcher/test_timerthread.cpp
@@ -1722,6 +1730,9 @@ set_source_files_properties(
   patcher/test_patcher_adc.cpp
   patcher/test_patcher_audio_io.cpp
   patcher/test_patcher_subpatch_mute.cpp
+  patcher/test_patcher_poly_voices.cpp
+  patcher/test_patcher_polymidiin.cpp
+  patcher/test_patcher_poly_surface.cpp
   patcher/test_patcher_dsp_status.cpp
   patcher/test_patcher_sync.cpp
   patcher/test_timerthread.cpp

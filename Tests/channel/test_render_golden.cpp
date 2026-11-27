@@ -682,6 +682,10 @@ TEST_SUITE("rendergolden") {
         blocks.fetch_add(1, std::memory_order_relaxed);
       }
     });
+    // The churn starts once a block has rendered: one renders at least once,
+    // however the threads are scheduled (#1293).
+    while (blocks.load(std::memory_order_relaxed) == 0)
+      std::this_thread::yield();
 
     {
       // Control thread (this one): waves of creation and destruction. Every

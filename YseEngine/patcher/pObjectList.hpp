@@ -85,7 +85,9 @@ namespace YSE {
    *    buffers, name.1, name.2 ...), ``D_SFPLAY`` (sound files streamed
    *    from disk, with cues), ``D_SFLIST`` (cues shared by name between
    *    ``~sfplay`` objects), ``D_SFRECORD`` (signals recorded to a sound
-   *    file on disk).
+   *    file on disk), ``D_PLAYLIST`` (a list of sound files with
+   *    selections, played from disk one clip at a time; the host draws),
+   *    ``D_SFIZZ`` (an SFZ sampled instrument played by keys or MIDI).
    *  - DSP routing: ``D_GATE`` (a signal sent to one of several outlets),
    *    ``D_SELECTOR`` (one of several signals passed to the outlet),
    *    ``D_MATRIX`` (every input to every output at a ramped gain),
@@ -212,7 +214,9 @@ namespace YSE {
    *  - Debugging: ``G_PRINT``, ``G_DICT_PRINT``.
    *  - Initialisation: ``G_LOADBANG``, ``G_LOADMESS``.
    *  - Encapsulation: ``PATCHER``, ``G_INLET``, ``G_OUTLET``, ``D_INLET``,
-   *    ``D_OUTLET``, ``D_MUTE``, ``D_PASS``, ``D_BEGIN``.
+   *    ``D_OUTLET``, ``D_MUTE``, ``D_PASS``, ``D_BEGIN``, ``D_POLY``,
+   *    ``G_VOICE_IN``, ``G_VOICE_OUT``, ``D_VOICE_IN``, ``D_VOICE_OUT``,
+   *    ``D_THISPOLY``.
    *  - Messaging: ``G_SEND``, ``G_RECEIVE``, ``G_FORWARD``, ``G_ROUTE``,
    *    ``G_ROUTEPASS``,
    *    ``G_SEL``, ``G_TRIGGER``, ``G_BANGBANG``, ``G_ONEBANG``, ``G_NEXT``,
@@ -236,7 +240,7 @@ namespace YSE {
    *  - Parameter numbers: ``M_RPNIN``, ``M_NRPNIN``, ``M_RPNOUT``,
    *    ``M_NRPNOUT``.
    *  - MIDI polyphonic expression: ``M_MPECONFIG``, ``M_MPEFORMAT``,
-   *    ``M_MPEPARSE``.
+   *    ``M_MPEPARSE``, ``M_POLYMIDIIN``.
    *  - MIDI codec: ``M_PARSE``, ``M_FORMAT``.
    *  - MIDI system exclusive: ``M_SYSEXIN``, ``M_SXFORMAT``.
    *  - MIDI devices: ``M_MIDIINFO``.
@@ -281,6 +285,18 @@ namespace YSE {
     DEFOBJ(D_MUTE, "~mute");
     DEFOBJ(D_PASS, "~pass");
     DEFOBJ(D_BEGIN, "~begin");
+    // Voice instancing (issue #1040): ``~poly`` plays N copies of the
+    // subpatch inside it; ``.in`` / ``.out`` carry messages and ``~in`` /
+    // ``~out`` signals between a voice and the ~poly's pins, and
+    // ``~thispoly`` reports a voice's busy and mute state. MSP's ``poly~``,
+    // ``in``, ``out``, ``in~``, ``out~`` and ``thispoly~``. See
+    // genericObjects/dPoly.h.
+    DEFOBJ(D_POLY, "~poly");
+    DEFOBJ(G_VOICE_IN, ".in");
+    DEFOBJ(G_VOICE_OUT, ".out");
+    DEFOBJ(D_VOICE_IN, "~in");
+    DEFOBJ(D_VOICE_OUT, "~out");
+    DEFOBJ(D_THISPOLY, "~thispoly");
 
     DEFOBJ(D_DAC, "~dac");
     DEFOBJ(D_ADC, "~adc");
@@ -393,6 +409,8 @@ namespace YSE {
     DEFOBJ(D_SFPLAY, "~sfplay");
     DEFOBJ(D_SFLIST, "~sflist");
     DEFOBJ(D_SFRECORD, "~sfrecord");
+    DEFOBJ(D_PLAYLIST, "~playlist");
+    DEFOBJ(D_SFIZZ, "~sfizz");
 
     DEFOBJ(D_GATE, "~gate");
     DEFOBJ(D_SELECTOR, "~selector");
@@ -1296,6 +1314,9 @@ namespace YSE {
     DEFOBJ(M_MPECONFIG, ".mpeconfig");
     DEFOBJ(M_MPEFORMAT, ".mpeformat");
     DEFOBJ(M_MPEPARSE, ".mpeparse");
+    // Inside a ``~poly`` voice: the MIDI the ~poly's ``midievent`` and
+    // ``mpeevent`` give that voice (issue #756). See genericObjects/dPoly.h.
+    DEFOBJ(M_POLYMIDIIN, ".polymidiin");
     DEFOBJ(M_MIDIINFO, ".midiinfo");
     DEFOBJ(M_MIDIFLUSH, ".midiflush");
     DEFOBJ(M_MAKENOTE, ".makenote");

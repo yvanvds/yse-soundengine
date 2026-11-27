@@ -1,5 +1,5 @@
-// `.poly` (issue #542). See mPoly.h for the design; this file is the grammar,
-// the voice table and the allocator.
+// `.poly` (issue #542). See mPoly.h for the design; this file is the grammar
+// and the outlets around DSP::voiceAllocator (issue #1040).
 // No platform guard, deliberately — see the header.
 #include "mPoly.h"
 
@@ -100,8 +100,7 @@ int mPoly::Voices() const {
 
 int mPoly::PitchOfVoice(int voice) const {
   if (voice < 1 || voice > MAX_VOICES) return -1;
-  const Voice& v = table[voice - 1];
-  return v.active ? v.pitch : -1;
+  return pool.pitch(voice - 1);
 }
 
 void mPoly::Emit(int voice, int pitch, int noteVelocity, YSE::THREAD thread) {
@@ -130,87 +129,37 @@ void mPoly::Overflow(int pitch, int noteVelocity, YSE::THREAD thread) {
 }
 
 void mPoly::NoteOn(int pitch, int noteVelocity, YSE::THREAD thread) {
-  const int count = Voices();
-
-  // 1. A free voice, scanned in ascending order — the synth's first step, and
-  //    what makes a patch with spare voices always play on the low ones.
-  for (int i = 0; i < count; i++) {
-    if (table[i].active) continue;
-    table[i].pitch = pitch;
-    table[i].age = nextAge++;
-    table[i].active = true;
-    heldCount++;
-    Emit(i + 1, pitch, noteVelocity, thread);
-    return;
-  }
-
-  // 2. No free voice. Max's second creation argument decides which of the two
-  //    things happens next, and with it at 0 the note simply does not play.
-  if (!Steals()) {
+  // The policy is DSP::voiceAllocator's (issue #1040), shared with ~poly: a
+  // free voice in ascending order — the synth's first step, and what makes a
+  // patch with spare voices always play on the low ones — else, with Max's
+  // second creation argument non-zero, the oldest sounding note. With it at 0
+  // the note does not play and goes out the overflow outlet.
+  pool.voices(Voices()).steal(Steals());
+  const YSE::DSP::voiceAllocator::allocation taken = pool.noteOn(pitch);
+  if (taken.voice == YSE::DSP::voiceAllocator::NO_VOICE) {
     Overflow(pitch, noteVelocity, thread);
     return;
   }
-
-  // 3. Steal the oldest sounding note — the synth's rule and Max's. Ages are
-  //    never reused, so the lowest is the one held the longest.
-  int victim = -1;
-  std::uint64_t bestAge = UINT64_MAX;
-  for (int i = 0; i < count; i++) {
-    if (table[i].active && table[i].age < bestAge) {
-      bestAge = table[i].age;
-      victim = i;
-    }
-  }
-  if (victim < 0) {
-    // Unreachable: step 1 found no free voice below `count`, so every one of
-    // them is active. Answered rather than asserted, an assert on the audio
-    // thread being worse than an overflow message.
-    Overflow(pitch, noteVelocity, thread);
-    return;
-  }
-
-  const int stolen = table[victim].pitch;
-  // Freed before its release is sent, so a patch reading this object back from
-  // inside that send sees a voice already given up — `.flush`'s rule for the
-  // same reason.
-  table[victim].active = false;
-  heldCount--;
   // The stolen note lets go *before* the new one plays, on the same voice
   // number. Without this the chain downstream would hold two notes at once and
   // have no way of ever releasing the first.
-  Emit(victim + 1, stolen, 0, thread);
-
-  table[victim].pitch = pitch;
-  table[victim].age = nextAge++;
-  table[victim].active = true;
-  heldCount++;
-  Emit(victim + 1, pitch, noteVelocity, thread);
+  if (taken.stolen) Emit(taken.voice + 1, taken.stolenPitch, 0, thread);
+  Emit(taken.voice + 1, pitch, noteVelocity, thread);
 }
 
 void mPoly::NoteOff(int pitch, YSE::THREAD thread) {
-  // The whole table, not just the first `count` voices: a pool shrunk under a
-  // sounding patch leaves notes above the new bound, and they are still owed
-  // their releases. Oldest first, so a pitch played twice is released in the
-  // order it was played and a balanced source stays balanced.
-  int found = -1;
-  std::uint64_t bestAge = UINT64_MAX;
-  for (int i = 0; i < MAX_VOICES; i++) {
-    if (table[i].active && table[i].pitch == pitch && table[i].age < bestAge) {
-      bestAge = table[i].age;
-      found = i;
-    }
-  }
-
-  if (found < 0) {
+  // The whole pool, not just the first `voices`: a pool shrunk under a sounding
+  // patch leaves notes above the new bound, and they are still owed their
+  // releases. Oldest first, so a pitch played twice is released in the order
+  // it was played and a balanced source stays balanced.
+  const int found = pool.noteOff(pitch);
+  if (found == YSE::DSP::voiceAllocator::NO_VOICE) {
     // No voice is playing it: either it overflowed, or it was stolen, or nobody
     // ever played it. Out the overflow outlet so the release follows wherever
     // the attack went — see the header.
     Overflow(pitch, 0, thread);
     return;
   }
-
-  table[found].active = false;
-  heldCount--;
   Emit(found + 1, pitch, 0, thread);
 }
 
@@ -239,15 +188,11 @@ void mPoly::Release(YSE::THREAD thread) {
   int taken[MAX_VOICES];
   int pitches[MAX_VOICES];
   int count = 0;
-
-  for (int i = 0; i < MAX_VOICES; i++) {
-    if (!table[i].active) continue;
-    table[i].active = false;
-    heldCount--;
-    taken[count] = i;
-    pitches[count] = table[i].pitch;
+  pool.releaseAll([&](int voice, int pitch) {
+    taken[count] = voice;
+    pitches[count] = pitch;
     count++;
-  }
+  });
 
   // Ascending voice order — the order the table walks in, and deterministic
   // rather than the accident of arrival.

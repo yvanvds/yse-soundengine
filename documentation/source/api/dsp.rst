@@ -471,6 +471,20 @@ streaming, with numbered cues shared by name: what ``~sfplay`` and
 .. doxygenfile:: dsp/sampling/fileStreamPlayer.hpp
    :project: libYSE
 
+A list of sound files, each a clip with a selection and settings of its own,
+played from disk one clip at a time, the list and the playhead kept for a host
+to draw: what ``~playlist`` does.
+
+.. doxygenfile:: dsp/sampling/filePlaylist.hpp
+   :project: libYSE
+
+A polyphonic SFZ instrument played by keys and MIDI messages, out of a stereo
+pair, on the engine's own SFZ model and sampler voices, with Scala tunings:
+what ``~sfizz`` does.
+
+.. doxygenfile:: dsp/sampling/sfzSampler.hpp
+   :project: libYSE
+
 Signals recorded to a sound file as they play, through a lock-free ring that
 a background thread empties to disk: what ``~sfrecord`` does.
 
@@ -496,6 +510,12 @@ Named signal buses: audio sent and received by name, without a cord, what
 ``~send`` and ``~receive`` wrap.
 
 .. doxygenfile:: dsp/routing/signalBus.hpp
+   :project: libYSE
+
+Note-to-voice allocation over a fixed pool, a free voice first and the
+oldest when stealing: what ``.poly`` and ``~poly`` allocate with.
+
+.. doxygenfile:: dsp/routing/voiceAllocator.hpp
    :project: libYSE
 
 Spectral

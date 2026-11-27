@@ -197,6 +197,8 @@ namespace YSE {
      *    ``done()`` is true for the block in which playback stopped: a cue
      *    or the last cue of a list reached its end, or ``stop`` faded it
      *    out. Not when another cue took over, and not on ``pause``.
+     *    ``looped()`` counts the loops the cue that plays made in the
+     *    block.
      *  - **Speed.** ``speed`` times the cue's own speed, at the file's rate
      *    against the live ``SAMPLERATE``, read every block. Below 0 plays
      *    backward: a cue starts from its end, and a cue that plays turns
@@ -393,6 +395,13 @@ namespace YSE {
       bool done() const {
         return finished;
       }
+      /** @brief How many times the cue that plays went on from its start
+       *         at its end (backward: from its end at its start) in the
+       *         last block, looping; 0 when it did not loop (issue
+       *         #1158). */
+      UInt looped() const {
+        return wraps;
+      }
       /** @brief Whether a cue plays, paused or not. */
       bool playing() const;
       /** @brief Whether the cue that plays is paused. */
@@ -453,6 +462,7 @@ namespace YSE {
       UInt sequenceLength = 0;
       UInt sequenceNext = 0;
       bool finished = false;
+      UInt wraps = 0;
       bool looping = false;
       Int loopCue = 0;
       Flt rate = 1.f;

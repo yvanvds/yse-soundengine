@@ -280,6 +280,21 @@ namespace YSE {
        *  region matcher needs. Called by the allocator on NOTE_ON. */
       void frequency(Flt midiNote) override;
 
+      /** @brief Extra pitch in cents for the notes this voice starts from now
+       *  on, on top of each region's own tuning; 0 by default. The key still
+       *  selects the regions: a class that retunes the keyboard
+       *  (``DSP::sfzSampler``'s scales, issue #1159) sets it before the
+       *  NOTE_ON. */
+      samplerVoice& tune(Flt cents) {
+        tune_.store(cents, std::memory_order_relaxed);
+        return *this;
+      }
+
+      /** @brief The extra pitch set with ``tune``, in cents. */
+      Flt tune() const {
+        return tune_.load(std::memory_order_relaxed);
+      }
+
       /** @brief Current raw MIDI note number for region selection. */
       int getNote() const {
         return note_.load(std::memory_order_relaxed);
@@ -348,6 +363,7 @@ namespace YSE {
       std::array<Layer, DSP::YSE_MAX_REGION_LAYERS> layers;
       Phase phase = IDLE;
       aInt note_{60};
+      aFlt tune_{0.f};
       int lastHit_ = 0;
 
       // Fast-choke declick: a short linear fade to silence then settle STOPPED,

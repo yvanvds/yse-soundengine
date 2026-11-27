@@ -212,6 +212,7 @@ namespace YSE {
     samplerVoice::samplerVoice(const samplerVoice& other)
       : dspVoice(other), inst(other.inst) { // share the immutable instrument (spec §10)
       note_.store(other.note_.load(std::memory_order_relaxed), std::memory_order_relaxed);
+      tune_.store(other.tune_.load(std::memory_order_relaxed), std::memory_order_relaxed);
       // Derive the choke-fade length from the live SAMPLERATE rather than
       // copying the prototype's — the prototype may have been constructed in an
       // earlier session at a different rate (issue #637).
@@ -290,7 +291,8 @@ namespace YSE {
       const double semis =
           (note - r.pitchKeycenter) * (static_cast<double>(r.pitchKeytrack) / 100.0) +
           r.transposeSemis;
-      const double cents = r.tuneCents;
+      const double cents = static_cast<double>(r.tuneCents) +
+                           static_cast<double>(tune_.load(std::memory_order_relaxed));
       const double ratio = std::pow(2.0, (semis + cents / 100.0) / 12.0);
       L.baseSpeed = ratio * static_cast<double>(rateAdjustment(rs));
 

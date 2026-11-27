@@ -63,9 +63,9 @@ using YSE::PATCHER::Register;
 
 namespace {
 
-  // Every name this issue adds. `.polymidiin` is deliberately absent — see
-  // mMpe.h: in Max it lives inside a `poly~` and receives that object's
-  // `mpeevent` routing, and this patcher has no `poly~` for it to live in.
+  // Every name this issue adds. `.polymidiin`, the fourth MPE object, came
+  // later with `~poly` (#756) and is tested beside it, in
+  // test_patcher_polymidiin.cpp.
   const char* const kFamily[] = {
       YSE::OBJ::M_MPECONFIG,
       YSE::OBJ::M_MPEFORMAT,
@@ -162,8 +162,11 @@ namespace {
     void SetMessage(const std::string&, float) override {}
   };
 
-  // A registry-built `.mpeparse` in a real patcher, with one Tap on each outlet
-  // writing into one shared log.
+  // A registry-built `.mpeparse` in a real patcher, with one Tap on each of the
+  // six outlets #535 gave it writing into one shared log. The seventh, the
+  // `mpeevent` outlet #756 added, is tested in test_patcher_polymidiin.cpp.
+  constexpr int kExpressionOutlets = 6;
+
   struct ParseRig {
     // The taps and their log outlive the patcher (sinks.hpp, #967).
     std::vector<std::string> log;
@@ -192,7 +195,7 @@ namespace {
       }
       REQUIRE(object != nullptr);
       log.reserve(64);
-      for (int i = 0; i < object->GetOutputs(); i++) {
+      for (int i = 0; i < kExpressionOutlets; i++) {
         auto tap = std::make_unique<Tap>();
         tap->log = &log;
         tap->tag = "o" + std::to_string(i);
@@ -259,7 +262,8 @@ TEST_SUITE("patcher") {
     const Shape shapes[] = {
         {YSE::OBJ::M_MPECONFIG, 1, 1},
         {YSE::OBJ::M_MPEFORMAT, 5, 1}, // note, bend, pressure, slide, channel
-        {YSE::OBJ::M_MPEPARSE, 1, 6}, // note, bend, pressure, slide, channel, role
+        // note, bend, pressure, slide, channel, role, and mpeevent (#756)
+        {YSE::OBJ::M_MPEPARSE, 1, 7},
     };
 
     for (const Shape& shape : shapes) {
@@ -676,7 +680,7 @@ TEST_SUITE("patcher") {
     ParseRig rig("1 4", /*roundTrip=*/true);
     CHECK(rig.object->GetName() == std::string(".mpeparse"));
     CHECK(std::string(rig.object->GetParams()) == "1 4");
-    CHECK(rig.object->GetOutputs() == 6);
+    CHECK(rig.object->GetOutputs() == 7);
 
     rig.Message("159 60 100"); // channel 16 — the upper zone's master
     REQUIRE(rig.log.size() == 3);

@@ -474,6 +474,10 @@ TEST_SUITE("capilowcov") {
         reads.fetch_add(1, std::memory_order_relaxed);
       }
     });
+    // The churn starts once the reader has read: it reads at least once,
+    // however the threads are scheduled (#1293).
+    while (reads.load(std::memory_order_relaxed) == 0u)
+      std::this_thread::yield();
 
     for (int round = 0; round < 150; round++) {
       for (int i = 0; i < kChurned; i++) {
@@ -532,6 +536,10 @@ TEST_SUITE("capilowcov") {
         reads.fetch_add(1, std::memory_order_relaxed);
       }
     });
+    // The edits start once the reader has read: it reads at least once,
+    // however the threads are scheduled (#1293).
+    while (reads.load(std::memory_order_relaxed) == 0u)
+      std::this_thread::yield();
 
     for (int round = 0; round < 200; round++)
       yse_phandle_set_params(gate, round % 2 == 0 ? "5" : "2");

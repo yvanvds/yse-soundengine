@@ -1,4 +1,5 @@
-// The MPE family (issue #535) — `.mpeconfig`, `.mpeformat` and `.mpeparse`.
+// The MPE family (issue #535) — `.mpeconfig`, `.mpeformat` and `.mpeparse`,
+// whose `mpeevent` outlet feeds `~poly` (issue #756).
 // See mMpe.h for the design; this file is the wire format and the one state
 // machine.
 //
@@ -49,6 +50,10 @@ namespace {
   // channel-voice message, and keeping the buffer this size is what lets every
   // outgoing list be built on the stack.
   constexpr int kMessageBytes = 3;
+
+  // Room for the longest event `.mpeparse`'s rightmost outlet sends,
+  // "mpeevent 16 2 15 16 239 127 127", with some to spare.
+  constexpr std::size_t kEventText = 48;
 
   int Clamp(int value, int low, int high) {
     if (value < low) return low;
@@ -267,6 +272,8 @@ CONSTRUCT() {
   ADD_OUT_INT; // 3 slide
   ADD_OUT_INT; // 4 channel
   ADD_OUT_INT; // 5 role
+  ADD_OUT_LIST; // 6 mpeevent (#756)
+  eventText.reserve(kEventText);
 
   ADD_PARAM(zone);
   ADD_PARAM(members);
@@ -289,8 +296,14 @@ CONSTRUCT() {
   OUTLET_DOC(3, "slide", "Controller 74.", "0-127");
   OUTLET_DOC(4, "channel", "The channel the message arrived on: in MPE, the note it belongs to.",
              "1-16");
-  OUTLET_DOC(5, "role", "The channel's role: 2 master, 1 member, 0 outside the zone. Sent first.",
+  OUTLET_DOC(5, "role",
+             "The channel's role: 2 master, 1 member, 0 outside the zone. Sent before "
+             "the channel and the value.",
              "0-2");
+  OUTLET_DOC(6, "mpeevent",
+             "Every channel message in the zone as \"mpeevent <master> <zone> <voice> <channel> "
+             "<status> <data> [<data>]\", for a ~poly. Sent first.",
+             "");
   PARAM_DOC("zone", "0", kZoneParamDoc, "0-1");
   PARAM_DOC("members", "15",
             "Member channels to assume until a configuration message in the stream changes it.",
@@ -390,6 +403,9 @@ void mMpeParse::Voice(unsigned char status, YSE::THREAD thread) {
   const int first = (int)(data[0] & kDataMask);
   const int second = (int)(data[1] & kDataMask);
 
+  // The rightmost outlet first, as every outlet here is sent right to left.
+  Event(status, first, second, thread);
+
   switch (status & kStatusMask) {
   case kNoteOn:
     ReportNote(nibble, first, second, thread);
@@ -440,6 +456,41 @@ bool mMpeParse::Config(int nibble, int controller, int value) {
   default:
     return false;
   }
+}
+
+void mMpeParse::Event(unsigned char status, int first, int second, YSE::THREAD thread) {
+  const int zoneNow = MpeClampZone(zone.load());
+  const int nibble = (int)(status & kChannelMask);
+  const int role = MpeRole(zoneNow, Members(), nibble);
+  // Another instrument's traffic is no voice of this zone's.
+  if (role == MPE_ROLE_NONE) return;
+
+  // The voice is the member channel's place in the zone, from 1 — channel 2
+  // is voice 1 in the lower zone, channel 15 in the upper — and -1 for the
+  // master channel, whose messages are every voice's.
+  int voice = -1;
+  if (role == MPE_ROLE_MEMBER) voice = zoneNow == MPE_ZONE_UPPER ? 15 - nibble : nibble;
+
+  int values[7];
+  values[0] = MpeMasterNibble(zoneNow) + 1;
+  values[1] = zoneNow + 1;
+  values[2] = voice;
+  values[3] = nibble + 1;
+  values[4] = (int)status;
+  values[5] = first;
+  values[6] = second;
+  const int count = 5 + VoiceDataBytes(status);
+
+  // Into a string reserved at construction: the longest event is under
+  // kEventText characters, so nothing allocates. Under the guard.
+  eventText.assign("mpeevent");
+  for (int k = 0; k < count; k++) {
+    char digits[FORMAT_INT_WIDTH];
+    const std::size_t written = WriteInt(values[k], digits);
+    eventText.push_back(' ');
+    eventText.append(digits, written);
+  }
+  outputs[6].SendList(eventText, thread);
 }
 
 void mMpeParse::Report(int nibble, int outlet, int value, YSE::THREAD thread) {

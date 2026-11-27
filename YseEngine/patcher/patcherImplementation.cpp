@@ -15,6 +15,7 @@
 #include "routing/dSend.h"
 #include "routing/dReceive.h"
 #include "spectral/dPfft.h"
+#include "genericObjects/dPoly.h"
 #include "pHandle.hpp"
 #include "../utils/json.hpp"
 #include <algorithm>
@@ -298,6 +299,11 @@ void patcherImplementation::SetName(const std::string& requested) {
   // the object's own subscription / binding, so iterating is safe.
   for (auto& x : objects)
     x.second->OnPatcherRenamed();
+  // A ~poly's voices address the same scope (issue #1040).
+  std::vector<pObject*> voices;
+  CollectVoiceObjects(voices);
+  for (pObject* object : voices)
+    object->OnPatcherRenamed();
   mtx.unlock();
 }
 
@@ -564,6 +570,12 @@ void patcherImplementation::ResetDSP() {
   for (const auto& any : objects) {
     any.second->ResetDSP();
   }
+  for (const polyInstance& inst : polyInstances_) {
+    for (const std::vector<pObject*>& voice : inst.copies) {
+      for (pObject* object : voice)
+        object->ResetDSP();
+    }
+  }
 }
 
 void patcherImplementation::ProcessAsInsert(MULTICHANNELBUFFER& io) {
@@ -616,8 +628,53 @@ bool patcherImplementation::IsSpectralHost(const pObject* obj) {
   return obj != nullptr && strcmp(obj->Type(), YSE::OBJ::D_PFFT) == 0;
 }
 
+bool patcherImplementation::IsPolyHost(const pObject* obj) {
+  return obj != nullptr && strcmp(obj->Type(), YSE::OBJ::D_POLY) == 0;
+}
+
+bool patcherImplementation::IsVoiceRoot(const pObject* obj) {
+  return obj != nullptr && strcmp(obj->Type(), polyVoice::TYPE) == 0;
+}
+
 bool patcherImplementation::IsContainer(pObject* obj) {
-  return IsSubpatcher(obj) || IsSpectralHost(obj);
+  return IsSubpatcher(obj) || IsSpectralHost(obj) || IsPolyHost(obj);
+}
+
+pObject* patcherImplementation::PolyTemplateOf(const pObject* obj) {
+  // A voice copy's containment ends at its voice root, which has no
+  // container; only the objects the user placed reach a ~poly (issue #1040).
+  for (pObject* c = obj->Container(); c != nullptr; c = c->Container()) {
+    if (IsPolyHost(c)) return c;
+  }
+  return nullptr;
+}
+
+pObject* patcherImplementation::DomainOf(const pObject* obj) {
+  for (pObject* c = obj->Container(); c != nullptr; c = c->Container()) {
+    if (IsSpectralHost(c) || IsPolyHost(c) || IsVoiceRoot(c)) return c;
+  }
+  return nullptr;
+}
+
+bool patcherImplementation::PolyNestingRefused(pObject* obj, pObject* container) const {
+  // Caller holds mtx. Refused when the move would put a ~poly (obj, or one
+  // inside it) inside a ~poly or a ~pfft (issue #1040).
+  bool enclosed = false;
+  for (pObject* c = container; c != nullptr; c = c->Container()) {
+    if (IsPolyHost(c) || IsSpectralHost(c)) {
+      enclosed = true;
+      break;
+    }
+  }
+  if (!enclosed) return false;
+  if (IsPolyHost(obj)) return true;
+  for (const auto& any : objects) {
+    if (!IsPolyHost(any.second)) continue;
+    for (pObject* c = any.second->Container(); c != nullptr; c = c->Container()) {
+      if (c == obj) return true;
+    }
+  }
+  return false;
 }
 
 pObject* patcherImplementation::SpectralDomainOf(const pObject* obj) {
@@ -750,8 +807,16 @@ void patcherImplementation::SetObjectContainer(YSE::pHandle* obj, YSE::pHandle* 
   // A `patcher` groups; a `~pfft` runs its contents once per spectral frame
   // (issue #1041). Nothing else holds objects.
   if (!IsContainer(container->ObjectUnderLock())) {
+    INTERNAL::LogImpl().emit(
+        E_ERROR, "Patcher: SetContainer target is not a 'patcher', '~pfft' or '~poly' object");
+    return;
+  }
+  // A ~poly copies its voices whole; a ~poly inside one (or inside a ~pfft)
+  // would need copies of copies (issue #1040).
+  if (PolyNestingRefused(obj->ObjectUnderLock(), container->ObjectUnderLock())) {
     INTERNAL::LogImpl().emit(E_ERROR,
-                             "Patcher: SetContainer target is not a 'patcher' or '~pfft' object");
+                             "Patcher: SetContainer refused: a ~poly cannot be put inside a ~poly "
+                             "or a ~pfft");
     return;
   }
   // A subpatcher may not end up inside itself or inside one of its own
@@ -871,6 +936,16 @@ void patcherImplementation::ConnectUnlocked(YSE::pHandle* from, int outlet, YSE:
   PATCHER::outlet* out = source->GetOutlet(sourcePin);
   PATCHER::inlet* in = target->GetInlet(targetPin);
   if (out != nullptr && in != nullptr) {
+    // No cord crosses a ~poly's boundary (issue #1040): what is inside is the
+    // definition its voices are copied from and does not run itself, so a
+    // cord to it would carry nothing. The ~poly's own pins and .in / .out /
+    // ~in / ~out inside are what cross over.
+    if (PolyTemplateOf(source) != PolyTemplateOf(target)) {
+      INTERNAL::LogImpl().emit(E_ERROR, "Patcher: connection refused: a cord cannot cross a ~poly "
+                                        "boundary; connect to the ~poly's inlets and outlets, and "
+                                        "use .in / .out / ~in / ~out inside it");
+      return;
+    }
     // A signal cord into or out of a ~pfft subpatch is refused (issue
     // #1041): the subpatch runs on frames of bins, the patch around it on
     // blocks of samples, and its inlets and outlets are what cross over
@@ -1127,6 +1202,15 @@ void patcherImplementation::DeleteObject(YSE::pHandle* handle) {
     stopping.reserve(doomedHandles.size());
     for (YSE::pHandle* h : doomedHandles)
       stopping.push_back(h->ObjectUnderLock());
+    // A ~poly deleted with the subtree takes its voices with it (issue
+    // #1040): they get the same last chance.
+    for (YSE::pHandle* h : doomedHandles) {
+      for (const polyInstance& inst : polyInstances_) {
+        if (inst.host != h->ObjectUnderLock()) continue;
+        for (const std::vector<pObject*>& voice : inst.copies)
+          stopping.insert(stopping.end(), voice.begin(), voice.end());
+      }
+    }
   }
 
   // Teardown pass, before the lock and before anything is unwired (issue #758),
@@ -1197,7 +1281,11 @@ void patcherImplementation::SetObjectParams(YSE::pHandle* handle, const std::str
   if (object == nullptr) return;
 
   std::unique_ptr<pObject> staged;
-  if (!object->ParamsNeedRebuild()) staged.reset(Register().Get(object->Type()));
+  // An object inside a ~poly does not run: what a new parameter changes is
+  // its voices, which the rebuild's publish copies again (issue #1040).
+  if (!object->ParamsNeedRebuild() && PolyTemplateOf(object) == nullptr) {
+    staged.reset(Register().Get(object->Type()));
+  }
   if (staged != nullptr) {
     // Scalar-only params: parse `args` into a fresh object of the same type,
     // exactly as a rebuild or a reload would (parse errors throw here, never
@@ -1557,6 +1645,9 @@ void patcherImplementation::TeardownObjects() {
     stopping.reserve(objects.size());
     for (const auto& any : objects)
       stopping.push_back(any.second);
+    // A ~poly's voices go with it, and release what they hold the same way
+    // (issue #1040).
+    CollectVoiceObjects(stopping);
   }
   for (pObject* obj : stopping) {
     obj->Teardown(YSE::T_GUI);
@@ -1831,8 +1922,13 @@ void patcherImplementation::BuildParsedGraph(json& j, std::vector<pObject*>& loa
       if (self == OldIDs.end() || owner == OldIDs.end()) continue;
       if (self->second == nullptr || owner->second == nullptr) continue;
       if (!IsContainer(owner->second->ObjectUnderLock())) {
-        INTERNAL::LogImpl().emit(E_ERROR,
-                                 "Patcher: stored container is not a 'patcher' or '~pfft' object");
+        INTERNAL::LogImpl().emit(
+            E_ERROR, "Patcher: stored container is not a 'patcher', '~pfft' or '~poly' object");
+        continue;
+      }
+      if (PolyNestingRefused(self->second->ObjectUnderLock(), owner->second->ObjectUnderLock())) {
+        INTERNAL::LogImpl().emit(E_ERROR, "Patcher: stored containment puts a ~poly inside a ~poly "
+                                          "or a ~pfft; object loaded at the top level");
         continue;
       }
       if (ContainmentWouldCycle(self->second->ObjectUnderLock(),
@@ -1901,6 +1997,13 @@ void patcherImplementation::BuildParsedGraph(json& j, std::vector<pObject*>& loa
   // has happened the audio thread can be rendering these objects, so a throw
   // after it must not free them.
   RebuildAndPublish();
+  // A ~poly's contents do not run; its voices, made by that publish, are
+  // what loaded (issue #1040), so they take the loadbang instead.
+  loaded.erase(
+      std::remove_if(loaded.begin(), loaded.end(),
+                     [](const pObject* object) { return PolyTemplateOf(object) != nullptr; }),
+      loaded.end());
+  loaded.insert(loaded.end(), createdVoiceObjects_.begin(), createdVoiceObjects_.end());
 }
 
 // The three enumeration calls take mtx like every edit does (issue #937): an
@@ -2311,18 +2414,44 @@ YSE::PATCHER::GraphState* patcherImplementation::BuildGraph() {
   // Which ~pfft subpatch each object runs in, null for the top level (issue
   // #1041). A signal cord only counts within one domain: one between two is
   // left out of the compiled graph below.
-  std::unordered_map<const pObject*, pObject*> domains;
-  domains.reserve(objects.size());
+  //
+  // The objects inside a ~poly are the definition of its voices and do not
+  // run (issue #1040): they are left out of everything below but the owner
+  // tables, which say their pins belong to this snapshot and have no cords
+  // in it, so a send from one (a host pushing a value in) reaches nothing.
+  // The voices' copies take their place, each voice a domain of its own.
+  std::vector<pObject*> live;
+  live.reserve(objects.size());
   for (const auto& any : objects) {
-    domains.emplace(any.second, SpectralDomainOf(any.second));
+    pObject* object = any.second;
+    if (PolyTemplateOf(object) == nullptr) {
+      live.push_back(object);
+      continue;
+    }
+    for (int i = 0; i < object->NumOutputs(); i++) {
+      PATCHER::outlet* out = object->GetOutlet(i);
+      const int id = out != nullptr ? out->GraphId() : -1;
+      if (id >= 0 && id < nextOutletId_) g->outletOwner[id] = out;
+    }
+    for (int i = 0; i < object->NumInputs(); i++) {
+      PATCHER::inlet* in = object->GetInlet(i);
+      const int id = in != nullptr ? in->GraphId() : -1;
+      if (id >= 0 && id < nextInletId_) g->inletOwner[id] = in;
+    }
+  }
+  CollectVoiceObjects(live);
+
+  std::unordered_map<const pObject*, pObject*> domains;
+  domains.reserve(live.size());
+  for (pObject* object : live) {
+    domains.emplace(object, DomainOf(object));
   }
   const auto domainOf = [&domains](const pObject* object) -> pObject* {
     auto it = domains.find(object);
     return it == domains.end() ? nullptr : it->second;
   };
 
-  for (const auto& any : objects) {
-    pObject* object = any.second;
+  for (pObject* object : live) {
     pObject* domain = domainOf(object);
     g->objects.push_back(object);
     // Objects driven from outside the patch rather than by an inlet or a DSP
@@ -2357,6 +2486,14 @@ YSE::PATCHER::GraphState* patcherImplementation::BuildGraph() {
         // through inletLinkSources instead.
         if (!out->IsLink()) {
           g->outletTargets[id] = out->Targets();
+          // A cord into a ~poly's contents (made before a SetContainer
+          // moved its end inside) carries nothing: they do not run (#1040).
+          auto& all = g->outletTargets[id];
+          all.erase(std::remove_if(all.begin(), all.end(),
+                                   [](const PATCHER::inlet* in) {
+                                     return PolyTemplateOf(in->Owner()) != nullptr;
+                                   }),
+                    all.end());
           // A signal cord into another domain is not compiled (#1041).
           if (out->Type() == YSE::OUT_TYPE::BUFFER) {
             auto& targets = g->outletTargets[id];
@@ -2402,14 +2539,35 @@ YSE::PATCHER::GraphState* patcherImplementation::BuildGraph() {
       }
     }
   }
+  // The voices of every ~poly, in storage-ID order of the ~poly objects
+  // (issue #1040); BuildRenderOrder fills in each voice's render.
+  for (const polyInstance& inst : polyInstances_) {
+    GraphState::polyDomain d;
+    d.host = inst.host;
+    for (std::size_t v = 0; v < inst.roots.size(); v++) {
+      GraphState::polyVoiceDomain voice;
+      voice.root = inst.roots[v];
+      for (pObject* object : inst.copies[v]) {
+        const char* type = object->Type();
+        if (strcmp(type, YSE::OBJ::D_VOICE_IN) == 0) voice.signalInputs.push_back(object);
+        if (strcmp(type, YSE::OBJ::D_VOICE_OUT) == 0) voice.signalOutputs.push_back(object);
+        if (strcmp(type, YSE::OBJ::G_VOICE_IN) == 0) voice.messageInputs.push_back(object);
+        if (object->VoiceEventSink()) voice.sinks.push_back(object);
+      }
+      d.voices.push_back(std::move(voice));
+    }
+    g->poly.push_back(std::move(d));
+  }
   BuildRenderOrder(*g, domains);
   BuildMuteChains(*g);
   // Flush order (issue #1037): storage IDs are fixed for a given patch, the
   // handle addresses `objects` is keyed by are not. The check below fires on
   // any sort of pointers; this one compares IDs, never addresses.
   // NOLINTNEXTLINE(bugprone-nondeterministic-pointer-iteration-order)
-  std::sort(g->emitters.begin(), g->emitters.end(),
-            [](pObject* a, pObject* b) { return a->GetID() < b->GetID(); });
+  // Stable: a ~poly's copies carry their template's storage ID and come in
+  // voice order (issue #1040).
+  std::stable_sort(g->emitters.begin(), g->emitters.end(),
+                   [](pObject* a, pObject* b) { return a->GetID() < b->GetID(); });
   return g;
 }
 
@@ -2605,6 +2763,18 @@ void patcherImplementation::BuildRenderOrder(
     g.spectral.push_back(std::move(d));
   }
 
+  // Each voice of each ~poly (issue #1040), from its own start points, like
+  // a ~pfft subpatch. Named signal pairs are not ordered inside one either.
+  for (GraphState::polyDomain& d : g.poly) {
+    for (GraphState::polyVoiceDomain& voice : d.voices) {
+      std::vector<pObject*> starts;
+      for (pObject* start : g.startPoints) {
+        if (domainOf(start) == voice.root) starts.push_back(start);
+      }
+      walk(starts, softEdges{}, voice.renderOrder);
+    }
+  }
+
   // The order without soft edges, which also says which objects run at all.
   walk(top, softEdges{}, g.renderOrder);
 
@@ -2754,6 +2924,8 @@ void patcherImplementation::BuildMuteChains(GraphState& g) {
     begin = static_cast<std::uint32_t>(g.muteChain.size());
     for (pObject* c = object->Container(); c != nullptr; c = c->Container()) {
       if (IsSubpatcher(c)) g.muteChain.push_back(static_cast<gSubpatcher*>(c)->MuteWord());
+      // A ~poly voice's root has the same two bits (issue #1040).
+      if (IsVoiceRoot(c)) g.muteChain.push_back(static_cast<polyVoice*>(c)->MuteWord());
     }
     end = static_cast<std::uint32_t>(g.muteChain.size());
   };
@@ -2767,10 +2939,257 @@ void patcherImplementation::BuildMuteChains(GraphState& g) {
       chain(step.object, step.muteBegin, step.muteEnd);
     }
   }
+  // And each ~poly voice's (issue #1040).
+  for (GraphState::polyDomain& d : g.poly) {
+    for (GraphState::polyVoiceDomain& voice : d.voices) {
+      for (GraphState::renderStep& step : voice.renderOrder) {
+        chain(step.object, step.muteBegin, step.muteEnd);
+      }
+    }
+  }
   g.dacMutes.resize(g.dacs.size());
   for (std::size_t d = 0; d < g.dacs.size(); d++) {
     chain(g.dacs[d], g.dacMutes[d].begin, g.dacMutes[d].end);
   }
+}
+
+void patcherImplementation::CollectTemplate(pObject* host, std::vector<pObject*>& out) const {
+  // Caller holds mtx. Breadth-first from the ~poly, each container's direct
+  // contents in storage-ID order, so the same contents always give the same
+  // list (and the same copies, in the same order).
+  out.clear();
+  std::vector<pObject*> containers{host};
+  std::vector<pObject*> inside;
+  for (std::size_t next = 0; next < containers.size(); next++) {
+    inside.clear();
+    for (const auto& any : objects) {
+      if (any.second->Container() == containers[next]) inside.push_back(any.second);
+    }
+    std::sort(inside.begin(), inside.end(),
+              [](pObject* a, pObject* b) { return a->GetID() < b->GetID(); });
+    for (pObject* object : inside) {
+      out.push_back(object);
+      if (IsContainer(object)) containers.push_back(object);
+    }
+  }
+}
+
+void patcherImplementation::CollectVoiceObjects(std::vector<pObject*>& out) const {
+  for (const polyInstance& inst : polyInstances_) {
+    for (const std::vector<pObject*>& voice : inst.copies) {
+      out.insert(out.end(), voice.begin(), voice.end());
+    }
+  }
+}
+
+namespace {
+  // What a ~poly's voices are copied from (issue #1040): for each object of
+  // the template, its type, parameters, container and cords within the
+  // template, by position in the list. Equal strings mean the copies made
+  // last time are still copies of it. The voice count is not in it: a new
+  // count adds or removes voices and keeps the rest (issue #1294).
+  std::string PolyFingerprint(const pObject* host, const std::vector<pObject*>& tmpl) {
+    std::unordered_map<const pObject*, std::size_t> position;
+    position.reserve(tmpl.size());
+    for (std::size_t i = 0; i < tmpl.size(); i++) {
+      position.emplace(tmpl[i], i);
+    }
+    std::string text;
+    for (pObject* object : tmpl) {
+      text += object->Type();
+      text += '\x1f';
+      text += object->GetParams();
+      text += '\x1f';
+      auto container = position.find(object->Container());
+      text += object->Container() == host || container == position.end()
+                  ? std::string("-")
+                  : std::to_string(container->second);
+      for (int o = 0; o < object->NumOutputs(); o++) {
+        const YSE::PATCHER::outlet* out = object->GetOutlet(o);
+        if (out == nullptr) continue;
+        for (YSE::PATCHER::inlet* in : out->Targets()) {
+          auto target = position.find(in->Owner());
+          if (target == position.end()) continue;
+          text += '\x1f';
+          text += std::to_string(o) + ">" + std::to_string(target->second) + "." +
+                  std::to_string(in->GetPosition());
+        }
+      }
+      text += '\n';
+    }
+    return text;
+  }
+} // namespace
+
+void patcherImplementation::RetirePolyInstance(polyInstance& inst,
+                                               std::vector<RetiredObject>& retiring) {
+  // Unwired now, so the next snapshot names none of them; freed by the
+  // reclaimer once no snapshot that did can still be read. No Teardown: a
+  // rebuilt voice is replaced like an object a structural SetParams rebuilds.
+  for (std::vector<pObject*>& voice : inst.copies) {
+    for (pObject* object : voice) {
+      object->UnwireFromPeers();
+      LeaveSignalBus(object);
+      retiring.push_back({object, 0, inst.idGen});
+    }
+  }
+  for (pObject* root : inst.roots) {
+    retiring.push_back({root, 0, inst.idGen});
+  }
+  inst.copies.clear();
+  inst.roots.clear();
+}
+
+void patcherImplementation::TrimPolyInstance(polyInstance& inst, std::size_t voices,
+                                             std::vector<RetiredObject>& retiring) {
+  // The voices from `voices` on go as RetirePolyInstance's do (issue #1294).
+  for (std::size_t v = voices; v < inst.copies.size(); v++) {
+    for (pObject* object : inst.copies[v]) {
+      object->UnwireFromPeers();
+      LeaveSignalBus(object);
+      retiring.push_back({object, 0, inst.idGen});
+    }
+  }
+  for (std::size_t v = voices; v < inst.roots.size(); v++) {
+    retiring.push_back({inst.roots[v], 0, inst.idGen});
+  }
+  if (inst.copies.size() > voices) inst.copies.resize(voices);
+  if (inst.roots.size() > voices) inst.roots.resize(voices);
+}
+
+void patcherImplementation::BuildPolyInstanceUnlocked(polyInstance& inst,
+                                                      const std::vector<pObject*>& tmpl,
+                                                      int voices) {
+  // Caller holds mtx. Each copy is made the way a load makes an object —
+  // created from the registry, given the template's parameters and saved
+  // state, parented, numbered — then wired to the other copies of its voice
+  // the way the template is wired. Nothing is published yet. Voices the
+  // instance already has are kept: only the ones after them are made.
+  auto* host = static_cast<dPoly*>(inst.host);
+  std::unordered_map<const pObject*, pObject*> copyOf;
+  copyOf.reserve(tmpl.size());
+  for (int v = static_cast<int>(inst.roots.size()); v < voices; v++) {
+    auto* root = new polyVoice(host, v + 1);
+    root->SetParent(this);
+    inst.roots.push_back(root);
+    inst.copies.emplace_back();
+    std::vector<pObject*>& copies = inst.copies.back();
+    copies.reserve(tmpl.size());
+    copyOf.clear();
+    for (pObject* object : tmpl) {
+      std::unique_ptr<pObject> staged(NewObjectUnlocked(object->Type()));
+      if (staged == nullptr) continue;
+      try {
+        staged->SetParams(object->GetParams());
+      } catch (...) {
+        continue;
+      }
+      pObject* copy = staged.release();
+      // The template's number, so the copies sort where it would (the
+      // emitters' flush order); copies are never saved or looked up by it.
+      copy->SetStorageID(static_cast<int>(object->GetID()));
+      copy->SetParent(this);
+      nlohmann::json state;
+      if (object->DumpState(state) && !state.is_null()) copy->RestoreState(state);
+      auto container = copyOf.find(object->Container());
+      copy->SetContainer(container != copyOf.end() ? container->second : root);
+      AssignGraphIds(copy);
+      copyOf.emplace(object, copy);
+      copies.push_back(copy);
+    }
+    for (pObject* object : tmpl) {
+      auto from = copyOf.find(object);
+      if (from == copyOf.end()) continue;
+      for (int o = 0; o < object->NumOutputs(); o++) {
+        const PATCHER::outlet* out = object->GetOutlet(o);
+        PATCHER::outlet* copyOut = from->second->GetOutlet(o);
+        if (out == nullptr || copyOut == nullptr) continue;
+        for (PATCHER::inlet* in : out->Targets()) {
+          auto to = copyOf.find(in->Owner());
+          if (to == copyOf.end()) continue;
+          const int pin = in->GetPosition();
+          PATCHER::inlet* copyIn = to->second->GetInlet(pin);
+          if (copyIn == nullptr) continue;
+          if (to->second->ConnectInlet(copyOut, pin)) from->second->ConnectOutlet(copyIn, o);
+        }
+      }
+    }
+    for (pObject* copy : copies) {
+      copy->JoinVoice(root);
+    }
+    createdVoiceObjects_.insert(createdVoiceObjects_.end(), copies.begin(), copies.end());
+  }
+}
+
+void patcherImplementation::SyncPolyVoicesUnlocked(std::vector<RetiredObject>& retiring) {
+  // Caller holds mtx (issue #1040). Linear in the objects inside the ~poly
+  // objects, on the control thread beside a graph rebuild that is linear
+  // anyway; the copies are rebuilt only when their ~poly or what it holds
+  // changed.
+  createdVoiceObjects_.clear();
+  std::vector<pObject*> hosts;
+  for (const auto& any : objects) {
+    if (IsPolyHost(any.second)) hosts.push_back(any.second);
+  }
+  if (hosts.empty() && polyInstances_.empty()) return;
+  std::sort(hosts.begin(), hosts.end(),
+            [](pObject* a, pObject* b) { return a->GetID() < b->GetID(); });
+
+  std::uint64_t generation = 0;
+  {
+    std::scoped_lock rlk(reclaimMtx_);
+    generation = idGeneration_;
+  }
+  std::vector<polyInstance> kept;
+  std::vector<pObject*> tmpl;
+  for (pObject* host : hosts) {
+    CollectTemplate(host, tmpl);
+    auto* poly = static_cast<dPoly*>(host);
+    const int voices = poly->WantedVoices();
+    std::string fingerprint = PolyFingerprint(host, tmpl);
+    auto it = std::find_if(polyInstances_.begin(), polyInstances_.end(),
+                           [host](const polyInstance& inst) { return inst.host == host; });
+    if (it != polyInstances_.end() && it->fingerprint == fingerprint && it->idGen == generation) {
+      // The same contents. A new voice count (the `voices` message, issue
+      // #1294) removes voices from the end or adds new ones after the
+      // others; the voices that stay are untouched, running state and all.
+      const int had = static_cast<int>(it->roots.size());
+      if (voices < had) {
+        TrimPolyInstance(*it, static_cast<std::size_t>(voices), retiring);
+      } else if (voices > had) {
+        poly->ClearVoices(had, voices);
+        BuildPolyInstanceUnlocked(*it, tmpl, voices);
+      }
+      kept.push_back(std::move(*it));
+      polyInstances_.erase(it);
+      continue;
+    }
+    // A rebuilt voice keeps its mute, which is the ~poly's state, not the
+    // copies'.
+    std::vector<bool> muted(static_cast<std::size_t>(voices), false);
+    if (it != polyInstances_.end()) {
+      for (std::size_t v = 0; v < it->roots.size() && v < muted.size(); v++) {
+        muted[v] = static_cast<polyVoice*>(it->roots[v])->Muted();
+      }
+      poly->ClearVoices(static_cast<int>(it->roots.size()), voices);
+      RetirePolyInstance(*it, retiring);
+      polyInstances_.erase(it);
+    }
+    polyInstance inst;
+    inst.host = host;
+    inst.fingerprint = std::move(fingerprint);
+    inst.idGen = generation;
+    BuildPolyInstanceUnlocked(inst, tmpl, voices);
+    for (std::size_t v = 0; v < inst.roots.size(); v++) {
+      static_cast<polyVoice*>(inst.roots[v])->SetMute(muted[v]);
+    }
+    kept.push_back(std::move(inst));
+  }
+  // Whatever is left belongs to a ~poly that is gone.
+  for (polyInstance& gone : polyInstances_) {
+    RetirePolyInstance(gone, retiring);
+  }
+  polyInstances_ = std::move(kept);
 }
 
 void patcherImplementation::RequestSignalBusSync() {
@@ -2795,12 +3214,23 @@ void patcherImplementation::RunSignalBusSync() {
   if (shuttingDown_.load(std::memory_order_acquire)) return;
   const std::scoped_lock lk(mtx);
   bool changed = false;
-  for (const auto& any : objects) {
-    pObject* object = any.second;
+  std::vector<pObject*> all;
+  all.reserve(objects.size());
+  for (const auto& any : objects)
+    all.push_back(any.second);
+  CollectVoiceObjects(all);
+  for (pObject* object : all) {
     if (strcmp(object->Type(), YSE::OBJ::D_SEND) == 0) {
       changed = static_cast<dSend*>(object)->ApplySet() || changed;
     } else if (strcmp(object->Type(), YSE::OBJ::D_RECEIVE) == 0) {
       changed = static_cast<dReceive*>(object)->ApplySet() || changed;
+    }
+  }
+  // A ~poly's `voices` message (issue #1294) asks for this sync too: a count
+  // that differs from the voices it has is a rebuild.
+  for (const polyInstance& inst : polyInstances_) {
+    if (static_cast<dPoly*>(inst.host)->WantedVoices() != static_cast<int>(inst.roots.size())) {
+      changed = true;
     }
   }
   // A new name pairs other objects: order them (BuildRenderOrder).
@@ -2808,6 +3238,10 @@ void patcherImplementation::RunSignalBusSync() {
 }
 
 void patcherImplementation::RebuildAndPublish() {
+  // Every ~poly's voices copy its current contents (issue #1040) before the
+  // graph that renders them is built.
+  std::vector<RetiredObject> voicesRetiring;
+  SyncPolyVoicesUnlocked(voicesRetiring);
   GraphState* next = BuildGraph();
   // Only the control thread writes active_ (under mtx), so a relaxed load of
   // the prior pointer is fine; the audio thread reads it with acquire. The
@@ -2815,9 +3249,25 @@ void patcherImplementation::RebuildAndPublish() {
   // graphReadScope's constructor for the ordering argument it completes.
   const GraphState* old = active_.load(std::memory_order_relaxed);
   active_.store(next, std::memory_order_seq_cst);
+  // Each ~poly learns how many voices the graph now has (issue #1294), after
+  // the publish: an allocator that grew before it could put a note in a
+  // voice no snapshot renders yet.
+  for (const polyInstance& inst : polyInstances_) {
+    static_cast<dPoly*>(inst.host)->PublishVoices(static_cast<int>(inst.roots.size()));
+  }
   if (old != nullptr) {
     std::scoped_lock lk(reclaimMtx_);
     retiredGraphs_.emplace_back(old, audioBlock_.load(std::memory_order_acquire));
+  }
+  if (!voicesRetiring.empty()) {
+    // Tagged after the publish that dropped them, as DeleteObject tags its
+    // objects, so no retired graph outlives a copy it points into.
+    std::scoped_lock lk(reclaimMtx_);
+    const std::uint64_t at = audioBlock_.load(std::memory_order_acquire);
+    for (RetiredObject& r : voicesRetiring) {
+      r.epoch = at;
+      retiredObjects_.push_back(r);
+    }
   }
   ScheduleReclaim();
 }

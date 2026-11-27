@@ -7408,6 +7408,31 @@
     ],
     "requires_midi_device": false
   },
+  ".in": {
+    "category": "ENCAPSULATION",
+    "description": "Inside a ~poly: the messages sent to one of its inlets, as the ~poly routes them to this voice.",
+    "inlets": [],
+    "is_dsp": false,
+    "name": ".in",
+    "outlets": [
+      {
+        "doc": "Whatever the ~poly passes this voice on inlet index.",
+        "index": 0,
+        "label": "message",
+        "range": "",
+        "type": "ANY"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Which inlet of the ~poly this reads, from 0.",
+        "name": "index",
+        "range": "0-15"
+      }
+    ],
+    "requires_midi_device": false
+  },
   ".incdec": {
     "category": "GUI",
     "description": "A stepper over a whole number. 'inc' and 'dec', or a signed step count on the middle inlet, move the value inside a range that clamps or wraps; a number sets it without sending and a bang sends it.",
@@ -8971,11 +8996,18 @@
         "type": "INT"
       },
       {
-        "doc": "The channel's role: 2 master, 1 member, 0 outside the zone. Sent first.",
+        "doc": "The channel's role: 2 master, 1 member, 0 outside the zone. Sent before the channel and the value.",
         "index": 5,
         "label": "role",
         "range": "0-2",
         "type": "INT"
+      },
+      {
+        "doc": "Every channel message in the zone as \"mpeevent <master> <zone> <voice> <channel> <status> <data> [<data>]\", for a ~poly. Sent first.",
+        "index": 6,
+        "label": "mpeevent",
+        "range": "",
+        "type": "LIST"
       }
     ],
     "params": [
@@ -9603,6 +9635,36 @@
     ],
     "requires_midi_device": false
   },
+  ".out": {
+    "category": "ENCAPSULATION",
+    "description": "Inside a ~poly: sends a message out of one of its message outlets, after the voice's number on its last outlet.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "Any message, sent out of the ~poly's message outlet index.",
+        "index": 0,
+        "label": "message",
+        "range": ""
+      }
+    ],
+    "is_dsp": false,
+    "name": ".out",
+    "outlets": [],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Which message outlet of the ~poly this sends from, from 0.",
+        "name": "index",
+        "range": "0-15"
+      }
+    ],
+    "requires_midi_device": false
+  },
   ".outlet": {
     "category": "ENCAPSULATION",
     "description": "A message outlet of the subpatcher it is in. With index N, whatever arrives here leaves the subpatcher through its outlet N.",
@@ -10097,6 +10159,24 @@
       }
     ],
     "requires_midi_device": true
+  },
+  ".polymidiin": {
+    "category": "MIDI",
+    "description": "Inside a ~poly: the MIDI messages its midievent and mpeevent messages give this voice, as byte lists.",
+    "inlets": [],
+    "is_dsp": false,
+    "name": ".polymidiin",
+    "outlets": [
+      {
+        "doc": "Each message as a list of bytes, the status byte with its channel first: \"145 60 100\". Read it with .mpeparse or .midiparse.",
+        "index": 0,
+        "label": "midi",
+        "range": "0-255",
+        "type": "LIST"
+      }
+    ],
+    "params": [],
+    "requires_midi_device": false
   },
   ".polypressure": {
     "category": "MIDI",
@@ -19340,6 +19420,31 @@
     ],
     "requires_midi_device": false
   },
+  "~in": {
+    "category": "ENCAPSULATION",
+    "description": "Inside a ~poly: the signal on one of its inlets, the same in every voice.",
+    "inlets": [],
+    "is_dsp": true,
+    "name": "~in",
+    "outlets": [
+      {
+        "doc": "The ~poly's inlet index, passed on without a copy.",
+        "index": 0,
+        "label": "signal",
+        "range": "",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Which inlet of the ~poly this reads, from 0.",
+        "name": "index",
+        "range": "0-15"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~index": {
     "category": "SAMPLING",
     "description": "Reads a named sample buffer at the sample indexes a signal gives, without interpolation: a fractional index reads the whole sample below it.",
@@ -20828,6 +20933,33 @@
     ],
     "requires_midi_device": false
   },
+  "~out": {
+    "category": "ENCAPSULATION",
+    "description": "Inside a ~poly: a signal the ~poly adds, over every voice, to one of its signal outlets.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER"
+        ],
+        "doc": "This voice's part of the ~poly's signal outlet index.",
+        "index": 0,
+        "label": "signal",
+        "range": ""
+      }
+    ],
+    "is_dsp": true,
+    "name": "~out",
+    "outlets": [],
+    "params": [
+      {
+        "default": "0",
+        "doc": "Which signal outlet of the ~poly this adds to, from 0.",
+        "name": "index",
+        "range": "0-15"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~outlet": {
     "category": "ENCAPSULATION",
     "description": "A signal outlet of the subpatcher it is in. With index N, the signal that arrives here leaves the subpatcher through its outlet N.",
@@ -21587,6 +21719,119 @@
     ],
     "requires_midi_device": false
   },
+  "~playlist": {
+    "category": "SAMPLING",
+    "description": "A list of sound files, each a clip with a selection of its own, played from disk one clip at a time, with speed, looping, pausing, pitch shift and time stretch; reports clips starting, ending and looping. The host draws the list.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "0 stops, 1 and up play that clip from the start of its selection. Also takes 'append <file> [place]', 'remove <clip>', 'clear', 'move <clip> <place>', 'selection [clip] <start> <end>' (0 to 1; without a clip every clip; a clip alone clears its selection), 'selectionms' (the same in ms), 'setclip <clip> <loop|speed|pitchshift|pitchshiftcent|timestretch|quality> [value]' (no value: follow the playlist again), 'next', 'pause', 'resume', 'getcontent', and 'loop', 'speed', 'timestretch', 'pitchshift', 'pitchshiftcent', 'quality', 'loopreport' and 'reportprogress' with a value.",
+        "index": 0,
+        "label": "clips",
+        "range": "0 or higher"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~playlist",
+    "outlets": [
+      {
+        "doc": "File channel 1 of the clip that plays. Silence while stopped or paused, and for a channel the file lacks.",
+        "index": 0,
+        "label": "out 1",
+        "range": "any float",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "File channel 2 of the clip that plays. Silence while stopped or paused, and for a channel the file lacks.",
+        "index": 1,
+        "label": "out 2",
+        "range": "any float",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "The playhead: the number of the clip that plays plus how far into its file it is, so 2.5 is halfway through clip 2. 0 while nothing plays.",
+        "index": 2,
+        "label": "position",
+        "range": "0 or higher",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "'start <clip> <name>' when a clip starts, 'done <clip> <name>' when it reaches its end or 0 stops it (not when another clip takes over, not on pause), 'loopnotify <clip> <name>' when it loops (with loopreport) and 'progress <clip> <0-1>' while it plays (with reportprogress).",
+        "index": 3,
+        "label": "notifications",
+        "range": "list",
+        "type": "LIST"
+      },
+      {
+        "doc": "getcontent's answer: 'clips <count>', then for each clip 'clip <n> <name> <file> <length ms> <start ms> <end ms>' and its own settings as name and value pairs.",
+        "index": 4,
+        "label": "content",
+        "range": "list",
+        "type": "LIST"
+      }
+    ],
+    "params": [
+      {
+        "default": "2",
+        "doc": "The number of signal outlets, each playing the file channel of its number. File channels past the last outlet are not played.",
+        "name": "channelcount",
+        "range": "1 to 64"
+      },
+      {
+        "default": "0",
+        "doc": "1 loops every clip that has no loop setting of its own.",
+        "name": "loop",
+        "range": "0 or 1"
+      },
+      {
+        "default": "1",
+        "doc": "The playback speed of every clip that has none of its own: 1 normal, 2 twice as fast, below 0 backward, 0 holds.",
+        "name": "speed",
+        "range": "any float"
+      },
+      {
+        "default": "0",
+        "doc": "1 keeps the pitch when the speed changes, so the speed only changes the tempo.",
+        "name": "timestretch",
+        "range": "0 or 1"
+      },
+      {
+        "default": "1",
+        "doc": "Shifts the pitch by this ratio, keeping the duration.",
+        "name": "pitchshift",
+        "range": "above 0"
+      },
+      {
+        "default": "0",
+        "doc": "Shifts the pitch by this many cents, on top of pitchshift.",
+        "name": "pitchshiftcent",
+        "range": "any float"
+      },
+      {
+        "default": "0",
+        "doc": "How the pitch is shifted: 0 basic, 1 good, 2 better, 3 best (see ~pitchshift).",
+        "name": "quality",
+        "range": "0 to 3"
+      },
+      {
+        "default": "0",
+        "doc": "1 sends loopnotify each time a clip loops.",
+        "name": "loopreport",
+        "range": "0 or 1"
+      },
+      {
+        "default": "0",
+        "doc": "1 sends progress, how far through its selection the clip is, every 50 ms of play.",
+        "name": "reportprogress",
+        "range": "0 or 1"
+      }
+    ],
+    "requires_midi_device": false
+  },
   "~plot": {
     "category": "ANALYSIS",
     "description": "The data and axes of a 2-D plot of one or more subplots, each set by lists, taken from a signal, or read from a ~buffer, for the host to draw.",
@@ -21743,6 +21988,82 @@
         "doc": "Phase in radians used while no signal is connected to the right inlet.",
         "name": "phase",
         "range": "any float"
+      }
+    ],
+    "requires_midi_device": false
+  },
+  "~poly": {
+    "category": "ENCAPSULATION",
+    "description": "Plays several copies of the subpatch inside it, voices that notes and messages are allocated to; their ~out signals are summed on the outlets.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "A signal for the ~in objects with this index inside, and messages for the .in objects with this index: to the target voice, or routed by note, midinote, setvalue; midievent and mpeevent for .polymidiin. Also target, mute, steal, allnotesoff, list, voices, busymap, mutemap, exclude, bypass.",
+        "index": 0,
+        "label": "in 0",
+        "range": ""
+      }
+    ],
+    "is_dsp": true,
+    "name": "~poly",
+    "outlets": [
+      {
+        "doc": "The sum over every voice of the ~out objects with this index.",
+        "index": 0,
+        "label": "out",
+        "range": "",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "The number of the voice whose .out sends, before the message itself.",
+        "index": 1,
+        "label": "voice",
+        "range": "1-128",
+        "type": "INT"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "A name for the subpatch, for a host to show. The engine does not read it; the contents are placed inside with SetContainer.",
+        "name": "name",
+        "range": ""
+      },
+      {
+        "default": "1",
+        "doc": "How many copies of the subpatch play. Changing it rebuilds them; the voices message changes the count while it plays.",
+        "name": "voices",
+        "range": "1-128"
+      },
+      {
+        "default": "1",
+        "doc": "How many inlets: inlet N is the signal of the ~in N objects and the messages of the .in N objects inside.",
+        "name": "inlets",
+        "range": "0-16"
+      },
+      {
+        "default": "1",
+        "doc": "How many signal outlets: outlet N is the sum over the voices of the ~out N objects inside.",
+        "name": "outlets",
+        "range": "0-16"
+      },
+      {
+        "default": "0",
+        "doc": "How many message outlets, after the signal outlets: what the .out objects inside send. The last outlet always sends the number of the voice that sent.",
+        "name": "messages",
+        "range": "0-16"
+      },
+      {
+        "default": "0",
+        "doc": "0: a note, midinote or midievent note-on with no free voice is dropped. Any other value: it goes to the voice started longest ago. The steal message changes it.",
+        "name": "steal",
+        "range": "0 or non-zero"
       }
     ],
     "requires_midi_device": false
@@ -23127,6 +23448,90 @@
         "doc": "The sound file a bang reports on.",
         "name": "file",
         "range": "file"
+      }
+    ],
+    "requires_midi_device": false
+  },
+  "~sfizz": {
+    "category": "SAMPLING",
+    "description": "Plays an SFZ sampled instrument from keys and velocities or MIDI messages, in stereo: velocity layers, loops, round robin and envelopes as the file describes them, with a voice limit, volume and Scala tunings.",
+    "inlets": [
+      {
+        "accepts": [
+          "FLOAT",
+          "INT",
+          "LIST"
+        ],
+        "doc": "A key number, 0-127, played at the velocity inlet 1 holds: 0 releases the key. A float is truncated; a list is 'key velocity'. Also takes 'read <file.sfz>', 'readagain', 'midievent <status> <data1> [data2]', 'voices <n>', 'volume <dB>', 'base <Hz>', 'ref <key>', 'mid <key>', 'scale <count> <pitches...>' and 'scalename <file.scl>'.",
+        "index": 0,
+        "label": "key",
+        "range": "0-127"
+      },
+      {
+        "accepts": [
+          "FLOAT",
+          "INT"
+        ],
+        "doc": "The velocity of the next key, 0-127: stored, nothing plays. 0 makes the next key a release. A float is truncated.",
+        "index": 1,
+        "label": "velocity",
+        "range": "0-127"
+      }
+    ],
+    "is_dsp": true,
+    "name": "~sfizz",
+    "outlets": [
+      {
+        "doc": "The left channel of the instrument.",
+        "index": 0,
+        "label": "left",
+        "range": "signal",
+        "type": "BUFFER"
+      },
+      {
+        "doc": "The right channel of the instrument.",
+        "index": 1,
+        "label": "right",
+        "range": "signal",
+        "type": "BUFFER"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "doc": "The .sfz file to load when the object is made. May be left out: a first argument that is a number is the voice count.",
+        "name": "filename",
+        "range": "file name"
+      },
+      {
+        "default": "64",
+        "doc": "How many notes sound at once; a further note takes over the oldest released one, else the oldest.",
+        "name": "voices",
+        "range": "1 to 1024"
+      },
+      {
+        "default": "0",
+        "doc": "The output volume in dB: 0 unchanged, -70 near silence.",
+        "name": "volume",
+        "range": "any number"
+      },
+      {
+        "default": "440",
+        "doc": "The frequency, in Hz, of the key ref.",
+        "name": "base",
+        "range": "above 0"
+      },
+      {
+        "default": "69",
+        "doc": "The key that sounds at base Hz.",
+        "name": "ref",
+        "range": "0-127"
+      },
+      {
+        "default": "60",
+        "doc": "The key a scale starts on.",
+        "name": "mid",
+        "range": "0-127"
       }
     ],
     "requires_midi_device": false
@@ -24774,6 +25179,52 @@
         "range": "a maximum delay, two delays, then the gains a, b and c"
       }
     ],
+    "requires_midi_device": false
+  },
+  "~thispoly": {
+    "category": "ENCAPSULATION",
+    "description": "Inside a ~poly: sets the voice busy or free for note allocation, mutes it, and reports its number.",
+    "inlets": [
+      {
+        "accepts": [
+          "BUFFER",
+          "FLOAT",
+          "INT",
+          "BANG",
+          "LIST"
+        ],
+        "doc": "A number: non-zero busy, 0 free; a busy voice gets no note, midinote or midievent note-on. A signal: busy while any sample is non-zero. 'mute 1' / 'mute 0' mutes and unmutes the voice; 'automute 1' mutes it whenever it is not busy. A bang reports the voice count and number.",
+        "index": 0,
+        "label": "busy",
+        "range": ""
+      }
+    ],
+    "is_dsp": true,
+    "name": "~thispoly",
+    "outlets": [
+      {
+        "doc": "The voice number on a bang, from 1; 0 outside a ~poly.",
+        "index": 0,
+        "label": "voice",
+        "range": "0-128",
+        "type": "INT"
+      },
+      {
+        "doc": "1 when the voice is muted, 0 when unmuted, as it changes.",
+        "index": 1,
+        "label": "mute",
+        "range": "0 or 1",
+        "type": "INT"
+      },
+      {
+        "doc": "The ~poly's voice count on a bang; 1 outside a ~poly.",
+        "index": 2,
+        "label": "voices",
+        "range": "1-128",
+        "type": "INT"
+      }
+    ],
+    "params": [],
     "requires_midi_device": false
   },
   "~thresh": {

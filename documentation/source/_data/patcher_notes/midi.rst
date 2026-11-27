@@ -387,8 +387,48 @@ while the patch runs, and is not reported. The member count only changes
 the role reported; nothing is filtered.
 
 Program changes, other controllers, poly pressure and system exclusive are
-not reported here. Wire ``.midiparse`` to the same source to read them. Input
-is read the same way ``.midiparse`` reads it.
+not reported on those outlets. Wire ``.midiparse`` to the same source to read
+them. Input is read the same way ``.midiparse`` reads it.
+
+**The mpeevent outlet**
+
+The rightmost outlet sends every channel message on the zone's master or
+member channels, the configuration message included, for a ``~poly``:
+
+.. code-block:: text
+
+   mpeevent <master> <zone> <voice> <channel> <status> <data> [<data>]
+
+- master: the zone's master channel, 1 or 16.
+- zone: 1 for the lower zone, 2 for the upper.
+- voice: the member channel's place in the zone, from 1. In the lower zone
+  channel 2 is voice 1; in the upper zone channel 15 is. On the master
+  channel it is -1, every voice.
+- channel: 1-16.
+- status and data: the message's bytes as they arrived, the status byte with
+  its channel. A note-off keeps its spelling and a pitch bend both its bytes.
+
+A channel outside the zone sends no event. The event is sent before the
+other outlets. Wire it to a ``~poly`` with ``voices`` set to the member
+count, and read it inside each voice with ``.polymidiin``.
+
+.. patcher-object:: .polymidiin
+
+Works only inside a ``~poly``. It has no inlets: it outputs, in its voice,
+the messages the ``~poly``'s ``midievent`` and ``mpeevent`` messages give that
+voice, as numeric byte lists with the status byte first, such as
+``145 60 100``. Wire it to ``.mpeparse`` or ``.midiparse`` to decode them.
+Outside a ``~poly`` it outputs nothing.
+
+.. code-block:: text
+
+   [.mpeparse] rightmost outlet -> [~poly synth 15 1 1]
+   inside the ~poly:  [.polymidiin] -> [.mpeparse] -> note, bend, pressure ...
+
+With ``mpeevent`` every note arrives in the voice its channel names, so its
+pitch bend, pressure and slide reach only that voice; master-channel messages
+reach every voice. With ``midievent`` a note goes to a free voice and its
+note-off follows it. See ``~poly``.
 
 .. patcher-object:: .noteoff
 

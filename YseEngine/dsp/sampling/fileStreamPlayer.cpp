@@ -681,6 +681,23 @@ void fileStreamPlayer::Render(stream* s, UInt length, bool withPosition) {
     }
   }
 
+  // The loops it made: where the block took it, against the region's start
+  // (backward: its end), in spans (issue #1158).
+  if (withPosition && loops && span > 0.0 && step != 0.0 && s->intent != SS_STOPPED) {
+    const Dbl now = s->file->streamPosition(s->pos);
+    if (step > 0.0) {
+      const Dbl travelled = fold(from) - first + (now - from);
+      if (travelled >= span) wraps = static_cast<UInt>(std::floor(travelled / span));
+    } else {
+      // How far above the start it was, in (0, span]: a stream at the
+      // region's end is a whole span above it.
+      Dbl above = std::fmod(from - first, span);
+      if (above <= 0.0) above += span;
+      const Dbl under = (from - now) - above;
+      if (under > 0.0) wraps = static_cast<UInt>(std::ceil(under / span));
+    }
+  }
+
   const UInt outputs = outs.channels();
   for (UInt k = 0; k < outputs; ++k) {
     UInt source = k;
@@ -706,6 +723,7 @@ void fileStreamPlayer::Render(stream* s, UInt length, bool withPosition) {
 YSE::DSP::buffer& fileStreamPlayer::operator()(UInt length) {
   Take();
   finished = false;
+  wraps = 0;
   length = outs.clear(length);
   if (where.getLength() != length) where.resize(length);
   std::fill(where.getPtr(), where.getPtr() + length, 0.f);

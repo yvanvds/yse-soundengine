@@ -77,8 +77,8 @@ inside with ``SetContainer(object, subpatcher)``:
   other object.
 
 ``SetContainer`` refuses the call, writes a log line and changes nothing when
-the container is not a ``patcher`` (or ``~pfft``, see below) object of this
-patcher, when the object
+the container is not a ``patcher`` (or ``~pfft`` or ``~poly``, see below)
+object of this patcher, when the object
 belongs to another patcher, or when the move would put a subpatcher inside
 itself or inside one of its own subpatchers.
 
@@ -474,6 +474,106 @@ The C++ engine underneath is ``YSE::DSP::stft`` (``dsp/spectral/stft.hpp``),
 usable without a patcher: a frame callback gets each spectrum and may change
 it in place.
 
+Voices: ``~poly``
+-----------------
+
+A ``~poly`` is a container that plays several copies of what is inside it:
+the voices of a polyphonic instrument, or N copies of an effect. What you put
+inside is the definition of one voice and does not run itself; the
+``~poly`` plays ``voices`` copies of it, each with its own state. Inside,
+``.in`` and ``~in`` receive what arrives at the ``~poly``'s inlets, ``~out``
+adds a voice's signal to an outlet, ``.out`` sends a message out, and
+``~thispoly`` says whether the voice is busy.
+
+.. code-block:: cpp
+
+   // ~poly <name> <voices> <inlets> <signal outlets> <message outlets> <steal>
+   YSE::pHandle* synth = patch.CreateObject("~poly", "synth 8 1 1");
+   YSE::pHandle* in    = patch.CreateObject(".in", "0");      // inlet 0's messages
+   YSE::pHandle* parse = patch.CreateObject(".unpack", "0 0");
+   YSE::pHandle* pitch = patch.CreateObject(".mtof");
+   YSE::pHandle* osc   = patch.CreateObject("~sine");
+   YSE::pHandle* level = patch.CreateObject("./", "127.");
+   YSE::pHandle* env   = patch.CreateObject("~adsr", "10 100 0.7 300");
+   YSE::pHandle* amp   = patch.CreateObject("~*");
+   YSE::pHandle* busy  = patch.CreateObject("~thispoly");
+   YSE::pHandle* out   = patch.CreateObject("~out", "0");      // signal outlet 0
+   for (YSE::pHandle* h : {in, parse, pitch, osc, level, env, amp, busy, out})
+     patch.SetContainer(h, synth);
+   patch.Connect(in, 0, parse, 0);       // "pitch velocity"
+   patch.Connect(parse, 0, pitch, 0);
+   patch.Connect(pitch, 0, osc, 0);
+   patch.Connect(parse, 1, level, 0);
+   patch.Connect(level, 0, env, 0);      // the velocity starts the envelope, 0 ends it
+   patch.Connect(osc, 0, amp, 0);
+   patch.Connect(env, 0, amp, 1);
+   patch.Connect(env, 0, busy, 0);       // busy while the envelope sounds
+   patch.Connect(amp, 0, out, 0);
+   patch.Connect(synth, 0, dac, 0);
+
+   synth->SetListData(0, "midinote 60 100");  // to a free voice
+   synth->SetListData(0, "midinote 60 0");    // to the voice playing 60
+
+How it runs
+~~~~~~~~~~~
+
+The patcher makes the copies itself, one per voice, and keeps them out of
+the patch: they are not in ``Objects()``, have no handles, and are not
+saved. Each voice renders in the ``~poly``'s place in the block, one after
+the other, and the ``~out`` signals of all voices are added up. An edit
+inside the ``~poly`` (an object created, deleted, connected or given new
+arguments) rebuilds every voice from the new contents, as a load would, so a
+voice's running state starts over. Changing the ``~poly``'s own arguments
+rebuilds it like any object with pins from its arguments.
+
+Messages are routed rather than broadcast. A message for a voice goes to the
+*target* (``target N``; 0, the default, means every voice). ``note`` and
+``midinote`` choose a voice themselves: the lowest one that is not busy, or,
+with ``steal`` on, the one started longest ago. ``~thispoly`` makes its voice
+busy from a number or from a signal such as an envelope, and a voice that
+has just been given a note counts as busy until the end of the next block,
+so a chord spreads over several voices. ``mute <voice> 1`` stops a voice
+computing until ``mute <voice> 0``; it resumes where it stopped.
+``automute 1`` on a ``~thispoly`` does that by itself: the voice is muted
+while it is not busy and a note unmutes it, so silent voices cost nothing.
+``exclude <voice> 1`` keeps a voice out of ``note`` and ``midinote``, and
+``bypass <voice> 1`` passes the ``~poly``'s input through in its place.
+``busymap`` and ``mutemap`` list every voice's busy and mute state out of a
+message outlet. The full list of messages is in :doc:`objects/subpatchers`.
+
+``voices <n>`` changes the voice count while the patch plays. The voices
+that stay are not rebuilt and play on; new ones are added after them, or the
+last ones removed. The patcher makes the copies on the control side, so the
+message is safe from the audio thread and takes effect shortly after it. It
+is run-time state like ``mute``: a saved patch keeps the ``voices``
+argument. The allocation policy is
+``YSE::DSP::voiceAllocator``, which ``.poly`` uses too and C++ code can use
+without a patcher.
+
+MIDI reaches a voice through ``.polymidiin``, without a cord. ``midievent
+<status> <data> [<data>]`` allocates as ``midinote`` does: a note-on to a free
+voice, its note-off to the voice holding the key. ``mpeevent``, which
+``.mpeparse``'s rightmost outlet sends, names its voice: an MPE controller
+already gives every note a channel of its own, so the note, and its pitch
+bend, pressure and slide, go to the voice that channel stands for, and the
+master channel's messages to every voice. Give the ``~poly`` as many voices
+as the zone has member channels. See :doc:`midi`.
+
+The boundary
+~~~~~~~~~~~~
+
+No cord crosses a ``~poly``: ``Connect`` refuses one between an object inside
+and one outside. Signals go in through the ``~poly``'s inlets and ``~in``,
+and out through ``~out`` and its outlets; messages through ``.in`` and
+``.out``. Inlet N serves both ``~in N`` and ``.in N``. The outlets are the
+signal outlets first, then the message outlets, then one that sends the
+number of the voice whose ``.out`` speaks, just before the message.
+
+A ``patcher`` or a ``~pfft`` inside a voice is copied with it. A ``~poly``
+cannot be put inside another ``~poly`` or a ``~pfft``. A ``~dac`` or
+``~adc`` inside a voice does nothing. Names are not local: a ``.r`` inside
+receives in every voice. A loaded patch fires each voice's ``.loadbang``.
+
 Where to go next
 ----------------
 
@@ -481,7 +581,8 @@ Where to go next
   are published.
 - :doc:`file_format`: how subpatchers are saved.
 - :doc:`objects/subpatchers`: the reference for ``patcher``, ``.inlet``,
-  ``.outlet``, ``~inlet``, ``~outlet``, ``~mute``, ``~pass`` and ``~begin``.
+  ``.outlet``, ``~inlet``, ``~outlet``, ``~mute``, ``~pass``, ``~begin``,
+  ``~poly``, ``.in``, ``.out``, ``~in``, ``~out`` and ``~thispoly``.
 - :doc:`objects/spectral`: the reference for ``~pfft``, ``~fftin``,
   ``~fftout`` and ``~fftinfo``.
 - :doc:`host_io`: send/receive and the named bus, and how names are scoped.

@@ -83,6 +83,7 @@
 #include "genericObjects/dInlet.h"
 #include "genericObjects/dOutlet.h"
 #include "genericObjects/pMute.h"
+#include "genericObjects/dPoly.h"
 #include "genericObjects/pDspStatus.h"
 #include "genericObjects/pPass.h"
 #include "genericObjects/pBegin.h"
@@ -201,6 +202,8 @@
 #include "sampling/dSfplay.h"
 #include "sampling/dSflist.h"
 #include "sampling/dSfrecord.h"
+#include "sampling/dPlaylist.h"
+#include "sampling/dSfizz.h"
 #include "sampling/dRecord.h"
 #include "sampling/dPlay.h"
 #include "sampling/dGroove.h"
@@ -559,6 +562,8 @@ pRegistry::pRegistry() {
   Add(OBJ::D_SFPLAY, dSfplay::Create);
   Add(OBJ::D_SFLIST, dSflist::Create);
   Add(OBJ::D_SFRECORD, dSfrecord::Create);
+  Add(OBJ::D_PLAYLIST, dPlaylist::Create);
+  Add(OBJ::D_SFIZZ, dSfizz::Create);
   Add(OBJ::D_GATE, dGate::Create);
   Add(OBJ::D_SELECTOR, dSelector::Create);
   Add(OBJ::D_MATRIX, dMatrix::Create);
@@ -1125,6 +1130,13 @@ pRegistry::pRegistry() {
   Add(OBJ::D_MUTE, pMute::Create);
   Add(OBJ::D_PASS, pPass::Create);
   Add(OBJ::D_BEGIN, pBegin::Create);
+  // Voice instancing (issue #1040).
+  Add(OBJ::D_POLY, dPoly::Create);
+  Add(OBJ::G_VOICE_IN, gVoiceIn::Create);
+  Add(OBJ::G_VOICE_OUT, gVoiceOut::Create);
+  Add(OBJ::D_VOICE_IN, dVoiceIn::Create);
+  Add(OBJ::D_VOICE_OUT, dVoiceOut::Create);
+  Add(OBJ::D_THISPOLY, dThisPoly::Create);
 
   // A sparse function: x,y pairs kept sorted by x, with a floor lookup and
   // linear interpolation between the stored points — the store behind every
@@ -1555,12 +1567,12 @@ pRegistry::pRegistry() {
   // sounding note, so that bend, pressure and controller 74 become per-note —
   // which is why all three of these are ordinary formatters and decoders rather
   // than anything that needs a backend. `.polymidiin`, the fourth object issue
-  // #535 names, is not here: in Max it lives inside a `poly~` and receives that
-  // object's `mpeevent` routing, and this patcher has no `poly~` for it to live
-  // in.
+  // #535 names, waited for `~poly` (#1040): it lives inside a voice and outputs
+  // what the ~poly's `midievent` / `mpeevent` routing gives that voice (#756).
   Add(OBJ::M_MPECONFIG, mMpeConfig::Create);
   Add(OBJ::M_MPEFORMAT, mMpeFormat::Create);
   Add(OBJ::M_MPEPARSE, mMpeParse::Create);
+  Add(OBJ::M_POLYMIDIIN, mPolyMidiIn::Create);
 
 #if YSE_ENABLE_MIDI_DEVICE
   // The one sender that holds a device port, so the one that stays guarded.

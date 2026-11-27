@@ -166,6 +166,8 @@ set(YSE_SRCS
   dsp/sampling/sampleBuffer.cpp
   dsp/sampling/sampleBufferSet.cpp
   dsp/sampling/fileStreamPlayer.cpp
+  dsp/sampling/filePlaylist.cpp
+  dsp/sampling/sfzSampler.cpp
   dsp/sampling/fileRecorder.cpp
   dsp/sampling/sampleAccess.cpp
   dsp/sampling/tableLookup.cpp
@@ -182,6 +184,7 @@ set(YSE_SRCS
   dsp/routing/signalSelector.cpp
   dsp/routing/mixMatrix.cpp
   dsp/routing/signalBus.cpp
+  dsp/routing/voiceAllocator.cpp
   dsp/spectral/streamingFft.cpp
   dsp/spectral/stft.cpp
   dsp/spectral/vectral.cpp
@@ -269,6 +272,8 @@ set(YSE_SRCS
   patcher/sampling/dPolybuffer.cpp
   patcher/sampling/dSfplay.cpp
   patcher/sampling/dSflist.cpp
+  patcher/sampling/dPlaylist.cpp
+  patcher/sampling/dSfizz.cpp
   patcher/sampling/dSfrecord.cpp
   patcher/sampling/dInfo.cpp
   patcher/sampling/dPeek.cpp
@@ -484,6 +489,7 @@ set(YSE_SRCS
   patcher/genericObjects/pDspStatus.cpp
   patcher/genericObjects/pLine.cpp
   patcher/genericObjects/pMute.cpp
+  patcher/genericObjects/dPoly.cpp
   patcher/genericObjects/pPass.cpp
   patcher/guiObjects/gButton.cpp
   patcher/guiObjects/gDial.cpp
@@ -804,6 +810,8 @@ set_source_files_properties(
   patcher/sampling/dPolybuffer.cpp
   patcher/sampling/dSfplay.cpp
   patcher/sampling/dSflist.cpp
+  patcher/sampling/dPlaylist.cpp
+  patcher/sampling/dSfizz.cpp
   patcher/sampling/dSfrecord.cpp
   patcher/sampling/dInfo.cpp
   patcher/sampling/dPeek.cpp
@@ -1007,6 +1015,7 @@ set_source_files_properties(
   patcher/genericObjects/pDspStatus.cpp
   patcher/genericObjects/pLine.cpp
   patcher/genericObjects/pMute.cpp
+  patcher/genericObjects/dPoly.cpp
   patcher/genericObjects/pPass.cpp
   patcher/guiObjects/gButton.cpp
   patcher/guiObjects/gDial.cpp
