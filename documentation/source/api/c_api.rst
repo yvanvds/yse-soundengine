@@ -251,6 +251,28 @@ writes as many whole entries as your array holds, so you can call it with
    yse_dsp_filter_design_get_coefficients(d, c, n);
    yse_dsp_biquad_cascade_set_coefficients(cascade, c, n);
 
+The oscillators, noise generators and phase shapers in
+``yse_dsp_oscillators.h``
+(`#1297 <https://github.com/yvanvds/yse-soundengine/issues/1297>`_) follow the
+same rules. A generator has no audio input, so its process function takes only
+an output array and the settings it reads as numbers. ``_process_signal``
+variants read every setting per sample from your arrays instead. The noise
+generators take a seed, so a render can be repeated exactly:
+
+.. code-block:: c
+
+   YseDspProcessor* saw = yse_dsp_bl_saw_create();
+   yse_dsp_bl_saw_process(saw, 220.0f, out, 512);
+   YseDspProcessor* pink = yse_dsp_pink_noise_create();
+   yse_dsp_pink_noise_seed(pink, 42u);
+   yse_dsp_pink_noise_process(pink, noise, 512);
+
+A few outputs that the engine keeps per 128-sample block cross as optional
+second arrays that cover the whole call. The ``pulseTrain`` onsets are 1 at
+each onset sample, and the ``sampleCounter`` carry is the wrap count. Pass
+``NULL`` when you don't need them. ``yse_dsp_cycle_set_table`` borrows your
+array instead of copying it, so the array must outlive the table.
+
 Errors
 ~~~~~~
 
@@ -610,6 +632,9 @@ DSP and patcher
    :project: libYSE
 
 .. doxygenfile:: c_api/include/yse_c/yse_dsp_filter_design.h
+   :project: libYSE
+
+.. doxygenfile:: c_api/include/yse_c/yse_dsp_oscillators.h
    :project: libYSE
 
 .. doxygenfile:: c_api/include/yse_c/yse_patcher.h

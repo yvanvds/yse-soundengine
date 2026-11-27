@@ -166,5 +166,16 @@ namespace yse_c {
       }
     }
 
+    // Run `body(handle, offset, count)` over `length` samples in engine
+    // blocks. Returns the samples processed: `length`, or 0 if `p` is not an
+    // H. Shared by every category file that processes samples.
+    template <typename H, typename F>
+    unsigned int drive(YseDspProcessor* p, unsigned int length, F&& body) {
+      H* h = get<H>(p);
+      if (h == nullptr) return 0;
+      blocks(length, [&](unsigned offset, unsigned count) { body(*h, offset, count); });
+      return length;
+    }
+
   } // namespace processor
 } // namespace yse_c

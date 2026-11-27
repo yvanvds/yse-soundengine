@@ -4,7 +4,7 @@
   C ABI home of YseDspProcessor, the handle every wrapped YSE::DSP processing
   class of the MSP port (#1034, wrapped by #1173) crosses the ABI as. The
   classes themselves are declared by category: yse_dsp_filters.h,
-  yse_dsp_filter_design.h, ...
+  yse_dsp_filter_design.h, yse_dsp_oscillators.h, ...
 
   A processor is a standalone signal-processing object, not an effect: it is
   not attached to a sound or channel and the engine never runs it. The host

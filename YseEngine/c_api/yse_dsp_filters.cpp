@@ -19,10 +19,9 @@
 
 namespace {
   namespace DSP = YSE::DSP;
-  using yse_c::processor::blocks;
   using yse_c::processor::copy_set;
+  using yse_c::processor::drive;
   using yse_c::processor::emit;
-  using yse_c::processor::get;
   using yse_c::processor::handle;
   using yse_c::processor::make;
   using yse_c::processor::object;
@@ -45,16 +44,6 @@ namespace {
   using Slide = handle<DSP::slide, 3>;
   using RampSmooth = handle<DSP::rampSmooth, 3>;
   using SlewLimiter = handle<DSP::slewLimiter, 3>;
-
-  // Run `body(handle, offset, count)` over `length` samples in engine blocks.
-  // Returns the samples processed: `length`, or 0 if `p` is not an H.
-  template <typename H, typename F>
-  unsigned int drive(YseDspProcessor* p, unsigned int length, F&& body) {
-    H* h = get<H>(p);
-    if (h == nullptr) return 0;
-    blocks(length, [&](unsigned offset, unsigned count) { body(*h, offset, count); });
-    return length;
-  }
 
   // The common one-in, one-out block call at the current settings.
   template <typename H>
