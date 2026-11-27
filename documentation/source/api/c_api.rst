@@ -329,6 +329,24 @@ The clock bytes go into an array of ``YseDspClockByte`` that you pass in:
    yse_dsp_clock_follower_process(follower, out, clock, 64, 512);
    unsigned int sent = yse_dsp_clock_follower_get_clock_bytes(follower);
 
+The signal operators in ``yse_dsp_operators.h``
+(`#1300 <https://github.com/yvanvds/yse-soundengine/issues/1300>`_) cover
+arithmetic the buffer operators leave out (reversed subtraction and division,
+remainder), bit manipulation, comparison, minimum and maximum, rounding,
+folding and scaling, trigonometry, polar conversion, unit conversion and the
+lo-fi effects (bitcrusher, downsampler, overdrive). A binary operator's
+``_process`` call takes its right operand as one number and its
+``_process_signal`` call as an array. The stateless operators also have a
+handle-free ``_value`` call that takes every setting as an argument:
+
+.. code-block:: c
+
+   YseDspProcessor* gate = yse_dsp_compare_create(YSE_DSP_COMPARE_GREATER);
+   yse_dsp_compare_process(gate, in, 0.5f, out, 512);
+
+   float db = yse_dsp_amp_to_db_value(0.5f); /* about -6 */
+   float y = yse_dsp_scale_value(x, 0.f, 1.f, 20.f, 20000.f, 3.f, YSE_DSP_SCALE_MODERN);
+
 Errors
 ~~~~~~
 
@@ -697,6 +715,9 @@ DSP and patcher
    :project: libYSE
 
 .. doxygenfile:: c_api/include/yse_c/yse_dsp_phasor_toolkit.h
+   :project: libYSE
+
+.. doxygenfile:: c_api/include/yse_c/yse_dsp_operators.h
    :project: libYSE
 
 .. doxygenfile:: c_api/include/yse_c/yse_patcher.h

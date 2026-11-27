@@ -33,6 +33,11 @@
 #include "../dsp/generators/stepFunction.hpp"
 #include "../dsp/generators/triggeredRamp.hpp"
 #include "../dsp/generators/zigzag.hpp"
+#include "../dsp/operators/bitwise.hpp"
+#include "../dsp/operators/compare.hpp"
+#include "../dsp/operators/fold.hpp"
+#include "../dsp/operators/scale.hpp"
+#include "../dsp/operators/trig.hpp"
 #include "../patcher/pEnums.h"
 #include "../synth/positionHandler.hpp"
 #include "../synth/positionHandlers.hpp"
@@ -371,6 +376,46 @@ namespace {
   YSE_ASSERT_ENUM(YSE_DSP_SNOWFALL_CURRENT_VALUE, YSE::DSP::snowfall::CURRENT_VALUE);
   YSE_ASSERT_ENUM(YSE_DSP_SNOWFALL_START_INITIAL, YSE::DSP::snowfall::INITIAL);
   YSE_ASSERT_ENUM(YSE_DSP_SNOWFALL_START_CURRENT, YSE::DSP::snowfall::CURRENT);
+
+  // The #1300 operator enums. None of the engine enums has a count, so each
+  // value is asserted and the last one pinned.
+  // YseDspBitMode <-> BIT_MODE
+  YSE_ASSERT_ENUM(YSE_DSP_BIT_RAW, YSE::DSP::BIT_MODE::RAW);
+  YSE_ASSERT_ENUM(YSE_DSP_BIT_INTEGER, YSE::DSP::BIT_MODE::INTEGER);
+  YSE_ASSERT_ENUM(YSE_DSP_BIT_RAW_INTEGER, YSE::DSP::BIT_MODE::RAW_INTEGER);
+  YSE_ASSERT_ENUM(YSE_DSP_BIT_INTEGER_RAW, YSE::DSP::BIT_MODE::INTEGER_RAW);
+  // YseDspBitwiseOp <-> bitwise::OP
+  YSE_ASSERT_ENUM(YSE_DSP_BITWISE_AND, YSE::DSP::bitwise::OP::AND);
+  YSE_ASSERT_ENUM(YSE_DSP_BITWISE_OR, YSE::DSP::bitwise::OP::OR);
+  YSE_ASSERT_ENUM(YSE_DSP_BITWISE_XOR, YSE::DSP::bitwise::OP::XOR);
+  // YseDspCompareOp <-> compare::OP
+  YSE_ASSERT_ENUM(YSE_DSP_COMPARE_EQUAL, YSE::DSP::compare::OP::EQUAL);
+  YSE_ASSERT_ENUM(YSE_DSP_COMPARE_NOT_EQUAL, YSE::DSP::compare::OP::NOT_EQUAL);
+  YSE_ASSERT_ENUM(YSE_DSP_COMPARE_GREATER, YSE::DSP::compare::OP::GREATER);
+  YSE_ASSERT_ENUM(YSE_DSP_COMPARE_GREATER_EQUAL, YSE::DSP::compare::OP::GREATER_EQUAL);
+  YSE_ASSERT_ENUM(YSE_DSP_COMPARE_LESS, YSE::DSP::compare::OP::LESS);
+  YSE_ASSERT_ENUM(YSE_DSP_COMPARE_LESS_EQUAL, YSE::DSP::compare::OP::LESS_EQUAL);
+  // YseDspFoldMode <-> fold::MODE
+  YSE_ASSERT_ENUM(YSE_DSP_FOLD_MODE_FOLD, YSE::DSP::fold::MODE::FOLD);
+  YSE_ASSERT_ENUM(YSE_DSP_FOLD_MODE_WRAP, YSE::DSP::fold::MODE::WRAP);
+  YSE_ASSERT_ENUM(YSE_DSP_FOLD_MODE_CLIP, YSE::DSP::fold::MODE::CLIP);
+  // YseDspScaleMode <-> scale::MODE
+  YSE_ASSERT_ENUM(YSE_DSP_SCALE_MODERN, YSE::DSP::scale::MODE::MODERN);
+  YSE_ASSERT_ENUM(YSE_DSP_SCALE_CLASSIC, YSE::DSP::scale::MODE::CLASSIC);
+  YSE_ASSERT_ENUM(YSE_DSP_SCALE_MODERN_INVERSE, YSE::DSP::scale::MODE::MODERN_INVERSE);
+  // YseDspTrigFunction <-> trig::FN
+  YSE_ASSERT_ENUM(YSE_DSP_TRIG_COS, YSE::DSP::trig::FN::COS);
+  YSE_ASSERT_ENUM(YSE_DSP_TRIG_SIN, YSE::DSP::trig::FN::SIN);
+  YSE_ASSERT_ENUM(YSE_DSP_TRIG_TAN, YSE::DSP::trig::FN::TAN);
+  YSE_ASSERT_ENUM(YSE_DSP_TRIG_ACOS, YSE::DSP::trig::FN::ACOS);
+  YSE_ASSERT_ENUM(YSE_DSP_TRIG_ASIN, YSE::DSP::trig::FN::ASIN);
+  YSE_ASSERT_ENUM(YSE_DSP_TRIG_ATAN, YSE::DSP::trig::FN::ATAN);
+  YSE_ASSERT_ENUM(YSE_DSP_TRIG_COSH, YSE::DSP::trig::FN::COSH);
+  YSE_ASSERT_ENUM(YSE_DSP_TRIG_SINH, YSE::DSP::trig::FN::SINH);
+  YSE_ASSERT_ENUM(YSE_DSP_TRIG_TANH, YSE::DSP::trig::FN::TANH);
+  YSE_ASSERT_ENUM(YSE_DSP_TRIG_ACOSH, YSE::DSP::trig::FN::ACOSH);
+  YSE_ASSERT_ENUM(YSE_DSP_TRIG_ASINH, YSE::DSP::trig::FN::ASINH);
+  YSE_ASSERT_ENUM(YSE_DSP_TRIG_ATANH, YSE::DSP::trig::FN::ATANH);
 
 #undef YSE_ASSERT_ENUM_COUNT
 #undef YSE_ASSERT_ENUM

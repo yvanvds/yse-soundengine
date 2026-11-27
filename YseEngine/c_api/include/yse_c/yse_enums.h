@@ -360,6 +360,68 @@ typedef enum YseDspSnowfallStart {
   YSE_DSP_SNOWFALL_START_CURRENT = 1 /**< Where the last particle left. */
 } YseDspSnowfallStart;
 
+/** Mirrors YSE::DSP::BIT_MODE (operators/bitwise.hpp) — how the bitwise
+   operators read a float sample as 32 bits (issue #1300). The first word is
+   the left operand, the second the right one. */
+typedef enum YseDspBitMode {
+  YSE_DSP_BIT_RAW = 0, /**< Both operands as their float bit pattern (the default). */
+  YSE_DSP_BIT_INTEGER = 1, /**< Both operands converted to 32-bit integers. */
+  YSE_DSP_BIT_RAW_INTEGER = 2, /**< The left operand raw, the right one an integer. */
+  YSE_DSP_BIT_INTEGER_RAW = 3 /**< The left operand an integer, the right one raw. */
+} YseDspBitMode;
+
+/** Mirrors YSE::DSP::bitwise::OP (operators/bitwise.hpp) — the bitwise
+   operation (issue #1300). */
+typedef enum YseDspBitwiseOp {
+  YSE_DSP_BITWISE_AND = 0, /**< 1 where both operands have a 1 (the default). */
+  YSE_DSP_BITWISE_OR = 1, /**< 1 where either operand has a 1. */
+  YSE_DSP_BITWISE_XOR = 2 /**< 1 where exactly one operand has a 1. */
+} YseDspBitwiseOp;
+
+/** Mirrors YSE::DSP::compare::OP (operators/compare.hpp) — the comparison
+   applied as `in OP right` (issue #1300). */
+typedef enum YseDspCompareOp {
+  YSE_DSP_COMPARE_EQUAL = 0, /**< in == right (the default). */
+  YSE_DSP_COMPARE_NOT_EQUAL = 1, /**< in != right. */
+  YSE_DSP_COMPARE_GREATER = 2, /**< in > right. */
+  YSE_DSP_COMPARE_GREATER_EQUAL = 3, /**< in >= right. */
+  YSE_DSP_COMPARE_LESS = 4, /**< in < right. */
+  YSE_DSP_COMPARE_LESS_EQUAL = 5 /**< in <= right. */
+} YseDspCompareOp;
+
+/** Mirrors YSE::DSP::fold::MODE (operators/fold.hpp) — what happens to a
+   sample outside the range (issue #1300). */
+typedef enum YseDspFoldMode {
+  YSE_DSP_FOLD_MODE_FOLD = 0, /**< Reflected back from the limits (the default). */
+  YSE_DSP_FOLD_MODE_WRAP = 1, /**< Carried around to the other side. */
+  YSE_DSP_FOLD_MODE_CLIP = 2 /**< Pinned to the nearest limit. */
+} YseDspFoldMode;
+
+/** Mirrors YSE::DSP::scale::MODE (operators/scale.hpp) — the mapping formula
+   (issue #1300). */
+typedef enum YseDspScaleMode {
+  YSE_DSP_SCALE_MODERN = 0, /**< A power curve on the normalized input (the default). */
+  YSE_DSP_SCALE_CLASSIC = 1, /**< The legacy "linedrive" formula. */
+  YSE_DSP_SCALE_MODERN_INVERSE = 2 /**< MODERN, inverted for a downward output range. */
+} YseDspScaleMode;
+
+/** Mirrors YSE::DSP::trig::FN (operators/trig.hpp) — the function applied
+   to each sample, angles in radians (issue #1300). */
+typedef enum YseDspTrigFunction {
+  YSE_DSP_TRIG_COS = 0, /**< Cosine (the default). */
+  YSE_DSP_TRIG_SIN = 1, /**< Sine. */
+  YSE_DSP_TRIG_TAN = 2, /**< Tangent. */
+  YSE_DSP_TRIG_ACOS = 3, /**< Arc-cosine, input clamped to -1 .. 1. */
+  YSE_DSP_TRIG_ASIN = 4, /**< Arc-sine, input clamped to -1 .. 1. */
+  YSE_DSP_TRIG_ATAN = 5, /**< Arc-tangent. */
+  YSE_DSP_TRIG_COSH = 6, /**< Hyperbolic cosine, input clamped to -88 .. 88. */
+  YSE_DSP_TRIG_SINH = 7, /**< Hyperbolic sine, input clamped to -88 .. 88. */
+  YSE_DSP_TRIG_TANH = 8, /**< Hyperbolic tangent. */
+  YSE_DSP_TRIG_ACOSH = 9, /**< Hyperbolic arc-cosine, input clamped to 1 and above. */
+  YSE_DSP_TRIG_ASINH = 10, /**< Hyperbolic arc-sine. */
+  YSE_DSP_TRIG_ATANH = 11 /**< Hyperbolic arc-tangent, input clamped inside -1 .. 1. */
+} YseDspTrigFunction;
+
 /** Mirrors YSE::DSP::MODULES::compressorDetector (compressor.hpp) — the
    level-detector mode. */
 typedef enum YseCompressorDetector {
