@@ -120,6 +120,7 @@ set(YSE_TEST_SOURCES
   dsp/test_one_pole.cpp
   dsp/test_lores.cpp
   dsp/test_c_api_dsp_filters.cpp
+  dsp/test_c_api_dsp_filter_design.cpp
   dsp/test_reson.cpp
   dsp/test_state_variable_filter.cpp
   dsp/test_biquad_coefficients.cpp

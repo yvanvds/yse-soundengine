@@ -19,6 +19,7 @@
 #include "yse_dsp_modules.h"
 #include "yse_dsp_processor.h"
 #include "yse_dsp_filters.h"
+#include "yse_dsp_filter_design.h"
 #include "yse_patcher.h"
 #include "yse_midi.h"
 #include "yse_clip.h"

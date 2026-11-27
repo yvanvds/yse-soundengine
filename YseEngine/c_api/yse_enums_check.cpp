@@ -19,6 +19,8 @@
 #include "../dsp/filters/onePole.hpp"
 #include "../dsp/filters/stateVariableFilter.hpp"
 #include "../dsp/filters/filterCoefficients.hpp"
+#include "../dsp/filters/filterDesign.hpp"
+#include "../dsp/filters/filterBands.hpp"
 #include "../patcher/pEnums.h"
 #include "../synth/positionHandler.hpp"
 #include "../synth/positionHandlers.hpp"
@@ -233,6 +235,34 @@ namespace {
   YSE_ASSERT_ENUM(YSE_DSP_FILTER_GAINRESONANT, YSE::DSP::filterCoefficients::GAINRESONANT);
   YSE_ASSERT_ENUM(YSE_DSP_FILTER_GAINAPASS, YSE::DSP::filterCoefficients::GAINAPASS);
   YSE_ASSERT_ENUM(YSE_DSP_FILTER_TYPE_COUNT, YSE::DSP::filterCoefficients::TYPE_COUNT);
+
+  // YseDspDesignResponse / Topology / Units <-> filterDesign enums (#1296).
+  // The engine enums are enum class without a count, so the last value is
+  // pinned and a value appended there is caught by review, not by the build.
+  YSE_ASSERT_ENUM(YSE_DSP_DESIGN_LOWPASS, YSE::DSP::filterDesign::RESPONSE::LOWPASS);
+  YSE_ASSERT_ENUM(YSE_DSP_DESIGN_HIGHPASS, YSE::DSP::filterDesign::RESPONSE::HIGHPASS);
+  YSE_ASSERT_ENUM(YSE_DSP_DESIGN_BANDPASS, YSE::DSP::filterDesign::RESPONSE::BANDPASS);
+  YSE_ASSERT_ENUM(YSE_DSP_DESIGN_BANDSTOP, YSE::DSP::filterDesign::RESPONSE::BANDSTOP);
+  YSE_ASSERT_ENUM(YSE_DSP_DESIGN_BUTTERWORTH, YSE::DSP::filterDesign::TOPOLOGY::BUTTERWORTH);
+  YSE_ASSERT_ENUM(YSE_DSP_DESIGN_CHEBYSHEV_1, YSE::DSP::filterDesign::TOPOLOGY::CHEBYSHEV_1);
+  YSE_ASSERT_ENUM(YSE_DSP_DESIGN_CHEBYSHEV_2, YSE::DSP::filterDesign::TOPOLOGY::CHEBYSHEV_2);
+  YSE_ASSERT_ENUM(YSE_DSP_DESIGN_HERTZ, YSE::DSP::filterDesign::UNITS::HERTZ);
+  YSE_ASSERT_ENUM(YSE_DSP_DESIGN_NORMALIZED, YSE::DSP::filterDesign::UNITS::NORMALIZED);
+  YSE_ASSERT_ENUM(YSE_DSP_DESIGN_RADIANS, YSE::DSP::filterDesign::UNITS::RADIANS);
+
+  // YseDspBandMode <-> filterBands::MODE (#1296)
+  YSE_ASSERT_ENUM(YSE_DSP_BAND_DISPLAY, YSE::DSP::filterBands::DISPLAY);
+  YSE_ASSERT_ENUM(YSE_DSP_BAND_LOWPASS, YSE::DSP::filterBands::LOWPASS);
+  YSE_ASSERT_ENUM(YSE_DSP_BAND_HIGHPASS, YSE::DSP::filterBands::HIGHPASS);
+  YSE_ASSERT_ENUM(YSE_DSP_BAND_BANDPASS, YSE::DSP::filterBands::BANDPASS);
+  YSE_ASSERT_ENUM(YSE_DSP_BAND_BANDSTOP, YSE::DSP::filterBands::BANDSTOP);
+  YSE_ASSERT_ENUM(YSE_DSP_BAND_PEAKNOTCH, YSE::DSP::filterBands::PEAKNOTCH);
+  YSE_ASSERT_ENUM(YSE_DSP_BAND_LOWSHELF, YSE::DSP::filterBands::LOWSHELF);
+  YSE_ASSERT_ENUM(YSE_DSP_BAND_HIGHSHELF, YSE::DSP::filterBands::HIGHSHELF);
+  YSE_ASSERT_ENUM(YSE_DSP_BAND_RESONANT, YSE::DSP::filterBands::RESONANT);
+  YSE_ASSERT_ENUM(YSE_DSP_BAND_ALLPASS, YSE::DSP::filterBands::ALLPASS);
+  YSE_ASSERT_ENUM(YSE_DSP_BAND_MODE_COUNT, YSE::DSP::filterBands::MODE_COUNT);
+  YSE_ASSERT_ENUM_COUNT(YSE::DSP::filterBands::MODE_COUNT, YSE_DSP_BAND_ALLPASS);
 
 #undef YSE_ASSERT_ENUM_COUNT
 #undef YSE_ASSERT_ENUM

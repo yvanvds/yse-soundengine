@@ -25,6 +25,7 @@ set(YSE_C_API_SRCS
   yse_dsp_modules.cpp
   yse_dsp_processor.cpp
   yse_dsp_filters.cpp
+  yse_dsp_filter_design.cpp
   yse_patcher.cpp
   yse_midi.cpp
   yse_clip.cpp

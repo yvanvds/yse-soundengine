@@ -20,12 +20,15 @@
 namespace {
   namespace DSP = YSE::DSP;
   using yse_c::processor::blocks;
+  using yse_c::processor::copy_set;
   using yse_c::processor::emit;
   using yse_c::processor::get;
   using yse_c::processor::handle;
   using yse_c::processor::make;
   using yse_c::processor::object;
+  using yse_c::processor::query;
   using yse_c::processor::stage;
+  using yse_c::processor::with;
 
   // One wrapper type per class; the count is how many host arrays a process
   // call stages (the audio input plus the signal-rate settings).
@@ -42,17 +45,6 @@ namespace {
   using Slide = handle<DSP::slide, 3>;
   using RampSmooth = handle<DSP::rampSmooth, 3>;
   using SlewLimiter = handle<DSP::slewLimiter, 3>;
-
-  // Apply `f` to the engine object if `p` is an H.
-  template <typename H, typename F> void with(YseDspProcessor* p, F&& f) {
-    if (auto* o = object<H>(p)) f(*o);
-  }
-
-  // `f(object)`, or `fallback` if `p` is not an H.
-  template <typename H, typename R, typename F> R query(YseDspProcessor* p, R fallback, F&& f) {
-    auto* o = object<H>(p);
-    return o != nullptr ? static_cast<R>(f(*o)) : fallback;
-  }
 
   // Run `body(handle, offset, count)` over `length` samples in engine blocks.
   // Returns the samples processed: `length`, or 0 if `p` is not an H.
@@ -89,15 +81,6 @@ namespace {
   template <typename H> float process_one(YseDspProcessor* p, float in) {
     auto* o = object<H>(p);
     return o != nullptr ? o->process(in) : 0.f;
-  }
-
-  int copy_set(const DSP::biQuad::coefficientSet& c, float* out) {
-    out[0] = c.a0;
-    out[1] = c.a1;
-    out[2] = c.a2;
-    out[3] = c.b1;
-    out[4] = c.b2;
-    return 1;
   }
 
   // Clamp a C enum to an engine FREQUENCY_MODE; out of range keeps the mode.

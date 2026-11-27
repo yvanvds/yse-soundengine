@@ -25,6 +25,13 @@
   allocates (buffer::resize, #1035). So every process entry point is
   allocation-free, lock-free and never touches the last-error slot: it is safe
   to call from a host's own audio callback.
+
+  Not every wrapped class processes samples. The filter-design toolkit (#1296:
+  filterDesign, filterResponse, filterBands, zPlane) holds a design or an
+  editor's state and hands out lists of coefficients, roots and curves. Its
+  wrappers stage no input (handle<T, 0>) and its getters copy lists out
+  snprintf-style; the same allocation-free rule holds for every call but the
+  constructor.
 */
 
 #pragma once
@@ -72,8 +79,10 @@ namespace yse_c {
         : processorHandle(tag<handle>()), object(std::forward<Args>(args)...) {}
 
       T object;
-      // Inputs == 0 still declares one, so the array type stays valid.
-      std::array<YSE::DSP::buffer, (Inputs > 0 ? Inputs : 1)> scratch;
+      // Inputs == 0 is a class that holds design or editor state and stages no
+      // samples (yse_dsp_filter_design.cpp, #1296): an empty array, so its
+      // handle allocates no scratch.
+      std::array<YSE::DSP::buffer, Inputs> scratch;
     };
 
     inline processorHandle* base(YseDspProcessor* p) noexcept {
@@ -91,6 +100,28 @@ namespace yse_c {
     template <typename H> typename H::object_type* object(YseDspProcessor* p) noexcept {
       H* h = get<H>(p);
       return h != nullptr ? &h->object : nullptr;
+    }
+
+    // Apply `f` to the engine object if `p` is an H (the setter shape).
+    template <typename H, typename F> void with(YseDspProcessor* p, F&& f) {
+      if (auto* o = object<H>(p)) f(*o);
+    }
+
+    // `f(object)`, or `fallback` if `p` is not an H (the getter shape).
+    template <typename H, typename R, typename F> R query(YseDspProcessor* p, R fallback, F&& f) {
+      auto* o = object<H>(p);
+      return o != nullptr ? static_cast<R>(f(*o)) : fallback;
+    }
+
+    // Copy a biQuad::coefficientSet (any type with a0 a1 a2 b1 b2) to
+    // out[0..4] in that order. Returns 1, the C getters' success value.
+    template <typename S> int copy_set(const S& c, float* out) noexcept {
+      out[0] = c.a0;
+      out[1] = c.a1;
+      out[2] = c.a2;
+      out[3] = c.b1;
+      out[4] = c.b2;
+      return 1;
     }
 
     // Allocate an H and return it as the opaque handle; NULL with

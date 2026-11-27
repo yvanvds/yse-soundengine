@@ -230,6 +230,27 @@ offline rendering, for analysis, or inside your own audio callback:
   on a real-time thread. Constructors allocate. Use one handle from one
   thread at a time.
 
+The filter-design toolkit in ``yse_dsp_filter_design.h``
+(`#1296 <https://github.com/yvanvds/yse-soundengine/issues/1296>`_) uses the
+same handle for classes that process no samples: ``filterDesign`` designs
+Butterworth and Chebyshev filters, ``filterResponse`` computes the curves of a
+cascade, and ``filterBands`` and ``zPlane`` hold the state of a filter editor.
+Their lists of coefficients, roots and curves are copied out in the
+``snprintf`` style. A list getter returns the size of the whole list and
+writes as many whole entries as your array holds, so you can call it with
+``NULL`` and 0 first to size the array:
+
+.. code-block:: c
+
+   YseDspProcessor* d = yse_dsp_filter_design_create();
+   yse_dsp_filter_design_set_order(d, 6);
+   yse_dsp_filter_design_set_frequency(d, 800.0f);
+   yse_dsp_filter_design_design(d);
+   unsigned int n = yse_dsp_filter_design_get_coefficients(d, NULL, 0);
+   float* c = malloc(n * sizeof(float));
+   yse_dsp_filter_design_get_coefficients(d, c, n);
+   yse_dsp_biquad_cascade_set_coefficients(cascade, c, n);
+
 Errors
 ~~~~~~
 
@@ -586,6 +607,9 @@ DSP and patcher
    :project: libYSE
 
 .. doxygenfile:: c_api/include/yse_c/yse_dsp_filters.h
+   :project: libYSE
+
+.. doxygenfile:: c_api/include/yse_c/yse_dsp_filter_design.h
    :project: libYSE
 
 .. doxygenfile:: c_api/include/yse_c/yse_patcher.h

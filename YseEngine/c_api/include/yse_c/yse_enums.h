@@ -142,6 +142,48 @@ typedef enum YseDspFilterType {
   YSE_DSP_FILTER_TYPE_COUNT = 16 /**< sentinel — number of types; keep last. */
 } YseDspFilterType;
 
+/** Mirrors YSE::DSP::filterDesign::RESPONSE (filters/filterDesign.hpp) — the
+   shape of a designed filter's response (issue #1296). */
+typedef enum YseDspDesignResponse {
+  YSE_DSP_DESIGN_LOWPASS = 0,
+  YSE_DSP_DESIGN_HIGHPASS = 1,
+  YSE_DSP_DESIGN_BANDPASS = 2,
+  YSE_DSP_DESIGN_BANDSTOP = 3
+} YseDspDesignResponse;
+
+/** Mirrors YSE::DSP::filterDesign::TOPOLOGY (filters/filterDesign.hpp) — the
+   family of the analog prototype a filter is designed from (issue #1296). */
+typedef enum YseDspDesignTopology {
+  YSE_DSP_DESIGN_BUTTERWORTH = 0, /**< Flat passband, monotonic stopband. */
+  YSE_DSP_DESIGN_CHEBYSHEV_1 = 1, /**< Passband ripple, the steepest transition. */
+  YSE_DSP_DESIGN_CHEBYSHEV_2 = 2 /**< Flat passband, stopband ripple. */
+} YseDspDesignTopology;
+
+/** Mirrors YSE::DSP::filterDesign::UNITS (filters/filterDesign.hpp) — how a
+   filter design reads its frequencies (issue #1296). */
+typedef enum YseDspDesignUnits {
+  YSE_DSP_DESIGN_HERTZ = 0, /**< Hz, against the design's sample rate. */
+  YSE_DSP_DESIGN_NORMALIZED = 1, /**< 0 .. 1, where 1 is the Nyquist frequency. */
+  YSE_DSP_DESIGN_RADIANS = 2 /**< 0 .. pi, where pi is the Nyquist frequency. */
+} YseDspDesignUnits;
+
+/** Mirrors YSE::DSP::filterBands::MODE (filters/filterBands.hpp) — what one
+   band of a filter editor is (issue #1296). LOWPASS .. ALLPASS share their
+   numbers with YseDspFilterType; DISPLAY is a band given as coefficients. */
+typedef enum YseDspBandMode {
+  YSE_DSP_BAND_DISPLAY = 0,
+  YSE_DSP_BAND_LOWPASS = 1,
+  YSE_DSP_BAND_HIGHPASS = 2,
+  YSE_DSP_BAND_BANDPASS = 3,
+  YSE_DSP_BAND_BANDSTOP = 4,
+  YSE_DSP_BAND_PEAKNOTCH = 5,
+  YSE_DSP_BAND_LOWSHELF = 6,
+  YSE_DSP_BAND_HIGHSHELF = 7,
+  YSE_DSP_BAND_RESONANT = 8,
+  YSE_DSP_BAND_ALLPASS = 9,
+  YSE_DSP_BAND_MODE_COUNT = 10 /**< sentinel — number of modes; keep last. */
+} YseDspBandMode;
+
 /** Mirrors YSE::DSP::MODULES::compressorDetector (compressor.hpp) — the
    level-detector mode. */
 typedef enum YseCompressorDetector {
