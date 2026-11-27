@@ -69,8 +69,16 @@ namespace yse_c {
       return &id;
     }
 
+    // No bridge-side state: the default for handle's State.
+    struct noState {};
+
     // The wrapper for one engine class T with `Inputs` staged input arrays.
-    template <typename T, unsigned Inputs> struct handle final : processorHandle {
+    // `State` is what the bridge keeps beside the object, for a class that
+    // reports an event per engine block (an envelope's `finished()`) which a
+    // host call spanning several blocks must report for the whole call
+    // (yse_dsp_envelopes.cpp, #1298).
+    template <typename T, unsigned Inputs, typename State = noState>
+    struct handle final : processorHandle {
       using object_type = T;
       static constexpr unsigned inputs = Inputs;
 
@@ -83,6 +91,7 @@ namespace yse_c {
       // samples (yse_dsp_filter_design.cpp, #1296): an empty array, so its
       // handle allocates no scratch.
       std::array<YSE::DSP::buffer, Inputs> scratch;
+      State state{};
     };
 
     inline processorHandle* base(YseDspProcessor* p) noexcept {
@@ -175,6 +184,48 @@ namespace yse_c {
       if (h == nullptr) return 0;
       blocks(length, [&](unsigned offset, unsigned count) { body(*h, offset, count); });
       return length;
+    }
+
+    // A generator block at constant settings: `run(h, count)` runs the engine
+    // overload that takes a length.
+    template <typename H, typename F>
+    unsigned int generate(YseDspProcessor* p, float* out, unsigned int length, F&& run) {
+      if (out == nullptr) return 0;
+      return drive<H>(p, length,
+                      [&](H& h, unsigned o, unsigned n) { emit(run(h, n), out + o, n); });
+    }
+
+    // A block that stages one host array: `run(h, staged)` runs the engine
+    // overload that takes a buffer.
+    template <typename H, typename F>
+    unsigned int one_signal(YseDspProcessor* p, const float* a, float* out, unsigned int length,
+                            F&& run) {
+      if (a == nullptr || out == nullptr) return 0;
+      return drive<H>(p, length, [&](H& h, unsigned o, unsigned n) {
+        emit(run(h, stage(h.scratch[0], a + o, n)), out + o, n);
+      });
+    }
+
+    // The same with two staged host arrays.
+    template <typename H, typename F>
+    unsigned int two_signals(YseDspProcessor* p, const float* a, const float* b, float* out,
+                             unsigned int length, F&& run) {
+      if (a == nullptr || b == nullptr || out == nullptr) return 0;
+      return drive<H>(p, length, [&](H& h, unsigned o, unsigned n) {
+        emit(run(h, stage(h.scratch[0], a + o, n), stage(h.scratch[1], b + o, n)), out + o, n);
+      });
+    }
+
+    // The same with three staged host arrays.
+    template <typename H, typename F>
+    unsigned int three_signals(YseDspProcessor* p, const float* a, const float* b, const float* c,
+                               float* out, unsigned int length, F&& run) {
+      if (a == nullptr || b == nullptr || c == nullptr || out == nullptr) return 0;
+      return drive<H>(p, length, [&](H& h, unsigned o, unsigned n) {
+        emit(run(h, stage(h.scratch[0], a + o, n), stage(h.scratch[1], b + o, n),
+                 stage(h.scratch[2], c + o, n)),
+             out + o, n);
+      });
     }
 
   } // namespace processor

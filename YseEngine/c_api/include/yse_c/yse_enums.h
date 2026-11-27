@@ -184,6 +184,47 @@ typedef enum YseDspBandMode {
   YSE_DSP_BAND_MODE_COUNT = 10 /**< sentinel — number of modes; keep last. */
 } YseDspBandMode;
 
+/** Mirrors YSE::DSP::adsr::STAGE (generators/adsr.hpp) — the segment an ADSR
+   envelope is in (issue #1298). */
+typedef enum YseDspAdsrStage {
+  YSE_DSP_ADSR_IDLE = 0, /**< At rest, output 0. */
+  YSE_DSP_ADSR_ATTACK = 1,
+  YSE_DSP_ADSR_DECAY = 2,
+  YSE_DSP_ADSR_SUSTAIN = 3,
+  YSE_DSP_ADSR_RELEASE = 4,
+  YSE_DSP_ADSR_RETRIGGER = 5 /**< The ramp down to 0 before a restart. */
+} YseDspAdsrStage;
+
+/** Mirrors YSE::DSP::curveSegments::SHAPE (generators/curveSegments.hpp) —
+   the curve formula of a curved segment (issue #1298). */
+typedef enum YseDspCurveShape {
+  YSE_DSP_CURVE_POWER = 0, /**< f^((1 + c) / (1 - c)), the .function curve. */
+  YSE_DSP_CURVE_EXPONENTIAL = 1 /**< A true exponential. */
+} YseDspCurveShape;
+
+/** Mirrors YSE::DSP::zigzag::LOOP (generators/zigzag.hpp) — what a zigzag
+   does at the end of its range (issue #1298). */
+typedef enum YseDspZigzagLoop {
+  YSE_DSP_ZIGZAG_LOOP_OFF = 0, /**< Stop. */
+  YSE_DSP_ZIGZAG_LOOP_ON = 1, /**< Start again from the other end. */
+  YSE_DSP_ZIGZAG_LOOP_PENDULUM = 2 /**< Turn round. */
+} YseDspZigzagLoop;
+
+/** Mirrors YSE::DSP::zigzag::MODE (generators/zigzag.hpp) — what a bang and
+   an input signal do (issue #1298). */
+typedef enum YseDspZigzagMode {
+  YSE_DSP_ZIGZAG_START = 0, /**< A bang jumps to the start; the input is an index. */
+  YSE_DSP_ZIGZAG_TRIGGER = 1, /**< The same bang; a falling input is a bang. */
+  YSE_DSP_ZIGZAG_STEP = 2 /**< A bang steps to the next point; a falling input is a bang. */
+} YseDspZigzagMode;
+
+/** Mirrors YSE::DSP::triggeredRamp::durationMode (generators/triggeredRamp.hpp)
+   — when a triggered ramp reads its duration (issue #1298). */
+typedef enum YseDspRampDurationMode {
+  YSE_DSP_RAMP_DURATION_AT_START = 0, /**< At the trigger, fixed for the ramp. */
+  YSE_DSP_RAMP_DURATION_CONTINUOUS = 1 /**< At every sample, rescaling what is left. */
+} YseDspRampDurationMode;
+
 /** Mirrors YSE::DSP::MODULES::compressorDetector (compressor.hpp) — the
    level-detector mode. */
 typedef enum YseCompressorDetector {

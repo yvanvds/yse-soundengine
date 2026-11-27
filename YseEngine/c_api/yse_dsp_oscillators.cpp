@@ -20,10 +20,14 @@ namespace {
   namespace DSP = YSE::DSP;
   using yse_c::processor::drive;
   using yse_c::processor::emit;
+  using yse_c::processor::generate;
   using yse_c::processor::handle;
   using yse_c::processor::make;
+  using yse_c::processor::one_signal;
   using yse_c::processor::query;
   using yse_c::processor::stage;
+  using yse_c::processor::three_signals;
+  using yse_c::processor::two_signals;
   using yse_c::processor::with;
 
   // One wrapper type per class; the count is how many host arrays a process
@@ -69,47 +73,6 @@ namespace {
   // A seed crosses as unsigned int and is narrowed to the engine's uint32_t.
   static_assert(sizeof(unsigned int) >= sizeof(std::uint32_t),
                 "yse_dsp_oscillators.h: a seed must fit an unsigned int");
-
-  // A generator block at constant settings: `make(h, count)` runs the engine
-  // overload that takes a length.
-  template <typename H, typename F>
-  unsigned int generate(YseDspProcessor* p, float* out, unsigned int length, F&& run) {
-    if (out == nullptr) return 0;
-    return drive<H>(p, length, [&](H& h, unsigned o, unsigned n) { emit(run(h, n), out + o, n); });
-  }
-
-  // A block that stages one host array: `run(h, staged)` runs the engine
-  // overload that takes a buffer.
-  template <typename H, typename F>
-  unsigned int one_signal(YseDspProcessor* p, const float* a, float* out, unsigned int length,
-                          F&& run) {
-    if (a == nullptr || out == nullptr) return 0;
-    return drive<H>(p, length, [&](H& h, unsigned o, unsigned n) {
-      emit(run(h, stage(h.scratch[0], a + o, n)), out + o, n);
-    });
-  }
-
-  // The same with two staged host arrays.
-  template <typename H, typename F>
-  unsigned int two_signals(YseDspProcessor* p, const float* a, const float* b, float* out,
-                           unsigned int length, F&& run) {
-    if (a == nullptr || b == nullptr || out == nullptr) return 0;
-    return drive<H>(p, length, [&](H& h, unsigned o, unsigned n) {
-      emit(run(h, stage(h.scratch[0], a + o, n), stage(h.scratch[1], b + o, n)), out + o, n);
-    });
-  }
-
-  // The same with three staged host arrays.
-  template <typename H, typename F>
-  unsigned int three_signals(YseDspProcessor* p, const float* a, const float* b, const float* c,
-                             float* out, unsigned int length, F&& run) {
-    if (a == nullptr || b == nullptr || c == nullptr || out == nullptr) return 0;
-    return drive<H>(p, length, [&](H& h, unsigned o, unsigned n) {
-      emit(run(h, stage(h.scratch[0], a + o, n), stage(h.scratch[1], b + o, n),
-               stage(h.scratch[2], c + o, n)),
-           out + o, n);
-    });
-  }
 
   // pulseTrain's onsets of the block just made, as 1 at each onset sample
   // and 0 elsewhere, into the host's optional onset array.

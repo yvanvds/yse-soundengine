@@ -21,6 +21,7 @@
 #include "yse_dsp_filters.h"
 #include "yse_dsp_filter_design.h"
 #include "yse_dsp_oscillators.h"
+#include "yse_dsp_envelopes.h"
 #include "yse_patcher.h"
 #include "yse_midi.h"
 #include "yse_clip.h"

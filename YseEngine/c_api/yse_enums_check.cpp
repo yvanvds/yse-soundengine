@@ -21,6 +21,10 @@
 #include "../dsp/filters/filterCoefficients.hpp"
 #include "../dsp/filters/filterDesign.hpp"
 #include "../dsp/filters/filterBands.hpp"
+#include "../dsp/generators/adsr.hpp"
+#include "../dsp/generators/curveSegments.hpp"
+#include "../dsp/generators/triggeredRamp.hpp"
+#include "../dsp/generators/zigzag.hpp"
 #include "../patcher/pEnums.h"
 #include "../synth/positionHandler.hpp"
 #include "../synth/positionHandlers.hpp"
@@ -263,6 +267,31 @@ namespace {
   YSE_ASSERT_ENUM(YSE_DSP_BAND_ALLPASS, YSE::DSP::filterBands::ALLPASS);
   YSE_ASSERT_ENUM(YSE_DSP_BAND_MODE_COUNT, YSE::DSP::filterBands::MODE_COUNT);
   YSE_ASSERT_ENUM_COUNT(YSE::DSP::filterBands::MODE_COUNT, YSE_DSP_BAND_ALLPASS);
+
+  // The #1298 envelope and sequencer enums. None of the engine enums has a
+  // count, so the last value is pinned and a value appended there is caught
+  // by review, not by the build.
+  // YseDspAdsrStage <-> adsr::STAGE
+  YSE_ASSERT_ENUM(YSE_DSP_ADSR_IDLE, YSE::DSP::adsr::IDLE);
+  YSE_ASSERT_ENUM(YSE_DSP_ADSR_ATTACK, YSE::DSP::adsr::ATTACK);
+  YSE_ASSERT_ENUM(YSE_DSP_ADSR_DECAY, YSE::DSP::adsr::DECAY);
+  YSE_ASSERT_ENUM(YSE_DSP_ADSR_SUSTAIN, YSE::DSP::adsr::SUSTAIN);
+  YSE_ASSERT_ENUM(YSE_DSP_ADSR_RELEASE, YSE::DSP::adsr::RELEASE);
+  YSE_ASSERT_ENUM(YSE_DSP_ADSR_RETRIGGER, YSE::DSP::adsr::RETRIGGER);
+  // YseDspCurveShape <-> curveSegments::SHAPE
+  YSE_ASSERT_ENUM(YSE_DSP_CURVE_POWER, YSE::DSP::curveSegments::POWER);
+  YSE_ASSERT_ENUM(YSE_DSP_CURVE_EXPONENTIAL, YSE::DSP::curveSegments::EXPONENTIAL);
+  // YseDspZigzagLoop / YseDspZigzagMode <-> zigzag::LOOP / MODE
+  YSE_ASSERT_ENUM(YSE_DSP_ZIGZAG_LOOP_OFF, YSE::DSP::zigzag::LOOP_OFF);
+  YSE_ASSERT_ENUM(YSE_DSP_ZIGZAG_LOOP_ON, YSE::DSP::zigzag::LOOP_ON);
+  YSE_ASSERT_ENUM(YSE_DSP_ZIGZAG_LOOP_PENDULUM, YSE::DSP::zigzag::LOOP_PENDULUM);
+  YSE_ASSERT_ENUM(YSE_DSP_ZIGZAG_START, YSE::DSP::zigzag::START);
+  YSE_ASSERT_ENUM(YSE_DSP_ZIGZAG_TRIGGER, YSE::DSP::zigzag::TRIGGER);
+  YSE_ASSERT_ENUM(YSE_DSP_ZIGZAG_STEP, YSE::DSP::zigzag::STEP);
+  // YseDspRampDurationMode <-> triggeredRamp::durationMode
+  YSE_ASSERT_ENUM(YSE_DSP_RAMP_DURATION_AT_START, YSE::DSP::triggeredRamp::durationMode::atStart);
+  YSE_ASSERT_ENUM(YSE_DSP_RAMP_DURATION_CONTINUOUS,
+                  YSE::DSP::triggeredRamp::durationMode::continuous);
 
 #undef YSE_ASSERT_ENUM_COUNT
 #undef YSE_ASSERT_ENUM

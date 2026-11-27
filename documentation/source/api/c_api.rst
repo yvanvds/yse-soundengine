@@ -273,6 +273,31 @@ each onset sample, and the ``sampleCounter`` carry is the wrap count. Pass
 ``NULL`` when you don't need them. ``yse_dsp_cycle_set_table`` borrows your
 array instead of copying it, so the array must outlive the table.
 
+The envelopes, ramps and sequencers in ``yse_dsp_envelopes.h``
+(`#1298 <https://github.com/yvanvds/yse-soundengine/issues/1298>`_) take their
+segment and breakpoint lists as parallel arrays of targets, times and curves.
+Their events are polled, not called back. A call such as
+``yse_dsp_adsr_get_finished`` reports what happened during the whole of the
+last process call, so you check it after each one. The ``eventSequencer``
+copies the events it fires into an array of ``YseDspEventFiring`` that you
+pass in, each with its sample offset in the call and its text:
+
+.. code-block:: c
+
+   const float targets[] = {1.0f, 0.0f};
+   const float times[] = {10.0f, 200.0f};
+   YseDspProcessor* line = yse_dsp_line_segments_create(0);
+   yse_dsp_line_segments_set(line, targets, times, 2);
+   yse_dsp_line_segments_process(line, out, NULL, 512);
+   if (yse_dsp_line_segments_get_finished(line)) { /* the list ran out */ }
+
+   YseDspEventFiring fired[16];
+   YseDspProcessor* seq = yse_dsp_event_sequencer_create(0, 0);
+   yse_dsp_event_sequencer_add(seq, 0, 0.5f, "note 60", 7);
+   yse_dsp_event_sequencer_set_play(seq, 1);
+   yse_dsp_event_sequencer_process(seq, phase, fired, 16, 512);
+   unsigned int n = yse_dsp_event_sequencer_get_fired(seq);
+
 Errors
 ~~~~~~
 
@@ -635,6 +660,9 @@ DSP and patcher
    :project: libYSE
 
 .. doxygenfile:: c_api/include/yse_c/yse_dsp_oscillators.h
+   :project: libYSE
+
+.. doxygenfile:: c_api/include/yse_c/yse_dsp_envelopes.h
    :project: libYSE
 
 .. doxygenfile:: c_api/include/yse_c/yse_patcher.h
