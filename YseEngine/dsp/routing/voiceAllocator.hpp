@@ -36,6 +36,8 @@ namespace YSE {
      *  - With no free voice and **stealing** on, the voice that was started
      *    longest ago takes the note. With stealing off there is no voice for
      *    it (``NO_VOICE``).
+     *  - A voice the caller's optional *skip* test names is left out of both:
+     *    never chosen, never stolen (``~poly``'s ``exclude``, issue #1294).
      *
      *  ``noteOn()`` makes a voice *hold* a pitch until ``noteOff()`` for that
      *  pitch releases it; a pitch held twice is released oldest first.
@@ -96,13 +98,23 @@ namespace YSE {
        *         NO_VOICE.
        */
       template <class Busy> int choose(Busy&& busy) const {
+        return choose(busy, [](int) { return false; });
+      }
+      /**
+       *  @brief choose(@p busy), leaving out every voice @p skip (called
+       *         with a voice number) returns true for: a skipped voice is
+       *         neither free nor stolen (issue #1294, ``~poly``'s
+       *         ``exclude``). NO_VOICE when every voice is skipped.
+       */
+      template <class Busy, class Skip> int choose(Busy&& busy, Skip&& skip) const {
         for (int v = 0; v < count; v++) {
-          if (!slots[static_cast<std::size_t>(v)].held && !busy(v)) return v;
+          if (!slots[static_cast<std::size_t>(v)].held && !skip(v) && !busy(v)) return v;
         }
         if (!stealing) return NO_VOICE;
         int oldest = NO_VOICE;
         std::uint64_t age = UINT64_MAX;
         for (int v = 0; v < count; v++) {
+          if (skip(v)) continue;
           if (slots[static_cast<std::size_t>(v)].age < age) {
             age = slots[static_cast<std::size_t>(v)].age;
             oldest = v;
@@ -121,8 +133,13 @@ namespace YSE {
       /** @brief Starts a note: choose(@p busy), and the voice chosen holds
        *         @p pitch until noteOff(). */
       template <class Busy> allocation noteOn(int pitch, Busy&& busy) {
+        return noteOn(pitch, busy, [](int) { return false; });
+      }
+      /** @brief noteOn(@p pitch, @p busy), never to a voice @p skip returns
+       *         true for (see choose(busy, skip)). */
+      template <class Busy, class Skip> allocation noteOn(int pitch, Busy&& busy, Skip&& skip) {
         allocation result;
-        result.voice = choose(busy);
+        result.voice = choose(busy, skip);
         if (result.voice == NO_VOICE) return result;
         slot& s = slots[static_cast<std::size_t>(result.voice)];
         if (s.held) {

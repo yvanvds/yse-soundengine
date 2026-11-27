@@ -22004,7 +22004,7 @@
           "BANG",
           "LIST"
         ],
-        "doc": "A signal for the ~in objects with this index inside, and messages for the .in objects with this index: to the target voice, or routed by note, midinote, setvalue; midievent and mpeevent for .polymidiin. Also target, mute, steal, allnotesoff, list.",
+        "doc": "A signal for the ~in objects with this index inside, and messages for the .in objects with this index: to the target voice, or routed by note, midinote, setvalue; midievent and mpeevent for .polymidiin. Also target, mute, steal, allnotesoff, list, voices, busymap, mutemap, exclude, bypass.",
         "index": 0,
         "label": "in 0",
         "range": ""
@@ -22037,7 +22037,7 @@
       },
       {
         "default": "1",
-        "doc": "How many copies of the subpatch play. Changing it rebuilds them.",
+        "doc": "How many copies of the subpatch play. Changing it rebuilds them; the voices message changes the count while it plays.",
         "name": "voices",
         "range": "1-128"
       },
@@ -25193,7 +25193,7 @@
           "BANG",
           "LIST"
         ],
-        "doc": "A number: non-zero busy, 0 free; a busy voice gets no note, midinote or midievent note-on. A signal: busy while any sample is non-zero. 'mute 1' / 'mute 0' mutes and unmutes the voice. A bang reports the voice count and number.",
+        "doc": "A number: non-zero busy, 0 free; a busy voice gets no note, midinote or midievent note-on. A signal: busy while any sample is non-zero. 'mute 1' / 'mute 0' mutes and unmutes the voice; 'automute 1' mutes it whenever it is not busy. A bang reports the voice count and number.",
         "index": 0,
         "label": "busy",
         "range": ""

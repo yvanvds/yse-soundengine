@@ -13,6 +13,7 @@
 #include "../pListArgs.h"
 #include "../pSelector.h"
 #include "../math/gExprEval.h"
+#include "../patcherImplementation.h"
 
 using namespace YSE::PATCHER;
 
@@ -94,9 +95,15 @@ namespace {
 CONSTRUCT_DSP() {
   busy = std::make_unique<std::atomic<bool>[]>(MAX_VOICES);
   pending = std::make_unique<std::atomic<bool>[]>(MAX_VOICES);
+  excluded = std::make_unique<std::atomic<bool>[]>(MAX_VOICES);
+  bypassed = std::make_unique<std::atomic<bool>[]>(MAX_VOICES);
+  automute = std::make_unique<std::atomic<bool>[]>(MAX_VOICES);
   for (int v = 0; v < MAX_VOICES; v++) {
     busy[v].store(false);
     pending[v].store(false);
+    excluded[v].store(false);
+    bypassed[v].store(false);
+    automute[v].store(false);
     noteChannel[v] = -1;
   }
   scratch.reserve(MAX_MESSAGE);
@@ -118,7 +125,9 @@ CONSTRUCT_DSP() {
             "A name for the subpatch, for a host to show. The engine does not read it; the "
             "contents are placed inside with SetContainer.",
             "");
-  PARAM_DOC("voices", "1", "How many copies of the subpatch play. Changing it rebuilds them.",
+  PARAM_DOC("voices", "1",
+            "How many copies of the subpatch play. Changing it rebuilds them; the voices message "
+            "changes the count while it plays.",
             "1-128");
   PARAM_DOC("inlets", "1",
             "How many inlets: inlet N is the signal of the ~in N objects and the messages of the "
@@ -147,6 +156,8 @@ void dPoly::Configure() {
   const int outCount = Clamp(outs, 0, MAX_PINS);
   const int messageCount = Clamp(messages, 0, MAX_PINS);
   pool.voices(voiceCount).steal(stealArgument != 0);
+  wanted.store(voiceCount, std::memory_order_release);
+  live.store(voiceCount, std::memory_order_release);
 
   inputs.clear();
   for (int i = 0; i < inCount; i++) {
@@ -160,7 +171,8 @@ void dPoly::Configure() {
                          "A signal for the ~in objects with this index inside, and messages for "
                          "the .in objects with this index: to the target voice, or routed by "
                          "note, midinote, setvalue; midievent and mpeevent for .polymidiin. Also "
-                         "target, mute, steal, allnotesoff, list.",
+                         "target, mute, steal, allnotesoff, list, voices, busymap, mutemap, "
+                         "exclude, bypass.",
                          "");
   }
   results.clear();
@@ -210,6 +222,70 @@ bool dPoly::Available(int voice) const {
          !pending[voice].load(std::memory_order_acquire);
 }
 
+bool dPoly::Excluded(int voice) const {
+  if (voice < 1 || voice > MAX_VOICES) return false;
+  return excluded[voice - 1].load(std::memory_order_acquire);
+}
+
+bool dPoly::Bypassed(int voice) const {
+  if (voice < 1 || voice > MAX_VOICES) return false;
+  return bypassed[voice - 1].load(std::memory_order_acquire);
+}
+
+bool dPoly::AutoMute(int voice) const {
+  if (voice < 1 || voice > MAX_VOICES) return false;
+  return automute[voice - 1].load(std::memory_order_acquire);
+}
+
+void dPoly::SetAutoMute(int voice, bool on) {
+  if (voice < 1 || voice > MAX_VOICES) return;
+  automute[voice - 1].store(on, std::memory_order_release);
+}
+
+void dPoly::MuteVoice(int voice, bool on, YSE::THREAD thread) {
+  const graphReadScope scope(this);
+  const GraphState* g = scope.Graph();
+  const GraphState::polyDomain* d = g != nullptr ? g->Poly(this) : nullptr;
+  if (d != nullptr) Mute(*d, voice, on, thread);
+}
+
+void dPoly::SetFlag(std::atomic<bool>* flags, int voice, bool on) {
+  const int count = Voices();
+  if (voice < 0 || voice > count) return;
+  for (int v = voice == 0 ? 0 : voice - 1; v < (voice == 0 ? count : voice); v++) {
+    flags[v].store(on, std::memory_order_release);
+  }
+}
+
+void dPoly::Start(const GraphState::polyDomain& d, int voice, YSE::THREAD thread) {
+  // An automuted voice is muted while not busy; it is unmuted here, before
+  // the note reaches it, so it runs the block its ~thispoly says busy in.
+  if (!automute[voice - 1].load(std::memory_order_acquire)) return;
+  for (const GraphState::polyVoiceDomain& v : d.voices) {
+    auto* root = static_cast<polyVoice*>(v.root);
+    if (root->Number() == voice && root->Muted()) Mute(d, voice, false, thread);
+  }
+}
+
+// Control side, under the patcher's mutex, before the publish that adds the
+// voices: nothing renders them yet, and the allocator's size (under the
+// guard) is still at most the old count, so no note is put in them either.
+void dPoly::ClearVoices(int from, int to) {
+  for (int v = std::max(from, 0); v < std::min(to, MAX_VOICES); v++) {
+    busy[v].store(false, std::memory_order_release);
+    pending[v].store(false, std::memory_order_release);
+    excluded[v].store(false, std::memory_order_release);
+    bypassed[v].store(false, std::memory_order_release);
+    automute[v].store(false, std::memory_order_release);
+  }
+}
+
+void dPoly::PublishVoices(int count) {
+  live.store(count, std::memory_order_release);
+  int t = target.load(std::memory_order_relaxed);
+  while (t > count && !target.compare_exchange_weak(t, count, std::memory_order_relaxed)) {}
+}
+
 int dPoly::PitchOfVoice(int voice) const {
   return pool.pitch(voice - 1);
 }
@@ -218,6 +294,16 @@ bool dPoly::Enter() {
   if (guard.exchange(true, std::memory_order_acq_rel)) {
     dropped.fetch_add(1, std::memory_order_relaxed);
     return false;
+  }
+  // The allocator follows the published voice count (issue #1294). Voices
+  // that are gone take their notes with them; added ones start free.
+  const int count = live.load(std::memory_order_acquire);
+  if (pool.voices() != count) {
+    for (int v = count; v < pool.voices(); v++) {
+      pool.release(v);
+      noteChannel[v] = -1;
+    }
+    pool.voices(count);
   }
   return true;
 }
@@ -285,10 +371,11 @@ void dPoly::MidiEvent(const GraphState::polyDomain& d, const std::string& text, 
   const int key = event.data[1];
   if (type == kNoteOn && event.data[2] > 0) {
     if (!Enter()) return;
-    const int v = pool.noteOn(key, [this](int voice) { return !Available(voice); }).voice;
+    const int v = pool.noteOn(key, [this](int voice) { return !Available(voice); }, Skip()).voice;
     if (v != DSP::voiceAllocator::NO_VOICE) {
       pending[v].store(true, std::memory_order_release);
       noteChannel[v] = status & kChannelMask;
+      Start(d, v + 1, thread);
       DeliverEvent(d, v + 1, event, thread);
     }
     Leave();
@@ -306,7 +393,7 @@ void dPoly::MidiEvent(const GraphState::polyDomain& d, const std::string& text, 
   }
   if (type == kPolyPressure) {
     if (!Enter()) return;
-    for (int v = 0; v < voiceCount; v++) {
+    for (int v = 0; v < pool.voices(); v++) {
       if (pool.pitch(v) == key) DeliverEvent(d, v + 1, event, thread);
     }
     Leave();
@@ -333,7 +420,7 @@ void dPoly::MpeEvent(const GraphState::polyDomain& d, const std::string& text, s
   if (given < count) return;
 
   const int voice = n[2];
-  if (voice == 0 || voice > voiceCount) return;
+  if (voice == 0 || voice > Voices()) return;
 
   voiceEvent event;
   event.kind = voiceEvent::KIND::MPE;
@@ -345,6 +432,23 @@ void dPoly::MpeEvent(const GraphState::polyDomain& d, const std::string& text, s
   for (int k = 5; k < count; k++)
     event.data[k] = Data7(n[k]);
   DeliverEvent(d, voice < 0 ? 0 : voice, event, thread);
+}
+
+// `busymap` / `mutemap` (issue #1294): one 0 or 1 per voice of the snapshot,
+// from voice 1, built in the scratch string (reserved at construction, far
+// longer than 128 voices' "1 "), so nothing allocates. Under the guard.
+void dPoly::Map(const GraphState::polyDomain& d, bool mute, int outlet, YSE::THREAD thread) {
+  if (outlet < 0 || outlet >= MessageOutlets()) return;
+  scratch.clear();
+  for (const GraphState::polyVoiceDomain& v : d.voices) {
+    const auto* root = static_cast<const polyVoice*>(v.root);
+    const int n = root->Number() - 1;
+    const bool on = mute ? root->Muted() : !Available(n);
+    if (!scratch.empty()) scratch.push_back(' ');
+    scratch.push_back(on ? '1' : '0');
+  }
+  outputs[static_cast<std::size_t>(SignalOutlets()) + static_cast<std::size_t>(outlet)].SendList(
+      scratch, thread);
 }
 
 // The routing words (issue #1040). `rest` is where the text after `word`
@@ -363,7 +467,28 @@ bool dPoly::Route(std::string_view word, const std::string& text, std::size_t re
     if (!Number(text, rest, next, a)) return true;
     const int n = ExprToInt(a);
     // Max: a number above the voice count is the highest voice.
-    target.store(n < 0 ? -1 : std::min(n, voiceCount), std::memory_order_relaxed);
+    target.store(n < 0 ? -1 : std::min(n, Voices()), std::memory_order_relaxed);
+    return true;
+  }
+  if (word == "voices") {
+    // Built on the control side, as a ~send's `set` is applied: the voices
+    // are copies the patcher makes under its mutex (issue #1294).
+    if (!Number(text, rest, next, a)) return true;
+    wanted.store(Clamp(ExprToInt(a), 1, MAX_VOICES), std::memory_order_release);
+    if (Parent() != nullptr) static_cast<patcherImplementation*>(Parent())->RequestSignalBusSync();
+    return true;
+  }
+  if (word == "exclude" || word == "bypass") {
+    if (!Number(text, rest, next, a)) return true;
+    if (!Number(text, next, next, b)) b = 1.f;
+    SetFlag(word == "exclude" ? excluded.get() : bypassed.get(), ExprToInt(a), b != 0.f);
+    return true;
+  }
+  if (word == "busymap" || word == "mutemap") {
+    if (!Number(text, rest, next, a)) a = 0.f;
+    if (d == nullptr || !Enter()) return true;
+    Map(*d, word == "mutemap", ExprToInt(a), thread);
+    Leave();
     return true;
   }
   if (word == "mute") {
@@ -381,10 +506,11 @@ bool dPoly::Route(std::string_view word, const std::string& text, std::size_t re
   }
   if (word == "note") {
     if (d == nullptr || !Enter()) return true;
-    const int v = pool.choose([this](int voice) { return !Available(voice); });
+    const int v = pool.choose([this](int voice) { return !Available(voice); }, Skip());
     if (v != DSP::voiceAllocator::NO_VOICE) {
       pool.touch(v);
       pending[v].store(true, std::memory_order_release);
+      Start(*d, v + 1, thread);
       DeliverPart(*d, v + 1, inlet, text, SkipSeparators(text, rest), thread);
     }
     Leave();
@@ -396,10 +522,11 @@ bool dPoly::Route(std::string_view word, const std::string& text, std::size_t re
     const int pitch = ExprToInt(a);
     int v = DSP::voiceAllocator::NO_VOICE;
     if (ExprToInt(b) > 0) {
-      v = pool.noteOn(pitch, [this](int voice) { return !Available(voice); }).voice;
+      v = pool.noteOn(pitch, [this](int voice) { return !Available(voice); }, Skip()).voice;
       if (v != DSP::voiceAllocator::NO_VOICE) {
         pending[v].store(true, std::memory_order_release);
         noteChannel[v] = -1;
+        Start(*d, v + 1, thread);
       }
     } else {
       v = pool.noteOff(pitch);
@@ -593,7 +720,19 @@ CALC() {
     const renderOrderScope order;
     for (const GraphState::polyVoiceDomain& voice : d->voices) {
       // A muted voice does not run at all (#1137's mute word, both bits).
-      if (static_cast<const polyVoice*>(voice.root)->Muted()) continue;
+      const auto* root = static_cast<const polyVoice*>(voice.root);
+      if (root->Muted()) continue;
+      // A bypassed voice (issue #1294) does not run either: inlet N's signal
+      // goes to outlet N in its place.
+      if (bypassed[root->Number() - 1].load(std::memory_order_acquire)) {
+        for (std::size_t o = 0; o < results.size() && o < inputs.size(); o++) {
+          Flt* to = results[o]->getPtr();
+          const Flt* from = in[o]->getPtr();
+          for (UInt i = 0; i < length; i++)
+            to[i] += from[i];
+        }
+        continue;
+      }
       for (pObject* object : voice.signalInputs) {
         auto* vin = static_cast<dVoiceIn*>(object);
         const int k = vin->Index();
@@ -621,7 +760,7 @@ CALC() {
   }
   // A voice given a note counts as busy until it has run once, so its
   // ~thispoly has had a block to say so.
-  for (int v = 0; v < voiceCount; v++) {
+  for (int v = 0; v < Voices(); v++) {
     pending[v].store(false, std::memory_order_release);
   }
 
@@ -821,15 +960,22 @@ CONSTRUCT_DSP() {
             "A number: non-zero busy, 0 free; a busy voice gets no note, midinote or midievent "
             "note-on. A signal: "
             "busy while any sample is non-zero. 'mute 1' / 'mute 0' mutes and unmutes the "
-            "voice. A bang reports the voice count and number.",
+            "voice; 'automute 1' mutes it whenever it is not busy. A bang reports the voice "
+            "count and number.",
             "");
   OUTLET_DOC(0, "voice", "The voice number on a bang, from 1; 0 outside a ~poly.", "0-128");
   OUTLET_DOC(1, "mute", "1 when the voice is muted, 0 when unmuted, as it changes.", "0 or 1");
   OUTLET_DOC(2, "voices", "The ~poly's voice count on a bang; 1 outside a ~poly.", "1-128");
 }
 
-void dThisPoly::SetBusyFlag(bool on) {
-  if (voice_ != nullptr) voice_->Host()->SetBusy(voice_->Number(), on);
+void dThisPoly::SetBusyFlag(bool on, YSE::THREAD thread) {
+  if (voice_ == nullptr) return;
+  dPoly* host = voice_->Host();
+  const int number = voice_->Number();
+  host->SetBusy(number, on);
+  // automute (issue #1294): muted while not busy. Through the ~poly, so
+  // every ~thispoly of the voice reports it.
+  if (host->AutoMute(number) && voice_->Muted() == on) host->MuteVoice(number, !on, thread);
 }
 
 BANG_IN(SetBang) {
@@ -840,14 +986,12 @@ BANG_IN(SetBang) {
 
 INT_IN(SetInt) {
   (void)inlet;
-  (void)thread;
-  SetBusyFlag(value != 0);
+  SetBusyFlag(value != 0, thread);
 }
 
 FLOAT_IN(SetFloat) {
   (void)inlet;
-  (void)thread;
-  SetBusyFlag(value != 0.f);
+  SetBusyFlag(value != 0.f, thread);
 }
 
 LIST_IN(SetList) {
@@ -864,12 +1008,22 @@ LIST_IN(SetList) {
   }
   if (word == "busy") {
     if (!Number(value, next, next, number)) number = 1.f;
-    SetBusyFlag(number != 0.f);
+    SetBusyFlag(number != 0.f, thread);
+    return;
+  }
+  if (word == "automute") {
+    if (!Number(value, next, next, number)) number = 1.f;
+    if (voice_ == nullptr) return;
+    dPoly* host = voice_->Host();
+    const int n = voice_->Number();
+    host->SetAutoMute(n, number != 0.f);
+    // On: a voice that is not busy now is muted now. Off: left as it is.
+    if (number != 0.f && !host->Busy(n) && !voice_->Muted()) host->MuteVoice(n, true, thread);
     return;
   }
   // A list of numbers: the first is the busy flag.
   if (!word.empty() && ReadNumericToken(word.data(), word.size(), number)) {
-    SetBusyFlag(number != 0.f);
+    SetBusyFlag(number != 0.f, thread);
   }
 }
 
@@ -892,7 +1046,7 @@ CALC() {
       break;
     }
   }
-  SetBusyFlag(any);
+  SetBusyFlag(any, thread);
 }
 
 #undef className

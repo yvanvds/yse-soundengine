@@ -89,7 +89,9 @@ namespace YSE {
       // object stores the name and asks for a sync: a background job that takes
       // mtx, applies every waiting `set` (dSend / dReceive::ApplySet) and, when
       // a name changed, rebuilds and publishes the graph. Any thread, wait-free;
-      // coalesced, so a burst of sets costs one job.
+      // coalesced, so a burst of sets costs one job. A ~poly's `voices`
+      // message (issue #1294) asks for the same job: a voice count that
+      // differs from the voices it has is a rebuild too.
       void RequestSignalBusSync();
       // Wait until no requested sync is still queued or running. Control
       // thread; tests, and anything that must see a `set` applied.
@@ -875,7 +877,8 @@ namespace YSE {
         // The dPoly.
         pObject* host = nullptr;
         // What the voices were copied from: the template's types, parameters,
-        // containment and cords, and the voice count. Rebuilt when it changes.
+        // containment and cords. Rebuilt when it changes; a new voice count
+        // only adds or removes voices at the end (issue #1294).
         std::string fingerprint;
         // The id generation the copies' graph ids belong to (issue #364).
         std::uint64_t idGen = 0;
@@ -891,10 +894,14 @@ namespace YSE {
       // `retiring` (epoch unset): RebuildAndPublish tags them after the
       // publish that drops them. Caller holds mtx.
       void SyncPolyVoicesUnlocked(std::vector<RetiredObject>& retiring);
-      // The voices of one ~poly, copied from `tmpl`. Caller holds mtx.
+      // The voices of one ~poly, copied from `tmpl`, after the ones `inst`
+      // has, up to `voices`. Caller holds mtx.
       void BuildPolyInstanceUnlocked(polyInstance& inst, const std::vector<pObject*>& tmpl,
                                      int voices);
       static void RetirePolyInstance(polyInstance& inst, std::vector<RetiredObject>& retiring);
+      // Retires the voices of `inst` from `voices` on (issue #1294).
+      static void TrimPolyInstance(polyInstance& inst, std::size_t voices,
+                                   std::vector<RetiredObject>& retiring);
 
       // Two-element ping-pong so a reclaim pass that still has work can re-arm
       // without re-enqueuing itself (see reclaimJob). Wired up in the ctor.

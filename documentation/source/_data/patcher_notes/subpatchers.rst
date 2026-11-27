@@ -93,7 +93,8 @@ What is inside is the definition of one voice and does not run itself; the
 ``~poly`` plays ``voices`` copies of it, each with its own state, and adds up
 what their ``~out`` objects put out. An edit inside (an object created,
 deleted, connected or given new arguments) rebuilds every voice from the new
-contents; a voice that was muted stays muted.
+contents; a voice that was muted stays muted, and so do its ``exclude``,
+``bypass`` and ``automute``.
 
 The pins come from the arguments, not from the objects inside:
 
@@ -136,6 +137,29 @@ Messages on any inlet are delivered to that inlet's ``.in`` objects:
 - ``mute <voice> <0|1>``: mutes or unmutes a voice; voice 0 is every voice. A
   muted voice does not compute and adds nothing to the outlets. Its
   ``~thispoly`` reports the change.
+- ``voices <n>``: the voice count while it plays, 1 to 128. Voices are added
+  after the last one or removed from the end, shortly after the message (the
+  patcher makes them outside the audio thread). The voices that stay are not
+  rebuilt: they keep playing, and keep their mute, busy flag, held notes,
+  ``exclude``, ``bypass`` and ``automute``. A removed voice's notes are
+  forgotten; a voice added starts new and fires no ``.loadbang``. A target
+  above the new count becomes the count. The count is not saved: a saved
+  patch has the ``voices`` argument.
+- ``busymap [<outlet>]``: a list with a 0 or a 1 for every voice, from voice
+  1, out of message outlet ``outlet`` (0 if not given): 1 for a voice
+  ``note`` would pass over as busy, because its ``~thispoly`` says so or it
+  was given a note this block.
+- ``mutemap [<outlet>]``: the same list for the mute state, 1 for a muted
+  voice.
+- ``exclude <voice> <0|1>``: 1 takes the voice out of ``note``, ``midinote``
+  and ``midievent`` allocation: it is never chosen and never stolen. Its
+  held notes still end, and other messages still reach it. Voice 0 is every
+  voice; the number defaults to 1.
+- ``bypass <voice> <0|1>``: 1 stops the voice rendering and adds the signal
+  on inlet N to signal outlet N in its place, for every N the ``~poly`` has
+  both of. Messages still reach it, and it resumes where it stopped. A muted
+  voice adds nothing, bypassed or not. Voice 0 is every voice; the number
+  defaults to 1.
 - ``steal <0|1>``: changes the ``steal`` argument.
 - ``setvalue <voice> <message>``: the message to that voice (0: every voice)
   without changing the target.
@@ -188,6 +212,12 @@ and a ``midievent`` note-on go:
   An envelope makes a voice busy until it has faded out.
 - ``mute <0|1>``: mutes or unmutes this voice, as the ``~poly``'s ``mute``
   does, and reports it.
+- ``automute <0|1>``: 1 mutes the voice whenever it is not busy and unmutes
+  it when it becomes busy. A note the ``~poly`` gives the voice unmutes it
+  first, so a voice whose busy flag comes from a signal runs and can say it
+  is busy; when that signal falls to 0 the voice mutes itself. A voice that
+  is not busy is muted as soon as ``automute 1`` arrives; ``automute 0``
+  leaves the mute as it is.
 - A bang: the voice count out of the right outlet, then the voice number out
   of the left.
 

@@ -81,6 +81,33 @@ TEST_SUITE("dsp") {
     CHECK(pool.choose(isBusy) == 1);
   }
 
+  TEST_CASE("voiceAllocator: a skipped voice is neither free nor stolen (#1294)") {
+    voiceAllocator pool(3);
+    const auto none = [](int) { return false; };
+    std::vector<bool> skipped = {true, false, false};
+    const auto isSkipped = [&skipped](int v) { return skipped[static_cast<std::size_t>(v)]; };
+    // Voice 0 is free but skipped: the next one.
+    CHECK(pool.choose(none, isSkipped) == 1);
+    CHECK(pool.noteOn(60, none, isSkipped).voice == 1);
+    CHECK(pool.noteOn(62, none, isSkipped).voice == 2);
+    CHECK(pool.noteOn(64, none, isSkipped).voice == voiceAllocator::NO_VOICE);
+    // Stealing: voice 0 was never started, so it is the oldest; skipped, it
+    // is passed over for the oldest voice that is not, voice 1.
+    pool.steal(true);
+    const voiceAllocator::allocation a = pool.noteOn(66, none, isSkipped);
+    CHECK(a.voice == 1);
+    CHECK(a.stolenPitch == 60);
+    // Unskipped, it is chosen again.
+    skipped[0] = false;
+    CHECK(pool.choose(none, isSkipped) == 0);
+    // Every voice skipped: nothing, even with stealing on.
+    skipped = {true, true, true};
+    CHECK(pool.choose(none, isSkipped) == voiceAllocator::NO_VOICE);
+    CHECK(pool.noteOn(68, none, isSkipped).voice == voiceAllocator::NO_VOICE);
+    // A skipped voice still releases what it holds.
+    CHECK(pool.noteOff(62) == 2);
+  }
+
   TEST_CASE("voiceAllocator: a pitch held twice is released oldest first (#1040)") {
     voiceAllocator pool(4);
     CHECK(pool.noteOn(60).voice == 0);

@@ -2985,16 +2985,16 @@ void patcherImplementation::CollectVoiceObjects(std::vector<pObject*>& out) cons
 namespace {
   // What a ~poly's voices are copied from (issue #1040): for each object of
   // the template, its type, parameters, container and cords within the
-  // template, by position in the list; and the voice count. Equal strings
-  // mean the copies made last time are still copies of it.
-  std::string PolyFingerprint(const pObject* host, const std::vector<pObject*>& tmpl, int voices) {
+  // template, by position in the list. Equal strings mean the copies made
+  // last time are still copies of it. The voice count is not in it: a new
+  // count adds or removes voices and keeps the rest (issue #1294).
+  std::string PolyFingerprint(const pObject* host, const std::vector<pObject*>& tmpl) {
     std::unordered_map<const pObject*, std::size_t> position;
     position.reserve(tmpl.size());
     for (std::size_t i = 0; i < tmpl.size(); i++) {
       position.emplace(tmpl[i], i);
     }
-    std::string text = std::to_string(voices);
-    text += '\n';
+    std::string text;
     for (pObject* object : tmpl) {
       text += object->Type();
       text += '\x1f';
@@ -3040,17 +3040,35 @@ void patcherImplementation::RetirePolyInstance(polyInstance& inst,
   inst.roots.clear();
 }
 
+void patcherImplementation::TrimPolyInstance(polyInstance& inst, std::size_t voices,
+                                             std::vector<RetiredObject>& retiring) {
+  // The voices from `voices` on go as RetirePolyInstance's do (issue #1294).
+  for (std::size_t v = voices; v < inst.copies.size(); v++) {
+    for (pObject* object : inst.copies[v]) {
+      object->UnwireFromPeers();
+      LeaveSignalBus(object);
+      retiring.push_back({object, 0, inst.idGen});
+    }
+  }
+  for (std::size_t v = voices; v < inst.roots.size(); v++) {
+    retiring.push_back({inst.roots[v], 0, inst.idGen});
+  }
+  if (inst.copies.size() > voices) inst.copies.resize(voices);
+  if (inst.roots.size() > voices) inst.roots.resize(voices);
+}
+
 void patcherImplementation::BuildPolyInstanceUnlocked(polyInstance& inst,
                                                       const std::vector<pObject*>& tmpl,
                                                       int voices) {
   // Caller holds mtx. Each copy is made the way a load makes an object —
   // created from the registry, given the template's parameters and saved
   // state, parented, numbered — then wired to the other copies of its voice
-  // the way the template is wired. Nothing is published yet.
+  // the way the template is wired. Nothing is published yet. Voices the
+  // instance already has are kept: only the ones after them are made.
   auto* host = static_cast<dPoly*>(inst.host);
   std::unordered_map<const pObject*, pObject*> copyOf;
   copyOf.reserve(tmpl.size());
-  for (int v = 0; v < voices; v++) {
+  for (int v = static_cast<int>(inst.roots.size()); v < voices; v++) {
     auto* root = new polyVoice(host, v + 1);
     root->SetParent(this);
     inst.roots.push_back(root);
@@ -3117,15 +3135,31 @@ void patcherImplementation::SyncPolyVoicesUnlocked(std::vector<RetiredObject>& r
   std::sort(hosts.begin(), hosts.end(),
             [](pObject* a, pObject* b) { return a->GetID() < b->GetID(); });
 
+  std::uint64_t generation = 0;
+  {
+    std::scoped_lock rlk(reclaimMtx_);
+    generation = idGeneration_;
+  }
   std::vector<polyInstance> kept;
   std::vector<pObject*> tmpl;
   for (pObject* host : hosts) {
     CollectTemplate(host, tmpl);
-    const int voices = static_cast<dPoly*>(host)->Voices();
-    std::string fingerprint = PolyFingerprint(host, tmpl, voices);
+    auto* poly = static_cast<dPoly*>(host);
+    const int voices = poly->WantedVoices();
+    std::string fingerprint = PolyFingerprint(host, tmpl);
     auto it = std::find_if(polyInstances_.begin(), polyInstances_.end(),
                            [host](const polyInstance& inst) { return inst.host == host; });
-    if (it != polyInstances_.end() && it->fingerprint == fingerprint) {
+    if (it != polyInstances_.end() && it->fingerprint == fingerprint && it->idGen == generation) {
+      // The same contents. A new voice count (the `voices` message, issue
+      // #1294) removes voices from the end or adds new ones after the
+      // others; the voices that stay are untouched, running state and all.
+      const int had = static_cast<int>(it->roots.size());
+      if (voices < had) {
+        TrimPolyInstance(*it, static_cast<std::size_t>(voices), retiring);
+      } else if (voices > had) {
+        poly->ClearVoices(had, voices);
+        BuildPolyInstanceUnlocked(*it, tmpl, voices);
+      }
       kept.push_back(std::move(*it));
       polyInstances_.erase(it);
       continue;
@@ -3137,16 +3171,14 @@ void patcherImplementation::SyncPolyVoicesUnlocked(std::vector<RetiredObject>& r
       for (std::size_t v = 0; v < it->roots.size() && v < muted.size(); v++) {
         muted[v] = static_cast<polyVoice*>(it->roots[v])->Muted();
       }
+      poly->ClearVoices(static_cast<int>(it->roots.size()), voices);
       RetirePolyInstance(*it, retiring);
       polyInstances_.erase(it);
     }
     polyInstance inst;
     inst.host = host;
     inst.fingerprint = std::move(fingerprint);
-    {
-      std::scoped_lock rlk(reclaimMtx_);
-      inst.idGen = idGeneration_;
-    }
+    inst.idGen = generation;
     BuildPolyInstanceUnlocked(inst, tmpl, voices);
     for (std::size_t v = 0; v < inst.roots.size(); v++) {
       static_cast<polyVoice*>(inst.roots[v])->SetMute(muted[v]);
@@ -3194,6 +3226,13 @@ void patcherImplementation::RunSignalBusSync() {
       changed = static_cast<dReceive*>(object)->ApplySet() || changed;
     }
   }
+  // A ~poly's `voices` message (issue #1294) asks for this sync too: a count
+  // that differs from the voices it has is a rebuild.
+  for (const polyInstance& inst : polyInstances_) {
+    if (static_cast<dPoly*>(inst.host)->WantedVoices() != static_cast<int>(inst.roots.size())) {
+      changed = true;
+    }
+  }
   // A new name pairs other objects: order them (BuildRenderOrder).
   if (changed) RebuildAndPublish();
 }
@@ -3210,6 +3249,12 @@ void patcherImplementation::RebuildAndPublish() {
   // graphReadScope's constructor for the ordering argument it completes.
   const GraphState* old = active_.load(std::memory_order_relaxed);
   active_.store(next, std::memory_order_seq_cst);
+  // Each ~poly learns how many voices the graph now has (issue #1294), after
+  // the publish: an allocator that grew before it could put a note in a
+  // voice no snapshot renders yet.
+  for (const polyInstance& inst : polyInstances_) {
+    static_cast<dPoly*>(inst.host)->PublishVoices(static_cast<int>(inst.roots.size()));
+  }
   if (old != nullptr) {
     std::scoped_lock lk(reclaimMtx_);
     retiredGraphs_.emplace_back(old, audioBlock_.load(std::memory_order_acquire));

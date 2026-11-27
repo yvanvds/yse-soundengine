@@ -142,6 +142,25 @@ namespace YSE {
      *  - ``mute <voice> <0|1>``: mutes a voice (0: every voice). A muted
      *    voice does not compute and adds nothing to the outlets; its
      *    ``~thispoly`` reports the change.
+     *  - ``voices <n>`` (issue #1294): the voice count, 1..128, at run time.
+     *    Voices are added or removed on the control side (a deferred job, as
+     *    a ``~send``'s ``set`` is: patcherImplementation::
+     *    RequestSignalBusSync), one publish; the voices that stay keep their
+     *    copies and so their running state, mute, busy, exclude, bypass and
+     *    automute, and the notes they hold. A removed voice's note is
+     *    forgotten; an added voice starts as a new one. Run-time state: the
+     *    ``voices`` argument is what is saved.
+     *  - ``busymap [<outlet>]`` / ``mutemap [<outlet>]`` (issue #1294): a list
+     *    with one 0 or 1 per voice, from voice 1, out of message outlet
+     *    ``outlet`` (0 by default): busy as ``note`` sees it (~thispoly's
+     *    flag, or given a note this block), or muted.
+     *  - ``exclude <voice> <0|1>`` (issue #1294): takes a voice (0: every
+     *    voice) out of allocation: ``note``, ``midinote`` and a ``midievent``
+     *    note-on neither choose nor steal it. Its held notes still end.
+     *  - ``bypass <voice> <0|1>`` (issue #1294): the voice (0: every voice)
+     *    does not render and adds the ~poly's inlet N signal to signal outlet
+     *    N instead. A muted voice adds nothing, bypassed or not. Messages
+     *    still reach it.
      *  - ``steal <0|1>``: whether ``note``, ``midinote`` and ``midievent``
      *    take a busy voice when none is free.
      *  - ``setvalue <voice> <message>``: the message to one voice (0: all),
@@ -180,10 +199,25 @@ namespace YSE {
      *         without its leading word; a longer one is dropped. */
     static constexpr std::size_t MAX_MESSAGE = 512;
 
-    /** @brief The number of voices (control side; fixed for the object). */
+    /** @brief The number of voices the published graph has. Any thread. */
     int Voices() const {
-      return voiceCount;
+      return live.load(std::memory_order_acquire);
     }
+    /** @brief The number of voices asked for: the argument, or the last
+     *         ``voices`` message. The patcher builds this many. Any thread. */
+    int WantedVoices() const {
+      return wanted.load(std::memory_order_acquire);
+    }
+    /** @brief Patcher, control side, before a publish that adds voices
+     *         [@p from, @p to) (from 0): their per-voice state (busy, pending,
+     *         exclude, bypass, automute) back to a new voice's. Nothing in the
+     *         graph being replaced renders those voices. */
+    void ClearVoices(int from, int to);
+    /** @brief Patcher, control side, after a publish: the graph has @p count
+     *         voices. Voices() reports it, a target above it becomes it, and
+     *         the allocator follows on the next routing word (under the
+     *         guard), forgetting the notes of removed voices. */
+    void PublishVoices(int count);
     int Inlets() const {
       return static_cast<int>(inputs.size());
     }
@@ -202,6 +236,17 @@ namespace YSE {
     int Target() const {
       return target.load(std::memory_order_relaxed);
     }
+    /** @brief Whether voice @p voice (from 1) is out of allocation. */
+    bool Excluded(int voice) const;
+    /** @brief Whether voice @p voice (from 1) passes its input through. */
+    bool Bypassed(int voice) const;
+    /** @brief ~thispoly's ``automute`` for voice @p voice (from 1). Any
+     *         thread. */
+    bool AutoMute(int voice) const;
+    void SetAutoMute(int voice, bool on);
+    /** @brief Mutes or unmutes voice @p voice (from 1; 0 every voice) as the
+     *         ``mute`` message does, its ~thispoly reporting it. Any thread. */
+    void MuteVoice(int voice, bool on, YSE::THREAD thread);
     /** @brief The pitch voice @p voice (from 1) holds after a midinote, or -1. */
     int PitchOfVoice(int voice) const;
     /** @brief Routing words refused: concurrent or re-entrant. Monotonic. */
@@ -236,11 +281,22 @@ namespace YSE {
                    YSE::THREAD thread);
     void MpeEvent(const GraphState::polyDomain& d, const std::string& text, std::size_t rest,
                   YSE::THREAD thread);
+    // `busymap` / `mutemap` (issue #1294), under the guard.
+    void Map(const GraphState::polyDomain& d, bool mute, int outlet, YSE::THREAD thread);
+    // Sets `flags[voice - 1]` (0: every voice of the published count).
+    void SetFlag(std::atomic<bool>* flags, int voice, bool on);
+    // A voice given a note: unmuted first when its ~thispoly automutes.
+    void Start(const GraphState::polyDomain& d, int voice, YSE::THREAD thread);
     bool Enter();
     void Leave();
     bool Available(int voice) const;
+    // The allocator's skip test (issue #1294): the excluded voices, by index.
+    auto Skip() const {
+      return [this](int voice) { return excluded[voice].load(std::memory_order_acquire); };
+    }
 
     std::string name;
+    // The `voices` argument (saved). The run-time count is `wanted` / `live`.
     int voiceCount = 1;
     int ins = 1;
     int outs = 1;
@@ -253,6 +309,16 @@ namespace YSE {
     // this block", cleared after each render.
     std::unique_ptr<std::atomic<bool>[]> busy;
     std::unique_ptr<std::atomic<bool>[]> pending;
+    // Per voice (issue #1294): `exclude`, `bypass`, ~thispoly's `automute`.
+    // Kept here, not in the copies, so a rebuild keeps them.
+    std::unique_ptr<std::atomic<bool>[]> excluded;
+    std::unique_ptr<std::atomic<bool>[]> bypassed;
+    std::unique_ptr<std::atomic<bool>[]> automute;
+    // The voice count asked for (any thread), and the one published (the
+    // patcher, after each publish). The allocator's size follows `live`
+    // under the guard (Enter).
+    std::atomic<int> wanted{1};
+    std::atomic<int> live{1};
     // Per voice (index voice - 1), under the guard: the channel (0-15) of
     // the `midievent` note-on the voice holds, or -1 when it holds a
     // `midinote` (or nothing), so allnotesoff ends each the way it began.
@@ -371,7 +437,10 @@ DSP::buffer* in = nullptr;
  *  Inlet: a number sets the voice busy (non-zero) or free (0): a busy voice
  *  gets no ``note`` / ``midinote``. A signal does the same each block
  *  (busy while any sample is non-zero). ``mute 0|1`` unmutes / mutes the
- *  voice. A bang sends the voice count, then the voice number.
+ *  voice. ``automute 0|1`` (issue #1294): while on, the voice is muted
+ *  whenever it is not busy and unmuted when it becomes busy or the ~poly
+ *  gives it a note (so it runs a block to say it is busy). A bang sends the
+ *  voice count, then the voice number.
  *
  *  Outlets: the voice number (from 1; 0 outside a ~poly), the mute state
  *  (when it changes through this object or the ~poly's ``mute``), the
@@ -395,7 +464,7 @@ bool VoiceEventSink() const override {
 void DeliverVoiceEvent(const voiceEvent& event, YSE::THREAD thread) override;
 
 private:
-void SetBusyFlag(bool on);
+void SetBusyFlag(bool on, YSE::THREAD thread);
 polyVoice* voice_ = nullptr;
 }
 ;

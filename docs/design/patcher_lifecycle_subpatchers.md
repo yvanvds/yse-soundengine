@@ -189,9 +189,39 @@ the zone from 1; -1 on the master), the channel. The voice number is derived fro
 the two models agree and nothing new is invented. A channel outside the zone sends no event.
 `.mpeformat` does not send `mpeevent` (Max's sends one for `vst~`, which does not exist here).
 
-**Not done here** (Max surface left out or deferred): `voices` at run time (change the argument),
-`busymap` / `mutemap`, `exclude`, `bypass`, `~thispoly`'s `automute` (#1294), and Max's external
-patch files, `args`, `up` / `down`, `parallel`, `threadcount`, `vs`, `open` / `wclose`,
+**The rest of the surface (#1294).**
+
+- `voices <n>` at run time. The `~poly` stores the count asked for (`dPoly::WantedVoices`, an
+  atomic, any thread) and asks for the deferred sync a `~send`'s `set` uses
+  (`RequestSignalBusSync`), which now also rebuilds when a `~poly`'s asked-for count differs from the
+  voices it has. The fingerprint no longer holds the count: with the same template,
+  `SyncPolyVoicesUnlocked` trims voices from the end (`TrimPolyInstance`, retired like any copy) or
+  builds new ones after the last (`BuildPolyInstanceUnlocked` starts at the voices the instance
+  has), so the voices that stay keep their copies and their running state. Before the publish,
+  `ClearVoices` resets the per-voice state of the voices being added (nothing renders them yet);
+  after it, `PublishVoices` stores the published count (`Voices()`) and clamps the target. The
+  allocator's size follows on the next routing word under the guard (`Enter`), which also releases
+  the notes of removed voices, so no lock is shared with the audio thread and nothing allocates
+  there. Growing the allocator only after the publish means no note can go to a voice no snapshot
+  renders. A removed voice gets no `Teardown` (the sync runs under `mtx`, and a removed voice is
+  like a rebuilt one), a new one no `Loadbang` (as for voices rebuilt by an edit). The count is
+  run-time state, like mute: not saved, and a `SetParams` of the `~poly` starts from the argument.
+- `busymap` / `mutemap [<outlet>]`: one 0/1 per voice of the pinned snapshot out of message outlet
+  `outlet`, built in the reserved scratch string under the guard. Busy is what allocation sees
+  (`~thispoly`'s flag, or pending), not "holds a pitch".
+- `exclude <voice> <0|1>`: a per-voice flag passed to `DSP::voiceAllocator` as a *skip* test, a
+  new optional predicate beside the busy one. It cannot be a third term of the busy test as the
+  issue suggested: busy voices are still stolen, and an excluded one must not be.
+- `bypass <voice> <0|1>`: the voice's render is skipped (it resumes where it stopped, like a
+  muted one) and inlet N's signal is added to outlet N in its place. Mute wins over bypass.
+- `~thispoly automute <0|1>`: a per-voice flag kept on the `~poly` (so a rebuild keeps it, as it
+  keeps mute). `~thispoly` mutes its voice when its busy flag falls and unmutes it when it rises,
+  through `dPoly::MuteVoice` so every `~thispoly` in the voice reports it. Since a muted voice does
+  not render, a busy flag from a signal could never rise again; so the `~poly` unmutes an automuted
+  voice when it gives it a note (`dPoly::Start`), before delivering it, and pending keeps it busy
+  for the block its signal needs.
+
+**Not done here** (Max surface left out or deferred): Max's external patch files, `args`, `up` / `down`, `parallel`, `threadcount`, `vs`, `open` / `wclose`,
 `legacynotemode`. Dropped by #756: `mpemode` (always on: `mpeevent` only makes sense with direct
 allocation, since the controller has already given each note its channel), `zone` (an `.mpeparse`
 watches one zone, so a `~poly` fed by it only sees that zone's events), and `midimode` (a

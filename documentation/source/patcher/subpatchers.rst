@@ -533,8 +533,20 @@ with ``steal`` on, the one started longest ago. ``~thispoly`` makes its voice
 busy from a number or from a signal such as an envelope, and a voice that
 has just been given a note counts as busy until the end of the next block,
 so a chord spreads over several voices. ``mute <voice> 1`` stops a voice
-computing until ``mute <voice> 0``; it resumes where it stopped. The full
-list of messages is in :doc:`objects/subpatchers`. The allocation policy is
+computing until ``mute <voice> 0``; it resumes where it stopped.
+``automute 1`` on a ``~thispoly`` does that by itself: the voice is muted
+while it is not busy and a note unmutes it, so silent voices cost nothing.
+``exclude <voice> 1`` keeps a voice out of ``note`` and ``midinote``, and
+``bypass <voice> 1`` passes the ``~poly``'s input through in its place.
+``busymap`` and ``mutemap`` list every voice's busy and mute state out of a
+message outlet. The full list of messages is in :doc:`objects/subpatchers`.
+
+``voices <n>`` changes the voice count while the patch plays. The voices
+that stay are not rebuilt and play on; new ones are added after them, or the
+last ones removed. The patcher makes the copies on the control side, so the
+message is safe from the audio thread and takes effect shortly after it. It
+is run-time state like ``mute``: a saved patch keeps the ``voices``
+argument. The allocation policy is
 ``YSE::DSP::voiceAllocator``, which ``.poly`` uses too and C++ code can use
 without a patcher.
 
