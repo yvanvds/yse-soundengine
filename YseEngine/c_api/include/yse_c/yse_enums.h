@@ -109,6 +109,39 @@ typedef enum YseEqBand {
   YSE_EQ_BAND_COUNT = 4
 } YseEqBand;
 
+/** Mirrors YSE::DSP::onePole::FREQUENCY_MODE and
+   YSE::DSP::stateVariableFilter::FREQUENCY_MODE (filters/onePole.hpp,
+   filters/stateVariableFilter.hpp) — how a filter processor reads its
+   frequency (issue #1173). */
+typedef enum YseDspFrequencyMode {
+  YSE_DSP_FREQUENCY_HZ = 0, /**< A frequency in Hz. */
+  YSE_DSP_FREQUENCY_LINEAR = 1, /**< 0..1 spanning 0 .. a quarter of the sample rate. */
+  YSE_DSP_FREQUENCY_RADIANS = 2 /**< 0..1 read as the filter's frequency coefficient. */
+} YseDspFrequencyMode;
+
+/** Mirrors YSE::DSP::filterCoefficients::TYPE (filters/filterCoefficients.hpp)
+   — the biquad designs yse_dsp_filter_coefficients_* compute (issue #1173).
+   The GAIN* types scale the response by the linear gain. */
+typedef enum YseDspFilterType {
+  YSE_DSP_FILTER_OFF = 0,
+  YSE_DSP_FILTER_LOWPASS = 1,
+  YSE_DSP_FILTER_HIGHPASS = 2,
+  YSE_DSP_FILTER_BANDPASS = 3,
+  YSE_DSP_FILTER_BANDSTOP = 4,
+  YSE_DSP_FILTER_PEAKNOTCH = 5,
+  YSE_DSP_FILTER_LOWSHELF = 6,
+  YSE_DSP_FILTER_HIGHSHELF = 7,
+  YSE_DSP_FILTER_RESONANT = 8,
+  YSE_DSP_FILTER_ALLPASS = 9,
+  YSE_DSP_FILTER_GAINLPASS = 10,
+  YSE_DSP_FILTER_GAINHPASS = 11,
+  YSE_DSP_FILTER_GAINBPASS = 12,
+  YSE_DSP_FILTER_GAINBSTOP = 13,
+  YSE_DSP_FILTER_GAINRESONANT = 14,
+  YSE_DSP_FILTER_GAINAPASS = 15,
+  YSE_DSP_FILTER_TYPE_COUNT = 16 /**< sentinel — number of types; keep last. */
+} YseDspFilterType;
+
 /** Mirrors YSE::DSP::MODULES::compressorDetector (compressor.hpp) — the
    level-detector mode. */
 typedef enum YseCompressorDetector {

@@ -116,6 +116,9 @@ family, and each family has one destroy for all its members:
   (`#662 <https://github.com/yvanvds/yse-soundengine/issues/662>`_).
 - ``yse_dsp_object_destroy`` releases every effect, including a patcher
   insert. Destroying an insert never destroys the patcher it wraps.
+- ``yse_dsp_processor_destroy`` releases every ``YseDspProcessor``, the
+  standalone signal processors of the MSP port (a ``yse_dsp_one_pole_create``
+  filter, a ``yse_dsp_svf_create`` filter, …).
 
 **Lifetimes that you enforce.** Several calls keep a pointer to an object you
 own, and the library does not track it. The object must outlive its user:
@@ -193,6 +196,39 @@ for example with one wrapper class per subclass. The effect handles in
 functions accept any effect, and a module's own setters (such as
 ``yse_dsp_lowpass_set_frequency``) need a handle from that module's
 constructor.
+
+``YseDspProcessor`` is the exception: its handle remembers its class, and a
+processor function checks it
+(`#1173 <https://github.com/yvanvds/yse-soundengine/issues/1173>`_). Passing a
+``yse_dsp_lores_create`` handle to ``yse_dsp_reson_set_q`` is treated like
+passing ``NULL``: the setter does nothing, a getter returns 0 and a process
+function returns 0 samples.
+
+Signal processors
+~~~~~~~~~~~~~~~~~
+
+The ``YseDspProcessor`` headers (``yse_dsp_processor.h`` and one header per
+category, such as ``yse_dsp_filters.h``) wrap the standalone ``YSE::DSP``
+classes behind the patcher's ``~`` objects. The engine never runs a
+processor. You call it on your own sample arrays, on any thread, for
+offline rendering, for analysis, or inside your own audio callback:
+
+.. code-block:: c
+
+   YseDspProcessor* lp = yse_dsp_lores_create();
+   yse_dsp_lores_set_cutoff(lp, 800.0f);
+   yse_dsp_lores_set_resonance(lp, 0.5f);
+   yse_dsp_lores_process(lp, in, out, 512);  /* out may be in itself */
+   yse_dsp_processor_destroy(lp);
+
+- A process function takes ``length`` samples from each input array and
+  writes ``length`` to each output. It returns ``length``, or 0 when the
+  handle or a required array is ``NULL`` (nothing is written).
+- Any length is accepted. The engine classes work in blocks of 128 samples,
+  so a longer array is processed as consecutive blocks of 128.
+- Processing and setters allocate nothing and take no lock, so they are safe
+  on a real-time thread. Constructors allocate. Use one handle from one
+  thread at a time.
 
 Errors
 ~~~~~~
@@ -544,6 +580,12 @@ DSP and patcher
    :project: libYSE
 
 .. doxygenfile:: c_api/include/yse_c/yse_dsp_modules.h
+   :project: libYSE
+
+.. doxygenfile:: c_api/include/yse_c/yse_dsp_processor.h
+   :project: libYSE
+
+.. doxygenfile:: c_api/include/yse_c/yse_dsp_filters.h
    :project: libYSE
 
 .. doxygenfile:: c_api/include/yse_c/yse_patcher.h

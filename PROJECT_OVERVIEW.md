@@ -410,10 +410,13 @@ c_api/include/yse_c/         # Public C headers — Dart's ffigen entry point
   yse_all.h                  # Aggregate header (includes the rest)
   yse_system.h yse_listener.h yse_channel.h yse_sound.h yse_reverb.h
   yse_device.h yse_dsp.h yse_dsp_modules.h yse_patcher.h yse_midi.h
+  yse_dsp_processor.h yse_dsp_filters.h
   yse_clip.h yse_music.h yse_synth.h yse_instrument.h yse_python.h
   yse_bus.h yse_log.h yse_buffer_io.h yse_common.h yse_enums.h
 c_api/                       # Wrappers (yse_*.cpp) and the internal helper header yse_c_internal.hpp
 ```
+
+`yse_dsp_processor.h` (issue #1173) is the C shape for the standalone block-processing `YSE::DSP` classes of the MSP port: one owned, class-checked `YseDspProcessor` handle per object, released with `yse_dsp_processor_destroy()`. Its owning wrapper, in `yse_dsp_processor_internal.hpp`, stages host float arrays through preallocated scratch buffers in 128-sample blocks, so process calls are allocation-free. Each category gets its own header. `yse_dsp_filters.h` comes first, and the remaining categories are tracked in #1296–#1305.
 
 `yse_bus.h` (issue #389) is the host bus tap: `yse_bus_tap_create(prefix, cb, user_data)` subscribes the host to a bus-address prefix and delivers `(address, value)` frames on the thread that drives `yse_system_update()` — the outbound counterpart to the script-error callback, and the blocking dependency for the Phi live-coding control plane. Issue #904 adds the inbound side: `yse_bus_publish_bang/_int/_float/_string/_list(address, ...)` publish as a control-rate producer (the same `T_GUI` attribution as a script's `yse.send()`), and `yse_bus_subscribe(address, cb, user_data)` / `yse_bus_unsubscribe` register an exact-address subscription delivered like a tap. Every C header is wired into the Sphinx API reference and guarded against drift by [Tests/system/test_api_doc_coverage.cpp](Tests/system/test_api_doc_coverage.cpp) (issue #398).
 

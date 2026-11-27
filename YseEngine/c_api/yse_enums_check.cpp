@@ -16,6 +16,9 @@
 #include "../dsp/modules/chorus.hpp"
 #include "../dsp/modules/parametricEQ.hpp"
 #include "../dsp/modules/compressor.hpp"
+#include "../dsp/filters/onePole.hpp"
+#include "../dsp/filters/stateVariableFilter.hpp"
+#include "../dsp/filters/filterCoefficients.hpp"
 #include "../patcher/pEnums.h"
 #include "../synth/positionHandler.hpp"
 #include "../synth/positionHandlers.hpp"
@@ -203,6 +206,33 @@ namespace {
   YSE_ASSERT_ENUM(YSE_PATH_READ, YSE::PA_READ);
   YSE_ASSERT_ENUM(YSE_PATH_WRITE, YSE::PA_WRITE);
   YSE_ASSERT_ENUM_COUNT(YSE::PATH_ACCESS_COUNT_, YSE_PATH_WRITE);
+
+  // YseDspFrequencyMode <-> onePole / stateVariableFilter FREQUENCY_MODE (#1173)
+  YSE_ASSERT_ENUM(YSE_DSP_FREQUENCY_HZ, YSE::DSP::onePole::HZ);
+  YSE_ASSERT_ENUM(YSE_DSP_FREQUENCY_LINEAR, YSE::DSP::onePole::LINEAR);
+  YSE_ASSERT_ENUM(YSE_DSP_FREQUENCY_RADIANS, YSE::DSP::onePole::RADIANS);
+  YSE_ASSERT_ENUM(YSE_DSP_FREQUENCY_HZ, YSE::DSP::stateVariableFilter::HZ);
+  YSE_ASSERT_ENUM(YSE_DSP_FREQUENCY_LINEAR, YSE::DSP::stateVariableFilter::LINEAR);
+  YSE_ASSERT_ENUM(YSE_DSP_FREQUENCY_RADIANS, YSE::DSP::stateVariableFilter::RADIANS);
+
+  // YseDspFilterType <-> filterCoefficients::TYPE (#1173)
+  YSE_ASSERT_ENUM(YSE_DSP_FILTER_OFF, YSE::DSP::filterCoefficients::OFF);
+  YSE_ASSERT_ENUM(YSE_DSP_FILTER_LOWPASS, YSE::DSP::filterCoefficients::LOWPASS);
+  YSE_ASSERT_ENUM(YSE_DSP_FILTER_HIGHPASS, YSE::DSP::filterCoefficients::HIGHPASS);
+  YSE_ASSERT_ENUM(YSE_DSP_FILTER_BANDPASS, YSE::DSP::filterCoefficients::BANDPASS);
+  YSE_ASSERT_ENUM(YSE_DSP_FILTER_BANDSTOP, YSE::DSP::filterCoefficients::BANDSTOP);
+  YSE_ASSERT_ENUM(YSE_DSP_FILTER_PEAKNOTCH, YSE::DSP::filterCoefficients::PEAKNOTCH);
+  YSE_ASSERT_ENUM(YSE_DSP_FILTER_LOWSHELF, YSE::DSP::filterCoefficients::LOWSHELF);
+  YSE_ASSERT_ENUM(YSE_DSP_FILTER_HIGHSHELF, YSE::DSP::filterCoefficients::HIGHSHELF);
+  YSE_ASSERT_ENUM(YSE_DSP_FILTER_RESONANT, YSE::DSP::filterCoefficients::RESONANT);
+  YSE_ASSERT_ENUM(YSE_DSP_FILTER_ALLPASS, YSE::DSP::filterCoefficients::ALLPASS);
+  YSE_ASSERT_ENUM(YSE_DSP_FILTER_GAINLPASS, YSE::DSP::filterCoefficients::GAINLPASS);
+  YSE_ASSERT_ENUM(YSE_DSP_FILTER_GAINHPASS, YSE::DSP::filterCoefficients::GAINHPASS);
+  YSE_ASSERT_ENUM(YSE_DSP_FILTER_GAINBPASS, YSE::DSP::filterCoefficients::GAINBPASS);
+  YSE_ASSERT_ENUM(YSE_DSP_FILTER_GAINBSTOP, YSE::DSP::filterCoefficients::GAINBSTOP);
+  YSE_ASSERT_ENUM(YSE_DSP_FILTER_GAINRESONANT, YSE::DSP::filterCoefficients::GAINRESONANT);
+  YSE_ASSERT_ENUM(YSE_DSP_FILTER_GAINAPASS, YSE::DSP::filterCoefficients::GAINAPASS);
+  YSE_ASSERT_ENUM(YSE_DSP_FILTER_TYPE_COUNT, YSE::DSP::filterCoefficients::TYPE_COUNT);
 
 #undef YSE_ASSERT_ENUM_COUNT
 #undef YSE_ASSERT_ENUM

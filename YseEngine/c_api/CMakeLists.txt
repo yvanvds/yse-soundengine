@@ -23,6 +23,8 @@ set(YSE_C_API_SRCS
   yse_device.cpp
   yse_dsp.cpp
   yse_dsp_modules.cpp
+  yse_dsp_processor.cpp
+  yse_dsp_filters.cpp
   yse_patcher.cpp
   yse_midi.cpp
   yse_clip.cpp
