@@ -504,6 +504,7 @@ set(YSE_TEST_SOURCES
   patcher/test_patcher_audio_io.cpp
   patcher/test_patcher_subpatch_mute.cpp
   patcher/test_patcher_poly_voices.cpp
+  patcher/test_patcher_polymidiin.cpp
   patcher/test_patcher_dsp_status.cpp
   patcher/test_patcher_sync.cpp
   patcher/test_timerthread.cpp
@@ -1729,6 +1730,7 @@ set_source_files_properties(
   patcher/test_patcher_audio_io.cpp
   patcher/test_patcher_subpatch_mute.cpp
   patcher/test_patcher_poly_voices.cpp
+  patcher/test_patcher_polymidiin.cpp
   patcher/test_patcher_dsp_status.cpp
   patcher/test_patcher_sync.cpp
   patcher/test_timerthread.cpp

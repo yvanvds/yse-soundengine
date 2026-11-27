@@ -72,7 +72,7 @@ registered**. The other 27 MIDI objects are always registered.
        ``.xbendout``, ``.xbendout2``, ``.xctlout``, ``.xnoteout``,
        ``.rpnout``, ``.nrpnout``, ``.midiparse``, ``.midiformat``,
        ``.sxformat``, ``.mpeconfig``, ``.mpeformat``, ``.mpeparse``,
-       ``.midiflush``, ``.makenote``, ``.stripnote``, ``.flush``,
+       ``.polymidiin``, ``.midiflush``, ``.makenote``, ``.stripnote``, ``.flush``,
        ``.sustain``, ``.poly``, ``.borax``, ``.offer``
 
 The senders used to be Windows-only. Since 3.0 they are registered
@@ -591,9 +591,32 @@ number of member channels, one note each.
    Configuration Message on the zone's master channel updates the member
    count as it passes, and is not reported. Program changes, other
    controllers and SysEx are not decoded here; wire a ``.midiparse`` to the
-   same source for those.
+   same source for those. A seventh outlet, sent before the others, carries
+   every channel message in the zone as ``mpeevent <master> <zone> <voice>
+   <channel> <status> <data> [<data>]`` for a ``~poly``, where the voice is
+   the member channel's place in the zone (-1 for the master channel).
 
-All three are codecs and work on every platform.
+``.polymidiin``
+   Inside a ``~poly`` voice, outputs the MIDI the ``~poly``'s ``mpeevent``
+   and ``midievent`` messages give that voice, as byte lists. Wire
+   ``.mpeparse``'s seventh outlet to a ``~poly`` and every note plays in its
+   own voice, with its own bend, pressure and slide:
+
+   .. code-block:: cpp
+
+      YSE::pHandle* mpe   = patch.CreateObject(".mpeparse", "0 15");
+      YSE::pHandle* synth = patch.CreateObject("~poly", "synth 15 1 1");
+      patch.Connect(mpe, 6, synth, 0);
+      // inside the ~poly
+      YSE::pHandle* midi  = patch.CreateObject(".polymidiin");
+      YSE::pHandle* parse = patch.CreateObject(".mpeparse", "0 15");
+      patch.SetContainer(midi, synth);
+      patch.SetContainer(parse, synth);
+      patch.Connect(midi, 0, parse, 0);   // note, bend, pressure, slide of this voice
+
+   See :doc:`subpatchers` for ``~poly``.
+
+All four work on every platform.
 
 Handling notes
 --------------

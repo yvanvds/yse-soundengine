@@ -21,9 +21,9 @@
 //
 // ### Where this family departs from Max, and why
 //
-// Max's four MPE objects are built around `poly~`, which this patcher does not
-// have, and around a zone model that is Max's rather than the specification's.
-// Three deviations follow, all deliberate:
+// Max's four MPE objects are built around `poly~` — here `~poly` (#1040) — and
+// around a zone model that is Max's rather than the specification's. Three
+// deviations follow, all deliberate:
 //
 //   * **Two zones, not seven.** Max's `mpeconfig` lets a patch place up to
 //     seven zones anywhere among the sixteen channels via `masterchan` and
@@ -31,11 +31,16 @@
 //     These objects implement the specification, because what a patch gains
 //     here is talking to real hardware, and real hardware implements the
 //     specification.
-//   * **No `mpeevent`.** Max's `mpeformat` and `mpeparse` trade in an
-//     `mpeevent` message carrying a zone index and a voice number alongside the
-//     channel — Max's own voice-allocation layer for `poly~` and `vst~`, which
-//     the specification has no concept of. Here the member channel *is* the
-//     note's identity, which is what MPE itself says it is.
+//   * **The channel is the note.** Max's `mpeformat` and `mpeparse` trade in
+//     an `mpeevent` message carrying a zone index and a voice number alongside
+//     the channel — Max's own voice-allocation layer for `poly~` and `vst~`,
+//     which the specification has no concept of. Here the member channel *is*
+//     the note's identity, which is what MPE itself says it is, and the four
+//     expression outlets report it that way. `.mpeparse` does also send
+//     Max's `mpeevent` (issue #756), on a seventh, rightmost outlet, because
+//     that is what `~poly`'s direct voice allocation reads; the voice number
+//     in it is derived from the channel (its place in the zone), so the two
+//     models agree. `.mpeformat` does not send one.
 //   * **`.mpeparse` decodes MPE and nothing else.** Max's `mpeparse` is its
 //     `midiparse` plus four MPE outlets. This patcher already has `.midiparse`
 //     (#530), and an object that re-implemented it would drift from it, so
@@ -43,12 +48,11 @@
 //     other controllers and system exclusive to `.midiparse` — wire both to the
 //     same source and nothing is lost.
 //
-// `.polymidiin`, the fourth object issue #535 names, is deliberately **not**
-// here. It is not a MIDI object at all in Max: it has no inlets, sits inside a
-// `poly~` instance, and receives the `mpeevent` messages the enclosing `poly~`
-// routes to that voice. Without a `poly~` equivalent there is nothing for it to
-// be, and giving its name to some other object would collide with Max for every
-// patch brought across. See the follow-up issue.
+// `.polymidiin`, the fourth object issue #535 names, is not here. It is not a
+// MIDI reader at all: it has no inlets, sits inside a `~poly` voice, and
+// outputs the `midievent` / `mpeevent` messages the enclosing `~poly` routes
+// to that voice. It waited for `~poly` (#1040) and lives beside it, in
+// genericObjects/dPoly.h (issue #756).
 //
 // ### No platform guard
 //
@@ -73,6 +77,7 @@
 
 #include <atomic>
 #include <cstdint>
+#include <string>
 
 namespace YSE {
   namespace PATCHER {
@@ -339,7 +344,7 @@ namespace YSE {
      *  in the zone.
      *
      *  Program changes, other controllers, polyphonic key pressure and system
-     *  exclusive are **not** reported. Max's `mpeparse` is its `midiparse` plus
+     *  exclusive are **not** reported on those outlets. Max's `mpeparse` is its `midiparse` plus
      *  four MPE outlets; this patcher already has `.midiparse` (#530), and a
      *  second object re-implementing it would be two decoders to keep in step.
      *  Wire `.midiparse` to the same source and nothing in the stream is lost.
@@ -359,6 +364,22 @@ namespace YSE {
      *  Reporting all three rather than silently dropping the third is the same
      *  choice `.midiparse` makes with its raw outlet: a patch can filter, but it
      *  cannot recover what an object threw away.
+     *
+     *  ### The `mpeevent` outlet (issue #756)
+     *
+     *  The rightmost outlet sends every channel message on the zone's master
+     *  or member channels, configuration included, as Max's `mpeevent`:
+     *  `mpeevent <master> <zone> <voice> <channel> <status> <data> [<data>]`
+     *  — the zone's master channel (1 or 16), the zone (1 lower, 2 upper),
+     *  the voice (the member channel's place in the zone from 1, -1 on the
+     *  master channel), the channel (1-16), then the message's bytes as the
+     *  wire had them, the status byte with its channel. Max documents the
+     *  six fields but not what the last two hold; the bytes are this
+     *  object's reading, and the one that loses nothing (a note keeps its
+     *  release spelling, a bend its two bytes). A channel outside the zone
+     *  sends none: it is no voice of this zone's. `~poly` reads it to give
+     *  each note its own voice, and `.polymidiin` in that voice outputs the
+     *  bytes. Sent first, before the role.
      *
      *  ### It learns the zone from the stream
      *
@@ -431,6 +452,8 @@ namespace YSE {
       // Role and channel out first, then the value — right to left, so whatever
       // the leftmost outlet triggers downstream already knows whose note it is.
       void Report(int nibble, int outlet, int value, YSE::THREAD thread);
+      // The `mpeevent` outlet (issue #756), for a message in the zone.
+      void Event(unsigned char status, int first, int second, YSE::THREAD thread);
       void ReportNote(int nibble, int pitch, int velocity, YSE::THREAD thread);
 
       bool Enter();
@@ -464,6 +487,10 @@ namespace YSE {
       // configuration.
       unsigned char rpnMsb = 0x7F;
       unsigned char rpnLsb = 0x7F;
+
+      // The `mpeevent` text, reserved at construction so building one
+      // allocates nothing. Under the guard.
+      std::string eventText;
 
       std::atomic<bool> busy{false};
       std::atomic<std::uint64_t> dropped{0};

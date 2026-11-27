@@ -1567,12 +1567,12 @@ pRegistry::pRegistry() {
   // sounding note, so that bend, pressure and controller 74 become per-note —
   // which is why all three of these are ordinary formatters and decoders rather
   // than anything that needs a backend. `.polymidiin`, the fourth object issue
-  // #535 names, is not here: in Max it lives inside a `poly~` and receives that
-  // object's `mpeevent` routing, and this patcher has no `poly~` for it to live
-  // in.
+  // #535 names, waited for `~poly` (#1040): it lives inside a voice and outputs
+  // what the ~poly's `midievent` / `mpeevent` routing gives that voice (#756).
   Add(OBJ::M_MPECONFIG, mMpeConfig::Create);
   Add(OBJ::M_MPEFORMAT, mMpeFormat::Create);
   Add(OBJ::M_MPEPARSE, mMpeParse::Create);
+  Add(OBJ::M_POLYMIDIIN, mPolyMidiIn::Create);
 
 #if YSE_ENABLE_MIDI_DEVICE
   // The one sender that holds a device port, so the one that stays guarded.

@@ -8996,11 +8996,18 @@
         "type": "INT"
       },
       {
-        "doc": "The channel's role: 2 master, 1 member, 0 outside the zone. Sent first.",
+        "doc": "The channel's role: 2 master, 1 member, 0 outside the zone. Sent before the channel and the value.",
         "index": 5,
         "label": "role",
         "range": "0-2",
         "type": "INT"
+      },
+      {
+        "doc": "Every channel message in the zone as \"mpeevent <master> <zone> <voice> <channel> <status> <data> [<data>]\", for a ~poly. Sent first.",
+        "index": 6,
+        "label": "mpeevent",
+        "range": "",
+        "type": "LIST"
       }
     ],
     "params": [
@@ -10152,6 +10159,24 @@
       }
     ],
     "requires_midi_device": true
+  },
+  ".polymidiin": {
+    "category": "MIDI",
+    "description": "Inside a ~poly: the MIDI messages its midievent and mpeevent messages give this voice, as byte lists.",
+    "inlets": [],
+    "is_dsp": false,
+    "name": ".polymidiin",
+    "outlets": [
+      {
+        "doc": "Each message as a list of bytes, the status byte with its channel first: \"145 60 100\". Read it with .mpeparse or .midiparse.",
+        "index": 0,
+        "label": "midi",
+        "range": "0-255",
+        "type": "LIST"
+      }
+    ],
+    "params": [],
+    "requires_midi_device": false
   },
   ".polypressure": {
     "category": "MIDI",
@@ -21979,7 +22004,7 @@
           "BANG",
           "LIST"
         ],
-        "doc": "A signal for the ~in objects with this index inside, and messages for the .in objects with this index: to the target voice, or routed by note, midinote, setvalue. Also target, mute, steal, allnotesoff, list.",
+        "doc": "A signal for the ~in objects with this index inside, and messages for the .in objects with this index: to the target voice, or routed by note, midinote, setvalue; midievent and mpeevent for .polymidiin. Also target, mute, steal, allnotesoff, list.",
         "index": 0,
         "label": "in 0",
         "range": ""
@@ -22036,7 +22061,7 @@
       },
       {
         "default": "0",
-        "doc": "0: a note or midinote with no free voice is dropped. Any other value: it goes to the voice started longest ago. The steal message changes it.",
+        "doc": "0: a note, midinote or midievent note-on with no free voice is dropped. Any other value: it goes to the voice started longest ago. The steal message changes it.",
         "name": "steal",
         "range": "0 or non-zero"
       }
@@ -25168,7 +25193,7 @@
           "BANG",
           "LIST"
         ],
-        "doc": "A number: non-zero busy, 0 free; a busy voice gets no note or midinote. A signal: busy while any sample is non-zero. 'mute 1' / 'mute 0' mutes and unmutes the voice. A bang reports the voice count and number.",
+        "doc": "A number: non-zero busy, 0 free; a busy voice gets no note, midinote or midievent note-on. A signal: busy while any sample is non-zero. 'mute 1' / 'mute 0' mutes and unmutes the voice. A bang reports the voice count and number.",
         "index": 0,
         "label": "busy",
         "range": ""

@@ -48,6 +48,43 @@ namespace {
       from++;
     return from;
   }
+
+  // Up to `most` numbers from `from`, as ints, into `out`; how many there
+  // were. Stops at the first token that is not a number.
+  int Numbers(const std::string& text, std::size_t from, int* out, int most) {
+    int given = 0;
+    float value = 0.f;
+    while (given < most && Number(text, from, from, value)) {
+      out[given++] = ExprToInt(value);
+    }
+    return given;
+  }
+
+  // The MIDI wire format (issue #756), spelled locally as the midi/ objects
+  // spell it.
+  constexpr int kStatusMask = 0xF0;
+  constexpr int kChannelMask = 0x0F;
+  constexpr int kNoteOff = 0x80;
+  constexpr int kNoteOn = 0x90;
+  constexpr int kPolyPressure = 0xA0;
+  constexpr int kProgramChange = 0xC0;
+  constexpr int kChannelPressure = 0xD0;
+  constexpr int kFirstSystem = 0xF0;
+
+  // Data bytes after a channel status byte: one for program change and
+  // channel pressure, two for the rest.
+  int DataBytes(int status) {
+    const int type = status & kStatusMask;
+    return (type == kProgramChange || type == kChannelPressure) ? 1 : 2;
+  }
+
+  bool ChannelStatus(int status) {
+    return status >= kNoteOff && status < kFirstSystem;
+  }
+
+  int Data7(int value) {
+    return Clamp(value, 0, 127);
+  }
 } // namespace
 
 // ─── ~poly ────────────────────────────────────────────────────────────────────
@@ -60,6 +97,7 @@ CONSTRUCT_DSP() {
   for (int v = 0; v < MAX_VOICES; v++) {
     busy[v].store(false);
     pending[v].store(false);
+    noteChannel[v] = -1;
   }
   scratch.reserve(MAX_MESSAGE);
 
@@ -95,8 +133,8 @@ CONSTRUCT_DSP() {
             "send. The last outlet always sends the number of the voice that sent.",
             "0-16");
   PARAM_DOC("steal", "0",
-            "0: a note or midinote with no free voice is dropped. Any other value: it goes to "
-            "the voice started longest ago. The steal message changes it.",
+            "0: a note, midinote or midievent note-on with no free voice is dropped. Any other "
+            "value: it goes to the voice started longest ago. The steal message changes it.",
             "0 or non-zero");
 }
 
@@ -121,7 +159,8 @@ void dPoly::Configure() {
     inputs.back().SetDoc(i == 0 ? "in 0" : "in",
                          "A signal for the ~in objects with this index inside, and messages for "
                          "the .in objects with this index: to the target voice, or routed by "
-                         "note, midinote, setvalue. Also target, mute, steal, allnotesoff, list.",
+                         "note, midinote, setvalue; midievent and mpeevent for .polymidiin. Also "
+                         "target, mute, steal, allnotesoff, list.",
                          "");
   }
   results.clear();
@@ -213,6 +252,101 @@ void dPoly::Mute(const GraphState::polyDomain& d, int voice, bool on, YSE::THREA
   }
 }
 
+void dPoly::DeliverEvent(const GraphState::polyDomain& d, int voice, const voiceEvent& event,
+                         YSE::THREAD thread) {
+  for (const GraphState::polyVoiceDomain& v : d.voices) {
+    if (voice != 0 && static_cast<polyVoice*>(v.root)->Number() != voice) continue;
+    for (pObject* sink : v.sinks) {
+      sink->DeliverVoiceEvent(event, thread);
+    }
+  }
+}
+
+// `midievent <status> <data> [<data>] [<detune>]` (issue #756): allocated by
+// key like `midinote`, for the voices' .polymidiin. Notes touch the allocator,
+// so they are under the guard, as `midinote` is; the rest go to the target.
+void dPoly::MidiEvent(const GraphState::polyDomain& d, const std::string& text, std::size_t rest,
+                      YSE::THREAD thread) {
+  int n[3] = {};
+  const int given = Numbers(text, rest, n, 3);
+  if (given < 2 || !ChannelStatus(n[0])) return;
+  const int status = n[0];
+  const int bytes = 1 + DataBytes(status);
+  if (given < bytes) return;
+
+  voiceEvent event;
+  event.kind = voiceEvent::KIND::MIDI;
+  event.count = bytes;
+  event.data[0] = status;
+  event.data[1] = Data7(n[1]);
+  if (bytes == 3) event.data[2] = Data7(n[2]);
+
+  const int type = status & kStatusMask;
+  const int key = event.data[1];
+  if (type == kNoteOn && event.data[2] > 0) {
+    if (!Enter()) return;
+    const int v = pool.noteOn(key, [this](int voice) { return !Available(voice); }).voice;
+    if (v != DSP::voiceAllocator::NO_VOICE) {
+      pending[v].store(true, std::memory_order_release);
+      noteChannel[v] = status & kChannelMask;
+      DeliverEvent(d, v + 1, event, thread);
+    }
+    Leave();
+    return;
+  }
+  if (type == kNoteOff || type == kNoteOn) {
+    if (!Enter()) return;
+    const int v = pool.noteOff(key);
+    if (v != DSP::voiceAllocator::NO_VOICE) {
+      noteChannel[v] = -1;
+      DeliverEvent(d, v + 1, event, thread);
+    }
+    Leave();
+    return;
+  }
+  if (type == kPolyPressure) {
+    if (!Enter()) return;
+    for (int v = 0; v < voiceCount; v++) {
+      if (pool.pitch(v) == key) DeliverEvent(d, v + 1, event, thread);
+    }
+    Leave();
+    return;
+  }
+  const int t = Target();
+  if (t >= 0) DeliverEvent(d, t, event, thread);
+}
+
+// `mpeevent <master> <zone> <voice> <channel> <status> <data> [<data>]`
+// (issue #756): straight to the voice the event names, Max's `mpemode 1`.
+// Nothing shared is written, so no guard.
+void dPoly::MpeEvent(const GraphState::polyDomain& d, const std::string& text, std::size_t rest,
+                     YSE::THREAD thread) {
+  int n[7] = {};
+  const int given = Numbers(text, rest, n, 7);
+  if (given < 6 || !ChannelStatus(n[4])) return;
+  // The channel field decides the status byte's channel, so a message number
+  // given without one (144 for every note-on) means the same as one with it.
+  const int channel = n[3];
+  const int status =
+      (channel >= 1 && channel <= 16) ? ((n[4] & kStatusMask) | (channel - 1)) : n[4];
+  const int count = 5 + DataBytes(status);
+  if (given < count) return;
+
+  const int voice = n[2];
+  if (voice == 0 || voice > voiceCount) return;
+
+  voiceEvent event;
+  event.kind = voiceEvent::KIND::MPE;
+  event.count = count;
+  for (int k = 0; k < 4; k++)
+    event.data[k] = n[k];
+  event.data[3] = (status & kChannelMask) + 1;
+  event.data[4] = status;
+  for (int k = 5; k < count; k++)
+    event.data[k] = Data7(n[k]);
+  DeliverEvent(d, voice < 0 ? 0 : voice, event, thread);
+}
+
 // The routing words (issue #1040). `rest` is where the text after `word`
 // starts. Under the guard for the words that touch the allocator or the
 // scratch string.
@@ -263,7 +397,10 @@ bool dPoly::Route(std::string_view word, const std::string& text, std::size_t re
     int v = DSP::voiceAllocator::NO_VOICE;
     if (ExprToInt(b) > 0) {
       v = pool.noteOn(pitch, [this](int voice) { return !Available(voice); }).voice;
-      if (v != DSP::voiceAllocator::NO_VOICE) pending[v].store(true, std::memory_order_release);
+      if (v != DSP::voiceAllocator::NO_VOICE) {
+        pending[v].store(true, std::memory_order_release);
+        noteChannel[v] = -1;
+      }
     } else {
       v = pool.noteOff(pitch);
     }
@@ -286,6 +423,19 @@ bool dPoly::Route(std::string_view word, const std::string& text, std::size_t re
       count++;
     });
     for (int n = 0; n < count; n++) {
+      const int channel = noteChannel[voices[n]];
+      noteChannel[voices[n]] = -1;
+      if (channel >= 0) {
+        // A midievent note: a note-off on its channel, to .polymidiin.
+        voiceEvent event;
+        event.kind = voiceEvent::KIND::MIDI;
+        event.count = 3;
+        event.data[0] = kNoteOff | channel;
+        event.data[1] = pitches[n];
+        event.data[2] = 0;
+        DeliverEvent(*d, voices[n] + 1, event, thread);
+        continue;
+      }
       char digits[FORMAT_INT_WIDTH];
       const std::size_t written = WriteInt(pitches[n], digits);
       scratch.assign(digits, written);
@@ -293,6 +443,14 @@ bool dPoly::Route(std::string_view word, const std::string& text, std::size_t re
       DeliverPart(*d, voices[n] + 1, inlet, scratch, 0, thread);
     }
     Leave();
+    return true;
+  }
+  if (word == "midievent") {
+    if (d != nullptr) MidiEvent(*d, text, rest, thread);
+    return true;
+  }
+  if (word == "mpeevent") {
+    if (d != nullptr) MpeEvent(*d, text, rest, thread);
     return true;
   }
   if (word == "setvalue") {
@@ -660,7 +818,8 @@ CONSTRUCT_DSP() {
                   "and reports its number.");
   ADD_CATEGORY(pCategory::ENCAPSULATION);
   INLET_DOC(0, "busy",
-            "A number: non-zero busy, 0 free; a busy voice gets no note or midinote. A signal: "
+            "A number: non-zero busy, 0 free; a busy voice gets no note, midinote or midievent "
+            "note-on. A signal: "
             "busy while any sample is non-zero. 'mute 1' / 'mute 0' mutes and unmutes the "
             "voice. A bang reports the voice count and number.",
             "");
@@ -734,6 +893,33 @@ CALC() {
     }
   }
   SetBusyFlag(any);
+}
+
+#undef className
+
+// ─── .polymidiin ──────────────────────────────────────────────────────────────
+
+#define className mPolyMidiIn
+
+CONSTRUCT() {
+  ADD_OUT_LIST;
+
+  ADD_DESCRIPTION("Inside a ~poly: the MIDI messages its midievent and mpeevent messages give "
+                  "this voice, as byte lists.");
+  ADD_CATEGORY(pCategory::MIDI);
+  OUTLET_DOC(0, "midi",
+             "Each message as a list of bytes, the status byte with its channel first: \"145 60 "
+             "100\". Read it with .mpeparse or .midiparse.",
+             "0-255");
+}
+
+void mPolyMidiIn::DeliverVoiceEvent(const voiceEvent& event, YSE::THREAD thread) {
+  // At most three bytes: short enough for small-string storage.
+  if (event.kind == voiceEvent::KIND::MIDI && event.count > 0) {
+    outputs[0].SendList(FormatIntList(event.data, event.count), thread);
+  } else if (event.kind == voiceEvent::KIND::MPE && event.count > 4) {
+    outputs[0].SendList(FormatIntList(event.data + 4, event.count - 4), thread);
+  }
 }
 
 #undef className

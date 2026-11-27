@@ -240,7 +240,7 @@ namespace YSE {
       // Whether this object takes events its ~poly sends a voice out of band,
       // without a cord (DeliverVoiceEvent). The patcher lists such objects
       // per voice in GraphState::polyDomain. ~thispoly is one (it reports a
-      // voice's mute); `.polymidiin` (#756) is meant to be the next. A
+      // voice's mute); `.polymidiin` (#756) is another (the voice's MIDI). A
       // property of the type: constant.
       virtual bool VoiceEventSink() const {
         return false;

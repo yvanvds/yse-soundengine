@@ -162,15 +162,38 @@ voice's mute.
 **Out-of-band delivery, and #756.** `pObject::VoiceEventSink` / `DeliverVoiceEvent` let a `~poly`
 reach objects in a voice without a cord: the compiled `polyVoiceDomain::sinks` list, delivered
 synchronously on the thread that runs the `~poly`'s handler. `~thispoly` is the first sink (the
-`mute` report). `.polymidiin` (#756) is a zero-inlet sink on the same path: #756 adds `MIDI` and `MPE`
-kinds to `voiceEvent` (its payload already holds `mpeevent`'s six ints) and the `midievent` /
-`mpeevent` words to the `~poly`'s router: note-on/off by key through `DSP::voiceAllocator` (as
-`midinote`), channel messages to every voice, and with an `mpemode` argument the `mpeevent` voice
-argument chosen directly (-1 every voice). `.mpeparse` keeps the channel-as-identity model; whether
-it grows an `mpeevent` outlet is #756's call.
+`mute` report). `.polymidiin` (#756, `mPolyMidiIn`, beside `~thispoly` in `dPoly`) is the second: a
+zero-inlet sink with one list outlet, taking the `MIDI` and `MPE` kinds of `voiceEvent` and sending
+each message's bytes (`145 60 100`), which `.mpeparse` / `.midiparse` in the voice decode. The two
+words on the `~poly`'s router:
+
+- `midievent <status> <data> [<data>] [<detune>]`: a note-on through `DSP::voiceAllocator` as
+  `midinote` (busy test, pending, steal), its note-off (128, or velocity 0) to the voice holding
+  the key, poly pressure to the voices holding the key, every other channel message to the target.
+  The voice remembers the note-on's channel (`noteChannel`, under the guard) so `allnotesoff` ends
+  it with a note-off on that channel to `.polymidiin`, and a `midinote` note as before. Detune is
+  ignored.
+- `mpeevent <master> <zone> <voice> <channel> <status> <data> [<data>]`: Max's `mpemode 1`
+  always — direct to the named voice, -1 every voice, a voice the `~poly` lacks (or 0) nothing; no
+  allocator, no guard, no busy. The status byte's channel comes from the channel field, so a
+  message number spelled with or without its channel means the same.
+
+**The `mpeevent` shape decision (#756).** Max documents `mpeevent` as six ints (zone first channel,
+zone index, voice, channel, message number, data) without saying what the last two hold. Here they
+are the message's wire bytes, status (with channel) first, then one or two data bytes, so the event
+is 6 or 7 ints and loses nothing. `.mpeparse` keeps the specification's channel-as-identity model
+on its six expression outlets and grows a seventh, rightmost, `mpeevent` outlet (sent first) that
+carries every channel message on the zone's master or member channels, configuration included: the
+zone's master channel (1/16), the zone (1 lower, 2 upper), the voice (the member channel's place in
+the zone from 1; -1 on the master), the channel. The voice number is derived from the channel, so
+the two models agree and nothing new is invented. A channel outside the zone sends no event.
+`.mpeformat` does not send `mpeevent` (Max's sends one for `vst~`, which does not exist here).
 
 **Not done here** (Max surface left out or deferred): `voices` at run time (change the argument),
-`busymap` / `mutemap`, `exclude`, `bypass`, `~thispoly`'s `automute`, `midievent` / `mpeevent` /
-`midimode` / `mpemode` / `zone` (#756), and Max's external patch files, `args`, `up` / `down`,
-`parallel`, `threadcount`, `vs`, `open` / `wclose`, `legacynotemode`. Pin numbers are 0-based as on
-`~pfft`; voice numbers are 1-based.
+`busymap` / `mutemap`, `exclude`, `bypass`, `~thispoly`'s `automute` (#1294), and Max's external
+patch files, `args`, `up` / `down`, `parallel`, `threadcount`, `vs`, `open` / `wclose`,
+`legacynotemode`. Dropped by #756: `mpemode` (always on: `mpeevent` only makes sense with direct
+allocation, since the controller has already given each note its channel), `zone` (an `.mpeparse`
+watches one zone, so a `~poly` fed by it only sees that zone's events), and `midimode` (a
+`midievent` channel message already goes to the target, every voice by default; `mpeevent` voice -1
+reaches every voice). Pin numbers are 0-based as on `~pfft`; voice numbers are 1-based.

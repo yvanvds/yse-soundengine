@@ -24,17 +24,25 @@ namespace YSE {
      *         (issue #1040), to every object in the voice that is a
      *         pObject::VoiceEventSink.
      *
-     *  ``MUTE``: the voice was muted (``data[0]`` 1) or unmuted (0) by the
-     *  ~poly's ``mute`` message; ``~thispoly`` reports it. The payload has
-     *  room for six ints, the widest event Max's ``poly~`` routes
-     *  (``mpeevent``): ``.polymidiin`` (#756) is meant to add the MIDI and
-     *  MPE kinds. Trivially copyable, built on the stack.
+     *  - ``MUTE``: the voice was muted (``data[0]`` 1) or unmuted (0) by the
+     *    ~poly's ``mute`` message; ``~thispoly`` reports it.
+     *  - ``MIDI``: a MIDI channel message the ~poly's ``midievent`` gave this
+     *    voice (issue #756): ``data[0..count)`` are its bytes, the status
+     *    byte (with its channel) first, then one or two data bytes.
+     *  - ``MPE``: an ``mpeevent`` (issue #756), its seven ints as
+     *    ``.mpeparse``'s rightmost outlet sends them: the zone's master
+     *    channel, the zone (1 lower, 2 upper), the voice (-1 the whole zone),
+     *    the channel, then the message's bytes from ``data[4]``, status
+     *    first; ``count`` is 6 or 7.
+     *
+     *  ``.polymidiin`` takes the MIDI and MPE kinds. Trivially copyable,
+     *  built on the stack.
      */
     struct voiceEvent {
-      enum class KIND : std::uint8_t { MUTE };
+      enum class KIND : std::uint8_t { MUTE, MIDI, MPE };
       KIND kind = KIND::MUTE;
       int count = 0;
-      int data[6] = {};
+      int data[7] = {};
     };
 
     /**
@@ -118,12 +126,24 @@ namespace YSE {
      *  - ``midinote <pitch> <velocity>``: a velocity above 0 is a note-on
      *    and goes where ``note`` would; the voice then holds the pitch, and
      *    the velocity-0 note-off for it goes to that voice.
-     *  - ``allnotesoff``: ``<pitch> 0`` to every voice holding a midinote.
+     *  - ``midievent <status> <data> [<data>] [<detune>]`` (issue #756): a
+     *    MIDI channel message, as bytes, for the voices' ``.polymidiin``.
+     *    A note-on goes where ``midinote`` would and the voice holds the
+     *    pitch; its note-off (status 128, or a note-on with velocity 0) goes
+     *    to that voice; poly pressure to the voices holding the key; every
+     *    other channel message to the target. ``detune`` is not used.
+     *  - ``mpeevent <master> <zone> <voice> <channel> <status> <data>
+     *    [<data>]`` (issue #756): ``.mpeparse``'s rightmost outlet. The
+     *    message goes straight to voice ``voice`` (-1: every voice), no
+     *    allocation: in MPE a note's channel is its voice. A voice the ~poly
+     *    does not have gets nothing.
+     *  - ``allnotesoff``: ``<pitch> 0`` to every voice holding a midinote,
+     *    and a note-off to every voice holding a ``midievent`` note.
      *  - ``mute <voice> <0|1>``: mutes a voice (0: every voice). A muted
      *    voice does not compute and adds nothing to the outlets; its
      *    ``~thispoly`` reports the change.
-     *  - ``steal <0|1>``: whether ``note`` and ``midinote`` take a busy
-     *    voice when none is free.
+     *  - ``steal <0|1>``: whether ``note``, ``midinote`` and ``midievent``
+     *    take a busy voice when none is free.
      *  - ``setvalue <voice> <message>``: the message to one voice (0: all),
      *    without changing the target.
      *  - ``list <message>``: the message as it is, to the target, so it may
@@ -207,6 +227,15 @@ namespace YSE {
     void DeliverPart(const GraphState::polyDomain& d, int voice, int inlet, const std::string& text,
                      std::size_t from, YSE::THREAD thread);
     void Mute(const GraphState::polyDomain& d, int voice, bool on, YSE::THREAD thread);
+    // `event` to the VoiceEventSink objects of voice `voice` (0: every
+    // voice) of `d`.
+    void DeliverEvent(const GraphState::polyDomain& d, int voice, const voiceEvent& event,
+                      YSE::THREAD thread);
+    // The `midievent` and `mpeevent` words (issue #756).
+    void MidiEvent(const GraphState::polyDomain& d, const std::string& text, std::size_t rest,
+                   YSE::THREAD thread);
+    void MpeEvent(const GraphState::polyDomain& d, const std::string& text, std::size_t rest,
+                  YSE::THREAD thread);
     bool Enter();
     void Leave();
     bool Available(int voice) const;
@@ -224,6 +253,10 @@ namespace YSE {
     // this block", cleared after each render.
     std::unique_ptr<std::atomic<bool>[]> busy;
     std::unique_ptr<std::atomic<bool>[]> pending;
+    // Per voice (index voice - 1), under the guard: the channel (0-15) of
+    // the `midievent` note-on the voice holds, or -1 when it holds a
+    // `midinote` (or nothing), so allnotesoff ends each the way it began.
+    int noteChannel[MAX_VOICES] = {};
     std::vector<std::unique_ptr<DSP::buffer>> results;
     std::atomic<int> target{0};
     // The leading word's remainder, reserved to MAX_MESSAGE at construction.
@@ -364,6 +397,31 @@ void DeliverVoiceEvent(const voiceEvent& event, YSE::THREAD thread) override;
 private:
 void SetBusyFlag(bool on);
 polyVoice* voice_ = nullptr;
+}
+;
+
+/**
+ *  @brief ``.polymidiin``: inside a ``~poly``, the MIDI its voice is given by
+ *         the ~poly's ``midievent`` and ``mpeevent`` messages (issue #756).
+ *         Max's ``polymidiin``.
+ *
+ *  No inlets: what it sends arrives without a cord, as a voiceEvent of kind
+ *  MIDI or MPE (pObject::VoiceEventSink). One outlet: each message as a
+ *  numeric byte list, ``<status> <data> [<data>]``, the status byte with its
+ *  channel, which ``.mpeparse`` and ``.midiparse`` inside the voice decode.
+ *  Elsewhere it sends nothing.
+ *
+ *  **Real time.** Delivered on the thread that runs the ~poly's handler; a
+ *  three-byte list fits small-string storage, so nothing allocates.
+ */
+PATCHER_CLASS(mPolyMidiIn, YSE::OBJ::M_POLYMIDIIN)
+_NO_MESSAGES
+_NO_CALCULATE
+
+bool VoiceEventSink() const override {
+  return true;
+}
+void DeliverVoiceEvent(const voiceEvent& event, YSE::THREAD thread) override;
 }
 ;
 

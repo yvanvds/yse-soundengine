@@ -119,7 +119,19 @@ Messages on any inlet are delivered to that inlet's ``.in`` objects:
 - ``midinote <pitch> <velocity>``: a velocity above 0 goes where ``note``
   would, and that voice then holds the pitch; ``<pitch> 0`` goes to the voice
   holding it. Both arrive at the ``.in`` as the list ``pitch velocity``.
-- ``allnotesoff``: ``<pitch> 0`` to every voice holding a ``midinote``, lowest
+- ``midievent <status> <data> [<data>]``: a MIDI channel message as bytes,
+  for the ``.polymidiin`` objects in the voices. A note-on (status 144-159,
+  velocity above 0) goes where ``midinote`` would and that voice then holds
+  the key; its note-off (status 128-143, or velocity 0) goes to that voice.
+  Poly pressure goes to the voice holding the key, every other channel
+  message to the target. A fourth number is ignored.
+- ``mpeevent <master> <zone> <voice> <channel> <status> <data> [<data>]``:
+  what ``.mpeparse``'s rightmost outlet sends. It goes to voice ``voice``
+  directly, with no allocation: in MPE a note's channel is its voice. Voice
+  -1 is every voice; a voice above the voice count gets nothing. The status
+  byte's channel is taken from ``channel``.
+- ``allnotesoff``: ``<pitch> 0`` to every voice holding a ``midinote``, and a
+  note-off on its channel to every voice holding a ``midievent`` note, lowest
   voice first.
 - ``mute <voice> <0|1>``: mutes or unmutes a voice; voice 0 is every voice. A
   muted voice does not compute and adds nothing to the outlets. Its
@@ -168,8 +180,8 @@ add up too.
 
 .. patcher-object:: ~thispoly
 
-Says whether its voice is busy, which decides where ``note`` and
-``midinote`` go:
+Says whether its voice is busy, which decides where ``note``, ``midinote``
+and a ``midievent`` note-on go:
 
 - A number: non-zero busy, 0 free. ``busy <0|1>`` does the same.
 - A signal: busy while any sample of the block is non-zero, set each block.

@@ -538,6 +538,15 @@ list of messages is in :doc:`objects/subpatchers`. The allocation policy is
 ``YSE::DSP::voiceAllocator``, which ``.poly`` uses too and C++ code can use
 without a patcher.
 
+MIDI reaches a voice through ``.polymidiin``, without a cord. ``midievent
+<status> <data> [<data>]`` allocates as ``midinote`` does: a note-on to a free
+voice, its note-off to the voice holding the key. ``mpeevent``, which
+``.mpeparse``'s rightmost outlet sends, names its voice: an MPE controller
+already gives every note a channel of its own, so the note, and its pitch
+bend, pressure and slide, go to the voice that channel stands for, and the
+master channel's messages to every voice. Give the ``~poly`` as many voices
+as the zone has member channels. See :doc:`midi`.
+
 The boundary
 ~~~~~~~~~~~~
 
