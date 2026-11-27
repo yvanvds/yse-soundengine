@@ -225,6 +225,141 @@ typedef enum YseDspRampDurationMode {
   YSE_DSP_RAMP_DURATION_CONTINUOUS = 1 /**< At every sample, rescaling what is left. */
 } YseDspRampDurationMode;
 
+/** Mirrors YSE::DSP::phasorRate::syncMode (generators/phasorRate.hpp) — when
+   a time-scaled ramp is brought back in phase (issue #1299). */
+typedef enum YseDspRateSync {
+  YSE_DSP_RATE_SYNC_CYCLE = 0, /**< At every input wrap. */
+  YSE_DSP_RATE_SYNC_LOCK = 1, /**< Whenever the multiplier changes. */
+  YSE_DSP_RATE_SYNC_OFF = 2 /**< Never (the default). */
+} YseDspRateSync;
+
+/** Mirrors YSE::DSP::phasorSubdiv::silent (generators/phasorSubdiv.hpp) — the
+   index output of a sub-ramp that does not play (issue #1299). */
+typedef enum YseDspSubdivSilent {
+  YSE_DSP_SUBDIV_SILENT_HOLD = 0, /**< The index of the last step that played. */
+  YSE_DSP_SUBDIV_SILENT_MINUS_ONE = 1 /**< -1. */
+} YseDspSubdivSilent;
+
+/** Mirrors YSE::DSP::phasorSubdiv::update (generators/phasorSubdiv.hpp) —
+   when a new subdivision or duration pattern lands (issue #1299). */
+typedef enum YseDspSubdivUpdate {
+  YSE_DSP_SUBDIV_UPDATE_NOW = 0, /**< On the next sample (the default). */
+  YSE_DSP_SUBDIV_UPDATE_OUTPUT = 1, /**< When the next output step starts. */
+  YSE_DSP_SUBDIV_UPDATE_INPUT = 2 /**< When the input next wraps. */
+} YseDspSubdivUpdate;
+
+/** Mirrors YSE::DSP::phasorWhat::TRIGGER_MODE (generators/phasorWhat.hpp) —
+   how a ramp is matched against a phase value (issue #1299). */
+typedef enum YseDspPhasorWhatMode {
+  YSE_DSP_PHASOR_WHAT_ASCENDING = 0,
+  YSE_DSP_PHASOR_WHAT_DESCENDING = 1,
+  YSE_DSP_PHASOR_WHAT_BOTH = 2, /**< Either way (the default). */
+  YSE_DSP_PHASOR_WHAT_EQUALS = 3
+} YseDspPhasorWhatMode;
+
+/** Mirrors YSE::DSP::stepCounter::DIRECTION (generators/stepCounter.hpp) —
+   which jumps of the input count (issue #1299). */
+typedef enum YseDspStepCounterDirection {
+  YSE_DSP_STEP_COUNTER_BOTH = 0, /**< Rises and falls (the default). */
+  YSE_DSP_STEP_COUNTER_UP = 1,
+  YSE_DSP_STEP_COUNTER_DOWN = 2
+} YseDspStepCounterDirection;
+
+/** Mirrors YSE::DSP::stepCounter::SYNC (generators/stepCounter.hpp) — when a
+   new count sequence takes effect (issue #1299). */
+typedef enum YseDspStepCounterSync {
+  YSE_DSP_STEP_COUNTER_IMMEDIATE = 0, /**< At once (the default). */
+  YSE_DSP_STEP_COUNTER_AFTER_STEP = 1, /**< At the end of the step playing. */
+  YSE_DSP_STEP_COUNTER_AFTER_SEQUENCE = 2 /**< At the end of the last step. */
+} YseDspStepCounterSync;
+
+/** Mirrors YSE::DSP::stepFunction::SYNC (generators/stepFunction.hpp) — when
+   a new breakpoint pattern takes effect (issue #1299). */
+typedef enum YseDspStepFunctionSync {
+  YSE_DSP_STEP_FUNCTION_IMMEDIATE = 0, /**< On the next sample (the default). */
+  YSE_DSP_STEP_FUNCTION_INPUT_RESET = 1, /**< When the input next wraps. */
+  YSE_DSP_STEP_FUNCTION_SEQUENCE_END = 2 /**< When the sequence completes. */
+} YseDspStepFunctionSync;
+
+/** Mirrors YSE::DSP::sampleHoldMemory::DIRECTION and
+   YSE::DSP::signalStash::DIRECTION (generators/sampleHoldMemory.hpp,
+   signalStash.hpp), which share their numbers — how a read position moves
+   on an advance (issue #1299). */
+typedef enum YseDspMemoryDirection {
+  YSE_DSP_MEMORY_FORWARD = 0, /**< One place on (the default). */
+  YSE_DSP_MEMORY_REVERSE = 1, /**< One place back. */
+  YSE_DSP_MEMORY_RANDOM = 2, /**< Any place, with replacement. */
+  YSE_DSP_MEMORY_URN = 3 /**< Each place once per round, in random order. */
+} YseDspMemoryDirection;
+
+/** Mirrors YSE::DSP::sampleHoldMemory::MODE (generators/sampleHoldMemory.hpp)
+   — how the advance trigger is read (issue #1299). */
+typedef enum YseDspSashMode {
+  YSE_DSP_SASH_LEVEL = 0, /**< A rise past the level advances (the default). */
+  YSE_DSP_SASH_INDEX = 1, /**< The trigger is the read position. */
+  YSE_DSP_SASH_SUBDIVISION = 2 /**< The trigger is a phase across the memory. */
+} YseDspSashMode;
+
+/** Mirrors YSE::DSP::signalStash::TRIGGER_MODE (generators/signalStash.hpp)
+   — when a stash trigger fires (issue #1299). */
+typedef enum YseDspStashTrigger {
+  YSE_DSP_STASH_TRIGGER_ASCENDING = 0, /**< From at or below the level to above (the default). */
+  YSE_DSP_STASH_TRIGGER_DESCENDING = 1,
+  YSE_DSP_STASH_TRIGGER_BOTH = 2,
+  YSE_DSP_STASH_TRIGGER_EQUALS = 3,
+  YSE_DSP_STASH_TRIGGER_ZERO_TO_NONZERO = 4,
+  YSE_DSP_STASH_TRIGGER_NONZERO_TO_ZERO = 5,
+  YSE_DSP_STASH_TRIGGER_PHASE = 6 /**< Passing the level as a 0..1 phase. */
+} YseDspStashTrigger;
+
+/** Mirrors YSE::DSP::signalStash::MODE (generators/signalStash.hpp) — where
+   a recording goes, or what the output reads (issue #1299). */
+typedef enum YseDspStashMode {
+  YSE_DSP_STASH_NEXT = 0, /**< The write or read position (the default). */
+  YSE_DSP_STASH_INDEX = 1, /**< The place an index names. */
+  YSE_DSP_STASH_NORMALIZED = 2 /**< An index as a 0..1 share of the size. */
+} YseDspStashMode;
+
+/** Mirrors YSE::DSP::signalStash::RANGE (generators/signalStash.hpp) — how
+   an index outside the memory is read (issue #1299). */
+typedef enum YseDspStashRange {
+  YSE_DSP_STASH_RANGE_ZERO = 0,
+  YSE_DSP_STASH_RANGE_EXTEND = 1,
+  YSE_DSP_STASH_RANGE_WRAP = 2, /**< The default. */
+  YSE_DSP_STASH_RANGE_KEEP = 3
+} YseDspStashRange;
+
+/** Mirrors YSE::DSP::signalStash::INTERPOLATION (generators/signalStash.hpp)
+   — how an index between places is read (issue #1299). */
+typedef enum YseDspStashInterpolation {
+  YSE_DSP_STASH_TRUNCATE = 0, /**< The default. */
+  YSE_DSP_STASH_LINEAR = 1,
+  YSE_DSP_STASH_ROUND = 2
+} YseDspStashInterpolation;
+
+/** Mirrors YSE::DSP::snowfall::BOUNDARY_MODE (generators/snowfall.hpp) —
+   what a particle's dimension does at a boundary (issue #1299). */
+typedef enum YseDspSnowfallBoundary {
+  YSE_DSP_SNOWFALL_BOUNCE = 0, /**< Reflect (the default). */
+  YSE_DSP_SNOWFALL_END = 1, /**< End the particle. */
+  YSE_DSP_SNOWFALL_WRAP = 2, /**< Continue from the other boundary. */
+  YSE_DSP_SNOWFALL_CLIP = 3 /**< Stay at the boundary. */
+} YseDspSnowfallBoundary;
+
+/** Mirrors YSE::DSP::snowfall::END_MODE (generators/snowfall.hpp) — the
+   output once a particle ends (issue #1299). */
+typedef enum YseDspSnowfallEnd {
+  YSE_DSP_SNOWFALL_END_VALUE = 0, /**< The end value (the default). */
+  YSE_DSP_SNOWFALL_CURRENT_VALUE = 1 /**< Hold the last output. */
+} YseDspSnowfallEnd;
+
+/** Mirrors YSE::DSP::snowfall::START_MODE (generators/snowfall.hpp) — where
+   a particle starts (issue #1299). */
+typedef enum YseDspSnowfallStart {
+  YSE_DSP_SNOWFALL_START_INITIAL = 0, /**< Around the initial value (the default). */
+  YSE_DSP_SNOWFALL_START_CURRENT = 1 /**< Where the last particle left. */
+} YseDspSnowfallStart;
+
 /** Mirrors YSE::DSP::MODULES::compressorDetector (compressor.hpp) — the
    level-detector mode. */
 typedef enum YseCompressorDetector {

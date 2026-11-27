@@ -32,6 +32,12 @@
   wrappers stage no input (handle<T, 0>) and its getters copy lists out
   snprintf-style; the same allocation-free rule holds for every call but the
   constructor.
+
+  beatSpan (#1299) is the one class whose handle another class's call reads:
+  phasor (yse_dsp_oscillators.cpp) and clockFollower
+  (yse_dsp_phasor_toolkit.cpp) each take a span handle to follow a beat
+  clock. So its wrapper type and the `follow` block helper live here, where
+  both category files see the same type and therefore the same class tag.
 */
 
 #pragma once
@@ -40,6 +46,7 @@
 #include "yse_c_internal.hpp"
 
 #include "../dsp/buffer.hpp"
+#include "../dsp/generators/beatSpan.hpp"
 #include "../headers/constants.hpp"
 
 #include <algorithm>
@@ -226,6 +233,32 @@ namespace yse_c {
                  stage(h.scratch[2], c + o, n)),
              out + o, n);
       });
+    }
+
+    // A beat-clock reading (yse_dsp_phasor_toolkit.h). It stages nothing.
+    using beat_span = handle<YSE::DSP::beatSpan, 0>;
+
+    // The samples a block that follows `span` covers: the span's length, or
+    // a full block for a span never read, as the engine classes take it.
+    inline unsigned span_samples(const YSE::DSP::beatSpan& span) noexcept {
+      return span.length() > 0 ? span.length() : BLOCK;
+    }
+
+    // One block that follows a beat clock: `run(h, span)` runs the engine
+    // overload that takes a beatSpan. A span is one engine block, so this is
+    // a single call, not a loop. Returns the samples written, or 0 (nothing
+    // written) when `p` is not an H, `span` is not a beat span, `out` is NULL
+    // or `capacity` is smaller than the block.
+    template <typename H, typename F>
+    unsigned int follow(YseDspProcessor* p, YseDspProcessor* span, float* out,
+                        unsigned int capacity, F&& run) {
+      H* h = get<H>(p);
+      YSE::DSP::beatSpan* s = object<beat_span>(span);
+      if (h == nullptr || s == nullptr || out == nullptr) return 0;
+      const unsigned n = span_samples(*s);
+      if (capacity < n) return 0;
+      emit(run(*h, *s), out, n);
+      return n;
     }
 
   } // namespace processor

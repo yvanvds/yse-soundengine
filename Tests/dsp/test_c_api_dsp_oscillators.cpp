@@ -20,6 +20,8 @@
 //     per-block lists across the bridge's block split; the handle-free value
 //     calls match the static formulas.
 //   * Seeds — the noise generators are repeatable from C.
+//   * The beat clock — phasor's beatSpan overload (#1299) matches the engine
+//     class given the same readings, and refuses a span of another class.
 //   * Real-time safety — process, value and setter calls allocate nothing.
 //
 // No engine session is needed: the classes are plain objects that read the
@@ -38,10 +40,12 @@
 
 #include "yse_c/yse_dsp_filters.h"
 #include "yse_c/yse_dsp_oscillators.h"
+#include "yse_c/yse_dsp_phasor_toolkit.h"
 #include "yse_c/yse_dsp_processor.h"
 
 #include "dsp/buffer.hpp"
 #include "dsp/generators/bandLimitedOscillators.hpp"
+#include "dsp/generators/beatSpan.hpp"
 #include "dsp/generators/bandLimitedRandom.hpp"
 #include "dsp/generators/click.hpp"
 #include "dsp/generators/cycle.hpp"
@@ -1277,6 +1281,127 @@ TEST_SUITE("dsp") {
     }
 
     for (YseDspProcessor* p : all)
+      yse_dsp_processor_destroy(p);
+  }
+
+  TEST_CASE("c api oscillators: phasor follows a beat span like the engine class") {
+    // Readings of a fast clock (a 128-sample block moves about 0.13 beats at
+    // 48 kHz): steady blocks, a short block, a tempo change, a gap that the
+    // span jumps over, a lost reading and a stopped clock.
+    struct Reading {
+      double beat;
+      float bpm;
+      unsigned length;
+      bool lose;
+    };
+    std::vector<Reading> readings;
+    double beat = 0.0;
+    auto add = [&](float bpm, unsigned length) {
+      beat += static_cast<double>(bpm) * length / (60.0 * YSE::SAMPLERATE);
+      readings.push_back({beat, bpm, length, false});
+    };
+    for (int i = 0; i < 4; ++i)
+      add(3000.f, BLOCK);
+    add(3000.f, 37);
+    for (int i = 0; i < 3; ++i)
+      add(4500.f, BLOCK);
+    beat += 2.5; // blocks went by unrendered
+    add(4500.f, BLOCK);
+    readings.push_back({0.0, 0.f, BLOCK, true});
+    add(4500.f, BLOCK);
+    add(0.f, BLOCK);
+    add(-2000.f, 100);
+
+    struct Mode {
+      const char* name;
+      double period;
+      int lock;
+      float offset;
+    };
+    const Mode modes[] = {
+        {"unlocked", 0.5, 0, 0.f},
+        {"locked", 0.75, 1, 0.25f},
+        {"no period", 0.0, 0, 0.f},
+    };
+    for (const Mode& m : modes) {
+      INFO("mode: " << std::string(m.name));
+      YseDspProcessor* ph = yse_dsp_phasor_create();
+      YseDspProcessor* span = yse_dsp_beat_span_create();
+      DSP::phasor f;
+      DSP::beatSpan s;
+      yse_dsp_phasor_set_phase(ph, 0.1f);
+      f.phase(0.1f);
+      // A span never read is a full block that holds the ramp.
+      std::vector<float> got(BLOCK, 7.f);
+      REQUIRE(yse_dsp_phasor_process_span(ph, span, m.period, m.lock, m.offset, got.data(),
+                                          BLOCK) == BLOCK);
+      DSP::buffer& first = f(s, m.period, m.lock != 0, m.offset);
+      REQUIRE(first.getLength() == BLOCK);
+      CheckEqual(got, std::vector<float>(first.getPtr(), first.getPtr() + BLOCK));
+
+      std::vector<float> all_c, all_engine;
+      for (const Reading& r : readings) {
+        if (r.lose) {
+          yse_dsp_beat_span_lose(span);
+          s.lose();
+        } else {
+          yse_dsp_beat_span_read(span, r.beat, r.bpm, r.length);
+          s.read(r.beat, r.bpm, r.length);
+        }
+        REQUIRE(yse_dsp_beat_span_get_length(span) == s.length());
+        std::vector<float> out(BLOCK, 7.f);
+        const unsigned n =
+            yse_dsp_phasor_process_span(ph, span, m.period, m.lock, m.offset, out.data(), BLOCK);
+        DSP::buffer& e = f(s, m.period, m.lock != 0, m.offset);
+        REQUIRE(n == e.getLength());
+        all_c.insert(all_c.end(), out.begin(), out.begin() + n);
+        all_engine.insert(all_engine.end(), e.getPtr(), e.getPtr() + n);
+        // Nothing past the block is written.
+        for (unsigned i = n; i < BLOCK; ++i)
+          REQUIRE(out[i] == 7.f);
+      }
+      if (m.period > 0.0) REQUIRE(Moves(all_engine));
+      CheckEqual(all_c, all_engine);
+      CHECK(yse_dsp_phasor_get_phase(ph) == f.phase());
+      yse_dsp_processor_destroy(ph);
+      yse_dsp_processor_destroy(span);
+    }
+  }
+
+  TEST_CASE("c api oscillators: phasor's span call refuses a bad span or a short array") {
+    YseDspProcessor* ph = yse_dsp_phasor_create();
+    YseDspProcessor* span = yse_dsp_beat_span_create();
+    YseDspProcessor* other = yse_dsp_phasor_create();
+    yse_dsp_phasor_set_phase(ph, 0.3f);
+    yse_dsp_beat_span_read(span, 1.0, 3000.f, 100);
+    std::vector<float> out(BLOCK, 7.f);
+
+    // NULL or wrong-class span, NULL output, a phasor handle that is not one.
+    CHECK(yse_dsp_phasor_process_span(ph, nullptr, 0.5, 0, 0.f, out.data(), BLOCK) == 0);
+    CHECK(yse_dsp_phasor_process_span(ph, other, 0.5, 0, 0.f, out.data(), BLOCK) == 0);
+    CHECK(yse_dsp_phasor_process_span(ph, span, 0.5, 0, 0.f, nullptr, BLOCK) == 0);
+    CHECK(yse_dsp_phasor_process_span(span, span, 0.5, 0, 0.f, out.data(), BLOCK) == 0);
+    CHECK(yse_dsp_phasor_process_span(nullptr, span, 0.5, 0, 0.f, out.data(), BLOCK) == 0);
+    // Room for fewer samples than the span covers.
+    CHECK(yse_dsp_phasor_process_span(ph, span, 0.5, 0, 0.f, out.data(), 99) == 0);
+    for (float v : out)
+      REQUIRE(v == 7.f);
+    // None of that moved the ramp.
+    CHECK(yse_dsp_phasor_get_phase(ph) == doctest::Approx(0.3f));
+    // Exactly the span's length is enough.
+    CHECK(yse_dsp_phasor_process_span(ph, span, 0.5, 0, 0.f, out.data(), 100) == 100);
+    CHECK(out[100] == 7.f);
+
+    // The span call allocates nothing.
+    {
+      TestHelpers::ProbeScope probe;
+      yse_dsp_beat_span_read(span, 1.2, 3000.f, BLOCK);
+      yse_dsp_phasor_process_span(ph, span, 0.5, 0, 0.f, out.data(), BLOCK);
+      yse_dsp_phasor_process_span(ph, span, 0.5, 1, 0.1f, out.data(), BLOCK);
+      yse_dsp_phasor_process_span(ph, other, 0.5, 0, 0.f, out.data(), BLOCK);
+      CHECK(TestHelpers::g_alloc_count.load() == 0);
+    }
+    for (YseDspProcessor* p : {ph, span, other})
       yse_dsp_processor_destroy(p);
   }
 

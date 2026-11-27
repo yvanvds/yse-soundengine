@@ -34,10 +34,12 @@
   and yse_dsp_CLASS_seed() restarts them, so a host can make a render
   repeatable.
 
-  Not mirrored: phasor's beatSpan overload (beatSpan has no C surface yet,
-  #1299), cycle's sampleView table (the sample buffers come with #1303) and
-  oscillatorBank::swapTable (it exchanges a std::vector, which cannot cross
-  the ABI; set_table covers the same use off the audio thread).
+  phasor follows a beat clock through yse_dsp_phasor_process_span(), which
+  takes a beat-span handle from yse_dsp_phasor_toolkit.h (#1299).
+
+  Not mirrored: cycle's sampleView table (the sample buffers come with #1303)
+  and oscillatorBank::swapTable (it exchanges a std::vector, which cannot
+  cross the ABI; set_table covers the same use off the audio thread).
 */
 
 #ifndef YSE_C_DSP_OSCILLATORS_H_INCLUDED
@@ -66,6 +68,20 @@ YSE_C_API unsigned int yse_dsp_phasor_process(YseDspProcessor* p, float frequenc
                                               unsigned int length);
 YSE_C_API unsigned int yse_dsp_phasor_process_signal(YseDspProcessor* p, const float* frequency,
                                                      float* out, unsigned int length);
+/** One block following a beat clock: one cycle every `period_beats` beats of
+   `span`, a yse_dsp_beat_span_create() handle read for this block (#1278).
+   Unlocked (`lock` 0) the ramp keeps its own phase and takes its speed from
+   the clock; locked, the phase is the clock's beat over `period_beats` plus
+   `offset`, wrapped. A period that is not above 0, or a span without a
+   reading, holds the ramp. The block is the span's length
+   (yse_dsp_beat_span_get_length(), at most 128; 128 for a span never read):
+   it writes that many samples and returns the count, or 0 and writes nothing
+   when `out` has room (`capacity`) for fewer or `span` is NULL or not a beat
+   span. One span is one block, so a host reads the span again before each
+   call. */
+YSE_C_API unsigned int yse_dsp_phasor_process_span(YseDspProcessor* p, YseDspProcessor* span,
+                                                   double period_beats, int lock, float offset,
+                                                   float* out, unsigned int capacity);
 
 /* ─── cycle: a wavetable oscillator with a phase input (#1054) ───────────── */
 

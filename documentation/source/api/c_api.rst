@@ -298,6 +298,37 @@ pass in, each with its sample offset in the call and its text:
    yse_dsp_event_sequencer_process(seq, phase, fired, 16, 512);
    unsigned int n = yse_dsp_event_sequencer_get_fired(seq);
 
+The phasor toolkit in ``yse_dsp_phasor_toolkit.h``
+(`#1299 <https://github.com/yvanvds/yse-soundengine/issues/1299>`_) reads a
+0..1 ramp, usually a phasor's output, and derives rhythm from it: swing,
+subdivisions, step ramps, impulses at listed phases, step counts, breakpoint
+functions, sample and hold memories and particles. A second output such as
+a step index or a remaining time is an optional array, and each class has a
+``_process_sample`` call for a per-sample loop. A list setter takes an array
+and a count; a count of 0 clears the list.
+
+To follow a beat clock, read a beat span once per block of at most 128
+samples with the beat and tempo your transport gives at the end of that
+block, then hand the span to ``yse_dsp_phasor_process_span`` or
+``yse_dsp_clock_follower_process_span``. The span call writes the span's
+length, so the output array needs room for it. The clock follower's taps,
+clicks, ticks and MIDI clock bytes are gathered over the whole process call.
+The clock bytes go into an array of ``YseDspClockByte`` that you pass in:
+
+.. code-block:: c
+
+   YseDspProcessor* span = yse_dsp_beat_span_create();
+   YseDspProcessor* ramp = yse_dsp_phasor_create();
+   /* Each block: the clock's beat at the end of the block, and its tempo. */
+   yse_dsp_beat_span_read(span, beat, bpm, 128);
+   yse_dsp_phasor_process_span(ramp, span, 4.0, 1, 0.0f, phase, 128);
+
+   YseDspClockByte clock[64];
+   YseDspProcessor* follower = yse_dsp_clock_follower_create();
+   yse_dsp_clock_follower_tap(follower);
+   yse_dsp_clock_follower_process(follower, out, clock, 64, 512);
+   unsigned int sent = yse_dsp_clock_follower_get_clock_bytes(follower);
+
 Errors
 ~~~~~~
 
@@ -663,6 +694,9 @@ DSP and patcher
    :project: libYSE
 
 .. doxygenfile:: c_api/include/yse_c/yse_dsp_envelopes.h
+   :project: libYSE
+
+.. doxygenfile:: c_api/include/yse_c/yse_dsp_phasor_toolkit.h
    :project: libYSE
 
 .. doxygenfile:: c_api/include/yse_c/yse_patcher.h

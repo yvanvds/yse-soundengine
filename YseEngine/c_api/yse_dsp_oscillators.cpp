@@ -20,6 +20,7 @@ namespace {
   namespace DSP = YSE::DSP;
   using yse_c::processor::drive;
   using yse_c::processor::emit;
+  using yse_c::processor::follow;
   using yse_c::processor::generate;
   using yse_c::processor::handle;
   using yse_c::processor::make;
@@ -118,6 +119,14 @@ YSE_C_API unsigned int yse_dsp_phasor_process_signal(YseDspProcessor* p, const f
                                                      float* out, unsigned int length) {
   return one_signal<Phasor>(p, frequency, out, length,
                             [](Phasor& h, DSP::buffer& f) -> DSP::buffer& { return h.object(f); });
+}
+YSE_C_API unsigned int yse_dsp_phasor_process_span(YseDspProcessor* p, YseDspProcessor* span,
+                                                   double period_beats, int lock, float offset,
+                                                   float* out, unsigned int capacity) {
+  return follow<Phasor>(p, span, out, capacity,
+                        [&](Phasor& h, const DSP::beatSpan& s) -> DSP::buffer& {
+                          return h.object(s, period_beats, lock != 0, offset);
+                        });
 }
 
 // ─── cycle ──────────────────────────────────────────────────────────────

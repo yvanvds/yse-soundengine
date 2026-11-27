@@ -23,6 +23,14 @@
 #include "../dsp/filters/filterBands.hpp"
 #include "../dsp/generators/adsr.hpp"
 #include "../dsp/generators/curveSegments.hpp"
+#include "../dsp/generators/phasorRate.hpp"
+#include "../dsp/generators/phasorSubdiv.hpp"
+#include "../dsp/generators/phasorWhat.hpp"
+#include "../dsp/generators/sampleHoldMemory.hpp"
+#include "../dsp/generators/signalStash.hpp"
+#include "../dsp/generators/snowfall.hpp"
+#include "../dsp/generators/stepCounter.hpp"
+#include "../dsp/generators/stepFunction.hpp"
 #include "../dsp/generators/triggeredRamp.hpp"
 #include "../dsp/generators/zigzag.hpp"
 #include "../patcher/pEnums.h"
@@ -292,6 +300,77 @@ namespace {
   YSE_ASSERT_ENUM(YSE_DSP_RAMP_DURATION_AT_START, YSE::DSP::triggeredRamp::durationMode::atStart);
   YSE_ASSERT_ENUM(YSE_DSP_RAMP_DURATION_CONTINUOUS,
                   YSE::DSP::triggeredRamp::durationMode::continuous);
+
+  // The #1299 phasor-toolkit enums. None of the engine enums has a count, so
+  // the last value is pinned and a value appended there is caught by review,
+  // not by the build.
+  // YseDspRateSync <-> phasorRate::syncMode
+  YSE_ASSERT_ENUM(YSE_DSP_RATE_SYNC_CYCLE, YSE::DSP::phasorRate::syncMode::cycle);
+  YSE_ASSERT_ENUM(YSE_DSP_RATE_SYNC_LOCK, YSE::DSP::phasorRate::syncMode::lock);
+  YSE_ASSERT_ENUM(YSE_DSP_RATE_SYNC_OFF, YSE::DSP::phasorRate::syncMode::off);
+  // YseDspSubdivSilent / YseDspSubdivUpdate <-> phasorSubdiv::silent / update
+  YSE_ASSERT_ENUM(YSE_DSP_SUBDIV_SILENT_HOLD, YSE::DSP::phasorSubdiv::silent::hold);
+  YSE_ASSERT_ENUM(YSE_DSP_SUBDIV_SILENT_MINUS_ONE, YSE::DSP::phasorSubdiv::silent::minusOne);
+  YSE_ASSERT_ENUM(YSE_DSP_SUBDIV_UPDATE_NOW, YSE::DSP::phasorSubdiv::update::now);
+  YSE_ASSERT_ENUM(YSE_DSP_SUBDIV_UPDATE_OUTPUT, YSE::DSP::phasorSubdiv::update::output);
+  YSE_ASSERT_ENUM(YSE_DSP_SUBDIV_UPDATE_INPUT, YSE::DSP::phasorSubdiv::update::input);
+  // YseDspPhasorWhatMode <-> phasorWhat::TRIGGER_MODE
+  YSE_ASSERT_ENUM(YSE_DSP_PHASOR_WHAT_ASCENDING, YSE::DSP::phasorWhat::ASCENDING);
+  YSE_ASSERT_ENUM(YSE_DSP_PHASOR_WHAT_DESCENDING, YSE::DSP::phasorWhat::DESCENDING);
+  YSE_ASSERT_ENUM(YSE_DSP_PHASOR_WHAT_BOTH, YSE::DSP::phasorWhat::BOTH);
+  YSE_ASSERT_ENUM(YSE_DSP_PHASOR_WHAT_EQUALS, YSE::DSP::phasorWhat::EQUALS);
+  // YseDspStepCounterDirection / YseDspStepCounterSync <-> stepCounter
+  YSE_ASSERT_ENUM(YSE_DSP_STEP_COUNTER_BOTH, YSE::DSP::stepCounter::BOTH);
+  YSE_ASSERT_ENUM(YSE_DSP_STEP_COUNTER_UP, YSE::DSP::stepCounter::UP);
+  YSE_ASSERT_ENUM(YSE_DSP_STEP_COUNTER_DOWN, YSE::DSP::stepCounter::DOWN);
+  YSE_ASSERT_ENUM(YSE_DSP_STEP_COUNTER_IMMEDIATE, YSE::DSP::stepCounter::IMMEDIATE);
+  YSE_ASSERT_ENUM(YSE_DSP_STEP_COUNTER_AFTER_STEP, YSE::DSP::stepCounter::AFTER_STEP);
+  YSE_ASSERT_ENUM(YSE_DSP_STEP_COUNTER_AFTER_SEQUENCE, YSE::DSP::stepCounter::AFTER_SEQUENCE);
+  // YseDspStepFunctionSync <-> stepFunction::SYNC
+  YSE_ASSERT_ENUM(YSE_DSP_STEP_FUNCTION_IMMEDIATE, YSE::DSP::stepFunction::IMMEDIATE);
+  YSE_ASSERT_ENUM(YSE_DSP_STEP_FUNCTION_INPUT_RESET, YSE::DSP::stepFunction::INPUT_RESET);
+  YSE_ASSERT_ENUM(YSE_DSP_STEP_FUNCTION_SEQUENCE_END, YSE::DSP::stepFunction::SEQUENCE_END);
+  // YseDspMemoryDirection <-> sampleHoldMemory::DIRECTION and
+  // signalStash::DIRECTION: one C enum for two engine enums.
+  YSE_ASSERT_ENUM(YSE_DSP_MEMORY_FORWARD, YSE::DSP::sampleHoldMemory::FORWARD);
+  YSE_ASSERT_ENUM(YSE_DSP_MEMORY_REVERSE, YSE::DSP::sampleHoldMemory::REVERSE);
+  YSE_ASSERT_ENUM(YSE_DSP_MEMORY_RANDOM, YSE::DSP::sampleHoldMemory::RANDOM);
+  YSE_ASSERT_ENUM(YSE_DSP_MEMORY_URN, YSE::DSP::sampleHoldMemory::URN);
+  YSE_ASSERT_ENUM(YSE_DSP_MEMORY_FORWARD, YSE::DSP::signalStash::FORWARD);
+  YSE_ASSERT_ENUM(YSE_DSP_MEMORY_REVERSE, YSE::DSP::signalStash::REVERSE);
+  YSE_ASSERT_ENUM(YSE_DSP_MEMORY_RANDOM, YSE::DSP::signalStash::RANDOM);
+  YSE_ASSERT_ENUM(YSE_DSP_MEMORY_URN, YSE::DSP::signalStash::URN);
+  // YseDspSashMode <-> sampleHoldMemory::MODE
+  YSE_ASSERT_ENUM(YSE_DSP_SASH_LEVEL, YSE::DSP::sampleHoldMemory::LEVEL);
+  YSE_ASSERT_ENUM(YSE_DSP_SASH_INDEX, YSE::DSP::sampleHoldMemory::INDEX);
+  YSE_ASSERT_ENUM(YSE_DSP_SASH_SUBDIVISION, YSE::DSP::sampleHoldMemory::SUBDIVISION);
+  // YseDspStashTrigger / Mode / Range / Interpolation <-> signalStash
+  YSE_ASSERT_ENUM(YSE_DSP_STASH_TRIGGER_ASCENDING, YSE::DSP::signalStash::ASCENDING);
+  YSE_ASSERT_ENUM(YSE_DSP_STASH_TRIGGER_DESCENDING, YSE::DSP::signalStash::DESCENDING);
+  YSE_ASSERT_ENUM(YSE_DSP_STASH_TRIGGER_BOTH, YSE::DSP::signalStash::BOTH);
+  YSE_ASSERT_ENUM(YSE_DSP_STASH_TRIGGER_EQUALS, YSE::DSP::signalStash::EQUALS);
+  YSE_ASSERT_ENUM(YSE_DSP_STASH_TRIGGER_ZERO_TO_NONZERO, YSE::DSP::signalStash::ZERO_TO_NONZERO);
+  YSE_ASSERT_ENUM(YSE_DSP_STASH_TRIGGER_NONZERO_TO_ZERO, YSE::DSP::signalStash::NONZERO_TO_ZERO);
+  YSE_ASSERT_ENUM(YSE_DSP_STASH_TRIGGER_PHASE, YSE::DSP::signalStash::PHASE);
+  YSE_ASSERT_ENUM(YSE_DSP_STASH_NEXT, YSE::DSP::signalStash::NEXT);
+  YSE_ASSERT_ENUM(YSE_DSP_STASH_INDEX, YSE::DSP::signalStash::INDEX);
+  YSE_ASSERT_ENUM(YSE_DSP_STASH_NORMALIZED, YSE::DSP::signalStash::NORMALIZED);
+  YSE_ASSERT_ENUM(YSE_DSP_STASH_RANGE_ZERO, YSE::DSP::signalStash::ZERO);
+  YSE_ASSERT_ENUM(YSE_DSP_STASH_RANGE_EXTEND, YSE::DSP::signalStash::EXTEND);
+  YSE_ASSERT_ENUM(YSE_DSP_STASH_RANGE_WRAP, YSE::DSP::signalStash::WRAP);
+  YSE_ASSERT_ENUM(YSE_DSP_STASH_RANGE_KEEP, YSE::DSP::signalStash::KEEP);
+  YSE_ASSERT_ENUM(YSE_DSP_STASH_TRUNCATE, YSE::DSP::signalStash::TRUNCATE);
+  YSE_ASSERT_ENUM(YSE_DSP_STASH_LINEAR, YSE::DSP::signalStash::LINEAR);
+  YSE_ASSERT_ENUM(YSE_DSP_STASH_ROUND, YSE::DSP::signalStash::ROUND);
+  // YseDspSnowfallBoundary / End / Start <-> snowfall
+  YSE_ASSERT_ENUM(YSE_DSP_SNOWFALL_BOUNCE, YSE::DSP::snowfall::BOUNCE);
+  YSE_ASSERT_ENUM(YSE_DSP_SNOWFALL_END, YSE::DSP::snowfall::END);
+  YSE_ASSERT_ENUM(YSE_DSP_SNOWFALL_WRAP, YSE::DSP::snowfall::WRAP);
+  YSE_ASSERT_ENUM(YSE_DSP_SNOWFALL_CLIP, YSE::DSP::snowfall::CLIP);
+  YSE_ASSERT_ENUM(YSE_DSP_SNOWFALL_END_VALUE, YSE::DSP::snowfall::END_VALUE);
+  YSE_ASSERT_ENUM(YSE_DSP_SNOWFALL_CURRENT_VALUE, YSE::DSP::snowfall::CURRENT_VALUE);
+  YSE_ASSERT_ENUM(YSE_DSP_SNOWFALL_START_INITIAL, YSE::DSP::snowfall::INITIAL);
+  YSE_ASSERT_ENUM(YSE_DSP_SNOWFALL_START_CURRENT, YSE::DSP::snowfall::CURRENT);
 
 #undef YSE_ASSERT_ENUM_COUNT
 #undef YSE_ASSERT_ENUM
