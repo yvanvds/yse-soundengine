@@ -27,9 +27,11 @@ namespace {
   using yse_c::processor::emit;
   using yse_c::processor::follow;
   using yse_c::processor::handle;
+  using yse_c::processor::in_enum;
   using yse_c::processor::make;
   using yse_c::processor::one_signal;
   using yse_c::processor::query;
+  using yse_c::processor::set_list;
   using yse_c::processor::stage;
   using yse_c::processor::three_signals;
   using yse_c::processor::two_signals;
@@ -114,21 +116,6 @@ namespace {
   // A constructor's capacity: 0 picks the class default.
   unsigned int or_default(unsigned int value, unsigned int fallback) noexcept {
     return value != 0 ? value : fallback;
-  }
-
-  // Whether an enum crossing the ABI is one of the values 0 .. last. Enum
-  // setters ignore anything else.
-  bool in_enum(int value, int last) noexcept {
-    return value >= 0 && value <= last;
-  }
-
-  // A list setter: refuses a NULL array that holds values, else applies.
-  template <typename H, typename T, typename F>
-  int set_list(YseDspProcessor* p, const T* values, unsigned int count, F&& apply) {
-    auto* o = yse_c::processor::object<H>(p);
-    if (o == nullptr || (values == nullptr && count > 0)) return 0;
-    apply(*o);
-    return 1;
   }
 
   // sampleHoldMemory / signalStash maxSize(), the one setter here that

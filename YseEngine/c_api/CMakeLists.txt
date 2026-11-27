@@ -30,6 +30,7 @@ set(YSE_C_API_SRCS
   yse_dsp_envelopes.cpp
   yse_dsp_phasor_toolkit.cpp
   yse_dsp_operators.cpp
+  yse_dsp_analysis.cpp
   yse_patcher.cpp
   yse_midi.cpp
   yse_clip.cpp

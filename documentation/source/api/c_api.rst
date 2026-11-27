@@ -347,6 +347,39 @@ handle-free ``_value`` call that takes every setting as an argument:
    float db = yse_dsp_amp_to_db_value(0.5f); /* about -6 */
    float y = yse_dsp_scale_value(x, 0.f, 1.f, 20.f, 20000.f, 3.f, YSE_DSP_SCALE_MODERN);
 
+The analysers and meters in ``yse_dsp_analysis.h``
+(`#1301 <https://github.com/yvanvds/yse-soundengine/issues/1301>`_) measure a
+signal rather than change it: direction, edges, a Schmitt trigger, spikes,
+zero crossings, peaks, moving averages, minimum and maximum, BS.1770 loudness,
+YIN pitch, a sample store, and the four classes a host draws from: a level
+meter, an oscilloscope capture, a spectrum analyser and plot data. What the
+engine reports per 128-sample block (rises, crossings, peak reports, finished
+meter windows) is gathered over the whole process call: a count getter, plus
+the positions in an optional array you pass in with its capacity.
+
+The drawing classes let one other thread read while the analysing thread
+runs. The analysing thread processes and publishes; a reader thread copies
+the newest published frame out with ``yse_dsp_level_meter_read``,
+``yse_dsp_scope_capture_acquire``, ``yse_dsp_spectrum_analyzer_acquire`` or
+``yse_dsp_plot_data_acquire`` and ``yse_dsp_plot_data_held_subplot``. A reader
+call never waits for the analysing thread, takes no lock and allocates
+nothing, and a frame it holds is never overwritten. The header says which call
+belongs to which thread:
+
+.. code-block:: c
+
+   /* The audio thread. */
+   yse_dsp_level_meter_process(meter, in, 512);
+   yse_dsp_spectrum_analyzer_process(spectrum, in, 512);
+
+   /* The UI thread, while the audio thread goes on. */
+   YseDspLevelReading level;
+   yse_dsp_level_meter_read(meter, &level);
+
+   YseDspSpectrumFrame frame;
+   float bins[YSE_DSP_SPECTRUM_DEFAULT_SIZE / 2 + 1];
+   unsigned int count = yse_dsp_spectrum_analyzer_acquire(spectrum, &frame, bins, 2049);
+
 Errors
 ~~~~~~
 
@@ -718,6 +751,9 @@ DSP and patcher
    :project: libYSE
 
 .. doxygenfile:: c_api/include/yse_c/yse_dsp_operators.h
+   :project: libYSE
+
+.. doxygenfile:: c_api/include/yse_c/yse_dsp_analysis.h
    :project: libYSE
 
 .. doxygenfile:: c_api/include/yse_c/yse_patcher.h

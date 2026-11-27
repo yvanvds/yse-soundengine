@@ -33,6 +33,12 @@
 #include "../dsp/generators/stepFunction.hpp"
 #include "../dsp/generators/triggeredRamp.hpp"
 #include "../dsp/generators/zigzag.hpp"
+#include "../dsp/analysis/levelMeter.hpp"
+#include "../dsp/analysis/movingAverage.hpp"
+#include "../dsp/analysis/plotData.hpp"
+#include "../dsp/analysis/sampleCapture.hpp"
+#include "../dsp/analysis/scopeCapture.hpp"
+#include "../dsp/analysis/spectrumAnalyzer.hpp"
 #include "../dsp/operators/bitwise.hpp"
 #include "../dsp/operators/compare.hpp"
 #include "../dsp/operators/fold.hpp"
@@ -416,6 +422,42 @@ namespace {
   YSE_ASSERT_ENUM(YSE_DSP_TRIG_ACOSH, YSE::DSP::trig::FN::ACOSH);
   YSE_ASSERT_ENUM(YSE_DSP_TRIG_ASINH, YSE::DSP::trig::FN::ASINH);
   YSE_ASSERT_ENUM(YSE_DSP_TRIG_ATANH, YSE::DSP::trig::FN::ATANH);
+
+  // The #1301 analysis enums. None of the engine enums has a count, so each
+  // value is asserted and the last one pinned.
+  // YseDspAverageMode <-> movingAverage::MODE
+  YSE_ASSERT_ENUM(YSE_DSP_AVERAGE_BIPOLAR, YSE::DSP::movingAverage::BIPOLAR);
+  YSE_ASSERT_ENUM(YSE_DSP_AVERAGE_ABSOLUTE, YSE::DSP::movingAverage::ABSOLUTE);
+  YSE_ASSERT_ENUM(YSE_DSP_AVERAGE_RMS, YSE::DSP::movingAverage::RMS);
+  // YseDspCaptureMode <-> sampleCapture::MODE
+  YSE_ASSERT_ENUM(YSE_DSP_CAPTURE_LAST, YSE::DSP::sampleCapture::LAST);
+  YSE_ASSERT_ENUM(YSE_DSP_CAPTURE_FIRST, YSE::DSP::sampleCapture::FIRST);
+  // YseDspLevelDetector <-> levelMeter::DETECTOR
+  YSE_ASSERT_ENUM(YSE_DSP_LEVEL_PEAK, YSE::DSP::levelMeter::PEAK);
+  YSE_ASSERT_ENUM(YSE_DSP_LEVEL_RMS, YSE::DSP::levelMeter::RMS);
+  // YseDspLevelBallistics <-> levelMeter::BALLISTICS
+  YSE_ASSERT_ENUM(YSE_DSP_BALLISTICS_FAST, YSE::DSP::levelMeter::FAST);
+  YSE_ASSERT_ENUM(YSE_DSP_BALLISTICS_VU, YSE::DSP::levelMeter::VU);
+  YSE_ASSERT_ENUM(YSE_DSP_BALLISTICS_DIN, YSE::DSP::levelMeter::DIN);
+  YSE_ASSERT_ENUM(YSE_DSP_BALLISTICS_BBC, YSE::DSP::levelMeter::BBC);
+  YSE_ASSERT_ENUM(YSE_DSP_BALLISTICS_NORDIC, YSE::DSP::levelMeter::NORDIC);
+  YSE_ASSERT_ENUM(YSE_DSP_BALLISTICS_EBU, YSE::DSP::levelMeter::EBU);
+  // YseDspScopeMode <-> scopeCapture::MODE
+  YSE_ASSERT_ENUM(YSE_DSP_SCOPE_WAVEFORM, YSE::DSP::scopeCapture::WAVEFORM);
+  YSE_ASSERT_ENUM(YSE_DSP_SCOPE_XY, YSE::DSP::scopeCapture::XY);
+  // YseDspScopeTrigger <-> scopeCapture::TRIGGER
+  YSE_ASSERT_ENUM(YSE_DSP_SCOPE_TRIGGER_NONE, YSE::DSP::scopeCapture::NONE);
+  YSE_ASSERT_ENUM(YSE_DSP_SCOPE_TRIGGER_UP, YSE::DSP::scopeCapture::UP);
+  YSE_ASSERT_ENUM(YSE_DSP_SCOPE_TRIGGER_DOWN, YSE::DSP::scopeCapture::DOWN);
+  // YseDspSpectrumMode <-> spectrumAnalyzer::MODE
+  YSE_ASSERT_ENUM(YSE_DSP_SPECTRUM_AMPLITUDE, YSE::DSP::spectrumAnalyzer::AMPLITUDE);
+  YSE_ASSERT_ENUM(YSE_DSP_SPECTRUM_PHASE, YSE::DSP::spectrumAnalyzer::PHASE);
+  // YseDspPlotScale <-> plotData::SCALE
+  YSE_ASSERT_ENUM(YSE_DSP_PLOT_LINEAR, YSE::DSP::plotData::LINEAR);
+  YSE_ASSERT_ENUM(YSE_DSP_PLOT_LOG, YSE::DSP::plotData::LOG);
+  // YseDspPlotFilter <-> plotData::FILTER
+  YSE_ASSERT_ENUM(YSE_DSP_PLOT_FILTER_NONE, YSE::DSP::plotData::NONE);
+  YSE_ASSERT_ENUM(YSE_DSP_PLOT_FILTER_ATODB, YSE::DSP::plotData::ATODB);
 
 #undef YSE_ASSERT_ENUM_COUNT
 #undef YSE_ASSERT_ENUM

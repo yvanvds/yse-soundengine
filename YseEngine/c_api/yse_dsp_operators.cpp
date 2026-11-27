@@ -21,6 +21,7 @@ namespace {
   using yse_c::processor::drive;
   using yse_c::processor::emit;
   using yse_c::processor::handle;
+  using yse_c::processor::in_enum;
   using yse_c::processor::make;
   using yse_c::processor::object;
   using yse_c::processor::one_signal;
@@ -75,11 +76,6 @@ namespace {
   // engine's 32-bit Int.
   static_assert(sizeof(unsigned int) == sizeof(Int) && sizeof(int) == sizeof(Int),
                 "yse_dsp_operators.h: a bit mask must be 32 bits");
-
-  // Whether an enum crossing the ABI is one of the values 0 .. last.
-  bool in_enum(int value, int last) noexcept {
-    return value >= 0 && value <= last;
-  }
 
   // An enum crossing the ABI as the engine enum E, if it is within 0 .. last.
   template <typename E> bool to_enum(int value, int last, E& out) noexcept {

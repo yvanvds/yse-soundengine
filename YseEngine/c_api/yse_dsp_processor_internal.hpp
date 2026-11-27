@@ -140,6 +140,24 @@ namespace yse_c {
       return 1;
     }
 
+    // Whether an enum crossing the ABI is one of the values 0 .. last. Enum
+    // setters ignore anything else. Shared by every category file with an
+    // enum setter.
+    inline bool in_enum(int value, int last) noexcept {
+      return value >= 0 && value <= last;
+    }
+
+    // A list setter: refuses (0) a handle that is not an H or a NULL array
+    // that holds values, else runs `apply(object)` and returns 1. Shared by
+    // every category file with a list setter.
+    template <typename H, typename T, typename F>
+    int set_list(YseDspProcessor* p, const T* values, unsigned int count, F&& apply) {
+      auto* o = object<H>(p);
+      if (o == nullptr || (values == nullptr && count > 0)) return 0;
+      apply(*o);
+      return 1;
+    }
+
     // Allocate an H and return it as the opaque handle; NULL with
     // yse_last_error() set if construction threw. Constructors are control-
     // thread calls: they allocate.

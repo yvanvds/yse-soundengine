@@ -125,6 +125,7 @@ set(YSE_TEST_SOURCES
   dsp/test_c_api_dsp_envelopes.cpp
   dsp/test_c_api_dsp_phasor_toolkit.cpp
   dsp/test_c_api_dsp_operators.cpp
+  dsp/test_c_api_dsp_analysis.cpp
   dsp/test_reson.cpp
   dsp/test_state_variable_filter.cpp
   dsp/test_biquad_coefficients.cpp

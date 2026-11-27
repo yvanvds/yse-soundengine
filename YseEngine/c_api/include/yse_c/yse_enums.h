@@ -422,6 +422,75 @@ typedef enum YseDspTrigFunction {
   YSE_DSP_TRIG_ATANH = 11 /**< Hyperbolic arc-tangent, input clamped inside -1 .. 1. */
 } YseDspTrigFunction;
 
+/** Mirrors YSE::DSP::movingAverage::MODE (analysis/movingAverage.hpp) —
+   what is averaged (issue #1301). */
+typedef enum YseDspAverageMode {
+  YSE_DSP_AVERAGE_BIPOLAR = 0, /**< The samples themselves (the default). */
+  YSE_DSP_AVERAGE_ABSOLUTE = 1, /**< Their absolute values. */
+  YSE_DSP_AVERAGE_RMS = 2 /**< The root mean square. */
+} YseDspAverageMode;
+
+/** Mirrors YSE::DSP::sampleCapture::MODE (analysis/sampleCapture.hpp) —
+   which samples a full store keeps (issue #1301). */
+typedef enum YseDspCaptureMode {
+  YSE_DSP_CAPTURE_LAST = 0, /**< The most recent ones (the default). */
+  YSE_DSP_CAPTURE_FIRST = 1 /**< The first ones, until cleared. */
+} YseDspCaptureMode;
+
+/** Mirrors YSE::DSP::levelMeter::DETECTOR (analysis/levelMeter.hpp) — what
+   one window is worth (issue #1301). */
+typedef enum YseDspLevelDetector {
+  YSE_DSP_LEVEL_PEAK = 0, /**< The largest absolute sample (the default). */
+  YSE_DSP_LEVEL_RMS = 1 /**< The root mean square of the window. */
+} YseDspLevelDetector;
+
+/** Mirrors YSE::DSP::levelMeter::BALLISTICS (analysis/levelMeter.hpp) — the
+   attack, release and offset of standard meters (issue #1301). */
+typedef enum YseDspLevelBallistics {
+  YSE_DSP_BALLISTICS_FAST = 0, /**< No ballistics, no offset. */
+  YSE_DSP_BALLISTICS_VU = 1, /**< 330 ms, 330 ms, -20 dB. */
+  YSE_DSP_BALLISTICS_DIN = 2, /**< DIN 45406 PPM: 10 ms, 1500 ms, -14 dB. */
+  YSE_DSP_BALLISTICS_BBC = 3, /**< BBC PPM: 10 ms, 3000 ms, -14 dB. */
+  YSE_DSP_BALLISTICS_NORDIC = 4, /**< Nordic PPM: 5 ms, 2000 ms, -14 dB. */
+  YSE_DSP_BALLISTICS_EBU = 5 /**< EBU digital: 0 ms, 1500 ms, -14 dB. */
+} YseDspLevelBallistics;
+
+/** Mirrors YSE::DSP::scopeCapture::MODE (analysis/scopeCapture.hpp) — what a
+   trace's points hold (issue #1301). */
+typedef enum YseDspScopeMode {
+  YSE_DSP_SCOPE_WAVEFORM = 0, /**< A point's minimum and maximum sample. */
+  YSE_DSP_SCOPE_XY = 1 /**< A point's first X sample and the Y beside it. */
+} YseDspScopeMode;
+
+/** Mirrors YSE::DSP::scopeCapture::TRIGGER (analysis/scopeCapture.hpp) — when
+   a new trace starts (issue #1301). */
+typedef enum YseDspScopeTrigger {
+  YSE_DSP_SCOPE_TRIGGER_NONE = 0, /**< At once (the default). */
+  YSE_DSP_SCOPE_TRIGGER_UP = 1, /**< On a rise through the level. */
+  YSE_DSP_SCOPE_TRIGGER_DOWN = 2 /**< On a fall through the level. */
+} YseDspScopeTrigger;
+
+/** Mirrors YSE::DSP::spectrumAnalyzer::MODE (analysis/spectrumAnalyzer.hpp)
+   — what a frame's bins hold (issue #1301). */
+typedef enum YseDspSpectrumMode {
+  YSE_DSP_SPECTRUM_AMPLITUDE = 0, /**< Each bin's magnitude (the default). */
+  YSE_DSP_SPECTRUM_PHASE = 1 /**< Each bin's phase in radians. */
+} YseDspSpectrumMode;
+
+/** Mirrors YSE::DSP::plotData::SCALE (analysis/plotData.hpp) — how a plot
+   axis is spread (issue #1301). */
+typedef enum YseDspPlotScale {
+  YSE_DSP_PLOT_LINEAR = 0, /**< Evenly (the default). */
+  YSE_DSP_PLOT_LOG = 1 /**< Logarithmically. */
+} YseDspPlotScale;
+
+/** Mirrors YSE::DSP::plotData::FILTER (analysis/plotData.hpp) — what a
+   subplot's published values are (issue #1301). */
+typedef enum YseDspPlotFilter {
+  YSE_DSP_PLOT_FILTER_NONE = 0, /**< The values as they are (the default). */
+  YSE_DSP_PLOT_FILTER_ATODB = 1 /**< AmpToDb of every value. */
+} YseDspPlotFilter;
+
 /** Mirrors YSE::DSP::MODULES::compressorDetector (compressor.hpp) — the
    level-detector mode. */
 typedef enum YseCompressorDetector {
